@@ -1,20 +1,24 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface TestData {
     url: string;
     username?: string;
     password?: string;
     prompt: string;
+    name?: string;
 }
 
 interface TestFormProps {
     onSubmit: (data: TestData) => void;
     isLoading: boolean;
+    initialData?: TestData;
+    showNameInput?: boolean;
 }
 
-export default function TestForm({ onSubmit, isLoading }: TestFormProps) {
+export default function TestForm({ onSubmit, isLoading, initialData, showNameInput }: TestFormProps) {
+    const [name, setName] = useState('');
     const [url, setUrl] = useState('https://www.saucedemo.com/');
     const [username, setUsername] = useState('standard_user');
     const [password, setPassword] = useState('secret_sauce');
@@ -23,9 +27,19 @@ Add the "Sauce Labs Backpack" to the cart.
 Click on the cart icon.
 Verify that "Sauce Labs Backpack" is in the cart.`);
 
+    useEffect(() => {
+        if (initialData) {
+            if (initialData.name) setName(initialData.name);
+            if (initialData.url) setUrl(initialData.url);
+            if (initialData.username) setUsername(initialData.username);
+            if (initialData.password) setPassword(initialData.password);
+            if (initialData.prompt) setPrompt(initialData.prompt);
+        }
+    }, [initialData]);
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSubmit({ url, username, password, prompt });
+        onSubmit({ name: showNameInput ? name : undefined, url, username, password, prompt });
     };
 
     return (
@@ -37,6 +51,23 @@ Verify that "Sauce Labs Backpack" is in the cart.`);
             </div>
 
             <div className="flex-1 space-y-5 overflow-y-auto">
+                {/* Test Case Name */}
+                {showNameInput && (
+                    <div className="space-y-2">
+                        <label className="block text-sm font-medium text-foreground">
+                            Test Case Name
+                        </label>
+                        <input
+                            type="text"
+                            required
+                            className="input-field"
+                            placeholder="e.g. Login and Add to Cart"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                        />
+                    </div>
+                )}
+
                 {/* Target URL */}
                 <div className="space-y-2">
                     <label className="block text-sm font-medium text-foreground">

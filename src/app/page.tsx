@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import TestForm from './components/TestForm';
 import ResultViewer from './components/ResultViewer';
 
@@ -30,6 +31,25 @@ export default function Home() {
     status: 'IDLE',
     events: [],
   });
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isAuthLoading && isLoggedIn) {
+      router.push('/projects');
+    }
+  }, [isLoggedIn, isAuthLoading, router]);
+
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (isLoggedIn) {
+    return null; // Will redirect
+  }
 
   const handleRunTest = async (data: TestData) => {
     // ... (keep existing handleRunTest logic)

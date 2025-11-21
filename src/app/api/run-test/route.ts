@@ -28,7 +28,7 @@ export async function POST(request: Request) {
             const log = (msg: string, type: 'info' | 'error' | 'success' = 'info') => {
                 if (!isClosed) {
                     try {
-                        controller.enqueue(encodeEvent({ type: 'log', message: msg, level: type }));
+                        controller.enqueue(encodeEvent({ type: 'log', data: { message: msg, level: type } }));
                     } catch (e) {
                         console.error('Failed to enqueue log:', e);
                     }
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
                 try {
                     const buffer = await p.screenshot({ type: 'jpeg', quality: 60 });
                     const base64 = `data:image/jpeg;base64,${buffer.toString('base64')}`;
-                    controller.enqueue(encodeEvent({ type: 'screenshot', src: base64, label }));
+                    controller.enqueue(encodeEvent({ type: 'screenshot', data: { src: base64, label } }));
                 } catch (e) {
                     const errMsg = e instanceof Error ? e.message : String(e);
                     log(`Failed to capture screenshot: ${errMsg}`, 'error');
