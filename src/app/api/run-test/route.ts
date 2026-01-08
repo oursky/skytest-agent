@@ -214,7 +214,7 @@ export async function POST(request: Request) {
                             stepAction += `\n(Credentials: ${config.username} / ${config.password})`;
                         }
 
-                        await agent.aiAction(stepAction);
+                        await agent.aiAct(stepAction);
                         await sendScreenshot(page, `[${niceName}] Step ${i + 1} Complete`, effectiveTargetId);
                     }
                 } else {
@@ -231,7 +231,7 @@ export async function POST(request: Request) {
                         fullPrompt += `\n\nCredentials if needed:\nUsername: ${config.username}\nPassword: ${config.password}`;
                     }
 
-                    await agent.aiAction(fullPrompt);
+                    await agent.aiAct(fullPrompt);
                 }
 
                 // Check if test was stopped before marking success
