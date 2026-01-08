@@ -54,8 +54,8 @@ export default function BrowserConfigCard({
                 )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="md:col-span-1">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
                     <label className="text-xs font-medium text-gray-500 uppercase">URL</label>
                     <input
                         type="url"
