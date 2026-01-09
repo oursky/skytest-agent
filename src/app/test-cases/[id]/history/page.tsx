@@ -158,7 +158,8 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
                                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${run.status === 'PASS' ? 'bg-green-100 text-green-800' :
                                             run.status === 'FAIL' ? 'bg-red-100 text-red-800' :
                                                 run.status === 'CANCELLED' ? 'bg-gray-100 text-gray-800' :
-                                                    'bg-yellow-100 text-yellow-800'
+                                                    run.status === 'RUNNING' ? 'bg-blue-100 text-blue-800' :
+                                                        'bg-yellow-100 text-yellow-800'
                                             }`}>
                                             {run.status}
                                         </span>
@@ -190,8 +191,8 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
                                             onClick={() => setDeleteModal({ isOpen: true, runId: run.id, status: run.status })}
                                             disabled={['RUNNING', 'QUEUED'].includes(run.status)}
                                             className={`p-2 transition-colors ${['RUNNING', 'QUEUED'].includes(run.status)
-                                                    ? 'text-gray-300 cursor-not-allowed'
-                                                    : 'text-gray-400 hover:text-red-600'
+                                                ? 'text-gray-300 cursor-not-allowed'
+                                                : 'text-gray-400 hover:text-red-600'
                                                 }`}
                                             title={['RUNNING', 'QUEUED'].includes(run.status) ? "Cannot delete while running or queued" : "Delete Run"}
                                             aria-label="Delete Run"

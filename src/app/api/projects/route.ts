@@ -23,10 +23,31 @@ export async function GET(request: Request) {
                 _count: {
                     select: { testCases: true },
                 },
+                testCases: {
+                    select: {
+                        testRuns: {
+                            where: {
+                                status: {
+                                    in: ['RUNNING', 'QUEUED']
+                                }
+                            },
+                            select: {
+                                id: true
+                            },
+                            take: 1
+                        }
+                    }
+                }
             },
         });
 
-        return NextResponse.json(projects);
+        const projectsWithStatus = projects.map(project => ({
+            ...project,
+            hasActiveRuns: project.testCases.some(tc => tc.testRuns.length > 0),
+            testCases: undefined // data cleanup, not needed in response
+        }));
+
+        return NextResponse.json(projectsWithStatus);
     } catch (error) {
         console.error('Failed to fetch projects:', error);
         return NextResponse.json({ error: 'Failed to fetch projects' }, { status: 500 });

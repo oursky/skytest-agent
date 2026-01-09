@@ -7,6 +7,7 @@ export interface Project {
     _count?: {
         testCases: number;
     };
+    hasActiveRuns?: boolean;
 }
 
 export interface TestCase {

@@ -208,8 +208,12 @@ export default function ProjectsPage() {
                                             e.preventDefault();
                                             setDeleteModal({ isOpen: true, projectId: project.id, projectName: project.name });
                                         }}
-                                        className="p-2 text-gray-400 hover:text-red-600 transition-colors"
-                                        title="Delete Project"
+                                        disabled={project.hasActiveRuns}
+                                        className={`p-2 transition-colors ${project.hasActiveRuns
+                                            ? "text-gray-300 cursor-not-allowed"
+                                            : "text-gray-400 hover:text-red-600"
+                                            }`}
+                                        title={project.hasActiveRuns ? "Cannot delete project with running tests" : "Delete Project"}
                                         aria-label="Delete Project"
                                     >
                                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

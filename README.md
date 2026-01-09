@@ -48,7 +48,7 @@ Edit `.env.local` with your credentials. See `.env.example` for details.
 ## Supported Models
 
 Recommended:
-- `bytedance-seed/seed-1.6-flash` - Fast and cost-effective
+- `bytedance-seed/seed-1.6` - Fast and cost-effective
 - `google/gemini-2.5-flash` - Reliable and affordable
 
 ## Troubleshooting
