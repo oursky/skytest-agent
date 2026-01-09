@@ -346,7 +346,7 @@ function RunPageContent() {
                     {testCaseId ? 'Run Test' : 'Start New Run'}
                 </h1>
                 <div className="flex items-center gap-4">
-                    {result.status === 'RUNNING' && (
+                    {['RUNNING', 'QUEUED'].includes(result.status) && (
                         <button
                             onClick={handleStopTest}
                             className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors flex items-center gap-2"
@@ -355,7 +355,7 @@ function RunPageContent() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
                             </svg>
-                            Stop Test
+                            {result.status === 'QUEUED' ? 'Quit Queue' : 'Stop Test'}
                         </button>
                     )}
                 </div>
