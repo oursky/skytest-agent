@@ -4,7 +4,7 @@ import { PlaywrightAgent } from '@midscene/web/playwright';
 import { TestStep, BrowserConfig } from '@/types';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300; // 5 minutes timeout
+export const maxDuration = 600; // 10 minutes timeout
 
 // Helper to encode data for streaming
 function encodeEvent(data: unknown) {
