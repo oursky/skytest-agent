@@ -28,7 +28,6 @@ export default function BrowserConfigCard({
     onTogglePassword,
     readOnly
 }: BrowserConfigCardProps) {
-    // Generate a deterministic color based on index
     const colors = ['bg-blue-500', 'bg-purple-500', 'bg-orange-500', 'bg-green-500', 'bg-pink-500'];
     const colorClass = colors[index % colors.length];
 

@@ -16,7 +16,6 @@ export default function ResultViewer({ result }: ResultViewerProps) {
     const [autoScroll, setAutoScroll] = useState(true);
     const [lightboxImage, setLightboxImage] = useState<{ src: string; label: string } | null>(null);
 
-    // Filtered events (if any needed, but user wants ALL)
     const events = result.events;
 
     useEffect(() => {
@@ -27,7 +26,7 @@ export default function ResultViewer({ result }: ResultViewerProps) {
                 behavior: 'smooth'
             });
         }
-    }, [events.length, autoScroll]); // Trigger on length change
+    }, [events.length, autoScroll]);
 
     const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
         const container = e.currentTarget;
@@ -52,7 +51,6 @@ export default function ResultViewer({ result }: ResultViewerProps) {
 
     return (
         <>
-            {/* Lightbox Modal */}
             {lightboxImage && (
                 <div
                     className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 animate-fade-in"
@@ -82,7 +80,6 @@ export default function ResultViewer({ result }: ResultViewerProps) {
             )}
 
             <div className="glass-panel h-full max-h-[800px] flex flex-col relative overflow-hidden">
-                {/* Auto-scroll indicator */}
                 {!autoScroll && result.status === 'RUNNING' && (
                     <button
                         onClick={triggerScrollBottom}
@@ -95,7 +92,6 @@ export default function ResultViewer({ result }: ResultViewerProps) {
                     </button>
                 )}
 
-                {/* Header */}
                 <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-white/50 backdrop-blur-sm z-10">
                     <div className="flex items-center gap-3">
                         <h2 className="text-lg font-semibold text-foreground">Test Results</h2>
@@ -103,7 +99,8 @@ export default function ResultViewer({ result }: ResultViewerProps) {
                             <div className={`status-badge ${result.status === 'PASS' ? 'status-badge-pass' :
                                 result.status === 'FAIL' ? 'status-badge-fail' :
                                     result.status === 'CANCELLED' ? 'status-badge-cancelled' :
-                                        'status-badge-running'
+                                        result.status === 'QUEUED' ? 'status-badge-queued' :
+                                            'status-badge-running'
                                 }`}>
                                 {result.status === 'PASS' && '✓'}
                                 {result.status === 'FAIL' && '✕'}
@@ -119,7 +116,6 @@ export default function ResultViewer({ result }: ResultViewerProps) {
                     </div>
                 </div>
 
-                {/* Single List View */}
                 <div
                     ref={scrollContainerRef}
                     onScroll={handleScroll}

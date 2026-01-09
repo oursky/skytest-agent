@@ -18,7 +18,6 @@ export default function AuthRedirect() {
                         endpoint: process.env.NEXT_PUBLIC_AUTHGEAR_ENDPOINT || "",
                     });
                 } catch (e) {
-                    // Ignore error if already configured
                 }
                 await authgear.finishAuthentication();
                 await refreshUser();

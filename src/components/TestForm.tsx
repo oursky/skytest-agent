@@ -32,7 +32,6 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
     const [name, setName] = useState(() => initialData?.name || '');
     const [prompt, setPrompt] = useState(() => initialData?.prompt || '');
 
-    // Mode
     const [mode, setMode] = useState<'simple' | 'builder'>(() => {
         if (!initialData) return 'simple';
         const hasSteps = initialData.steps && initialData.steps.length > 0;
@@ -40,13 +39,11 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
         return (hasSteps || hasBrowserConfig) ? 'builder' : 'simple';
     });
 
-    // Simple Mode Data
     const [simpleUrl, setSimpleUrl] = useState(() => initialData?.url || '');
     const [simpleUsername, setSimpleUsername] = useState(() => initialData?.username || '');
     const [simplePassword, setSimplePassword] = useState(() => initialData?.password || '');
     const [showSimplePassword, setShowSimplePassword] = useState(false);
 
-    // Builder Mode Data
     const [browsers, setBrowsers] = useState<BrowserEntry[]>(() => {
         if (initialData?.browserConfig) {
             return Object.entries(initialData.browserConfig).map(([id, config]) => ({ id, config }));
@@ -64,7 +61,6 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
     const [steps, setSteps] = useState<TestStep[]>(() => initialData?.steps || []);
     const [showPasswordMap, setShowPasswordMap] = useState<Record<string, boolean>>({});
 
-    // Update state when initialData changes
     useEffect(() => {
         if (initialData) {
             if (initialData.name) setName(initialData.name);
@@ -160,12 +156,10 @@ Verify that "Sauce Labs Backpack" is in the cart.`);
 
     return (
         <form onSubmit={handleSubmit} className="glass-panel h-[800px] flex flex-col">
-            {/* Header */}
             <div className={`p-6 ${!readOnly ? 'pb-4 border-b border-gray-200' : 'pb-6'}`}>
                 <h2 className="text-xl font-semibold text-foreground">Test Configuration</h2>
                 {!readOnly && (
                     <div className="flex justify-between items-center mt-4">
-                        {/* Mode Toggle */}
                         <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
                             <button
                                 type="button"
@@ -204,7 +198,6 @@ Verify that "Sauce Labs Backpack" is in the cart.`);
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-8">
-                {/* Common: Test Case Name */}
                 {showNameInput && (
                     <div className="space-y-2">
                         <label className="block text-sm font-medium text-foreground">
@@ -249,7 +242,6 @@ Verify that "Sauce Labs Backpack" is in the cart.`);
                 )}
             </div>
 
-            {/* Submit Button */}
             {!readOnly && (
                 <div className="p-6 pt-4 border-t border-gray-200 bg-white rounded-b-xl">
                     <button

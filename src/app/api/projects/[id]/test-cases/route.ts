@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
@@ -34,8 +36,6 @@ export async function POST(
         const body = await request.json();
         const { name, url, prompt, steps, browserConfig, username, password } = body;
 
-        // Validation: Name and URL are required.
-        // Prompt is required ONLY if steps are missing/empty.
         const hasSteps = steps && Array.isArray(steps) && steps.length > 0;
         const hasBrowserConfig = browserConfig && Object.keys(browserConfig).length > 0;
 

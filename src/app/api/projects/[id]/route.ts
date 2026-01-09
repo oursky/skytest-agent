@@ -60,6 +60,26 @@ export async function DELETE(
 ) {
     try {
         const { id } = await params;
+
+        // Check for active runs
+        const activeRuns = await prisma.testRun.findFirst({
+            where: {
+                testCase: {
+                    projectId: id
+                },
+                status: {
+                    in: ['RUNNING', 'QUEUED']
+                }
+            }
+        });
+
+        if (activeRuns) {
+            return NextResponse.json(
+                { error: 'Cannot delete project while tests are running or queued' },
+                { status: 400 }
+            );
+        }
+
         await prisma.project.delete({
             where: { id },
         });

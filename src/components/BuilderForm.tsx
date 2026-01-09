@@ -43,7 +43,6 @@ export default function BuilderForm({
     setShowPasswordMap,
     readOnly
 }: BuilderFormProps) {
-    // DnD Sensors
     const sensors = useSensors(
         useSensor(PointerSensor),
         useSensor(KeyboardSensor, {
@@ -125,7 +124,6 @@ export default function BuilderForm({
 
     return (
         <div className="space-y-8 animate-fade-in">
-            {/* Browser Configurations */}
             <div className="space-y-4">
                 <div className="flex justify-between items-center">
                     <label className="block text-sm font-medium text-foreground">Browser Configurations</label>
@@ -161,7 +159,6 @@ export default function BuilderForm({
                 )}
             </div>
 
-            {/* Steps Builder */}
             <div className="space-y-4">
                 <div className="flex justify-between items-center">
                     <label className="block text-sm font-medium text-foreground">Test Steps</label>

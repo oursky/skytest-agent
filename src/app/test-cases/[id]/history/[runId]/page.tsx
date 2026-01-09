@@ -71,7 +71,6 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                 const data = await response.json();
                 setTestCase(data);
                 setProjectId(data.projectId);
-                // Fetch project name
                 const projectResponse = await fetch(`/api/projects/${data.projectId}`);
                 if (projectResponse.ok) {
                     const projectData = await projectResponse.json();
@@ -116,11 +115,9 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 
     const events = testRun.result ? JSON.parse(testRun.result) : [];
 
-    // Use saved configuration snapshot if available, otherwise fall back to current test case
     const testData = (() => {
         if (testRun.configurationSnapshot) {
             try {
-                // Parse the saved configuration from the test run
                 const savedConfig = JSON.parse(testRun.configurationSnapshot);
                 return {
                     name: savedConfig.name,
@@ -133,11 +130,9 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                 };
             } catch (error) {
                 console.error("Failed to parse configuration snapshot", error);
-                // Fall back to current test case if parsing fails
             }
         }
 
-        // Fall back to current test case data
         return testCase ? {
             name: testCase.name,
             url: testCase.url,
@@ -161,20 +156,18 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                 <h1 className="text-3xl font-bold text-gray-900 mb-8">Test Run Details</h1>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-                    {/* Test Form Snapshot (Read Only) */}
                     <div>
                         {testData && (
                             <TestForm
                                 onSubmit={() => { }}
                                 isLoading={false}
                                 initialData={testData}
-                                showNameInput={false} // Hide name input in details view as it's in header/breadcrumbs
+                                showNameInput={false}
                                 readOnly={true}
                             />
                         )}
                     </div>
 
-                    {/* Test Results */}
                     <div className="h-full min-h-[500px]">
                         <ResultViewer result={{ status: testRun.status, events, error: testRun.error || undefined }} />
                     </div>

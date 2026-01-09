@@ -25,7 +25,7 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
     const [projectId, setProjectId] = useState<string>("");
     const [projectName, setProjectName] = useState<string>("");
     const [isLoading, setIsLoading] = useState(true);
-    const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; runId: string }>({ isOpen: false, runId: "" });
+    const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; runId: string; status?: string }>({ isOpen: false, runId: "", status: "" });
 
     useEffect(() => {
         if (!isAuthLoading && !isLoggedIn) {
@@ -57,7 +57,6 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
                 const data = await response.json();
                 setTestCaseName(data.name);
                 setProjectId(data.projectId);
-                // Fetch project name
                 const projectResponse = await fetch(`/api/projects/${data.projectId}`);
                 if (projectResponse.ok) {
                     const projectData = await projectResponse.json();
@@ -89,6 +88,7 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
 
             if (response.ok) {
                 fetchHistory();
+                setDeleteModal({ isOpen: false, runId: "", status: "" });
             }
         } catch (error) {
             console.error("Failed to delete test run", error);
@@ -107,15 +107,22 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
         <main className="min-h-screen bg-gray-50 p-8">
             <Modal
                 isOpen={deleteModal.isOpen}
-                onClose={() => setDeleteModal({ isOpen: false, runId: "" })}
-                title="Delete Test Run"
+                onClose={() => setDeleteModal({ isOpen: false, runId: "", status: "" })}
+                title={['RUNNING', 'QUEUED'].includes(deleteModal.status || '') ? "Stop & Delete Test Run" : "Delete Test Run"}
                 onConfirm={handleDeleteRun}
-                confirmText="Delete"
+                confirmText={['RUNNING', 'QUEUED'].includes(deleteModal.status || '') ? "Stop & Delete" : "Delete"}
                 confirmVariant="danger"
             >
-                <p className="text-gray-700">
-                    Are you sure you want to delete this test run? This action cannot be undone.
-                </p>
+                <div className="text-gray-700">
+                    {['RUNNING', 'QUEUED'].includes(deleteModal.status || '') ? (
+                        <div className="space-y-2">
+                            <p className="font-semibold text-red-600">Warning: This test is currently running or queued.</p>
+                            <p>Deleting it will <strong>STOP</strong> the execution immediately and remove all records.</p>
+                        </div>
+                    ) : (
+                        <p>Are you sure you want to delete this test run? This action cannot be undone.</p>
+                    )}
+                </div>
             </Modal>
 
             <div className="max-w-5xl mx-auto">
@@ -151,7 +158,8 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
                                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${run.status === 'PASS' ? 'bg-green-100 text-green-800' :
                                             run.status === 'FAIL' ? 'bg-red-100 text-red-800' :
                                                 run.status === 'CANCELLED' ? 'bg-gray-100 text-gray-800' :
-                                                    'bg-yellow-100 text-yellow-800'
+                                                    run.status === 'RUNNING' ? 'bg-blue-100 text-blue-800' :
+                                                        'bg-yellow-100 text-yellow-800'
                                             }`}>
                                             {run.status}
                                         </span>
@@ -160,16 +168,33 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
                                         {formatDateTime(run.createdAt)}
                                     </div>
                                     <div className="col-span-4 flex justify-end gap-2">
-                                        <Link
-                                            href={`/test-cases/${id}/history/${run.id}`}
-                                            className="px-3 py-1.5 text-primary hover:text-primary/80 text-sm font-medium hover:bg-blue-50 rounded transition-colors"
-                                        >
-                                            View Details
-                                        </Link>
+                                        {['RUNNING', 'QUEUED'].includes(run.status) ? (
+                                            <Link
+                                                href={`/run?runId=${run.id}&testCaseId=${id}`}
+                                                className="px-3 py-1.5 text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 text-sm font-medium rounded transition-colors flex items-center gap-1 animate-pulse"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                </svg>
+                                                View Live
+                                            </Link>
+                                        ) : (
+                                            <Link
+                                                href={`/test-cases/${id}/history/${run.id}`}
+                                                className="px-3 py-1.5 text-primary hover:text-primary/80 text-sm font-medium hover:bg-blue-50 rounded transition-colors"
+                                            >
+                                                View Details
+                                            </Link>
+                                        )}
                                         <button
-                                            onClick={() => setDeleteModal({ isOpen: true, runId: run.id })}
-                                            className="p-2 text-gray-400 hover:text-red-600 transition-colors"
-                                            title="Delete Run"
+                                            onClick={() => setDeleteModal({ isOpen: true, runId: run.id, status: run.status })}
+                                            disabled={['RUNNING', 'QUEUED'].includes(run.status)}
+                                            className={`p-2 transition-colors ${['RUNNING', 'QUEUED'].includes(run.status)
+                                                ? 'text-gray-300 cursor-not-allowed'
+                                                : 'text-gray-400 hover:text-red-600'
+                                                }`}
+                                            title={['RUNNING', 'QUEUED'].includes(run.status) ? "Cannot delete while running or queued" : "Delete Run"}
                                             aria-label="Delete Run"
                                         >
                                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

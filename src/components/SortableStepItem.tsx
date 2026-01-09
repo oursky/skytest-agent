@@ -40,7 +40,6 @@ export default function SortableStepItem({ step, index, browsers, onRemove, onCh
         opacity: isDragging ? 0.8 : 1,
     };
 
-    // Find which index browser uses this target to get color
     const browserIndex = browsers.findIndex(b => b.id === step.target);
     const safeIndex = browserIndex >= 0 ? browserIndex : 0;
     const colorsLight = ['bg-blue-50', 'bg-purple-50', 'bg-orange-50', 'bg-green-50', 'bg-pink-50'];

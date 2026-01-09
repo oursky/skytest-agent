@@ -23,16 +23,14 @@ export default function Home() {
   }
 
   if (isLoggedIn) {
-    return null; // Will redirect
+    return null;
   }
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50">
-      {/* Hero Section */}
       <section className="relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-6 py-20 sm:py-32">
           <div className="text-center">
-            {/* Logo */}
             <div className="flex justify-center mb-8">
               <div className="w-20 h-20 bg-gradient-to-br from-primary to-purple-600 rounded-2xl flex items-center justify-center shadow-xl">
                 <svg className="w-12 h-12 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -41,7 +39,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Headline */}
             <h1 className="text-5xl sm:text-6xl font-bold text-gray-900 mb-6">
               Test Your Web Apps with
               <span className="block bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent mt-2">
@@ -49,13 +46,11 @@ export default function Home() {
               </span>
             </h1>
 
-            {/* Subheadline */}
             <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-10 leading-relaxed">
               Web AutoTest Agent uses AI to execute end-to-end tests in plain English.
               No code, no complex setup—just describe what you want to test.
             </p>
 
-            {/* CTA Button */}
             <button
               onClick={() => login()}
               className="px-8 py-4 text-lg font-semibold text-white bg-gradient-to-r from-primary to-purple-600 rounded-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
@@ -63,14 +58,12 @@ export default function Home() {
               Get Started Free
             </button>
 
-            {/* Trust Badge */}
             <p className="text-sm text-gray-500 mt-4">
               Powered by Midscene.js & Playwright
             </p>
           </div>
         </div>
 
-        {/* Decorative Elements */}
         <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10">
           <div className="absolute top-20 left-10 w-72 h-72 bg-purple-200 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-blob"></div>
           <div className="absolute top-40 right-10 w-72 h-72 bg-blue-200 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-blob animation-delay-2000"></div>
@@ -78,7 +71,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Features Section */}
       <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
@@ -91,7 +83,6 @@ export default function Home() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
-            {/* Feature 1 */}
             <div className="p-8 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200">
               <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center mb-4">
                 <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -104,7 +95,6 @@ export default function Home() {
               </p>
             </div>
 
-            {/* Feature 2 */}
             <div className="p-8 rounded-xl bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200">
               <div className="w-12 h-12 bg-purple-600 rounded-lg flex items-center justify-center mb-4">
                 <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -117,7 +107,6 @@ export default function Home() {
               </p>
             </div>
 
-            {/* Feature 3 */}
             <div className="p-8 rounded-xl bg-gradient-to-br from-green-50 to-green-100 border border-green-200">
               <div className="w-12 h-12 bg-green-600 rounded-lg flex items-center justify-center mb-4">
                 <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -133,7 +122,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* How It Works Section */}
       <section className="py-20 bg-gray-50">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
@@ -146,7 +134,6 @@ export default function Home() {
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {/* Step 1 */}
             <div className="text-center">
               <div className="w-16 h-16 bg-primary text-white rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-4 shadow-lg">
                 1
@@ -157,7 +144,6 @@ export default function Home() {
               </p>
             </div>
 
-            {/* Step 2 */}
             <div className="text-center">
               <div className="w-16 h-16 bg-primary text-white rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-4 shadow-lg">
                 2
@@ -168,7 +154,6 @@ export default function Home() {
               </p>
             </div>
 
-            {/* Step 3 */}
             <div className="text-center">
               <div className="w-16 h-16 bg-primary text-white rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-4 shadow-lg">
                 3
@@ -179,7 +164,6 @@ export default function Home() {
               </p>
             </div>
 
-            {/* Step 4 */}
             <div className="text-center">
               <div className="w-16 h-16 bg-primary text-white rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-4 shadow-lg">
                 4
@@ -193,7 +177,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Example Section */}
       <section className="py-20 bg-white">
         <div className="max-w-5xl mx-auto px-6">
           <div className="text-center mb-12">
@@ -240,7 +223,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* CTA Section */}
       <section className="py-20 bg-gradient-to-r from-primary to-purple-600">
         <div className="max-w-4xl mx-auto px-6 text-center">
           <h2 className="text-3xl sm:text-4xl font-bold text-white mb-6">
@@ -258,7 +240,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Footer */}
       <footer className="bg-gray-900 text-gray-400 py-12">
         <div className="max-w-7xl mx-auto px-6 text-center">
           <p className="text-sm">

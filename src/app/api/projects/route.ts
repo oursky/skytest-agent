@@ -23,10 +23,31 @@ export async function GET(request: Request) {
                 _count: {
                     select: { testCases: true },
                 },
+                testCases: {
+                    select: {
+                        testRuns: {
+                            where: {
+                                status: {
+                                    in: ['RUNNING', 'QUEUED']
+                                }
+                            },
+                            select: {
+                                id: true
+                            },
+                            take: 1
+                        }
+                    }
+                }
             },
         });
 
-        return NextResponse.json(projects);
+        const projectsWithStatus = projects.map(project => ({
+            ...project,
+            hasActiveRuns: project.testCases.some(tc => tc.testRuns.length > 0),
+            testCases: undefined // data cleanup, not needed in response
+        }));
+
+        return NextResponse.json(projectsWithStatus);
     } catch (error) {
         console.error('Failed to fetch projects:', error);
         return NextResponse.json({ error: 'Failed to fetch projects' }, { status: 500 });
@@ -46,7 +67,6 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Valid User ID is required' }, { status: 400 });
         }
 
-        // Ensure user exists
         let user = await prisma.user.findUnique({
             where: { authId: userId },
         });
