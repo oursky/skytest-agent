@@ -3,6 +3,7 @@ import { runTest } from './test-runner';
 import { TestEvent, RunTestOptions } from '@/types';
 import { config as appConfig } from '@/config/app';
 import { QueueError, DatabaseError, getErrorMessage } from './errors';
+import { UsageService } from './usage';
 
 interface Job {
     runId: string;
@@ -10,10 +11,13 @@ interface Job {
     controller: AbortController;
 }
 
+type CleanupFn = () => Promise<void>;
+
 export class TestQueue {
     private static instance: TestQueue;
     private queue: Job[] = [];
     private running: Map<string, Job> = new Map();
+    private cleanupFns: Map<string, CleanupFn> = new Map();
     private concurrency = appConfig.queue.concurrency;
     private logs: Map<string, TestEvent[]> = new Map();
 
@@ -46,11 +50,27 @@ export class TestQueue {
         this.processNext();
     }
 
+    public registerCleanup(runId: string, cleanup: CleanupFn) {
+        this.cleanupFns.set(runId, cleanup);
+    }
+
     public async cancel(runId: string) {
         if (this.running.has(runId)) {
             const job = this.running.get(runId)!;
 
             job.controller.abort();
+
+            // Force close browser to stop running agent
+            const cleanup = this.cleanupFns.get(runId);
+            if (cleanup) {
+                try {
+                    await cleanup();
+                } catch (e) {
+                    console.error(`Failed to cleanup ${runId}`, e);
+                }
+                this.cleanupFns.delete(runId);
+            }
+
             this.running.delete(runId);
             // Free up slot immediately for next job
             this.processNext();
@@ -131,6 +151,7 @@ export class TestQueue {
     private async executeJob(job: Job) {
         const { runId, config, controller } = job;
         const logBuffer = this.logs.get(runId) || [];
+        const userId = config.userId;
 
         try {
             const result = await runTest({
@@ -139,6 +160,9 @@ export class TestQueue {
                 signal: controller.signal,
                 onEvent: (event) => {
                     logBuffer.push(event);
+                },
+                onCleanup: (cleanup) => {
+                    this.registerCleanup(runId, cleanup);
                 }
             });
 
@@ -152,6 +176,20 @@ export class TestQueue {
                     completedAt: new Date()
                 }
             });
+
+            console.log(`[Usage] Test completed - runId: ${runId}, userId: ${userId}, actionCount: ${result.actionCount}`);
+            if (userId && result.actionCount && result.actionCount > 0) {
+                try {
+                    const description = await this.buildUsageDescription(runId);
+                    console.log(`[Usage] Recording ${result.actionCount} AI actions for: ${description}`);
+                    await UsageService.recordUsage(userId, result.actionCount, description, runId);
+                    console.log(`[Usage] Successfully recorded usage`);
+                } catch (err) {
+                    console.error(`[Usage] Failed to record usage:`, err);
+                }
+            } else {
+                console.log(`[Usage] Skipping recording - userId: ${!!userId}, actionCount: ${result.actionCount}`);
+            }
 
         } catch (err) {
             console.error(`Unexpected error in job ${runId}`, err);
@@ -169,12 +207,35 @@ export class TestQueue {
             }
         } finally {
             this.running.delete(runId);
+            this.cleanupFns.delete(runId);
             setTimeout(() => {
                 this.logs.delete(runId);
             }, appConfig.queue.logRetentionMs);
 
             this.processNext();
         }
+    }
+
+    private async buildUsageDescription(runId: string): Promise<string> {
+        const testRun = await prisma.testRun.findUnique({
+            where: { id: runId },
+            include: {
+                testCase: {
+                    include: {
+                        project: true
+                    }
+                }
+            }
+        });
+
+        if (!testRun?.testCase) {
+            return 'Test Run';
+        }
+
+        const projectName = testRun.testCase.project?.name || 'Unknown Project';
+        const testCaseName = testRun.testCase.name;
+
+        return `${projectName} - ${testCaseName}`;
     }
 }
 

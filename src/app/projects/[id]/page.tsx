@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, useCallback } from "react";
 import { useAuth } from "../../auth-provider";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -25,13 +25,24 @@ interface TestCase {
     testRuns: TestRun[];
 }
 
-export default function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
-    const { id } = use(params);
-    const { isLoggedIn, isLoading: isAuthLoading } = useAuth();
+interface ProjectPageProps {
+    params: Promise<{ id: string }>;
+}
+
+interface Project {
+    id: string;
+    name: string;
+}
+
+export default function ProjectPage({ params }: ProjectPageProps) {
+    const { user, isLoggedIn, isLoading: isAuthLoading, getAccessToken } = useAuth();
+    const resolvedParams = use(params);
+    const { id } = resolvedParams;
     const router = useRouter();
+    const [project, setProject] = useState<Project | null>(null);
     const [testCases, setTestCases] = useState<TestCase[]>([]);
-    const [projectName, setProjectName] = useState<string>("");
     const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; testCaseId: string; testCaseName: string }>({ isOpen: false, testCaseId: "", testCaseName: "" });
 
     useEffect(() => {
@@ -40,58 +51,69 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         }
     }, [isAuthLoading, isLoggedIn, router]);
 
-    useEffect(() => {
-        fetchTestCases();
-        fetchProjectName();
+    const fetchData = useCallback(async (silent = false) => {
+        if (!resolvedParams.id) return;
 
-        const onFocus = () => {
-            fetchTestCases();
-        };
-
-        window.addEventListener('focus', onFocus);
-
-        const intervalId = setInterval(fetchTestCases, 2000);
-
-        return () => {
-            window.removeEventListener('focus', onFocus);
-            clearInterval(intervalId);
-        };
-    }, [id]);
-
-    const fetchProjectName = async () => {
         try {
-            const response = await fetch(`/api/projects/${id}`);
-            if (response.ok) {
-                const data = await response.json();
-                setProjectName(data.name);
-            }
-        } catch (error) {
-            console.error("Failed to fetch project name", error);
-        }
-    };
+            if (!silent) setIsLoading(true);
+            const token = await getAccessToken();
+            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
 
-    const fetchTestCases = async () => {
-        try {
-            const response = await fetch(`/api/projects/${id}/test-cases`);
-            if (response.ok) {
-                const data = await response.json();
-                setTestCases(data);
+            const [projectRes, testCasesRes] = await Promise.all([
+                fetch(`/api/projects/${resolvedParams.id}`, { headers }),
+                fetch(`/api/projects/${resolvedParams.id}/test-cases`, { headers })
+            ]);
+
+            if (!projectRes.ok || !testCasesRes.ok) {
+                if (projectRes.status === 404) throw new Error("Project not found");
+                if (projectRes.status === 401) throw new Error("Unauthorized");
+                throw new Error("Failed to fetch project data");
             }
-        } catch (error) {
-            console.error("Failed to fetch test cases", error);
+
+            const projectData = await projectRes.json();
+            const testCasesData = await testCasesRes.json();
+
+            setProject(projectData);
+            setTestCases(testCasesData);
+            setError(null);
+        } catch (err: any) {
+            console.error("Error fetching project data:", err);
+            setError(err.message);
         } finally {
-            setIsLoading(false);
+            if (!silent) setIsLoading(false);
         }
-    };
+    }, [resolvedParams.id, getAccessToken]);
+
+    useEffect(() => {
+        if (isLoggedIn && !isAuthLoading) {
+            fetchData();
+
+            const onFocus = () => {
+                fetchData(true);
+            };
+
+            window.addEventListener('focus', onFocus);
+
+            const intervalId = setInterval(() => fetchData(true), 2000);
+
+            return () => {
+                window.removeEventListener('focus', onFocus);
+                clearInterval(intervalId);
+            };
+        }
+    }, [fetchData, isLoggedIn, isAuthLoading]);
 
     const handleDeleteTestCase = async () => {
         try {
+            const token = await getAccessToken();
             const response = await fetch(`/api/test-cases/${deleteModal.testCaseId}`, {
                 method: "DELETE",
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {}
             });
 
             if (response.ok) {
-                fetchTestCases();
+                setTestCases(prev => prev.filter(tc => tc.id !== deleteModal.testCaseId));
+                setDeleteModal({ isOpen: false, testCaseId: "", testCaseName: "" });
             }
         } catch (error) {
             console.error("Failed to delete test case", error);
@@ -122,7 +144,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             </Modal>
 
             <div className="max-w-5xl mx-auto">
-                <Breadcrumbs items={[{ label: projectName }]} />
+                <Breadcrumbs items={[{ label: project?.name || 'Project' }]} />
 
                 <div className="flex items-center justify-between mb-8">
                     <h1 className="text-3xl font-bold text-gray-900">Test Cases</h1>
@@ -245,8 +267,8 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                                                 onClick={() => setDeleteModal({ isOpen: true, testCaseId: testCase.id, testCaseName: testCase.name })}
                                                 disabled={testCase.testRuns[0] && ['RUNNING', 'QUEUED'].includes(testCase.testRuns[0].status)}
                                                 className={`p-2 rounded-md transition-colors inline-flex items-center justify-center ${testCase.testRuns[0] && ['RUNNING', 'QUEUED'].includes(testCase.testRuns[0].status)
-                                                        ? 'text-gray-300 cursor-not-allowed'
-                                                        : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
+                                                    ? 'text-gray-300 cursor-not-allowed'
+                                                    : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
                                                     }`}
                                                 title={testCase.testRuns[0] && ['RUNNING', 'QUEUED'].includes(testCase.testRuns[0].status) ? "Cannot delete while test is running or queued" : "Delete Test Case"}
                                                 aria-label="Delete Test Case"

@@ -1,9 +1,15 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { verifyAuth } from '@/lib/auth';
 
 export async function GET(request: Request) {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
+    const authPayload = await verifyAuth(request);
+    if (!authPayload) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Use the verified sub (userId) from the token
+    const userId = authPayload.sub;
 
     if (!userId) {
         return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
@@ -56,14 +62,20 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
     try {
+        const authPayload = await verifyAuth(request);
+        if (!authPayload) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const body = await request.json();
-        const { name, userId } = body;
+        const { name } = body;
+        const userId = authPayload.sub; // Validated userId
 
         if (!name || typeof name !== 'string' || !name.trim()) {
             return NextResponse.json({ error: 'Valid project name is required' }, { status: 400 });
         }
 
-        if (!userId || typeof userId !== 'string') {
+        if (!userId) {
             return NextResponse.json({ error: 'Valid User ID is required' }, { status: 400 });
         }
 

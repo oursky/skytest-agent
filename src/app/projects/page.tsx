@@ -11,9 +11,9 @@ import { useProjects } from "@/hooks/useProjects";
 import { Project } from "@/types";
 
 export default function ProjectsPage() {
-    const { user, isLoggedIn, isLoading: isAuthLoading } = useAuth();
+    const { user, isLoggedIn, isLoading: isAuthLoading, getAccessToken } = useAuth();
     const router = useRouter();
-    const { projects, loading: isLoading, error, addProject, removeProject, updateProject, refresh } = useProjects(user?.sub || '');
+    const { projects, loading: isLoading, error, addProject, removeProject, updateProject, refresh } = useProjects(user?.sub || '', getAccessToken);
     const [isCreating, setIsCreating] = useState(false);
     const [newProjectName, setNewProjectName] = useState("");
     const [createError, setCreateError] = useState("");
@@ -32,9 +32,13 @@ export default function ProjectsPage() {
         if (!newProjectName.trim() || !user?.sub) return;
 
         try {
+            const token = await getAccessToken();
             const response = await fetch("/api/projects", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(token ? { "Authorization": `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify({ name: newProjectName, userId: user.sub }),
             });
 
@@ -54,8 +58,12 @@ export default function ProjectsPage() {
 
     const handleDeleteProject = async () => {
         try {
+            const token = await getAccessToken();
             const response = await fetch(`/api/projects/${deleteModal.projectId}`, {
                 method: "DELETE",
+                headers: {
+                    ...(token ? { "Authorization": `Bearer ${token}` } : {})
+                }
             });
 
             if (response.ok) {
@@ -71,9 +79,13 @@ export default function ProjectsPage() {
         if (!editName.trim() || editName === editModal.currentName) return;
 
         try {
+            const token = await getAccessToken();
             const response = await fetch(`/api/projects/${editModal.projectId}`, {
                 method: "PUT",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(token ? { "Authorization": `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify({ name: editName }),
             });
 

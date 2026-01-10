@@ -7,12 +7,28 @@ datasource db {
 }
 
 model User {
-  id        String    @id @default(cuid())
-  authId    String    @unique
-  email     String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  projects  Project[]
+  id              String    @id @default(cuid())
+  authId          String    @unique
+  email           String?
+  openRouterKey   String?   // Encrypted OpenRouter API key
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  projects        Project[]
+  usageRecords    UsageRecord[]
+}
+
+model UsageRecord {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        String   // "TEST_RUN"
+  description String?  // e.g., "Project Name - Test Case Name"
+  aiActions   Int      // Exact number of AI actions executed
+  testRunId   String?  // Reference to test run for linking
+  testRun     TestRun? @relation(fields: [testRunId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
 }
 
 model Project {
@@ -53,4 +69,7 @@ model TestRun {
   startedAt               DateTime?
   completedAt             DateTime?
   createdAt               DateTime @default(now())
+  usageRecords            UsageRecord[]
+
+  @@index([testCaseId, createdAt(sort: Desc)])
 }

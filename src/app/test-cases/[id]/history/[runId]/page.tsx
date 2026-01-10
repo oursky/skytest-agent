@@ -32,7 +32,7 @@ interface TestCase {
 
 export default function RunDetailPage({ params }: { params: Promise<{ id: string; runId: string }> }) {
     const { id, runId } = use(params);
-    const { isLoggedIn, isLoading: isAuthLoading } = useAuth();
+    const { isLoggedIn, isLoading: isAuthLoading, getAccessToken } = useAuth();
     const router = useRouter();
     const [testRun, setTestRun] = useState<TestRun | null>(null);
     const [testCase, setTestCase] = useState<TestCase | null>(null);
@@ -49,6 +49,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 
     useEffect(() => {
         const loadData = async () => {
+            if (!isLoggedIn || isAuthLoading) return;
             setIsLoading(true);
             try {
                 await Promise.all([fetchRunDetails(), fetchTestCase()]);
@@ -62,16 +63,19 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
         if (runId && id) {
             loadData();
         }
-    }, [runId, id]);
+    }, [runId, id, isLoggedIn, isAuthLoading]);
 
     const fetchTestCase = async () => {
         try {
-            const response = await fetch(`/api/test-cases/${id}`);
+            const token = await getAccessToken();
+            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+            const response = await fetch(`/api/test-cases/${id}`, { headers });
             if (response.ok) {
                 const data = await response.json();
                 setTestCase(data);
                 setProjectId(data.projectId);
-                const projectResponse = await fetch(`/api/projects/${data.projectId}`);
+                const projectResponse = await fetch(`/api/projects/${data.projectId}`, { headers });
                 if (projectResponse.ok) {
                     const projectData = await projectResponse.json();
                     setProjectName(projectData.name);
@@ -84,12 +88,25 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 
     const fetchRunDetails = async () => {
         try {
-            const response = await fetch(`/api/test-cases/${id}/history`);
+            // Note: We are fetching all history and filtering... this is inefficient but follows existing pattern.
+            // Ideally we should have GET /api/test-runs/[runId]
+            const token = await getAccessToken();
+            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+            // Try fetching directly if possible, but existing code used history list.
+            // Let's use the individual endpoint if available, which we secured earlier: /api/test-runs/[id]
+            const response = await fetch(`/api/test-runs/${runId}`, { headers });
+
             if (response.ok) {
-                const data = await response.json();
-                const run = data.find((r: TestRun) => r.id === runId);
-                if (run) {
-                    setTestRun(run);
+                const run = await response.json();
+                setTestRun(run);
+            } else {
+                // Fallback to history if individual fetch fails (though it shouldn't as we secured it)
+                const historyResponse = await fetch(`/api/test-cases/${id}/history`, { headers });
+                if (historyResponse.ok) {
+                    const data = await historyResponse.json();
+                    const run = data.find((r: TestRun) => r.id === runId);
+                    if (run) setTestRun(run);
                 }
             }
         } catch (error) {

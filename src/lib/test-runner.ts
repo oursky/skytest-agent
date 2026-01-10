@@ -82,10 +82,15 @@ function getBrowserNiceName(browserId: string): string {
     return browserId === 'main' ? 'Browser' : browserId.replace('browser_', 'Browser ').toUpperCase();
 }
 
+interface ActionCounter {
+    count: number;
+}
+
 async function setupBrowserInstances(
     targetConfigs: Record<string, BrowserConfig>,
     onEvent: EventHandler,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    actionCounter?: ActionCounter
 ): Promise<BrowserInstances> {
     const log = createLogger(onEvent);
 
@@ -141,6 +146,10 @@ async function setupBrowserInstances(
 
         const agent = new PlaywrightAgent(page, {
             onTaskStartTip: async (tip) => {
+                if (actionCounter) {
+                    actionCounter.count++;
+                    console.log(`[Usage] Action counted: ${actionCounter.count} - ${tip}`);
+                }
                 log(`[${niceName}] 🤖 ${tip}`, 'info', browserId);
                 if (page && !page.isClosed()) {
                     await captureScreenshot(page, `[${niceName}] ${tip}`, onEvent, log, browserId);
@@ -264,17 +273,35 @@ async function cleanup(browser: Browser): Promise<void> {
 }
 
 export async function runTest(options: RunTestOptions): Promise<TestResult> {
-    const { config: testConfig, onEvent, signal, runId } = options;
-    const { url, username, password, prompt, steps, browserConfig } = testConfig;
+    const { config: testConfig, onEvent, signal, runId, onCleanup } = options;
+    const { url, username, password, prompt, steps, browserConfig, openRouterApiKey } = testConfig;
     const log = createLogger(onEvent);
+
+    if (!openRouterApiKey) {
+        return { status: 'FAIL', error: 'OpenRouter API key is required. Please configure it in API Key & Usage settings.' };
+    }
+
+    process.env.MIDSCENE_MODEL_API_KEY = openRouterApiKey;
+    process.env.MIDSCENE_PLANNING_MODEL_API_KEY = openRouterApiKey;
+    process.env.MIDSCENE_INSIGHT_MODEL_API_KEY = openRouterApiKey;
 
     const targetConfigs = validateConfiguration(url, prompt, steps, browserConfig);
     const hasSteps = steps && steps.length > 0;
 
     let browserInstances: BrowserInstances | null = null;
+    const actionCounter: ActionCounter = { count: 0 };
 
     try {
-        browserInstances = await setupBrowserInstances(targetConfigs, onEvent, signal);
+        browserInstances = await setupBrowserInstances(targetConfigs, onEvent, signal, actionCounter);
+
+        // Register cleanup so cancel can force-close browser
+        if (onCleanup && browserInstances) {
+            onCleanup(async () => {
+                if (browserInstances?.browser) {
+                    await browserInstances.browser.close().catch(() => {});
+                }
+            });
+        }
 
         log('Executing test...', 'info');
 
@@ -292,11 +319,11 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
 
         await captureFinalScreenshots(browserInstances, onEvent, signal);
 
-        return { status: 'PASS' };
+        return { status: 'PASS', actionCount: actionCounter.count };
 
     } catch (error: unknown) {
         if (signal?.aborted || (error instanceof Error && error.message === 'Aborted')) {
-            return { status: 'CANCELLED', error: 'Test was cancelled by user' };
+            return { status: 'CANCELLED', error: 'Test was cancelled by user', actionCount: actionCounter.count };
         }
 
         const msg = getErrorMessage(error);
@@ -306,7 +333,7 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
             await captureErrorScreenshots(browserInstances, onEvent);
         }
 
-        return { status: 'FAIL', error: msg };
+        return { status: 'FAIL', error: msg, actionCount: actionCounter.count };
 
     } finally {
         if (browserInstances) {

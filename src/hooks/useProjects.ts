@@ -2,7 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { Project } from '@/types';
 import { API_ENDPOINTS } from '@/lib/constants';
 
-export function useProjects(userId: string) {
+// We now pass both userId (optional, for cache key/legacy) and the async fetch token function
+// Or simpler: pass the `getAccessToken` function
+export function useProjects(userId: string, getAccessToken?: () => Promise<string | null>) {
     const [projects, setProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -12,7 +14,18 @@ export function useProjects(userId: string) {
 
         try {
             setLoading(true);
-            const response = await fetch(`${API_ENDPOINTS.PROJECTS}?userId=${userId}`);
+            const headers: HeadersInit = {};
+            if (getAccessToken) {
+                const token = await getAccessToken();
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+            }
+
+            const response = await fetch(`${API_ENDPOINTS.PROJECTS}?userId=${userId}`, {
+                headers
+            });
+
             if (!response.ok) {
                 throw new Error('Failed to fetch projects');
             }
@@ -25,7 +38,7 @@ export function useProjects(userId: string) {
         } finally {
             setLoading(false);
         }
-    }, [userId]);
+    }, [userId, getAccessToken]);
 
     useEffect(() => {
         fetchProjects();

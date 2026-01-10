@@ -3,12 +3,22 @@ import { NextResponse } from 'next/server';
 import { queue } from '@/lib/queue';
 import { prisma } from '@/lib/prisma';
 
+import { verifyAuth } from '@/lib/auth';
+
 export const dynamic = 'force-dynamic';
 
 export async function GET(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
+    const { searchParams } = new URL(request.url);
+    const token = searchParams.get('token');
+
+    const authPayload = await verifyAuth(request, token || undefined);
+    if (!authPayload) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { id } = await params;
 
     const testRun = await prisma.testRun.findUnique({

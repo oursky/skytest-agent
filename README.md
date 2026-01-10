@@ -1,13 +1,14 @@
 # Web AutoTest Agent
 
-AI-powered web testing application. Write test scenarios in plain English and watch the AI agent execute them automatically.
+AI-powered web testing. Write test scenarios in plain English and watch the AI execute them.
 
 ## Features
 
 - Natural language test descriptions
 - Real-time execution with live logs
+- Multi-browser parallel execution
 - Project and test case management
-- Test history tracking
+- User-provided API keys (BYOK)
 
 ## Tech Stack
 
@@ -20,18 +21,11 @@ AI-powered web testing application. Write test scenarios in plain English and wa
 ## Quick Start
 
 ```bash
-# Install
 npm install
 npx playwright install
-
-# Configure
 cp .env.example .env.local
 # Edit .env.local with your credentials
-
-# Setup database
 npx prisma db push
-
-# Run
 npm run dev
 ```
 
@@ -39,27 +33,18 @@ Open http://localhost:3000 and sign in.
 
 ## Configuration
 
-You need:
-- **AI API Key**: Get from [OpenRouter](https://openrouter.ai/)
-- **Authgear**: Create an app at [Authgear Portal](https://portal.authgear.com/)
+See `.env.example` for all available options. Required:
 
-Edit `.env.local` with your credentials. See `.env.example` for details.
+- `ENCRYPTION_SECRET` - Random 32+ char string for API key encryption
+- `NEXT_PUBLIC_AUTHGEAR_*` - Authgear credentials from [portal.authgear.com](https://portal.authgear.com/)
 
-## Supported Models
-
-Recommended:
-- `bytedance-seed/seed-1.6` - Fast and cost-effective
-- `google/gemini-2.5-flash` - Reliable and affordable
+Users provide their own [OpenRouter](https://openrouter.ai/) API keys via the app settings.
 
 ## Troubleshooting
 
-**Browsers not found**: Run `npx playwright install`
-
-**Database errors**: Run `rm -f dev.db && npx prisma db push`
-
-**Auth issues**: Check Authgear credentials and redirect URI
-
-**View database**: Run `npx prisma studio`
+- **Browsers not found**: `npx playwright install`
+- **Database errors**: `rm -f dev.db && npx prisma db push`
+- **View database**: `npx prisma studio`
 
 ## License
 

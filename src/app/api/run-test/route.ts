@@ -1,10 +1,18 @@
 import { NextResponse } from 'next/server';
 import { queue } from '@/lib/queue';
 import { prisma } from '@/lib/prisma';
+import { verifyAuth } from '@/lib/auth';
+import { decrypt } from '@/lib/crypto';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
+    const authPayload = await verifyAuth(request);
+    if (!authPayload || !authPayload.sub) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = authPayload.sub as string;
+
     const config = await request.json();
     const { url, prompt, steps, browserConfig, testCaseId } = config;
 
@@ -34,6 +42,28 @@ export async function POST(request: Request) {
             );
         }
 
+        const user = await prisma.user.findUnique({
+            where: { authId: userId },
+            select: { openRouterKey: true }
+        });
+
+        if (!user?.openRouterKey) {
+            return NextResponse.json(
+                { error: 'Please configure your OpenRouter API key' },
+                { status: 400 }
+            );
+        }
+
+        let openRouterApiKey: string;
+        try {
+            openRouterApiKey = decrypt(user.openRouterKey);
+        } catch (e) {
+            return NextResponse.json(
+                { error: 'Failed to decrypt API key. Please re-enter your API key.' },
+                { status: 400 }
+            );
+        }
+
         const testRun = await prisma.testRun.create({
             data: {
                 testCaseId,
@@ -42,7 +72,7 @@ export async function POST(request: Request) {
             }
         });
 
-        await queue.add(testRun.id, config);
+        await queue.add(testRun.id, { ...config, userId, openRouterApiKey });
 
         return NextResponse.json({ runId: testRun.id });
 

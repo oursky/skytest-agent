@@ -31,14 +31,18 @@ export interface RunTestOptions {
         prompt: string;
         steps?: TestStep[];
         browserConfig?: Record<string, BrowserConfig>;
+        userId?: string;
+        openRouterApiKey?: string;
     };
     onEvent: (event: TestEvent) => void;
     signal?: AbortSignal;
+    onCleanup?: (cleanup: () => Promise<void>) => void;
 }
 
 export interface TestResult {
     status: 'PASS' | 'FAIL' | 'CANCELLED';
     error?: string;
+    actionCount?: number;
 }
 
 import type { TestEvent } from './events';
