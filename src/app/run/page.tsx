@@ -29,7 +29,7 @@ interface TestResult {
 function RunPageContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
-    const { isLoggedIn, isLoading: isAuthLoading } = useAuth();
+    const { user, isLoggedIn, isLoading: isAuthLoading, getAccessToken } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
     const [result, setResult] = useState<TestResult>({
         status: 'IDLE',
@@ -95,7 +95,9 @@ function RunPageContent() {
 
     const fetchTestCase = async (id: string) => {
         try {
-            const response = await fetch(`/api/test-cases/${id}`);
+            const token = await getAccessToken();
+            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+            const response = await fetch(`/api/test-cases/${id}`, { headers });
             if (response.ok) {
                 const data = await response.json();
                 const hasSteps = data.steps && data.steps.length > 0;
@@ -135,13 +137,17 @@ function RunPageContent() {
 
     const fetchTestRun = async (id: string) => {
         try {
-            const response = await fetch(`/api/test-runs/${id}`);
+            const token = await getAccessToken();
+            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+            const response = await fetch(`/api/test-runs/${id}`, { headers });
             if (response.ok) {
                 const data = await response.json();
 
                 if (data.configurationSnapshot) {
                     try {
                         const config = JSON.parse(data.configurationSnapshot);
+                        // We avoid overwriting everything if we just wanted status, 
+                        // but here we seem to be reloading the form state.
                         setInitialData(config);
 
                         if (config.testCaseId) {
@@ -159,7 +165,9 @@ function RunPageContent() {
 
     const fetchProjectName = async (projId: string) => {
         try {
-            const response = await fetch(`/api/projects/${projId}`);
+            const token = await getAccessToken();
+            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+            const response = await fetch(`/api/projects/${projId}`, { headers });
             if (response.ok) {
                 const data = await response.json();
                 setProjectName(data.name);
@@ -169,7 +177,7 @@ function RunPageContent() {
         }
     };
 
-    const connectToRun = (runId: string) => {
+    const connectToRun = async (runId: string) => {
         if (eventSource) eventSource.close();
 
         // Don't eagerly set to RUNNING, as it might be QUEUED.
@@ -186,7 +194,9 @@ function RunPageContent() {
         }));
         setCurrentRunId(runId);
 
-        const es = new EventSource(`/api/test-runs/${runId}/events`);
+        const token = await getAccessToken();
+        const url = `/api/test-runs/${runId}/events${token ? `?token=${token}` : ''}`;
+        const es = new EventSource(url);
 
         es.onmessage = (event) => {
             try {
@@ -267,10 +277,16 @@ function RunPageContent() {
             const modeChanged = originalMode && currentMode !== originalMode;
             const shouldCreateNew = nameChanged || modeChanged;
 
+            const token = await getAccessToken();
+            const headers: HeadersInit = {
+                "Content-Type": "application/json",
+                ...(token ? { "Authorization": `Bearer ${token}` } : {})
+            };
+
             if (activeTestCaseId && !shouldCreateNew) {
                 await fetch(`/api/test-cases/${activeTestCaseId}`, {
                     method: "PUT",
-                    headers: { "Content-Type": "application/json" },
+                    headers,
                     body: JSON.stringify(data),
                 });
             } else if ((activeTestCaseId && shouldCreateNew) || (!activeTestCaseId && projectId && data.name)) {
@@ -278,7 +294,7 @@ function RunPageContent() {
                 if (effectiveProjectId) {
                     const response = await fetch(`/api/projects/${effectiveProjectId}/test-cases`, {
                         method: "POST",
-                        headers: { "Content-Type": "application/json" },
+                        headers,
                         body: JSON.stringify(data),
                     });
                     if (response.ok) {
@@ -307,9 +323,13 @@ function RunPageContent() {
         }
 
         try {
+            const token = await getAccessToken();
             const response = await fetch('/api/run-test', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify({ ...data, testCaseId: activeTestCaseId }),
             });
 

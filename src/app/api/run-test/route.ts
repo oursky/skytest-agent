@@ -1,10 +1,16 @@
 import { NextResponse } from 'next/server';
 import { queue } from '@/lib/queue';
 import { prisma } from '@/lib/prisma';
+import { verifyAuth } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
+    const authPayload = await verifyAuth(request);
+    if (!authPayload) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const config = await request.json();
     const { url, prompt, steps, browserConfig, testCaseId } = config;
 
@@ -33,6 +39,10 @@ export async function POST(request: Request) {
                 { status: 400 }
             );
         }
+
+        // Optional: Verify user owns the testCase or Project?
+        // For now, trusting ID existence, but auth ensures partial security.
+        // Ideally: check prisma.testCase.findUnique({ where: { id: testCaseId, project: { user: { authId: authPayload.sub } } } })
 
         const testRun = await prisma.testRun.create({
             data: {

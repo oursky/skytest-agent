@@ -12,7 +12,29 @@ model User {
   email     String?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
-  projects  Project[]
+  projects      Project[]
+  
+  // Credit System
+  role          String   @default("USER") // USER, ADMIN
+  credits       Int      @default(1000)   // Start with 1000 credits
+  
+  // Rate Limiting
+  usageDay      Int      @default(0)
+  usageWeek     Int      @default(0)
+  rateLimitDay  Int      @default(8000)
+  rateLimitWeek Int      @default(50000)
+  lastUsageDate DateTime @default(now())
+
+  transactions  Transaction[]
+}
+
+model Transaction {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount    Int      // Positive (add) or Negative (deduct)
+  type      String   // "USAGE", "ADMIN_ADJUSTMENT", "SIGNUP_BONUS"
+  createdAt DateTime @default(now())
 }
 
 model Project {

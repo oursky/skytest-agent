@@ -18,7 +18,7 @@ interface TestRun {
 
 export default function HistoryPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
-    const { isLoggedIn, isLoading: isAuthLoading } = useAuth();
+    const { isLoggedIn, isLoading: isAuthLoading, getAccessToken } = useAuth();
     const router = useRouter();
     const [testRuns, setTestRuns] = useState<TestRun[]>([]);
     const [testCaseName, setTestCaseName] = useState<string>("");
@@ -35,6 +35,7 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
 
     useEffect(() => {
         const loadData = async () => {
+            if (!isLoggedIn || isAuthLoading) return;
             setIsLoading(true);
             try {
                 await Promise.all([fetchHistory(), fetchTestCaseInfo()]);
@@ -48,16 +49,19 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
         if (id) {
             loadData();
         }
-    }, [id]);
+    }, [id, isLoggedIn, isAuthLoading]);
 
     const fetchTestCaseInfo = async () => {
         try {
-            const response = await fetch(`/api/test-cases/${id}`);
+            const token = await getAccessToken();
+            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+            const response = await fetch(`/api/test-cases/${id}`, { headers });
             if (response.ok) {
                 const data = await response.json();
                 setTestCaseName(data.name);
                 setProjectId(data.projectId);
-                const projectResponse = await fetch(`/api/projects/${data.projectId}`);
+                const projectResponse = await fetch(`/api/projects/${data.projectId}`, { headers });
                 if (projectResponse.ok) {
                     const projectData = await projectResponse.json();
                     setProjectName(projectData.name);
@@ -70,7 +74,9 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
 
     const fetchHistory = async () => {
         try {
-            const response = await fetch(`/api/test-cases/${id}/history`);
+            const token = await getAccessToken();
+            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+            const response = await fetch(`/api/test-cases/${id}/history`, { headers });
             if (response.ok) {
                 const data = await response.json();
                 setTestRuns(data);
@@ -82,8 +88,11 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
 
     const handleDeleteRun = async () => {
         try {
+            const token = await getAccessToken();
+            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
             const response = await fetch(`/api/test-runs/${deleteModal.runId}`, {
                 method: "DELETE",
+                headers
             });
 
             if (response.ok) {

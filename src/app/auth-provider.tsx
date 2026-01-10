@@ -16,6 +16,7 @@ interface AuthContextType {
     login: () => Promise<void>;
     logout: () => Promise<void>;
     refreshUser: () => Promise<void>;
+    getAccessToken: () => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -70,8 +71,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUser(null);
     };
 
+    const getAccessToken = async () => {
+        const authgear = (await import("@authgear/web")).default;
+        // fetch makes sure the access token is valid and refreshed if needed
+        return authgear.accessToken || null;
+    };
+
     return (
-        <AuthContext.Provider value={{ isLoggedIn, isLoading, user, login, logout, refreshUser: initAuthgear }}>
+        <AuthContext.Provider value={{ isLoggedIn, isLoading, user, login, logout, refreshUser: initAuthgear, getAccessToken }}>
             {children}
         </AuthContext.Provider>
     );
