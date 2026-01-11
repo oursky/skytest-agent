@@ -21,6 +21,8 @@ interface TestFormProps {
     initialData?: TestData;
     showNameInput?: boolean;
     readOnly?: boolean;
+    onExport?: () => void;
+    onImport?: () => void;
 }
 
 interface BrowserEntry {
@@ -28,7 +30,7 @@ interface BrowserEntry {
     config: BrowserConfig;
 }
 
-export default function TestForm({ onSubmit, isLoading, initialData, showNameInput, readOnly }: TestFormProps) {
+export default function TestForm({ onSubmit, isLoading, initialData, showNameInput, readOnly, onExport, onImport }: TestFormProps) {
     const [name, setName] = useState(() => initialData?.name || '');
     const [prompt, setPrompt] = useState(() => initialData?.prompt || '');
 
@@ -157,7 +159,39 @@ Verify that "Sauce Labs Backpack" is in the cart.`);
     return (
         <form onSubmit={handleSubmit} className="glass-panel h-[800px] flex flex-col">
             <div className={`p-6 ${!readOnly ? 'pb-4 border-b border-gray-200' : 'pb-6'}`}>
-                <h2 className="text-xl font-semibold text-foreground">Test Configuration</h2>
+                <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-semibold text-foreground">Test Configuration</h2>
+                    {(onExport || onImport) && (
+                        <div className="flex items-center gap-2">
+                            {onImport && (
+                                <button
+                                    type="button"
+                                    onClick={onImport}
+                                    className="px-3 py-1.5 bg-white text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-1.5 text-sm"
+                                    title="Import test case from markdown"
+                                >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                    </svg>
+                                    Import
+                                </button>
+                            )}
+                            {onExport && (
+                                <button
+                                    type="button"
+                                    onClick={onExport}
+                                    className="px-3 py-1.5 bg-white text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-1.5 text-sm"
+                                    title="Export test case to markdown"
+                                >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                    </svg>
+                                    Export
+                                </button>
+                            )}
+                        </div>
+                    )}
+                </div>
                 {!readOnly && (
                     <div className="flex justify-between items-center mt-4">
                         <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">

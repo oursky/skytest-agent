@@ -8,6 +8,7 @@ import TestForm from "@/components/TestForm";
 import ResultViewer from "@/components/ResultViewer";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import { TestStep, BrowserConfig, TestEvent } from "@/types";
+import { exportToMarkdown, parseMarkdown } from "@/utils/testCaseMarkdown";
 
 interface TestData {
     url: string;
@@ -50,6 +51,41 @@ function RunPageContent() {
     const [originalMode, setOriginalMode] = useState<'simple' | 'builder' | null>(null);
 
     const [activeRunId, setActiveRunId] = useState<string | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleExport = () => {
+        if (!initialData) return;
+        const markdown = exportToMarkdown(initialData);
+        const blob = new Blob([markdown], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${initialData.name || 'test-case'}.md`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
+    const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const content = e.target?.result as string;
+            const { data, errors } = parseMarkdown(content);
+            if (errors.length > 0) {
+                alert(`Import warnings: ${errors.join(', ')}`);
+            }
+            setInitialData(data);
+            if (data.name) {
+                setOriginalName(null); // Reset to allow creating new
+            }
+        };
+        reader.readAsText(file);
+        event.target.value = ''; // Reset for re-import
+    };
 
     useEffect(() => {
         if (!isAuthLoading && !isLoggedIn) {
@@ -71,11 +107,6 @@ function RunPageContent() {
             connectToRun(runId);
         }
     }, [runId]);
-
-    useEffect(() => {
-        if (currentRunId && activeRunId && currentRunId === activeRunId) {
-        }
-    }, [currentRunId, activeRunId]);
 
     useEffect(() => {
         return () => {
@@ -123,8 +154,6 @@ function RunPageContent() {
                     const latestRun = data.testRuns[0];
                     if (['RUNNING', 'QUEUED'].includes(latestRun.status)) {
                         setActiveRunId(latestRun.id);
-                        if (!currentRunId) {
-                        }
                     } else {
                         setActiveRunId(null);
                     }
@@ -146,8 +175,6 @@ function RunPageContent() {
                 if (data.configurationSnapshot) {
                     try {
                         const config = JSON.parse(data.configurationSnapshot);
-                        // We avoid overwriting everything if we just wanted status, 
-                        // but here we seem to be reloading the form state.
                         setInitialData(config);
 
                         if (config.testCaseId) {
@@ -180,13 +207,6 @@ function RunPageContent() {
     const connectToRun = async (runId: string) => {
         if (eventSource) eventSource.close();
 
-        // Don't eagerly set to RUNNING, as it might be QUEUED.
-        // If we are connecting, it means we want to see updates.
-        // We should let the event stream or initial fetch determine the status.
-        // But to avoid "IDLE" flash, we can set it to QUEUED if it's currently IDLE, 
-        // or just keep previous status if valid.
-        // Better: Fetch status first or assume QUEUED until proven RUNNING?
-        // Actually, preventing reset to 'RUNNING' is key.
         setResult(prev => ({
             ...prev,
             status: (prev.status === 'IDLE') ? 'QUEUED' : prev.status,
@@ -350,9 +370,6 @@ function RunPageContent() {
         }
     };
 
-
-
-
     if (isAuthLoading) return null;
 
     return (
@@ -364,11 +381,19 @@ function RunPageContent() {
                 ]} />
             )}
 
+            <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleImport}
+                accept=".md,.markdown,text/markdown"
+                className="hidden"
+            />
+
             <div className="flex items-center justify-between mb-8">
                 <h1 className="text-3xl font-bold text-gray-900">
                     {testCaseId ? 'Run Test' : 'Start New Run'}
                 </h1>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
                     {['RUNNING', 'QUEUED'].includes(result.status) && (
                         <button
                             onClick={handleStopTest}
@@ -407,6 +432,8 @@ function RunPageContent() {
                             initialData={initialData}
                             showNameInput={true}
                             readOnly={!!activeRunId}
+                            onExport={initialData ? handleExport : undefined}
+                            onImport={() => fileInputRef.current?.click()}
                         />
                     )}
                 </div>

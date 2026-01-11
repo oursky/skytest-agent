@@ -7,6 +7,7 @@ import ResultViewer from "@/components/ResultViewer";
 import TestForm from "@/components/TestForm";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import { formatDateTime } from "@/utils/dateFormatter";
+import { exportToMarkdown } from "@/utils/testCaseMarkdown";
 
 import { TestStep, BrowserConfig } from "@/types";
 
@@ -39,7 +40,6 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
     const [projectId, setProjectId] = useState<string>("");
     const [projectName, setProjectName] = useState<string>("");
     const [isLoading, setIsLoading] = useState(true);
-    const [showPassword, setShowPassword] = useState(false);
 
     useEffect(() => {
         if (!isAuthLoading && !isLoggedIn) {
@@ -88,20 +88,15 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 
     const fetchRunDetails = async () => {
         try {
-            // Note: We are fetching all history and filtering... this is inefficient but follows existing pattern.
-            // Ideally we should have GET /api/test-runs/[runId]
             const token = await getAccessToken();
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
 
-            // Try fetching directly if possible, but existing code used history list.
-            // Let's use the individual endpoint if available, which we secured earlier: /api/test-runs/[id]
             const response = await fetch(`/api/test-runs/${runId}`, { headers });
 
             if (response.ok) {
                 const run = await response.json();
                 setTestRun(run);
             } else {
-                // Fallback to history if individual fetch fails (though it shouldn't as we secured it)
                 const historyResponse = await fetch(`/api/test-cases/${id}/history`, { headers });
                 if (historyResponse.ok) {
                     const data = await historyResponse.json();
@@ -170,7 +165,9 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                     { label: `Run - ${formatDateTime(testRun.createdAt)}` }
                 ]} />
 
-                <h1 className="text-3xl font-bold text-gray-900 mb-8">Test Run Details</h1>
+                <div className="flex items-center justify-between mb-8">
+                    <h1 className="text-3xl font-bold text-gray-900">Test Run Details</h1>
+                </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
                     <div>
@@ -181,6 +178,18 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                                 initialData={testData}
                                 showNameInput={false}
                                 readOnly={true}
+                                onExport={testData ? () => {
+                                    const markdown = exportToMarkdown(testData);
+                                    const blob = new Blob([markdown], { type: 'text/markdown' });
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = `${testData.name || 'test-case'}-${formatDateTime(testRun.createdAt)}.md`;
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    document.body.removeChild(a);
+                                    URL.revokeObjectURL(url);
+                                } : undefined}
                             />
                         )}
                     </div>
