@@ -47,7 +47,7 @@ export default function Home() {
             </h1>
 
             <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-10 leading-relaxed">
-              Web AutoTest Agent uses AI to execute end-to-end tests in plain English.
+              SkyTest Agent uses AI to execute end-to-end tests in plain English.
               No code, no complex setup—just describe what you want to test.
             </p>
 
@@ -75,7 +75,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-              Why Choose Web AutoTest Agent?
+              Why Choose SkyTest Agent?
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
               Simplify your testing workflow with intelligent automation
@@ -243,7 +243,7 @@ export default function Home() {
       <footer className="bg-gray-900 text-gray-400 py-12">
         <div className="max-w-7xl mx-auto px-6 text-center">
           <p className="text-sm">
-            © {new Date().getFullYear()} Web AutoTest Agent. Powered by Midscene.js & Playwright.
+            © {new Date().getFullYear()} SkyTest Agent. Powered by Midscene.js & Playwright.
           </p>
         </div>
       </footer>

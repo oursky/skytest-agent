@@ -1,0 +1,45 @@
+# Dependencies & build artifacts
+node_modules/
+.next/
+dist/
+out/
+coverage/
+
+# Lock files (large, not useful for context)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Database files
+*.db
+*.db-journal
+
+# Midscene test outputs
+midscene_run/
+
+# Generated/build files
+tsconfig.tsbuildinfo
+*.generated.ts
+next-env.d.ts
+
+# Environment files (security)
+.env
+.env.local
+.env.production
+
+# Git internals
+.git/
+
+# IDE/Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*

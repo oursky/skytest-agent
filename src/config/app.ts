@@ -1,6 +1,6 @@
 export const config = {
     app: {
-        name: 'Web AutoTest Agent',
+        name: 'SkyTest Agent',
         locale: 'en-GB',
     },
 

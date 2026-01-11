@@ -1,4 +1,4 @@
-# Web AutoTest Agent
+# SkyTest Agent
 
 AI-powered web testing. Write test scenarios in plain English and watch the AI execute them.
 
