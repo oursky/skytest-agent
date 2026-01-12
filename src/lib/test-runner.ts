@@ -209,11 +209,10 @@ async function executePlaywrightCode(
     browserId?: string
 ): Promise<void> {
     const timeoutMs = 30000;
-    const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
+    const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
     const niceName = getBrowserNiceName(browserId || 'main');
 
     try {
-        // eslint-disable-next-line @typescript-eslint/no-implied-eval
         new AsyncFunction('page', code);
     } catch (syntaxError) {
         throw new PlaywrightCodeError(
@@ -244,7 +243,6 @@ async function executePlaywrightCode(
         });
 
         try {
-            // eslint-disable-next-line @typescript-eslint/no-implied-eval
             const fn = new AsyncFunction('page', statement);
             await Promise.race([fn(page), timeoutPromise]);
         } catch (error) {
@@ -409,11 +407,10 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
     try {
         browserInstances = await setupBrowserInstances(targetConfigs, onEvent, signal, actionCounter);
 
-        // Register cleanup so cancel can force-close browser
         if (onCleanup && browserInstances) {
             onCleanup(async () => {
                 if (browserInstances?.browser) {
-                    await browserInstances.browser.close().catch(() => {});
+                    await browserInstances.browser.close().catch(() => { });
                 }
             });
         }

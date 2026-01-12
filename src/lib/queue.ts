@@ -60,7 +60,6 @@ export class TestQueue {
 
             job.controller.abort();
 
-            // Force close browser to stop running agent
             const cleanup = this.cleanupFns.get(runId);
             if (cleanup) {
                 try {
@@ -72,7 +71,6 @@ export class TestQueue {
             }
 
             this.running.delete(runId);
-            // Free up slot immediately for next job
             this.processNext();
 
             const logBuffer = this.logs.get(runId) || [];

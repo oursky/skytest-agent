@@ -6,7 +6,6 @@ import { CSS } from '@dnd-kit/utilities';
 import dynamic from 'next/dynamic';
 import { useState } from 'react';
 
-// Dynamic import to avoid SSR issues with Monaco
 const PlaywrightCodeEditor = dynamic(
     () => import('./PlaywrightCodeEditor'),
     {
@@ -60,7 +59,6 @@ export default function SortableStepItem({ step, index, browsers, onRemove, onCh
         opacity: isDragging ? 0.5 : 1,
     };
 
-    // Hide Monaco editor for ALL items during any drag operation to prevent disposal errors
     const hideMonacoEditor = isAnyDragging && stepType === 'playwright-code';
 
     const browserIndex = browsers.findIndex(b => b.id === step.target);

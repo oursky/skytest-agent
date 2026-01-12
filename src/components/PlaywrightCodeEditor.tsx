@@ -127,9 +127,7 @@ export default function PlaywrightCodeEditor({
 
         if (onValidationChange) {
             try {
-                // Use AsyncFunction to allow await syntax
-                const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
-                // eslint-disable-next-line @typescript-eslint/no-implied-eval
+                const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
                 new AsyncFunction('page', code);
                 onValidationChange(true, []);
             } catch (e) {

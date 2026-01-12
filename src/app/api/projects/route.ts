@@ -8,7 +8,6 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Use the verified sub (userId) from the token
     const userId = authPayload.sub;
 
     if (!userId) {
@@ -50,7 +49,7 @@ export async function GET(request: Request) {
         const projectsWithStatus = projects.map(project => ({
             ...project,
             hasActiveRuns: project.testCases.some(tc => tc.testRuns.length > 0),
-            testCases: undefined // data cleanup, not needed in response
+            testCases: undefined
         }));
 
         return NextResponse.json(projectsWithStatus);
@@ -69,7 +68,7 @@ export async function POST(request: Request) {
 
         const body = await request.json();
         const { name } = body;
-        const userId = authPayload.sub; // Validated userId
+        const userId = authPayload.sub;
 
         if (!name || typeof name !== 'string' || !name.trim()) {
             return NextResponse.json({ error: 'Valid project name is required' }, { status: 400 });
