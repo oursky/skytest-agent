@@ -2,8 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { Project } from '@/types';
 import { API_ENDPOINTS } from '@/lib/constants';
 
-// We now pass both userId (optional, for cache key/legacy) and the async fetch token function
-// Or simpler: pass the `getAccessToken` function
 export function useProjects(userId: string, getAccessToken?: () => Promise<string | null>) {
     const [projects, setProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);

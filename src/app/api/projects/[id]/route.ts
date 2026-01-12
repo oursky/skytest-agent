@@ -20,17 +20,13 @@ export async function GET(
                 name: true,
                 createdAt: true,
                 updatedAt: true,
-                userId: true, // Needed to verify ownership
+                userId: true,
             },
         });
 
         if (!project) {
             return NextResponse.json({ error: 'Project not found' }, { status: 404 });
         }
-
-        // Ideally verify user owns the project
-        // const user = await prisma.user.findUnique({ where: { authId: authPayload.sub } })
-        // if (project.userId !== user?.id) ...
 
         return NextResponse.json(project);
     } catch (error) {
@@ -82,7 +78,6 @@ export async function DELETE(
     try {
         const { id } = await params;
 
-        // Check for active runs
         const activeRuns = await prisma.testRun.findFirst({
             where: {
                 testCase: {

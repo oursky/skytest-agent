@@ -56,6 +56,19 @@ export class DatabaseError extends Error {
     }
 }
 
+export class PlaywrightCodeError extends Error {
+    constructor(
+        message: string,
+        public readonly stepIndex: number,
+        public readonly code: string,
+        public readonly originalError?: Error
+    ) {
+        super(message);
+        this.name = 'PlaywrightCodeError';
+        Object.setPrototypeOf(this, PlaywrightCodeError.prototype);
+    }
+}
+
 export function isTestExecutionError(error: unknown): error is TestExecutionError {
     return error instanceof TestExecutionError;
 }
@@ -74,6 +87,10 @@ export function isBrowserError(error: unknown): error is BrowserError {
 
 export function isDatabaseError(error: unknown): error is DatabaseError {
     return error instanceof DatabaseError;
+}
+
+export function isPlaywrightCodeError(error: unknown): error is PlaywrightCodeError {
+    return error instanceof PlaywrightCodeError;
 }
 
 export function getErrorMessage(error: unknown): string {

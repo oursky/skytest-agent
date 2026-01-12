@@ -80,11 +80,11 @@ function RunPageContent() {
             }
             setInitialData(data);
             if (data.name) {
-                setOriginalName(null); // Reset to allow creating new
+                setOriginalName(null);
             }
         };
         reader.readAsText(file);
-        event.target.value = ''; // Reset for re-import
+        event.target.value = '';
     };
 
     useEffect(() => {

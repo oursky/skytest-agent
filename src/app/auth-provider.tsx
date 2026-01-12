@@ -59,9 +59,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const authgear = (await import("@authgear/web")).default;
         await authgear.startAuthentication({
             redirectURI: process.env.NEXT_PUBLIC_AUTHGEAR_REDIRECT_URI || "",
-            prompt: "login" as any,
+            prompt: "login",
             scope: ["openid", "offline_access", "https://authgear.com/scopes/full-userinfo"],
-        });
+        } as any);
     };
 
     const logout = async () => {
@@ -83,7 +83,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const { Page } = await import("@authgear/web");
         await authgear.open(Page.Settings, {
             redirectURI: window.location.href,
-        });
+        } as any);
     };
 
     return (

@@ -8,7 +8,7 @@ import Header from "@/components/Header";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "SkyTest Agent | Intelligent QA Automation",
+  title: "SkyTest Agent",
   description: "Next-generation AI testing platform that executes end-to-end tests in natural language. Powered by Midscene.js and Playwright for autonomous, intelligent quality assurance.",
 };
 

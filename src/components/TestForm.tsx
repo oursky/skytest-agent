@@ -48,7 +48,14 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
 
     const [browsers, setBrowsers] = useState<BrowserEntry[]>(() => {
         if (initialData?.browserConfig) {
-            return Object.entries(initialData.browserConfig).map(([id, config]) => ({ id, config }));
+            return Object.entries(initialData.browserConfig).map(([id, config]) => ({
+                id,
+                config: {
+                    url: config.url || '',
+                    username: config.username || '',
+                    password: config.password || ''
+                }
+            }));
         }
         return [{
             id: 'browser_a',
@@ -74,7 +81,14 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
             if (hasSteps || hasBrowserConfig) {
                 setMode('builder');
                 if (initialData.browserConfig) {
-                    setBrowsers(Object.entries(initialData.browserConfig).map(([id, config]) => ({ id, config })));
+                    setBrowsers(Object.entries(initialData.browserConfig).map(([id, config]) => ({
+                        id,
+                        config: {
+                            url: config.url || '',
+                            username: config.username || '',
+                            password: config.password || ''
+                        }
+                    })));
                 } else if (!initialData.browserConfig && hasSteps) {
                     const defaultConfig = {
                         url: initialData.url || '',

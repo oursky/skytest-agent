@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth } from '@/lib/auth';
+import { TestStep } from '@/types';
 
 export const dynamic = 'force-dynamic';
+
+function cleanStepsForStorage(steps: TestStep[]): TestStep[] {
+    return steps.map(({ aiAction, codeAction, ...step }) => step);
+}
 
 export async function GET(
     request: Request,
@@ -49,6 +54,7 @@ export async function POST(
 
         const hasSteps = steps && Array.isArray(steps) && steps.length > 0;
         const hasBrowserConfig = browserConfig && Object.keys(browserConfig).length > 0;
+        const cleanedSteps = hasSteps ? cleanStepsForStorage(steps) : undefined;
 
         if (!name || !url || (!prompt && !hasSteps)) {
             return NextResponse.json({ error: 'Name, URL, and either Prompt or Steps are required' }, { status: 400 });
@@ -59,7 +65,7 @@ export async function POST(
                 name,
                 url,
                 prompt,
-                steps: hasSteps ? JSON.stringify(steps) : undefined,
+                steps: cleanedSteps ? JSON.stringify(cleanedSteps) : undefined,
                 browserConfig: hasBrowserConfig ? JSON.stringify(browserConfig) : undefined,
                 username,
                 password,

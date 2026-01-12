@@ -1,4 +1,4 @@
-import { TestStep, BrowserConfig } from '@/types';
+import { TestStep, BrowserConfig, StepType } from '@/types';
 
 export interface TestCaseData {
     name?: string;
@@ -54,7 +54,8 @@ export function exportToMarkdown(data: TestCaseData): string {
         lines.push('# Test Steps');
         lines.push('');
         data.steps.forEach((step, index) => {
-            lines.push(`## Step ${index + 1} - ${formatBrowserId(step.target)}`);
+            const typeMarker = step.type === 'playwright-code' ? ' [Code]' : '';
+            lines.push(`## Step ${index + 1}${typeMarker} - ${formatBrowserId(step.target)}`);
             lines.push(step.action);
             lines.push('');
         });
@@ -243,16 +244,18 @@ function parseYamlValue(value: string): string {
 
 function parseStepsFromBody(body: string): TestStep[] {
     const steps: TestStep[] = [];
-    const stepRegex = /##\s+Step\s+\d+\s+-\s+(.+?)\n([\s\S]*?)(?=##\s+Step|\n*$)/gi;
+    const stepRegex = /##\s+Step\s+\d+\s*(\[Code\])?\s*-\s+(.+?)\n([\s\S]*?)(?=##\s+Step|\n*$)/gi;
     let match;
 
     while ((match = stepRegex.exec(body)) !== null) {
-        const browserLabel = match[1].trim();
-        const action = match[2].trim();
+        const isCode = !!match[1];
+        const browserLabel = match[2].trim();
+        const action = match[3].trim();
         steps.push({
             id: `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
             target: parseBrowserIdFromLabel(browserLabel),
             action,
+            type: isCode ? 'playwright-code' : 'ai-action',
         });
     }
 

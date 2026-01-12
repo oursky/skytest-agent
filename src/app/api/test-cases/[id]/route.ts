@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth } from '@/lib/auth';
+import { TestStep } from '@/types';
+
+function cleanStepsForStorage(steps: TestStep[]): TestStep[] {
+    return steps.map(({ aiAction, codeAction, ...step }) => step);
+}
 
 export async function GET(
     request: Request,
@@ -58,6 +63,7 @@ export async function PUT(
 
         const hasSteps = steps && Array.isArray(steps) && steps.length > 0;
         const hasBrowserConfig = browserConfig && Object.keys(browserConfig).length > 0;
+        const cleanedSteps = hasSteps ? cleanStepsForStorage(steps) : undefined;
 
         const testCase = await prisma.testCase.update({
             where: { id },
@@ -65,7 +71,7 @@ export async function PUT(
                 name,
                 url,
                 prompt,
-                steps: hasSteps ? JSON.stringify(steps) : undefined,
+                steps: cleanedSteps ? JSON.stringify(cleanedSteps) : undefined,
                 browserConfig: hasBrowserConfig ? JSON.stringify(browserConfig) : undefined,
                 username,
                 password,

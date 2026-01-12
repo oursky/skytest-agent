@@ -54,6 +54,12 @@ src/
 3. **Config**: Never hardcode. Use `src/config/app.ts`.
 4. **API Routes**: Wrap in `try-catch`, return `NextResponse.json`.
 
+## Code Style
+**Code as Documentation**: Write self-explanatory code. Avoid comments unless absolutely necessary.
+- Good variable/function names eliminate need for comments
+- Only add comments for non-obvious "why" (not "what")
+- Never comment obvious code like `// loop through items` or `// validate input`
+
 ## Commands
 - `npm run dev` - Start dev server
 - `npx prisma studio` - Open DB GUI

@@ -63,32 +63,11 @@ export async function GET(
                 return;
             }
 
-            // Send initial status immediately if available in queue or DB
             const checkInitialStatus = async () => {
                 const currentQueueStatus = queue.getStatus(id);
                 if (currentQueueStatus) {
-                    // If in queue, it is either RUNNING or QUEUED (though queue only tracks running usually? No, queue has queued items too?)
-                    // Actually queue.getStatus(id) returns the job if running or queued? 
-                    // TestQueue.getStatus returns the job object if found in running or queue.
-                    // The job object has a status? Actually TestQueue implementation might need checking.
-                    // Let's assume queue.getStatus returns the job. 
-                    // Wait, checking queue.ts: getStatus(runId) returns the job. Job interface ?
-
-                    // Let's just use the DB status we fetched (if valid) + queue check.
-                    // If we are here, testRun.status is NOT PASS/FAIL/CANCELLED (checked above).
-                    // So it is RUNNING or QUEUED.
-                    // Only issue is if it changed to RUNNING *after* we fetched testRun constant above, but *before* we start polling?
-                    // No, polling will catch it.
-                    // The issue is: If it IS "RUNNING" in DB when we fetch `testRun`, we enter this block.
-                    // But we NEVER send "RUNNING" event! We just start polling for logs.
-                    // So client stays at "QUEUED" (default) until it receives a log or status change?
-                    // Client expects "status" event.
-
                     controller.enqueue(encode({ type: 'status', status: testRun.status }));
                 } else {
-                    // If not in queue, might be zombie or just finished? 
-                    // But we handled finished above.
-                    // Just send what we have from DB.
                     controller.enqueue(encode({ type: 'status', status: testRun.status }));
                 }
             };

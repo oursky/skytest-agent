@@ -1,6 +1,6 @@
 'use client';
 
-import { TestStep, BrowserConfig } from '@/types';
+import { TestStep, BrowserConfig, StepType } from '@/types';
 import {
     DndContext,
     closestCenter,
@@ -9,6 +9,8 @@ import {
     useSensor,
     useSensors,
     DragEndEvent,
+    DragStartEvent,
+    DragOverlay,
 } from '@dnd-kit/core';
 import {
     arrayMove,
@@ -16,6 +18,7 @@ import {
     sortableKeyboardCoordinates,
     verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
+import { useState } from 'react';
 import BrowserConfigCard from './BrowserConfigCard';
 import SortableStepItem from './SortableStepItem';
 
@@ -43,12 +46,22 @@ export default function BuilderForm({
     setShowPasswordMap,
     readOnly
 }: BuilderFormProps) {
+    const [activeId, setActiveId] = useState<string | null>(null);
+
     const sensors = useSensors(
         useSensor(PointerSensor),
         useSensor(KeyboardSensor, {
             coordinateGetter: sortableKeyboardCoordinates,
         })
     );
+
+    const handleDragStart = (event: DragStartEvent) => {
+        setActiveId(event.active.id as string);
+    };
+
+    const handleDragCancel = () => {
+        setActiveId(null);
+    };
 
     const handleAddBrowser = () => {
         const nextChar = String.fromCharCode('a'.charCodeAt(0) + browsers.length);
@@ -62,6 +75,12 @@ export default function BuilderForm({
 
     const handleRemoveBrowser = (index: number) => {
         if (browsers.length <= 1) return;
+        const browserId = browsers[index].id;
+        const hasLinkedSteps = steps.some(step => step.target === browserId);
+        if (hasLinkedSteps) {
+            alert(`Cannot delete this browser. There are steps linked to it. Please reassign or delete those steps first.`);
+            return;
+        }
         const newBrowsers = [...browsers];
         newBrowsers.splice(index, 1);
         setBrowsers(newBrowsers);
@@ -83,11 +102,12 @@ export default function BuilderForm({
         });
     };
 
-    const handleAddStep = () => {
+    const handleAddStep = (type: StepType = 'ai-action') => {
         const newStep: TestStep = {
             id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
             target: browsers[0]?.id || 'browser_a',
-            action: ''
+            action: '',
+            type
         };
         setSteps([...steps, newStep]);
     };
@@ -110,17 +130,46 @@ export default function BuilderForm({
         setSteps(newSteps);
     };
 
+    const handleStepTypeChange = (index: number, type: StepType) => {
+        const newSteps = [...steps];
+        const step = newSteps[index];
+        const currentType = step.type || 'ai-action';
+
+        if (currentType !== type) {
+            if (currentType === 'ai-action') {
+                newSteps[index] = {
+                    ...step,
+                    type,
+                    aiAction: step.action,
+                    action: step.codeAction || ''
+                };
+            } else {
+                newSteps[index] = {
+                    ...step,
+                    type,
+                    codeAction: step.action,
+                    action: step.aiAction || ''
+                };
+            }
+        }
+        setSteps(newSteps);
+    };
+
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
 
         if (over && active.id !== over.id) {
-            setSteps((() => {
-                const oldIndex = steps.findIndex((item) => item.id === active.id);
-                const newIndex = steps.findIndex((item) => item.id === over.id);
-                return arrayMove(steps, oldIndex, newIndex);
-            })());
+            const oldIndex = steps.findIndex((item) => item.id === active.id);
+            const newIndex = steps.findIndex((item) => item.id === over.id);
+            setSteps(arrayMove(steps, oldIndex, newIndex));
         }
+        // Delay clearing activeId to let React finish re-rendering after reorder
+        requestAnimationFrame(() => {
+            setActiveId(null);
+        });
     };
+
+    const activeStep = activeId ? steps.find(s => s.id === activeId) : null;
 
     return (
         <div className="space-y-8 animate-fade-in">
@@ -167,7 +216,9 @@ export default function BuilderForm({
                 <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
+                    onDragStart={handleDragStart}
                     onDragEnd={handleDragEnd}
+                    onDragCancel={handleDragCancel}
                 >
                     <SortableContext
                         items={steps.map(s => s.id)}
@@ -188,18 +239,37 @@ export default function BuilderForm({
                                     browsers={browsers}
                                     onRemove={() => handleRemoveStep(index)}
                                     onChange={(field, value) => handleStepChange(index, field, value)}
+                                    onTypeChange={(type) => handleStepTypeChange(index, type)}
                                     mode="builder"
                                     readOnly={readOnly}
+                                    isAnyDragging={activeId !== null}
                                 />
                             ))}
                         </div>
                     </SortableContext>
+                    <DragOverlay>
+                        {activeStep ? (
+                            <div className="p-4 bg-white rounded-xl border-2 border-indigo-300 shadow-lg opacity-95">
+                                <div className="flex items-center gap-3">
+                                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-indigo-100 text-xs font-mono text-indigo-600 font-bold">
+                                        {steps.findIndex(s => s.id === activeStep.id) + 1}
+                                    </span>
+                                    <span className="text-sm text-gray-600 truncate max-w-[300px]">
+                                        {activeStep.action || 'Empty step'}
+                                    </span>
+                                    <span className="ml-auto text-xs px-2 py-0.5 bg-gray-100 rounded text-gray-500">
+                                        {activeStep.type === 'playwright-code' ? 'Code' : 'AI'}
+                                    </span>
+                                </div>
+                            </div>
+                        ) : null}
+                    </DragOverlay>
                 </DndContext>
 
                 {!readOnly && (
                     <button
                         type="button"
-                        onClick={handleAddStep}
+                        onClick={() => handleAddStep('ai-action')}
                         className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors text-sm font-medium flex items-center justify-center gap-2"
                     >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

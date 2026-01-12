@@ -6,10 +6,15 @@ export interface BrowserConfig {
     password?: string;
 }
 
+export type StepType = 'ai-action' | 'playwright-code';
+
 export interface TestStep {
     id: string;
     target: string;
     action: string;
+    type?: StepType;
+    aiAction?: string;
+    codeAction?: string;
 }
 
 export interface TestData {

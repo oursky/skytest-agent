@@ -2,7 +2,7 @@ import { chromium, Page, BrowserContext, Browser } from 'playwright';
 import { PlaywrightAgent } from '@midscene/web/playwright';
 import { TestStep, BrowserConfig, TestEvent, TestResult, RunTestOptions } from '@/types';
 import { config } from '@/config/app';
-import { ConfigurationError, BrowserError, TestExecutionError, getErrorMessage } from './errors';
+import { ConfigurationError, BrowserError, TestExecutionError, PlaywrightCodeError, getErrorMessage } from './errors';
 
 export const maxDuration = config.test.maxDuration;
 
@@ -164,6 +164,106 @@ async function setupBrowserInstances(
     return { browser, contexts, pages, agents };
 }
 
+function parseCodeIntoStatements(code: string): string[] {
+    const statements: string[] = [];
+    const lines = code.split('\n');
+    let currentStatement = '';
+
+    for (const line of lines) {
+        const trimmed = line.trim();
+
+        if (!trimmed || trimmed.startsWith('//')) {
+            continue;
+        }
+
+        if (currentStatement) {
+            currentStatement += '\n' + line;
+        } else {
+            currentStatement = line;
+        }
+
+        const openParens = (currentStatement.match(/\(/g) || []).length;
+        const closeParens = (currentStatement.match(/\)/g) || []).length;
+        const isComplete = openParens === closeParens &&
+            (trimmed.endsWith(';') || trimmed.endsWith(')'));
+
+        if (isComplete) {
+            statements.push(currentStatement.trim());
+            currentStatement = '';
+        }
+    }
+
+    if (currentStatement.trim()) {
+        statements.push(currentStatement.trim());
+    }
+
+    return statements;
+}
+
+async function executePlaywrightCode(
+    code: string,
+    page: Page,
+    stepIndex: number,
+    log: ReturnType<typeof createLogger>,
+    onEvent: EventHandler,
+    browserId?: string
+): Promise<void> {
+    const timeoutMs = 30000;
+    const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
+    const niceName = getBrowserNiceName(browserId || 'main');
+
+    try {
+        new AsyncFunction('page', code);
+    } catch (syntaxError) {
+        throw new PlaywrightCodeError(
+            `Syntax error in code at step ${stepIndex + 1}: ${getErrorMessage(syntaxError)}`,
+            stepIndex,
+            code,
+            syntaxError instanceof Error ? syntaxError : undefined
+        );
+    }
+
+    const statements = parseCodeIntoStatements(code);
+
+    if (statements.length === 0) {
+        log(`[Step ${stepIndex + 1}] No executable statements found`, 'info', browserId);
+        return;
+    }
+
+    log(`[Step ${stepIndex + 1}] Executing ${statements.length} statement(s)...`, 'info', browserId);
+
+    for (let i = 0; i < statements.length; i++) {
+        const statement = statements[i];
+        const statementPreview = statement.length > 80 ? statement.substring(0, 80) + '...' : statement;
+
+        log(`[Step ${stepIndex + 1}.${i + 1}] ${statementPreview}`, 'info', browserId);
+
+        const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error(`Statement execution timed out (30s): ${statementPreview}`)), timeoutMs);
+        });
+
+        try {
+            const fn = new AsyncFunction('page', statement);
+            await Promise.race([fn(page), timeoutPromise]);
+        } catch (error) {
+            throw new PlaywrightCodeError(
+                `Playwright code execution failed at step ${stepIndex + 1}.${i + 1}: ${getErrorMessage(error)}`,
+                stepIndex,
+                statement,
+                error instanceof Error ? error : undefined
+            );
+        }
+
+        await captureScreenshot(
+            page,
+            `[${niceName}] Step ${stepIndex + 1}.${i + 1}: ${statementPreview}`,
+            onEvent,
+            log,
+            browserId
+        );
+    }
+}
+
 async function executeSteps(
     steps: TestStep[],
     browserInstances: BrowserInstances,
@@ -180,13 +280,14 @@ async function executeSteps(
 
         const step = steps[i];
         const effectiveTargetId = step.target || browserIds[0];
+        const stepType = step.type || 'ai-action';
 
         const agent = agents.get(effectiveTargetId);
         const page = pages.get(effectiveTargetId);
         const browserConfig = targetConfigs[effectiveTargetId];
         const niceName = getBrowserNiceName(effectiveTargetId);
 
-        if (!agent || !page) {
+        if (!page) {
             throw new TestExecutionError(
                 `Browser instance '${effectiveTargetId}' not found for step: ${step.action}`,
                 '',
@@ -194,15 +295,27 @@ async function executeSteps(
             );
         }
 
-        log(`[Step ${i + 1}] Executing on ${niceName}: ${step.action}`, 'info', effectiveTargetId);
+        if (stepType === 'playwright-code') {
+            await executePlaywrightCode(step.action, page, i, log, onEvent, effectiveTargetId);
+        } else {
+            if (!agent) {
+                throw new TestExecutionError(
+                    `Browser agent '${effectiveTargetId}' not found for AI step: ${step.action}`,
+                    '',
+                    step.action
+                );
+            }
 
-        let stepAction = step.action;
-        if (browserConfig && (browserConfig.username || browserConfig.password)) {
-            stepAction += `\n(Credentials: ${browserConfig.username} / ${browserConfig.password})`;
+            log(`[Step ${i + 1}] Executing AI action on ${niceName}: ${step.action}`, 'info', effectiveTargetId);
+
+            let stepAction = step.action;
+            if (browserConfig && (browserConfig.username || browserConfig.password)) {
+                stepAction += `\n(Credentials: ${browserConfig.username} / ${browserConfig.password})`;
+            }
+
+            await agent.aiAct(stepAction);
+            await captureScreenshot(page, `[${niceName}] Step ${i + 1} Complete`, onEvent, log, effectiveTargetId);
         }
-
-        await agent.aiAct(stepAction);
-        await captureScreenshot(page, `[${niceName}] Step ${i + 1} Complete`, onEvent, log, effectiveTargetId);
     }
 }
 
@@ -294,11 +407,10 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
     try {
         browserInstances = await setupBrowserInstances(targetConfigs, onEvent, signal, actionCounter);
 
-        // Register cleanup so cancel can force-close browser
         if (onCleanup && browserInstances) {
             onCleanup(async () => {
                 if (browserInstances?.browser) {
-                    await browserInstances.browser.close().catch(() => {});
+                    await browserInstances.browser.close().catch(() => { });
                 }
             });
         }
