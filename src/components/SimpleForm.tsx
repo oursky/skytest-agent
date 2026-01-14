@@ -86,9 +86,6 @@ export default function SimpleForm({
                     </div>
                 </div>
             </div>
-            <p className="text-xs text-gray-400">
-                Use {config.test.security.credentialPlaceholders.username} and {config.test.security.credentialPlaceholders.password} in instructions to inject credentials.
-            </p>
 
             {/* Instructions */}
             <div className="space-y-2">
