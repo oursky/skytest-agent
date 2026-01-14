@@ -1,5 +1,7 @@
 'use client';
 
+import { config } from '@/config/app';
+
 interface SimpleFormProps {
     url: string;
     setUrl: (value: string) => void;

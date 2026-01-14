@@ -1,8 +1,8 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect, useRef, useState } from 'react';
-import { TestRun, TestEvent, TestCaseFile, TestData } from '@/types';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { TestRun, TestEvent, TestCaseFile, TestData, isLogData, isScreenshotData } from '@/types';
 import { formatTime } from '@/utils/dateFormatter';
 import TimelineEvent from './result-viewer/TimelineEvent';
 import ResultStatus from './result-viewer/ResultStatus';
@@ -22,6 +22,57 @@ interface ResultViewerProps {
     meta?: ResultViewerMeta;
 }
 
+function collectSecrets(config?: TestData): string[] {
+    if (!config) return [];
+    const secrets = new Set<string>();
+
+    if (config.username) secrets.add(config.username);
+    if (config.password) secrets.add(config.password);
+
+    if (config.browserConfig) {
+        for (const entry of Object.values(config.browserConfig)) {
+            if (entry.username) secrets.add(entry.username);
+            if (entry.password) secrets.add(entry.password);
+        }
+    }
+
+    return Array.from(secrets).filter((value) => value.trim().length > 0);
+}
+
+function maskSensitiveText(text: string, secrets: string[]): string {
+    if (!secrets.length) return text;
+    return secrets.reduce((output, secret) => {
+        if (!secret) return output;
+        return output.split(secret).join('••••');
+    }, text);
+}
+
+function maskEvent(event: TestEvent, secrets: string[]): TestEvent {
+    if (!secrets.length) return event;
+
+    if (isLogData(event.data)) {
+        return {
+            ...event,
+            data: {
+                ...event.data,
+                message: maskSensitiveText(event.data.message, secrets)
+            }
+        };
+    }
+
+    if (isScreenshotData(event.data)) {
+        return {
+            ...event,
+            data: {
+                ...event.data,
+                label: maskSensitiveText(event.data.label || '', secrets)
+            }
+        };
+    }
+
+    return event;
+}
+
 export default function ResultViewer({ result, meta }: ResultViewerProps) {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -29,7 +80,9 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
     const [lightboxImage, setLightboxImage] = useState<{ src: string; label: string } | null>(null);
     const [copied, setCopied] = useState(false);
 
-    const events = result.events;
+    const secrets = useMemo(() => collectSecrets(meta?.config), [meta?.config]);
+
+    const events = useMemo(() => result.events.map((event) => maskEvent(event, secrets)), [result.events, secrets]);
 
     useEffect(() => {
         if (!autoScroll) return;
@@ -84,8 +137,9 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
         if (meta?.config) {
             lines.push('## Configuration');
             try {
+                const configJson = JSON.stringify(meta.config, null, 2);
                 lines.push('```json');
-                lines.push(JSON.stringify(meta.config, null, 2));
+                lines.push(maskSensitiveText(configJson, secrets));
                 lines.push('```');
             } catch {
                 // ignore
@@ -198,7 +252,7 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
                         </button>
                         <div className="h-8 px-2.5 py-0 bg-gray-100 border border-gray-200 rounded-md inline-flex items-center">
                             <span className="text-xs text-muted-foreground font-medium">
-                                {result.events.length} events
+                                {events.length} events
                             </span>
                         </div>
                     </div>

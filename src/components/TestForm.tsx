@@ -130,7 +130,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
             setSimpleUrl('https://www.saucedemo.com');
             setSimpleUsername('standard_user');
             setSimplePassword('secret_sauce');
-            setPrompt(`Login with the provided credentials.
+            setPrompt(`Login with the given credentials.
 Add the "Sauce Labs Backpack" to the cart.
 Click on the cart icon.
 Verify that "Sauce Labs Backpack" is in the cart.`);
@@ -141,8 +141,8 @@ Verify that "Sauce Labs Backpack" is in the cart.`);
                 { id: 'browser_b', config: { url: 'https://www.saucedemo.com', username: 'visual_user', password: 'secret_sauce' } }
             ]);
             setSteps([
-                { id: "1", target: "browser_a", action: "Login with the provided credentials." },
-                { id: "2", target: "browser_b", action: "Login with the provided credentials." },
+                { id: "1", target: "browser_a", action: "Login with the given credentials." },
+                { id: "2", target: "browser_b", action: "Login with the given credentials." },
                 { id: "3", target: "browser_a", action: "Add 'Sauce Labs Backpack' to cart" },
                 { id: "4", target: "browser_b", action: "Add 'Sauce Labs Bike Light' to cart" },
                 { id: "5", target: "browser_a", action: "Click on the cart icon.\nVerify ONLY 'Sauce Labs Backpack' is in the cart." },

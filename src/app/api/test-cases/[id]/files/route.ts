@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth } from '@/lib/auth';
-import { validateAndSanitizeFile, getUploadPath, getFilePath } from '@/lib/file-security';
+import { validateAndSanitizeFile, getUploadPath } from '@/lib/file-security';
 import { config } from '@/config/app';
 import fs from 'fs/promises';
 import path from 'path';
@@ -36,12 +36,7 @@ export async function GET(
             orderBy: { createdAt: 'desc' }
         });
 
-        const files = dbFiles.map(f => ({
-            ...f,
-            absPath: getFilePath(id, f.storedName)
-        }));
-
-        return NextResponse.json(files);
+        return NextResponse.json(dbFiles);
     } catch (error) {
         console.error('Failed to fetch files:', error);
         return NextResponse.json({ error: 'Failed to fetch files' }, { status: 500 });

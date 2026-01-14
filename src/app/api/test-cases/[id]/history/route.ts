@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth } from '@/lib/auth';
-import { getFilePath } from '@/lib/file-security';
 
 export async function GET(
     request: Request,
@@ -43,16 +42,8 @@ export async function GET(
             prisma.testRun.count({ where: { testCaseId: id } })
         ]);
 
-        const runsWithFiles = testRuns.map(run => ({
-            ...run,
-            files: (run.files || []).map(f => ({
-                ...f,
-                absPath: getFilePath(run.testCaseId, f.storedName)
-            }))
-        }));
-
         return NextResponse.json({
-            data: runsWithFiles,
+            data: testRuns,
             pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
         });
     } catch (error) {

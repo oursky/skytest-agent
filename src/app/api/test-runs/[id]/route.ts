@@ -1,10 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { queue } from '@/lib/queue';
-import { TestRun } from '@/types';
 import { verifyAuth } from '@/lib/auth';
-
-import { getFilePath } from '@/lib/file-security';
 
 export async function GET(
     request: Request,
@@ -39,10 +36,7 @@ export async function GET(
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const files = (testRun.files || []).map(f => ({
-            ...f,
-            absPath: getFilePath(testRun.testCaseId, f.storedName)
-        }));
+        const files = testRun.files || [];
 
         return NextResponse.json({
             id: testRun.id,

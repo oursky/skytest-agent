@@ -5,6 +5,16 @@ import { TestStep } from '@/types';
 import { getUploadPath } from '@/lib/file-security';
 import fs from 'fs/promises';
 
+type AuthPayload = NonNullable<Awaited<ReturnType<typeof verifyAuth>>>;
+
+async function resolveUserId(authPayload: AuthPayload): Promise<string | null> {
+    if (authPayload.userId) return authPayload.userId;
+    const authId = authPayload.sub as string | undefined;
+    if (!authId) return null;
+    const user = await prisma.user.findUnique({ where: { authId }, select: { id: true } });
+    return user?.id ?? null;
+}
+
 function cleanStepsForStorage(steps: TestStep[]): TestStep[] {
     return steps.map(({ aiAction, codeAction, ...step }) => step);
 }
@@ -23,6 +33,7 @@ export async function GET(
         const testCase = await prisma.testCase.findUnique({
             where: { id },
             include: {
+                project: { select: { userId: true } },
                 testRuns: {
                     take: 1,
                     orderBy: { createdAt: 'desc' },
@@ -38,8 +49,18 @@ export async function GET(
             return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
         }
 
+        const userId = await resolveUserId(authPayload);
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        if (testCase.project.userId !== userId) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+
+        const { project: _project, ...testCaseData } = testCase;
         const parsedTestCase = {
-            ...testCase,
+            ...testCaseData,
             steps: testCase.steps ? JSON.parse(testCase.steps) : undefined,
             browserConfig: testCase.browserConfig ? JSON.parse(testCase.browserConfig) : undefined,
         };
@@ -65,6 +86,24 @@ export async function PUT(
         const { id } = await params;
         const body = await request.json();
         const { name, url, prompt, steps, browserConfig, username, password } = body;
+
+        const existingTestCase = await prisma.testCase.findUnique({
+            where: { id },
+            include: { project: { select: { userId: true } } }
+        });
+
+        if (!existingTestCase) {
+            return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
+        }
+
+        const userId = await resolveUserId(authPayload);
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        if (existingTestCase.project.userId !== userId) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
 
         const hasSteps = steps && Array.isArray(steps) && steps.length > 0;
         const hasBrowserConfig = browserConfig && Object.keys(browserConfig).length > 0;
@@ -101,6 +140,24 @@ export async function DELETE(
 
     try {
         const { id } = await params;
+
+        const existingTestCase = await prisma.testCase.findUnique({
+            where: { id },
+            include: { project: { select: { userId: true } } }
+        });
+
+        if (!existingTestCase) {
+            return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
+        }
+
+        const userId = await resolveUserId(authPayload);
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        if (existingTestCase.project.userId !== userId) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
 
         await prisma.testCase.delete({
             where: { id },

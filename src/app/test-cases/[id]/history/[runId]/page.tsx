@@ -18,7 +18,7 @@ interface TestRun {
     result: string;
     error: string | null;
     configurationSnapshot: string | null;
-    files?: Array<{ id: string; filename: string; storedName: string; mimeType: string; size: number; createdAt: string; absPath?: string }>;
+    files?: Array<{ id: string; filename: string; storedName: string; mimeType: string; size: number; createdAt: string }>;
 }
 
 interface TestCase {
@@ -130,32 +130,34 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
     const events = testRun.result ? JSON.parse(testRun.result) : [];
 
     const testData = (() => {
+        const baseConfig = testCase ? {
+            name: testCase.name,
+            url: testCase.url,
+            prompt: testCase.prompt || '',
+            username: testCase.username,
+            password: testCase.password,
+            steps: testCase.steps,
+            browserConfig: testCase.browserConfig,
+        } : undefined;
+
         if (testRun.configurationSnapshot) {
             try {
-                const savedConfig = JSON.parse(testRun.configurationSnapshot);
+                const savedConfig = JSON.parse(testRun.configurationSnapshot) as Partial<TestCase>;
                 return {
-                    name: savedConfig.name,
-                    url: savedConfig.url,
-                    prompt: savedConfig.prompt,
-                    username: savedConfig.username,
-                    password: savedConfig.password,
-                    steps: savedConfig.steps,
-                    browserConfig: savedConfig.browserConfig,
+                    name: savedConfig.name ?? baseConfig?.name,
+                    url: savedConfig.url ?? baseConfig?.url ?? '',
+                    prompt: savedConfig.prompt ?? baseConfig?.prompt ?? '',
+                    username: savedConfig.username ?? baseConfig?.username,
+                    password: savedConfig.password ?? baseConfig?.password,
+                    steps: savedConfig.steps ?? baseConfig?.steps,
+                    browserConfig: savedConfig.browserConfig ?? baseConfig?.browserConfig,
                 };
             } catch (error) {
                 console.error("Failed to parse configuration snapshot", error);
             }
         }
 
-        return testCase ? {
-            name: testCase.name,
-            url: testCase.url,
-            prompt: testCase.prompt,
-            username: testCase.username,
-            password: testCase.password,
-            steps: testCase.steps,
-            browserConfig: testCase.browserConfig,
-        } : undefined;
+        return baseConfig;
     })();
 
     return (

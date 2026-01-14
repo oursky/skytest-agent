@@ -1,13 +1,148 @@
-import { chromium, Page, BrowserContext, Browser } from 'playwright';
+import { chromium, Page, BrowserContext, Browser, FilePayload } from 'playwright';
 import { PlaywrightAgent } from '@midscene/web/playwright';
 import { TestStep, BrowserConfig, TestEvent, TestResult, RunTestOptions, TestCaseFile } from '@/types';
 import { config } from '@/config/app';
 import { ConfigurationError, BrowserError, TestExecutionError, PlaywrightCodeError, getErrorMessage } from './errors';
 import { getFilePath } from './file-security';
+import { validateTargetUrl } from './url-security';
+import { Script, createContext } from 'node:vm';
+import path from 'node:path';
 
 export const maxDuration = config.test.maxDuration;
 
 type EventHandler = (event: TestEvent) => void;
+
+const credentialPlaceholders = config.test.security.credentialPlaceholders;
+
+type InputFilesParam = Parameters<Page['setInputFiles']>[1];
+
+type FilePayloadWithPath = FilePayload & { path: string };
+
+function applyAgentGuardrails(instruction: string): string {
+    const guardrails = config.test.security.agentGuardrails.trim();
+    if (!guardrails) return instruction;
+    return `${guardrails}\n\nTask:\n${instruction}`;
+}
+
+function applyCredentialPlaceholders(instruction: string, browserConfig?: BrowserConfig): string {
+    const usernamePlaceholder = credentialPlaceholders.username;
+    const passwordPlaceholder = credentialPlaceholders.password;
+    const hasUsernamePlaceholder = instruction.includes(usernamePlaceholder);
+    const hasPasswordPlaceholder = instruction.includes(passwordPlaceholder);
+
+    if (hasUsernamePlaceholder && !browserConfig?.username) {
+        throw new ConfigurationError('Username placeholder used but no username provided', 'username');
+    }
+
+    if (hasPasswordPlaceholder && !browserConfig?.password) {
+        throw new ConfigurationError('Password placeholder used but no password provided', 'password');
+    }
+
+    let output = instruction;
+    if (hasUsernamePlaceholder) {
+        output = output.split(usernamePlaceholder).join(browserConfig?.username ?? '');
+    }
+    if (hasPasswordPlaceholder) {
+        output = output.split(passwordPlaceholder).join(browserConfig?.password ?? '');
+    }
+
+    return output;
+}
+
+function validateTargetConfigs(targetConfigs: Record<string, BrowserConfig>) {
+    for (const [browserId, browserConfig] of Object.entries(targetConfigs)) {
+        if (!browserConfig.url) continue;
+        const result = validateTargetUrl(browserConfig.url);
+        if (!result.valid) {
+            const reason = result.error ? `: ${result.error}` : '';
+            throw new ConfigurationError(`Invalid URL for ${browserId}${reason}`, 'url');
+        }
+    }
+}
+
+function escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function validatePlaywrightCode(code: string, stepIndex: number) {
+    for (const token of config.test.security.playwrightCodeBlockedTokens) {
+        const regex = new RegExp(`\\b${escapeRegExp(token)}\\b`, 'i');
+        if (regex.test(code)) {
+            throw new PlaywrightCodeError(
+                `Unsafe token "${token}" is not allowed in Playwright code`,
+                stepIndex,
+                code
+            );
+        }
+    }
+}
+
+function normalizeUploadPath(filePath: string, stepIndex: number, code: string): string {
+    const uploadRoot = path.resolve(process.cwd(), config.files.uploadDir);
+    const resolved = path.resolve(process.cwd(), filePath);
+    const prefix = uploadRoot.endsWith(path.sep) ? uploadRoot : `${uploadRoot}${path.sep}`;
+
+    if (!resolved.startsWith(prefix)) {
+        throw new PlaywrightCodeError(
+            'Only files uploaded for this test case can be used with setInputFiles',
+            stepIndex,
+            code
+        );
+    }
+
+    return resolved;
+}
+
+function hasFilePath(value: unknown): value is FilePayloadWithPath {
+    if (!value || typeof value !== 'object') return false;
+    if (!('path' in value)) return false;
+    const pathValue = (value as { path?: unknown }).path;
+    return typeof pathValue === 'string' && pathValue.length > 0;
+}
+
+function sanitizeInputFiles(files: InputFilesParam, stepIndex: number, code: string): InputFilesParam {
+    if (typeof files === 'string') {
+        return normalizeUploadPath(files, stepIndex, code);
+    }
+
+    if (Array.isArray(files)) {
+        return files.map((file) => {
+            if (typeof file === 'string') {
+                return normalizeUploadPath(file, stepIndex, code);
+            }
+            if (hasFilePath(file)) {
+                return { ...file, path: normalizeUploadPath(file.path, stepIndex, code) };
+            }
+            return file;
+        }) as InputFilesParam;
+    }
+
+    if (hasFilePath(files)) {
+        return { ...files, path: normalizeUploadPath(files.path, stepIndex, code) } as InputFilesParam;
+    }
+
+    return files;
+}
+
+function createSafePage(page: Page, stepIndex: number, code: string): Page {
+    return new Proxy(page, {
+        get(target, prop) {
+            if (prop === 'setInputFiles') {
+                return async (...args: Parameters<Page['setInputFiles']>) => {
+                    const [selector, files, options] = args;
+                    const sanitizedFiles = sanitizeInputFiles(files, stepIndex, code);
+                    return target.setInputFiles(selector, sanitizedFiles, options);
+                };
+            }
+
+            const value = Reflect.get(target, prop) as unknown;
+            if (typeof value === 'function') {
+                return (value as (...args: unknown[]) => unknown).bind(target);
+            }
+            return value;
+        }
+    }) as Page;
+}
 
 interface BrowserInstances {
     browser: Browser;
@@ -75,6 +210,8 @@ function validateConfiguration(
     if (!hasSteps && !hasPrompt) {
         throw new ConfigurationError('Instructions (Prompt or Steps) are required');
     }
+
+    validateTargetConfigs(targetConfigs);
 
     return targetConfigs;
 }
@@ -224,12 +361,17 @@ async function executePlaywrightCode(
         );
     }
 
+    validatePlaywrightCode(code, stepIndex);
+
     const statements = parseCodeIntoStatements(code);
 
     if (statements.length === 0) {
         log(`[Step ${stepIndex + 1}] No executable statements found`, 'info', browserId);
         return;
     }
+
+    const safePage = createSafePage(page, stepIndex, code);
+    const context = createContext({ page: safePage });
 
     log(`[Step ${stepIndex + 1}] Executing ${statements.length} statement(s)...`, 'info', browserId);
 
@@ -244,8 +386,9 @@ async function executePlaywrightCode(
         });
 
         try {
-            const fn = new AsyncFunction('page', statement);
-            await Promise.race([fn(page), timeoutPromise]);
+            const script = new Script(`(async () => { ${statement} })()`);
+            const result = script.runInContext(context) as Promise<unknown>;
+            await Promise.race([result, timeoutPromise]);
         } catch (error) {
             throw new PlaywrightCodeError(
                 `Playwright code execution failed at step ${stepIndex + 1}.${i + 1}: ${getErrorMessage(error)}`,
@@ -330,12 +473,10 @@ async function executeSteps(
 
                 log(`[Step ${i + 1}] Executing AI action on ${niceName}: ${step.action}`, 'info', effectiveTargetId);
 
-                let stepAction = step.action;
-                if (browserConfig && (browserConfig.username || browserConfig.password)) {
-                    stepAction += `\n(Credentials: ${browserConfig.username} / ${browserConfig.password})`;
-                }
+                const stepAction = applyCredentialPlaceholders(step.action, browserConfig);
+                const guardedAction = applyAgentGuardrails(stepAction);
 
-                await agent.aiAct(stepAction);
+                await agent.aiAct(guardedAction);
                 await captureScreenshot(page, `[${niceName}] Step ${i + 1} Complete`, onEvent, log, effectiveTargetId);
             }
         } catch (e) {
@@ -361,12 +502,10 @@ async function executePrompt(
         throw new TestExecutionError('No browser agent available', '');
     }
 
-    let fullPrompt = prompt;
-    if (browserConfig.username || browserConfig.password) {
-        fullPrompt += `\n\nCredentials if needed:\nUsername: ${browserConfig.username}\nPassword: ${browserConfig.password}`;
-    }
+    const promptWithCredentials = applyCredentialPlaceholders(prompt, browserConfig);
+    const guardedPrompt = applyAgentGuardrails(promptWithCredentials);
 
-    await agent.aiAct(fullPrompt);
+    await agent.aiAct(guardedPrompt);
 }
 
 async function captureFinalScreenshots(

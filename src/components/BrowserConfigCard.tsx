@@ -1,6 +1,7 @@
 'use client';
 
 import { BrowserConfig } from '@/types';
+import { config } from '@/config/app';
 
 interface BrowserEntry {
     id: string;

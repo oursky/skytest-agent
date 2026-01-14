@@ -3,17 +3,67 @@ import { queue } from '@/lib/queue';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth } from '@/lib/auth';
 import { decrypt } from '@/lib/crypto';
+import { validateTargetUrl } from '@/lib/url-security';
+import type { BrowserConfig, TestStep } from '@/types';
 
 export const dynamic = 'force-dynamic';
+
+interface RunTestRequest {
+    name?: string;
+    url?: string;
+    prompt?: string;
+    steps?: TestStep[];
+    browserConfig?: Record<string, BrowserConfig>;
+    username?: string;
+    password?: string;
+    testCaseId?: string;
+}
+
+function sanitizeBrowserConfig(browserConfig?: Record<string, BrowserConfig>) {
+    if (!browserConfig) return undefined;
+    return Object.fromEntries(
+        Object.entries(browserConfig).map(([id, entry]) => [
+            id,
+            { ...entry, username: undefined, password: undefined }
+        ])
+    );
+}
+
+function createConfigurationSnapshot(config: RunTestRequest) {
+    const { prompt: _prompt, steps: _steps, username: _username, password: _password, browserConfig, ...rest } = config;
+    return {
+        ...rest,
+        browserConfig: sanitizeBrowserConfig(browserConfig),
+    };
+}
+
+function validateConfigUrls(config: RunTestRequest): string | null {
+    const urls: string[] = [];
+    if (config.url) urls.push(config.url);
+    if (config.browserConfig) {
+        for (const entry of Object.values(config.browserConfig)) {
+            if (entry.url) urls.push(entry.url);
+        }
+    }
+
+    for (const url of urls) {
+        const result = validateTargetUrl(url);
+        if (!result.valid) {
+            return result.error || 'Target URL is not allowed';
+        }
+    }
+
+    return null;
+}
 
 export async function POST(request: Request) {
     const authPayload = await verifyAuth(request);
     if (!authPayload || !authPayload.sub) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const userId = authPayload.sub as string;
+    const authId = authPayload.sub as string;
 
-    const config = await request.json();
+    const config = await request.json() as RunTestRequest;
     const { url, prompt, steps, browserConfig, testCaseId } = config;
 
     const hasBrowserConfig = browserConfig && Object.keys(browserConfig).length > 0;
@@ -34,6 +84,14 @@ export async function POST(request: Request) {
         );
     }
 
+    const urlValidationError = validateConfigUrls(config);
+    if (urlValidationError) {
+        return NextResponse.json(
+            { error: urlValidationError },
+            { status: 400 }
+        );
+    }
+
     try {
         if (!testCaseId) {
             return NextResponse.json(
@@ -43,15 +101,34 @@ export async function POST(request: Request) {
         }
 
         const user = await prisma.user.findUnique({
-            where: { authId: userId },
-            select: { openRouterKey: true }
+            where: { authId },
+            select: { id: true, openRouterKey: true }
         });
 
-        if (!user?.openRouterKey) {
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        if (!user.openRouterKey) {
             return NextResponse.json(
                 { error: 'Please configure your OpenRouter API key' },
                 { status: 400 }
             );
+        }
+
+        const userId = user.id;
+
+        const testCase = await prisma.testCase.findUnique({
+            where: { id: testCaseId },
+            include: { project: { select: { userId: true } } }
+        });
+
+        if (!testCase) {
+            return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
+        }
+
+        if (testCase.project.userId !== userId) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
         let openRouterApiKey: string;
@@ -69,11 +146,13 @@ export async function POST(request: Request) {
             select: { id: true, filename: true, storedName: true, mimeType: true, size: true }
         });
 
+        const configurationSnapshot = JSON.stringify(createConfigurationSnapshot(config));
+
         const testRun = await prisma.testRun.create({
             data: {
                 testCaseId,
                 status: 'QUEUED',
-                configurationSnapshot: JSON.stringify(config)
+                configurationSnapshot
             }
         });
 

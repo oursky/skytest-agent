@@ -15,7 +15,6 @@ export interface TestCaseFile {
     mimeType: string;
     size: number;
     createdAt: string;
-    absPath?: string;
 }
 
 export interface TestStep {

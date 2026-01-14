@@ -249,9 +249,9 @@ export default function BuilderForm({
 
                 {!readOnly && (!files || files.length === 0) && (
                     <div className="text-xs text-gray-500 space-y-1.5">
-                        <p>Upload files and Copy the path to use in [Code] mode:</p>
+                        <p>Upload files and copy the relative path to use in [Code] mode:</p>
                         <code className="block bg-gray-100 px-2 py-1.5 rounded text-[11px] font-mono text-gray-600">
-                            await page.setInputFiles(&apos;input[type=file]&apos;, &apos;/path/to/file.pdf&apos;);
+                            await page.setInputFiles(&apos;input[type=file]&apos;, &apos;uploads/your-test-case-id/file.pdf&apos;);
                         </code>
                         <p className="text-gray-400">
                             Max {Math.floor(config.files.maxFileSize / 1024 / 1024)}MB per file. Supports PDF, images, Office docs, CSV, JSON, XML, and more.
