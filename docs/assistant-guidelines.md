@@ -59,8 +59,15 @@ src/
 5. **Match existing style** - No reformatting unrelated code
 
 ## Workflow & Commits
-- For change workflow details, read `docs/workflow-playbook.md`.
+- Follow the full process in `docs/workflow-playbook.md`.
 - For review tasks, read `docs/review-playbook.md` first and follow its checklist.
+
+## Agentic Workflow Summary
+- Align on intent, constraints, and success criteria before coding.
+- For non-trivial changes, capture design notes in `docs/plans/YYYY-MM-DD-<slug>-design.md`.
+- For multi-step work, write a plan in `docs/plans/YYYY-MM-DD-<slug>.md`.
+- Prefer test-first for new behavior; reproduce and trace root causes before fixes.
+- Self-review spec compliance first, then code quality; verify before claiming completion.
 
 ## Code Style
 **Code as Documentation**: Write self-explanatory code. Avoid comments unless absolutely necessary.

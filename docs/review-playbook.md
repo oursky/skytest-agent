@@ -9,6 +9,11 @@
 2. Open the start files for that review type.
 3. Use `rg` to locate hotspots, then read only small slices.
 
+## Review Flow
+1. **Spec compliance pass:** Confirm requirements/plan coverage and flag missing or extra behavior.
+2. **Code quality pass:** Evaluate maintainability, correctness, tests, and error handling.
+3. If spec compliance fails, stop and report before quality notes.
+
 ## Review Types & Start Files
 - Security: `src/lib/test-runner.ts`, `src/app/api/`, `src/lib/auth.ts`, `src/lib/file-security.ts`, `src/config/app.ts`, `prisma/schema.prisma`.
 - Performance: `src/lib/queue.ts`, `src/lib/test-runner.ts`, API route query usage.
@@ -25,7 +30,8 @@
 - AI Safety/Behavior: `src/lib/test-runner.ts`, `src/config/app.ts`, prompt/tool guardrails.
 
 ## Output Format
-- Findings list with: Risk, Evidence (file path), Recommendation.
+- Findings list with: Severity, Risk, Evidence (file path), Recommendation.
+- Separate Spec Compliance findings from Code Quality findings.
 - Optional: quick wins and follow-ups.
 
 ## Token-Saving Defaults
