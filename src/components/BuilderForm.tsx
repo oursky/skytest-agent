@@ -281,16 +281,20 @@ export default function BuilderForm({
 
                 {!readOnly && (
                     <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-600 space-y-3">
+                        <p className="text-[11px] text-gray-500 leading-snug">
+                            You can use the username and password as variables as below examples.
+                        </p>
                         <div>
-                            <p className="font-medium text-gray-700">AI step (uses Browser Config credentials via placeholders):</p>
+                            <p className="font-medium text-gray-700">AI Step:</p>
                             <code className="block bg-white border border-gray-200 px-2 py-1.5 rounded text-gray-600 whitespace-pre-wrap">{`Login with username ${config.test.security.credentialPlaceholders.username} and password ${config.test.security.credentialPlaceholders.password}.
-Verify xxx`}</code>
+Verify products page is loaded.`}</code>
                         </div>
                         <div>
-                            <p className="font-medium text-gray-700">Code step (variables available: username, password):</p>
+                            <p className="font-medium text-gray-700">Code Step:</p>
                             <code className="block bg-white border border-gray-200 px-2 py-1.5 rounded text-gray-600 whitespace-pre-wrap">{`await page.fill('#user-name', username);
 await page.fill('#password', password);
-await page.getByRole('button', { name: 'Login' }).click();`}</code>
+await page.getByRole('button', { name: 'Login' }).click();
+await expect(page.getByText(username, {exact: true })).toBeVisible();`}</code>
                         </div>
                     </div>
                 )}
