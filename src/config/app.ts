@@ -64,6 +64,9 @@ export const config = {
                 '192.168.0.0/16',
             ],
             blockedIpv6Prefixes: ['::1', 'fc', 'fd'],
+            dnsLookupTimeoutMs: 5000,
+            dnsCacheTtlMs: 5 * 60 * 1000,
+            blockedRequestLogDedupMs: 10000,
             playwrightCodeBlockedTokens: [
                 'require',
                 'import',

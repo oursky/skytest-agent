@@ -7,6 +7,7 @@ import { ConfigurationError, TestExecutionError, PlaywrightCodeError, getErrorMe
 import { getFilePath } from './file-security';
 import { createLogger as createServerLogger } from '@/lib/logger';
 import { validateTargetUrl } from './url-security';
+import { validateRuntimeRequestUrl } from './url-security-runtime';
 import { Script, createContext } from 'node:vm';
 import path from 'node:path';
 
@@ -270,6 +271,40 @@ async function setupBrowserInstances(
 
         const context = await browser.newContext({
             viewport: config.test.browser.viewport
+        });
+
+        const blockedRequestLogDedup = new Map<string, number>();
+        await context.route('**/*', async (route) => {
+            if (signal?.aborted) {
+                await route.abort('aborted');
+                return;
+            }
+
+            const requestUrl = route.request().url();
+            const validation = await validateRuntimeRequestUrl(requestUrl);
+            if (!validation.valid) {
+                try {
+                    const { hostname } = new URL(requestUrl);
+                    const key = `${hostname}:${validation.error ?? 'blocked'}`;
+                    const now = Date.now();
+                    const last = blockedRequestLogDedup.get(key) ?? 0;
+                    if (now - last > config.test.security.blockedRequestLogDedupMs) {
+                        blockedRequestLogDedup.set(key, now);
+                        log(
+                            `[${niceName}] Blocked request to ${hostname}: ${validation.error ?? 'not allowed'}`,
+                            'error',
+                            browserId
+                        );
+                    }
+                } catch {
+                    log(`[${niceName}] Blocked request: ${validation.error ?? 'not allowed'}`, 'error', browserId);
+                }
+
+                await route.abort('blockedbyclient');
+                return;
+            }
+
+            await route.continue();
         });
 
         const page = await context.newPage();

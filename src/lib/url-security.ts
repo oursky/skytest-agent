@@ -50,6 +50,13 @@ function isIpv6Blocked(hostname: string): boolean {
     return config.test.security.blockedIpv6Prefixes.some((prefix) => normalized.startsWith(prefix));
 }
 
+export function isBlockedIpAddress(hostname: string): boolean {
+    const ipVersion = isIP(hostname);
+    if (ipVersion === 4) return isIpv4Blocked(hostname);
+    if (ipVersion === 6) return isIpv6Blocked(hostname);
+    return false;
+}
+
 export function validateTargetUrl(rawUrl: string): UrlValidationResult {
     let url: URL;
     try {
@@ -58,7 +65,9 @@ export function validateTargetUrl(rawUrl: string): UrlValidationResult {
         return { valid: false, error: 'Invalid URL format' };
     }
 
-    if (!config.test.security.allowedUrlProtocols.includes(url.protocol)) {
+    if (!config.test.security.allowedUrlProtocols.includes(
+        url.protocol as (typeof config.test.security.allowedUrlProtocols)[number]
+    )) {
         return { valid: false, error: 'Only http and https URLs are allowed' };
     }
 
@@ -71,7 +80,9 @@ export function validateTargetUrl(rawUrl: string): UrlValidationResult {
         return { valid: false, error: 'URL hostname is required' };
     }
 
-    if (config.test.security.blockedHostnames.includes(hostname)) {
+    if (config.test.security.blockedHostnames.includes(
+        hostname as (typeof config.test.security.blockedHostnames)[number]
+    )) {
         return { valid: false, error: 'Target host is not allowed' };
     }
 
