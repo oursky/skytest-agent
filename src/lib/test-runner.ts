@@ -191,15 +191,29 @@ function validateConfiguration(
     url: string,
     prompt: string,
     steps: TestStep[] | undefined,
-    browserConfig: Record<string, BrowserConfig> | undefined
+    browserConfig: Record<string, BrowserConfig> | undefined,
+    defaultCredentials?: CredentialContext
 ): Record<string, BrowserConfig> {
     const hasBrowserConfig = browserConfig && Object.keys(browserConfig).length > 0;
 
     let targetConfigs: Record<string, BrowserConfig> = {};
     if (hasBrowserConfig) {
-        targetConfigs = browserConfig;
+        targetConfigs = { ...browserConfig };
+        if (defaultCredentials && targetConfigs.main) {
+            targetConfigs.main = {
+                ...targetConfigs.main,
+                username: targetConfigs.main.username ?? defaultCredentials.username,
+                password: targetConfigs.main.password ?? defaultCredentials.password
+            };
+        }
     } else if (url) {
-        targetConfigs = { 'main': { url, username: undefined, password: undefined } };
+        targetConfigs = {
+            main: {
+                url,
+                username: defaultCredentials?.username,
+                password: defaultCredentials?.password
+            }
+        };
     } else {
         throw new ConfigurationError('Valid configuration (URL or BrowserConfig) is required');
     }
@@ -620,7 +634,7 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
     process.env.MIDSCENE_PLANNING_MODEL_API_KEY = openRouterApiKey;
     process.env.MIDSCENE_INSIGHT_MODEL_API_KEY = openRouterApiKey;
 
-    const targetConfigs = validateConfiguration(url, prompt, steps, browserConfig);
+    const targetConfigs = validateConfiguration(url, prompt, steps, browserConfig, { username, password });
     const hasSteps = steps && steps.length > 0;
 
     let browserInstances: BrowserInstances | null = null;
