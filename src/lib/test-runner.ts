@@ -6,6 +6,7 @@ import { config } from '@/config/app';
 import { ConfigurationError, TestExecutionError, PlaywrightCodeError, getErrorMessage } from './errors';
 import { getFilePath } from './file-security';
 import { createLogger as createServerLogger } from '@/lib/logger';
+import { withMidsceneApiKey } from '@/lib/midscene-env';
 import { validateTargetUrl } from './url-security';
 import { validateRuntimeRequestUrl } from './url-security-runtime';
 import { Script, createContext } from 'node:vm';
@@ -814,61 +815,59 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
         return { status: 'FAIL', error: 'OpenRouter API key is required. Please configure it in API Key & Usage settings.' };
     }
 
-    process.env.MIDSCENE_MODEL_API_KEY = openRouterApiKey;
-    process.env.MIDSCENE_PLANNING_MODEL_API_KEY = openRouterApiKey;
-    process.env.MIDSCENE_INSIGHT_MODEL_API_KEY = openRouterApiKey;
+    return await withMidsceneApiKey(openRouterApiKey, async () => {
+        const targetConfigs = validateConfiguration(url, prompt, steps, browserConfig, { username, password });
+        const hasSteps = steps && steps.length > 0;
 
-    const targetConfigs = validateConfiguration(url, prompt, steps, browserConfig, { username, password });
-    const hasSteps = steps && steps.length > 0;
+        let browserInstances: BrowserInstances | null = null;
+        const actionCounter: ActionCounter = { count: 0 };
 
-    let browserInstances: BrowserInstances | null = null;
-    const actionCounter: ActionCounter = { count: 0 };
+        try {
+            browserInstances = await setupBrowserInstances(targetConfigs, onEvent, signal, actionCounter);
 
-    try {
-        browserInstances = await setupBrowserInstances(targetConfigs, onEvent, signal, actionCounter);
+            if (onCleanup && browserInstances) {
+                onCleanup(async () => {
+                    if (browserInstances?.browser) {
+                        await browserInstances.browser.close().catch(() => { });
+                    }
+                });
+            }
 
-        if (onCleanup && browserInstances) {
-            onCleanup(async () => {
-                if (browserInstances?.browser) {
-                    await browserInstances.browser.close().catch(() => { });
-                }
-            });
+            log('Executing test...', 'info');
+
+            if (signal?.aborted) throw new Error('Aborted');
+
+            if (hasSteps) {
+                await executeSteps(steps!, browserInstances, targetConfigs, onEvent, signal, testCaseId, files);
+            } else {
+                await executePrompt(prompt, browserInstances, targetConfigs);
+            }
+
+            if (signal?.aborted) throw new Error('Aborted');
+
+            log('✅ Test executed successfully', 'success');
+
+            await captureFinalScreenshots(browserInstances, onEvent, signal);
+
+            return { status: 'PASS', actionCount: actionCounter.count };
+
+        } catch (error: unknown) {
+            if (signal?.aborted || (error instanceof Error && error.message === 'Aborted')) {
+                return { status: 'CANCELLED', error: 'Test was cancelled by user', actionCount: actionCounter.count };
+            }
+
+            const msg = getErrorMessage(error);
+
+            if (browserInstances) {
+                await captureErrorScreenshots(browserInstances, onEvent);
+            }
+
+            return { status: 'FAIL', error: msg, actionCount: actionCounter.count };
+
+        } finally {
+            if (browserInstances) {
+                await cleanup(browserInstances.browser);
+            }
         }
-
-        log('Executing test...', 'info');
-
-        if (signal?.aborted) throw new Error('Aborted');
-
-        if (hasSteps) {
-            await executeSteps(steps!, browserInstances, targetConfigs, onEvent, signal, testCaseId, files);
-        } else {
-            await executePrompt(prompt, browserInstances, targetConfigs);
-        }
-
-        if (signal?.aborted) throw new Error('Aborted');
-
-        log('✅ Test executed successfully', 'success');
-
-        await captureFinalScreenshots(browserInstances, onEvent, signal);
-
-        return { status: 'PASS', actionCount: actionCounter.count };
-
-    } catch (error: unknown) {
-        if (signal?.aborted || (error instanceof Error && error.message === 'Aborted')) {
-            return { status: 'CANCELLED', error: 'Test was cancelled by user', actionCount: actionCounter.count };
-        }
-
-        const msg = getErrorMessage(error);
-
-        if (browserInstances) {
-            await captureErrorScreenshots(browserInstances, onEvent);
-        }
-
-        return { status: 'FAIL', error: msg, actionCount: actionCounter.count };
-
-    } finally {
-        if (browserInstances) {
-            await cleanup(browserInstances.browser);
-        }
-    }
+    });
 }
