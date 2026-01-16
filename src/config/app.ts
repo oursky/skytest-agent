@@ -90,6 +90,10 @@ export const config = {
                 'Buffer',
             ],
         },
+        playwrightCode: {
+            statementTimeoutMs: 30000,
+            syncTimeoutMs: 5000,
+        },
     },
 
     ui: {

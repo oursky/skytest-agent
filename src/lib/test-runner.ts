@@ -490,7 +490,8 @@ async function executePlaywrightCode(
     stepContext?: PlaywrightCodeStepContext,
     browserId?: string
 ): Promise<void> {
-    const timeoutMs = 30000;
+    const timeoutMs = config.test.playwrightCode.statementTimeoutMs;
+    const syncTimeoutMs = config.test.playwrightCode.syncTimeoutMs;
     const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
     const niceName = getBrowserNiceName(browserId || 'main');
 
@@ -522,57 +523,112 @@ async function executePlaywrightCode(
         password: credentials?.password
     };
     const stepFiles = stepContext?.stepFiles ?? {};
-    const context = createContext({
-        page: safePage,
-        expect: playwrightExpect,
-        setTimeout,
-        clearTimeout,
-        setInterval,
-        clearInterval,
-        credentials: credentialBindings,
-        stepFiles,
-        files: stepFiles,
-        ...credentialBindings
-    });
+
+    type TimeoutHandle = ReturnType<typeof setTimeout>;
+    type IntervalHandle = ReturnType<typeof setInterval>;
+
+    const timeouts = new Set<TimeoutHandle>();
+    const intervals = new Set<IntervalHandle>();
+
+    const setTimeoutWrapped = (...args: Parameters<typeof setTimeout>): TimeoutHandle => {
+        const handle = setTimeout(...args) as TimeoutHandle;
+        timeouts.add(handle);
+        return handle;
+    };
+
+    const clearTimeoutWrapped = (handle: TimeoutHandle): void => {
+        timeouts.delete(handle);
+        clearTimeout(handle as Parameters<typeof clearTimeout>[0]);
+    };
+
+    const setIntervalWrapped = (...args: Parameters<typeof setInterval>): IntervalHandle => {
+        const handle = setInterval(...args) as IntervalHandle;
+        intervals.add(handle);
+        return handle;
+    };
+
+    const clearIntervalWrapped = (handle: IntervalHandle): void => {
+        intervals.delete(handle);
+        clearInterval(handle as Parameters<typeof clearInterval>[0]);
+    };
+
+    const cleanupTimers = (): void => {
+        for (const handle of Array.from(intervals)) {
+            clearIntervalWrapped(handle);
+        }
+        for (const handle of Array.from(timeouts)) {
+            clearTimeoutWrapped(handle);
+        }
+    };
+
+    const context = createContext(
+        {
+            page: safePage,
+            expect: playwrightExpect,
+            setTimeout: setTimeoutWrapped,
+            clearTimeout: clearTimeoutWrapped,
+            setInterval: setIntervalWrapped,
+            clearInterval: clearIntervalWrapped,
+            credentials: credentialBindings,
+            stepFiles,
+            files: stepFiles,
+            ...credentialBindings
+        },
+        { codeGeneration: { strings: false, wasm: false } }
+    );
 
     log(`[Step ${stepIndex + 1}] Executing ${statements.length} statement(s)...`, 'info', browserId);
 
-    for (let i = 0; i < statements.length; i++) {
-        const statement = statements[i];
-        const statementPreview = statement.length > 80 ? statement.substring(0, 80) + '...' : statement;
+    const timeoutSeconds = Math.ceil(timeoutMs / 1000);
 
-        log(`[Step ${stepIndex + 1}.${i + 1}] ${statementPreview}`, 'info', browserId);
+    try {
+        for (let i = 0; i < statements.length; i++) {
+            const statement = statements[i];
+            const statementPreview = statement.length > 80 ? statement.substring(0, 80) + '...' : statement;
 
-        const timeoutPromise = new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error(`Statement execution timed out (30s): ${statementPreview}`)), timeoutMs);
-        });
+            log(`[Step ${stepIndex + 1}.${i + 1}] ${statementPreview}`, 'info', browserId);
 
-        try {
-            const script = new Script(`(async () => { ${statement} })()`);
-            const result = script.runInContext(context) as Promise<unknown>;
-            await Promise.race([result, timeoutPromise]);
-        } catch (error) {
-            const errorMessage = getErrorMessage(error);
-            log(
-                `[Step ${stepIndex + 1}.${i + 1}] Playwright code error in "${statementPreview}": ${errorMessage}`,
-                'error',
+            let timerHandle: TimeoutHandle | null = null;
+            const timeoutPromise = new Promise<never>((_, reject) => {
+                timerHandle = setTimeoutWrapped(
+                    () => reject(new Error(`Statement execution timed out (${timeoutSeconds}s): ${statementPreview}`)),
+                    timeoutMs
+                );
+            });
+
+            try {
+                const script = new Script(`(async () => { ${statement} })()`);
+                const result = script.runInContext(context, { timeout: syncTimeoutMs }) as Promise<unknown>;
+                await Promise.race([result, timeoutPromise]);
+            } catch (error) {
+                const errorMessage = getErrorMessage(error);
+                log(
+                    `[Step ${stepIndex + 1}.${i + 1}] Playwright code error in "${statementPreview}": ${errorMessage}`,
+                    'error',
+                    browserId
+                );
+                throw new PlaywrightCodeError(
+                    `Playwright code execution failed at step ${stepIndex + 1}.${i + 1}: ${errorMessage}`,
+                    stepIndex,
+                    statement,
+                    error instanceof Error ? error : undefined
+                );
+            } finally {
+                if (timerHandle) {
+                    clearTimeoutWrapped(timerHandle);
+                }
+            }
+
+            await captureScreenshot(
+                page,
+                `[${niceName}] Step ${stepIndex + 1}.${i + 1}: ${statementPreview}`,
+                onEvent,
+                log,
                 browserId
             );
-            throw new PlaywrightCodeError(
-                `Playwright code execution failed at step ${stepIndex + 1}.${i + 1}: ${errorMessage}`,
-                stepIndex,
-                statement,
-                error instanceof Error ? error : undefined
-            );
         }
-
-        await captureScreenshot(
-            page,
-            `[${niceName}] Step ${stepIndex + 1}.${i + 1}: ${statementPreview}`,
-            onEvent,
-            log,
-            browserId
-        );
+    } finally {
+        cleanupTimers();
     }
 }
 
