@@ -51,6 +51,7 @@ export interface RunTestOptions {
         openRouterApiKey?: string;
         testCaseId?: string;
         files?: TestCaseFile[];
+        projectId?: string;
     };
     onEvent: (event: TestEvent) => void;
     signal?: AbortSignal;

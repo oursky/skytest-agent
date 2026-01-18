@@ -175,7 +175,7 @@ export async function POST(request: Request) {
             }
         }
 
-        await queue.add(testRun.id, { ...config, userId, openRouterApiKey, testCaseId, files });
+        await queue.add(testRun.id, { ...config, userId, openRouterApiKey, testCaseId, projectId: testCase.projectId, files });
 
         return NextResponse.json({ runId: testRun.id });
 

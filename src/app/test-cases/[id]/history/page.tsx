@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, useRef } from "react";
 import { useAuth } from "../../../auth-provider";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -30,6 +30,8 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
     const [isLoading, setIsLoading] = useState(true);
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; runId: string; status?: string }>({ isOpen: false, runId: "", status: "" });
 
+    const eventSourceRef = useRef<EventSource | null>(null);
+
     useEffect(() => {
         if (!isAuthLoading && !isLoggedIn) {
             router.push("/");
@@ -53,6 +55,97 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
             loadData();
         }
     }, [id, isLoggedIn, isAuthLoading]);
+
+    useEffect(() => {
+        if (!isLoggedIn || isAuthLoading) return;
+        if (!projectId) return;
+
+        let disposed = false;
+
+        const closeEventSource = () => {
+            if (eventSourceRef.current) {
+                eventSourceRef.current.close();
+                eventSourceRef.current = null;
+            }
+        };
+
+        const connect = async () => {
+            closeEventSource();
+
+            if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+
+            const token = await getAccessToken();
+            if (disposed) return;
+            if (!token) return;
+
+            const eventsUrl = new URL(`/api/projects/${projectId}/events`, window.location.origin);
+            eventsUrl.searchParams.set('token', token);
+
+            const es = new EventSource(eventsUrl.toString());
+            eventSourceRef.current = es;
+
+            es.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data) as {
+                        type?: string;
+                        testCaseId?: string;
+                        runId?: string;
+                        status?: string;
+                    };
+
+                    if (data.type !== 'test-run-status') return;
+                    if (data.testCaseId !== id) return;
+
+                    const runId = data.runId;
+                    const status = data.status;
+                    if (!runId || !status) return;
+
+                    setTestRuns((current) => {
+                        const next = current.map((run) => (run.id === runId ? { ...run, status } : run));
+                        const found = next.some((run) => run.id === runId);
+                        if (found) return next;
+
+                        return [
+                            {
+                                id: runId,
+                                status,
+                                createdAt: new Date().toISOString(),
+                                result: '',
+                                error: null,
+                            },
+                            ...next,
+                        ];
+                    });
+                } catch {
+                    // ignore malformed events
+                }
+            };
+
+            es.onerror = () => {
+                if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+                    closeEventSource();
+                }
+            };
+        };
+
+        void connect();
+
+        const onVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                void connect();
+            } else {
+                closeEventSource();
+            }
+        };
+
+        document.addEventListener('visibilitychange', onVisibilityChange);
+
+        return () => {
+            disposed = true;
+            document.removeEventListener('visibilitychange', onVisibilityChange);
+            closeEventSource();
+        };
+    }, [getAccessToken, id, isAuthLoading, isLoggedIn, projectId]);
 
     const fetchTestCaseInfo = async () => {
         try {

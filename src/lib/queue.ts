@@ -5,6 +5,7 @@ import { config as appConfig } from '@/config/app';
 import { getErrorMessage } from './errors';
 import { UsageService } from './usage';
 import { createLogger } from './logger';
+import { publishProjectEvent } from '@/lib/project-events';
 
 const logger = createLogger('queue');
 
@@ -50,6 +51,15 @@ export class TestQueue {
             logger.error(`Failed to update status for ${runId}`, e);
         }
 
+        if (config.projectId && config.testCaseId) {
+            publishProjectEvent(config.projectId, {
+                type: 'test-run-status',
+                testCaseId: config.testCaseId,
+                runId,
+                status: 'QUEUED'
+            });
+        }
+
         this.processNext();
     }
 
@@ -88,6 +98,15 @@ export class TestQueue {
                         logs: JSON.stringify(logBuffer)
                     }
                 });
+
+                if (job.config.projectId && job.config.testCaseId) {
+                    publishProjectEvent(job.config.projectId, {
+                        type: 'test-run-status',
+                        testCaseId: job.config.testCaseId,
+                        runId,
+                        status: 'CANCELLED'
+                    });
+                }
             } catch (e) {
                 logger.error(`Failed to mark ${runId} as cancelled`, e);
             }
@@ -95,10 +114,20 @@ export class TestQueue {
         } else {
             const index = this.queue.findIndex(j => j.runId === runId);
             if (index !== -1) {
+                const job = this.queue[index];
                 this.queue.splice(index, 1);
                 prisma.testRun.update({
                     where: { id: runId },
                     data: { status: 'CANCELLED', error: 'Cancelled while queued', completedAt: new Date() }
+                }).then(() => {
+                    if (job?.config.projectId && job.config.testCaseId) {
+                        publishProjectEvent(job.config.projectId, {
+                            type: 'test-run-status',
+                            testCaseId: job.config.testCaseId,
+                            runId,
+                            status: 'CANCELLED'
+                        });
+                    }
                 }).catch((error) => logger.error(`Failed to mark ${runId} as cancelled`, error));
 
                 this.logs.delete(runId);
@@ -144,6 +173,15 @@ export class TestQueue {
             }
         });
 
+        if (job.config.projectId && job.config.testCaseId) {
+            publishProjectEvent(job.config.projectId, {
+                type: 'test-run-status',
+                testCaseId: job.config.testCaseId,
+                runId: job.runId,
+                status: 'RUNNING'
+            });
+        }
+
         this.executeJob(job);
 
         this.processNext();
@@ -177,6 +215,15 @@ export class TestQueue {
                     completedAt: new Date()
                 }
             });
+
+            if (config.projectId && config.testCaseId) {
+                publishProjectEvent(config.projectId, {
+                    type: 'test-run-status',
+                    testCaseId: config.testCaseId,
+                    runId,
+                    status: result.status
+                });
+            }
 
             logger.info('Test completed', {
                 runId,
@@ -220,6 +267,15 @@ export class TestQueue {
                         completedAt: new Date()
                     }
                 });
+
+                if (config.projectId && config.testCaseId) {
+                    publishProjectEvent(config.projectId, {
+                        type: 'test-run-status',
+                        testCaseId: config.testCaseId,
+                        runId,
+                        status: 'FAIL'
+                    });
+                }
             }
         } finally {
             this.running.delete(runId);

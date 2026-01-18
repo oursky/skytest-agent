@@ -47,8 +47,8 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     const [isLoading, setIsLoading] = useState(true);
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; testCaseId: string; testCaseName: string }>({ isOpen: false, testCaseId: "", testCaseName: "" });
 
-    const pollAbortRef = useRef<AbortController | null>(null);
-    const pollInFlightRef = useRef(false);
+    const refreshAbortRef = useRef<AbortController | null>(null);
+    const eventSourceRef = useRef<EventSource | null>(null);
 
     useEffect(() => {
         if (!isAuthLoading && !isLoggedIn) {
@@ -108,17 +108,93 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
     useEffect(() => {
         if (!isLoggedIn || isAuthLoading) return;
+        if (!resolvedParams.id) return;
 
-        fetchData();
+        let disposed = false;
 
-        const pollTestCases = async () => {
+        const closeEventSource = () => {
+            if (eventSourceRef.current) {
+                eventSourceRef.current.close();
+                eventSourceRef.current = null;
+            }
+        };
+
+        const connect = async () => {
+            closeEventSource();
+
             if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
-            if (pollInFlightRef.current) return;
 
-            pollInFlightRef.current = true;
-            pollAbortRef.current?.abort();
+            const token = await getAccessToken();
+            if (disposed) return;
+            if (!token) return;
+
+            const eventsUrl = new URL(`/api/projects/${resolvedParams.id}/events`, window.location.origin);
+            eventsUrl.searchParams.set('token', token);
+
+            const es = new EventSource(eventsUrl.toString());
+            eventSourceRef.current = es;
+
+            es.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data) as {
+                        type?: string;
+                        testCaseId?: string;
+                        runId?: string;
+                        status?: string;
+                    };
+
+                    if (data.type !== 'test-run-status') return;
+
+                    const testCaseId = data.testCaseId;
+                    const runId = data.runId;
+                    const status = data.status;
+                    if (!testCaseId || !runId || !status) return;
+
+                    setTestCases((current) =>
+                        current.map((testCase) => {
+                            if (testCase.id !== testCaseId) return testCase;
+
+                            const latestRun = testCase.testRuns?.[0];
+                            if (!latestRun || latestRun.id !== runId) {
+                                return {
+                                    ...testCase,
+                                    testRuns: [
+                                        {
+                                            id: runId,
+                                            status,
+                                            createdAt: new Date().toISOString(),
+                                        },
+                                    ],
+                                };
+                            }
+
+                            if (latestRun.status === status) return testCase;
+
+                            return {
+                                ...testCase,
+                                testRuns: [{ ...latestRun, status }],
+                            };
+                        })
+                    );
+                } catch {
+                    // ignore malformed events
+                }
+            };
+
+            es.onerror = () => {
+                // EventSource reconnects automatically. Close if tab is hidden to avoid server load.
+                if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+                    closeEventSource();
+                }
+            };
+        };
+
+        const refreshTestCases = async () => {
+            if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+
+            refreshAbortRef.current?.abort();
             const controller = new AbortController();
-            pollAbortRef.current = controller;
+            refreshAbortRef.current = controller;
 
             try {
                 await fetchTestCases(controller.signal);
@@ -127,37 +203,42 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     return;
                 }
                 console.error("Error fetching test cases:", err);
-            } finally {
-                pollInFlightRef.current = false;
             }
         };
 
+        fetchData();
+        void connect();
+
         const onFocus = () => {
             fetchData(true);
+            void connect();
         };
 
         const onVisibilityChange = () => {
             if (document.visibilityState === 'visible') {
-                pollTestCases();
+                void connect();
+                void refreshTestCases();
             } else {
-                pollAbortRef.current?.abort();
+                closeEventSource();
+                refreshAbortRef.current?.abort();
             }
         };
 
         window.addEventListener('focus', onFocus);
         document.addEventListener('visibilitychange', onVisibilityChange);
 
-        const intervalId = setInterval(pollTestCases, 2000);
+        const refreshIntervalId = setInterval(refreshTestCases, 60000);
 
         return () => {
+            disposed = true;
             window.removeEventListener('focus', onFocus);
             document.removeEventListener('visibilitychange', onVisibilityChange);
-            clearInterval(intervalId);
-            pollAbortRef.current?.abort();
-            pollAbortRef.current = null;
-            pollInFlightRef.current = false;
+            clearInterval(refreshIntervalId);
+            closeEventSource();
+            refreshAbortRef.current?.abort();
+            refreshAbortRef.current = null;
         };
-    }, [fetchData, fetchTestCases, isLoggedIn, isAuthLoading]);
+    }, [fetchData, fetchTestCases, getAccessToken, isLoggedIn, isAuthLoading, resolvedParams.id]);
 
     const handleDeleteTestCase = async () => {
         try {
