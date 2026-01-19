@@ -379,7 +379,7 @@ function RunPageContent() {
             const response = await fetch(`/api/projects/${effectiveProjectId}/test-cases`, {
                 method: "POST",
                 headers,
-                body: JSON.stringify({ ...data, displayId }),
+                body: JSON.stringify({ ...data, displayId, ...(options?.saveDraft ? { saveDraft: true } : {}) }),
             });
             if (!response.ok) {
                 throw new Error('Failed to create test case');

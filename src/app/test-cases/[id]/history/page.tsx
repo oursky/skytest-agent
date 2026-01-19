@@ -9,6 +9,7 @@ import Breadcrumbs from "@/components/Breadcrumbs";
 import { formatDateTime } from "@/utils/dateFormatter";
 import { useI18n } from "@/i18n";
 import { getStatusBadgeClass } from '@/utils/statusBadge';
+import Pagination from '@/components/Pagination';
 
 interface TestRun {
     id: string;
@@ -30,6 +31,8 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
     const [projectName, setProjectName] = useState<string>("");
     const [isLoading, setIsLoading] = useState(true);
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; runId: string; status?: string }>({ isOpen: false, runId: "", status: "" });
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
 
     const eventSourceRef = useRef<EventSource | null>(null);
 
@@ -201,6 +204,21 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
         }
     };
 
+    const totalPages = Math.ceil(testRuns.length / pageSize);
+    const paginatedTestRuns = testRuns.slice(
+        (currentPage - 1) * pageSize,
+        currentPage * pageSize
+    );
+
+    const handlePageChange = (page: number) => {
+        setCurrentPage(page);
+    };
+
+    const handlePageSizeChange = (size: number) => {
+        setPageSize(size);
+        setCurrentPage(1);
+    };
+
     if (isAuthLoading || isLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
@@ -212,7 +230,7 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
     const isRunningOrQueued = ['RUNNING', 'QUEUED'].includes(deleteModal.status || '');
 
     return (
-        <main className="min-h-screen bg-gray-50 p-8">
+        <main className="min-h-screen bg-gray-50">
             <Modal
                 isOpen={deleteModal.isOpen}
                 onClose={() => setDeleteModal({ isOpen: false, runId: "", status: "" })}
@@ -233,7 +251,7 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
                 </div>
             </Modal>
 
-            <div className="max-w-5xl mx-auto">
+            <div className="max-w-7xl mx-auto px-8 py-8">
                 <Breadcrumbs items={[
                     { label: projectName, href: projectId ? `/projects/${projectId}` : undefined },
                     { label: testCaseName }
@@ -259,8 +277,9 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
                             <p className="text-gray-500">{t('history.noHistory.subtitle')}</p>
                         </div>
                     ) : (
+                        <>
                         <div className="divide-y divide-gray-100">
-                            {testRuns.map((run) => {
+                            {paginatedTestRuns.map((run) => {
                                 const isRunRunningOrQueued = ['RUNNING', 'QUEUED'].includes(run.status);
                                 return (
                                     <div key={run.id} className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-gray-50 transition-colors">
@@ -311,6 +330,15 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
                                 );
                             })}
                         </div>
+                        <Pagination
+                            page={currentPage}
+                            limit={pageSize}
+                            total={testRuns.length}
+                            totalPages={totalPages}
+                            onPageChange={handlePageChange}
+                            onLimitChange={handlePageSizeChange}
+                        />
+                        </>
                     )}
                 </div>
             </div>

@@ -34,6 +34,14 @@ export const MESSAGES: Record<Locale, Messages> = {
     'common.noRecords': 'No records',
     'testCase.untitled': 'Untitled',
 
+    // Pagination
+    'pagination.showing': 'Showing {from} to {to} of {total}',
+    'pagination.noRecords': 'No records',
+    'pagination.rowsPerPage': 'Rows per page:',
+    'pagination.previous': 'Previous',
+    'pagination.next': 'Next',
+    'pagination.pageOf': 'Page {page} of {totalPages}',
+
     // Header
     'header.accountSettings': 'Account Settings',
     'header.apiKeyUsage': 'API Key & Usage',
@@ -99,9 +107,13 @@ export const MESSAGES: Record<Locale, Messages> = {
     // Project detail page
     'project.testCases.title': 'Test Cases',
     'project.startNewRun': 'Start New Run',
+    'project.search.placeholder': 'Search...',
+    'project.search.button': 'Search',
+    'project.exportAll': 'Export All',
     'project.table.id': 'ID',
     'project.table.name': 'Name',
     'project.table.latestStatus': 'Latest Status',
+    'project.table.status': 'Status',
     'project.table.lastRun': 'Last Run',
     'project.table.updated': 'Updated',
     'project.table.actions': 'Actions',
@@ -337,6 +349,14 @@ Verify that "Sauce Labs Backpack" is in the cart.`,
     'common.noRecords': '沒有紀錄',
     'testCase.untitled': '未命名',
 
+    // Pagination
+    'pagination.showing': '顯示第 {from} 至 {to} 筆，共 {total} 筆',
+    'pagination.noRecords': '沒有紀錄',
+    'pagination.rowsPerPage': '每頁筆數：',
+    'pagination.previous': '上一頁',
+    'pagination.next': '下一頁',
+    'pagination.pageOf': '第 {page} 頁，共 {totalPages} 頁',
+
     // Header
     'header.accountSettings': '帳戶設定',
     'header.apiKeyUsage': 'API Key 與使用量',
@@ -402,9 +422,13 @@ Verify that "Sauce Labs Backpack" is in the cart.`,
     // Project detail page
     'project.testCases.title': '測試案例',
     'project.startNewRun': '建立測試案例',
+    'project.search.placeholder': '搜尋...',
+    'project.search.button': '搜尋',
+    'project.exportAll': '匯出全部',
     'project.table.id': 'ID',
     'project.table.name': '項目名稱',
     'project.table.latestStatus': '最新狀態',
+    'project.table.status': '狀態',
     'project.table.lastRun': '最近結果',
     'project.table.updated': '更新時間',
     'project.table.actions': '操作',
@@ -640,6 +664,14 @@ Verify that "Sauce Labs Backpack" is in the cart.`,
     'common.noRecords': '没有记录',
     'testCase.untitled': '未命名',
 
+    // Pagination
+    'pagination.showing': '显示第 {from} 至 {to} 条，共 {total} 条',
+    'pagination.noRecords': '没有记录',
+    'pagination.rowsPerPage': '每页行数：',
+    'pagination.previous': '上一页',
+    'pagination.next': '下一页',
+    'pagination.pageOf': '第 {page} 页，共 {totalPages} 页',
+
     // Header
     'header.accountSettings': '账号设置',
     'header.apiKeyUsage': 'API Key 与用量',
@@ -705,9 +737,13 @@ Verify that "Sauce Labs Backpack" is in the cart.`,
     // Project detail page
     'project.testCases.title': '测试用例',
     'project.startNewRun': '创建测试用例',
+    'project.search.placeholder': '搜索...',
+    'project.search.button': '搜索',
+    'project.exportAll': '导出全部',
     'project.table.id': 'ID',
     'project.table.name': '项目名称',
     'project.table.latestStatus': '最新状态',
+    'project.table.status': '状态',
     'project.table.lastRun': '最近结果',
     'project.table.updated': '更新时间',
     'project.table.actions': '操作',

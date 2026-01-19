@@ -185,6 +185,13 @@ return NextResponse.json({
 | Shared logic | `src/lib/<module>.ts` |
 | Types | `src/types/<category>.ts` + re-export in `index.ts` |
 | Config | `src/config/app.ts` |
+| i18n messages | `src/i18n/messages.ts` (all three locales: en, zh-Hant, zh-Hans) |
+
+## i18n Guidelines
+- All user-facing text must use i18n keys via `t('key.path')`
+- Add keys to all three locales in `src/i18n/messages.ts`
+- Keep translations concise; avoid duplicate keys for minor variations
+- Use interpolation for dynamic values: `t('key', { name: value })`
 
 ## What NOT to Do
 - Don't create new Prisma or queue instances
@@ -192,3 +199,4 @@ return NextResponse.json({
 - Don't hardcode values (use config)
 - Don't refactor unrelated code
 - Don't skip authentication on API routes
+- Don't create duplicate i18n keys for minor text variations

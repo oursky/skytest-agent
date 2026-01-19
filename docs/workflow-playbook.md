@@ -67,7 +67,10 @@
 - One concern per commit with a clear message.
 - Avoid mixing refactors and behavior changes.
 - Keep commits reversible and focused.
+- Commit after each logical change; don't batch unrelated changes.
+- Use conventional commit prefixes: `feat:`, `fix:`, `style:`, `chore:`, `refactor:`.
 
 ## Validation Guidance
 - Run targeted tests before broader suites.
 - Skip heavy tests unless requested; note skips in the summary.
+- Run `npx tsc --noEmit` to verify TypeScript compilation before committing.

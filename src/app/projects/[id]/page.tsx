@@ -9,6 +9,7 @@ import Breadcrumbs from "@/components/Breadcrumbs";
 import { formatDateTimeCompact } from "@/utils/dateFormatter";
 import { useI18n } from "@/i18n";
 import { getStatusBadgeClass } from '@/utils/statusBadge';
+import Pagination from '@/components/Pagination';
 
 interface TestRun {
     id: string;
@@ -49,6 +50,12 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     const [testCases, setTestCases] = useState<TestCase[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; testCaseId: string; testCaseName: string }>({ isOpen: false, testCaseId: "", testCaseName: "" });
+    const [sortColumn, setSortColumn] = useState<'id' | 'name' | 'status' | 'updated'>('updated');
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
+    const [searchInput, setSearchInput] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
 
     const refreshAbortRef = useRef<AbortController | null>(null);
     const eventSourceRef = useRef<EventSource | null>(null);
@@ -276,6 +283,119 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         }
     };
 
+    const handleSort = (column: 'id' | 'name' | 'status' | 'updated') => {
+        if (sortColumn === column) {
+            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortColumn(column);
+            setSortDirection('asc');
+        }
+    };
+
+    const handleSearch = () => {
+        setSearchQuery(searchInput.trim());
+        setCurrentPage(1);
+    };
+
+    const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            handleSearch();
+        }
+    };
+
+    const filteredTestCases = testCases.filter((tc) => {
+        if (!searchQuery) return true;
+        const query = searchQuery.toLowerCase();
+        const matchesId = tc.displayId?.toLowerCase().includes(query);
+        const matchesName = tc.name.toLowerCase().includes(query);
+        return matchesId || matchesName;
+    });
+
+    const sortedTestCases = [...filteredTestCases].sort((a, b) => {
+        let comparison = 0;
+        
+        switch (sortColumn) {
+            case 'id':
+                const idA = a.displayId || '';
+                const idB = b.displayId || '';
+                comparison = idA.localeCompare(idB);
+                break;
+            case 'name':
+                comparison = a.name.localeCompare(b.name);
+                break;
+            case 'status':
+                const statusA = a.status || a.testRuns[0]?.status || '';
+                const statusB = b.status || b.testRuns[0]?.status || '';
+                comparison = statusA.localeCompare(statusB);
+                break;
+            case 'updated':
+                comparison = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
+                break;
+        }
+        
+        return sortDirection === 'asc' ? comparison : -comparison;
+    });
+
+    const totalPages = Math.ceil(sortedTestCases.length / pageSize);
+    const paginatedTestCases = sortedTestCases.slice(
+        (currentPage - 1) * pageSize,
+        currentPage * pageSize
+    );
+
+    const handlePageChange = (page: number) => {
+        setCurrentPage(page);
+    };
+
+    const handlePageSizeChange = (size: number) => {
+        setPageSize(size);
+        setCurrentPage(1);
+    };
+
+    const handleExportAll = () => {
+        const headers = ['ID', 'Name', 'Status', 'Updated'];
+        const rows = testCases.map((tc) => {
+            const status = tc.status || tc.testRuns[0]?.status || '';
+            return [
+                tc.displayId || '',
+                tc.name,
+                status,
+                tc.updatedAt,
+            ];
+        });
+
+        const csvContent = [
+            headers.join(','),
+            ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
+        ].join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${project?.name || 'test-cases'}-export.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const SortIcon = ({ column }: { column: 'id' | 'name' | 'status' | 'updated' }) => {
+        if (sortColumn !== column) {
+            return (
+                <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                </svg>
+            );
+        }
+        return sortDirection === 'asc' ? (
+            <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+            </svg>
+        ) : (
+            <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+        );
+    };
+
     if (isAuthLoading || isLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
@@ -285,7 +405,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     }
 
     return (
-        <main className="min-h-screen bg-gray-50 p-8">
+        <main className="min-h-screen bg-gray-50">
             <Modal
                 isOpen={deleteModal.isOpen}
                 onClose={() => setDeleteModal({ isOpen: false, testCaseId: "", testCaseName: "" })}
@@ -299,30 +419,128 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 </p>
             </Modal>
 
-            <div className="max-w-5xl mx-auto">
+            <div className="max-w-7xl mx-auto px-8 py-8">
                 <Breadcrumbs items={[{ label: project?.name || t('common.project') }]} />
 
-                <div className="flex items-center justify-between mb-8">
-                    <h1 className="text-3xl font-bold text-gray-900">{t('project.testCases.title')}</h1>
-                    <div className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+                    <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 shrink-0">{t('project.testCases.title')}</h1>
+                    {/* Desktop/Tablet: search + buttons in one row */}
+                    <div className="hidden sm:flex items-center gap-2">
+                        <div className="relative">
+                            <input
+                                type="text"
+                                value={searchInput}
+                                onChange={(e) => setSearchInput(e.target.value)}
+                                onKeyDown={handleSearchKeyDown}
+                                placeholder={t('project.search.placeholder')}
+                                className="w-48 pl-3 pr-8 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                            />
+                            <button
+                                onClick={handleSearch}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600 transition-colors"
+                                aria-label={t('project.search.button')}
+                            >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </button>
+                        </div>
+                        <button
+                            onClick={handleExportAll}
+                            className="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-2 cursor-pointer"
+                            title={t('project.exportAll')}
+                        >
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            <span className="hidden md:inline">{t('project.exportAll')}</span>
+                        </button>
                         <Link
                             href={`/run?projectId=${id}`}
-                            className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors flex items-center gap-2"
+                            className="px-3 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors flex items-center gap-2"
+                            title={t('project.startNewRun')}
                         >
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                             </svg>
-                            {t('project.startNewRun')}
+                            <span className="hidden md:inline">{t('project.startNewRun')}</span>
                         </Link>
+                    </div>
+                    {/* Mobile: full-width search, then half-width buttons */}
+                    <div className="flex flex-col gap-2 sm:hidden">
+                        <div className="relative">
+                            <input
+                                type="text"
+                                value={searchInput}
+                                onChange={(e) => setSearchInput(e.target.value)}
+                                onKeyDown={handleSearchKeyDown}
+                                placeholder={t('project.search.placeholder')}
+                                className="w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                            />
+                            <button
+                                onClick={handleSearch}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                                aria-label={t('project.search.button')}
+                            >
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={handleExportAll}
+                                className="flex-1 px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                            >
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                                {t('project.exportAll')}
+                            </button>
+                            <Link
+                                href={`/run?projectId=${id}`}
+                                className="flex-1 px-3 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
+                            >
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                                {t('project.startNewRun')}
+                            </Link>
+                        </div>
                     </div>
                 </div>
 
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                    <div className="hidden md:grid grid-cols-12 gap-4 p-4 border-b border-gray-200 bg-gray-50 text-sm font-medium text-gray-500">
-                        <div className="col-span-5">{t('project.table.name')}</div>
-                        <div className="col-span-2">{t('project.table.latestStatus')}</div>
-                        <div className="col-span-2">{t('project.table.updated')}</div>
-                        <div className="col-span-3 text-right">{t('project.table.actions')}</div>
+                    <div className="hidden md:grid grid-cols-24 gap-4 p-4 border-b border-gray-200 bg-gray-50 text-sm font-medium text-gray-500">
+                        <button
+                            onClick={() => handleSort('id')}
+                            className="col-span-3 flex items-center gap-1 hover:text-gray-700 transition-colors text-left"
+                        >
+                            {t('project.table.id')}
+                            <SortIcon column="id" />
+                        </button>
+                        <button
+                            onClick={() => handleSort('name')}
+                            className="col-span-9 flex items-center gap-1 hover:text-gray-700 transition-colors text-left"
+                        >
+                            {t('project.table.name')}
+                            <SortIcon column="name" />
+                        </button>
+                        <button
+                            onClick={() => handleSort('status')}
+                            className="col-span-3 flex items-center gap-1 hover:text-gray-700 transition-colors text-left"
+                        >
+                            {t('project.table.status')}
+                            <SortIcon column="status" />
+                        </button>
+                        <button
+                            onClick={() => handleSort('updated')}
+                            className="col-span-4 flex items-center gap-1 hover:text-gray-700 transition-colors text-left"
+                        >
+                            {t('project.table.updated')}
+                            <SortIcon column="updated" />
+                        </button>
+                        <div className="col-span-5 text-right">{t('project.table.actions')}</div>
                     </div>
 
                     {testCases.length === 0 ? (
@@ -345,25 +563,30 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                             </Link>
                         </div>
                     ) : (
+                        <>
                         <div className="divide-y divide-gray-100">
-                            {testCases.map((testCase) => {
+                            {paginatedTestCases.map((testCase) => {
                                 const currentStatus = testCase.status || (testCase.testRuns[0]?.status);
 
                                 return (
-                                    <div key={testCase.id} className="flex flex-col md:grid md:grid-cols-12 gap-4 p-4 hover:bg-gray-50 transition-colors group">
-                                        <div className="md:col-span-5">
+                                    <div key={testCase.id} className="flex flex-col md:grid md:grid-cols-24 gap-4 p-4 hover:bg-gray-50 transition-colors group">
+                                        <div className="md:col-span-3 flex items-center">
+                                            {testCase.displayId ? (
+                                                <span className="text-xs text-gray-500 font-mono">{testCase.displayId}</span>
+                                            ) : (
+                                                <span className="text-gray-400 text-sm">-</span>
+                                            )}
+                                        </div>
+                                        <div className="md:col-span-9 flex items-center">
                                             <Link
                                                 href={`/run?testCaseId=${testCase.id}&projectId=${id}`}
                                                 className="font-medium text-gray-900 hover:text-primary transition-colors"
                                             >
                                                 {testCase.name}
                                             </Link>
-                                            {testCase.displayId && (
-                                                <div className="text-xs text-gray-500 mt-1 font-mono">{testCase.displayId}</div>
-                                            )}
                                         </div>
                                         <div className="flex items-center gap-4 md:contents">
-                                            <div className="md:col-span-2 flex items-center">
+                                            <div className="md:col-span-3 flex items-center">
                                                 {currentStatus ? (
                                                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadgeClass(currentStatus)}`}>
                                                         {currentStatus}
@@ -372,10 +595,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                                                     <span className="text-gray-400 text-sm">-</span>
                                                 )}
                                             </div>
-                                            <div className="md:col-span-2 text-sm text-gray-500 flex items-center">
+                                            <div className="md:col-span-4 text-sm text-gray-500 flex items-center">
                                                 {formatDateTimeCompact(testCase.updatedAt)}
                                             </div>
-                                            <div className="md:col-span-3 flex justify-end gap-2">
+                                            <div className="md:col-span-5 flex justify-end gap-2">
                                                 {(!testCase.testRuns[0] || !['RUNNING', 'QUEUED'].includes(testCase.testRuns[0].status)) && (
                                                     <Link
                                                         href={`/run?testCaseId=${testCase.id}&name=${encodeURIComponent(testCase.name)}`}
@@ -444,6 +667,15 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                                 );
                             })}
                         </div>
+                        <Pagination
+                            page={currentPage}
+                            limit={pageSize}
+                            total={sortedTestCases.length}
+                            totalPages={totalPages}
+                            onPageChange={handlePageChange}
+                            onLimitChange={handlePageSizeChange}
+                        />
+                        </>
                     )}
                 </div>
             </div>

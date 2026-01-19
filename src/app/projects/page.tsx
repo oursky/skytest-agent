@@ -109,7 +109,7 @@ export default function ProjectsPage() {
     }
 
     return (
-        <main className="min-h-screen bg-gray-50 p-8">
+        <main className="min-h-screen bg-gray-50">
             <Modal
                 isOpen={deleteModal.isOpen}
                 onClose={() => setDeleteModal({ isOpen: false, projectId: "", projectName: "" })}
@@ -148,7 +148,7 @@ export default function ProjectsPage() {
                 </div>
             </Modal>
 
-            <div className="max-w-5xl mx-auto">
+            <div className="max-w-7xl mx-auto px-8 py-8">
                 <div className="flex justify-between items-center mb-8">
                     <h1 className="text-3xl font-bold text-gray-900">{t('projects.title')}</h1>
                     <button

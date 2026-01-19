@@ -79,7 +79,7 @@ export async function POST(
         }
 
         const body: unknown = await request.json();
-        const { name, url, prompt, steps, browserConfig, username, password, displayId } = (body ?? {}) as {
+        const { name, url, prompt, steps, browserConfig, username, password, displayId, saveDraft } = (body ?? {}) as {
             name?: string;
             url?: string;
             prompt?: string;
@@ -88,20 +88,24 @@ export async function POST(
             username?: string;
             password?: string;
             displayId?: string;
+            saveDraft?: boolean;
         };
 
         const hasSteps = Array.isArray(steps) && steps.length > 0;
         const hasBrowserConfig = !!browserConfig && typeof browserConfig === 'object' && !Array.isArray(browserConfig) && Object.keys(browserConfig as Record<string, unknown>).length > 0;
         const cleanedSteps = hasSteps ? cleanStepsForStorage(steps as TestStep[]) : undefined;
 
-        if (!name || !url || (!prompt && !hasSteps)) {
+        if (!name) {
+            return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+        }
+        if (!saveDraft && (!url || (!prompt && !hasSteps))) {
             return NextResponse.json({ error: 'Name, URL, and either Prompt or Steps are required' }, { status: 400 });
         }
 
         const testCase = await prisma.testCase.create({
             data: {
                 name,
-                url,
+                url: url || '',
                 prompt,
                 steps: cleanedSteps ? JSON.stringify(cleanedSteps) : undefined,
                 browserConfig: hasBrowserConfig ? JSON.stringify(browserConfig) : undefined,
