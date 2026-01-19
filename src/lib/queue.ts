@@ -47,6 +47,12 @@ export class TestQueue {
                 where: { id: runId },
                 data: { status: 'QUEUED' }
             });
+            if (config.testCaseId) {
+                await prisma.testCase.update({
+                    where: { id: config.testCaseId },
+                    data: { status: 'QUEUED' }
+                });
+            }
         } catch (e) {
             logger.error(`Failed to update status for ${runId}`, e);
         }
@@ -98,6 +104,13 @@ export class TestQueue {
                         logs: JSON.stringify(logBuffer)
                     }
                 });
+
+                if (job.config.testCaseId) {
+                    await prisma.testCase.update({
+                        where: { id: job.config.testCaseId },
+                        data: { status: 'CANCELLED' }
+                    });
+                }
 
                 if (job.config.projectId && job.config.testCaseId) {
                     publishProjectEvent(job.config.projectId, {
@@ -173,6 +186,13 @@ export class TestQueue {
             }
         });
 
+        if (job.config.testCaseId) {
+            await prisma.testCase.update({
+                where: { id: job.config.testCaseId },
+                data: { status: 'RUNNING' }
+            });
+        }
+
         if (job.config.projectId && job.config.testCaseId) {
             publishProjectEvent(job.config.projectId, {
                 type: 'test-run-status',
@@ -215,6 +235,13 @@ export class TestQueue {
                     completedAt: new Date()
                 }
             });
+
+            if (config.testCaseId) {
+                await prisma.testCase.update({
+                    where: { id: config.testCaseId },
+                    data: { status: result.status }
+                });
+            }
 
             if (config.projectId && config.testCaseId) {
                 publishProjectEvent(config.projectId, {
@@ -267,6 +294,13 @@ export class TestQueue {
                         completedAt: new Date()
                     }
                 });
+
+                if (config.testCaseId) {
+                    await prisma.testCase.update({
+                        where: { id: config.testCaseId },
+                        data: { status: 'FAIL' }
+                    });
+                }
 
                 if (config.projectId && config.testCaseId) {
                     publishProjectEvent(config.projectId, {
