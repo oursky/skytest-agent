@@ -8,6 +8,7 @@ import Modal from "@/components/Modal";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import { formatDateTime } from "@/utils/dateFormatter";
 import { useI18n } from "@/i18n";
+import { getStatusBadgeClass } from '@/utils/statusBadge';
 
 interface TestRun {
     id: string;
@@ -264,12 +265,7 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
                                 return (
                                     <div key={run.id} className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-gray-50 transition-colors">
                                         <div className="col-span-3">
-                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${run.status === 'PASS' ? 'bg-green-100 text-green-800' :
-                                                run.status === 'FAIL' ? 'bg-red-100 text-red-800' :
-                                                    run.status === 'CANCELLED' ? 'bg-gray-100 text-gray-800' :
-                                                        run.status === 'RUNNING' ? 'bg-blue-100 text-blue-800' :
-                                                            'bg-yellow-100 text-yellow-800'
-                                                }`}>
+                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadgeClass(run.status)}`}>
                                                 {run.status}
                                             </span>
                                         </div>

@@ -8,6 +8,7 @@ import Modal from "@/components/Modal";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import { formatDateTimeCompact } from "@/utils/dateFormatter";
 import { useI18n } from "@/i18n";
+import { getStatusBadgeClass } from '@/utils/statusBadge';
 
 interface TestRun {
     id: string;
@@ -347,17 +348,6 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     ) : (
                         <div className="divide-y divide-gray-100">
                             {testCases.map((testCase) => {
-                                const getStatusColor = (status: string) => {
-                                    switch (status) {
-                                        case 'PASS': return 'bg-green-100 text-green-800';
-                                        case 'FAIL': return 'bg-red-100 text-red-800';
-                                        case 'CANCELLED': return 'bg-gray-100 text-gray-800';
-                                        case 'RUNNING': return 'bg-blue-100 text-blue-800';
-                                        case 'QUEUED': return 'bg-purple-100 text-purple-800';
-                                        case 'DRAFT': return 'bg-yellow-100 text-yellow-800';
-                                        default: return 'bg-gray-100 text-gray-800';
-                                    }
-                                };
                                 const currentStatus = testCase.status || (testCase.testRuns[0]?.status);
 
                                 return (
@@ -376,7 +366,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                                     <div className="flex items-center gap-4 md:contents">
                                         <div className="md:col-span-2 flex items-center">
                                             {currentStatus ? (
-                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(currentStatus)}`}>
+                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadgeClass(currentStatus)}`}>
                                                     {currentStatus}
                                                 </span>
                                             ) : (
