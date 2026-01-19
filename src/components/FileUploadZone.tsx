@@ -2,12 +2,13 @@
 
 import { useState, useRef, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { useAuth } from '@/app/auth-provider';
+import type { TestCaseFile } from '@/types';
 import { config } from '@/config/app';
 import { useI18n } from '@/i18n';
 
 interface FileUploadZoneProps {
     testCaseId?: string;
-    onUploadComplete: () => void;
+    onUploadComplete: (testCaseId: string, uploadedFiles: TestCaseFile[]) => void | Promise<void>;
     disabled?: boolean;
     ensureTestCase?: () => Promise<string>;
     compact?: boolean;
@@ -46,8 +47,7 @@ function FileUploadZoneInner({ testCaseId, onUploadComplete, disabled, ensureTes
         return null;
     };
 
-    const uploadFile = async (file: File) => {
-        const id = effectiveTestCaseId;
+    const uploadFile = async (file: File, id: string) => {
         if (!id) throw new Error(t('upload.error.noTestCase'));
         const formData = new FormData();
         formData.append('file', file);
@@ -67,27 +67,34 @@ function FileUploadZoneInner({ testCaseId, onUploadComplete, disabled, ensureTes
     };
 
     const handleFiles = useCallback(async (files: FileList | null) => {
-        if (!files || files.length === 0) return;
+        const fileArray = files ? Array.from(files) : [];
+        if (fileArray.length === 0) return;
 
         setError(null);
         setIsUploading(true);
 
         try {
-            if (!effectiveTestCaseId) {
+            let uploadTargetId = effectiveTestCaseId;
+            if (!uploadTargetId) {
                 if (!ensureTestCase) throw new Error(t('upload.error.noTestCaseAttach'));
                 const newId = await ensureTestCase();
                 if (!newId) throw new Error(t('upload.error.failedCreateTestCase'));
+                uploadTargetId = newId;
                 setEffectiveTestCaseId(newId);
             }
-            for (const file of Array.from(files)) {
+            const uploaded: TestCaseFile[] = [];
+
+            for (const file of fileArray) {
                 const validationError = validateFile(file);
                 if (validationError) {
                     setError(validationError);
                     continue;
                 }
-                await uploadFile(file);
+                const uploadedFile = await uploadFile(file, uploadTargetId) as TestCaseFile;
+                uploaded.push(uploadedFile);
             }
-            onUploadComplete();
+
+            await onUploadComplete(uploadTargetId, uploaded);
         } catch (err) {
             setError(err instanceof Error ? err.message : t('upload.error.uploadFailed'));
         } finally {

@@ -27,8 +27,13 @@ interface TestFormProps {
     onImport?: () => void;
     testCaseId?: string;
     files?: TestCaseFile[];
-    onFilesChange?: () => void;
+    onFilesChange?: (testCaseId?: string, uploadedFiles?: TestCaseFile[]) => void | Promise<void>;
     onEnsureTestCase?: (data: TestData) => Promise<string>;
+    onSaveDraft?: (data: TestData) => Promise<void>;
+    onDiscard?: () => void;
+    isSaving?: boolean;
+    displayId?: string;
+    onDisplayIdChange?: (id: string) => void;
 }
 
 interface BrowserEntry {
@@ -36,7 +41,7 @@ interface BrowserEntry {
     config: BrowserConfig;
 }
 
-export default function TestForm({ onSubmit, isLoading, initialData, showNameInput, readOnly, onExport, onImport, testCaseId, files, onFilesChange, onEnsureTestCase }: TestFormProps) {
+export default function TestForm({ onSubmit, isLoading, initialData, showNameInput, readOnly, onExport, onImport, testCaseId, files, onFilesChange, onEnsureTestCase, onSaveDraft, onDiscard, isSaving, displayId, onDisplayIdChange }: TestFormProps) {
     const { t } = useI18n();
 
     const [name, setName] = useState(() => initialData?.name || '');
@@ -81,7 +86,6 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
     useEffect(() => {
         if (!initialData) return;
 
-        // Defer state updates to avoid cascading renders warnings in React strict lint rules.
         queueMicrotask(() => {
             if (initialData.name) setName(initialData.name);
             if (initialData.prompt) setPrompt(initialData.prompt);
@@ -147,6 +151,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
             setSimpleUsername('standard_user');
             setSimplePassword('secret_sauce');
             setPrompt(t('sample.simple.instructions', placeholderVars));
+            onDisplayIdChange?.('TC-SAMPLE-001');
         } else {
             setName(t('sample.multi.name'));
             setBrowsers([
@@ -161,6 +166,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                 { id: "5", target: "browser_a", action: t('sample.multi.step5') },
                 { id: "6", target: "browser_b", action: t('sample.multi.step6') }
             ]);
+            onDisplayIdChange?.('TC-SAMPLE-002');
         }
     };
 
@@ -280,7 +286,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                 {showNameInput && (
                     <div className="space-y-2">
                         <label className="block text-sm font-medium text-foreground">
-                            {t('testForm.testCaseName')}
+                            {t('testForm.testCaseName')} <span className="text-red-500">*</span>
                         </label>
                         <input
                             type="text"
@@ -289,6 +295,22 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                             placeholder={t('testForm.testCaseName.placeholder')}
                             value={name}
                             onChange={(e) => setName(e.target.value)}
+                            disabled={readOnly}
+                        />
+                    </div>
+                )}
+
+                {showNameInput && onDisplayIdChange && (
+                    <div className="space-y-2">
+                        <label className="block text-sm font-medium text-foreground">
+                            {t('testForm.testCaseId')}
+                        </label>
+                        <input
+                            type="text"
+                            className="input-field"
+                            placeholder={t('testForm.testCaseId.placeholder')}
+                            value={displayId || ''}
+                            onChange={(e) => onDisplayIdChange(e.target.value)}
                             disabled={readOnly}
                         />
                     </div>
@@ -320,19 +342,49 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                         testCaseId={testCaseId}
                         files={files}
                         onFilesChange={onFilesChange}
-                        onEnsureTestCase={onEnsureTestCase ? async () => {
-                            const data = buildCurrentData();
-                            if (!data.name || data.name.trim() === '') {
-                                data.name = 'Untitled';
-                            }
-                            return onEnsureTestCase(data);
-                        } : undefined}
+                        onEnsureTestCase={onEnsureTestCase ? async () => onEnsureTestCase(buildCurrentData()) : undefined}
                     />
                 )}
             </div>
 
             {!readOnly && (
-                <div className="p-6 pt-4 border-t border-gray-200 bg-white rounded-b-xl">
+                <div className="p-6 pt-4 border-t border-gray-200 bg-white rounded-b-xl space-y-3">
+                    {(onDiscard || onSaveDraft) && (
+                        <div className="flex gap-3">
+                            {onDiscard && (
+                                <button
+                                    type="button"
+                                    onClick={onDiscard}
+                                    className="flex-1 px-4 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                                >
+                                    {t('testForm.discard')}
+                                </button>
+                            )}
+                            {onSaveDraft && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const data = buildCurrentData();
+                                        onSaveDraft(data);
+                                    }}
+                                    disabled={isSaving || !name.trim()}
+                                    className="flex-1 px-4 py-2.5 bg-primary/20 text-primary rounded-lg hover:bg-primary/30 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+                                >
+                                    {isSaving ? (
+                                        <>
+                                            <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            <span>{t('testForm.saving')}</span>
+                                        </>
+                                    ) : (
+                                        <span>{t('testForm.saveDraft')}</span>
+                                    )}
+                                </button>
+                            )}
+                        </div>
+                    )}
                     <button
                         type="submit"
                         disabled={isLoading}

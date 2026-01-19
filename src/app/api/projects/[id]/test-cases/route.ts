@@ -79,7 +79,7 @@ export async function POST(
         }
 
         const body: unknown = await request.json();
-        const { name, url, prompt, steps, browserConfig, username, password } = (body ?? {}) as {
+        const { name, url, prompt, steps, browserConfig, username, password, displayId } = (body ?? {}) as {
             name?: string;
             url?: string;
             prompt?: string;
@@ -87,6 +87,7 @@ export async function POST(
             browserConfig?: unknown;
             username?: string;
             password?: string;
+            displayId?: string;
         };
 
         const hasSteps = Array.isArray(steps) && steps.length > 0;
@@ -107,6 +108,8 @@ export async function POST(
                 username,
                 password,
                 projectId: id,
+                displayId: displayId || undefined,
+                status: 'DRAFT',
             },
         });
 

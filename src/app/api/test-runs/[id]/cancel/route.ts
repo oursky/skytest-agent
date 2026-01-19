@@ -39,7 +39,9 @@ export async function POST(
 
         await queue.cancel(id);
 
-        return NextResponse.json({ success: true, id: testRun.id, status: testRun.status });
+        const updated = await prisma.testRun.findUnique({ where: { id }, select: { status: true } });
+
+        return NextResponse.json({ success: true, id: testRun.id, status: updated?.status || 'CANCELLED' });
     } catch (error) {
         logger.error('Failed to cancel test run', error);
         return NextResponse.json({ error: 'Failed to cancel test run' }, { status: 500 });

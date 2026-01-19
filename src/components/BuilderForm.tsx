@@ -41,7 +41,7 @@ interface BuilderFormProps {
     readOnly?: boolean;
     testCaseId?: string;
     files?: TestCaseFile[];
-    onFilesChange?: () => void;
+    onFilesChange?: (testCaseId?: string, uploadedFiles?: TestCaseFile[]) => void | Promise<void>;
     onEnsureTestCase?: () => Promise<string>;
 }
 
@@ -243,7 +243,7 @@ export default function BuilderForm({
                     <FileUploadZone
                         ref={uploadRef}
                         testCaseId={testCaseId}
-                        onUploadComplete={onFilesChange}
+                        onUploadComplete={(id, uploadedFiles) => onFilesChange(id, uploadedFiles)}
                         disabled={readOnly}
                         ensureTestCase={onEnsureTestCase}
                         compact

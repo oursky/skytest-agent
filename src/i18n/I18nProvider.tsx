@@ -86,8 +86,6 @@ export function I18nProvider({
     document.documentElement.lang = LOCALE_META[locale].htmlLang;
   }, [locale]);
 
-  // Avoid hydration mismatch by using server-provided initialLocale for the first render.
-  // Then, after hydration, reconcile with persisted preference.
   useEffect(() => {
     if (typeof window === 'undefined') return;
 

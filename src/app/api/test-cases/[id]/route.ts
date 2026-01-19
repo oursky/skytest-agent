@@ -92,7 +92,7 @@ export async function PUT(
     try {
         const { id } = await params;
         const body = await request.json();
-        const { name, url, prompt, steps, browserConfig, username, password } = body;
+        const { name, url, prompt, steps, browserConfig, username, password, displayId, saveDraft } = body;
 
         const existingTestCase = await prisma.testCase.findUnique({
             where: { id },
@@ -116,17 +116,27 @@ export async function PUT(
         const hasBrowserConfig = browserConfig && Object.keys(browserConfig).length > 0;
         const cleanedSteps = hasSteps ? cleanStepsForStorage(steps) : undefined;
 
+        const updateData: Record<string, unknown> = {
+            name,
+            url,
+            prompt,
+            steps: cleanedSteps ? JSON.stringify(cleanedSteps) : undefined,
+            browserConfig: hasBrowserConfig ? JSON.stringify(browserConfig) : undefined,
+            username,
+            password,
+        };
+
+        if (displayId !== undefined) {
+            updateData.displayId = displayId || null;
+        }
+
+        if (saveDraft) {
+            updateData.status = 'DRAFT';
+        }
+
         const testCase = await prisma.testCase.update({
             where: { id },
-            data: {
-                name,
-                url,
-                prompt,
-                steps: cleanedSteps ? JSON.stringify(cleanedSteps) : undefined,
-                browserConfig: hasBrowserConfig ? JSON.stringify(browserConfig) : undefined,
-                username,
-                password,
-            },
+            data: updateData,
         });
 
         return NextResponse.json(testCase);

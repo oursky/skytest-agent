@@ -139,9 +139,9 @@ export default function FileList({ files, testCaseId, onDelete, readOnly }: File
                             key={file.id}
                             className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors overflow-hidden"
                         >
-                            {file.mimeType.startsWith('image/') && !readOnly ? (
+                            {file.mimeType.startsWith('image/') && !readOnly && token ? (
                                 <img
-                                    src={`/api/test-cases/${testCaseId}/files/${file.id}?inline=1${token ? `&token=${token}` : ''}`}
+                                    src={`/api/test-cases/${testCaseId}/files/${file.id}?inline=1&token=${token}`}
                                     alt={file.filename}
                                     className="w-12 h-12 object-cover rounded border border-gray-200"
                                 />

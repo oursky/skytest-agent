@@ -102,7 +102,6 @@ function normalizeUploadPath(filePath: string, policy: SetInputFilesPolicy, step
             );
         }
 
-        // If no per-step allowlist is set, allow any file under the test case upload directory.
         if (policy.allowedFilePaths.size === 0) {
             return resolved;
         }
@@ -118,7 +117,6 @@ function normalizeUploadPath(filePath: string, policy: SetInputFilesPolicy, step
         return resolved;
     }
 
-    // Fallback: only allow paths within the global uploads directory.
     const uploadRoot = path.resolve(process.cwd(), config.files.uploadDir);
     const prefix = uploadRoot.endsWith(path.sep) ? uploadRoot : `${uploadRoot}${path.sep}`;
 
@@ -697,7 +695,6 @@ function resolvePlaywrightCodeStepContext(
     const allowedTestCaseDir = getUploadPath(testCaseId);
 
     if (!step.files || step.files.length === 0 || !files) {
-        // No per-step attachments. Allow any file within this test case's upload directory.
         return { stepFiles, allowedFilePaths: new Set<string>(), allowedTestCaseDir };
     }
 
@@ -767,7 +764,6 @@ async function executeSteps(
 
                 const stepAction = applyCredentialPlaceholders(step.action, browserConfig);
 
-                // Wait for any post-navigation page load before AI steps
                 const urlBefore = page.url();
                 await Promise.race([
                     page.waitForURL(url => url.toString() !== urlBefore, { timeout: 3000 })
@@ -775,7 +771,6 @@ async function executeSteps(
                     new Promise(resolve => setTimeout(resolve, 3000))
                 ]).catch(() => { });
 
-                // Use aiAssert for verification steps to fail immediately on mismatch
                 const isVerification = /^(verify|assert|check|confirm|ensure|validate)/i.test(stepAction.trim());
                 if (isVerification) {
                     try {

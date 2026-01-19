@@ -32,6 +32,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'common.copy': 'Copy',
     'common.rows': 'Rows:',
     'common.noRecords': 'No records',
+    'testCase.untitled': 'Untitled',
 
     // Header
     'header.accountSettings': 'Account Settings',
@@ -98,7 +99,9 @@ export const MESSAGES: Record<Locale, Messages> = {
     // Project detail page
     'project.testCases.title': 'Test Cases',
     'project.startNewRun': 'Start New Run',
+    'project.table.id': 'ID',
     'project.table.name': 'Name',
+    'project.table.latestStatus': 'Latest Status',
     'project.table.lastRun': 'Last Run',
     'project.table.updated': 'Updated',
     'project.table.actions': 'Actions',
@@ -109,6 +112,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'project.deleteTestCase.body': 'Are you sure you want to delete {name}? This will permanently delete all test history for this test case.',
     'project.testCase.type.multi': 'multi-browser',
     'project.testCase.type.single': 'single-browser',
+    'project.tooltip.clone': 'Clone Test Case',
     'project.tooltip.run': 'Run Test',
     'project.tooltip.viewRunning': 'View Running Test',
     'project.tooltip.viewHistory': 'View History',
@@ -133,6 +137,8 @@ export const MESSAGES: Record<Locale, Messages> = {
     'run.error.selectProjectUpload': 'Please select a project before uploading files.',
     'run.error.noProjectSelected': 'No project selected',
     'run.error.failedCreateTestCaseUpload': 'Failed to create test case for file uploads. Please ensure required fields are filled (URL and a prompt or steps).',
+    'run.error.nameRequired': 'Test case name is required',
+    'run.unsavedChangesWarning': 'You have unsaved changes. Are you sure you want to leave?',
 
     // History page
     'history.title': 'Test History',
@@ -194,6 +200,11 @@ export const MESSAGES: Record<Locale, Messages> = {
     'testForm.sampleData': 'Test with Sample Data',
     'testForm.testCaseName': 'Test Case Name',
     'testForm.testCaseName.placeholder': 'e.g. Login and Add to Cart',
+    'testForm.testCaseId': 'Test Case ID',
+    'testForm.testCaseId.placeholder': 'e.g. TC-001',
+    'testForm.saveDraft': 'Save Draft',
+    'testForm.saving': 'Saving...',
+    'testForm.discard': 'Discard Changes',
     'testForm.running': 'Running Test...',
     'testForm.run': 'Run Test',
 
@@ -324,6 +335,7 @@ Verify that "Sauce Labs Backpack" is in the cart.`,
     'common.copy': '複製',
     'common.rows': '每頁筆數：',
     'common.noRecords': '沒有紀錄',
+    'testCase.untitled': '未命名',
 
     // Header
     'header.accountSettings': '帳戶設定',
@@ -390,7 +402,9 @@ Verify that "Sauce Labs Backpack" is in the cart.`,
     // Project detail page
     'project.testCases.title': '測試案例',
     'project.startNewRun': '建立測試案例',
+    'project.table.id': 'ID',
     'project.table.name': '項目名稱',
+    'project.table.latestStatus': '最新狀態',
     'project.table.lastRun': '最近結果',
     'project.table.updated': '更新時間',
     'project.table.actions': '操作',
@@ -401,6 +415,7 @@ Verify that "Sauce Labs Backpack" is in the cart.`,
     'project.deleteTestCase.body': '確定要刪除 {name} 嗎？此操作將永久刪除此測試案例的所有歷史紀錄。',
     'project.testCase.type.multi': '多瀏覽器',
     'project.testCase.type.single': '單一瀏覽器',
+    'project.tooltip.clone': '複製測試案例',
     'project.tooltip.run': '執行測試',
     'project.tooltip.viewRunning': '查看執行中',
     'project.tooltip.viewHistory': '查看歷史紀錄',
@@ -425,6 +440,8 @@ Verify that "Sauce Labs Backpack" is in the cart.`,
     'run.error.selectProjectUpload': '上傳檔案前請先選擇專案。',
     'run.error.noProjectSelected': '尚未選擇專案',
     'run.error.failedCreateTestCaseUpload': '建立用於上傳檔案的測試案例失敗。請確認必填欄位已填寫（URL 以及 prompt 或 steps）。',
+    'run.error.nameRequired': '測試案例名稱為必填',
+    'run.unsavedChangesWarning': '您有未儲存的變更。確定要離開嗎？',
 
     // History page
     'history.title': '執行紀錄',
@@ -486,6 +503,11 @@ Verify that "Sauce Labs Backpack" is in the cart.`,
     'testForm.sampleData': '套用範例資料',
     'testForm.testCaseName': '測試案例名稱',
     'testForm.testCaseName.placeholder': '例如：登入並加入購物車',
+    'testForm.testCaseId': '測試案例 ID',
+    'testForm.testCaseId.placeholder': '例如：TC-001',
+    'testForm.saveDraft': '儲存草稿',
+    'testForm.saving': '儲存中…',
+    'testForm.discard': '捨棄變更',
     'testForm.running': '測試執行中…',
     'testForm.run': '執行測試',
 
@@ -580,7 +602,7 @@ Verify that "Sauce Labs Backpack" is in the cart.`,
     'timeline.screenshot': '截圖',
     'timeline.clickToEnlarge': '點擊以放大',
 
-    // Sample data (Traditional Chinese - Taiwan terminology)
+    // Sample data (Traditional Chinese)
     'sample.simple.name': '簡易登入測試',
     'sample.simple.instructions': `使用帳號 {username} 與密碼 {password} 登入。
 將「Sauce Labs Backpack」加入購物車。
@@ -616,6 +638,7 @@ Verify that "Sauce Labs Backpack" is in the cart.`,
     'common.copy': '复制',
     'common.rows': '每页行数：',
     'common.noRecords': '没有记录',
+    'testCase.untitled': '未命名',
 
     // Header
     'header.accountSettings': '账号设置',
@@ -682,7 +705,9 @@ Verify that "Sauce Labs Backpack" is in the cart.`,
     // Project detail page
     'project.testCases.title': '测试用例',
     'project.startNewRun': '创建测试用例',
+    'project.table.id': 'ID',
     'project.table.name': '项目名称',
+    'project.table.latestStatus': '最新状态',
     'project.table.lastRun': '最近结果',
     'project.table.updated': '更新时间',
     'project.table.actions': '操作',
@@ -693,6 +718,7 @@ Verify that "Sauce Labs Backpack" is in the cart.`,
     'project.deleteTestCase.body': '确定要删除 {name} 吗？此操作将永久删除该测试用例的所有历史记录。',
     'project.testCase.type.multi': '多浏览器',
     'project.testCase.type.single': '单浏览器',
+    'project.tooltip.clone': '复制测试用例',
     'project.tooltip.run': '运行测试',
     'project.tooltip.viewRunning': '查看运行中',
     'project.tooltip.viewHistory': '查看历史记录',
@@ -717,6 +743,8 @@ Verify that "Sauce Labs Backpack" is in the cart.`,
     'run.error.selectProjectUpload': '上传文件前请先选择项目。',
     'run.error.noProjectSelected': '未选择项目',
     'run.error.failedCreateTestCaseUpload': '为上传文件创建测试用例失败。请确保必填字段已填写（URL 以及 prompt 或 steps）。',
+    'run.error.nameRequired': '测试用例名称为必填',
+    'run.unsavedChangesWarning': '您有未保存的更改。确定要离开吗？',
 
     // History page
     'history.title': '运行记录',
@@ -778,6 +806,11 @@ Verify that "Sauce Labs Backpack" is in the cart.`,
     'testForm.sampleData': '加载示例数据',
     'testForm.testCaseName': '测试用例名称',
     'testForm.testCaseName.placeholder': '例如：登录并加入购物车',
+    'testForm.testCaseId': '测试用例 ID',
+    'testForm.testCaseId.placeholder': '例如：TC-001',
+    'testForm.saveDraft': '保存草稿',
+    'testForm.saving': '保存中…',
+    'testForm.discard': '放弃更改',
     'testForm.running': '测试运行中…',
     'testForm.run': '运行测试',
 
@@ -872,7 +905,7 @@ Verify that "Sauce Labs Backpack" is in the cart.`,
     'timeline.screenshot': '截图',
     'timeline.clickToEnlarge': '点击查看大图',
 
-    // Sample data (Simplified Chinese - Mainland China terminology)
+    // Sample data (Simplified Chinese)
     'sample.simple.name': '简易登录测试',
     'sample.simple.instructions': `使用用户名 {username} 和密码 {password} 登录。
 将"Sauce Labs Backpack"添加到购物车。

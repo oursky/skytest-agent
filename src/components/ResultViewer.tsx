@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import { getStatusBadgeClass } from '@/utils/statusBadge';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { TestRun, TestEvent, TestCaseFile, TestData, isLogData, isScreenshotData } from '@/types';
 import { formatTime } from '@/utils/dateFormatter';
@@ -228,12 +229,7 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
                     <div className="flex items-center gap-3">
                         <h2 className="text-lg font-semibold text-foreground">{t('results.title')}</h2>
                         {result.status !== 'IDLE' && (
-                            <div className={`status-badge ${result.status === 'PASS' ? 'status-badge-pass' :
-                                result.status === 'FAIL' ? 'status-badge-fail' :
-                                    result.status === 'CANCELLED' ? 'status-badge-cancelled' :
-                                        result.status === 'QUEUED' ? 'status-badge-queued' :
-                                            'status-badge-running'
-                                }`}>
+                            <div className={`status-badge ${getStatusBadgeClass(result.status)}`}>
                                 {result.status === 'PASS' && '✓'}
                                 {result.status === 'FAIL' && '✕'}
                                 {result.status === 'CANCELLED' && '⏹'}

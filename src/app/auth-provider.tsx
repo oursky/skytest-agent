@@ -54,8 +54,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                     fetch: proxyFetch,
                 });
             } catch (error) {
-                // Ignore errors caused by repeated configuration.
-                // Any real network/config errors will still surface when starting auth.
                 console.warn("Authgear configure skipped/failed", error);
             }
 

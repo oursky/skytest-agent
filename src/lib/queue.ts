@@ -47,6 +47,12 @@ export class TestQueue {
                 where: { id: runId },
                 data: { status: 'QUEUED' }
             });
+            if (config.testCaseId) {
+                await prisma.testCase.update({
+                    where: { id: config.testCaseId },
+                    data: { status: 'QUEUED' }
+                });
+            }
         } catch (e) {
             logger.error(`Failed to update status for ${runId}`, e);
         }
@@ -99,6 +105,13 @@ export class TestQueue {
                     }
                 });
 
+                if (job.config.testCaseId) {
+                    await prisma.testCase.update({
+                        where: { id: job.config.testCaseId },
+                        data: { status: 'CANCELLED' }
+                    });
+                }
+
                 if (job.config.projectId && job.config.testCaseId) {
                     publishProjectEvent(job.config.projectId, {
                         type: 'test-run-status',
@@ -116,11 +129,21 @@ export class TestQueue {
             if (index !== -1) {
                 const job = this.queue[index];
                 this.queue.splice(index, 1);
-                prisma.testRun.update({
-                    where: { id: runId },
-                    data: { status: 'CANCELLED', error: 'Cancelled while queued', completedAt: new Date() }
-                }).then(() => {
-                    if (job?.config.projectId && job.config.testCaseId) {
+
+                try {
+                    await prisma.testRun.update({
+                        where: { id: runId },
+                        data: { status: 'CANCELLED', error: 'Cancelled while queued', completedAt: new Date() }
+                    });
+
+                    if (job.config.testCaseId) {
+                        await prisma.testCase.update({
+                            where: { id: job.config.testCaseId },
+                            data: { status: 'CANCELLED' }
+                        });
+                    }
+
+                    if (job.config.projectId && job.config.testCaseId) {
                         publishProjectEvent(job.config.projectId, {
                             type: 'test-run-status',
                             testCaseId: job.config.testCaseId,
@@ -128,20 +151,47 @@ export class TestQueue {
                             status: 'CANCELLED'
                         });
                     }
-                }).catch((error) => logger.error(`Failed to mark ${runId} as cancelled`, error));
+                } catch (error) {
+                    logger.error(`Failed to mark ${runId} as cancelled`, error);
+                }
 
                 this.logs.delete(runId);
             } else {
-                prisma.testRun.findUnique({ where: { id: runId }, select: { status: true } })
-                    .then(run => {
-                        if (run && ['RUNNING', 'QUEUED'].includes(run.status)) {
-                            return prisma.testRun.update({
-                                where: { id: runId },
-                                data: { status: 'CANCELLED', error: 'Force cancelled (orphaned run)', completedAt: new Date() }
+                try {
+                    const run = await prisma.testRun.findUnique({
+                        where: { id: runId },
+                        select: {
+                            status: true,
+                            testCaseId: true,
+                            testCase: { select: { projectId: true } }
+                        }
+                    });
+
+                    if (run && ['RUNNING', 'QUEUED'].includes(run.status)) {
+                        await prisma.testRun.update({
+                            where: { id: runId },
+                            data: { status: 'CANCELLED', error: 'Force cancelled (orphaned run)', completedAt: new Date() }
+                        });
+
+                        if (run.testCaseId) {
+                            await prisma.testCase.update({
+                                where: { id: run.testCaseId },
+                                data: { status: 'CANCELLED' }
                             });
                         }
-                    })
-                    .catch(error => logger.error(`Failed to cleanup orphaned run ${runId}`, error));
+
+                        if (run.testCaseId && run.testCase?.projectId) {
+                            publishProjectEvent(run.testCase.projectId, {
+                                type: 'test-run-status',
+                                testCaseId: run.testCaseId,
+                                runId,
+                                status: 'CANCELLED'
+                            });
+                        }
+                    }
+                } catch (error) {
+                    logger.error(`Failed to cleanup orphaned run ${runId}`, error);
+                }
             }
         }
     }
@@ -172,6 +222,13 @@ export class TestQueue {
                 startedAt: new Date()
             }
         });
+
+        if (job.config.testCaseId) {
+            await prisma.testCase.update({
+                where: { id: job.config.testCaseId },
+                data: { status: 'RUNNING' }
+            });
+        }
 
         if (job.config.projectId && job.config.testCaseId) {
             publishProjectEvent(job.config.projectId, {
@@ -215,6 +272,13 @@ export class TestQueue {
                     completedAt: new Date()
                 }
             });
+
+            if (config.testCaseId) {
+                await prisma.testCase.update({
+                    where: { id: config.testCaseId },
+                    data: { status: result.status }
+                });
+            }
 
             if (config.projectId && config.testCaseId) {
                 publishProjectEvent(config.projectId, {
@@ -267,6 +331,13 @@ export class TestQueue {
                         completedAt: new Date()
                     }
                 });
+
+                if (config.testCaseId) {
+                    await prisma.testCase.update({
+                        where: { id: config.testCaseId },
+                        data: { status: 'FAIL' }
+                    });
+                }
 
                 if (config.projectId && config.testCaseId) {
                     publishProjectEvent(config.projectId, {

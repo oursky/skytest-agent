@@ -12,6 +12,8 @@ export interface Project {
 
 export interface TestCase {
     id: string;
+    displayId?: string;
+    status?: TestStatus;
     name: string;
     url: string;
     prompt: string;

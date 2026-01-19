@@ -9,6 +9,8 @@ import path from 'path';
 
 const logger = createLogger('api:test-cases:files');
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(
     request: Request,
     { params }: { params: Promise<{ id: string }> }

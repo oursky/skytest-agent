@@ -27,6 +27,7 @@
 - Keep diffs minimal; avoid opportunistic refactors.
 - Use config, singletons, and types per `docs/assistant-guidelines.md`.
 - For bugs, reproduce and identify root cause before fixing.
+- **Scope freeze for bugfixes:** avoid unrelated refactors/polish (styling, reformatting, queue tweaks) unless explicitly approved.
 
 ### 5. Review and verify
 - Self-review in two passes: spec compliance first, then code quality.
@@ -54,6 +55,10 @@
 
 ## Debugging Checklist
 - Reproduce the issue and capture exact errors.
+- Capture an evidence pack before changing code:
+  - Browser Network log (request sequence, status codes, and one representative response body)
+  - Relevant console/server logs
+  - Minimal repro steps
 - Trace data flow to the root cause.
 - Write a failing test or minimal repro.
 - Implement the smallest fix and re-verify.

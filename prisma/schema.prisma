@@ -45,6 +45,8 @@ model Project {
 
 model TestCase {
   id        String    @id @default(cuid())
+  displayId String?   // User-editable display ID (optional)
+  status    String    @default("DRAFT") // DRAFT | PASS | FAIL | CANCELLED | RUNNING | QUEUED
   name      String
   projectId String
   project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)

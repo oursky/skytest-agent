@@ -67,8 +67,5 @@ Thumbs.db
 # TypeScript
 *.tsbuildinfo
 
-# Regression test cases
-test-cases/
-
 # Plans
 docs/plans/
