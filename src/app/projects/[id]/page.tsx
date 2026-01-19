@@ -9,6 +9,7 @@ import Breadcrumbs from "@/components/Breadcrumbs";
 import { formatDateTimeCompact } from "@/utils/dateFormatter";
 import { useI18n } from "@/i18n";
 import { getStatusBadgeClass } from '@/utils/statusBadge';
+import Pagination from '@/components/Pagination';
 
 interface TestRun {
     id: string;
@@ -51,6 +52,8 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; testCaseId: string; testCaseName: string }>({ isOpen: false, testCaseId: "", testCaseName: "" });
     const [sortColumn, setSortColumn] = useState<'id' | 'name' | 'status' | 'updated'>('updated');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(20);
 
     const refreshAbortRef = useRef<AbortController | null>(null);
     const eventSourceRef = useRef<EventSource | null>(null);
@@ -312,6 +315,21 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         return sortDirection === 'asc' ? comparison : -comparison;
     });
 
+    const totalPages = Math.ceil(sortedTestCases.length / pageSize);
+    const paginatedTestCases = sortedTestCases.slice(
+        (currentPage - 1) * pageSize,
+        currentPage * pageSize
+    );
+
+    const handlePageChange = (page: number) => {
+        setCurrentPage(page);
+    };
+
+    const handlePageSizeChange = (size: number) => {
+        setPageSize(size);
+        setCurrentPage(1);
+    };
+
     const SortIcon = ({ column }: { column: 'id' | 'name' | 'status' | 'updated' }) => {
         if (sortColumn !== column) {
             return (
@@ -425,8 +443,9 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                             </Link>
                         </div>
                     ) : (
+                        <>
                         <div className="divide-y divide-gray-100">
-                            {sortedTestCases.map((testCase) => {
+                            {paginatedTestCases.map((testCase) => {
                                 const currentStatus = testCase.status || (testCase.testRuns[0]?.status);
 
                                 return (
@@ -528,6 +547,15 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                                 );
                             })}
                         </div>
+                        <Pagination
+                            page={currentPage}
+                            limit={pageSize}
+                            total={sortedTestCases.length}
+                            totalPages={totalPages}
+                            onPageChange={handlePageChange}
+                            onLimitChange={handlePageSizeChange}
+                        />
+                        </>
                     )}
                 </div>
             </div>

@@ -34,6 +34,14 @@ export const MESSAGES: Record<Locale, Messages> = {
     'common.noRecords': 'No records',
     'testCase.untitled': 'Untitled',
 
+    // Pagination
+    'pagination.showing': 'Showing {from} to {to} of {total}',
+    'pagination.noRecords': 'No records',
+    'pagination.rowsPerPage': 'Rows per page:',
+    'pagination.previous': 'Previous',
+    'pagination.next': 'Next',
+    'pagination.pageOf': 'Page {page} of {totalPages}',
+
     // Header
     'header.accountSettings': 'Account Settings',
     'header.apiKeyUsage': 'API Key & Usage',
@@ -337,6 +345,14 @@ Verify that "Sauce Labs Backpack" is in the cart.`,
     'common.noRecords': '沒有紀錄',
     'testCase.untitled': '未命名',
 
+    // Pagination
+    'pagination.showing': '顯示第 {from} 至 {to} 筆，共 {total} 筆',
+    'pagination.noRecords': '沒有紀錄',
+    'pagination.rowsPerPage': '每頁筆數：',
+    'pagination.previous': '上一頁',
+    'pagination.next': '下一頁',
+    'pagination.pageOf': '第 {page} 頁，共 {totalPages} 頁',
+
     // Header
     'header.accountSettings': '帳戶設定',
     'header.apiKeyUsage': 'API Key 與使用量',
@@ -639,6 +655,14 @@ Verify that "Sauce Labs Backpack" is in the cart.`,
     'common.rows': '每页行数：',
     'common.noRecords': '没有记录',
     'testCase.untitled': '未命名',
+
+    // Pagination
+    'pagination.showing': '显示第 {from} 至 {to} 条，共 {total} 条',
+    'pagination.noRecords': '没有记录',
+    'pagination.rowsPerPage': '每页行数：',
+    'pagination.previous': '上一页',
+    'pagination.next': '下一页',
+    'pagination.pageOf': '第 {page} 页，共 {totalPages} 页',
 
     // Header
     'header.accountSettings': '账号设置',
