@@ -32,7 +32,7 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
     const [isLoading, setIsLoading] = useState(true);
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; runId: string; status?: string }>({ isOpen: false, runId: "", status: "" });
     const [currentPage, setCurrentPage] = useState(1);
-    const [pageSize, setPageSize] = useState(20);
+    const [pageSize, setPageSize] = useState(10);
 
     const eventSourceRef = useRef<EventSource | null>(null);
 

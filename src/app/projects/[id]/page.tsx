@@ -53,7 +53,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     const [sortColumn, setSortColumn] = useState<'id' | 'name' | 'status' | 'updated'>('updated');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
     const [currentPage, setCurrentPage] = useState(1);
-    const [pageSize, setPageSize] = useState(20);
+    const [pageSize, setPageSize] = useState(10);
     const [searchInput, setSearchInput] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
 
