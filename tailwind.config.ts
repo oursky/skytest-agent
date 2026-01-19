@@ -45,6 +45,12 @@ const config: Config = {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      gridTemplateColumns: {
+        '24': 'repeat(24, minmax(0, 1fr))',
+      },
+      gridColumn: {
+        'span-9': 'span 9 / span 9',
+      },
     },
   },
   plugins: [],

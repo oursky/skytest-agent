@@ -431,36 +431,36 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 </div>
 
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                    <div className="hidden md:grid grid-cols-12 gap-4 p-4 border-b border-gray-200 bg-gray-50 text-sm font-medium text-gray-500">
+                    <div className="hidden md:grid grid-cols-24 gap-4 p-4 border-b border-gray-200 bg-gray-50 text-sm font-medium text-gray-500">
                         <button
                             onClick={() => handleSort('id')}
-                            className="col-span-2 flex items-center gap-1 hover:text-gray-700 transition-colors text-left"
+                            className="col-span-3 flex items-center gap-1 hover:text-gray-700 transition-colors text-left"
                         >
                             {t('project.table.id')}
                             <SortIcon column="id" />
                         </button>
                         <button
                             onClick={() => handleSort('name')}
-                            className="col-span-3 flex items-center gap-1 hover:text-gray-700 transition-colors text-left"
+                            className="col-span-9 flex items-center gap-1 hover:text-gray-700 transition-colors text-left"
                         >
                             {t('project.table.name')}
                             <SortIcon column="name" />
                         </button>
                         <button
                             onClick={() => handleSort('status')}
-                            className="col-span-2 flex items-center gap-1 hover:text-gray-700 transition-colors text-left"
+                            className="col-span-3 flex items-center gap-1 hover:text-gray-700 transition-colors text-left"
                         >
                             {t('project.table.latestStatus')}
                             <SortIcon column="status" />
                         </button>
                         <button
                             onClick={() => handleSort('updated')}
-                            className="col-span-2 flex items-center gap-1 hover:text-gray-700 transition-colors text-left"
+                            className="col-span-4 flex items-center gap-1 hover:text-gray-700 transition-colors text-left"
                         >
                             {t('project.table.updated')}
                             <SortIcon column="updated" />
                         </button>
-                        <div className="col-span-3 text-right">{t('project.table.actions')}</div>
+                        <div className="col-span-5 text-right">{t('project.table.actions')}</div>
                     </div>
 
                     {testCases.length === 0 ? (
@@ -489,15 +489,15 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                                 const currentStatus = testCase.status || (testCase.testRuns[0]?.status);
 
                                 return (
-                                    <div key={testCase.id} className="flex flex-col md:grid md:grid-cols-12 gap-4 p-4 hover:bg-gray-50 transition-colors group">
-                                        <div className="md:col-span-2 flex items-center">
+                                    <div key={testCase.id} className="flex flex-col md:grid md:grid-cols-24 gap-4 p-4 hover:bg-gray-50 transition-colors group">
+                                        <div className="md:col-span-3 flex items-center">
                                             {testCase.displayId ? (
                                                 <span className="text-xs text-gray-500 font-mono">{testCase.displayId}</span>
                                             ) : (
                                                 <span className="text-gray-400 text-sm">-</span>
                                             )}
                                         </div>
-                                        <div className="md:col-span-3 flex items-center">
+                                        <div className="md:col-span-9 flex items-center">
                                             <Link
                                                 href={`/run?testCaseId=${testCase.id}&projectId=${id}`}
                                                 className="font-medium text-gray-900 hover:text-primary transition-colors"
@@ -506,7 +506,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                                             </Link>
                                         </div>
                                         <div className="flex items-center gap-4 md:contents">
-                                            <div className="md:col-span-2 flex items-center">
+                                            <div className="md:col-span-3 flex items-center">
                                                 {currentStatus ? (
                                                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadgeClass(currentStatus)}`}>
                                                         {currentStatus}
@@ -515,10 +515,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                                                     <span className="text-gray-400 text-sm">-</span>
                                                 )}
                                             </div>
-                                            <div className="md:col-span-2 text-sm text-gray-500 flex items-center">
+                                            <div className="md:col-span-4 text-sm text-gray-500 flex items-center">
                                                 {formatDateTimeCompact(testCase.updatedAt)}
                                             </div>
-                                            <div className="md:col-span-3 flex justify-end gap-2">
+                                            <div className="md:col-span-5 flex justify-end gap-2">
                                                 {(!testCase.testRuns[0] || !['RUNNING', 'QUEUED'].includes(testCase.testRuns[0].status)) && (
                                                     <Link
                                                         href={`/run?testCaseId=${testCase.id}&name=${encodeURIComponent(testCase.name)}`}
