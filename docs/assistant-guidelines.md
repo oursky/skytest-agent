@@ -57,6 +57,9 @@ src/
 3. **No hardcoding** - Use `src/config/app.ts`
 4. **Minimal diffs** - Change only what's necessary
 5. **Match existing style** - No reformatting unrelated code
+6. **No destructive git operations without explicit confirmation**
+   - Do not run `git restore`, `git checkout -- <file>`, `git reset --hard`, `git clean`, `git rebase`, or force-push without the user's permission.
+   - Before any scope cleanup, create a safety snapshot via `git stash push -u -m "wip backup"` or a WIP commit.
 
 ## Workflow & Commits
 - Follow the full process in `docs/workflow-playbook.md`.
