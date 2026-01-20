@@ -2,7 +2,6 @@
 
 import { useState, useEffect, Suspense, useRef, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import Link from "next/link";
 import { useAuth } from "../auth-provider";
 import TestForm from "@/components/TestForm";
 import ResultViewer from "@/components/ResultViewer";
@@ -140,9 +139,6 @@ function RunPageContent() {
             const response = await fetch(`/api/test-cases/${id}`, { headers, cache: 'no-store' });
             if (response.ok) {
                 const data = await response.json();
-                const hasSteps = data.steps && data.steps.length > 0;
-                const hasBrowserConfig = data.browserConfig && Object.keys(data.browserConfig).length > 0;
-                const mode = (hasSteps || hasBrowserConfig) ? 'builder' : 'simple';
 
                 setInitialData({
                     name: data.name,
