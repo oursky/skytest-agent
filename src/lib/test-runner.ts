@@ -456,7 +456,7 @@ async function setupBrowserInstances(
         }
 
         const agent = new PlaywrightAgent(page, {
-            replanningCycleLimit: 5,
+            replanningCycleLimit: 15,
             onTaskStartTip: async (tip) => {
                 if (actionCounter) {
                     actionCounter.count++;
