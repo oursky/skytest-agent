@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { verifyAuth } from '@/lib/auth';
 import { getFilePath } from '@/lib/file-security';
 import { createLogger } from '@/lib/logger';
+import { parseTestCaseJson } from '@/lib/test-case-utils';
 import { exportToMarkdown } from '@/utils/testCaseMarkdown';
 import archiver from 'archiver';
 import fs from 'fs/promises';
@@ -38,14 +39,15 @@ export async function GET(
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
+        const parsed = parseTestCaseJson(testCase);
         const testData = {
-            name: testCase.name,
-            url: testCase.url,
-            prompt: testCase.prompt || '',
-            username: testCase.username || undefined,
+            name: parsed.name,
+            url: parsed.url,
+            prompt: parsed.prompt || '',
+            username: parsed.username || undefined,
             password: '',
-            steps: testCase.steps ? JSON.parse(testCase.steps) : undefined,
-            browserConfig: testCase.browserConfig ? JSON.parse(testCase.browserConfig) : undefined,
+            steps: parsed.steps,
+            browserConfig: parsed.browserConfig,
         };
 
         const markdown = exportToMarkdown(testData);

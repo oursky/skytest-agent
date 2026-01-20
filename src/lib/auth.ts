@@ -6,6 +6,20 @@ const logger = createLogger('auth');
 
 let jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
 
+export type AuthPayload = NonNullable<Awaited<ReturnType<typeof verifyAuth>>>;
+
+export async function resolveUserId(authPayload: AuthPayload): Promise<string | null> {
+    const maybeUserId = (authPayload as { userId?: unknown }).userId;
+    if (typeof maybeUserId === 'string' && maybeUserId.length > 0) {
+        return maybeUserId;
+    }
+
+    const authId = authPayload.sub as string | undefined;
+    if (!authId) return null;
+    const user = await prisma.user.findUnique({ where: { authId }, select: { id: true } });
+    return user?.id ?? null;
+}
+
 function getJwks() {
     if (jwks) return jwks;
 

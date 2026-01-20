@@ -133,22 +133,6 @@ export function parseMarkdown(markdown: string): ParsedMarkdown {
     return { data, errors };
 }
 
-/**
- * Export multiple test cases to a single markdown file
- */
-export function exportMultipleToMarkdown(testCases: TestCaseData[]): string {
-    return testCases.map(tc => exportToMarkdown(tc)).join('\n---\n\n');
-}
-
-/**
- * Parse multiple test cases from a combined markdown file
- */
-export function parseMultipleMarkdown(markdown: string): ParsedMarkdown[] {
-    // Split by document separator (--- at start of line, not frontmatter)
-    const documents = markdown.split(/\n---\n\n(?=---\n)/);
-    return documents.map(doc => parseMarkdown(doc.trim()));
-}
-
 function escapeYamlString(str: string): string {
     if (!str) return '""';
     const needsQuotes = /[:\#"'\n\r\t\[\]\{\}&*!|>@`]/.test(str) ||

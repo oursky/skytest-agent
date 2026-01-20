@@ -1,6 +1,6 @@
 # SkyTest Agent
 
-A free, open-source, self-hosted AI agent for validating real user flows in web applications.
+A self-hosted AI agent for validating real user flows in web applications.
 
 SkyTest Agent controls a real browser, follows plain-language instructions, and verifies what users actually see on screen. It is designed to complement (not replace) traditional test frameworks.
 

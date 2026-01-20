@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyAuth } from '@/lib/auth';
+import { verifyAuth, resolveUserId } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { subscribeProjectEvents } from '@/lib/project-events';
 
@@ -22,7 +22,7 @@ export async function GET(
 
     const { id } = await params;
 
-    const userId = 'userId' in authPayload && typeof authPayload.userId === 'string' ? authPayload.userId : null;
+    const userId = await resolveUserId(authPayload);
     if (!userId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

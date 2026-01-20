@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyAuth } from '@/lib/auth';
+import { verifyAuth, resolveUserId } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { getFilePath, getUploadPath } from '@/lib/file-security';
 import fs from 'fs/promises';
@@ -10,20 +10,6 @@ import { config } from '@/config/app';
 const logger = createLogger('api:test-cases:clone');
 
 export const dynamic = 'force-dynamic';
-
-type AuthPayload = NonNullable<Awaited<ReturnType<typeof verifyAuth>>>;
-
-async function resolveUserId(authPayload: AuthPayload): Promise<string | null> {
-    const maybeUserId = (authPayload as { userId?: unknown }).userId;
-    if (typeof maybeUserId === 'string' && maybeUserId.length > 0) {
-        return maybeUserId;
-    }
-
-    const authId = authPayload.sub as string | undefined;
-    if (!authId) return null;
-    const user = await prisma.user.findUnique({ where: { authId }, select: { id: true } });
-    return user?.id ?? null;
-}
 
 export async function POST(
     request: Request,
