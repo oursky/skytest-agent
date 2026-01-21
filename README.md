@@ -1,54 +1,28 @@
 # SkyTest Agent
 
-A self-hosted AI agent for validating real user flows in web applications.
+*Self-hosted AI browser agent for validating real user flows in web applications.*
 
-SkyTest Agent controls a real browser, follows plain-language instructions, and verifies what users actually see on screen. It is designed to complement (not replace) traditional test frameworks.
+SkyTest Agent executes your tests in a real browser from plain-language steps and produces screenshot-based evidence for review. Validate user journeys without brittle selectors - with support for multi-browser sessions, AI actions alongside custom code, and more.
 
-## What SkyTest Agent Is (and Is Not)
+<video src="https://github.com/user-attachments/assets/adcfa63d-279c-4e8f-9d34-d950678a4255"></video>
 
-**SkyTest Agent is:**
-- A lightweight AI agent for validating end-to-end user flows
-- Visual-first (screenshot-based) rather than selector-heavy
-- Useful for fast reality checks, exploratory validation, and internal workflows
-- Fully self-hosted and open source
+## Key Features
 
-**SkyTest Agent is not:**
-- A full replacement for Playwright / Cypress / Selenium
-- A no-maintenance “AI testing solution”
-- Optimized for large, long-running regression suites
+- **Plain-language tests** — Write test cases in natural language
+- **Visual evidence** — Live screenshots and logs for every run
+- **Multi-session flows** — Coordinate across browser roles (e.g., "Browser A" + "Browser B")
+- **Custom Playwright code** — Mix AI actions with your own scripts
+- **Parallel execution** — Run tests concurrently for faster feedback
+- **Project management** — Organize and manage test cases by project
+- **Bring Your Own Key** — Use your own API key (BYOK)
 
-If you already use traditional E2E automation, SkyTest Agent fits best **around it**, not instead of it.
-
-## Features
-
-- Plain-language test instructions (no XPath or brittle selectors)
-- AI agent controlling a real browser
-- Visual validation based on what appears on screen
-- Live execution with step-by-step logs
-- Parallel execution across multiple browsers
-- Optional custom Playwright code steps
-- File upload support for test inputs
-- Project and test case management
-- Import and export of test cases
-- Bring Your Own API Key (BYOK)
-
-## How It Works (High Level)
-
-1. Describe a user flow in natural language
-2. SkyTest Agent launches a real browser
-3. The agent follows the instructions step by step
-4. Validation is performed visually using screenshots
-5. Results include logs and visual evidence
-
-This approach reduces flakiness caused by minor UI or DOM changes, while keeping results debuggable.
-
-## Tech Stack
-
-- [Next.js 16](https://nextjs.org/) — Web framework
-- [Midscene.js](https://midscenejs.com/) — AI browser agent
-- [Playwright](https://playwright.dev/) — Browser automation
-- [Prisma](https://www.prisma.io/) + SQLite — Database
-- [Authgear](https://www.authgear.com/) — Authentication
+Example flow:
+```
+1. Open the app
+2. Sign in as a user
+3. Add an item to the cart
+4. Verify checkout succeeds
+```
 
 ## Quick Start (Development)
 
@@ -75,14 +49,9 @@ Users provide their own [OpenRouter](https://openrouter.ai/) API keys via the ap
 ## Troubleshooting
 
 - **Browsers not found**: `npx playwright install`
-- **Database errors**: `rm -f prisma/dev.db && npx prisma db push`
+- **Database errors**: `rm -f dev.db && npx prisma db push`
 - **View database**: `npx prisma studio`
 - **Auth redirect issues**: Check Authgear redirect URI matches your domain
-
-## For AI Agents
-
-- `CLAUDE.md` - Guidelines for Claude Code
-- `AGENTS.md` - Guidelines for Codex
 
 ## License
 
