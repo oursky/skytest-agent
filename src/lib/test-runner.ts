@@ -914,6 +914,7 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
             }
 
             const msg = getErrorMessage(error);
+            log(`❌ Test failed: ${msg}`, 'error');
 
             if (browserInstances) {
                 await captureErrorScreenshots(browserInstances, onEvent);

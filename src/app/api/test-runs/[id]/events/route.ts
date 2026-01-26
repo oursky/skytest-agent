@@ -24,7 +24,7 @@ export async function GET(
 
     const testRun = await prisma.testRun.findUnique({
         where: { id },
-        select: { status: true, result: true, logs: true }
+        select: { status: true, error: true, result: true, logs: true }
     });
 
     if (!testRun) {
@@ -65,7 +65,7 @@ export async function GET(
             };
 
             if (['PASS', 'FAIL', 'CANCELLED'].includes(testRun.status)) {
-                safeEnqueue({ type: 'status', status: testRun.status });
+                safeEnqueue({ type: 'status', status: testRun.status, error: testRun.error });
 
                 const storedEvents = testRun.result ?? testRun.logs;
                 if (storedEvents) {
@@ -104,7 +104,7 @@ export async function GET(
                     if (!status) {
                         const freshRun = await prisma.testRun.findUnique({
                             where: { id },
-                            select: { status: true, result: true }
+                            select: { status: true, error: true, result: true }
                         });
 
                         if (!freshRun) return;
@@ -128,7 +128,7 @@ export async function GET(
                                 }
                             }
 
-                            safeEnqueue({ type: 'status', status: freshRun.status });
+                            safeEnqueue({ type: 'status', status: freshRun.status, error: freshRun.error });
                             closeStream();
                             return;
                         }
