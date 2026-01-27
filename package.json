@@ -5,7 +5,8 @@
   "overrides": {
     "hono": ">=4.11.4",
     "@modelcontextprotocol/sdk": ">=1.24.0",
-    "js-yaml": ">=4.1.1"
+    "js-yaml": ">=4.1.1",
+    "lodash": ">=4.17.23"
   },
   "scripts": {
     "dev": "next dev",
