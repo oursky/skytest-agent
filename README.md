@@ -1,22 +1,37 @@
+<div align="center">
+
 # SkyTest Agent
 
-*Self-hosted AI browser agent for validating real user flows in web applications.*
+**The open-source, self-hosted alternative to fragile E2E test suites.**
 
-SkyTest Agent executes your tests in a real browser from plain-language steps and produces screenshot-based evidence for review. Validate user journeys without brittle selectors - with support for multi-browser sessions, AI actions alongside custom code, and more.
+Write tests in plain language. Get screenshot evidence for every run.
 
-<video src="https://github.com/user-attachments/assets/adcfa63d-279c-4e8f-9d34-d950678a4255"></video>
+[![GitHub stars](https://img.shields.io/github/stars/oursky/skytest-agent?style=flat)](https://github.com/oursky/skytest-agent/stargazers)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Last Commit](https://img.shields.io/github/last-commit/oursky/skytest-agent)](https://github.com/oursky/skytest-agent/commits/main)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/oursky/skytest-agent/pulls)
+
+</div>
+
+## What is SkyTest Agent?
+
+Cypress and Playwright make you code against DOM selectors that break when the UI changes. SkyTest Agent works differently: describe what a user would do in plain language, and a browser agent runs those steps, capturing screenshots as evidence.
+
+It is self-hosted, open source, and uses your own API key.
+
+<video src="https://github.com/user-attachments/assets/c607f068-3a8f-44d9-8642-7cdda7cc80ba"></video>
 
 ## Key Features
 
-- **Plain-language tests** — Write test cases in natural language
-- **Visual evidence** — Live screenshots and logs for every run
-- **Multi-session flows** — Coordinate across browser roles (e.g., "Browser A" + "Browser B")
-- **Custom Playwright code** — Mix AI actions with your own scripts
-- **Parallel execution** — Run tests concurrently for faster feedback
-- **Project management** — Organize and manage test cases by project
-- **Bring Your Own Key** — Use your own API key (BYOK)
+- **Plain-language tests** - Write test cases the way you'd explain them to a colleague. No CSS selectors or XPaths.
+- **Visual evidence** - Every run captures screenshots and logs so you see what happened, not just pass/fail.
+- **Multi-session flows** - Coordinate across browser roles (e.g., "Browser A" sends a message, "Browser B" receives it) for multi-user scenarios.
+- **Custom Playwright code** - Mix AI-driven steps with your own Playwright scripts when you need precise control.
+- **Parallel execution** - Run tests concurrently for faster feedback.
+- **Project management** - Organize test cases by project with a built-in web UI.
+- **Bring Your Own Key** - Use your own OpenRouter API key. You pay only your LLM costs.
 
-Example flow:
+**Example test case:**
 ```
 1. Open the app
 2. Sign in as a user
@@ -24,7 +39,9 @@ Example flow:
 4. Verify checkout succeeds
 ```
 
-## Quick Start (Development)
+[Watch the demo on YouTube](https://www.youtube.com/watch?v=qYlzKr8LWL8)
+
+## Quick Start
 
 ```bash
 npm install
@@ -53,6 +70,14 @@ Users provide their own [OpenRouter](https://openrouter.ai/) API keys via the ap
 - **View database**: `npx prisma studio`
 - **Auth redirect issues**: Check Authgear redirect URI matches your domain
 
+## Community & Contributing
+
+Bug reports, feature requests, and pull requests are all welcome.
+
+- **Report a bug** - [Open an issue](https://github.com/oursky/skytest-agent/issues/new)
+- **Request a feature** - [Start a discussion](https://github.com/oursky/skytest-agent/discussions)
+- **Contribute code** - Fork the repo, create a branch, and open a pull request
+
 ## License
 
-MIT
+[MIT](LICENSE)
