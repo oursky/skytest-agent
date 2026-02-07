@@ -11,6 +11,8 @@ Write tests in plain language. Get screenshot evidence for every run.
 [![Last Commit](https://img.shields.io/github/last-commit/oursky/skytest-agent)](https://github.com/oursky/skytest-agent/commits/main)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/oursky/skytest-agent/pulls)
 
+<a href="https://skytest.ai/#waitlist"><img src="https://img.shields.io/badge/Hosted_Version-Join_Waitlist-orange?style=for-the-badge" alt="Join Waitlist"></a>
+
 </div>
 
 ## What is SkyTest Agent?
@@ -53,6 +55,12 @@ npm run dev
 ```
 
 Open http://localhost:3000 and sign in.
+
+## Hosted Version
+
+Don't want to self-host? We're building a managed version of SkyTest.
+
+<a href="https://skytest.ai/#waitlist"><img src="https://img.shields.io/badge/Join_the_Waitlist-orange?style=for-the-badge" alt="Join Waitlist"></a>
 
 ## Configuration
 
