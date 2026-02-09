@@ -110,6 +110,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const getAccessToken = async () => {
         const authgearModule = await ensureAuthgearConfigured();
+        await authgearModule.default.refreshAccessTokenIfNeeded();
         return authgearModule.default.accessToken || null;
     };
 
