@@ -22,22 +22,9 @@ interface RunTestRequest {
     testCaseId?: string;
 }
 
-function sanitizeBrowserConfig(browserConfig?: Record<string, BrowserConfig>) {
-    if (!browserConfig) return undefined;
-    return Object.fromEntries(
-        Object.entries(browserConfig).map(([id, entry]) => [
-            id,
-            { ...entry, username: undefined, password: undefined }
-        ])
-    );
-}
-
 function createConfigurationSnapshot(config: RunTestRequest) {
-    const { prompt: _prompt, steps: _steps, username: _username, password: _password, browserConfig, ...rest } = config;
-    return {
-        ...rest,
-        browserConfig: sanitizeBrowserConfig(browserConfig),
-    };
+    const { testCaseId: _testCaseId, ...rest } = config;
+    return rest;
 }
 
 function validateConfigUrls(config: RunTestRequest): string | null {
