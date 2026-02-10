@@ -290,7 +290,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
 
     return (
         <form onSubmit={handleSubmit} className="glass-panel h-[800px] flex flex-col">
-            <div className={`p-6 ${!readOnly ? 'pb-0 border-b border-gray-200' : 'pb-6 border-b border-gray-200'}`}>
+            <div className="p-6 pb-0 border-b border-gray-200">
                 <div className="flex items-center justify-between">
                     <h2 className="text-xl font-semibold text-foreground">{t('testForm.title')}</h2>
                     {(onExport || onImport) && (

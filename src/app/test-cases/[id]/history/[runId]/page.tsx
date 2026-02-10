@@ -10,8 +10,7 @@ import { formatDateTime } from "@/utils/dateFormatter";
 import { exportToMarkdown } from "@/utils/testCaseMarkdown";
 import { useI18n } from "@/i18n";
 
-import { TestStep, BrowserConfig, ConfigType } from "@/types";
-import ConfigSnapshotViewer from "@/components/ConfigSnapshotViewer";
+import { TestStep, BrowserConfig } from "@/types";
 
 interface TestRun {
     id: string;
@@ -133,7 +132,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 
     const events = testRun.result ? JSON.parse(testRun.result) : [];
 
-    const { testData, resolvedConfigurations } = (() => {
+    const testData = (() => {
         const baseConfig = testCase ? {
             name: testCase.name,
             url: testCase.url,
@@ -146,9 +145,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 
         if (testRun.configurationSnapshot) {
             try {
-                const savedConfig = JSON.parse(testRun.configurationSnapshot) as Partial<TestCase> & {
-                    resolvedConfigurations?: { name: string; type: ConfigType; value: string; source: string }[];
-                };
+                const savedConfig = JSON.parse(testRun.configurationSnapshot) as Partial<TestCase>;
                 const data = {
                     name: savedConfig.name ?? baseConfig?.name,
                     url: savedConfig.url ?? baseConfig?.url ?? '',
@@ -158,13 +155,13 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                     steps: savedConfig.steps ?? baseConfig?.steps,
                     browserConfig: savedConfig.browserConfig ?? baseConfig?.browserConfig,
                 };
-                return { testData: data, resolvedConfigurations: savedConfig.resolvedConfigurations || [] };
+                return data;
             } catch (error) {
                 console.error("Failed to parse configuration snapshot", error);
             }
         }
 
-        return { testData: baseConfig, resolvedConfigurations: [] as { name: string; type: ConfigType; value: string; source: string }[] };
+        return baseConfig;
     })();
 
     return (
@@ -182,9 +179,6 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
                     <div className="space-y-4">
-                        {resolvedConfigurations.length > 0 && (
-                            <ConfigSnapshotViewer configs={resolvedConfigurations} />
-                        )}
                         {testData && (
                             <TestForm
                                 onSubmit={() => { }}
