@@ -303,13 +303,19 @@ export const MESSAGES: Record<Locale, Messages> = {
     'timeline.clickToEnlarge': 'Click to enlarge',
 
     // Sample data
-    'sample.multi.name': 'Cross-Browser Session Flow',
-    'sample.multi.step1': 'Login with username {username} and password {password}.',
-    'sample.multi.step2': 'Login with username {username} and password {password}.',
-    'sample.multi.step3': "Add 'Sauce Labs Backpack' to cart",
-    'sample.multi.step4': "Add 'Sauce Labs Bike Light' to cart",
-    'sample.multi.step5': "Click on the cart icon.\nVerify ONLY 'Sauce Labs Backpack' is in the cart.",
-    'sample.multi.step6': "Click on the cart icon.\nVerify ONLY 'Sauce Labs Bike Light' is in the cart.",
+    'sample.multi.name': 'Sample Add to Cart Flow',
+    'sample.multi.browserAName': 'Shopper A Session',
+    'sample.multi.browserBName': 'Shopper B Session',
+    'sample.multi.step1': 'Log in with username {username} and password {password}.',
+    'sample.multi.step2': 'Log in with username {username} and password {password}.',
+    'sample.multi.step3': "Add 'Sauce Labs Backpack' to cart.",
+    'sample.multi.step4': "Add 'Sauce Labs Bike Light' to cart.",
+    'sample.multi.step5': 'Open the cart.',
+    'sample.multi.step6': "Verify 'Sauce Labs Backpack' is visible in the cart.",
+    'sample.multi.step7': 'Verify there is exactly 1 item in the cart.',
+    'sample.multi.step8': 'Open the cart.',
+    'sample.multi.step9': "Verify 'Sauce Labs Bike Light' is visible in the cart.",
+    'sample.multi.step10': 'Verify there is exactly 1 item in the cart.',
 
     // Project tabs
     'project.tab.testCases': 'Test Cases',
@@ -654,13 +660,19 @@ export const MESSAGES: Record<Locale, Messages> = {
     'timeline.clickToEnlarge': '點擊以放大',
 
     // Sample data (Traditional Chinese)
-    'sample.multi.name': '跨瀏覽器工作階段流程',
+    'sample.multi.name': 'Sample Add to Cart Flow',
+    'sample.multi.browserAName': '購物者 A 工作階段',
+    'sample.multi.browserBName': '購物者 B 工作階段',
     'sample.multi.step1': '使用帳號 {username} 與密碼 {password} 登入。',
     'sample.multi.step2': '使用帳號 {username} 與密碼 {password} 登入。',
-    'sample.multi.step3': '將「Sauce Labs Backpack」加入購物車',
-    'sample.multi.step4': '將「Sauce Labs Bike Light」加入購物車',
-    'sample.multi.step5': '點擊購物車圖示。\n確認購物車中只有「Sauce Labs Backpack」。',
-    'sample.multi.step6': '點擊購物車圖示。\n確認購物車中只有「Sauce Labs Bike Light」。',
+    'sample.multi.step3': '將「Sauce Labs Backpack」加入購物車。',
+    'sample.multi.step4': '將「Sauce Labs Bike Light」加入購物車。',
+    'sample.multi.step5': '開啟購物車。',
+    'sample.multi.step6': '確認購物車中可看到「Sauce Labs Backpack」。',
+    'sample.multi.step7': '確認購物車中剛好只有 1 件商品。',
+    'sample.multi.step8': '開啟購物車。',
+    'sample.multi.step9': '確認購物車中可看到「Sauce Labs Bike Light」。',
+    'sample.multi.step10': '確認購物車中剛好只有 1 件商品。',
 
     // Project tabs
     'project.tab.testCases': '測試案例',
@@ -1005,13 +1017,19 @@ export const MESSAGES: Record<Locale, Messages> = {
     'timeline.clickToEnlarge': '点击查看大图',
 
     // Sample data (Simplified Chinese)
-    'sample.multi.name': '跨浏览器会话流程',
+    'sample.multi.name': 'Sample Add to Cart Flow',
+    'sample.multi.browserAName': '购物者 A 会话',
+    'sample.multi.browserBName': '购物者 B 会话',
     'sample.multi.step1': '使用用户名 {username} 和密码 {password} 登录。',
     'sample.multi.step2': '使用用户名 {username} 和密码 {password} 登录。',
-    'sample.multi.step3': '将"Sauce Labs Backpack"添加到购物车',
-    'sample.multi.step4': '将"Sauce Labs Bike Light"添加到购物车',
-    'sample.multi.step5': '点击购物车图标。\n验证购物车中只有"Sauce Labs Backpack"。',
-    'sample.multi.step6': '点击购物车图标。\n验证"Sauce Labs Bike Light"是购物车中唯一的商品。',
+    'sample.multi.step3': '将"Sauce Labs Backpack"添加到购物车。',
+    'sample.multi.step4': '将"Sauce Labs Bike Light"添加到购物车。',
+    'sample.multi.step5': '打开购物车。',
+    'sample.multi.step6': '验证购物车中可见"Sauce Labs Backpack"。',
+    'sample.multi.step7': '验证购物车中只有 1 件商品。',
+    'sample.multi.step8': '打开购物车。',
+    'sample.multi.step9': '验证购物车中可见"Sauce Labs Bike Light"。',
+    'sample.multi.step10': '验证购物车中只有 1 件商品。',
 
     // Project tabs
     'project.tab.testCases': '测试用例',

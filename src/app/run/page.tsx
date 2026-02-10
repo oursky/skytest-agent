@@ -644,10 +644,11 @@ function RunPageContent() {
                             projectId={projectId || projectIdFromTestCase || undefined}
                             projectConfigs={projectConfigs}
                             testCaseConfigs={testCaseConfigs}
-                            onTestCaseConfigsChange={() => {
-                                const tcId = testCaseId || currentTestCaseId;
+                            onTestCaseConfigsChange={(updatedTestCaseId) => {
+                                const tcId = updatedTestCaseId || testCaseId || currentTestCaseId;
                                 if (tcId) fetchTestCaseConfigs(tcId);
                             }}
+                            onEnsureTestCase={(data) => saveTestCase(data, { saveDraft: true })}
                         />
                     )}
                 </div>

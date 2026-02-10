@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { TestStep, BrowserConfig, ConfigItem } from '@/types';
-import { config } from '@/config/app';
 import BuilderForm from './BuilderForm';
 import ConfigurationsSection from './ConfigurationsSection';
 import { useI18n } from '@/i18n';
+import { useAuth } from '@/app/auth-provider';
 
 interface TestData {
     url: string;
@@ -34,7 +34,8 @@ interface TestFormProps {
     projectId?: string;
     projectConfigs?: ConfigItem[];
     testCaseConfigs?: ConfigItem[];
-    onTestCaseConfigsChange?: () => void;
+    onTestCaseConfigsChange?: (id?: string) => void;
+    onEnsureTestCase?: (data: TestData) => Promise<string | null>;
 }
 
 interface BrowserEntry {
@@ -43,6 +44,21 @@ interface BrowserEntry {
 }
 
 type TestFormTab = 'configurations' | 'test-steps';
+
+const SAMPLE_URL_CONFIG_NAME = 'SAUCEDEMO_URL';
+const SAMPLE_URL_CONFIG_VALUE = 'https://www.saucedemo.com';
+const SAMPLE_USERNAME_CONFIG_NAME = 'USERNAME';
+const SAMPLE_USERNAME_CONFIG_VALUE = 'standard_user';
+const SAMPLE_USERNAME_VARIABLE_REF = `{{${SAMPLE_USERNAME_CONFIG_NAME}}}`;
+const SAMPLE_PASSWORD_CONFIG_NAME = 'PASSWORD';
+const SAMPLE_PASSWORD_CONFIG_VALUE = 'secret_sauce';
+const SAMPLE_PASSWORD_VARIABLE_REF = `{{${SAMPLE_PASSWORD_CONFIG_NAME}}}`;
+
+const SAMPLE_CONFIGS_TO_ENSURE = [
+    { name: SAMPLE_URL_CONFIG_NAME, type: 'URL', value: SAMPLE_URL_CONFIG_VALUE },
+    { name: SAMPLE_USERNAME_CONFIG_NAME, type: 'VARIABLE', value: SAMPLE_USERNAME_CONFIG_VALUE },
+    { name: SAMPLE_PASSWORD_CONFIG_NAME, type: 'SECRET', value: SAMPLE_PASSWORD_CONFIG_VALUE },
+] as const;
 
 function createStepId(prefix: string): string {
     return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -96,7 +112,8 @@ function buildSteps(data: TestData | undefined, browserId: string, validBrowserI
         }));
 }
 
-export default function TestForm({ onSubmit, isLoading, initialData, showNameInput, readOnly, onExport, onImport, testCaseId, onSaveDraft, onDiscard, isSaving, displayId, onDisplayIdChange, projectId, projectConfigs, testCaseConfigs, onTestCaseConfigsChange }: TestFormProps) {
+export default function TestForm({ onSubmit, isLoading, initialData, showNameInput, readOnly, onExport, onImport, testCaseId, onSaveDraft, onDiscard, isSaving, displayId, onDisplayIdChange, projectId, projectConfigs, testCaseConfigs, onTestCaseConfigsChange, onEnsureTestCase }: TestFormProps) {
+    const { getAccessToken } = useAuth();
     const { t } = useI18n();
     const [activeTab, setActiveTab] = useState<TestFormTab>('configurations');
     const [name, setName] = useState(() => initialData?.name || '');
@@ -135,25 +152,117 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
         });
     }, [steps.length, browsers]);
 
-    const handleLoadSampleData = () => {
-        const usernamePlaceholder = config.test.security.credentialPlaceholders.username;
-        const passwordPlaceholder = config.test.security.credentialPlaceholders.password;
-        const placeholderVars = { username: usernamePlaceholder, password: passwordPlaceholder };
+    const ensureSampleConfigs = async (targetTestCaseId?: string) => {
+        try {
+            const existingNames = new Set(
+                (targetTestCaseId ? (testCaseConfigs || []) : [...(projectConfigs || []), ...(testCaseConfigs || [])])
+                    .map((cfg) => cfg.name)
+            );
+            const configsToCreate = SAMPLE_CONFIGS_TO_ENSURE.filter((cfg) => !existingNames.has(cfg.name));
+            if (configsToCreate.length === 0) return;
 
-        setName(t('sample.multi.name'));
-        setBrowsers([
-            { id: 'browser_a', config: { url: 'https://www.saucedemo.com', username: 'standard_user', password: 'secret_sauce' } },
-            { id: 'browser_b', config: { url: 'https://www.saucedemo.com', username: 'visual_user', password: 'secret_sauce' } }
-        ]);
-        setSteps([
+            const token = await getAccessToken();
+            const headers: HeadersInit = {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {})
+            };
+            if (targetTestCaseId) {
+                let hasCreatedTestCaseConfig = false;
+                for (const cfg of configsToCreate) {
+                    const response = await fetch(`/api/test-cases/${targetTestCaseId}/configs`, {
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify(cfg)
+                    });
+
+                    if (response.ok || response.status === 409) {
+                        hasCreatedTestCaseConfig = true;
+                    }
+                }
+
+                if (hasCreatedTestCaseConfig) {
+                    onTestCaseConfigsChange?.(targetTestCaseId);
+                }
+                return;
+            }
+
+            if (projectId) {
+                for (const cfg of configsToCreate) {
+                    const response = await fetch(`/api/projects/${projectId}/configs`, {
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify(cfg)
+                    });
+
+                    if (!response.ok && response.status !== 409) {
+                        console.error(`Failed to create sample config on project: ${cfg.name}`);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Failed to ensure sample configs', error);
+        }
+    };
+
+    const handleLoadSampleData = async () => {
+        const sampleName = t('sample.multi.name');
+        const placeholderVars = { username: SAMPLE_USERNAME_VARIABLE_REF, password: SAMPLE_PASSWORD_VARIABLE_REF };
+        const sampleBrowsers: BrowserEntry[] = [
+            {
+                id: 'browser_a',
+                config: {
+                    name: t('sample.multi.browserAName'),
+                    url: SAMPLE_URL_CONFIG_VALUE,
+                }
+            },
+            {
+                id: 'browser_b',
+                config: {
+                    name: t('sample.multi.browserBName'),
+                    url: SAMPLE_URL_CONFIG_VALUE,
+                }
+            }
+        ];
+        const sampleSteps: TestStep[] = [
             { id: createStepId('sample'), target: 'browser_a', action: t('sample.multi.step1', placeholderVars), type: 'ai-action' },
             { id: createStepId('sample'), target: 'browser_b', action: t('sample.multi.step2', placeholderVars), type: 'ai-action' },
             { id: createStepId('sample'), target: 'browser_a', action: t('sample.multi.step3'), type: 'ai-action' },
             { id: createStepId('sample'), target: 'browser_b', action: t('sample.multi.step4'), type: 'ai-action' },
             { id: createStepId('sample'), target: 'browser_a', action: t('sample.multi.step5'), type: 'ai-action' },
-            { id: createStepId('sample'), target: 'browser_b', action: t('sample.multi.step6'), type: 'ai-action' }
-        ]);
-        onDisplayIdChange?.('TC-SAMPLE-002');
+            { id: createStepId('sample'), target: 'browser_a', action: t('sample.multi.step6'), type: 'ai-action' },
+            { id: createStepId('sample'), target: 'browser_a', action: t('sample.multi.step7'), type: 'ai-action' },
+            { id: createStepId('sample'), target: 'browser_b', action: t('sample.multi.step8'), type: 'ai-action' },
+            { id: createStepId('sample'), target: 'browser_b', action: t('sample.multi.step9'), type: 'ai-action' },
+            { id: createStepId('sample'), target: 'browser_b', action: t('sample.multi.step10'), type: 'ai-action' }
+        ];
+
+        const sampleBrowserConfig: Record<string, BrowserConfig> = {};
+        sampleBrowsers.forEach((browser) => {
+            sampleBrowserConfig[browser.id] = browser.config;
+        });
+
+        const sampleData: TestData = {
+            name: showNameInput ? sampleName : undefined,
+            url: SAMPLE_URL_CONFIG_VALUE,
+            prompt: '',
+            username: undefined,
+            password: undefined,
+            steps: sampleSteps,
+            browserConfig: sampleBrowserConfig,
+        };
+
+        let targetTestCaseId = testCaseId;
+        if (!targetTestCaseId && onEnsureTestCase) {
+            const ensured = await onEnsureTestCase(sampleData);
+            targetTestCaseId = ensured || undefined;
+        }
+
+        await ensureSampleConfigs(targetTestCaseId);
+
+        setName(sampleName);
+        setBrowsers(sampleBrowsers);
+        setSteps(sampleSteps);
+        onDisplayIdChange?.('TC-SAMPLE-001');
         setActiveTab('test-steps');
     };
 
@@ -298,7 +407,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                             projectConfigs={projectConfigs || []}
                             testCaseConfigs={testCaseConfigs || []}
                             testCaseId={testCaseId}
-                            onTestCaseConfigsChange={onTestCaseConfigsChange || (() => undefined)}
+                            onTestCaseConfigsChange={() => onTestCaseConfigsChange?.(testCaseId)}
                             readOnly={readOnly}
                             browsers={browsers}
                             setBrowsers={setBrowsers}
