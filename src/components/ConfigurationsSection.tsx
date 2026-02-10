@@ -379,7 +379,7 @@ export default function ConfigurationsSection({
                                             </code>
                                             <span className="text-gray-400 text-xs truncate">{config.filename}</span>
                                             {!readOnly && (
-                                                <div className="ml-auto flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <div className="ml-auto flex gap-1">
                                                     <button
                                                         type="button"
                                                         onClick={() => handleDownload(config)}
@@ -415,7 +415,7 @@ export default function ConfigurationsSection({
                                             <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">{t('configs.override')}</span>
                                         )}
                                         {!readOnly && (
-                                            <div className="ml-auto flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <div className="ml-auto flex gap-1">
                                                 <button
                                                     type="button"
                                                     onClick={() => { setEditState({ id: config.id, name: config.name, value: config.value, type: config.type }); setError(null); }}
