@@ -353,14 +353,14 @@ export default function ConfigurationsSection({
                                                     type="text"
                                                     value={editState.name}
                                                     onChange={(e) => setEditState({ ...editState, name: e.target.value.toUpperCase() })}
-                                                    placeholder={t('configs.name.placeholder')}
+                                                    placeholder={t(`configs.name.placeholder.${config.type.toLowerCase()}`)}
                                                     className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-primary"
                                                 />
                                                 <input
                                                     type={config.type === 'SECRET' ? 'password' : 'text'}
                                                     value={editState.value}
                                                     onChange={(e) => setEditState({ ...editState, value: e.target.value })}
-                                                    placeholder={t('configs.value.placeholder')}
+                                                    placeholder={config.type === 'URL' ? t('configs.url.placeholder') : config.type === 'SECRET' ? t('configs.secret.placeholder') : t('configs.value.placeholder')}
                                                     className="flex-[2] px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
                                                 />
                                                 <button type="button" onClick={handleSave} className="px-2 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90">{t('common.save')}</button>
@@ -447,7 +447,7 @@ export default function ConfigurationsSection({
                                             type="text"
                                             value={editState.name}
                                             onChange={(e) => setEditState({ ...editState, name: e.target.value.toUpperCase() })}
-                                            placeholder={t('configs.name.placeholder')}
+                                            placeholder={t(`configs.name.placeholder.${editState.type.toLowerCase()}`)}
                                             className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-primary"
                                             autoFocus
                                         />
