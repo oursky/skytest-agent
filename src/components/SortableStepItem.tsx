@@ -1,11 +1,12 @@
 'use client';
 
-import { TestStep, StepType } from '@/types';
+import { TestStep, StepType, ConfigItem } from '@/types';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import dynamic from 'next/dynamic';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useI18n } from '@/i18n';
+import InsertVariableDropdown from './InsertVariableDropdown';
 
 function EditorLoading() {
     const { t } = useI18n();
@@ -44,10 +45,13 @@ interface SortableStepItemProps {
     mode: 'simple' | 'builder';
     readOnly?: boolean;
     isAnyDragging?: boolean;
+    projectConfigs?: ConfigItem[];
+    testCaseConfigs?: ConfigItem[];
 }
 
-export default function SortableStepItem({ step, index, browsers, onRemove, onChange, onTypeChange, mode, readOnly, isAnyDragging }: SortableStepItemProps) {
+export default function SortableStepItem({ step, index, browsers, onRemove, onChange, onTypeChange, mode, readOnly, isAnyDragging, projectConfigs, testCaseConfigs }: SortableStepItemProps) {
     const { t } = useI18n();
+    const stepTextareaRef = useRef<HTMLTextAreaElement>(null);
 
     const {
         attributes,
@@ -181,6 +185,7 @@ export default function SortableStepItem({ step, index, browsers, onRemove, onCh
                 {stepType === 'ai-action' ? (
                     <div className="space-y-3">
                         <textarea
+                            ref={stepTextareaRef}
                             value={step.action}
                             onChange={(e) => {
                                 onChange('action', e.target.value);
@@ -195,7 +200,28 @@ export default function SortableStepItem({ step, index, browsers, onRemove, onCh
                             rows={3}
                             disabled={readOnly}
                         />
-                        {/* File attachments UI removed. Use Playwright code with absolute file paths instead. */}
+                        {!readOnly && ((projectConfigs && projectConfigs.length > 0) || (testCaseConfigs && testCaseConfigs.length > 0)) && (
+                            <InsertVariableDropdown
+                                projectConfigs={projectConfigs || []}
+                                testCaseConfigs={testCaseConfigs || []}
+                                onInsert={(ref) => {
+                                    const textarea = stepTextareaRef.current;
+                                    if (!textarea) {
+                                        onChange('action', step.action + ref);
+                                        return;
+                                    }
+                                    const start = textarea.selectionStart;
+                                    const end = textarea.selectionEnd;
+                                    const newValue = step.action.substring(0, start) + ref + step.action.substring(end);
+                                    onChange('action', newValue);
+                                    requestAnimationFrame(() => {
+                                        textarea.focus();
+                                        const cursorPos = start + ref.length;
+                                        textarea.setSelectionRange(cursorPos, cursorPos);
+                                    });
+                                }}
+                            />
+                        )}
                     </div>
                 ) : hideMonacoEditor ? (
                     <div className="h-[180px] bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-center text-gray-400 text-sm">

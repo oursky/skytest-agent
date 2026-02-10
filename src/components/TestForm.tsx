@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { TestStep, BrowserConfig, TestCaseFile } from '@/types';
+import { TestStep, BrowserConfig, TestCaseFile, ConfigItem } from '@/types';
 import { config } from '@/config/app';
 import SimpleForm from './SimpleForm';
 import BuilderForm from './BuilderForm';
+import ConfigurationsSection from './ConfigurationsSection';
 import { useI18n } from '@/i18n';
 
 interface TestData {
@@ -34,6 +35,10 @@ interface TestFormProps {
     isSaving?: boolean;
     displayId?: string;
     onDisplayIdChange?: (id: string) => void;
+    projectId?: string;
+    projectConfigs?: ConfigItem[];
+    testCaseConfigs?: ConfigItem[];
+    onTestCaseConfigsChange?: () => void;
 }
 
 interface BrowserEntry {
@@ -41,7 +46,7 @@ interface BrowserEntry {
     config: BrowserConfig;
 }
 
-export default function TestForm({ onSubmit, isLoading, initialData, showNameInput, readOnly, onExport, onImport, testCaseId, files, onFilesChange, onEnsureTestCase, onSaveDraft, onDiscard, isSaving, displayId, onDisplayIdChange }: TestFormProps) {
+export default function TestForm({ onSubmit, isLoading, initialData, showNameInput, readOnly, onExport, onImport, testCaseId, files, onFilesChange, onEnsureTestCase, onSaveDraft, onDiscard, isSaving, displayId, onDisplayIdChange, projectId, projectConfigs, testCaseConfigs, onTestCaseConfigsChange }: TestFormProps) {
     const { t } = useI18n();
 
     const [name, setName] = useState(() => initialData?.name || '');
@@ -316,6 +321,17 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                     </div>
                 )}
 
+                {projectId && projectConfigs && onTestCaseConfigsChange && (
+                    <ConfigurationsSection
+                        projectId={projectId}
+                        projectConfigs={projectConfigs}
+                        testCaseConfigs={testCaseConfigs || []}
+                        testCaseId={testCaseId}
+                        onTestCaseConfigsChange={onTestCaseConfigsChange}
+                        readOnly={readOnly}
+                    />
+                )}
+
                 {mode === 'simple' ? (
                     <SimpleForm
                         url={simpleUrl}
@@ -329,6 +345,8 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                         prompt={prompt}
                         setPrompt={setPrompt}
                         readOnly={readOnly}
+                        projectConfigs={projectConfigs}
+                        testCaseConfigs={testCaseConfigs}
                     />
                 ) : (
                     <BuilderForm
@@ -343,6 +361,8 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                         files={files}
                         onFilesChange={onFilesChange}
                         onEnsureTestCase={onEnsureTestCase ? async () => onEnsureTestCase(buildCurrentData()) : undefined}
+                        projectConfigs={projectConfigs}
+                        testCaseConfigs={testCaseConfigs}
                     />
                 )}
             </div>

@@ -5,6 +5,7 @@ import { verifyAuth } from '@/lib/auth';
 import { decrypt } from '@/lib/crypto';
 import { validateTargetUrl } from '@/lib/url-security';
 import { createLogger } from '@/lib/logger';
+import { resolveConfigs } from '@/lib/config-resolver';
 import type { BrowserConfig, TestStep } from '@/types';
 
 const logger = createLogger('api:run-test');
@@ -22,9 +23,13 @@ interface RunTestRequest {
     testCaseId?: string;
 }
 
-function createConfigurationSnapshot(config: RunTestRequest) {
+function createConfigurationSnapshot(config: RunTestRequest, resolvedConfigurations?: { name: string; type: string; value: string; source: string }[]) {
     const { testCaseId: _testCaseId, ...rest } = config;
-    return rest;
+    const masked = resolvedConfigurations?.map(c => ({
+        ...c,
+        value: c.type === 'SECRET' ? '••••••' : c.value,
+    }));
+    return { ...rest, ...(masked && masked.length > 0 ? { resolvedConfigurations: masked } : {}) };
 }
 
 function validateConfigUrls(config: RunTestRequest): string | null {
@@ -136,7 +141,8 @@ export async function POST(request: Request) {
             select: { id: true, filename: true, storedName: true, mimeType: true, size: true }
         });
 
-        const configurationSnapshot = JSON.stringify(createConfigurationSnapshot(config));
+        const resolved = await resolveConfigs(testCase.projectId, testCaseId);
+        const configurationSnapshot = JSON.stringify(createConfigurationSnapshot(config, resolved.allConfigs));
 
         const testRun = await prisma.testRun.create({
             data: {
@@ -162,7 +168,16 @@ export async function POST(request: Request) {
             }
         }
 
-        await queue.add(testRun.id, { ...config, userId, openRouterApiKey, testCaseId, projectId: testCase.projectId, files });
+        await queue.add(testRun.id, {
+            ...config,
+            userId,
+            openRouterApiKey,
+            testCaseId,
+            projectId: testCase.projectId,
+            files,
+            resolvedVariables: resolved.variables,
+            resolvedFiles: resolved.files,
+        });
 
         return NextResponse.json({ runId: testRun.id });
 

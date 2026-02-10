@@ -1,6 +1,6 @@
 'use client';
 
-import { TestStep, BrowserConfig, StepType, TestCaseFile } from '@/types';
+import { TestStep, BrowserConfig, StepType, TestCaseFile, ConfigItem } from '@/types';
 import {
     DndContext,
     closestCenter,
@@ -43,6 +43,8 @@ interface BuilderFormProps {
     files?: TestCaseFile[];
     onFilesChange?: (testCaseId?: string, uploadedFiles?: TestCaseFile[]) => void | Promise<void>;
     onEnsureTestCase?: () => Promise<string>;
+    projectConfigs?: ConfigItem[];
+    testCaseConfigs?: ConfigItem[];
 }
 
 export default function BuilderForm({
@@ -56,7 +58,9 @@ export default function BuilderForm({
     testCaseId,
     files,
     onFilesChange,
-    onEnsureTestCase
+    onEnsureTestCase,
+    projectConfigs,
+    testCaseConfigs,
 }: BuilderFormProps) {
     const { t } = useI18n();
 
@@ -332,6 +336,8 @@ await expect(page.getByText(username, {exact: true })).toBeVisible();`}</code>
                                     mode="builder"
                                     readOnly={readOnly}
                                     isAnyDragging={activeId !== null}
+                                    projectConfigs={projectConfigs}
+                                    testCaseConfigs={testCaseConfigs}
                                 />
                             ))}
                         </div>

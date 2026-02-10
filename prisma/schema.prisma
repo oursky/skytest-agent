@@ -32,24 +32,25 @@ model UsageRecord {
 }
 
 model Project {
-  id        String     @id @default(cuid())
+  id        String          @id @default(cuid())
   name      String
   userId    String
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   testCases TestCase[]
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  configs   ProjectConfig[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
 
   @@index([userId, updatedAt(sort: Desc)])
 }
 
 model TestCase {
-  id        String    @id @default(cuid())
-  displayId String?   // User-editable display ID (optional)
-  status    String    @default("DRAFT") // DRAFT | PASS | FAIL | CANCELLED | RUNNING | QUEUED
+  id        String           @id @default(cuid())
+  displayId String?          // User-editable display ID (optional)
+  status    String           @default("DRAFT") // DRAFT | PASS | FAIL | CANCELLED | RUNNING | QUEUED
   name      String
   projectId String
-  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
   url       String
   prompt    String?
   steps     String?
@@ -58,8 +59,9 @@ model TestCase {
   password  String?
   testRuns  TestRun[]
   files     TestCaseFile[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  configs   TestCaseConfig[]
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
 
   @@index([projectId, updatedAt(sort: Desc)])
 }
@@ -108,4 +110,38 @@ model TestRunFile {
   createdAt  DateTime @default(now())
 
   @@index([runId])
+}
+
+model ProjectConfig {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  type      String   // URL | VARIABLE | SECRET | FILE
+  value     String
+  filename  String?
+  mimeType  String?
+  size      Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, name])
+  @@index([projectId])
+}
+
+model TestCaseConfig {
+  id         String   @id @default(cuid())
+  testCaseId String
+  testCase   TestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  name       String
+  type       String   // URL | VARIABLE | SECRET | FILE
+  value      String
+  filename   String?
+  mimeType   String?
+  size       Int?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([testCaseId, name])
+  @@index([testCaseId])
 }

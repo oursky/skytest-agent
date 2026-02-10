@@ -5,6 +5,7 @@ import { TestStep, BrowserConfig, TestEvent, TestResult, RunTestOptions, TestCas
 import { config } from '@/config/app';
 import { ConfigurationError, TestExecutionError, PlaywrightCodeError, getErrorMessage } from './errors';
 import { getFilePath, getUploadPath } from './file-security';
+import { substituteAll } from './config-resolver';
 import { createLogger as createServerLogger } from '@/lib/logger';
 import { withMidsceneApiKey } from '@/lib/midscene-env';
 import { validateTargetUrl } from './url-security';
@@ -931,16 +932,31 @@ async function cleanup(browser: Browser): Promise<void> {
 
 export async function runTest(options: RunTestOptions): Promise<TestResult> {
     const { config: testConfig, onEvent, signal, runId, onCleanup } = options;
-    const { url, username, password, prompt, steps, browserConfig, openRouterApiKey, testCaseId, files } = testConfig;
+    const { url, username, password, prompt, steps, browserConfig, openRouterApiKey, testCaseId, files, resolvedVariables, resolvedFiles } = testConfig;
     const log = createLogger(onEvent);
+
+    const vars = resolvedVariables || {};
+    const fileRefs = resolvedFiles || {};
+    const sub = (text: string) => substituteAll(text, vars, fileRefs);
 
     if (!openRouterApiKey) {
         return { status: 'FAIL', error: 'OpenRouter API key is required. Please configure it in API Key & Usage settings.' };
     }
 
     return await withMidsceneApiKey(openRouterApiKey, async () => {
-        const targetConfigs = validateConfiguration(url, prompt, steps, browserConfig, { username, password });
-        const hasSteps = steps && steps.length > 0;
+        const resolvedUrl = url ? sub(url) : url;
+        const resolvedPrompt = prompt ? sub(prompt) : prompt;
+        const resolvedBrowserConfig = browserConfig
+            ? Object.fromEntries(
+                Object.entries(browserConfig).map(([id, bc]) => [id, { ...bc, url: bc.url ? sub(bc.url) : bc.url }])
+            )
+            : browserConfig;
+        const resolvedSteps = steps
+            ? steps.map(s => ({ ...s, action: sub(s.action) }))
+            : steps;
+
+        const targetConfigs = validateConfiguration(resolvedUrl, resolvedPrompt, resolvedSteps, resolvedBrowserConfig, { username, password });
+        const hasSteps = resolvedSteps && resolvedSteps.length > 0;
 
         let browserInstances: BrowserInstances | null = null;
         const actionCounter: ActionCounter = { count: 0 };
@@ -961,9 +977,9 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
             if (signal?.aborted) throw new Error('Aborted');
 
             const effectiveSteps = hasSteps
-                ? steps!
-                : prompt
-                    ? convertPromptToSteps(prompt)
+                ? resolvedSteps!
+                : resolvedPrompt
+                    ? convertPromptToSteps(resolvedPrompt)
                     : null;
 
             if (!effectiveSteps || effectiveSteps.length === 0) {

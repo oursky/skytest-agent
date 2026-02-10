@@ -6,7 +6,7 @@ import { useAuth } from "../auth-provider";
 import TestForm from "@/components/TestForm";
 import ResultViewer from "@/components/ResultViewer";
 import Breadcrumbs from "@/components/Breadcrumbs";
-import { TestStep, BrowserConfig, TestEvent, TestCaseFile } from "@/types";
+import { TestStep, BrowserConfig, TestEvent, TestCaseFile, ConfigItem } from "@/types";
 import { exportToMarkdown, parseMarkdown } from "@/utils/testCaseMarkdown";
 import { useI18n } from "@/i18n";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
@@ -57,6 +57,8 @@ function RunPageContent() {
     const [isSaving, setIsSaving] = useState(false);
     const [displayId, setDisplayId] = useState<string>('');
     const [testCaseStatus, setTestCaseStatus] = useState<string | null>(null);
+    const [projectConfigs, setProjectConfigs] = useState<ConfigItem[]>([]);
+    const [testCaseConfigs, setTestCaseConfigs] = useState<ConfigItem[]>([]);
 
     useUnsavedChanges(isDirty, t('run.unsavedChangesWarning'));
 
@@ -212,6 +214,42 @@ function RunPageContent() {
             console.error("Failed to fetch project name", error);
         }
     };
+
+    const fetchProjectConfigs = useCallback(async (projId: string) => {
+        try {
+            const token = await getAccessToken();
+            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+            const response = await fetch(`/api/projects/${projId}/configs`, { headers });
+            if (response.ok) {
+                setProjectConfigs(await response.json());
+            }
+        } catch (error) {
+            console.error("Failed to fetch project configs", error);
+        }
+    }, [getAccessToken]);
+
+    const fetchTestCaseConfigs = useCallback(async (tcId: string) => {
+        try {
+            const token = await getAccessToken();
+            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+            const response = await fetch(`/api/test-cases/${tcId}/configs`, { headers });
+            if (response.ok) {
+                setTestCaseConfigs(await response.json());
+            }
+        } catch (error) {
+            console.error("Failed to fetch test case configs", error);
+        }
+    }, [getAccessToken]);
+
+    useEffect(() => {
+        const effectiveProjectId = projectId || projectIdFromTestCase;
+        if (effectiveProjectId) fetchProjectConfigs(effectiveProjectId);
+    }, [projectId, projectIdFromTestCase, fetchProjectConfigs]);
+
+    useEffect(() => {
+        const tcId = testCaseId || currentTestCaseId;
+        if (tcId) fetchTestCaseConfigs(tcId);
+    }, [testCaseId, currentTestCaseId, fetchTestCaseConfigs]);
 
     const refreshFilesRef = useRef<string | null>(null);
 
@@ -606,6 +644,13 @@ function RunPageContent() {
                             isSaving={isSaving}
                             displayId={displayId}
                             onDisplayIdChange={handleDisplayIdChange}
+                            projectId={projectId || projectIdFromTestCase || undefined}
+                            projectConfigs={projectConfigs}
+                            testCaseConfigs={testCaseConfigs}
+                            onTestCaseConfigsChange={() => {
+                                const tcId = testCaseId || currentTestCaseId;
+                                if (tcId) fetchTestCaseConfigs(tcId);
+                            }}
                         />
                     )}
                 </div>
