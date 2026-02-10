@@ -363,8 +363,8 @@ export default function ConfigurationsSection({
                                                     placeholder={t('configs.value.placeholder')}
                                                     className="flex-[2] px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
                                                 />
-                                                <button onClick={handleSave} className="px-2 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90">{t('common.save')}</button>
-                                                <button onClick={() => { setEditState(null); setError(null); }} className="px-2 py-1.5 text-xs text-gray-500">{t('common.cancel')}</button>
+                                                <button type="button" onClick={handleSave} className="px-2 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90">{t('common.save')}</button>
+                                                <button type="button" onClick={() => { setEditState(null); setError(null); }} className="px-2 py-1.5 text-xs text-gray-500">{t('common.cancel')}</button>
                                             </div>
                                             {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
                                         </div>
@@ -458,8 +458,8 @@ export default function ConfigurationsSection({
                                             placeholder={editState.type === 'URL' ? t('configs.url.placeholder') : editState.type === 'SECRET' ? t('configs.secret.placeholder') : t('configs.value.placeholder')}
                                             className="flex-[2] px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
                                         />
-                                        <button onClick={handleSave} className="px-2 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90">{t('common.save')}</button>
-                                        <button onClick={() => { setEditState(null); setError(null); }} className="px-2 py-1.5 text-xs text-gray-500">{t('common.cancel')}</button>
+                                        <button type="button" onClick={handleSave} className="px-2 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90">{t('common.save')}</button>
+                                        <button type="button" onClick={() => { setEditState(null); setError(null); }} className="px-2 py-1.5 text-xs text-gray-500">{t('common.cancel')}</button>
                                     </div>
                                     {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
                                 </div>
