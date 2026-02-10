@@ -636,9 +636,6 @@ function RunPageContent() {
                             onExport={initialData ? handleExport : undefined}
                             onImport={() => fileInputRef.current?.click()}
                             testCaseId={testCaseId || currentTestCaseId || refreshFilesRef.current || undefined}
-                            files={testCaseFiles}
-                            onFilesChange={handleFilesChange}
-                            onEnsureTestCase={ensureTestCaseFromData}
                             onSaveDraft={handleSaveDraft}
                             onDiscard={handleDiscard}
                             isSaving={isSaving}

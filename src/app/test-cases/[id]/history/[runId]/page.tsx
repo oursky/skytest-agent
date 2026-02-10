@@ -193,7 +193,6 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                                 showNameInput={false}
                                 readOnly={true}
                                 testCaseId={id}
-                                files={testRun?.files}
                                 onExport={testData ? () => {
                                     const markdown = exportToMarkdown(testData);
                                     const blob = new Blob([markdown], { type: 'text/markdown' });

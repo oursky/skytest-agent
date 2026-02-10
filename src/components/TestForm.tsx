@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { TestStep, BrowserConfig, TestCaseFile, ConfigItem } from '@/types';
+import { TestStep, BrowserConfig, ConfigItem } from '@/types';
 import { config } from '@/config/app';
 import SimpleForm from './SimpleForm';
 import BuilderForm from './BuilderForm';
@@ -27,9 +27,6 @@ interface TestFormProps {
     onExport?: () => void;
     onImport?: () => void;
     testCaseId?: string;
-    files?: TestCaseFile[];
-    onFilesChange?: (testCaseId?: string, uploadedFiles?: TestCaseFile[]) => void | Promise<void>;
-    onEnsureTestCase?: (data: TestData) => Promise<string>;
     onSaveDraft?: (data: TestData) => Promise<void>;
     onDiscard?: () => void;
     isSaving?: boolean;
@@ -46,7 +43,7 @@ interface BrowserEntry {
     config: BrowserConfig;
 }
 
-export default function TestForm({ onSubmit, isLoading, initialData, showNameInput, readOnly, onExport, onImport, testCaseId, files, onFilesChange, onEnsureTestCase, onSaveDraft, onDiscard, isSaving, displayId, onDisplayIdChange, projectId, projectConfigs, testCaseConfigs, onTestCaseConfigsChange }: TestFormProps) {
+export default function TestForm({ onSubmit, isLoading, initialData, showNameInput, readOnly, onExport, onImport, testCaseId, onSaveDraft, onDiscard, isSaving, displayId, onDisplayIdChange, projectId, projectConfigs, testCaseConfigs, onTestCaseConfigsChange }: TestFormProps) {
     const { t } = useI18n();
 
     const [name, setName] = useState(() => initialData?.name || '');
@@ -66,12 +63,13 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
 
     const [browsers, setBrowsers] = useState<BrowserEntry[]>(() => {
         if (initialData?.browserConfig) {
-            return Object.entries(initialData.browserConfig).map(([id, config]) => ({
+            return Object.entries(initialData.browserConfig).map(([id, cfg]) => ({
                 id,
                 config: {
-                    url: config.url || '',
-                    username: config.username || '',
-                    password: config.password || ''
+                    name: cfg.name || '',
+                    url: cfg.url || '',
+                    username: cfg.username || '',
+                    password: cfg.password || ''
                 }
             }));
         }
@@ -86,7 +84,6 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
     });
 
     const [steps, setSteps] = useState<TestStep[]>(() => initialData?.steps || []);
-    const [showPasswordMap, setShowPasswordMap] = useState<Record<string, boolean>>({});
 
     useEffect(() => {
         if (!initialData) return;
@@ -101,16 +98,17 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
             if (hasSteps || hasBrowserConfig) {
                 setMode('builder');
                 if (initialData.browserConfig) {
-                    setBrowsers(Object.entries(initialData.browserConfig).map(([id, config]) => ({
+                    setBrowsers(Object.entries(initialData.browserConfig).map(([id, cfg]) => ({
                         id,
                         config: {
-                            url: config.url || '',
-                            username: config.username || '',
-                            password: config.password || ''
+                            name: cfg.name || '',
+                            url: cfg.url || '',
+                            username: cfg.username || '',
+                            password: cfg.password || ''
                         }
                     })));
                 } else if (!initialData.browserConfig && hasSteps) {
-                    const defaultConfig = {
+                    const defaultConfig: BrowserConfig = {
                         url: initialData.url || '',
                         username: initialData.username || '',
                         password: initialData.password || ''
@@ -329,6 +327,9 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                         testCaseId={testCaseId}
                         onTestCaseConfigsChange={onTestCaseConfigsChange}
                         readOnly={readOnly}
+                        browsers={browsers}
+                        setBrowsers={setBrowsers}
+                        mode={mode}
                     />
                 )}
 
@@ -351,16 +352,9 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                 ) : (
                     <BuilderForm
                         browsers={browsers}
-                        setBrowsers={setBrowsers}
                         steps={steps}
                         setSteps={setSteps}
-                        showPasswordMap={showPasswordMap}
-                        setShowPasswordMap={setShowPasswordMap}
                         readOnly={readOnly}
-                        testCaseId={testCaseId}
-                        files={files}
-                        onFilesChange={onFilesChange}
-                        onEnsureTestCase={onEnsureTestCase ? async () => onEnsureTestCase(buildCurrentData()) : undefined}
                         projectConfigs={projectConfigs}
                         testCaseConfigs={testCaseConfigs}
                     />

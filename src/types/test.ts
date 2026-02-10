@@ -1,6 +1,7 @@
 export type TestStatus = 'IDLE' | 'RUNNING' | 'PASS' | 'FAIL' | 'CANCELLED' | 'QUEUED' | 'DRAFT';
 
 export interface BrowserConfig {
+    name?: string;
     url: string;
     username?: string;
     password?: string;

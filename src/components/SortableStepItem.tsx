@@ -29,6 +29,7 @@ const PlaywrightCodeEditor = dynamic(
 interface BrowserEntry {
     id: string;
     config: {
+        name?: string;
         url: string;
         username?: string;
         password?: string;
@@ -120,9 +121,9 @@ export default function SortableStepItem({ step, index, browsers, onRemove, onCh
                     >
                         {browsers.map(b => (
                             <option key={b.id} value={b.id}>
-                                {b.id.startsWith('browser_')
+                                {b.config.name || (b.id.startsWith('browser_')
                                     ? b.id.replace('browser_', 'Browser ').toUpperCase()
-                                    : b.id}
+                                    : b.id)}
                             </option>
                         ))}
                     </select>
