@@ -207,8 +207,8 @@ export const MESSAGES: Record<Locale, Messages> = {
     'testForm.importTitle': 'Import test case from markdown',
     'testForm.exportTitle': 'Export test case to markdown',
     'testForm.importWarnings': 'Import warnings: {warnings}',
-    'testForm.mode.simple': 'Simple Instructions',
-    'testForm.mode.builder': 'Multi-Browser Flow',
+    'testForm.tab.configurations': 'Configurations',
+    'testForm.tab.testSteps': 'Test Steps',
     'testForm.sampleData': 'Test with Sample Data',
     'testForm.testCaseName': 'Test Case Name',
     'testForm.testCaseName.placeholder': 'e.g. Login and Add to Cart',
@@ -219,15 +219,6 @@ export const MESSAGES: Record<Locale, Messages> = {
     'testForm.discard': 'Discard Changes',
     'testForm.running': 'Running Test...',
     'testForm.run': 'Run Test',
-
-    // SimpleForm
-    'simpleForm.targetUrl': 'URL',
-    'simpleForm.urlPlaceholder': 'https://app.example.com',
-    'simpleForm.username': 'Username',
-    'simpleForm.password': 'Password',
-    'simpleForm.optional': '(Optional)',
-    'simpleForm.instructions': 'Test Instructions',
-    'simpleForm.instructionsPlaceholder': 'Enter step-by-step test instructions...',
 
     // BuilderForm
     'builderForm.browserConfigs': 'Browser Configurations',
@@ -312,11 +303,6 @@ export const MESSAGES: Record<Locale, Messages> = {
     'timeline.clickToEnlarge': 'Click to enlarge',
 
     // Sample data
-    'sample.simple.name': 'Simple Login Test',
-    'sample.simple.instructions': `Login with username {username} and password {password}.
-Add the "Sauce Labs Backpack" to the cart.
-Click on the cart icon.
-Verify that "Sauce Labs Backpack" is in the cart.`,
     'sample.multi.name': 'Cross-Browser Session Flow',
     'sample.multi.step1': 'Login with username {username} and password {password}.',
     'sample.multi.step2': 'Login with username {username} and password {password}.',
@@ -572,8 +558,8 @@ Verify that "Sauce Labs Backpack" is in the cart.`,
     'testForm.importTitle': '從 Markdown 匯入測試案例',
     'testForm.exportTitle': '匯出測試案例為 Markdown',
     'testForm.importWarnings': '匯入警告：{warnings}',
-    'testForm.mode.simple': '簡易指令',
-    'testForm.mode.builder': '多瀏覽器流程',
+    'testForm.tab.configurations': '設定',
+    'testForm.tab.testSteps': '測試步驟',
     'testForm.sampleData': '套用範例資料',
     'testForm.testCaseName': '測試案例名稱',
     'testForm.testCaseName.placeholder': '例如：登入並加入購物車',
@@ -584,15 +570,6 @@ Verify that "Sauce Labs Backpack" is in the cart.`,
     'testForm.discard': '捨棄變更',
     'testForm.running': '測試執行中…',
     'testForm.run': '執行測試',
-
-    // SimpleForm
-    'simpleForm.targetUrl': 'URL',
-    'simpleForm.urlPlaceholder': 'https://app.example.com',
-    'simpleForm.username': '使用者名稱',
-    'simpleForm.password': '密碼',
-    'simpleForm.optional': '（選填）',
-    'simpleForm.instructions': '測試指令',
-    'simpleForm.instructionsPlaceholder': '輸入逐步測試指令…',
 
     // BuilderForm
     'builderForm.browserConfigs': '瀏覽器設定',
@@ -677,11 +654,6 @@ Verify that "Sauce Labs Backpack" is in the cart.`,
     'timeline.clickToEnlarge': '點擊以放大',
 
     // Sample data (Traditional Chinese)
-    'sample.simple.name': '簡易登入測試',
-    'sample.simple.instructions': `使用帳號 {username} 與密碼 {password} 登入。
-將「Sauce Labs Backpack」加入購物車。
-點擊購物車圖示。
-確認「Sauce Labs Backpack」已在購物車中。`,
     'sample.multi.name': '跨瀏覽器工作階段流程',
     'sample.multi.step1': '使用帳號 {username} 與密碼 {password} 登入。',
     'sample.multi.step2': '使用帳號 {username} 與密碼 {password} 登入。',
@@ -937,8 +909,8 @@ Verify that "Sauce Labs Backpack" is in the cart.`,
     'testForm.importTitle': '从 Markdown 导入测试用例',
     'testForm.exportTitle': '导出测试用例为 Markdown',
     'testForm.importWarnings': '导入警告：{warnings}',
-    'testForm.mode.simple': '简易指令',
-    'testForm.mode.builder': '多浏览器流程',
+    'testForm.tab.configurations': '配置',
+    'testForm.tab.testSteps': '测试步骤',
     'testForm.sampleData': '加载示例数据',
     'testForm.testCaseName': '测试用例名称',
     'testForm.testCaseName.placeholder': '例如：登录并加入购物车',
@@ -949,15 +921,6 @@ Verify that "Sauce Labs Backpack" is in the cart.`,
     'testForm.discard': '放弃更改',
     'testForm.running': '测试运行中…',
     'testForm.run': '运行测试',
-
-    // SimpleForm
-    'simpleForm.targetUrl': 'URL',
-    'simpleForm.urlPlaceholder': 'https://app.example.com',
-    'simpleForm.username': '用户名',
-    'simpleForm.password': '密码',
-    'simpleForm.optional': '（可选）',
-    'simpleForm.instructions': '测试指令',
-    'simpleForm.instructionsPlaceholder': '输入逐步测试指令…',
 
     // BuilderForm
     'builderForm.browserConfigs': '浏览器配置',
@@ -1042,11 +1005,6 @@ Verify that "Sauce Labs Backpack" is in the cart.`,
     'timeline.clickToEnlarge': '点击查看大图',
 
     // Sample data (Simplified Chinese)
-    'sample.simple.name': '简易登录测试',
-    'sample.simple.instructions': `使用用户名 {username} 和密码 {password} 登录。
-将"Sauce Labs Backpack"添加到购物车。
-点击购物车图标。
-验证"Sauce Labs Backpack"已在购物车中。`,
     'sample.multi.name': '跨浏览器会话流程',
     'sample.multi.step1': '使用用户名 {username} 和密码 {password} 登录。',
     'sample.multi.step2': '使用用户名 {username} 和密码 {password} 登录。',

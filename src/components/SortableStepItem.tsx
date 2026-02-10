@@ -43,14 +43,13 @@ interface SortableStepItemProps {
     onRemove: () => void;
     onChange: (field: keyof TestStep, value: string) => void;
     onTypeChange?: (type: StepType) => void;
-    mode: 'simple' | 'builder';
     readOnly?: boolean;
     isAnyDragging?: boolean;
     projectConfigs?: ConfigItem[];
     testCaseConfigs?: ConfigItem[];
 }
 
-export default function SortableStepItem({ step, index, browsers, onRemove, onChange, onTypeChange, mode, readOnly, isAnyDragging, projectConfigs, testCaseConfigs }: SortableStepItemProps) {
+export default function SortableStepItem({ step, index, browsers, onRemove, onChange, onTypeChange, readOnly, isAnyDragging, projectConfigs, testCaseConfigs }: SortableStepItemProps) {
     const { t } = useI18n();
     const stepTextareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -197,7 +196,7 @@ export default function SortableStepItem({ step, index, browsers, onRemove, onCh
                             onKeyDown={(e) => e.stopPropagation()}
                             placeholder={t('step.ai.placeholder')}
                             className="w-full text-sm border-gray-200 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 min-h-[80px] py-3 px-3 resize-none bg-gray-50 focus:bg-white transition-colors disabled:bg-gray-100 disabled:text-gray-600"
-                            required={mode === 'builder'}
+                            required
                             rows={3}
                             disabled={readOnly}
                         />

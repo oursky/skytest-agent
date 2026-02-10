@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { TestStep, BrowserConfig, ConfigItem } from '@/types';
 import { config } from '@/config/app';
-import SimpleForm from './SimpleForm';
 import BuilderForm from './BuilderForm';
 import ConfigurationsSection from './ConfigurationsSection';
 import { useI18n } from '@/i18n';
@@ -43,176 +42,146 @@ interface BrowserEntry {
     config: BrowserConfig;
 }
 
+type TestFormTab = 'configurations' | 'test-steps';
+
+function createStepId(prefix: string): string {
+    return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function buildBrowsers(data?: TestData): BrowserEntry[] {
+    if (data?.browserConfig && Object.keys(data.browserConfig).length > 0) {
+        return Object.entries(data.browserConfig).map(([id, cfg]) => ({
+            id,
+            config: {
+                name: cfg.name || '',
+                url: cfg.url || '',
+                username: cfg.username || '',
+                password: cfg.password || ''
+            }
+        }));
+    }
+
+    return [{
+        id: 'browser_a',
+        config: {
+            url: data?.url || '',
+            username: data?.username || '',
+            password: data?.password || ''
+        }
+    }];
+}
+
+function buildSteps(data: TestData | undefined, browserId: string, validBrowserIds: Set<string>): TestStep[] {
+    if (data?.steps && data.steps.length > 0) {
+        return data.steps.map((step) => ({
+            ...step,
+            target: validBrowserIds.has(step.target) ? step.target : browserId,
+            type: step.type || 'ai-action'
+        }));
+    }
+
+    if (!data?.prompt) {
+        return [];
+    }
+
+    return data.prompt
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
+        .map((action, index) => ({
+            id: createStepId(`prompt-${index}`),
+            target: browserId,
+            action,
+            type: 'ai-action' as const
+        }));
+}
+
 export default function TestForm({ onSubmit, isLoading, initialData, showNameInput, readOnly, onExport, onImport, testCaseId, onSaveDraft, onDiscard, isSaving, displayId, onDisplayIdChange, projectId, projectConfigs, testCaseConfigs, onTestCaseConfigsChange }: TestFormProps) {
     const { t } = useI18n();
-
+    const [activeTab, setActiveTab] = useState<TestFormTab>('configurations');
     const [name, setName] = useState(() => initialData?.name || '');
-    const [prompt, setPrompt] = useState(() => initialData?.prompt || '');
-
-    const [mode, setMode] = useState<'simple' | 'builder'>(() => {
-        if (!initialData) return 'simple';
-        const hasSteps = initialData.steps && initialData.steps.length > 0;
-        const hasBrowserConfig = initialData.browserConfig && Object.keys(initialData.browserConfig).length > 0;
-        return (hasSteps || hasBrowserConfig) ? 'builder' : 'simple';
+    const [browsers, setBrowsers] = useState<BrowserEntry[]>(() => buildBrowsers(initialData));
+    const [steps, setSteps] = useState<TestStep[]>(() => {
+        const initialBrowsers = buildBrowsers(initialData);
+        const defaultBrowserId = initialBrowsers[0]?.id || 'browser_a';
+        return buildSteps(initialData, defaultBrowserId, new Set(initialBrowsers.map((browser) => browser.id)));
     });
-
-    const [simpleUrl, setSimpleUrl] = useState(() => initialData?.url || '');
-    const [simpleUsername, setSimpleUsername] = useState(() => initialData?.username || '');
-    const [simplePassword, setSimplePassword] = useState(() => initialData?.password || '');
-    const [showSimplePassword, setShowSimplePassword] = useState(false);
-
-    const [browsers, setBrowsers] = useState<BrowserEntry[]>(() => {
-        if (initialData?.browserConfig) {
-            return Object.entries(initialData.browserConfig).map(([id, cfg]) => ({
-                id,
-                config: {
-                    name: cfg.name || '',
-                    url: cfg.url || '',
-                    username: cfg.username || '',
-                    password: cfg.password || ''
-                }
-            }));
-        }
-        return [{
-            id: 'browser_a',
-            config: {
-                url: initialData?.url || '',
-                username: initialData?.username || '',
-                password: initialData?.password || ''
-            }
-        }];
-    });
-
-    const [steps, setSteps] = useState<TestStep[]>(() => initialData?.steps || []);
 
     useEffect(() => {
         if (!initialData) return;
 
-        queueMicrotask(() => {
-            if (initialData.name) setName(initialData.name);
-            if (initialData.prompt) setPrompt(initialData.prompt);
+        const nextBrowsers = buildBrowsers(initialData);
+        const defaultBrowserId = nextBrowsers[0]?.id || 'browser_a';
+        const validBrowserIds = new Set(nextBrowsers.map((browser) => browser.id));
 
-            const hasSteps = initialData.steps && initialData.steps.length > 0;
-            const hasBrowserConfig = initialData.browserConfig && Object.keys(initialData.browserConfig).length > 0;
-
-            if (hasSteps || hasBrowserConfig) {
-                setMode('builder');
-                if (initialData.browserConfig) {
-                    setBrowsers(Object.entries(initialData.browserConfig).map(([id, cfg]) => ({
-                        id,
-                        config: {
-                            name: cfg.name || '',
-                            url: cfg.url || '',
-                            username: cfg.username || '',
-                            password: cfg.password || ''
-                        }
-                    })));
-                } else if (!initialData.browserConfig && hasSteps) {
-                    const defaultConfig: BrowserConfig = {
-                        url: initialData.url || '',
-                        username: initialData.username || '',
-                        password: initialData.password || ''
-                    };
-                    setBrowsers([{ id: 'browser_a', config: defaultConfig }]);
-                }
-
-                if (initialData.steps) setSteps(initialData.steps);
-            } else {
-                setMode('simple');
-                if (initialData.url) setSimpleUrl(initialData.url);
-                if (initialData.username) setSimpleUsername(initialData.username);
-                if (initialData.password) setSimplePassword(initialData.password);
-            }
-        });
+        setName(initialData.name || '');
+        setBrowsers(nextBrowsers);
+        setSteps(buildSteps(initialData, defaultBrowserId, validBrowserIds));
     }, [initialData]);
 
     useEffect(() => {
-        if (mode !== 'builder' || steps.length !== 0) return;
+        if (steps.length !== 0) return;
 
         queueMicrotask(() => {
             setSteps((current) => {
                 if (current.length !== 0) return current;
-                const newStep: TestStep = {
-                    id: Date.now().toString() + Math.random().toString(36).slice(2, 6),
+                return [{
+                    id: createStepId('step'),
                     target: browsers[0]?.id || 'browser_a',
                     action: '',
-                    type: 'ai-action',
-                };
-                return [newStep];
+                    type: 'ai-action'
+                }];
             });
         });
-    }, [mode, steps.length, browsers]);
+    }, [steps.length, browsers]);
 
     const handleLoadSampleData = () => {
         const usernamePlaceholder = config.test.security.credentialPlaceholders.username;
         const passwordPlaceholder = config.test.security.credentialPlaceholders.password;
         const placeholderVars = { username: usernamePlaceholder, password: passwordPlaceholder };
 
-        if (mode === 'simple') {
-            setName(t('sample.simple.name'));
-            setSimpleUrl('https://www.saucedemo.com');
-            setSimpleUsername('standard_user');
-            setSimplePassword('secret_sauce');
-            setPrompt(t('sample.simple.instructions', placeholderVars));
-            onDisplayIdChange?.('TC-SAMPLE-001');
-        } else {
-            setName(t('sample.multi.name'));
-            setBrowsers([
-                { id: 'browser_a', config: { url: 'https://www.saucedemo.com', username: 'standard_user', password: 'secret_sauce' } },
-                { id: 'browser_b', config: { url: 'https://www.saucedemo.com', username: 'visual_user', password: 'secret_sauce' } }
-            ]);
-            setSteps([
-                { id: "1", target: "browser_a", action: t('sample.multi.step1', placeholderVars) },
-                { id: "2", target: "browser_b", action: t('sample.multi.step2', placeholderVars) },
-                { id: "3", target: "browser_a", action: t('sample.multi.step3') },
-                { id: "4", target: "browser_b", action: t('sample.multi.step4') },
-                { id: "5", target: "browser_a", action: t('sample.multi.step5') },
-                { id: "6", target: "browser_b", action: t('sample.multi.step6') }
-            ]);
-            onDisplayIdChange?.('TC-SAMPLE-002');
-        }
+        setName(t('sample.multi.name'));
+        setBrowsers([
+            { id: 'browser_a', config: { url: 'https://www.saucedemo.com', username: 'standard_user', password: 'secret_sauce' } },
+            { id: 'browser_b', config: { url: 'https://www.saucedemo.com', username: 'visual_user', password: 'secret_sauce' } }
+        ]);
+        setSteps([
+            { id: createStepId('sample'), target: 'browser_a', action: t('sample.multi.step1', placeholderVars), type: 'ai-action' },
+            { id: createStepId('sample'), target: 'browser_b', action: t('sample.multi.step2', placeholderVars), type: 'ai-action' },
+            { id: createStepId('sample'), target: 'browser_a', action: t('sample.multi.step3'), type: 'ai-action' },
+            { id: createStepId('sample'), target: 'browser_b', action: t('sample.multi.step4'), type: 'ai-action' },
+            { id: createStepId('sample'), target: 'browser_a', action: t('sample.multi.step5'), type: 'ai-action' },
+            { id: createStepId('sample'), target: 'browser_b', action: t('sample.multi.step6'), type: 'ai-action' }
+        ]);
+        onDisplayIdChange?.('TC-SAMPLE-002');
+        setActiveTab('test-steps');
     };
 
     const buildCurrentData = (): TestData => {
-        let data: TestData;
-        if (mode === 'simple') {
-            data = {
-                name: showNameInput ? name : undefined,
-                url: simpleUrl,
-                prompt: prompt,
-                username: simpleUsername || undefined,
-                password: simplePassword || undefined,
-                steps: undefined,
-                browserConfig: undefined
-            };
-        } else {
-            const browserConfigMap: Record<string, BrowserConfig> = {};
-            browsers.forEach(b => {
-                browserConfigMap[b.id] = b.config;
-            });
+        const browserConfigMap: Record<string, BrowserConfig> = {};
+        browsers.forEach((browser) => {
+            browserConfigMap[browser.id] = browser.config;
+        });
 
-            data = {
-                name: showNameInput ? name : undefined,
-                url: browsers[0]?.config.url || '',
-                prompt: '',
-                username: undefined,
-                password: undefined,
-                steps: steps,
-                browserConfig: browserConfigMap
-            };
-        }
-        return data;
+        return {
+            name: showNameInput ? name : undefined,
+            url: browsers[0]?.config.url || '',
+            prompt: '',
+            username: undefined,
+            password: undefined,
+            steps,
+            browserConfig: browserConfigMap
+        };
     };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        const data = buildCurrentData();
-        onSubmit(data);
+        onSubmit(buildCurrentData());
     };
 
     return (
         <form onSubmit={handleSubmit} className="glass-panel h-[800px] flex flex-col">
-            <div className={`p-6 ${!readOnly ? 'pb-4 border-b border-gray-200' : 'pb-6'}`}>
+            <div className={`p-6 ${!readOnly ? 'pb-0 border-b border-gray-200' : 'pb-6 border-b border-gray-200'}`}>
                 <div className="flex items-center justify-between">
                     <h2 className="text-xl font-semibold text-foreground">{t('testForm.title')}</h2>
                     {(onExport || onImport) && (
@@ -246,109 +215,95 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                         </div>
                     )}
                 </div>
-                {!readOnly && (
-                    <div className="flex justify-between items-center mt-4">
-                        <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
-                            <button
-                                type="button"
-                                onClick={() => setMode('simple')}
-                                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${mode === 'simple'
-                                    ? 'bg-white text-gray-900 shadow-sm'
-                                    : 'text-gray-500 hover:text-gray-900'
-                                    }`}
-                            >
-                                {t('testForm.mode.simple')}
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setMode('builder')}
-                                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${mode === 'builder'
-                                    ? 'bg-white text-gray-900 shadow-sm'
-                                    : 'text-gray-500 hover:text-gray-900'
-                                    }`}
-                            >
-                                {t('testForm.mode.builder')}
-                            </button>
-                        </div>
 
-                        <button
-                            type="button"
-                            onClick={handleLoadSampleData}
-                            className="text-xs flex items-center gap-1.5 text-purple-600 hover:text-purple-700 font-medium px-3 py-1.5 rounded-lg hover:bg-purple-50 transition-colors"
-                        >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                            </svg>
-                            {t('testForm.sampleData')}
-                        </button>
+                <div className="mt-4">
+                    <div className="flex items-end justify-between gap-4">
+                        <nav className="flex gap-6 -mb-px">
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('configurations')}
+                                className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'configurations'
+                                    ? 'border-primary text-primary'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                                    }`}
+                            >
+                                {t('testForm.tab.configurations')}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('test-steps')}
+                                className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'test-steps'
+                                    ? 'border-primary text-primary'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                                    }`}
+                            >
+                                {t('testForm.tab.testSteps')}
+                            </button>
+                        </nav>
+
+                        {!readOnly && (
+                            <button
+                                type="button"
+                                onClick={handleLoadSampleData}
+                                className="mb-2 text-xs flex items-center gap-1.5 text-primary hover:text-primary/80 font-medium px-3 py-1.5 rounded-lg hover:bg-primary/10 transition-colors whitespace-nowrap"
+                            >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                </svg>
+                                {t('testForm.sampleData')}
+                            </button>
+                        )}
                     </div>
-                )}
+                </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-8">
-                {showNameInput && (
-                    <div className="space-y-2">
-                        <label className="block text-sm font-medium text-foreground">
-                            {t('testForm.testCaseName')} <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                            type="text"
-                            required
-                            className="input-field"
-                            placeholder={t('testForm.testCaseName.placeholder')}
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            disabled={readOnly}
+            <div className="flex-1 overflow-y-auto p-6">
+                {activeTab === 'configurations' ? (
+                    <div className="space-y-8">
+                        {showNameInput && (
+                            <div className="space-y-2">
+                                <label className="block text-sm font-medium text-foreground">
+                                    {t('testForm.testCaseName')} <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    required
+                                    className="input-field"
+                                    placeholder={t('testForm.testCaseName.placeholder')}
+                                    value={name}
+                                    onChange={(e) => setName(e.target.value)}
+                                    disabled={readOnly}
+                                />
+                            </div>
+                        )}
+
+                        {showNameInput && onDisplayIdChange && (
+                            <div className="space-y-2">
+                                <label className="block text-sm font-medium text-foreground">
+                                    {t('testForm.testCaseId')}
+                                </label>
+                                <input
+                                    type="text"
+                                    className="input-field"
+                                    placeholder={t('testForm.testCaseId.placeholder')}
+                                    value={displayId || ''}
+                                    onChange={(e) => onDisplayIdChange(e.target.value)}
+                                    disabled={readOnly}
+                                />
+                            </div>
+                        )}
+
+                        <ConfigurationsSection
+                            projectId={projectId}
+                            projectConfigs={projectConfigs || []}
+                            testCaseConfigs={testCaseConfigs || []}
+                            testCaseId={testCaseId}
+                            onTestCaseConfigsChange={onTestCaseConfigsChange || (() => undefined)}
+                            readOnly={readOnly}
+                            browsers={browsers}
+                            setBrowsers={setBrowsers}
                         />
                     </div>
-                )}
-
-                {showNameInput && onDisplayIdChange && (
-                    <div className="space-y-2">
-                        <label className="block text-sm font-medium text-foreground">
-                            {t('testForm.testCaseId')}
-                        </label>
-                        <input
-                            type="text"
-                            className="input-field"
-                            placeholder={t('testForm.testCaseId.placeholder')}
-                            value={displayId || ''}
-                            onChange={(e) => onDisplayIdChange(e.target.value)}
-                            disabled={readOnly}
-                        />
-                    </div>
-                )}
-
-                {projectId && projectConfigs && onTestCaseConfigsChange && (
-                    <ConfigurationsSection
-                        projectId={projectId}
-                        projectConfigs={projectConfigs}
-                        testCaseConfigs={testCaseConfigs || []}
-                        testCaseId={testCaseId}
-                        onTestCaseConfigsChange={onTestCaseConfigsChange}
-                        readOnly={readOnly}
-                        browsers={browsers}
-                        setBrowsers={setBrowsers}
-                        mode={mode}
-                    />
-                )}
-
-                {mode === 'simple' ? (
-                    <SimpleForm
-                        url={simpleUrl}
-                        setUrl={setSimpleUrl}
-                        username={simpleUsername}
-                        setUsername={setSimpleUsername}
-                        password={simplePassword}
-                        setPassword={setSimplePassword}
-                        showPassword={showSimplePassword}
-                        setShowPassword={setShowSimplePassword}
-                        prompt={prompt}
-                        setPrompt={setPrompt}
-                        readOnly={readOnly}
-                        projectConfigs={projectConfigs}
-                        testCaseConfigs={testCaseConfigs}
-                    />
                 ) : (
                     <BuilderForm
                         browsers={browsers}
