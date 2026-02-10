@@ -3,7 +3,7 @@
 import { useState, useEffect, use, useCallback, useRef } from "react";
 import { useAuth } from "../../auth-provider";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Modal from "@/components/Modal";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import { formatDateTimeCompact } from "@/utils/dateFormatter";
@@ -45,6 +45,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     const resolvedParams = use(params);
     const { id } = resolvedParams;
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { t } = useI18n();
 
     const [project, setProject] = useState<Project | null>(null);
@@ -67,6 +68,17 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             router.push("/");
         }
     }, [isAuthLoading, isLoggedIn, router]);
+
+    useEffect(() => {
+        const tab = searchParams.get('tab');
+        if (tab === 'configs') {
+            setActiveTab('configs');
+            return;
+        }
+        if (tab === 'test-cases') {
+            setActiveTab('test-cases');
+        }
+    }, [searchParams]);
 
     const getAuthHeaders = useCallback(async (): Promise<HeadersInit> => {
         const token = await getAccessToken();
