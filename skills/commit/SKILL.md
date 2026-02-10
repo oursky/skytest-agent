@@ -1,6 +1,6 @@
 ---
 name: commit
-description: Plan logical commit units from staged changes only, suggest commit titles, return the plan only, and create commits only after user approval (e.g. "ok", "please commit"). Use when the user asks to commit changes, plan/split commits, create logical commits, or use a refs footer (e.g. refs: SKY-123, #42).
+description: "Plan logical commit units from staged changes only, suggest commit titles, return the plan only, and create commits only after user approval (e.g. \"ok\", \"please commit\"). Use when the user asks to commit changes, plan/split commits, create logical commits, or use a refs footer (e.g. refs: SKY-123, #42)."
 ---
 
 # Commit Planning and Splitting
