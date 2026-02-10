@@ -98,7 +98,7 @@ export default function ConfigurationsSection({
     }, [editState, testCaseId, getAccessToken, onTestCaseConfigsChange, t]);
 
     const handleDelete = useCallback(async (configId: string) => {
-        if (!testCaseId || !confirm(t('configs.delete.confirm'))) return;
+        if (!testCaseId) return;
 
         try {
             const token = await getAccessToken();
@@ -111,7 +111,7 @@ export default function ConfigurationsSection({
         } catch (err) {
             console.error('Failed to delete config', err);
         }
-    }, [testCaseId, getAccessToken, onTestCaseConfigsChange, t]);
+    }, [testCaseId, getAccessToken, onTestCaseConfigsChange]);
 
     const getTypeIcon = (type: ConfigType) => {
         switch (type) {
@@ -315,8 +315,16 @@ export default function ConfigurationsSection({
                         </div>
                     </div>
 
-                    <div className="px-4 py-2 bg-gray-50 text-center">
-                        <p className="text-[11px] text-gray-400">{t('configs.hint')}</p>
+                    <div className="px-4 py-2 bg-gray-50 space-y-2">
+                        <p className="text-[11px] text-gray-500 leading-snug">{t('configs.hint.intro')}</p>
+                        <div>
+                            <p className="text-[11px] font-medium text-gray-700">{t('configs.hint.aiStep')}</p>
+                            <code className="block bg-white border border-gray-200 px-2 py-1 rounded text-[11px] text-gray-600 whitespace-pre-wrap">{t('configs.hint.aiExample')}</code>
+                        </div>
+                        <div>
+                            <p className="text-[11px] font-medium text-gray-700">{t('configs.hint.codeStep')}</p>
+                            <code className="block bg-white border border-gray-200 px-2 py-1 rounded text-[11px] text-gray-600 whitespace-pre-wrap">{t('configs.hint.codeExample')}</code>
+                        </div>
                     </div>
                 </div>
             )}

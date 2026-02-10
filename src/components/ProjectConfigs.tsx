@@ -116,8 +116,6 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
     };
 
     const handleDelete = async (configId: string) => {
-        if (!confirm(t('configs.delete.confirm'))) return;
-
         try {
             const token = await getAccessToken();
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
@@ -138,11 +136,9 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
             const file = input.files?.[0];
             if (!file) return;
 
-            const name = prompt(t('configs.name'), file.name.replace(/[^A-Z0-9_]/gi, '_').toUpperCase());
-            if (!name) return;
-
+            const name = file.name.replace(/\.[^.]+$/, '').replace(/[^A-Z0-9_]/gi, '_').toUpperCase();
             if (!CONFIG_NAME_REGEX.test(name)) {
-                alert(t('configs.error.invalidName'));
+                setError(t('configs.error.invalidName'));
                 return;
             }
 
@@ -160,7 +156,7 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                 });
                 if (!res.ok) {
                     const data = await res.json().catch(() => ({}));
-                    alert(data.error || 'Upload failed');
+                    setError(data.error || 'Upload failed');
                     return;
                 }
                 await fetchConfigs();
@@ -171,11 +167,22 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
         input.click();
     };
 
-    const copyReference = (config: ConfigItem) => {
-        const ref = config.type === 'FILE'
-            ? `{{file:${config.filename || config.name}}}`
-            : `{{${config.name}}}`;
-        navigator.clipboard.writeText(ref);
+    const handleDownload = async (config: ConfigItem) => {
+        try {
+            const token = await getAccessToken();
+            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+            const res = await fetch(`/api/projects/${projectId}/configs/${config.id}/download`, { headers });
+            if (!res.ok) return;
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = config.filename || config.name;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('Failed to download file', err);
+        }
     };
 
     if (isLoading) {
@@ -188,6 +195,19 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
 
     return (
         <div className="space-y-6">
+            <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-600 space-y-3">
+                <p className="text-[11px] text-gray-500 leading-snug">
+                    {t('configs.hint.intro')}
+                </p>
+                <div>
+                    <p className="font-medium text-gray-700">{t('configs.hint.aiStep')}</p>
+                    <code className="block bg-white border border-gray-200 px-2 py-1.5 rounded text-gray-600 whitespace-pre-wrap">{t('configs.hint.aiExample')}</code>
+                </div>
+                <div>
+                    <p className="font-medium text-gray-700">{t('configs.hint.codeStep')}</p>
+                    <code className="block bg-white border border-gray-200 px-2 py-1.5 rounded text-gray-600 whitespace-pre-wrap">{t('configs.hint.codeExample')}</code>
+                </div>
+            </div>
             {TYPE_SECTIONS.map(({ type, titleKey }) => {
                 const items = configs.filter(c => c.type === type);
                 const isEditing = editState?.type === type && !editState.id;
@@ -226,21 +246,21 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
 
                                 if (isEditingThis) {
                                     return (
-                                        <div key={item.id} className="p-4 bg-blue-50/50">
+                                        <div key={item.id} className="p-4 bg-white">
                                             <div className="flex gap-3 items-start">
                                                 <input
                                                     type="text"
                                                     value={editState.name}
                                                     onChange={(e) => setEditState({ ...editState, name: e.target.value.toUpperCase() })}
-                                                    placeholder={t('configs.name.placeholder')}
-                                                    className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md font-mono focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                                                    placeholder={t(`configs.name.placeholder.${type.toLowerCase()}`)}
+                                                    className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md font-mono bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                                                 />
                                                 <input
                                                     type={type === 'SECRET' ? 'password' : 'text'}
                                                     value={editState.value}
                                                     onChange={(e) => setEditState({ ...editState, value: e.target.value })}
                                                     placeholder={type === 'URL' ? t('configs.url.placeholder') : type === 'SECRET' ? t('configs.secret.placeholder') : t('configs.value.placeholder')}
-                                                    className="flex-[2] px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                                                    className="flex-[2] px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                                                 />
                                                 <button onClick={handleSave} className="px-3 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary/90">{t('common.save')}</button>
                                                 <button onClick={() => { setEditState(null); setError(null); }} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700">{t('common.cancel')}</button>
@@ -251,18 +271,27 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                 }
 
                                 return (
-                                    <div key={item.id} className="flex items-center justify-between px-4 py-3 group hover:bg-gray-50">
+                                    <div key={item.id} className="flex items-center justify-between px-4 py-3 hover:bg-gray-50">
                                         <div className="flex items-center gap-3 min-w-0 flex-1">
-                                            <code className="text-sm font-mono text-gray-800 font-medium">{item.name}</code>
-                                            <span className="text-sm text-gray-500 truncate">
-                                                {type === 'SECRET'
-                                                    ? (revealedSecrets.has(item.id) ? item.value || '••••••' : '••••••')
-                                                    : type === 'FILE'
-                                                        ? item.filename
-                                                        : item.value}
-                                            </span>
+                                            {type === 'FILE' ? (
+                                                <>
+                                                    <code className="text-sm font-mono text-gray-800 font-medium">
+                                                        {`file_${(item.filename || item.name).replace(/[^a-zA-Z0-9]/g, '_')}`}
+                                                    </code>
+                                                    <span className="text-sm text-gray-500 truncate">{item.filename}</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <code className="text-sm font-mono text-gray-800 font-medium">{item.name}</code>
+                                                    <span className="text-sm text-gray-500 truncate">
+                                                        {type === 'SECRET'
+                                                            ? (revealedSecrets.has(item.id) ? item.value || '••••••' : '••••••')
+                                                            : item.value}
+                                                    </span>
+                                                </>
+                                            )}
                                         </div>
-                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <div className="flex items-center gap-1">
                                             {type === 'SECRET' && (
                                                 <button
                                                     type="button"
@@ -276,17 +305,18 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                                     {revealedSecrets.has(item.id) ? t('common.hide') : t('common.show')}
                                                 </button>
                                             )}
-                                            <button
-                                                type="button"
-                                                onClick={() => copyReference(item)}
-                                                className="p-1.5 text-gray-400 hover:text-gray-600 rounded"
-                                                title={t('configs.copyRef')}
-                                            >
-                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                                </svg>
-                                            </button>
-                                            {type !== 'FILE' && (
+                                            {type === 'FILE' ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleDownload(item)}
+                                                    className="p-1.5 text-gray-400 hover:text-gray-600 rounded"
+                                                    title={t('common.download')}
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                                    </svg>
+                                                </button>
+                                            ) : (
                                                 <button
                                                     type="button"
                                                     onClick={() => { setEditState({ id: item.id, name: item.name, value: item.value, type: item.type }); setError(null); }}
@@ -312,14 +342,14 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                             })}
 
                             {isEditing && (
-                                <div className="p-4 bg-blue-50/50">
+                                <div className="p-4 bg-white">
                                     <div className="flex gap-3 items-start">
                                         <input
                                             type="text"
                                             value={editState.name}
                                             onChange={(e) => setEditState({ ...editState, name: e.target.value.toUpperCase() })}
-                                            placeholder={t('configs.name.placeholder')}
-                                            className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md font-mono focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                                            placeholder={t(`configs.name.placeholder.${type.toLowerCase()}`)}
+                                            className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md font-mono bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                                             autoFocus
                                         />
                                         <input
@@ -327,7 +357,7 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                             value={editState.value}
                                             onChange={(e) => setEditState({ ...editState, value: e.target.value })}
                                             placeholder={type === 'URL' ? t('configs.url.placeholder') : type === 'SECRET' ? t('configs.secret.placeholder') : t('configs.value.placeholder')}
-                                            className="flex-[2] px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                                            className="flex-[2] px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                                         />
                                         <button onClick={handleSave} className="px-3 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary/90">{t('common.save')}</button>
                                         <button onClick={() => { setEditState(null); setError(null); }} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700">{t('common.cancel')}</button>
@@ -346,7 +376,6 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                 );
             })}
 
-            <p className="text-xs text-gray-500 text-center">{t('configs.hint')}</p>
         </div>
     );
 }
