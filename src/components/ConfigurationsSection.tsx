@@ -75,8 +75,6 @@ export default function ConfigurationsSection({
     const [urlDropdownOpen, setUrlDropdownOpen] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const totalCount = projectConfigs.length + testCaseConfigs.length;
-
     const handleSave = useCallback(async () => {
         if (!editState || !testCaseId) return;
         setError(null);
@@ -262,11 +260,6 @@ export default function ConfigurationsSection({
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                     <span className="text-sm font-medium text-gray-700">{t('configs.snapshot.title')}</span>
-                    {totalCount > 0 && (
-                        <span className="text-xs text-gray-400">
-                            ({t('configs.section.count', { projectCount: projectConfigs.length.toString(), testCaseCount: testCaseConfigs.length.toString() })})
-                        </span>
-                    )}
                 </div>
             </button>
 
@@ -515,19 +508,19 @@ export default function ConfigurationsSection({
                                                         value={browser.config.name || ''}
                                                         onChange={(e) => updateBrowser(index, 'name', e.target.value)}
                                                         placeholder={t('configs.browser.name.placeholder')}
-                                                        className="w-full mt-0.5 px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                                                        className="w-full mt-0.5 px-2 py-1.5 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-primary"
                                                         disabled={readOnly}
                                                     />
                                                 </div>
                                                 <div className="relative">
                                                     <label className="text-[10px] font-medium text-gray-500 uppercase">{t('configs.browser.url')}</label>
-                                                    <div className="flex mt-0.5">
+                                                    <div className={`flex mt-0.5 border border-gray-300 rounded bg-white ${readOnly ? '' : 'focus-within:ring-1 focus-within:ring-primary focus-within:border-primary'}`}>
                                                         <input
                                                             type="text"
                                                             value={browser.config.url}
                                                             onChange={(e) => updateBrowser(index, 'url', e.target.value)}
                                                             placeholder={t('configs.browser.url.placeholder')}
-                                                            className={`flex-1 px-2 py-1.5 text-xs border border-gray-300 focus:outline-none focus:ring-1 focus:ring-primary ${urlConfigs.length > 0 ? 'rounded-l' : 'rounded'}`}
+                                                            className={`flex-1 px-2 py-1.5 text-xs bg-white focus:outline-none ${urlConfigs.length > 0 && !readOnly ? 'rounded-l' : 'rounded'}`}
                                                             disabled={readOnly}
                                                         />
                                                         {urlConfigs.length > 0 && !readOnly && (
@@ -535,14 +528,14 @@ export default function ConfigurationsSection({
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => setUrlDropdownOpen(urlDropdownOpen === browser.id ? null : browser.id)}
-                                                                    className="px-2 py-1.5 border border-l-0 border-gray-300 rounded-r bg-gray-50 hover:bg-gray-100 text-gray-500"
+                                                                    className="px-2 py-1.5 border-l border-gray-300 rounded-r bg-white hover:bg-gray-50 text-gray-500"
                                                                 >
                                                                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                                                     </svg>
                                                                 </button>
                                                                 {urlDropdownOpen === browser.id && (
-                                                                    <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-10 py-1 min-w-[200px]">
+                                                                    <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-20 py-1 min-w-[200px]">
                                                                         {urlConfigs.map(uc => (
                                                                             <button
                                                                                 key={uc.id}

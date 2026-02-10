@@ -18,6 +18,8 @@ export default function InsertVariableDropdown({
     const { t } = useI18n();
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
+    const [menuAlignment, setMenuAlignment] = useState<'left' | 'right'>('left');
 
     useEffect(() => {
         if (!isOpen) return;
@@ -26,8 +28,25 @@ export default function InsertVariableDropdown({
                 setIsOpen(false);
             }
         };
+        const updateMenuAlignment = () => {
+            const triggerRect = dropdownRef.current?.getBoundingClientRect();
+            const menuRect = menuRef.current?.getBoundingClientRect();
+            if (!triggerRect || !menuRect) return;
+
+            const viewportPadding = 8;
+            const wouldOverflowRight = triggerRect.left + menuRect.width > window.innerWidth - viewportPadding;
+            const hasEnoughLeftSpace = triggerRect.right - menuRect.width >= viewportPadding;
+            setMenuAlignment(wouldOverflowRight && hasEnoughLeftSpace ? 'right' : 'left');
+        };
+
+        const rafId = window.requestAnimationFrame(updateMenuAlignment);
         document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
+        window.addEventListener('resize', updateMenuAlignment);
+        return () => {
+            window.cancelAnimationFrame(rafId);
+            document.removeEventListener('mousedown', handleClickOutside);
+            window.removeEventListener('resize', updateMenuAlignment);
+        };
     }, [isOpen]);
 
     const allConfigs = [...projectConfigs, ...testCaseConfigs];
@@ -66,11 +85,14 @@ export default function InsertVariableDropdown({
             </button>
 
             {isOpen && (
-                <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1 min-w-[200px] max-h-[300px] overflow-y-auto">
+                <div
+                    ref={menuRef}
+                    className={`absolute top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-[70] py-1 w-[min(20rem,calc(100vw-2rem))] max-h-[min(300px,50vh)] overflow-y-auto ${menuAlignment === 'right' ? 'right-0' : 'left-0'}`}
+                >
                     {projectConfigs.length > 0 && (
                         <>
                             <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
-                                {t('configs.section.project')}
+                                {t('configs.section.projectVariables')}
                             </div>
                             {projectConfigs.map(config => (
                                 <button
@@ -88,7 +110,7 @@ export default function InsertVariableDropdown({
                     {testCaseConfigs.length > 0 && (
                         <>
                             <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-t border-gray-100 mt-1">
-                                {t('configs.section.testCase')}
+                                {t('configs.section.testCaseVariables')}
                             </div>
                             {testCaseConfigs.map(config => (
                                 <button

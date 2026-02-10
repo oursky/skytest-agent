@@ -69,7 +69,7 @@ export default function SortableStepItem({ step, index, browsers, onRemove, onCh
     const style = {
         transform: CSS.Transform.toString(transform),
         transition,
-        zIndex: isDragging ? 10 : 1,
+        zIndex: isDragging ? 30 : 'auto',
         opacity: isDragging ? 0.5 : 1,
     } as React.CSSProperties;
 
