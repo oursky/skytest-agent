@@ -108,11 +108,10 @@ function RunPageContent() {
     }, [projectIdFromTestCase, projectId]);
 
     useEffect(() => {
-        if (runId) {
-            fetchTestRun(runId);
-            connectToRun(runId);
-        }
-    }, [runId]);
+        if (!runId || isAuthLoading || !isLoggedIn) return;
+        fetchTestRun(runId);
+        connectToRun(runId);
+    }, [runId, isAuthLoading, isLoggedIn]);
 
     useEffect(() => {
         return () => {
@@ -305,7 +304,17 @@ function RunPageContent() {
         setCurrentRunId(runId);
 
         const token = await getAccessToken();
-        const url = `/api/test-runs/${runId}/events${token ? `?token=${token}` : ''}`;
+        if (!token) {
+            setResult(prev => ({
+                ...prev,
+                status: 'FAIL',
+                error: t('run.error.connectionLost')
+            }));
+            setIsLoading(false);
+            return;
+        }
+
+        const url = `/api/test-runs/${runId}/events?token=${token}`;
         const es = new EventSource(url);
 
         es.onmessage = (event) => {

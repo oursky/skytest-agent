@@ -91,6 +91,24 @@ export async function GET(
             let lastIndex = 0;
             let lastSentStatus = currentStatus;
 
+            const tryEnqueueStoredEvents = (stored: string | null | undefined) => {
+                if (!stored) return;
+                try {
+                    const parsed = JSON.parse(stored);
+                    if (!Array.isArray(parsed)) return;
+
+                    if (parsed.length > lastIndex) {
+                        const newEvents = parsed.slice(lastIndex);
+                        for (const event of newEvents) {
+                            safeEnqueue(event);
+                        }
+                        lastIndex = parsed.length;
+                    }
+                } catch (error) {
+                    logger.warn('Failed to parse stored events from DB', error);
+                }
+            };
+
             pollInterval = setInterval(async () => {
                 if (streamClosed) return;
                 try {
@@ -109,23 +127,11 @@ export async function GET(
 
                         if (!freshRun) return;
 
+                        tryEnqueueStoredEvents(freshRun.result);
+
                         if (['PASS', 'FAIL', 'CANCELLED'].includes(freshRun.status)) {
                             if (pollInterval) {
                                 clearInterval(pollInterval);
-                            }
-
-                            if (freshRun.result) {
-                                try {
-                                    const storedEvents = JSON.parse(freshRun.result);
-                                    if (Array.isArray(storedEvents)) {
-                                        const remainingEvents = storedEvents.slice(lastIndex);
-                                        for (const event of remainingEvents) {
-                                            safeEnqueue(event);
-                                        }
-                                    }
-                                } catch (e) {
-                                    logger.warn('Failed to parse stored events during completion', e);
-                                }
                             }
 
                             safeEnqueue({ type: 'status', status: freshRun.status, error: freshRun.error });

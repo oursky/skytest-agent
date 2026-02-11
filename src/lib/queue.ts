@@ -24,6 +24,7 @@ export class TestQueue {
     private cleanupFns: Map<string, CleanupFn> = new Map();
     private concurrency = appConfig.queue.concurrency;
     private logs: Map<string, TestEvent[]> = new Map();
+    private persistTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
 
     private constructor() { }
 
@@ -244,6 +245,32 @@ export class TestQueue {
         this.processNext();
     }
 
+    private schedulePersistEvents(runId: string) {
+        if (this.persistTimers.has(runId)) {
+            return;
+        }
+
+        const timer = setTimeout(async () => {
+            this.persistTimers.delete(runId);
+            const events = this.logs.get(runId);
+            if (!events) return;
+
+            try {
+                await prisma.testRun.update({
+                    where: { id: runId },
+                    data: {
+                        result: JSON.stringify(events),
+                        logs: JSON.stringify(events)
+                    }
+                });
+            } catch (error) {
+                logger.warn(`Failed to persist live events for ${runId}`, error);
+            }
+        }, 1000);
+
+        this.persistTimers.set(runId, timer);
+    }
+
     private async executeJob(job: Job) {
         const { runId, config, controller } = job;
         const logBuffer = this.logs.get(runId) || [];
@@ -256,6 +283,7 @@ export class TestQueue {
                 signal: controller.signal,
                 onEvent: (event) => {
                     logBuffer.push(event);
+                    this.schedulePersistEvents(runId);
                 },
                 onCleanup: (cleanup) => {
                     this.registerCleanup(runId, cleanup);
@@ -351,6 +379,11 @@ export class TestQueue {
         } finally {
             this.running.delete(runId);
             this.cleanupFns.delete(runId);
+            const pendingTimer = this.persistTimers.get(runId);
+            if (pendingTimer) {
+                clearTimeout(pendingTimer);
+                this.persistTimers.delete(runId);
+            }
             setTimeout(() => {
                 this.logs.delete(runId);
             }, appConfig.queue.logRetentionMs);
