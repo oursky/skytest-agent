@@ -13,6 +13,7 @@ interface TestData {
     password?: string;
     prompt: string;
     name?: string;
+    displayId?: string;
     steps?: TestStep[];
     browserConfig?: Record<string, BrowserConfig>;
 }
@@ -23,7 +24,7 @@ interface TestFormProps {
     initialData?: TestData;
     showNameInput?: boolean;
     readOnly?: boolean;
-    onExport?: () => void;
+    onExport?: (data: TestData) => void;
     onImport?: () => void;
     testCaseId?: string;
     onSaveDraft?: (data: TestData) => Promise<void>;
@@ -206,6 +207,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
 
     const handleLoadSampleData = async () => {
         const sampleName = t('sample.multi.name');
+        const sampleDisplayId = t('sample.multi.testCaseId');
         const placeholderVars = { username: SAMPLE_USERNAME_VARIABLE_REF, password: SAMPLE_PASSWORD_VARIABLE_REF };
         const sampleBrowsers: BrowserEntry[] = [
             {
@@ -243,6 +245,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
 
         const sampleData: TestData = {
             name: showNameInput ? sampleName : undefined,
+            displayId: sampleDisplayId || undefined,
             url: SAMPLE_URL_CONFIG_VALUE,
             prompt: '',
             username: undefined,
@@ -262,7 +265,9 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
         setName(sampleName);
         setBrowsers(sampleBrowsers);
         setSteps(sampleSteps);
-        onDisplayIdChange?.('TC-SAMPLE-001');
+        if (sampleDisplayId) {
+            onDisplayIdChange?.(sampleDisplayId);
+        }
         setActiveTab('test-steps');
     };
 
@@ -274,6 +279,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
 
         return {
             name: showNameInput ? name : undefined,
+            displayId: displayId || undefined,
             url: browsers[0]?.config.url || '',
             prompt: '',
             username: undefined,
@@ -311,7 +317,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                             {onExport && (
                                 <button
                                     type="button"
-                                    onClick={onExport}
+                                    onClick={() => onExport(buildCurrentData())}
                                     className="px-3 py-1.5 bg-white text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-1.5 text-sm"
                                     title={t('testForm.exportTitle')}
                                 >
