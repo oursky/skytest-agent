@@ -255,7 +255,11 @@ function parseConfigurationsRows(
             const name = rawName.trim().toUpperCase();
             const isProject = section === 'projectvariable' || section === 'projectvariables';
             const destination = isProject ? projectVariables : testCaseVariables;
-            destination.push({ name, type, value });
+            destination.push({
+                name,
+                type,
+                value,
+            });
             return;
         }
 
@@ -450,7 +454,11 @@ function parseProjectVariableRows(rows: Array<Record<string, unknown>>, warnings
             return [];
         }
 
-        return [{ name: rawName.trim().toUpperCase(), type, value }];
+        return [{
+            name: rawName.trim().toUpperCase(),
+            type,
+            value,
+        }];
     });
 }
 

@@ -25,6 +25,11 @@ interface EditState {
     type: ConfigType;
 }
 
+interface FileUploadDraft {
+    name: string;
+    file: File | null;
+}
+
 export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
@@ -33,6 +38,7 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
     const [editState, setEditState] = useState<EditState | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [showSecretInEdit, setShowSecretInEdit] = useState(false);
+    const [fileUploadDraft, setFileUploadDraft] = useState<FileUploadDraft | null>(null);
 
     const fetchConfigs = useCallback(async () => {
         try {
@@ -129,42 +135,52 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
         }
     };
 
-    const handleFileUpload = async (type: ConfigType) => {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.onchange = async () => {
-            const file = input.files?.[0];
-            if (!file) return;
+    const handleFileUploadSave = async () => {
+        if (!fileUploadDraft) return;
+        setError(null);
 
-            const name = file.name.replace(/\.[^.]+$/, '').replace(/[^A-Z0-9_]/gi, '_').toUpperCase();
-            if (!CONFIG_NAME_REGEX.test(name)) {
-                setError(t('configs.error.invalidName'));
+        const normalizedName = fileUploadDraft.name.trim().toUpperCase();
+        if (!normalizedName) {
+            setError(t('configs.error.nameRequired'));
+            return;
+        }
+        if (!CONFIG_NAME_REGEX.test(normalizedName)) {
+            setError(t('configs.error.invalidName'));
+            return;
+        }
+        if (!fileUploadDraft.file) {
+            setError(t('configs.error.fileRequired'));
+            return;
+        }
+
+        const duplicate = configs.find(c => c.name === normalizedName);
+        if (duplicate) {
+            setError(t('configs.error.nameTaken'));
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', fileUploadDraft.file);
+        formData.append('name', normalizedName);
+
+        try {
+            const token = await getAccessToken();
+            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+            const res = await fetch(`/api/projects/${projectId}/configs/upload`, {
+                method: 'POST',
+                headers,
+                body: formData,
+            });
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                setError(data.error || 'Upload failed');
                 return;
             }
-
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('name', name);
-
-            try {
-                const token = await getAccessToken();
-                const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-                const res = await fetch(`/api/projects/${projectId}/configs/upload`, {
-                    method: 'POST',
-                    headers,
-                    body: formData,
-                });
-                if (!res.ok) {
-                    const data = await res.json().catch(() => ({}));
-                    setError(data.error || 'Upload failed');
-                    return;
-                }
-                await fetchConfigs();
-            } catch (err) {
-                console.error('Failed to upload file', err);
-            }
-        };
-        input.click();
+            setFileUploadDraft(null);
+            await fetchConfigs();
+        } catch (err) {
+            console.error('Failed to upload file', err);
+        }
     };
 
     const handleDownload = async (config: ConfigItem) => {
@@ -235,6 +251,7 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
             {TYPE_SECTIONS.map(({ type, titleKey }) => {
                 const items = configs.filter(c => c.type === type);
                 const isEditing = editState?.type === type && !editState.id;
+                const isFileUploadDraftActive = type === 'FILE' && fileUploadDraft !== null;
 
                 return (
                     <div key={type} className="bg-white rounded-lg shadow-sm border border-gray-200">
@@ -249,8 +266,12 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                 type="button"
                                 onClick={() => {
                                     if (type === 'FILE') {
-                                        handleFileUpload(type);
+                                        setEditState(null);
+                                        setShowSecretInEdit(false);
+                                        setFileUploadDraft({ name: '', file: null });
+                                        setError(null);
                                     } else {
+                                        setFileUploadDraft(null);
                                         setEditState({ name: '', value: '', type });
                                         setError(null);
                                         setShowSecretInEdit(false);
@@ -320,10 +341,8 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                         <div className="flex items-center gap-3 min-w-0 flex-1">
                                             {type === 'FILE' ? (
                                                 <>
-                                                    <code className="text-sm font-mono text-gray-800 font-medium">
-                                                        {`file_${(item.filename || item.name).replace(/[^a-zA-Z0-9]/g, '_')}`}
-                                                    </code>
-                                                    <span className="text-sm text-gray-500 truncate">{item.filename}</span>
+                                                    <code className="text-sm font-mono text-gray-800 font-medium">{item.name}</code>
+                                                    <span className="text-sm text-gray-500 truncate">{item.filename || item.value}</span>
                                                 </>
                                             ) : (
                                                 <>
@@ -416,7 +435,40 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                 </div>
                             )}
 
-                            {items.length === 0 && !isEditing && (
+                            {isFileUploadDraftActive && fileUploadDraft && (
+                                <div className="p-4 bg-white">
+                                    <div className="flex gap-3 items-start">
+                                        <input
+                                            type="text"
+                                            value={fileUploadDraft.name}
+                                            onChange={(e) => setFileUploadDraft({ ...fileUploadDraft, name: e.target.value.toUpperCase() })}
+                                            placeholder={t('configs.name.placeholder.file')}
+                                            className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md font-mono bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                                            autoFocus
+                                        />
+                                        <div className="flex-[2]">
+                                            <input
+                                                type="file"
+                                                onChange={(e) => setFileUploadDraft({ ...fileUploadDraft, file: e.target.files?.[0] || null })}
+                                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent file:mr-3 file:px-3 file:py-1.5 file:border-0 file:rounded file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
+                                            />
+                                        </div>
+                                        <button onClick={handleFileUploadSave} className="px-3 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary/90">{t('common.save')}</button>
+                                        <button
+                                            onClick={() => {
+                                                setFileUploadDraft(null);
+                                                setError(null);
+                                            }}
+                                            className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700"
+                                        >
+                                            {t('common.cancel')}
+                                        </button>
+                                    </div>
+                                    {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
+                                </div>
+                            )}
+
+                            {items.length === 0 && !isEditing && !isFileUploadDraftActive && (
                                 <div className="px-4 py-6 text-center text-sm text-gray-400">
                                     —
                                 </div>

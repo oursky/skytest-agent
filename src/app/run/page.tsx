@@ -112,7 +112,7 @@ function RunPageContent() {
     };
 
     const importVariablesToTestCase = async (
-        variables: Array<{ name: string; type: 'URL' | 'VARIABLE' | 'SECRET' | 'FILE'; value: string }>,
+        variables: Array<{ name: string; type: 'URL' | 'VARIABLE' | 'SECRET'; value: string }>,
         sourceData: TestData
     ): Promise<string | null> => {
         if (variables.length === 0) {
@@ -165,7 +165,11 @@ function RunPageContent() {
         const exportData: TestData = { ...data };
 
         const exportTestCaseId = testCaseId || currentTestCaseId || refreshFilesRef.current;
-        if (exportTestCaseId && !isDirty) {
+        const hasAttachedFilesInState = testCaseFiles.length > 0
+            || projectConfigs.some((config) => config.type === 'FILE')
+            || testCaseConfigs.some((config) => config.type === 'FILE');
+
+        if (exportTestCaseId && (!isDirty || hasAttachedFilesInState)) {
             try {
                 const token = await getAccessToken();
                 const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
@@ -233,14 +237,14 @@ function RunPageContent() {
                 .map((config) => ({
                     name: config.name,
                     type: config.type,
-                    value: config.value,
+                    value: config.type === 'FILE' ? (config.filename || config.value) : config.value,
                 })),
             testCaseVariables: exportTestCaseConfigs
                 .filter(isSupportedVariableConfig)
                 .map((config) => ({
                     name: config.name,
                     type: config.type,
-                    value: config.value,
+                    value: config.type === 'FILE' ? (config.filename || config.value) : config.value,
                 })),
             files: testCaseFiles.map((file) => ({
                 filename: file.filename,
@@ -269,7 +273,9 @@ function RunPageContent() {
             setIsDirty(true);
 
             await importVariablesToTestCase(
-                [...data.projectVariables, ...data.testCaseVariables],
+                [...data.projectVariables, ...data.testCaseVariables].filter((variable): variable is { name: string; type: 'URL' | 'VARIABLE' | 'SECRET'; value: string } => (
+                    variable.type === 'URL' || variable.type === 'VARIABLE' || variable.type === 'SECRET'
+                )),
                 data.testData
             );
         } catch (error) {

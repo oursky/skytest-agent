@@ -79,8 +79,7 @@ export default function SortableStepItem({ step, index, browsers, onRemove, onCh
     const aiInsertableTypes: ConfigType[] = ['URL', 'VARIABLE', 'SECRET'];
     const formatCodeConfigReference = (config: ConfigItem): string => {
         if (config.type === 'FILE') {
-            const fileKey = config.filename || config.name;
-            return `testFiles[${JSON.stringify(fileKey)}]`;
+            return `testFiles[${JSON.stringify(config.name)}]`;
         }
         return `vars[${JSON.stringify(config.name)}]`;
     };

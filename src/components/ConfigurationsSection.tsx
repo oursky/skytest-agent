@@ -34,6 +34,11 @@ interface EditState {
     type: ConfigType;
 }
 
+interface FileUploadDraft {
+    name: string;
+    file: File | null;
+}
+
 function sortConfigs(configs: ConfigItem[]): ConfigItem[] {
     return [...configs].sort((a, b) => {
         const typeA = TYPE_ORDER.indexOf(a.type);
@@ -73,6 +78,7 @@ export default function ConfigurationsSection({
     const [addTypeOpen, setAddTypeOpen] = useState(false);
     const [urlDropdownOpen, setUrlDropdownOpen] = useState<string | null>(null);
     const [showSecretInEdit, setShowSecretInEdit] = useState(false);
+    const [fileUploadDraft, setFileUploadDraft] = useState<FileUploadDraft | null>(null);
 
     const resolveTestCaseId = useCallback(async () => {
         if (testCaseId) {
@@ -161,45 +167,55 @@ export default function ConfigurationsSection({
         }
     }, [resolveTestCaseId, getAccessToken, onTestCaseConfigsChange]);
 
-    const handleFileUpload = useCallback(async () => {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.onchange = async () => {
-            const file = input.files?.[0];
-            if (!file) return;
+    const handleFileUploadSave = useCallback(async () => {
+        if (!fileUploadDraft) return;
+        setError(null);
 
-            const name = file.name.replace(/\.[^.]+$/, '').replace(/[^A-Z0-9_]/gi, '_').toUpperCase();
-            if (!CONFIG_NAME_REGEX.test(name)) {
-                setError(t('configs.error.invalidName'));
+        const normalizedName = fileUploadDraft.name.trim().toUpperCase();
+        if (!normalizedName) {
+            setError(t('configs.error.nameRequired'));
+            return;
+        }
+        if (!CONFIG_NAME_REGEX.test(normalizedName)) {
+            setError(t('configs.error.invalidName'));
+            return;
+        }
+        if (!fileUploadDraft.file) {
+            setError(t('configs.error.fileRequired'));
+            return;
+        }
+
+        const duplicate = testCaseConfigs.find((config) => config.name === normalizedName);
+        if (duplicate) {
+            setError(t('configs.error.nameTaken'));
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', fileUploadDraft.file);
+        formData.append('name', normalizedName);
+
+        try {
+            const targetTestCaseId = await resolveTestCaseId();
+            if (!targetTestCaseId) return;
+            const token = await getAccessToken();
+            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+            const res = await fetch(`/api/test-cases/${targetTestCaseId}/configs/upload`, {
+                method: 'POST',
+                headers,
+                body: formData,
+            });
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                setError(data.error || 'Upload failed');
                 return;
             }
-
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('name', name);
-
-            try {
-                const targetTestCaseId = await resolveTestCaseId();
-                if (!targetTestCaseId) return;
-                const token = await getAccessToken();
-                const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-                const res = await fetch(`/api/test-cases/${targetTestCaseId}/configs/upload`, {
-                    method: 'POST',
-                    headers,
-                    body: formData,
-                });
-                if (!res.ok) {
-                    const data = await res.json().catch(() => ({}));
-                    setError(data.error || 'Upload failed');
-                    return;
-                }
-                onTestCaseConfigsChange(targetTestCaseId);
-            } catch (err) {
-                console.error('Failed to upload file', err);
-            }
-        };
-        input.click();
-    }, [resolveTestCaseId, getAccessToken, onTestCaseConfigsChange, t]);
+            setFileUploadDraft(null);
+            onTestCaseConfigsChange(targetTestCaseId);
+        } catch (err) {
+            console.error('Failed to upload file', err);
+        }
+    }, [fileUploadDraft, testCaseConfigs, resolveTestCaseId, getAccessToken, onTestCaseConfigsChange, t]);
 
     const handleDownload = useCallback(async (config: ConfigItem) => {
         try {
@@ -312,7 +328,7 @@ export default function ConfigurationsSection({
                             >
                                 <code className="font-mono text-gray-800 text-xs">{config.name}</code>
                                 <span className="text-gray-400 text-xs truncate">
-                                    {config.type === 'SECRET' ? '••••••' : config.type === 'FILE' ? config.filename : config.value}
+                                    {config.type === 'SECRET' ? '••••••' : config.type === 'FILE' ? (config.filename || config.value) : config.value}
                                 </span>
                             </div>
                         ))}
@@ -348,8 +364,12 @@ export default function ConfigurationsSection({
                                             type="button"
                                             onClick={() => {
                                                 if (type === 'FILE') {
-                                                    handleFileUpload();
+                                                    setEditState(null);
+                                                    setShowSecretInEdit(false);
+                                                    setFileUploadDraft({ name: '', file: null });
+                                                    setError(null);
                                                 } else {
+                                                    setFileUploadDraft(null);
                                                     setEditState({ name: '', value: '', type });
                                                     setError(null);
                                                     setShowSecretInEdit(false);
@@ -421,10 +441,8 @@ export default function ConfigurationsSection({
                         if (config.type === 'FILE') {
                             return (
                                 <div key={config.id} className="flex items-center gap-2 px-2 py-1.5 rounded text-sm group hover:bg-gray-50">
-                                    <code className="font-mono text-gray-800 text-xs">
-                                        {`file_${(config.filename || config.name).replace(/[^a-zA-Z0-9]/g, '_')}`}
-                                    </code>
-                                    <span className="text-gray-400 text-xs truncate">{config.filename}</span>
+                                    <code className="font-mono text-gray-800 text-xs">{config.name}</code>
+                                    <span className="text-gray-400 text-xs truncate">{config.filename || config.value}</span>
                                     {!readOnly && (
                                         <div className="ml-auto flex gap-1">
                                             <button
@@ -532,7 +550,41 @@ export default function ConfigurationsSection({
                         </div>
                     )}
 
-                    {testCaseConfigs.length === 0 && !editState && (
+                    {fileUploadDraft && (
+                        <div className="p-2 bg-blue-50/50 rounded">
+                            <div className="flex gap-2 items-start">
+                                <input
+                                    type="text"
+                                    value={fileUploadDraft.name}
+                                    onChange={(e) => setFileUploadDraft({ ...fileUploadDraft, name: e.target.value.toUpperCase() })}
+                                    placeholder={t('configs.name.placeholder.file')}
+                                    className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-primary"
+                                    autoFocus
+                                />
+                                <div className="flex-[2]">
+                                    <input
+                                        type="file"
+                                        onChange={(e) => setFileUploadDraft({ ...fileUploadDraft, file: e.target.files?.[0] || null })}
+                                        className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-primary file:mr-2 file:px-2 file:py-1 file:border-0 file:rounded file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
+                                    />
+                                </div>
+                                <button type="button" onClick={handleFileUploadSave} className="px-2 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90">{t('common.save')}</button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setFileUploadDraft(null);
+                                        setError(null);
+                                    }}
+                                    className="px-2 py-1.5 text-xs text-gray-500"
+                                >
+                                    {t('common.cancel')}
+                                </button>
+                            </div>
+                            {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+                        </div>
+                    )}
+
+                    {testCaseConfigs.length === 0 && !editState && !fileUploadDraft && (
                         <p className="text-xs text-gray-400 py-1">—</p>
                     )}
                 </div>

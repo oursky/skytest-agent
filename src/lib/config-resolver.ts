@@ -46,6 +46,7 @@ export async function resolveConfigs(projectId: string, testCaseId?: string): Pr
     for (const config of merged.values()) {
         if (config.type === 'FILE') {
             const fileConfig = [...projectConfigs, ...testCaseConfigs].find(c => c.name === config.name);
+            files[config.name] = config.value;
             if (fileConfig?.filename) {
                 files[fileConfig.filename] = config.value;
             }
