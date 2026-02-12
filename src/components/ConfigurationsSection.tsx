@@ -248,6 +248,20 @@ export default function ConfigurationsSection({
         }
     }, [fileUploadDraft, testCaseConfigs, resolveTestCaseId, getAccessToken, onTestCaseConfigsChange, t]);
 
+    const handleConfigEditorKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>) => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        event.stopPropagation();
+        void handleSave();
+    }, [handleSave]);
+
+    const handleFileUploadEditorKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        event.stopPropagation();
+        void handleFileUploadSave();
+    }, [handleFileUploadSave]);
+
     const handleDownload = useCallback(async (config: ConfigItem) => {
         try {
             const targetTestCaseId = await resolveTestCaseId();
@@ -431,6 +445,7 @@ export default function ConfigurationsSection({
                                             type="text"
                                             value={editState.name}
                                             onChange={(e) => setEditState({ ...editState, name: e.target.value.toUpperCase() })}
+                                            onKeyDown={handleConfigEditorKeyDown}
                                             placeholder={t(`configs.name.placeholder.${config.type.toLowerCase()}`)}
                                             className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-primary"
                                         />
@@ -439,6 +454,7 @@ export default function ConfigurationsSection({
                                                 <select
                                                     value={editState.value}
                                                     onChange={(e) => setEditState({ ...editState, value: e.target.value })}
+                                                    onKeyDown={handleConfigEditorKeyDown}
                                                     className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary bg-white"
                                                 >
                                                     {RANDOM_STRING_GENERATION_TYPES.map(gt => (
@@ -451,6 +467,7 @@ export default function ConfigurationsSection({
                                                         type={config.type === 'SECRET' && !showSecretInEdit ? 'password' : 'text'}
                                                         value={editState.value}
                                                         onChange={(e) => setEditState({ ...editState, value: e.target.value })}
+                                                        onKeyDown={handleConfigEditorKeyDown}
                                                         placeholder={config.type === 'URL' ? t('configs.url.placeholder') : config.type === 'SECRET' ? t('configs.secret.placeholder') : t('configs.value.placeholder')}
                                                         className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary pr-7"
                                                     />
@@ -557,6 +574,7 @@ export default function ConfigurationsSection({
                                     type="text"
                                     value={editState.name}
                                     onChange={(e) => setEditState({ ...editState, name: e.target.value.toUpperCase() })}
+                                    onKeyDown={handleConfigEditorKeyDown}
                                     placeholder={t(`configs.name.placeholder.${editState.type.toLowerCase()}`)}
                                     className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-primary"
                                     autoFocus
@@ -566,6 +584,7 @@ export default function ConfigurationsSection({
                                         <select
                                             value={editState.value}
                                             onChange={(e) => setEditState({ ...editState, value: e.target.value })}
+                                            onKeyDown={handleConfigEditorKeyDown}
                                             className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary bg-white"
                                         >
                                             {RANDOM_STRING_GENERATION_TYPES.map(gt => (
@@ -578,6 +597,7 @@ export default function ConfigurationsSection({
                                                 type={editState.type === 'SECRET' && !showSecretInEdit ? 'password' : 'text'}
                                                 value={editState.value}
                                                 onChange={(e) => setEditState({ ...editState, value: e.target.value })}
+                                                onKeyDown={handleConfigEditorKeyDown}
                                                 placeholder={editState.type === 'URL' ? t('configs.url.placeholder') : editState.type === 'SECRET' ? t('configs.secret.placeholder') : t('configs.value.placeholder')}
                                                 className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary pr-7"
                                             />
@@ -616,6 +636,7 @@ export default function ConfigurationsSection({
                                     type="text"
                                     value={fileUploadDraft.name}
                                     onChange={(e) => setFileUploadDraft({ ...fileUploadDraft, name: e.target.value.toUpperCase() })}
+                                    onKeyDown={handleFileUploadEditorKeyDown}
                                     placeholder={t('configs.name.placeholder.file')}
                                     className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-primary"
                                     autoFocus

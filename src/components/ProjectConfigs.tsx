@@ -183,6 +183,20 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
         }
     };
 
+    const handleConfigEditorKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        event.stopPropagation();
+        void handleSave();
+    };
+
+    const handleFileUploadEditorKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        event.stopPropagation();
+        void handleFileUploadSave();
+    };
+
     const handleDownload = async (config: ConfigItem) => {
         try {
             const token = await getAccessToken();
@@ -298,6 +312,7 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                                     type="text"
                                                     value={editState.name}
                                                     onChange={(e) => setEditState({ ...editState, name: e.target.value.toUpperCase() })}
+                                                    onKeyDown={handleConfigEditorKeyDown}
                                                     placeholder={t(`configs.name.placeholder.${type.toLowerCase()}`)}
                                                     className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md font-mono bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                                                 />
@@ -306,6 +321,7 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                                         type={type === 'SECRET' && !showSecretInEdit ? 'password' : 'text'}
                                                         value={editState.value}
                                                         onChange={(e) => setEditState({ ...editState, value: e.target.value })}
+                                                        onKeyDown={handleConfigEditorKeyDown}
                                                         placeholder={type === 'URL' ? t('configs.url.placeholder') : type === 'SECRET' ? t('configs.secret.placeholder') : t('configs.value.placeholder')}
                                                         className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent pr-10"
                                                     />
@@ -328,8 +344,8 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                                         </button>
                                                     )}
                                                 </div>
-                                                <button onClick={handleSave} className="px-3 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary/90">{t('common.save')}</button>
-                                                <button onClick={() => { setEditState(null); setError(null); }} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700">{t('common.cancel')}</button>
+                                                <button type="button" onClick={handleSave} className="px-3 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary/90">{t('common.save')}</button>
+                                                <button type="button" onClick={() => { setEditState(null); setError(null); }} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700">{t('common.cancel')}</button>
                                             </div>
                                             {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
                                         </div>
@@ -397,6 +413,7 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                             type="text"
                                             value={editState.name}
                                             onChange={(e) => setEditState({ ...editState, name: e.target.value.toUpperCase() })}
+                                            onKeyDown={handleConfigEditorKeyDown}
                                             placeholder={t(`configs.name.placeholder.${type.toLowerCase()}`)}
                                             className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md font-mono bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                                             autoFocus
@@ -406,6 +423,7 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                                 type={type === 'SECRET' && !showSecretInEdit ? 'password' : 'text'}
                                                 value={editState.value}
                                                 onChange={(e) => setEditState({ ...editState, value: e.target.value })}
+                                                onKeyDown={handleConfigEditorKeyDown}
                                                 placeholder={type === 'URL' ? t('configs.url.placeholder') : type === 'SECRET' ? t('configs.secret.placeholder') : t('configs.value.placeholder')}
                                                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent pr-10"
                                             />
@@ -428,8 +446,8 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                                 </button>
                                             )}
                                         </div>
-                                        <button onClick={handleSave} className="px-3 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary/90">{t('common.save')}</button>
-                                        <button onClick={() => { setEditState(null); setError(null); }} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700">{t('common.cancel')}</button>
+                                        <button type="button" onClick={handleSave} className="px-3 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary/90">{t('common.save')}</button>
+                                        <button type="button" onClick={() => { setEditState(null); setError(null); }} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700">{t('common.cancel')}</button>
                                     </div>
                                     {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
                                 </div>
@@ -442,6 +460,7 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                             type="text"
                                             value={fileUploadDraft.name}
                                             onChange={(e) => setFileUploadDraft({ ...fileUploadDraft, name: e.target.value.toUpperCase() })}
+                                            onKeyDown={handleFileUploadEditorKeyDown}
                                             placeholder={t('configs.name.placeholder.file')}
                                             className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md font-mono bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                                             autoFocus
@@ -453,8 +472,9 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent file:mr-3 file:px-3 file:py-1.5 file:border-0 file:rounded file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
                                             />
                                         </div>
-                                        <button onClick={handleFileUploadSave} className="px-3 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary/90">{t('common.save')}</button>
+                                        <button type="button" onClick={handleFileUploadSave} className="px-3 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary/90">{t('common.save')}</button>
                                         <button
+                                            type="button"
                                             onClick={() => {
                                                 setFileUploadDraft(null);
                                                 setError(null);
