@@ -208,11 +208,11 @@ export default function ConfigurationsSection({
         }
     }, [resolveTestCaseId, getAccessToken, onTestCaseConfigsChange]);
 
-    const handleFileUploadSave = useCallback(async () => {
-        if (!fileUploadDraft) return;
+    const handleFileUploadSave = useCallback(async (draft: FileUploadDraft | null = fileUploadDraft) => {
+        if (!draft) return;
         setError(null);
 
-        const normalizedName = fileUploadDraft.name.trim().toUpperCase();
+        const normalizedName = draft.name.trim().toUpperCase();
         if (!normalizedName) {
             setError(t('configs.error.nameRequired'));
             return;
@@ -221,7 +221,7 @@ export default function ConfigurationsSection({
             setError(t('configs.error.invalidName'));
             return;
         }
-        if (!fileUploadDraft.file) {
+        if (!draft.file) {
             setError(t('configs.error.fileRequired'));
             return;
         }
@@ -233,7 +233,7 @@ export default function ConfigurationsSection({
         }
 
         const formData = new FormData();
-        formData.append('file', fileUploadDraft.file);
+        formData.append('file', draft.file);
         formData.append('name', normalizedName);
 
         try {
@@ -264,13 +264,6 @@ export default function ConfigurationsSection({
         event.stopPropagation();
         void handleSave();
     }, [handleSave]);
-
-    const handleFileUploadEditorKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
-        if (event.key !== 'Enter') return;
-        event.preventDefault();
-        event.stopPropagation();
-        void handleFileUploadSave();
-    }, [handleFileUploadSave]);
 
     const renderRandomStringDropdown = (dropdownKey: string, value: string) => (
         <div
@@ -624,7 +617,7 @@ export default function ConfigurationsSection({
 
                     {editState && !editState.id && (
                         <div className="p-2 bg-blue-50/50 rounded">
-                            <div className="flex gap-2 items-start">
+                            <div className="flex gap-2 items-center">
                                 <input
                                     type="text"
                                     value={editState.name}
@@ -687,12 +680,11 @@ export default function ConfigurationsSection({
 
                     {fileUploadDraft && (
                         <div className="p-2 bg-blue-50/50 rounded">
-                            <div className="flex gap-2 items-start">
+                            <div className="flex gap-2 items-center">
                                 <input
                                     type="text"
                                     value={fileUploadDraft.name}
                                     onChange={(e) => setFileUploadDraft({ ...fileUploadDraft, name: e.target.value.toUpperCase() })}
-                                    onKeyDown={handleFileUploadEditorKeyDown}
                                     placeholder={t('configs.name.placeholder.file')}
                                     className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-primary"
                                     autoFocus
@@ -700,18 +692,24 @@ export default function ConfigurationsSection({
                                 <div className="flex-[2]">
                                     <input
                                         type="file"
-                                        onChange={(e) => setFileUploadDraft({ ...fileUploadDraft, file: e.target.files?.[0] || null })}
+                                        onChange={(e) => {
+                                            const selectedFile = e.target.files?.[0] || null;
+                                            const nextDraft = { ...fileUploadDraft, file: selectedFile };
+                                            setFileUploadDraft(nextDraft);
+                                            if (selectedFile) {
+                                                void handleFileUploadSave(nextDraft);
+                                            }
+                                        }}
                                         className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-primary file:mr-2 file:px-2 file:py-1 file:border-0 file:rounded file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
                                     />
                                 </div>
-                                <button type="button" onClick={handleFileUploadSave} className="px-2 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90">{t('common.save')}</button>
                                 <button
                                     type="button"
                                     onClick={() => {
                                         setFileUploadDraft(null);
                                         setError(null);
                                     }}
-                                    className="px-2 py-1.5 text-xs text-gray-500"
+                                    className="inline-flex items-center px-2 py-1.5 text-xs text-gray-500"
                                 >
                                     {t('common.cancel')}
                                 </button>

@@ -135,11 +135,11 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
         }
     };
 
-    const handleFileUploadSave = async () => {
-        if (!fileUploadDraft) return;
+    const handleFileUploadSave = async (draft: FileUploadDraft | null = fileUploadDraft) => {
+        if (!draft) return;
         setError(null);
 
-        const normalizedName = fileUploadDraft.name.trim().toUpperCase();
+        const normalizedName = draft.name.trim().toUpperCase();
         if (!normalizedName) {
             setError(t('configs.error.nameRequired'));
             return;
@@ -148,7 +148,7 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
             setError(t('configs.error.invalidName'));
             return;
         }
-        if (!fileUploadDraft.file) {
+        if (!draft.file) {
             setError(t('configs.error.fileRequired'));
             return;
         }
@@ -160,7 +160,7 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
         }
 
         const formData = new FormData();
-        formData.append('file', fileUploadDraft.file);
+        formData.append('file', draft.file);
         formData.append('name', normalizedName);
 
         try {
@@ -188,13 +188,6 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
         event.preventDefault();
         event.stopPropagation();
         void handleSave();
-    };
-
-    const handleFileUploadEditorKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-        if (event.key !== 'Enter') return;
-        event.preventDefault();
-        event.stopPropagation();
-        void handleFileUploadSave();
     };
 
     const handleDownload = async (config: ConfigItem) => {
@@ -408,7 +401,7 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
 
                             {isEditing && (
                                 <div className="p-4 bg-white">
-                                    <div className="flex gap-3 items-start">
+                                    <div className="flex gap-3 items-center">
                                         <input
                                             type="text"
                                             value={editState.name}
@@ -455,12 +448,11 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
 
                             {isFileUploadDraftActive && fileUploadDraft && (
                                 <div className="p-4 bg-white">
-                                    <div className="flex gap-3 items-start">
+                                    <div className="flex gap-3 items-center">
                                         <input
                                             type="text"
                                             value={fileUploadDraft.name}
                                             onChange={(e) => setFileUploadDraft({ ...fileUploadDraft, name: e.target.value.toUpperCase() })}
-                                            onKeyDown={handleFileUploadEditorKeyDown}
                                             placeholder={t('configs.name.placeholder.file')}
                                             className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md font-mono bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                                             autoFocus
@@ -468,18 +460,24 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                         <div className="flex-[2]">
                                             <input
                                                 type="file"
-                                                onChange={(e) => setFileUploadDraft({ ...fileUploadDraft, file: e.target.files?.[0] || null })}
+                                                onChange={(e) => {
+                                                    const selectedFile = e.target.files?.[0] || null;
+                                                    const nextDraft = { ...fileUploadDraft, file: selectedFile };
+                                                    setFileUploadDraft(nextDraft);
+                                                    if (selectedFile) {
+                                                        void handleFileUploadSave(nextDraft);
+                                                    }
+                                                }}
                                                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent file:mr-3 file:px-3 file:py-1.5 file:border-0 file:rounded file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
                                             />
                                         </div>
-                                        <button type="button" onClick={handleFileUploadSave} className="px-3 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary/90">{t('common.save')}</button>
                                         <button
                                             type="button"
                                             onClick={() => {
                                                 setFileUploadDraft(null);
                                                 setError(null);
                                             }}
-                                            className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700"
+                                            className="inline-flex items-center px-3 py-2 text-sm text-gray-500 hover:text-gray-700"
                                         >
                                             {t('common.cancel')}
                                         </button>
