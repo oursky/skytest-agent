@@ -29,6 +29,7 @@ export interface ParsedTestCaseExcel {
     testCaseId?: string;
     testData: {
         name?: string;
+        displayId?: string;
         url: string;
         prompt: string;
         steps?: TestStep[];

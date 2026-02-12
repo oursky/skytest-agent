@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { TestStep, BrowserConfig, ConfigItem } from '@/types';
+import { TestStep, BrowserConfig, ConfigItem, TestCaseFile } from '@/types';
 import BuilderForm from './BuilderForm';
 import ConfigurationsSection from './ConfigurationsSection';
 import { useI18n } from '@/i18n';
@@ -35,6 +35,7 @@ interface TestFormProps {
     projectId?: string;
     projectConfigs?: ConfigItem[];
     testCaseConfigs?: ConfigItem[];
+    testCaseFiles?: TestCaseFile[];
     onTestCaseConfigsChange?: (id?: string) => void;
     onEnsureTestCase?: (data: TestData) => Promise<string | null>;
 }
@@ -113,7 +114,7 @@ function buildSteps(data: TestData | undefined, browserId: string, validBrowserI
         }));
 }
 
-export default function TestForm({ onSubmit, isLoading, initialData, showNameInput, readOnly, onExport, onImport, testCaseId, onSaveDraft, onDiscard, isSaving, displayId, onDisplayIdChange, projectId, projectConfigs, testCaseConfigs, onTestCaseConfigsChange, onEnsureTestCase }: TestFormProps) {
+export default function TestForm({ onSubmit, isLoading, initialData, showNameInput, readOnly, onExport, onImport, testCaseId, onSaveDraft, onDiscard, isSaving, displayId, onDisplayIdChange, projectId, projectConfigs, testCaseConfigs, testCaseFiles, onTestCaseConfigsChange, onEnsureTestCase }: TestFormProps) {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
     const [activeTab, setActiveTab] = useState<TestFormTab>('configurations');
@@ -428,6 +429,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                         readOnly={readOnly}
                         projectConfigs={projectConfigs}
                         testCaseConfigs={testCaseConfigs}
+                        testCaseFiles={testCaseFiles}
                     />
                 )}
             </div>

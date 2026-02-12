@@ -1,6 +1,6 @@
 'use client';
 
-import { TestStep, BrowserConfig, StepType, ConfigItem } from '@/types';
+import { TestStep, BrowserConfig, StepType, ConfigItem, TestCaseFile } from '@/types';
 import {
     DndContext,
     closestCenter,
@@ -34,6 +34,7 @@ interface BuilderFormProps {
     readOnly?: boolean;
     projectConfigs?: ConfigItem[];
     testCaseConfigs?: ConfigItem[];
+    testCaseFiles?: TestCaseFile[];
 }
 
 export default function BuilderForm({
@@ -43,6 +44,7 @@ export default function BuilderForm({
     readOnly,
     projectConfigs,
     testCaseConfigs,
+    testCaseFiles,
 }: BuilderFormProps) {
     const { t } = useI18n();
 
@@ -116,6 +118,16 @@ export default function BuilderForm({
         setSteps(newSteps);
     };
 
+    const handleStepFilesChange = (index: number, fileIds: string[]) => {
+        const newSteps = [...steps];
+        const nextFileIds = fileIds.length > 0 ? fileIds : undefined;
+        newSteps[index] = {
+            ...newSteps[index],
+            files: nextFileIds
+        };
+        setSteps(newSteps);
+    };
+
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
 
@@ -159,11 +171,13 @@ export default function BuilderForm({
                                 browsers={browsers}
                                 onRemove={() => handleRemoveStep(index)}
                                 onChange={(field, value) => handleStepChange(index, field, value)}
+                                onFilesChange={(fileIds) => handleStepFilesChange(index, fileIds)}
                                 onTypeChange={(type) => handleStepTypeChange(index, type)}
                                 readOnly={readOnly}
                                 isAnyDragging={activeId !== null}
                                 projectConfigs={projectConfigs}
                                 testCaseConfigs={testCaseConfigs}
+                                testCaseFiles={testCaseFiles}
                             />
                         ))}
                     </div>

@@ -587,7 +587,9 @@ async function executePlaywrightCode(
     onEvent: EventHandler,
     credentials?: CredentialContext,
     stepContext?: PlaywrightCodeStepContext,
-    browserId?: string
+    browserId?: string,
+    resolvedVariables?: Record<string, string>,
+    resolvedConfigFiles?: Record<string, string>
 ): Promise<void> {
     const timeoutMs = config.test.playwrightCode.statementTimeoutMs;
     const syncTimeoutMs = config.test.playwrightCode.syncTimeoutMs;
@@ -623,6 +625,9 @@ async function executePlaywrightCode(
         password: credentials?.password
     };
     const stepFiles = stepContext?.stepFiles ?? {};
+    const vars = resolvedVariables || {};
+    const configFiles = resolvedConfigFiles || {};
+    const testFiles = configFiles;
 
     type TimeoutHandle = ReturnType<typeof setTimeout>;
     type IntervalHandle = ReturnType<typeof setInterval>;
@@ -670,6 +675,9 @@ async function executePlaywrightCode(
             setInterval: setIntervalWrapped,
             clearInterval: clearIntervalWrapped,
             credentials: credentialBindings,
+            vars,
+            testFiles,
+            configFiles,
             stepFiles,
             files: stepFiles,
             ...credentialBindings
@@ -768,7 +776,9 @@ async function executeSteps(
     runId: string,
     signal?: AbortSignal,
     testCaseId?: string,
-    files?: TestCaseFile[]
+    files?: TestCaseFile[],
+    resolvedVariables?: Record<string, string>,
+    resolvedConfigFiles?: Record<string, string>
 ): Promise<void> {
     const log = createLogger(onEvent);
     const { pages, agents } = browserInstances;
@@ -801,7 +811,18 @@ async function executeSteps(
 
             if (stepType === 'playwright-code') {
                 const stepContext = resolvePlaywrightCodeStepContext(step, testCaseId, files);
-                await executePlaywrightCode(step.action, page, i, log, onEvent, credentials, stepContext, effectiveTargetId);
+                await executePlaywrightCode(
+                    step.action,
+                    page,
+                    i,
+                    log,
+                    onEvent,
+                    credentials,
+                    stepContext,
+                    effectiveTargetId,
+                    resolvedVariables,
+                    resolvedConfigFiles
+                );
             } else {
                 if (!agent) {
                     throw new TestExecutionError(
@@ -986,7 +1007,18 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
                 throw new ConfigurationError('Instructions (Prompt or Steps) are required');
             }
 
-            await executeSteps(effectiveSteps, browserInstances, targetConfigs, onEvent, runId, signal, testCaseId, files);
+            await executeSteps(
+                effectiveSteps,
+                browserInstances,
+                targetConfigs,
+                onEvent,
+                runId,
+                signal,
+                testCaseId,
+                files,
+                vars,
+                fileRefs
+            );
 
             if (signal?.aborted) throw new Error('Aborted');
 

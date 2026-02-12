@@ -2,18 +2,28 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useI18n } from '@/i18n';
-import type { ConfigItem, ConfigType } from '@/types';
+import type { ConfigItem, ConfigType, TestCaseFile } from '@/types';
 
 interface InsertVariableDropdownProps {
     projectConfigs: ConfigItem[];
     testCaseConfigs: ConfigItem[];
     onInsert: (ref: string) => void;
+    allowedTypes?: ConfigType[];
+    formatRef?: (config: ConfigItem) => string;
+    testFiles?: TestCaseFile[];
+    formatTestFileRef?: (file: TestCaseFile) => string;
+    onInsertTestFile?: (file: TestCaseFile) => void;
 }
 
 export default function InsertVariableDropdown({
     projectConfigs,
     testCaseConfigs,
     onInsert,
+    allowedTypes,
+    formatRef,
+    testFiles,
+    formatTestFileRef,
+    onInsertTestFile,
 }: InsertVariableDropdownProps) {
     const { t } = useI18n();
     const [isOpen, setIsOpen] = useState(false);
@@ -49,25 +59,40 @@ export default function InsertVariableDropdown({
         };
     }, [isOpen]);
 
-    const allConfigs = [...projectConfigs, ...testCaseConfigs];
-    if (allConfigs.length === 0) return null;
+    const filteredProjectConfigs = allowedTypes
+        ? projectConfigs.filter(config => allowedTypes.includes(config.type))
+        : projectConfigs;
+    const filteredTestCaseConfigs = allowedTypes
+        ? testCaseConfigs.filter(config => allowedTypes.includes(config.type))
+        : testCaseConfigs;
+    const availableTestFiles = testFiles || [];
 
-    const overriddenNames = new Set(testCaseConfigs.map(c => c.name));
+    const allConfigs = [...filteredProjectConfigs, ...filteredTestCaseConfigs];
+    if (allConfigs.length === 0 && availableTestFiles.length === 0) return null;
 
-    const getTypeIcon = (type: ConfigType) => {
-        switch (type) {
-            case 'URL': return '🔗';
-            case 'VARIABLE': return '📝';
-            case 'SECRET': return '🔒';
-            case 'FILE': return '📎';
+    const overriddenNames = new Set(filteredTestCaseConfigs.map(c => c.name));
+
+    const buildConfigReference = (config: ConfigItem): string => {
+        if (formatRef) {
+            return formatRef(config);
         }
+        return config.type === 'FILE'
+            ? `{{file:${config.filename || config.name}}}`
+            : `{{${config.name}}}`;
     };
 
     const handleSelect = (config: ConfigItem) => {
-        const ref = config.type === 'FILE'
-            ? `{{file:${config.filename || config.name}}}`
-            : `{{${config.name}}}`;
+        const ref = buildConfigReference(config);
         onInsert(ref);
+        setIsOpen(false);
+    };
+
+    const handleSelectTestFile = (file: TestCaseFile) => {
+        const ref = formatTestFileRef
+            ? formatTestFileRef(file)
+            : `{{file:${file.filename}}}`;
+        onInsert(ref);
+        onInsertTestFile?.(file);
         setIsOpen(false);
     };
 
@@ -89,38 +114,60 @@ export default function InsertVariableDropdown({
                     ref={menuRef}
                     className={`absolute top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-[70] py-1 w-[min(20rem,calc(100vw-2rem))] max-h-[min(300px,50vh)] overflow-y-auto ${menuAlignment === 'right' ? 'right-0' : 'left-0'}`}
                 >
-                    {projectConfigs.length > 0 && (
+                    {filteredProjectConfigs.length > 0 && (
                         <>
                             <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
                                 {t('configs.section.projectVariables')}
                             </div>
-                            {projectConfigs.map(config => (
+                            {filteredProjectConfigs.map(config => (
                                 <button
                                     key={`p-${config.id}`}
                                     type="button"
                                     onClick={() => handleSelect(config)}
-                                    className={`w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 flex items-center gap-2 ${overriddenNames.has(config.name) ? 'opacity-50 line-through' : ''}`}
+                                    className={`w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 flex items-center justify-between gap-3 ${overriddenNames.has(config.name) ? 'opacity-50 line-through' : ''}`}
                                 >
-                                    <span className="text-xs">{getTypeIcon(config.type)}</span>
                                     <code className="font-mono text-xs text-gray-700">{config.name}</code>
+                                    <span className="text-[10px] font-semibold uppercase text-gray-400">{config.type}</span>
                                 </button>
                             ))}
                         </>
                     )}
-                    {testCaseConfigs.length > 0 && (
+                    {filteredTestCaseConfigs.length > 0 && (
                         <>
-                            <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-t border-gray-100 mt-1">
+                            <div
+                                className={`px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider ${filteredProjectConfigs.length > 0 ? 'border-t border-gray-100 mt-1' : ''}`}
+                            >
                                 {t('configs.section.testCaseVariables')}
                             </div>
-                            {testCaseConfigs.map(config => (
+                            {filteredTestCaseConfigs.map(config => (
                                 <button
                                     key={`tc-${config.id}`}
                                     type="button"
                                     onClick={() => handleSelect(config)}
-                                    className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 flex items-center gap-2"
+                                    className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 flex items-center justify-between gap-3"
                                 >
-                                    <span className="text-xs">{getTypeIcon(config.type)}</span>
                                     <code className="font-mono text-xs text-gray-700">{config.name}</code>
+                                    <span className="text-[10px] font-semibold uppercase text-gray-400">{config.type}</span>
+                                </button>
+                            ))}
+                        </>
+                    )}
+                    {availableTestFiles.length > 0 && (
+                        <>
+                            <div
+                                className={`px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider ${(filteredProjectConfigs.length > 0 || filteredTestCaseConfigs.length > 0) ? 'border-t border-gray-100 mt-1' : ''}`}
+                            >
+                                {t('configs.title.files')}
+                            </div>
+                            {availableTestFiles.map(file => (
+                                <button
+                                    key={`f-${file.id}`}
+                                    type="button"
+                                    onClick={() => handleSelectTestFile(file)}
+                                    className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 flex items-center justify-between gap-3"
+                                >
+                                    <code className="font-mono text-xs text-gray-700 truncate">{file.filename}</code>
+                                    <span className="text-[10px] font-semibold uppercase text-gray-400">{t('configs.type.file')}</span>
                                 </button>
                             ))}
                         </>

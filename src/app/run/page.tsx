@@ -837,6 +837,7 @@ function RunPageContent() {
                             projectId={projectId || projectIdFromTestCase || undefined}
                             projectConfigs={projectConfigs}
                             testCaseConfigs={testCaseConfigs}
+                            testCaseFiles={testCaseFiles}
                             onTestCaseConfigsChange={(updatedTestCaseId) => {
                                 const tcId = updatedTestCaseId || testCaseId || currentTestCaseId;
                                 if (tcId) fetchTestCaseConfigs(tcId);

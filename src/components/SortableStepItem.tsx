@@ -1,6 +1,6 @@
 'use client';
 
-import { TestStep, StepType, ConfigItem } from '@/types';
+import { TestStep, StepType, ConfigItem, ConfigType, TestCaseFile } from '@/types';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import dynamic from 'next/dynamic';
@@ -42,16 +42,19 @@ interface SortableStepItemProps {
     browsers: BrowserEntry[];
     onRemove: () => void;
     onChange: (field: keyof TestStep, value: string) => void;
+    onFilesChange?: (fileIds: string[]) => void;
     onTypeChange?: (type: StepType) => void;
     readOnly?: boolean;
     isAnyDragging?: boolean;
     projectConfigs?: ConfigItem[];
     testCaseConfigs?: ConfigItem[];
+    testCaseFiles?: TestCaseFile[];
 }
 
-export default function SortableStepItem({ step, index, browsers, onRemove, onChange, onTypeChange, readOnly, isAnyDragging, projectConfigs, testCaseConfigs }: SortableStepItemProps) {
+export default function SortableStepItem({ step, index, browsers, onRemove, onChange, onFilesChange, onTypeChange, readOnly, isAnyDragging, projectConfigs, testCaseConfigs, testCaseFiles }: SortableStepItemProps) {
     const { t } = useI18n();
     const stepTextareaRef = useRef<HTMLTextAreaElement>(null);
+    const [codeInsertRequest, setCodeInsertRequest] = useState<{ id: string; text: string } | null>(null);
 
     const {
         attributes,
@@ -73,6 +76,14 @@ export default function SortableStepItem({ step, index, browsers, onRemove, onCh
     } as React.CSSProperties;
 
     const hideMonacoEditor = isAnyDragging && stepType === 'playwright-code';
+    const aiInsertableTypes: ConfigType[] = ['URL', 'VARIABLE', 'SECRET'];
+    const formatCodeConfigReference = (config: ConfigItem): string => {
+        if (config.type === 'FILE') {
+            const fileKey = config.filename || config.name;
+            return `testFiles[${JSON.stringify(fileKey)}]`;
+        }
+        return `vars[${JSON.stringify(config.name)}]`;
+    };
 
     const browserIndex = browsers.findIndex(b => b.id === step.target);
     const safeIndex = browserIndex >= 0 ? browserIndex : 0;
@@ -204,6 +215,7 @@ export default function SortableStepItem({ step, index, browsers, onRemove, onCh
                             <InsertVariableDropdown
                                 projectConfigs={projectConfigs || []}
                                 testCaseConfigs={testCaseConfigs || []}
+                                allowedTypes={aiInsertableTypes}
                                 onInsert={(ref) => {
                                     const textarea = stepTextareaRef.current;
                                     if (!textarea) {
@@ -234,7 +246,47 @@ export default function SortableStepItem({ step, index, browsers, onRemove, onCh
                             onChange={(value) => onChange('action', value)}
                             readOnly={readOnly}
                             onValidationChange={(isValid, errors) => setValidationErrors(errors)}
+                            insertRequest={codeInsertRequest}
+                            onInsertHandled={(requestId) => {
+                                setCodeInsertRequest((current) => {
+                                    if (!current || current.id !== requestId) {
+                                        return current;
+                                    }
+                                    return null;
+                                });
+                            }}
                         />
+                        {!readOnly && (
+                            ((projectConfigs && projectConfigs.length > 0)
+                                || (testCaseConfigs && testCaseConfigs.length > 0)
+                                || (testCaseFiles && testCaseFiles.length > 0))
+                        ) && (
+                            <div className="mt-2">
+                                <InsertVariableDropdown
+                                    projectConfigs={projectConfigs || []}
+                                    testCaseConfigs={testCaseConfigs || []}
+                                    formatRef={formatCodeConfigReference}
+                                    testFiles={testCaseFiles}
+                                    formatTestFileRef={(file) => `files[${JSON.stringify(file.id)}]`}
+                                    onInsertTestFile={(file) => {
+                                        if (!onFilesChange) {
+                                            return;
+                                        }
+                                        const currentFileIds = step.files || [];
+                                        if (currentFileIds.includes(file.id)) {
+                                            return;
+                                        }
+                                        onFilesChange([...currentFileIds, file.id]);
+                                    }}
+                                    onInsert={(ref) => {
+                                        setCodeInsertRequest({
+                                            id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                                            text: ref,
+                                        });
+                                    }}
+                                />
+                            </div>
+                        )}
                         {validationErrors.length > 0 && (
                             <div className="text-xs text-red-500 mt-1 flex items-center gap-1">
                                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
