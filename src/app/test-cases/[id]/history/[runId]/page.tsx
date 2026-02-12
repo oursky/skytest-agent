@@ -7,7 +7,6 @@ import ResultViewer from "@/components/ResultViewer";
 import TestForm from "@/components/TestForm";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import { formatDateTime } from "@/utils/dateFormatter";
-import { exportToMarkdown } from "@/utils/testCaseMarkdown";
 import { useI18n } from "@/i18n";
 
 import { TestStep, BrowserConfig } from "@/types";
@@ -24,6 +23,7 @@ interface TestRun {
 
 interface TestCase {
     id: string;
+    displayId?: string;
     name: string;
     url: string;
     prompt: string;
@@ -132,6 +132,44 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 
     const events = testRun.result ? JSON.parse(testRun.result) : [];
 
+    const buildExcelBaseName = (testCaseIdentifier?: string, testCaseName?: string): string => {
+        const sanitize = (value: string) => value.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const safeId = sanitize((testCaseIdentifier || '').trim());
+        const safeName = sanitize((testCaseName || '').trim());
+        if (safeId && safeName) return `${safeId}_${safeName}`;
+        if (safeName) return safeName;
+        if (safeId) return safeId;
+        return 'test_case';
+    };
+
+    const handleExport = async (_data?: unknown) => {
+        try {
+            const token = await getAccessToken();
+            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+            const response = await fetch(`/api/test-cases/${id}/export`, { headers });
+            if (!response.ok) {
+                throw new Error('Export request failed');
+            }
+
+            const blob = await response.blob();
+            const contentDisposition = response.headers.get('Content-Disposition') || '';
+            const filenameMatch = contentDisposition.match(/filename=\"?([^\";]+)\"?/i);
+            const fallbackName = `${buildExcelBaseName(testCase?.displayId, testCase?.name)}.xlsx`;
+            const filename = filenameMatch?.[1] || fallbackName;
+
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Failed to export test case', error);
+        }
+    };
+
     const testData = (() => {
         const baseConfig = testCase ? {
             name: testCase.name,
@@ -146,7 +184,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
         if (testRun.configurationSnapshot) {
             try {
                 const savedConfig = JSON.parse(testRun.configurationSnapshot) as Partial<TestCase>;
-                return {
+                const data = {
                     name: savedConfig.name ?? baseConfig?.name,
                     url: savedConfig.url ?? baseConfig?.url ?? '',
                     prompt: savedConfig.prompt ?? baseConfig?.prompt ?? '',
@@ -155,6 +193,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                     steps: savedConfig.steps ?? baseConfig?.steps,
                     browserConfig: savedConfig.browserConfig ?? baseConfig?.browserConfig,
                 };
+                return data;
             } catch (error) {
                 console.error("Failed to parse configuration snapshot", error);
             }
@@ -177,7 +216,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-                    <div>
+                    <div className="space-y-4">
                         {testData && (
                             <TestForm
                                 onSubmit={() => { }}
@@ -186,19 +225,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                                 showNameInput={false}
                                 readOnly={true}
                                 testCaseId={id}
-                                files={testRun?.files}
-                                onExport={testData ? () => {
-                                    const markdown = exportToMarkdown(testData);
-                                    const blob = new Blob([markdown], { type: 'text/markdown' });
-                                    const url = URL.createObjectURL(blob);
-                                    const a = document.createElement('a');
-                                    a.href = url;
-                                    a.download = `${testData.name || 'test-case'}-${formatDateTime(testRun.createdAt)}.md`;
-                                    document.body.appendChild(a);
-                                    a.click();
-                                    document.body.removeChild(a);
-                                    URL.revokeObjectURL(url);
-                                } : undefined}
+                                onExport={testData ? handleExport : undefined}
                             />
                         )}
                     </div>

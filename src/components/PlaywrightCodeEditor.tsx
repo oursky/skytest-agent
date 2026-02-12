@@ -1,8 +1,13 @@
 'use client';
 
 import Editor, { OnMount } from '@monaco-editor/react';
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useI18n } from '@/i18n';
+
+interface CodeInsertRequest {
+    id: string;
+    text: string;
+}
 
 interface PlaywrightCodeEditorProps {
     value: string;
@@ -10,6 +15,8 @@ interface PlaywrightCodeEditorProps {
     readOnly?: boolean;
     onValidationChange?: (isValid: boolean, errors: string[]) => void;
     height?: string;
+    insertRequest?: CodeInsertRequest | null;
+    onInsertHandled?: (requestId: string) => void;
 }
 
 export default function PlaywrightCodeEditor({
@@ -17,13 +24,22 @@ export default function PlaywrightCodeEditor({
     onChange,
     readOnly,
     onValidationChange,
-    height = '180px'
+    height = '180px',
+    insertRequest,
+    onInsertHandled,
 }: PlaywrightCodeEditorProps) {
     const { t } = useI18n();
     const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
+    const monacoRef = useRef<Parameters<OnMount>[1] | null>(null);
+    const latestValueRef = useRef(value);
+
+    useEffect(() => {
+        latestValueRef.current = value;
+    }, [value]);
 
     const handleEditorDidMount: OnMount = (editor, monaco) => {
         editorRef.current = editor;
+        monacoRef.current = monaco;
 
         monaco.languages.typescript.javascriptDefaults.addExtraLib(
             `
@@ -138,6 +154,43 @@ export default function PlaywrightCodeEditor({
             }
         }
     }, [onChange, onValidationChange]);
+
+    useEffect(() => {
+        if (!insertRequest) {
+            return;
+        }
+
+        const editor = editorRef.current;
+        const monaco = monacoRef.current;
+
+        if (!editor || !monaco) {
+            onChange(`${latestValueRef.current}${insertRequest.text}`);
+            onInsertHandled?.(insertRequest.id);
+            return;
+        }
+
+        const model = editor.getModel();
+        if (!model) {
+            onChange(`${latestValueRef.current}${insertRequest.text}`);
+            onInsertHandled?.(insertRequest.id);
+            return;
+        }
+
+        const lineNumber = model.getLineCount();
+        const column = model.getLineMaxColumn(lineNumber);
+        const fallbackSelection = new monaco.Selection(lineNumber, column, lineNumber, column);
+        const selection = editor.getSelection() || fallbackSelection;
+
+        editor.executeEdits('insert-variable', [
+            {
+                range: selection,
+                text: insertRequest.text,
+                forceMoveMarkers: true,
+            },
+        ]);
+        editor.focus();
+        onInsertHandled?.(insertRequest.id);
+    }, [insertRequest, onChange, onInsertHandled]);
 
     return (
         <div className="border border-gray-200 rounded-lg overflow-hidden bg-gray-50">

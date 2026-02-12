@@ -5,6 +5,7 @@ import { TestStep, BrowserConfig, TestEvent, TestResult, RunTestOptions, TestCas
 import { config } from '@/config/app';
 import { ConfigurationError, TestExecutionError, PlaywrightCodeError, getErrorMessage } from './errors';
 import { getFilePath, getUploadPath } from './file-security';
+import { substituteAll } from './config-resolver';
 import { createLogger as createServerLogger } from '@/lib/logger';
 import { withMidsceneApiKey } from '@/lib/midscene-env';
 import { validateTargetUrl } from './url-security';
@@ -586,7 +587,9 @@ async function executePlaywrightCode(
     onEvent: EventHandler,
     credentials?: CredentialContext,
     stepContext?: PlaywrightCodeStepContext,
-    browserId?: string
+    browserId?: string,
+    resolvedVariables?: Record<string, string>,
+    resolvedConfigFiles?: Record<string, string>
 ): Promise<void> {
     const timeoutMs = config.test.playwrightCode.statementTimeoutMs;
     const syncTimeoutMs = config.test.playwrightCode.syncTimeoutMs;
@@ -622,6 +625,9 @@ async function executePlaywrightCode(
         password: credentials?.password
     };
     const stepFiles = stepContext?.stepFiles ?? {};
+    const vars = resolvedVariables || {};
+    const configFiles = resolvedConfigFiles || {};
+    const testFiles = configFiles;
 
     type TimeoutHandle = ReturnType<typeof setTimeout>;
     type IntervalHandle = ReturnType<typeof setInterval>;
@@ -669,6 +675,9 @@ async function executePlaywrightCode(
             setInterval: setIntervalWrapped,
             clearInterval: clearIntervalWrapped,
             credentials: credentialBindings,
+            vars,
+            testFiles,
+            configFiles,
             stepFiles,
             files: stepFiles,
             ...credentialBindings
@@ -767,7 +776,9 @@ async function executeSteps(
     runId: string,
     signal?: AbortSignal,
     testCaseId?: string,
-    files?: TestCaseFile[]
+    files?: TestCaseFile[],
+    resolvedVariables?: Record<string, string>,
+    resolvedConfigFiles?: Record<string, string>
 ): Promise<void> {
     const log = createLogger(onEvent);
     const { pages, agents } = browserInstances;
@@ -800,7 +811,18 @@ async function executeSteps(
 
             if (stepType === 'playwright-code') {
                 const stepContext = resolvePlaywrightCodeStepContext(step, testCaseId, files);
-                await executePlaywrightCode(step.action, page, i, log, onEvent, credentials, stepContext, effectiveTargetId);
+                await executePlaywrightCode(
+                    step.action,
+                    page,
+                    i,
+                    log,
+                    onEvent,
+                    credentials,
+                    stepContext,
+                    effectiveTargetId,
+                    resolvedVariables,
+                    resolvedConfigFiles
+                );
             } else {
                 if (!agent) {
                     throw new TestExecutionError(
@@ -931,16 +953,31 @@ async function cleanup(browser: Browser): Promise<void> {
 
 export async function runTest(options: RunTestOptions): Promise<TestResult> {
     const { config: testConfig, onEvent, signal, runId, onCleanup } = options;
-    const { url, username, password, prompt, steps, browserConfig, openRouterApiKey, testCaseId, files } = testConfig;
+    const { url, username, password, prompt, steps, browserConfig, openRouterApiKey, testCaseId, files, resolvedVariables, resolvedFiles } = testConfig;
     const log = createLogger(onEvent);
+
+    const vars = resolvedVariables || {};
+    const fileRefs = resolvedFiles || {};
+    const sub = (text: string) => substituteAll(text, vars, fileRefs);
 
     if (!openRouterApiKey) {
         return { status: 'FAIL', error: 'OpenRouter API key is required. Please configure it in API Key & Usage settings.' };
     }
 
     return await withMidsceneApiKey(openRouterApiKey, async () => {
-        const targetConfigs = validateConfiguration(url, prompt, steps, browserConfig, { username, password });
-        const hasSteps = steps && steps.length > 0;
+        const resolvedUrl = url ? sub(url) : url;
+        const resolvedPrompt = prompt ? sub(prompt) : prompt;
+        const resolvedBrowserConfig = browserConfig
+            ? Object.fromEntries(
+                Object.entries(browserConfig).map(([id, bc]) => [id, { ...bc, url: bc.url ? sub(bc.url) : bc.url }])
+            )
+            : browserConfig;
+        const resolvedSteps = steps
+            ? steps.map(s => ({ ...s, action: sub(s.action) }))
+            : steps;
+
+        const targetConfigs = validateConfiguration(resolvedUrl, resolvedPrompt, resolvedSteps, resolvedBrowserConfig, { username, password });
+        const hasSteps = resolvedSteps && resolvedSteps.length > 0;
 
         let browserInstances: BrowserInstances | null = null;
         const actionCounter: ActionCounter = { count: 0 };
@@ -961,16 +998,27 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
             if (signal?.aborted) throw new Error('Aborted');
 
             const effectiveSteps = hasSteps
-                ? steps!
-                : prompt
-                    ? convertPromptToSteps(prompt)
+                ? resolvedSteps!
+                : resolvedPrompt
+                    ? convertPromptToSteps(resolvedPrompt)
                     : null;
 
             if (!effectiveSteps || effectiveSteps.length === 0) {
                 throw new ConfigurationError('Instructions (Prompt or Steps) are required');
             }
 
-            await executeSteps(effectiveSteps, browserInstances, targetConfigs, onEvent, runId, signal, testCaseId, files);
+            await executeSteps(
+                effectiveSteps,
+                browserInstances,
+                targetConfigs,
+                onEvent,
+                runId,
+                signal,
+                testCaseId,
+                files,
+                vars,
+                fileRefs
+            );
 
             if (signal?.aborted) throw new Error('Aborted');
 

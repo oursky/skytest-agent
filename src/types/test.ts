@@ -1,6 +1,7 @@
 export type TestStatus = 'IDLE' | 'RUNNING' | 'PASS' | 'FAIL' | 'CANCELLED' | 'QUEUED' | 'DRAFT';
 
 export interface BrowserConfig {
+    name?: string;
     url: string;
     username?: string;
     password?: string;
@@ -52,6 +53,8 @@ export interface RunTestOptions {
         testCaseId?: string;
         files?: TestCaseFile[];
         projectId?: string;
+        resolvedVariables?: Record<string, string>;
+        resolvedFiles?: Record<string, string>;
     };
     onEvent: (event: TestEvent) => void;
     signal?: AbortSignal;
@@ -62,6 +65,25 @@ export interface TestResult {
     status: 'PASS' | 'FAIL' | 'CANCELLED';
     error?: string;
     actionCount?: number;
+}
+
+export type ConfigType = 'URL' | 'VARIABLE' | 'SECRET' | 'FILE';
+
+export interface ConfigItem {
+    id: string;
+    name: string;
+    type: ConfigType;
+    value: string;
+    filename?: string;
+    mimeType?: string;
+    size?: number;
+}
+
+export interface ResolvedConfig {
+    name: string;
+    type: ConfigType;
+    value: string;
+    source: 'project' | 'test-case';
 }
 
 import type { TestEvent } from './events';

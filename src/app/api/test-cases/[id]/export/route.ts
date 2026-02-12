@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth } from '@/lib/auth';
-import { getFilePath } from '@/lib/file-security';
+import { getFilePath, getProjectConfigUploadPath, getTestCaseConfigUploadPath } from '@/lib/file-security';
 import { createLogger } from '@/lib/logger';
 import { parseTestCaseJson } from '@/lib/test-case-utils';
-import { exportToMarkdown } from '@/utils/testCaseMarkdown';
+import { exportToExcelBuffer } from '@/utils/testCaseExcel';
 import archiver from 'archiver';
 import fs from 'fs/promises';
+import path from 'path';
 import { PassThrough } from 'stream';
 
 const logger = createLogger('api:test-cases:export');
@@ -39,32 +40,142 @@ export async function GET(
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
+        const projectVariables = await prisma.projectConfig.findMany({
+            where: {
+                projectId: testCase.projectId,
+                type: { in: ['URL', 'VARIABLE', 'SECRET', 'FILE'] }
+            },
+            orderBy: { createdAt: 'asc' }
+        });
+
+        const testCaseVariables = await prisma.testCaseConfig.findMany({
+            where: {
+                testCaseId: testCase.id,
+                type: { in: ['URL', 'VARIABLE', 'SECRET', 'FILE'] }
+            },
+            orderBy: { createdAt: 'asc' }
+        });
+
+        const typedProjectVariables: Array<{ name: string; type: 'URL' | 'VARIABLE' | 'SECRET' | 'FILE'; value: string }> = projectVariables.flatMap((variable) => {
+            if (variable.type !== 'URL' && variable.type !== 'VARIABLE' && variable.type !== 'SECRET' && variable.type !== 'FILE') {
+                return [];
+            }
+            return [{
+                name: variable.name,
+                type: variable.type as 'URL' | 'VARIABLE' | 'SECRET' | 'FILE',
+                value: variable.type === 'FILE' ? (variable.filename || variable.value) : variable.value,
+            }];
+        });
+
+        const typedTestCaseVariables: Array<{ name: string; type: 'URL' | 'VARIABLE' | 'SECRET' | 'FILE'; value: string }> = testCaseVariables.flatMap((variable) => {
+            if (variable.type !== 'URL' && variable.type !== 'VARIABLE' && variable.type !== 'SECRET' && variable.type !== 'FILE') {
+                return [];
+            }
+            return [{
+                name: variable.name,
+                type: variable.type as 'URL' | 'VARIABLE' | 'SECRET' | 'FILE',
+                value: variable.type === 'FILE' ? (variable.filename || variable.value) : variable.value,
+            }];
+        });
+
         const parsed = parseTestCaseJson(testCase);
-        const testData = {
+        const excelData = {
             name: parsed.name,
-            url: parsed.url,
-            prompt: parsed.prompt || '',
-            username: parsed.username || undefined,
-            password: '',
+            testCaseId: parsed.displayId || undefined,
             steps: parsed.steps,
             browserConfig: parsed.browserConfig,
+            projectVariables: typedProjectVariables,
+            testCaseVariables: typedTestCaseVariables,
+            files: testCase.files.map((file) => ({
+                filename: file.filename,
+                mimeType: file.mimeType,
+                size: file.size,
+            })),
         };
 
-        const markdown = exportToMarkdown(testData);
+        const excelBuffer = exportToExcelBuffer(excelData);
+
+        const sanitizeSegment = (value: string) => value.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const sanitizedDisplayId = parsed.displayId ? sanitizeSegment(parsed.displayId) : '';
+        const sanitizedName = testCase.name ? sanitizeSegment(testCase.name) : '';
+        const excelBasename = sanitizedDisplayId && sanitizedName
+            ? `${sanitizedDisplayId}_${sanitizedName}`
+            : sanitizedDisplayId || sanitizedName || 'test_case';
+
+        const projectFileVariables = projectVariables.filter((variable) => variable.type === 'FILE');
+        const testCaseFileVariables = testCaseVariables.filter((variable) => variable.type === 'FILE');
+        const hasAttachedFiles = testCase.files.length > 0 || projectFileVariables.length > 0 || testCaseFileVariables.length > 0;
+
+        if (!hasAttachedFiles) {
+            return new NextResponse(new Uint8Array(excelBuffer), {
+                headers: {
+                    'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    'Content-Disposition': `attachment; filename="${excelBasename}.xlsx"`,
+                    'Content-Length': excelBuffer.length.toString(),
+                },
+            });
+        }
 
         const archive = archiver('zip', { zlib: { level: 9 } });
         const passthrough = new PassThrough();
         archive.pipe(passthrough);
 
-        archive.append(markdown, { name: 'test-case.md' });
+        archive.append(excelBuffer, { name: `${excelBasename}.xlsx` });
+        const usedZipFilenames = new Set<string>();
+        const getUniqueZipFilePath = (originalFilename: string): string => {
+            const basename = path.basename(originalFilename || 'file');
+            const parsed = path.parse(basename);
+            const baseName = parsed.name || 'file';
+            const ext = parsed.ext || '';
+            let nextName = `${baseName}${ext}`;
+            let duplicateIndex = 1;
+
+            while (usedZipFilenames.has(nextName.toLowerCase())) {
+                nextName = `${baseName}(${duplicateIndex})${ext}`;
+                duplicateIndex += 1;
+            }
+
+            usedZipFilenames.add(nextName.toLowerCase());
+            return `test-files/${nextName}`;
+        };
 
         for (const file of testCase.files) {
             const filePath = getFilePath(id, file.storedName);
             try {
                 const fileBuffer = await fs.readFile(filePath);
-                archive.append(fileBuffer, { name: `files/${file.filename}` });
+                archive.append(fileBuffer, { name: getUniqueZipFilePath(file.filename) });
             } catch {
                 logger.warn('File not found on disk', { filePath });
+            }
+        }
+
+        const projectConfigFileDir = getProjectConfigUploadPath(testCase.projectId);
+        for (const variable of projectFileVariables) {
+            if (!variable.value) {
+                continue;
+            }
+            const filePath = path.join(projectConfigFileDir, variable.value);
+            const fileName = variable.filename || variable.value;
+            try {
+                const fileBuffer = await fs.readFile(filePath);
+                archive.append(fileBuffer, { name: getUniqueZipFilePath(fileName) });
+            } catch {
+                logger.warn('Project config file not found on disk', { filePath });
+            }
+        }
+
+        const testCaseConfigFileDir = getTestCaseConfigUploadPath(testCase.id);
+        for (const variable of testCaseFileVariables) {
+            if (!variable.value) {
+                continue;
+            }
+            const filePath = path.join(testCaseConfigFileDir, variable.value);
+            const fileName = variable.filename || variable.value;
+            try {
+                const fileBuffer = await fs.readFile(filePath);
+                archive.append(fileBuffer, { name: getUniqueZipFilePath(fileName) });
+            } catch {
+                logger.warn('Test case config file not found on disk', { filePath });
             }
         }
 
@@ -76,12 +187,10 @@ export async function GET(
         }
         const zipBuffer = Buffer.concat(chunks);
 
-        const sanitizedName = testCase.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-
         return new NextResponse(zipBuffer, {
             headers: {
                 'Content-Type': 'application/zip',
-                'Content-Disposition': `attachment; filename="${sanitizedName}.zip"`,
+                'Content-Disposition': `attachment; filename="${excelBasename}.zip"`,
                 'Content-Length': zipBuffer.length.toString(),
             },
         });

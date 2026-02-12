@@ -6,8 +6,8 @@ import { useAuth } from "../auth-provider";
 import TestForm from "@/components/TestForm";
 import ResultViewer from "@/components/ResultViewer";
 import Breadcrumbs from "@/components/Breadcrumbs";
-import { TestStep, BrowserConfig, TestEvent, TestCaseFile } from "@/types";
-import { exportToMarkdown, parseMarkdown } from "@/utils/testCaseMarkdown";
+import { TestStep, BrowserConfig, TestEvent, TestCaseFile, ConfigItem } from "@/types";
+import { exportToExcelArrayBuffer, parseTestCaseExcel } from "@/utils/testCaseExcel";
 import { useI18n } from "@/i18n";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 
@@ -17,6 +17,7 @@ interface TestData {
     password?: string;
     prompt: string;
     name?: string;
+    displayId?: string;
     steps?: TestStep[];
     browserConfig?: Record<string, BrowserConfig>;
 }
@@ -26,7 +27,6 @@ interface TestResult {
     events: TestEvent[];
     error?: string;
 }
-
 
 function RunPageContent() {
     const searchParams = useSearchParams();
@@ -57,37 +57,230 @@ function RunPageContent() {
     const [isSaving, setIsSaving] = useState(false);
     const [displayId, setDisplayId] = useState<string>('');
     const [testCaseStatus, setTestCaseStatus] = useState<string | null>(null);
-
+    const [projectConfigs, setProjectConfigs] = useState<ConfigItem[]>([]);
+    const [testCaseConfigs, setTestCaseConfigs] = useState<ConfigItem[]>([]);
+    const refreshFilesRef = useRef<string | null>(null);
     useUnsavedChanges(isDirty, t('run.unsavedChangesWarning'));
 
-    const handleExport = () => {
-        if (!initialData) return;
-        const markdown = exportToMarkdown(initialData);
-        const blob = new Blob([markdown], { type: 'text/markdown' });
-        const url = URL.createObjectURL(blob);
+    const downloadBlob = (blob: Blob, filename: string) => {
+        const objectUrl = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
-        a.download = `${initialData.name || 'test-case'}.md`;
+        a.href = objectUrl;
+        a.download = filename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        URL.revokeObjectURL(objectUrl);
     };
 
-    const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const extractFileName = (headerValue: string | null, fallbackName: string): string => {
+        if (!headerValue) return fallbackName;
+        const utf8Match = headerValue.match(/filename\*=UTF-8''([^;]+)/i);
+        if (utf8Match?.[1]) {
+            return decodeURIComponent(utf8Match[1]);
+        }
+        const quotedMatch = headerValue.match(/filename="([^"]+)"/i);
+        if (quotedMatch?.[1]) {
+            return quotedMatch[1];
+        }
+        const plainMatch = headerValue.match(/filename=([^;]+)/i);
+        if (plainMatch?.[1]) {
+            return plainMatch[1].trim();
+        }
+        return fallbackName;
+    };
+
+    const buildExcelBaseName = (testCaseIdentifier?: string, testCaseName?: string): string => {
+        const sanitize = (value: string) => value.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const safeId = sanitize((testCaseIdentifier || '').trim());
+        const safeName = sanitize((testCaseName || '').trim());
+        if (safeId && safeName) return `${safeId}_${safeName}`;
+        if (safeName) return safeName;
+        if (safeId) return safeId;
+        return 'test_case';
+    };
+
+    const isExcelFilename = (filename: string): boolean => {
+        const normalized = filename.toLowerCase();
+        return normalized.endsWith('.xlsx') || normalized.endsWith('.xls');
+    };
+
+    const isSupportedVariableConfig = (
+        config: ConfigItem
+    ): config is ConfigItem & { type: 'URL' | 'VARIABLE' | 'SECRET' | 'FILE' } => {
+        return config.type === 'URL' || config.type === 'VARIABLE' || config.type === 'SECRET' || config.type === 'FILE';
+    };
+
+    const importVariablesToTestCase = async (
+        variables: Array<{ name: string; type: 'URL' | 'VARIABLE' | 'SECRET'; value: string }>,
+        sourceData: TestData
+    ): Promise<string | null> => {
+        if (variables.length === 0) {
+            return testCaseId || currentTestCaseId || refreshFilesRef.current || null;
+        }
+
+        let targetTestCaseId = testCaseId || currentTestCaseId || refreshFilesRef.current || null;
+        if (!targetTestCaseId) {
+            targetTestCaseId = await ensureTestCaseFromData(sourceData);
+        }
+        if (!targetTestCaseId) return null;
+
+        const token = await getAccessToken();
+        const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+        const jsonHeaders: HeadersInit = {
+            'Content-Type': 'application/json',
+            ...headers
+        };
+
+        const existingResponse = await fetch(`/api/test-cases/${targetTestCaseId}/configs`, { headers });
+        const existingConfigs: ConfigItem[] = existingResponse.ok ? await existingResponse.json() : [];
+        const existingByName = new Map(existingConfigs.map((config) => [config.name, config]));
+
+        for (const variable of variables) {
+            const existing = existingByName.get(variable.name);
+            try {
+                if (!existing) {
+                    await fetch(`/api/test-cases/${targetTestCaseId}/configs`, {
+                        method: 'POST',
+                        headers: jsonHeaders,
+                        body: JSON.stringify(variable),
+                    });
+                } else {
+                    await fetch(`/api/test-cases/${targetTestCaseId}/configs/${existing.id}`, {
+                        method: 'PUT',
+                        headers: jsonHeaders,
+                        body: JSON.stringify(variable),
+                    });
+                }
+            } catch {
+                // silently skip failed variables
+            }
+        }
+
+        await fetchTestCaseConfigs(targetTestCaseId);
+        return targetTestCaseId;
+    };
+
+    const handleExport = async (data: TestData) => {
+        const exportData: TestData = { ...data };
+
+        const exportTestCaseId = testCaseId || currentTestCaseId || refreshFilesRef.current;
+        const hasAttachedFilesInState = testCaseFiles.length > 0
+            || projectConfigs.some((config) => config.type === 'FILE')
+            || testCaseConfigs.some((config) => config.type === 'FILE');
+
+        if (exportTestCaseId && (!isDirty || hasAttachedFilesInState)) {
+            try {
+                const token = await getAccessToken();
+                const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+                const response = await fetch(`/api/test-cases/${exportTestCaseId}/export`, { headers });
+                if (!response.ok) {
+                    throw new Error('Export request failed');
+                }
+
+                const blob = await response.blob();
+                const filename = extractFileName(
+                    response.headers.get('Content-Disposition'),
+                    `${buildExcelBaseName(exportData.displayId, exportData.name)}.xlsx`
+                );
+                downloadBlob(blob, filename);
+                return;
+            } catch (error) {
+                console.error('Failed to export from API, fallback to local Excel export', error);
+            }
+        }
+
+        let exportProjectConfigs = projectConfigs;
+        let exportTestCaseConfigs = testCaseConfigs;
+        const exportProjectId = projectId || projectIdFromTestCase;
+
+        if (exportProjectId || exportTestCaseId) {
+            try {
+                const token = await getAccessToken();
+                const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+                const fetchConfigs = async (url: string): Promise<ConfigItem[] | null> => {
+                    const response = await fetch(url, { headers });
+                    if (!response.ok) {
+                        return null;
+                    }
+                    return await response.json() as ConfigItem[];
+                };
+
+                const [projectConfigsWithSecrets, testCaseConfigsWithSecrets] = await Promise.all([
+                    exportProjectId
+                        ? fetchConfigs(`/api/projects/${exportProjectId}/configs?includeSecretValues=true`)
+                        : Promise.resolve(null),
+                    exportTestCaseId
+                        ? fetchConfigs(`/api/test-cases/${exportTestCaseId}/configs?includeSecretValues=true`)
+                        : Promise.resolve(null),
+                ]);
+
+                if (projectConfigsWithSecrets) {
+                    exportProjectConfigs = projectConfigsWithSecrets;
+                }
+                if (testCaseConfigsWithSecrets) {
+                    exportTestCaseConfigs = testCaseConfigsWithSecrets;
+                }
+            } catch (error) {
+                console.error('Failed to fetch secret config values for export', error);
+            }
+        }
+
+        const excelArrayBuffer = exportToExcelArrayBuffer({
+            name: exportData.name,
+            testCaseId: exportData.displayId || undefined,
+            steps: exportData.steps,
+            browserConfig: exportData.browserConfig,
+            projectVariables: exportProjectConfigs
+                .filter(isSupportedVariableConfig)
+                .map((config) => ({
+                    name: config.name,
+                    type: config.type,
+                    value: config.type === 'FILE' ? (config.filename || config.value) : config.value,
+                })),
+            testCaseVariables: exportTestCaseConfigs
+                .filter(isSupportedVariableConfig)
+                .map((config) => ({
+                    name: config.name,
+                    type: config.type,
+                    value: config.type === 'FILE' ? (config.filename || config.value) : config.value,
+                })),
+            files: testCaseFiles.map((file) => ({
+                filename: file.filename,
+                mimeType: file.mimeType,
+                size: file.size,
+            })),
+        });
+
+        const blob = new Blob([excelArrayBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        downloadBlob(blob, `${buildExcelBaseName(exportData.displayId, exportData.name)}.xlsx`);
+    };
+
+    const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
+        try {
+            if (!isExcelFilename(file.name)) return;
 
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const content = e.target?.result as string;
-            const { data, errors } = parseMarkdown(content);
-            if (errors.length > 0) {
-                alert(t('testForm.importWarnings', { warnings: errors.join(', ') }));
+            const fileBuffer = await file.arrayBuffer();
+            const { data } = parseTestCaseExcel(fileBuffer);
+
+            setInitialData(data.testData);
+            if (data.testCaseId) {
+                setDisplayId(data.testCaseId);
             }
-            setInitialData(data);
-        };
-        reader.readAsText(file);
+            setIsDirty(true);
+
+            await importVariablesToTestCase(
+                [...data.projectVariables, ...data.testCaseVariables].filter((variable): variable is { name: string; type: 'URL' | 'VARIABLE' | 'SECRET'; value: string } => (
+                    variable.type === 'URL' || variable.type === 'VARIABLE' || variable.type === 'SECRET'
+                )),
+                data.testData
+            );
+        } catch (error) {
+            console.error('Failed to import test case', error);
+        }
         event.target.value = '';
     };
 
@@ -106,11 +299,10 @@ function RunPageContent() {
     }, [projectIdFromTestCase, projectId]);
 
     useEffect(() => {
-        if (runId) {
-            fetchTestRun(runId);
-            connectToRun(runId);
-        }
-    }, [runId]);
+        if (!runId || isAuthLoading || !isLoggedIn) return;
+        fetchTestRun(runId);
+        connectToRun(runId);
+    }, [runId, isAuthLoading, isLoggedIn]);
 
     useEffect(() => {
         return () => {
@@ -213,7 +405,41 @@ function RunPageContent() {
         }
     };
 
-    const refreshFilesRef = useRef<string | null>(null);
+    const fetchProjectConfigs = useCallback(async (projId: string) => {
+        try {
+            const token = await getAccessToken();
+            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+            const response = await fetch(`/api/projects/${projId}/configs`, { headers });
+            if (response.ok) {
+                setProjectConfigs(await response.json());
+            }
+        } catch (error) {
+            console.error("Failed to fetch project configs", error);
+        }
+    }, [getAccessToken]);
+
+    const fetchTestCaseConfigs = useCallback(async (tcId: string) => {
+        try {
+            const token = await getAccessToken();
+            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+            const response = await fetch(`/api/test-cases/${tcId}/configs`, { headers });
+            if (response.ok) {
+                setTestCaseConfigs(await response.json());
+            }
+        } catch (error) {
+            console.error("Failed to fetch test case configs", error);
+        }
+    }, [getAccessToken]);
+
+    useEffect(() => {
+        const effectiveProjectId = projectId || projectIdFromTestCase;
+        if (effectiveProjectId) fetchProjectConfigs(effectiveProjectId);
+    }, [projectId, projectIdFromTestCase, fetchProjectConfigs]);
+
+    useEffect(() => {
+        const tcId = testCaseId || currentTestCaseId;
+        if (tcId) fetchTestCaseConfigs(tcId);
+    }, [testCaseId, currentTestCaseId, fetchTestCaseConfigs]);
 
     const refreshFiles = async (overrideId?: string) => {
         const id = overrideId || refreshFilesRef.current || testCaseId || currentTestCaseId;
@@ -267,7 +493,17 @@ function RunPageContent() {
         setCurrentRunId(runId);
 
         const token = await getAccessToken();
-        const url = `/api/test-runs/${runId}/events${token ? `?token=${token}` : ''}`;
+        if (!token) {
+            setResult(prev => ({
+                ...prev,
+                status: 'FAIL',
+                error: t('run.error.connectionLost')
+            }));
+            setIsLoading(false);
+            return;
+        }
+
+        const url = `/api/test-runs/${runId}/events?token=${token}`;
         const es = new EventSource(url);
 
         es.onmessage = (event) => {
@@ -338,6 +574,7 @@ function RunPageContent() {
     const saveTestCase = useCallback(async (data: TestData, options?: { saveDraft?: boolean }): Promise<string | null> => {
         const effectiveTestCaseId = testCaseId || currentTestCaseId;
         const effectiveProjectId = projectId || projectIdFromTestCase;
+        const finalDisplayId = data.displayId ?? displayId;
 
         const token = await getAccessToken();
         const headers: HeadersInit = {
@@ -349,7 +586,7 @@ function RunPageContent() {
             const response = await fetch(`/api/test-cases/${effectiveTestCaseId}`, {
                 method: "PUT",
                 headers,
-                body: JSON.stringify({ ...data, displayId, ...(options?.saveDraft ? { saveDraft: true } : {}) }),
+                body: JSON.stringify({ ...data, displayId: finalDisplayId, ...(options?.saveDraft ? { saveDraft: true } : {}) }),
             });
             if (!response.ok) {
                 throw new Error('Failed to save test case');
@@ -364,7 +601,7 @@ function RunPageContent() {
             const response = await fetch(`/api/projects/${effectiveProjectId}/test-cases`, {
                 method: "POST",
                 headers,
-                body: JSON.stringify({ ...data, displayId, ...(options?.saveDraft ? { saveDraft: true } : {}) }),
+                body: JSON.stringify({ ...data, displayId: finalDisplayId, ...(options?.saveDraft ? { saveDraft: true } : {}) }),
             });
             if (!response.ok) {
                 throw new Error('Failed to create test case');
@@ -533,6 +770,13 @@ function RunPageContent() {
         }
     };
 
+    const isRunInProgress =
+        isLoading
+        || ['RUNNING', 'QUEUED'].includes(result.status)
+        || !!activeRunId
+        || testCaseStatus === 'RUNNING'
+        || testCaseStatus === 'QUEUED';
+
     if (isAuthLoading) return null;
 
     return (
@@ -548,7 +792,7 @@ function RunPageContent() {
                 type="file"
                 ref={fileInputRef}
                 onChange={handleImport}
-                accept=".md,.markdown,text/markdown"
+                accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
                 className="hidden"
             />
 
@@ -594,18 +838,24 @@ function RunPageContent() {
                             isLoading={isLoading || (!!activeRunId && activeRunId === currentRunId)}
                             initialData={initialData}
                             showNameInput={true}
-                            readOnly={['RUNNING', 'QUEUED'].includes(result.status) || !!activeRunId || testCaseStatus === 'RUNNING' || testCaseStatus === 'QUEUED'}
-                            onExport={initialData ? handleExport : undefined}
-                            onImport={() => fileInputRef.current?.click()}
+                            readOnly={isRunInProgress}
+                            onExport={handleExport}
+                            onImport={isRunInProgress ? undefined : () => fileInputRef.current?.click()}
                             testCaseId={testCaseId || currentTestCaseId || refreshFilesRef.current || undefined}
-                            files={testCaseFiles}
-                            onFilesChange={handleFilesChange}
-                            onEnsureTestCase={ensureTestCaseFromData}
                             onSaveDraft={handleSaveDraft}
                             onDiscard={handleDiscard}
                             isSaving={isSaving}
                             displayId={displayId}
                             onDisplayIdChange={handleDisplayIdChange}
+                            projectId={projectId || projectIdFromTestCase || undefined}
+                            projectConfigs={projectConfigs}
+                            testCaseConfigs={testCaseConfigs}
+                            testCaseFiles={testCaseFiles}
+                            onTestCaseConfigsChange={(updatedTestCaseId) => {
+                                const tcId = updatedTestCaseId || testCaseId || currentTestCaseId;
+                                if (tcId) fetchTestCaseConfigs(tcId);
+                            }}
+                            onEnsureTestCase={ensureTestCaseFromData}
                         />
                     )}
                 </div>

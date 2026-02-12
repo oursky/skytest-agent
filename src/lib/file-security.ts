@@ -50,3 +50,11 @@ export function getUploadPath(testCaseId: string): string {
 export function getFilePath(testCaseId: string, storedName: string): string {
     return path.join(getUploadPath(testCaseId), storedName);
 }
+
+export function getProjectConfigUploadPath(projectId: string): string {
+    return path.join(getUploadDir(), 'project-configs', projectId);
+}
+
+export function getTestCaseConfigUploadPath(testCaseId: string): string {
+    return path.join(getUploadDir(), 'testcase-configs', testCaseId);
+}
