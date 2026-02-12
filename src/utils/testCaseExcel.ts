@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 import type { BrowserConfig, ConfigType, TestStep } from '@/types';
 
-type SupportedVariableType = Extract<ConfigType, 'URL' | 'VARIABLE' | 'SECRET' | 'FILE'>;
+type SupportedVariableType = Extract<ConfigType, 'URL' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING' | 'FILE'>;
 
 interface ExcelProjectVariable {
     name: string;
@@ -148,21 +148,21 @@ function buildWorkbook(data: TestCaseExcelExportData): XLSX.WorkBook {
     );
 
     const projectVariableRows = (data.projectVariables || [])
-        .filter((item) => item.type === 'URL' || item.type === 'VARIABLE' || item.type === 'SECRET' || item.type === 'FILE')
+        .filter((item) => item.type === 'URL' || item.type === 'VARIABLE' || item.type === 'SECRET' || item.type === 'RANDOM_STRING' || item.type === 'FILE')
         .map((item) => ({
             Section: 'Project Variable',
             Type: formatConfigTypeForSheet(item.type),
             Name: item.name,
-            Value: item.value,
+            Value: item.type === 'RANDOM_STRING' ? formatRandomStringValueForSheet(item.value) : item.value,
         }));
 
     const testCaseVariableRows = (data.testCaseVariables || [])
-        .filter((item) => item.type === 'URL' || item.type === 'VARIABLE' || item.type === 'SECRET' || item.type === 'FILE')
+        .filter((item) => item.type === 'URL' || item.type === 'VARIABLE' || item.type === 'SECRET' || item.type === 'RANDOM_STRING' || item.type === 'FILE')
         .map((item) => ({
             Section: 'Test Case Variable',
             Type: formatConfigTypeForSheet(item.type),
             Name: item.name,
-            Value: item.value,
+            Value: item.type === 'RANDOM_STRING' ? formatRandomStringValueForSheet(item.value) : item.value,
         }));
 
     const stepRows = (data.steps || []).map((step, index) => ({
@@ -246,6 +246,18 @@ function parseConfigurationsRows(
             }
             if (type === 'FILE') {
                 warnings.push(`file_type_skipped:${rawName.trim().toUpperCase()}`);
+                return;
+            }
+            if (type === 'RANDOM_STRING') {
+                const normalizedGenType = normalizeRandomStringValue(value);
+                if (!normalizedGenType) {
+                    warnings.push(`Invalid random string type in Configurations row ${index + 1}. Expected: Timestamp (Unix), Timestamp (Datetime), or UUID`);
+                    return;
+                }
+                const name = rawName.trim().toUpperCase();
+                const isProject = section === 'projectvariable' || section === 'projectvariables';
+                const destination = isProject ? projectVariables : testCaseVariables;
+                destination.push({ name, type, value: normalizedGenType });
                 return;
             }
             if (!value) {
@@ -449,6 +461,14 @@ function parseProjectVariableRows(rows: Array<Record<string, unknown>>, warnings
             warnings.push(`file_type_skipped:${rawName.trim().toUpperCase()}`);
             return [];
         }
+        if (type === 'RANDOM_STRING') {
+            const normalizedGenType = normalizeRandomStringValue(value);
+            if (!normalizedGenType) {
+                warnings.push(`Invalid random string type in Project Variables row ${index + 1}`);
+                return [];
+            }
+            return [{ name: rawName.trim().toUpperCase(), type: type as SupportedVariableType, value: normalizedGenType }];
+        }
         if (!value) {
             warnings.push(`Missing value in Project Variables row ${index + 1}`);
             return [];
@@ -456,7 +476,7 @@ function parseProjectVariableRows(rows: Array<Record<string, unknown>>, warnings
 
         return [{
             name: rawName.trim().toUpperCase(),
-            type,
+            type: type as SupportedVariableType,
             value,
         }];
     });
@@ -491,17 +511,39 @@ function normalizeStepType(value?: string): TestStep['type'] {
 
 function normalizeConfigType(value?: string): SupportedVariableType | null {
     if (!value) return null;
-    const normalized = value.trim().toUpperCase();
+    const normalized = value.trim().toUpperCase().replace(/\s+/g, '_');
     if (normalized === 'URL' || normalized === 'VARIABLE' || normalized === 'SECRET' || normalized === 'FILE') {
         return normalized;
     }
+    if (normalized === 'RANDOM_STRING' || normalized === 'RANDOMSTRING') {
+        return 'RANDOM_STRING';
+    }
     return null;
+}
+
+function normalizeRandomStringValue(value?: string): string | null {
+    if (!value) return null;
+    const normalized = value.trim().toUpperCase().replace(/[\s()]+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+    if (normalized === 'TIMESTAMP_UNIX' || normalized === 'TIMESTAMP_UNIX_') return 'TIMESTAMP_UNIX';
+    if (normalized === 'TIMESTAMP_DATETIME' || normalized === 'TIMESTAMP_DATETIME_') return 'TIMESTAMP_DATETIME';
+    if (normalized === 'UUID') return 'UUID';
+    return null;
+}
+
+function formatRandomStringValueForSheet(value: string): string {
+    switch (value) {
+        case 'TIMESTAMP_UNIX': return 'Timestamp (Unix)';
+        case 'TIMESTAMP_DATETIME': return 'Timestamp (Datetime)';
+        case 'UUID': return 'UUID';
+        default: return value;
+    }
 }
 
 function formatConfigTypeForSheet(value: SupportedVariableType): string {
     if (value === 'URL') return 'URL';
     if (value === 'VARIABLE') return 'Variable';
     if (value === 'SECRET') return 'Secret';
+    if (value === 'RANDOM_STRING') return 'Random String';
     return 'File';
 }
 

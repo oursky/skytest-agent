@@ -8,7 +8,9 @@ import Link from 'next/link';
 
 const CONFIG_NAME_REGEX = /^[A-Z][A-Z0-9_]*$/;
 
-const TYPE_ORDER: ConfigType[] = ['URL', 'VARIABLE', 'SECRET', 'FILE'];
+const TYPE_ORDER: ConfigType[] = ['URL', 'VARIABLE', 'SECRET', 'RANDOM_STRING', 'FILE'];
+
+const RANDOM_STRING_GENERATION_TYPES = ['TIMESTAMP_UNIX', 'TIMESTAMP_DATETIME', 'UUID'] as const;
 
 interface BrowserEntry {
     id: string;
@@ -48,11 +50,21 @@ function sortConfigs(configs: ConfigItem[]): ConfigItem[] {
     });
 }
 
+function randomStringGenerationLabel(value: string, t: (key: string) => string): string {
+    switch (value) {
+        case 'TIMESTAMP_UNIX': return t('configs.randomString.timestampUnix');
+        case 'TIMESTAMP_DATETIME': return t('configs.randomString.timestampDatetime');
+        case 'UUID': return t('configs.randomString.uuid');
+        default: return value;
+    }
+}
+
 function TypeSubHeader({ type, t }: { type: ConfigType; t: (key: string) => string }) {
     const key = type === 'URL' ? 'configs.title.urls'
         : type === 'VARIABLE' ? 'configs.title.variables'
             : type === 'SECRET' ? 'configs.title.secrets'
-                : 'configs.title.files';
+                : type === 'RANDOM_STRING' ? 'configs.title.randomStrings'
+                    : 'configs.title.files';
     return (
         <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider pt-2 first:pt-0">
             {t(key)}
@@ -121,7 +133,7 @@ export default function ConfigurationsSection({
             setError(t('configs.error.invalidName'));
             return;
         }
-        if (editState.type !== 'FILE' && !editState.value.trim()) {
+        if (editState.type !== 'FILE' && editState.type !== 'RANDOM_STRING' && !editState.value.trim()) {
             setError(t('configs.error.valueRequired'));
             return;
         }
@@ -347,7 +359,7 @@ export default function ConfigurationsSection({
                             >
                                 <code className="font-mono text-gray-800 text-xs">{config.name}</code>
                                 <span className="text-gray-400 text-xs truncate">
-                                    {config.type === 'SECRET' ? '••••••' : config.type === 'FILE' ? (config.filename || config.value) : config.value}
+                                    {config.type === 'SECRET' ? '••••••' : config.type === 'FILE' ? (config.filename || config.value) : config.type === 'RANDOM_STRING' ? randomStringGenerationLabel(config.value, t) : config.value}
                                 </span>
                             </div>
                         ))}
@@ -377,7 +389,7 @@ export default function ConfigurationsSection({
                             </button>
                             {addTypeOpen && (
                                 <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-10 py-1 min-w-[120px]">
-                                    {(['URL', 'VARIABLE', 'SECRET', 'FILE'] as ConfigType[]).map(type => (
+                                    {(['URL', 'VARIABLE', 'SECRET', 'RANDOM_STRING', 'FILE'] as ConfigType[]).map(type => (
                                         <button
                                             key={type}
                                             type="button"
@@ -389,7 +401,7 @@ export default function ConfigurationsSection({
                                                     setError(null);
                                                 } else {
                                                     setFileUploadDraft(null);
-                                                    setEditState({ name: '', value: '', type });
+                                                    setEditState({ name: '', value: type === 'RANDOM_STRING' ? 'TIMESTAMP_UNIX' : '', type });
                                                     setError(null);
                                                     setShowSecretInEdit(false);
                                                 }
@@ -423,30 +435,44 @@ export default function ConfigurationsSection({
                                             className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-primary"
                                         />
                                         <div className="flex-[2] relative">
-                                            <input
-                                                type={config.type === 'SECRET' && !showSecretInEdit ? 'password' : 'text'}
-                                                value={editState.value}
-                                                onChange={(e) => setEditState({ ...editState, value: e.target.value })}
-                                                placeholder={config.type === 'URL' ? t('configs.url.placeholder') : config.type === 'SECRET' ? t('configs.secret.placeholder') : t('configs.value.placeholder')}
-                                                className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary pr-7"
-                                            />
-                                            {config.type === 'SECRET' && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setShowSecretInEdit(!showSecretInEdit)}
-                                                    className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600"
+                                            {config.type === 'RANDOM_STRING' ? (
+                                                <select
+                                                    value={editState.value}
+                                                    onChange={(e) => setEditState({ ...editState, value: e.target.value })}
+                                                    className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary bg-white"
                                                 >
-                                                    {showSecretInEdit ? (
-                                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                                                        </svg>
-                                                    ) : (
-                                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                                        </svg>
+                                                    {RANDOM_STRING_GENERATION_TYPES.map(gt => (
+                                                        <option key={gt} value={gt}>{randomStringGenerationLabel(gt, t)}</option>
+                                                    ))}
+                                                </select>
+                                            ) : (
+                                                <>
+                                                    <input
+                                                        type={config.type === 'SECRET' && !showSecretInEdit ? 'password' : 'text'}
+                                                        value={editState.value}
+                                                        onChange={(e) => setEditState({ ...editState, value: e.target.value })}
+                                                        placeholder={config.type === 'URL' ? t('configs.url.placeholder') : config.type === 'SECRET' ? t('configs.secret.placeholder') : t('configs.value.placeholder')}
+                                                        className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary pr-7"
+                                                    />
+                                                    {config.type === 'SECRET' && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setShowSecretInEdit(!showSecretInEdit)}
+                                                            className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600"
+                                                        >
+                                                            {showSecretInEdit ? (
+                                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                                                </svg>
+                                                            ) : (
+                                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                                </svg>
+                                                            )}
+                                                        </button>
                                                     )}
-                                                </button>
+                                                </>
                                             )}
                                         </div>
                                         <button type="button" onClick={handleSave} className="px-2 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90">{t('common.save')}</button>
@@ -493,7 +519,7 @@ export default function ConfigurationsSection({
                             <div key={config.id} className="flex items-center gap-2 px-2 py-1.5 rounded text-sm group hover:bg-gray-50">
                                 <code className="font-mono text-gray-800 text-xs">{config.name}</code>
                                 <span className="text-gray-400 text-xs truncate">
-                                    {config.type === 'SECRET' ? '••••••' : config.value}
+                                    {config.type === 'SECRET' ? '••••••' : config.type === 'RANDOM_STRING' ? randomStringGenerationLabel(config.value, t) : config.value}
                                 </span>
                                 {overridesProject && (
                                     <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">{t('configs.override')}</span>
@@ -536,30 +562,44 @@ export default function ConfigurationsSection({
                                     autoFocus
                                 />
                                 <div className="flex-[2] relative">
-                                    <input
-                                        type={editState.type === 'SECRET' && !showSecretInEdit ? 'password' : 'text'}
-                                        value={editState.value}
-                                        onChange={(e) => setEditState({ ...editState, value: e.target.value })}
-                                        placeholder={editState.type === 'URL' ? t('configs.url.placeholder') : editState.type === 'SECRET' ? t('configs.secret.placeholder') : t('configs.value.placeholder')}
-                                        className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary pr-7"
-                                    />
-                                    {editState.type === 'SECRET' && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowSecretInEdit(!showSecretInEdit)}
-                                            className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600"
+                                    {editState.type === 'RANDOM_STRING' ? (
+                                        <select
+                                            value={editState.value}
+                                            onChange={(e) => setEditState({ ...editState, value: e.target.value })}
+                                            className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary bg-white"
                                         >
-                                            {showSecretInEdit ? (
-                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                                                </svg>
-                                            ) : (
-                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                                </svg>
+                                            {RANDOM_STRING_GENERATION_TYPES.map(gt => (
+                                                <option key={gt} value={gt}>{randomStringGenerationLabel(gt, t)}</option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <>
+                                            <input
+                                                type={editState.type === 'SECRET' && !showSecretInEdit ? 'password' : 'text'}
+                                                value={editState.value}
+                                                onChange={(e) => setEditState({ ...editState, value: e.target.value })}
+                                                placeholder={editState.type === 'URL' ? t('configs.url.placeholder') : editState.type === 'SECRET' ? t('configs.secret.placeholder') : t('configs.value.placeholder')}
+                                                className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary pr-7"
+                                            />
+                                            {editState.type === 'SECRET' && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowSecretInEdit(!showSecretInEdit)}
+                                                    className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600"
+                                                >
+                                                    {showSecretInEdit ? (
+                                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                                        </svg>
+                                                    ) : (
+                                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                        </svg>
+                                                    )}
+                                                </button>
                                             )}
-                                        </button>
+                                        </>
                                     )}
                                 </div>
                                 <button type="button" onClick={handleSave} className="px-2 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90">{t('common.save')}</button>

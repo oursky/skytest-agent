@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { prisma } from '@/lib/prisma';
 import type { ResolvedConfig, ConfigType } from '@/types';
 
@@ -5,6 +6,22 @@ interface ResolvedConfigs {
     variables: Record<string, string>;
     files: Record<string, string>;
     allConfigs: ResolvedConfig[];
+}
+
+function generateRandomStringValue(generationType: string): string {
+    switch (generationType) {
+        case 'TIMESTAMP_UNIX':
+            return Date.now().toString();
+        case 'TIMESTAMP_DATETIME': {
+            const now = new Date();
+            const pad = (n: number, len = 2) => String(n).padStart(len, '0');
+            return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}${pad(now.getMilliseconds(), 3)}`;
+        }
+        case 'UUID':
+            return randomUUID().replace(/-/g, '');
+        default:
+            return randomUUID().replace(/-/g, '');
+    }
 }
 
 export async function resolveConfigs(projectId: string, testCaseId?: string): Promise<ResolvedConfigs> {
@@ -38,6 +55,18 @@ export async function resolveConfigs(projectId: string, testCaseId?: string): Pr
             value: tc.value,
             source: 'test-case',
         });
+    }
+
+    const generatedValues = new Set<string>();
+    for (const config of merged.values()) {
+        if (config.type === 'RANDOM_STRING') {
+            let value = generateRandomStringValue(config.value);
+            while (generatedValues.has(value)) {
+                value = generateRandomStringValue(config.value);
+            }
+            generatedValues.add(value);
+            config.value = value;
+        }
     }
 
     const variables: Record<string, string> = {};

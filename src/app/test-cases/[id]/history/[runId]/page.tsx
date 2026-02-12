@@ -9,7 +9,7 @@ import Breadcrumbs from "@/components/Breadcrumbs";
 import { formatDateTime } from "@/utils/dateFormatter";
 import { useI18n } from "@/i18n";
 
-import { TestStep, BrowserConfig } from "@/types";
+import { TestStep, BrowserConfig, ConfigItem } from "@/types";
 
 interface TestRun {
     id: string;
@@ -170,7 +170,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
         }
     };
 
-    const testData = (() => {
+    const { testData, snapshotConfigs } = (() => {
         const baseConfig = testCase ? {
             name: testCase.name,
             url: testCase.url,
@@ -183,7 +183,9 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 
         if (testRun.configurationSnapshot) {
             try {
-                const savedConfig = JSON.parse(testRun.configurationSnapshot) as Partial<TestCase>;
+                const savedConfig = JSON.parse(testRun.configurationSnapshot) as Partial<TestCase> & {
+                    resolvedConfigurations?: Array<{ name: string; type: string; value: string; source: string }>;
+                };
                 const data = {
                     name: savedConfig.name ?? baseConfig?.name,
                     url: savedConfig.url ?? baseConfig?.url ?? '',
@@ -193,13 +195,19 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                     steps: savedConfig.steps ?? baseConfig?.steps,
                     browserConfig: savedConfig.browserConfig ?? baseConfig?.browserConfig,
                 };
-                return data;
+                const configs: ConfigItem[] = (savedConfig.resolvedConfigurations || []).map((c, i) => ({
+                    id: `snapshot-${i}`,
+                    name: c.name,
+                    type: c.type as ConfigItem['type'],
+                    value: c.value,
+                }));
+                return { testData: data, snapshotConfigs: configs };
             } catch (error) {
                 console.error("Failed to parse configuration snapshot", error);
             }
         }
 
-        return baseConfig;
+        return { testData: baseConfig, snapshotConfigs: [] as ConfigItem[] };
     })();
 
     return (
@@ -226,6 +234,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                                 readOnly={true}
                                 testCaseId={id}
                                 onExport={testData ? handleExport : undefined}
+                                testCaseConfigs={snapshotConfigs}
                             />
                         )}
                     </div>

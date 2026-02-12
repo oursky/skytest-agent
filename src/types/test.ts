@@ -67,7 +67,9 @@ export interface TestResult {
     actionCount?: number;
 }
 
-export type ConfigType = 'URL' | 'VARIABLE' | 'SECRET' | 'FILE';
+export type ConfigType = 'URL' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING' | 'FILE';
+
+export type RandomStringGenerationType = 'TIMESTAMP_UNIX' | 'TIMESTAMP_DATETIME' | 'UUID';
 
 export interface ConfigItem {
     id: string;
