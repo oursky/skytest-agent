@@ -770,6 +770,13 @@ function RunPageContent() {
         }
     };
 
+    const isRunInProgress =
+        isLoading
+        || ['RUNNING', 'QUEUED'].includes(result.status)
+        || !!activeRunId
+        || testCaseStatus === 'RUNNING'
+        || testCaseStatus === 'QUEUED';
+
     if (isAuthLoading) return null;
 
     return (
@@ -831,9 +838,9 @@ function RunPageContent() {
                             isLoading={isLoading || (!!activeRunId && activeRunId === currentRunId)}
                             initialData={initialData}
                             showNameInput={true}
-                            readOnly={['RUNNING', 'QUEUED'].includes(result.status) || !!activeRunId || testCaseStatus === 'RUNNING' || testCaseStatus === 'QUEUED'}
+                            readOnly={isRunInProgress}
                             onExport={handleExport}
-                            onImport={() => fileInputRef.current?.click()}
+                            onImport={isRunInProgress ? undefined : () => fileInputRef.current?.click()}
                             testCaseId={testCaseId || currentTestCaseId || refreshFilesRef.current || undefined}
                             onSaveDraft={handleSaveDraft}
                             onDiscard={handleDiscard}
