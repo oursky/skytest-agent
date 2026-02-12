@@ -41,7 +41,7 @@ export interface ParsedTestCaseExcel {
 
 interface ParseResult {
     data: ParsedTestCaseExcel;
-    errors: string[];
+    warnings: string[];
 }
 
 export function exportToExcelBuffer(data: TestCaseExcelExportData): Buffer {
@@ -59,7 +59,7 @@ export function exportToExcelArrayBuffer(data: TestCaseExcelExportData): ArrayBu
 }
 
 export function parseTestCaseExcel(content: ArrayBuffer): ParseResult {
-    const errors: string[] = [];
+    const warnings: string[] = [];
     const emptyData: ParsedTestCaseExcel = {
         testData: {
             url: '',
@@ -75,13 +75,13 @@ export function parseTestCaseExcel(content: ArrayBuffer): ParseResult {
         workbook = XLSX.read(content, { type: 'array' });
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Invalid Excel file';
-        errors.push(`Failed to parse Excel: ${errorMessage}`);
-        return { data: emptyData, errors };
+        warnings.push(`Failed to parse Excel: ${errorMessage}`);
+        return { data: emptyData, warnings };
     }
 
     const configurationsRows = readSheetRows(workbook, 'Configurations');
     const stepRows = readSheetRows(workbook, 'Test Steps');
-    const parsedConfigurations = parseConfigurationsRows(configurationsRows, errors);
+    const parsedConfigurations = parseConfigurationsRows(configurationsRows, warnings);
 
     let parsedTestCase = parsedConfigurations.testCase;
     let browserEntries = parsedConfigurations.browserEntries;
@@ -97,11 +97,11 @@ export function parseTestCaseExcel(content: ArrayBuffer): ParseResult {
         const browserRows = readSheetRows(workbook, 'Browser Entry Points');
         const fileRows = readSheetRows(workbook, 'Files');
         parsedTestCase = parseTestCaseRows(testCaseRows);
-        browserEntries = parseBrowserRows(browserRows, errors);
+        browserEntries = parseBrowserRows(browserRows, warnings);
         browserAliases = {};
-        projectVariables = parseProjectVariableRows(variableRows, errors);
+        projectVariables = parseProjectVariableRows(variableRows, warnings);
         testCaseVariables = [];
-        files = parseFileRows(fileRows, errors);
+        files = parseFileRows(fileRows, warnings);
     }
 
     const browserConfig: Record<string, BrowserConfig> = {};
@@ -114,7 +114,7 @@ export function parseTestCaseExcel(content: ArrayBuffer): ParseResult {
 
     const fallbackBrowserId = browserEntries[0]?.id || 'browser_a';
     const validBrowserIds = new Set(browserEntries.map((browser) => browser.id));
-    const steps = parseStepRows(stepRows, validBrowserIds, browserAliases, fallbackBrowserId, errors);
+    const steps = parseStepRows(stepRows, validBrowserIds, browserAliases, fallbackBrowserId, warnings);
 
     return {
         data: {
@@ -130,7 +130,7 @@ export function parseTestCaseExcel(content: ArrayBuffer): ParseResult {
             testCaseVariables,
             files,
         },
-        errors,
+        warnings,
     };
 }
 
@@ -192,7 +192,7 @@ function buildWorkbook(data: TestCaseExcelExportData): XLSX.WorkBook {
 
 function parseConfigurationsRows(
     rows: Array<Record<string, unknown>>,
-    errors: string[]
+    warnings: string[]
 ): {
     testCase: { name?: string; testCaseId?: string; primaryUrl?: string };
     projectVariables: ExcelProjectVariable[];
@@ -225,21 +225,26 @@ function parseConfigurationsRows(
         }
 
         if (section === 'projectvariables' || section === 'testcasevariables') {
-            const name = getRowValue(row, ['key', 'name']);
+            const rawName = getRowValue(row, ['key', 'name']);
             const value = getRowValue(row, ['value']);
             const type = normalizeConfigType(getRowValue(row, ['type', 'config type']));
-            if (!name) {
-                errors.push(`Missing name in Configurations row ${index + 1}`);
-                return;
-            }
-            if (!value) {
-                errors.push(`Missing value in Configurations row ${index + 1}`);
+            if (!rawName) {
+                warnings.push(`Missing name in Configurations row ${index + 1}`);
                 return;
             }
             if (!type) {
-                errors.push(`Invalid variable type in Configurations row ${index + 1}`);
+                warnings.push(`Invalid variable type in Configurations row ${index + 1}`);
                 return;
             }
+            if (type === 'FILE') {
+                warnings.push(`file_type_skipped:${rawName.trim().toUpperCase()}`);
+                return;
+            }
+            if (!value) {
+                warnings.push(`Missing value in Configurations row ${index + 1}`);
+                return;
+            }
+            const name = rawName.trim().toUpperCase();
             const destination = section === 'projectvariables' ? projectVariables : testCaseVariables;
             destination.push({ name, type, value });
             return;
@@ -250,11 +255,11 @@ function parseConfigurationsRows(
             const key = normalizeHeader(getRowValue(row, ['key']) || '');
             const value = getRowValue(row, ['value']) || '';
             if (!browserLabel) {
-                errors.push(`Missing browser label in Configurations row ${index + 1}`);
+                warnings.push(`Missing browser label in Configurations row ${index + 1}`);
                 return;
             }
             if (!key) {
-                errors.push(`Missing browser key in Configurations row ${index + 1}`);
+                warnings.push(`Missing browser key in Configurations row ${index + 1}`);
                 return;
             }
             const entry = browserEntryDrafts.get(browserLabel) || {};
@@ -270,7 +275,7 @@ function parseConfigurationsRows(
         if (section === 'file') {
             const filename = getRowValue(row, ['key', 'name', 'filename', 'file name']);
             if (!filename) {
-                errors.push(`Missing filename in Configurations row ${index + 1}`);
+                warnings.push(`Missing filename in Configurations row ${index + 1}`);
                 return;
             }
             const sizeRaw = getRowValue(row, ['size']);
@@ -285,7 +290,7 @@ function parseConfigurationsRows(
 
     Array.from(browserEntryDrafts.entries()).forEach(([browserLabel, draft], index) => {
         if (!draft.url) {
-            errors.push(`Missing browser URL for ${browserLabel}`);
+            warnings.push(`Missing browser URL for ${browserLabel}`);
             return;
         }
         const id = browserLabelToId(browserLabel, index);
@@ -343,11 +348,11 @@ function parseTestCaseRows(rows: Array<Record<string, unknown>>): { name?: strin
     };
 }
 
-function parseBrowserRows(rows: Array<Record<string, unknown>>, errors: string[]): Array<{ id: string; name?: string; url: string }> {
+function parseBrowserRows(rows: Array<Record<string, unknown>>, warnings: string[]): Array<{ id: string; name?: string; url: string }> {
     return rows.flatMap((row, index) => {
         const url = getRowValue(row, ['url', 'entry url']);
         if (!url) {
-            errors.push(`Missing URL in Browser Entry Points row ${index + 1}`);
+            warnings.push(`Missing URL in Browser Entry Points row ${index + 1}`);
             return [];
         }
 
@@ -365,12 +370,12 @@ function parseStepRows(
     validBrowserIds: Set<string>,
     browserAliases: Record<string, string>,
     fallbackTarget: string,
-    errors: string[]
+    warnings: string[]
 ): TestStep[] {
     return rows.flatMap((row, index) => {
         const action = getRowMultilineValue(row, ['action', 'step']);
         if (!action) {
-            errors.push(`Missing action in Test Steps row ${index + 1}`);
+            warnings.push(`Missing action in Test Steps row ${index + 1}`);
             return [];
         }
 
@@ -396,34 +401,38 @@ function parseStepNo(value: string | undefined, fallback: number): number {
     return parsed;
 }
 
-function parseProjectVariableRows(rows: Array<Record<string, unknown>>, errors: string[]): ExcelProjectVariable[] {
+function parseProjectVariableRows(rows: Array<Record<string, unknown>>, warnings: string[]): ExcelProjectVariable[] {
     return rows.flatMap((row, index) => {
-        const name = getRowValue(row, ['name']);
+        const rawName = getRowValue(row, ['name']);
         const type = normalizeConfigType(getRowValue(row, ['type']));
         const value = getRowValue(row, ['value']);
 
-        if (!name) {
-            errors.push(`Missing name in Project Variables row ${index + 1}`);
-            return [];
-        }
-        if (!value) {
-            errors.push(`Missing value in Project Variables row ${index + 1}`);
+        if (!rawName) {
+            warnings.push(`Missing name in Project Variables row ${index + 1}`);
             return [];
         }
         if (!type) {
-            errors.push(`Invalid type in Project Variables row ${index + 1}`);
+            warnings.push(`Invalid type in Project Variables row ${index + 1}`);
+            return [];
+        }
+        if (type === 'FILE') {
+            warnings.push(`file_type_skipped:${rawName.trim().toUpperCase()}`);
+            return [];
+        }
+        if (!value) {
+            warnings.push(`Missing value in Project Variables row ${index + 1}`);
             return [];
         }
 
-        return [{ name, type, value }];
+        return [{ name: rawName.trim().toUpperCase(), type, value }];
     });
 }
 
-function parseFileRows(rows: Array<Record<string, unknown>>, errors: string[]): ExcelFileEntry[] {
+function parseFileRows(rows: Array<Record<string, unknown>>, warnings: string[]): ExcelFileEntry[] {
     return rows.flatMap((row, index) => {
         const filename = getRowValue(row, ['filename', 'file name', 'name']);
         if (!filename) {
-            errors.push(`Missing filename in Files row ${index + 1}`);
+            warnings.push(`Missing filename in Files row ${index + 1}`);
             return [];
         }
 

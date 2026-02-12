@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth } from '@/lib/auth';
-import { validateConfigName, validateConfigType } from '@/lib/config-validation';
+import { validateConfigName, validateConfigType, normalizeConfigName } from '@/lib/config-validation';
 import { getTestCaseConfigUploadPath } from '@/lib/file-security';
 import { createLogger } from '@/lib/logger';
 import fs from 'fs/promises';
@@ -39,10 +39,10 @@ export async function PUT(
         }
 
         const body = await request.json();
-        const { name, type, value } = body;
+        const { name: rawName, type, value } = body;
 
-        if (name !== undefined) {
-            const nameError = validateConfigName(name);
+        if (rawName !== undefined) {
+            const nameError = validateConfigName(rawName);
             if (nameError) {
                 return NextResponse.json({ error: nameError }, { status: 400 });
             }
@@ -51,6 +51,8 @@ export async function PUT(
         if (type !== undefined && !validateConfigType(type)) {
             return NextResponse.json({ error: 'Invalid config type' }, { status: 400 });
         }
+
+        const name = rawName !== undefined ? normalizeConfigName(rawName) : undefined;
 
         const config = await prisma.testCaseConfig.update({
             where: { id: configId },

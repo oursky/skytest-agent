@@ -28,6 +28,10 @@ interface TestResult {
     error?: string;
 }
 
+interface ImportFeedbackItem {
+    type: 'error' | 'warning' | 'success';
+    message: string;
+}
 
 function RunPageContent() {
     const searchParams = useSearchParams();
@@ -61,6 +65,8 @@ function RunPageContent() {
     const [projectConfigs, setProjectConfigs] = useState<ConfigItem[]>([]);
     const [testCaseConfigs, setTestCaseConfigs] = useState<ConfigItem[]>([]);
     const refreshFilesRef = useRef<string | null>(null);
+    const [importFeedback, setImportFeedback] = useState<ImportFeedbackItem[] | null>(null);
+    const importFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useUnsavedChanges(isDirty, t('run.unsavedChangesWarning'));
 
@@ -116,16 +122,17 @@ function RunPageContent() {
     const importVariablesToTestCase = async (
         variables: Array<{ name: string; type: 'URL' | 'VARIABLE' | 'SECRET' | 'FILE'; value: string }>,
         sourceData: TestData
-    ): Promise<string | null> => {
+    ): Promise<{ testCaseId: string | null; errors: string[] }> => {
+        const errors: string[] = [];
         if (variables.length === 0) {
-            return testCaseId || currentTestCaseId || refreshFilesRef.current || null;
+            return { testCaseId: testCaseId || currentTestCaseId || refreshFilesRef.current || null, errors };
         }
 
         let targetTestCaseId = testCaseId || currentTestCaseId || refreshFilesRef.current || null;
         if (!targetTestCaseId) {
             targetTestCaseId = await ensureTestCaseFromData(sourceData);
         }
-        if (!targetTestCaseId) return null;
+        if (!targetTestCaseId) return { testCaseId: null, errors };
 
         const token = await getAccessToken();
         const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
@@ -140,24 +147,32 @@ function RunPageContent() {
 
         for (const variable of variables) {
             const existing = existingByName.get(variable.name);
-            if (!existing) {
-                await fetch(`/api/test-cases/${targetTestCaseId}/configs`, {
-                    method: 'POST',
-                    headers: jsonHeaders,
-                    body: JSON.stringify(variable),
-                });
-                continue;
+            try {
+                let response: Response;
+                if (!existing) {
+                    response = await fetch(`/api/test-cases/${targetTestCaseId}/configs`, {
+                        method: 'POST',
+                        headers: jsonHeaders,
+                        body: JSON.stringify(variable),
+                    });
+                } else {
+                    response = await fetch(`/api/test-cases/${targetTestCaseId}/configs/${existing.id}`, {
+                        method: 'PUT',
+                        headers: jsonHeaders,
+                        body: JSON.stringify(variable),
+                    });
+                }
+                if (!response.ok) {
+                    const body = await response.json().catch(() => ({ error: 'Unknown error' }));
+                    errors.push(t('testForm.importError.configFailed', { name: variable.name, error: body.error || `HTTP ${response.status}` }));
+                }
+            } catch {
+                errors.push(t('testForm.importError.configFailed', { name: variable.name, error: 'Network error' }));
             }
-
-            await fetch(`/api/test-cases/${targetTestCaseId}/configs/${existing.id}`, {
-                method: 'PUT',
-                headers: jsonHeaders,
-                body: JSON.stringify(variable),
-            });
         }
 
         await fetchTestCaseConfigs(targetTestCaseId);
-        return targetTestCaseId;
+        return { testCaseId: targetTestCaseId, errors };
     };
 
     const handleExport = async (data: TestData) => {
@@ -252,20 +267,41 @@ function RunPageContent() {
         downloadBlob(blob, `${buildExcelBaseName(exportData.displayId, exportData.name)}.xlsx`);
     };
 
+    const setImportFeedbackWithAutoDismiss = (items: ImportFeedbackItem[]) => {
+        if (importFeedbackTimerRef.current) {
+            clearTimeout(importFeedbackTimerRef.current);
+            importFeedbackTimerRef.current = null;
+        }
+        setImportFeedback(items);
+        const hasOnlySuccess = items.every((item) => item.type === 'success');
+        if (hasOnlySuccess) {
+            importFeedbackTimerRef.current = setTimeout(() => {
+                setImportFeedback(null);
+                importFeedbackTimerRef.current = null;
+            }, 8000);
+        }
+    };
+
     const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
+        setImportFeedback(null);
         try {
             if (!isExcelFilename(file.name)) {
-                alert(t('testForm.importWarnings', { warnings: t('testForm.importError.invalidExcelFormat') }));
+                setImportFeedbackWithAutoDismiss([{ type: 'error', message: t('testForm.importError.invalidExcelFormat') }]);
                 return;
             }
 
             const fileBuffer = await file.arrayBuffer();
-            const { data, errors } = parseTestCaseExcel(fileBuffer);
-            if (errors.length > 0) {
-                alert(t('testForm.importWarnings', { warnings: errors.join(', ') }));
-            }
+            const { data, warnings } = parseTestCaseExcel(fileBuffer);
+
+            const feedbackItems: ImportFeedbackItem[] = warnings.map((w) => {
+                if (w.startsWith('file_type_skipped:')) {
+                    const varName = w.slice('file_type_skipped:'.length);
+                    return { type: 'warning' as const, message: t('testForm.importWarning.fileTypeSkipped', { name: varName }) };
+                }
+                return { type: 'warning' as const, message: w };
+            });
 
             setInitialData(data.testData);
             if (data.testCaseId) {
@@ -273,13 +309,23 @@ function RunPageContent() {
             }
             setIsDirty(true);
 
-            await importVariablesToTestCase(
+            const { errors: configErrors } = await importVariablesToTestCase(
                 [...data.projectVariables, ...data.testCaseVariables],
                 data.testData
             );
+
+            for (const err of configErrors) {
+                feedbackItems.push({ type: 'error', message: err });
+            }
+
+            if (feedbackItems.length === 0) {
+                feedbackItems.push({ type: 'success', message: t('testForm.importSuccess') });
+            }
+
+            setImportFeedbackWithAutoDismiss(feedbackItems);
         } catch (error) {
             console.error('Failed to import test case', error);
-            alert(t('testForm.importWarnings', { warnings: t('testForm.importError.failed') }));
+            setImportFeedbackWithAutoDismiss([{ type: 'error', message: t('testForm.importError.failed') }]);
         }
         event.target.value = '';
     };
@@ -808,6 +854,41 @@ function RunPageContent() {
                     )}
                 </div>
             </div>
+            {importFeedback && importFeedback.length > 0 && (
+                <div className="mb-6 space-y-2">
+                    {importFeedback.map((item, index) => (
+                        <div
+                            key={index}
+                            className={`flex items-start justify-between rounded-lg px-4 py-3 text-sm ${
+                                item.type === 'error'
+                                    ? 'bg-red-50 text-red-700'
+                                    : item.type === 'warning'
+                                    ? 'bg-amber-50 text-amber-700'
+                                    : 'bg-green-50 text-green-700'
+                            }`}
+                        >
+                            <span>{item.message}</span>
+                            {index === 0 && (
+                                <button
+                                    onClick={() => {
+                                        setImportFeedback(null);
+                                        if (importFeedbackTimerRef.current) {
+                                            clearTimeout(importFeedbackTimerRef.current);
+                                            importFeedbackTimerRef.current = null;
+                                        }
+                                    }}
+                                    className="ml-4 shrink-0 hover:opacity-70"
+                                    title={t('common.dismiss')}
+                                >
+                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
                 <div className="space-y-6">
                     {activeRunId && activeRunId !== currentRunId ? (

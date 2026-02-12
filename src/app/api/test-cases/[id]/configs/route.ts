@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth } from '@/lib/auth';
-import { validateConfigName, validateConfigType } from '@/lib/config-validation';
+import { validateConfigName, validateConfigType, normalizeConfigName } from '@/lib/config-validation';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('api:test-cases:configs');
@@ -79,12 +79,14 @@ export async function POST(
         }
 
         const body = await request.json();
-        const { name, type, value } = body;
+        const { name: rawName, type, value } = body;
 
-        const nameError = validateConfigName(name);
+        const nameError = validateConfigName(rawName);
         if (nameError) {
             return NextResponse.json({ error: nameError }, { status: 400 });
         }
+
+        const name = normalizeConfigName(rawName);
 
         if (!validateConfigType(type)) {
             return NextResponse.json({ error: 'Invalid config type' }, { status: 400 });

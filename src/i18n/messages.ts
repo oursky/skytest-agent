@@ -32,6 +32,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'common.copy': 'Copy',
     'common.rows': 'Rows:',
     'common.noRecords': 'No records',
+    'common.dismiss': 'Dismiss',
     'testCase.untitled': 'Untitled',
 
     // Pagination
@@ -207,8 +208,11 @@ export const MESSAGES: Record<Locale, Messages> = {
     'testForm.importTitle': 'Import test case from Excel',
     'testForm.exportTitle': 'Export test case to Excel',
     'testForm.importWarnings': 'Import warnings: {warnings}',
+    'testForm.importSuccess': 'Test case imported successfully',
     'testForm.importError.invalidExcelFormat': 'Only Excel files (.xlsx, .xls) are supported',
     'testForm.importError.failed': 'Failed to import file',
+    'testForm.importError.configFailed': 'Failed to save variable "{name}": {error}',
+    'testForm.importWarning.fileTypeSkipped': 'File variable "{name}" was skipped — please upload test files manually in Configurations',
     'testForm.tab.configurations': 'Configurations',
     'testForm.tab.testSteps': 'Test Steps',
     'testForm.sampleData': 'Test with Sample Data',
@@ -391,6 +395,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'common.copy': '複製',
     'common.rows': '每頁筆數：',
     'common.noRecords': '沒有紀錄',
+    'common.dismiss': '關閉',
     'testCase.untitled': '未命名',
 
     // Pagination
@@ -566,8 +571,11 @@ export const MESSAGES: Record<Locale, Messages> = {
     'testForm.importTitle': '從 Excel 匯入測試案例',
     'testForm.exportTitle': '匯出測試案例為 Excel',
     'testForm.importWarnings': '匯入警告：{warnings}',
+    'testForm.importSuccess': '測試案例匯入成功',
     'testForm.importError.invalidExcelFormat': '僅支援 Excel 檔案（.xlsx、.xls）',
     'testForm.importError.failed': '匯入檔案失敗',
+    'testForm.importError.configFailed': '儲存變數「{name}」失敗：{error}',
+    'testForm.importWarning.fileTypeSkipped': '檔案變數「{name}」已略過，請在設定中手動上傳測試檔案',
     'testForm.tab.configurations': '設定',
     'testForm.tab.testSteps': '測試步驟',
     'testForm.sampleData': '套用範例資料',
@@ -750,6 +758,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'common.copy': '复制',
     'common.rows': '每页行数：',
     'common.noRecords': '没有记录',
+    'common.dismiss': '关闭',
     'testCase.untitled': '未命名',
 
     // Pagination
@@ -925,8 +934,11 @@ export const MESSAGES: Record<Locale, Messages> = {
     'testForm.importTitle': '从 Excel 导入测试用例',
     'testForm.exportTitle': '导出测试用例为 Excel',
     'testForm.importWarnings': '导入警告：{warnings}',
+    'testForm.importSuccess': '测试用例导入成功',
     'testForm.importError.invalidExcelFormat': '仅支持 Excel 文件（.xlsx、.xls）',
     'testForm.importError.failed': '导入文件失败',
+    'testForm.importError.configFailed': '保存变量"{name}"失败：{error}',
+    'testForm.importWarning.fileTypeSkipped': '文件变量"{name}"已跳过，请在配置中手动上传测试文件',
     'testForm.tab.configurations': '配置',
     'testForm.tab.testSteps': '测试步骤',
     'testForm.sampleData': '加载示例数据',

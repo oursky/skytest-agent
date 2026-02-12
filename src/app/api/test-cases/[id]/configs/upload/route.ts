@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth } from '@/lib/auth';
 import { validateAndSanitizeFile, getTestCaseConfigUploadPath } from '@/lib/file-security';
-import { validateConfigName } from '@/lib/config-validation';
+import { validateConfigName, normalizeConfigName } from '@/lib/config-validation';
 import { createLogger } from '@/lib/logger';
 import fs from 'fs/promises';
 import path from 'path';
@@ -51,6 +51,8 @@ export async function POST(
             return NextResponse.json({ error: nameError }, { status: 400 });
         }
 
+        const normalizedName = normalizeConfigName(name);
+
         const validation = validateAndSanitizeFile(file.name, file.type, file.size);
         if (!validation.valid) {
             return NextResponse.json({ error: validation.error }, { status: 400 });
@@ -67,7 +69,7 @@ export async function POST(
         const config = await prisma.testCaseConfig.create({
             data: {
                 testCaseId: id,
-                name,
+                name: normalizedName,
                 type: 'FILE',
                 value: storedName,
                 filename: validation.sanitizedFilename!,
