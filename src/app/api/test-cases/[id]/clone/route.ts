@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
-import { getFilePath, getUploadPath } from '@/lib/file-security';
+import { getFilePath, getTestCaseConfigUploadPath, getUploadPath } from '@/lib/file-security';
 import fs from 'fs/promises';
 import path from 'path';
 import { config } from '@/config/app';
@@ -28,6 +28,9 @@ export async function POST(
                 project: { select: { userId: true } },
                 files: {
                     orderBy: { createdAt: 'desc' }
+                },
+                configs: {
+                    orderBy: { createdAt: 'asc' }
                 }
             }
         });
@@ -61,12 +64,16 @@ export async function POST(
         });
 
         const uploadRootRelative = config.files.uploadDir.replace(/^\.\//, '').replace(/\/$/, '');
+        const uploadDirWithoutTrailingSlash = config.files.uploadDir.replace(/\/$/, '');
         const rewriteUploadPaths = (value: string | null | undefined) => {
             if (!value) return value;
             return value
                 .split(`${uploadRootRelative}/${existingTestCase.id}/`).join(`${uploadRootRelative}/${clonedTestCase.id}/`)
                 .split(`./${uploadRootRelative}/${existingTestCase.id}/`).join(`./${uploadRootRelative}/${clonedTestCase.id}/`)
-                .split(`${config.files.uploadDir.replace(/\/$/, '')}/${existingTestCase.id}/`).join(`${config.files.uploadDir.replace(/\/$/, '')}/${clonedTestCase.id}/`);
+                .split(`${uploadDirWithoutTrailingSlash}/${existingTestCase.id}/`).join(`${uploadDirWithoutTrailingSlash}/${clonedTestCase.id}/`)
+                .split(`${uploadRootRelative}/testcase-configs/${existingTestCase.id}/`).join(`${uploadRootRelative}/testcase-configs/${clonedTestCase.id}/`)
+                .split(`./${uploadRootRelative}/testcase-configs/${existingTestCase.id}/`).join(`./${uploadRootRelative}/testcase-configs/${clonedTestCase.id}/`)
+                .split(`${uploadDirWithoutTrailingSlash}/testcase-configs/${existingTestCase.id}/`).join(`${uploadDirWithoutTrailingSlash}/testcase-configs/${clonedTestCase.id}/`);
         };
 
         const rewrittenPrompt = rewriteUploadPaths(existingTestCase.prompt);
@@ -115,6 +122,54 @@ export async function POST(
                         storedName: newStoredName,
                         mimeType: file.mimeType,
                         size: file.size,
+                    }
+                });
+            }
+        }
+
+        if (existingTestCase.configs && existingTestCase.configs.length > 0) {
+            const oldConfigUploadDir = getTestCaseConfigUploadPath(existingTestCase.id);
+            const newConfigUploadDir = getTestCaseConfigUploadPath(clonedTestCase.id);
+            await fs.mkdir(newConfigUploadDir, { recursive: true });
+
+            const copiedConfigFileStoredNames = new Set<string>();
+
+            for (const testCaseConfig of existingTestCase.configs) {
+                if (testCaseConfig.type === 'FILE' && testCaseConfig.value) {
+                    if (!copiedConfigFileStoredNames.has(testCaseConfig.value)) {
+                        const src = path.join(oldConfigUploadDir, testCaseConfig.value);
+                        const dest = path.join(newConfigUploadDir, testCaseConfig.value);
+
+                        try {
+                            await fs.link(src, dest);
+                        } catch {
+                            try {
+                                await fs.copyFile(src, dest);
+                            } catch (copyError) {
+                                logger.warn('clone: failed to copy/link test case config file on disk, skipping config', {
+                                    testCaseId: existingTestCase.id,
+                                    configId: testCaseConfig.id,
+                                    src,
+                                    dest,
+                                    error: copyError,
+                                });
+                                continue;
+                            }
+                        }
+
+                        copiedConfigFileStoredNames.add(testCaseConfig.value);
+                    }
+                }
+
+                await prisma.testCaseConfig.create({
+                    data: {
+                        testCaseId: clonedTestCase.id,
+                        name: testCaseConfig.name,
+                        type: testCaseConfig.type,
+                        value: testCaseConfig.value,
+                        filename: testCaseConfig.filename,
+                        mimeType: testCaseConfig.mimeType,
+                        size: testCaseConfig.size,
                     }
                 });
             }
