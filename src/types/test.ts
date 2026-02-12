@@ -85,6 +85,7 @@ export interface ResolvedConfig {
     name: string;
     type: ConfigType;
     value: string;
+    filename?: string;
     source: 'project' | 'test-case';
 }
 

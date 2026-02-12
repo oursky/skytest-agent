@@ -44,6 +44,7 @@ export async function resolveConfigs(projectId: string, testCaseId?: string): Pr
             name: pc.name,
             type: pc.type as ConfigType,
             value: pc.value,
+            filename: pc.filename ?? undefined,
             source: 'project',
         });
     }
@@ -53,6 +54,7 @@ export async function resolveConfigs(projectId: string, testCaseId?: string): Pr
             name: tc.name,
             type: tc.type as ConfigType,
             value: tc.value,
+            filename: tc.filename ?? undefined,
             source: 'test-case',
         });
     }
@@ -74,10 +76,9 @@ export async function resolveConfigs(projectId: string, testCaseId?: string): Pr
 
     for (const config of merged.values()) {
         if (config.type === 'FILE') {
-            const fileConfig = [...projectConfigs, ...testCaseConfigs].find(c => c.name === config.name);
             files[config.name] = config.value;
-            if (fileConfig?.filename) {
-                files[fileConfig.filename] = config.value;
+            if (config.filename) {
+                files[config.filename] = config.value;
             }
         } else {
             variables[config.name] = config.value;
