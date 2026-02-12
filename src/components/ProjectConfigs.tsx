@@ -32,7 +32,7 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
     const [isLoading, setIsLoading] = useState(true);
     const [editState, setEditState] = useState<EditState | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [revealedSecrets, setRevealedSecrets] = useState<Set<string>>(new Set());
+    const [showSecretInEdit, setShowSecretInEdit] = useState(false);
 
     const fetchConfigs = useCallback(async () => {
         try {
@@ -185,6 +185,30 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
         }
     };
 
+    const handleEdit = async (item: ConfigItem) => {
+        setShowSecretInEdit(false);
+        if (item.type === 'SECRET') {
+            try {
+                const token = await getAccessToken();
+                const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+                const res = await fetch(`/api/projects/${projectId}/configs?includeSecretValues=true`, { headers });
+                if (res.ok) {
+                    const configsWithSecrets = await res.json();
+                    const configWithSecret = configsWithSecrets.find((c: ConfigItem) => c.id === item.id);
+                    if (configWithSecret) {
+                        setEditState({ id: item.id, name: item.name, value: configWithSecret.value, type: item.type });
+                        setError(null);
+                        return;
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to fetch secret value', err);
+            }
+        }
+        setEditState({ id: item.id, name: item.name, value: item.value, type: item.type });
+        setError(null);
+    };
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center py-16">
@@ -229,6 +253,7 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                     } else {
                                         setEditState({ name: '', value: '', type });
                                         setError(null);
+                                        setShowSecretInEdit(false);
                                     }
                                 }}
                                 className="text-xs font-medium text-primary hover:text-primary/80 flex items-center gap-1"
@@ -255,13 +280,33 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                                     placeholder={t(`configs.name.placeholder.${type.toLowerCase()}`)}
                                                     className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md font-mono bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                                                 />
-                                                <input
-                                                    type={type === 'SECRET' ? 'password' : 'text'}
-                                                    value={editState.value}
-                                                    onChange={(e) => setEditState({ ...editState, value: e.target.value })}
-                                                    placeholder={type === 'URL' ? t('configs.url.placeholder') : type === 'SECRET' ? t('configs.secret.placeholder') : t('configs.value.placeholder')}
-                                                    className="flex-[2] px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                                                />
+                                                <div className="flex-[2] relative">
+                                                    <input
+                                                        type={type === 'SECRET' && !showSecretInEdit ? 'password' : 'text'}
+                                                        value={editState.value}
+                                                        onChange={(e) => setEditState({ ...editState, value: e.target.value })}
+                                                        placeholder={type === 'URL' ? t('configs.url.placeholder') : type === 'SECRET' ? t('configs.secret.placeholder') : t('configs.value.placeholder')}
+                                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent pr-10"
+                                                    />
+                                                    {type === 'SECRET' && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setShowSecretInEdit(!showSecretInEdit)}
+                                                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
+                                                        >
+                                                            {showSecretInEdit ? (
+                                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                                                </svg>
+                                                            ) : (
+                                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                                </svg>
+                                                            )}
+                                                        </button>
+                                                    )}
+                                                </div>
                                                 <button onClick={handleSave} className="px-3 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary/90">{t('common.save')}</button>
                                                 <button onClick={() => { setEditState(null); setError(null); }} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700">{t('common.cancel')}</button>
                                             </div>
@@ -284,27 +329,12 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                                 <>
                                                     <code className="text-sm font-mono text-gray-800 font-medium">{item.name}</code>
                                                     <span className="text-sm text-gray-500 truncate">
-                                                        {type === 'SECRET'
-                                                            ? (revealedSecrets.has(item.id) ? item.value || '••••••' : '••••••')
-                                                            : item.value}
+                                                        {type === 'SECRET' ? '••••••' : item.value}
                                                     </span>
                                                 </>
                                             )}
                                         </div>
                                         <div className="flex items-center gap-1">
-                                            {type === 'SECRET' && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setRevealedSecrets(prev => {
-                                                        const next = new Set(prev);
-                                                        next.has(item.id) ? next.delete(item.id) : next.add(item.id);
-                                                        return next;
-                                                    })}
-                                                    className="p-1.5 text-gray-400 hover:text-gray-600 rounded"
-                                                >
-                                                    {revealedSecrets.has(item.id) ? t('common.hide') : t('common.show')}
-                                                </button>
-                                            )}
                                             {type === 'FILE' ? (
                                                 <button
                                                     type="button"
@@ -319,7 +349,7 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                             ) : (
                                                 <button
                                                     type="button"
-                                                    onClick={() => { setEditState({ id: item.id, name: item.name, value: item.value, type: item.type }); setError(null); }}
+                                                    onClick={() => handleEdit(item)}
                                                     className="p-1.5 text-gray-400 hover:text-gray-600 rounded"
                                                 >
                                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -352,13 +382,33 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                             className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md font-mono bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                                             autoFocus
                                         />
-                                        <input
-                                            type={type === 'SECRET' ? 'password' : 'text'}
-                                            value={editState.value}
-                                            onChange={(e) => setEditState({ ...editState, value: e.target.value })}
-                                            placeholder={type === 'URL' ? t('configs.url.placeholder') : type === 'SECRET' ? t('configs.secret.placeholder') : t('configs.value.placeholder')}
-                                            className="flex-[2] px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                                        />
+                                        <div className="flex-[2] relative">
+                                            <input
+                                                type={type === 'SECRET' && !showSecretInEdit ? 'password' : 'text'}
+                                                value={editState.value}
+                                                onChange={(e) => setEditState({ ...editState, value: e.target.value })}
+                                                placeholder={type === 'URL' ? t('configs.url.placeholder') : type === 'SECRET' ? t('configs.secret.placeholder') : t('configs.value.placeholder')}
+                                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent pr-10"
+                                            />
+                                            {type === 'SECRET' && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowSecretInEdit(!showSecretInEdit)}
+                                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
+                                                >
+                                                    {showSecretInEdit ? (
+                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                                        </svg>
+                                                    ) : (
+                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                        </svg>
+                                                    )}
+                                                </button>
+                                            )}
+                                        </div>
                                         <button onClick={handleSave} className="px-3 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary/90">{t('common.save')}</button>
                                         <button onClick={() => { setEditState(null); setError(null); }} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700">{t('common.cancel')}</button>
                                     </div>
