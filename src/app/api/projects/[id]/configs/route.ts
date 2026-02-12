@@ -16,6 +16,7 @@ export async function GET(
     }
 
     try {
+        const includeSecretValues = new URL(request.url).searchParams.get('includeSecretValues') === 'true';
         const { id } = await params;
 
         const project = await prisma.project.findUnique({
@@ -35,6 +36,10 @@ export async function GET(
             where: { projectId: id },
             orderBy: { createdAt: 'asc' }
         });
+
+        if (includeSecretValues) {
+            return NextResponse.json(configs);
+        }
 
         const masked = configs.map(c => ({
             ...c,

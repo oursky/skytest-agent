@@ -185,19 +185,56 @@ function RunPageContent() {
             }
         }
 
+        let exportProjectConfigs = projectConfigs;
+        let exportTestCaseConfigs = testCaseConfigs;
+        const exportProjectId = projectId || projectIdFromTestCase;
+
+        if (exportProjectId || exportTestCaseId) {
+            try {
+                const token = await getAccessToken();
+                const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+                const fetchConfigs = async (url: string): Promise<ConfigItem[] | null> => {
+                    const response = await fetch(url, { headers });
+                    if (!response.ok) {
+                        return null;
+                    }
+                    return await response.json() as ConfigItem[];
+                };
+
+                const [projectConfigsWithSecrets, testCaseConfigsWithSecrets] = await Promise.all([
+                    exportProjectId
+                        ? fetchConfigs(`/api/projects/${exportProjectId}/configs?includeSecretValues=true`)
+                        : Promise.resolve(null),
+                    exportTestCaseId
+                        ? fetchConfigs(`/api/test-cases/${exportTestCaseId}/configs?includeSecretValues=true`)
+                        : Promise.resolve(null),
+                ]);
+
+                if (projectConfigsWithSecrets) {
+                    exportProjectConfigs = projectConfigsWithSecrets;
+                }
+                if (testCaseConfigsWithSecrets) {
+                    exportTestCaseConfigs = testCaseConfigsWithSecrets;
+                }
+            } catch (error) {
+                console.error('Failed to fetch secret config values for export', error);
+            }
+        }
+
         const excelArrayBuffer = exportToExcelArrayBuffer({
             name: exportData.name,
             testCaseId: exportData.displayId || undefined,
             steps: exportData.steps,
             browserConfig: exportData.browserConfig,
-            projectVariables: projectConfigs
+            projectVariables: exportProjectConfigs
                 .filter(isSupportedVariableConfig)
                 .map((config) => ({
                     name: config.name,
                     type: config.type,
                     value: config.value,
                 })),
-            testCaseVariables: testCaseConfigs
+            testCaseVariables: exportTestCaseConfigs
                 .filter(isSupportedVariableConfig)
                 .map((config) => ({
                     name: config.name,
