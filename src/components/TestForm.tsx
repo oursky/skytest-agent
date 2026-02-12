@@ -413,7 +413,8 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                             projectConfigs={projectConfigs || []}
                             testCaseConfigs={testCaseConfigs || []}
                             testCaseId={testCaseId}
-                            onTestCaseConfigsChange={() => onTestCaseConfigsChange?.(testCaseId)}
+                            onTestCaseConfigsChange={(updatedTestCaseId) => onTestCaseConfigsChange?.(updatedTestCaseId || testCaseId)}
+                            onEnsureTestCaseId={onEnsureTestCase ? () => onEnsureTestCase(buildCurrentData()) : undefined}
                             readOnly={readOnly}
                             browsers={browsers}
                             setBrowsers={setBrowsers}

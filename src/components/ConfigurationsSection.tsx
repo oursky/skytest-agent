@@ -20,7 +20,8 @@ interface ConfigurationsSectionProps {
     projectConfigs: ConfigItem[];
     testCaseConfigs: ConfigItem[];
     testCaseId?: string;
-    onTestCaseConfigsChange: () => void;
+    onTestCaseConfigsChange: (testCaseId?: string) => void;
+    onEnsureTestCaseId?: () => Promise<string | null>;
     readOnly?: boolean;
     browsers: BrowserEntry[];
     setBrowsers: (browsers: BrowserEntry[]) => void;
@@ -60,6 +61,7 @@ export default function ConfigurationsSection({
     testCaseConfigs,
     testCaseId,
     onTestCaseConfigsChange,
+    onEnsureTestCaseId,
     readOnly,
     browsers,
     setBrowsers,
@@ -72,8 +74,18 @@ export default function ConfigurationsSection({
     const [urlDropdownOpen, setUrlDropdownOpen] = useState<string | null>(null);
     const [showSecretInEdit, setShowSecretInEdit] = useState(false);
 
+    const resolveTestCaseId = useCallback(async () => {
+        if (testCaseId) {
+            return testCaseId;
+        }
+        if (onEnsureTestCaseId) {
+            return await onEnsureTestCaseId();
+        }
+        return null;
+    }, [testCaseId, onEnsureTestCaseId]);
+
     const handleSave = useCallback(async () => {
-        if (!editState || !testCaseId) return;
+        if (!editState) return;
         setError(null);
 
         if (!editState.name.trim()) {
@@ -90,6 +102,11 @@ export default function ConfigurationsSection({
         }
 
         try {
+            const targetTestCaseId = await resolveTestCaseId();
+            if (!targetTestCaseId) {
+                setError('Failed to save');
+                return;
+            }
             const token = await getAccessToken();
             const headers: HeadersInit = {
                 'Content-Type': 'application/json',
@@ -97,7 +114,7 @@ export default function ConfigurationsSection({
             };
 
             if (editState.id) {
-                const res = await fetch(`/api/test-cases/${testCaseId}/configs/${editState.id}`, {
+                const res = await fetch(`/api/test-cases/${targetTestCaseId}/configs/${editState.id}`, {
                     method: 'PUT',
                     headers,
                     body: JSON.stringify({ name: editState.name, type: editState.type, value: editState.value }),
@@ -108,7 +125,7 @@ export default function ConfigurationsSection({
                     return;
                 }
             } else {
-                const res = await fetch(`/api/test-cases/${testCaseId}/configs`, {
+                const res = await fetch(`/api/test-cases/${targetTestCaseId}/configs`, {
                     method: 'POST',
                     headers,
                     body: JSON.stringify({ name: editState.name, type: editState.type, value: editState.value }),
@@ -121,31 +138,30 @@ export default function ConfigurationsSection({
             }
 
             setEditState(null);
-            onTestCaseConfigsChange();
+            onTestCaseConfigsChange(targetTestCaseId);
         } catch (err) {
             console.error('Failed to save config', err);
             setError('Failed to save');
         }
-    }, [editState, testCaseId, getAccessToken, onTestCaseConfigsChange, t]);
+    }, [editState, resolveTestCaseId, getAccessToken, onTestCaseConfigsChange, t]);
 
     const handleDelete = useCallback(async (configId: string) => {
-        if (!testCaseId) return;
-
         try {
+            const targetTestCaseId = await resolveTestCaseId();
+            if (!targetTestCaseId) return;
             const token = await getAccessToken();
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            await fetch(`/api/test-cases/${testCaseId}/configs/${configId}`, {
+            await fetch(`/api/test-cases/${targetTestCaseId}/configs/${configId}`, {
                 method: 'DELETE',
                 headers,
             });
-            onTestCaseConfigsChange();
+            onTestCaseConfigsChange(targetTestCaseId);
         } catch (err) {
             console.error('Failed to delete config', err);
         }
-    }, [testCaseId, getAccessToken, onTestCaseConfigsChange]);
+    }, [resolveTestCaseId, getAccessToken, onTestCaseConfigsChange]);
 
     const handleFileUpload = useCallback(async () => {
-        if (!testCaseId) return;
         const input = document.createElement('input');
         input.type = 'file';
         input.onchange = async () => {
@@ -163,9 +179,11 @@ export default function ConfigurationsSection({
             formData.append('name', name);
 
             try {
+                const targetTestCaseId = await resolveTestCaseId();
+                if (!targetTestCaseId) return;
                 const token = await getAccessToken();
                 const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-                const res = await fetch(`/api/test-cases/${testCaseId}/configs/upload`, {
+                const res = await fetch(`/api/test-cases/${targetTestCaseId}/configs/upload`, {
                     method: 'POST',
                     headers,
                     body: formData,
@@ -175,20 +193,21 @@ export default function ConfigurationsSection({
                     setError(data.error || 'Upload failed');
                     return;
                 }
-                onTestCaseConfigsChange();
+                onTestCaseConfigsChange(targetTestCaseId);
             } catch (err) {
                 console.error('Failed to upload file', err);
             }
         };
         input.click();
-    }, [testCaseId, getAccessToken, onTestCaseConfigsChange, t]);
+    }, [resolveTestCaseId, getAccessToken, onTestCaseConfigsChange, t]);
 
     const handleDownload = useCallback(async (config: ConfigItem) => {
-        if (!testCaseId) return;
         try {
+            const targetTestCaseId = await resolveTestCaseId();
+            if (!targetTestCaseId) return;
             const token = await getAccessToken();
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const res = await fetch(`/api/test-cases/${testCaseId}/configs/${config.id}/download`, { headers });
+            const res = await fetch(`/api/test-cases/${targetTestCaseId}/configs/${config.id}/download`, { headers });
             if (!res.ok) return;
             const blob = await res.blob();
             const url = URL.createObjectURL(blob);
@@ -200,7 +219,7 @@ export default function ConfigurationsSection({
         } catch (err) {
             console.error('Failed to download file', err);
         }
-    }, [testCaseId, getAccessToken]);
+    }, [resolveTestCaseId, getAccessToken]);
 
     const handleEdit = useCallback(async (config: ConfigItem) => {
         if (!testCaseId) return;
@@ -306,7 +325,7 @@ export default function ConfigurationsSection({
             <div className="px-4 py-3">
                 <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('configs.section.testCaseVariables')}</span>
-                    {!readOnly && testCaseId && (
+                    {!readOnly && (testCaseId || onEnsureTestCaseId) && (
                         <div className="relative">
                             <button
                                 type="button"
