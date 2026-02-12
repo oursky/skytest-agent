@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAuth } from '@/app/auth-provider';
 import { useI18n } from '@/i18n';
 import type { ConfigItem, ConfigType, BrowserConfig } from '@/types';
@@ -79,6 +79,25 @@ export default function ConfigurationsSection({
     const [urlDropdownOpen, setUrlDropdownOpen] = useState<string | null>(null);
     const [showSecretInEdit, setShowSecretInEdit] = useState(false);
     const [fileUploadDraft, setFileUploadDraft] = useState<FileUploadDraft | null>(null);
+    const addTypeRef = useRef<HTMLDivElement>(null);
+    const urlDropdownRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+    useEffect(() => {
+        if (!addTypeOpen && !urlDropdownOpen) return;
+        const handleClickOutside = (e: MouseEvent) => {
+            if (addTypeOpen && addTypeRef.current && !addTypeRef.current.contains(e.target as Node)) {
+                setAddTypeOpen(false);
+            }
+            if (urlDropdownOpen) {
+                const ref = urlDropdownRefs.current.get(urlDropdownOpen);
+                if (ref && !ref.contains(e.target as Node)) {
+                    setUrlDropdownOpen(null);
+                }
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [addTypeOpen, urlDropdownOpen]);
 
     const resolveTestCaseId = useCallback(async () => {
         if (testCaseId) {
@@ -342,7 +361,7 @@ export default function ConfigurationsSection({
                 <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('configs.section.testCaseVariables')}</span>
                     {!readOnly && (testCaseId || onEnsureTestCaseId) && (
-                        <div className="relative">
+                        <div className="relative" ref={addTypeRef}>
                             <button
                                 type="button"
                                 onClick={() => setAddTypeOpen(!addTypeOpen)}
@@ -641,11 +660,11 @@ export default function ConfigurationsSection({
                                                 disabled={readOnly}
                                             />
                                             {urlConfigs.length > 0 && !readOnly && (
-                                                <div className="relative">
+                                                <div className="relative" ref={(el) => { if (el) urlDropdownRefs.current.set(browser.id, el); }}>
                                                     <button
                                                         type="button"
                                                         onClick={() => setUrlDropdownOpen(urlDropdownOpen === browser.id ? null : browser.id)}
-                                                        className="px-2 py-1.5 border-l border-gray-300 rounded-r bg-white hover:bg-gray-50 text-gray-500"
+                                                        className="h-full px-2 border-l border-gray-300 rounded-r bg-white hover:bg-gray-50 text-gray-500 flex items-center"
                                                     >
                                                         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
