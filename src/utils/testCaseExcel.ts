@@ -121,6 +121,7 @@ export function parseTestCaseExcel(content: ArrayBuffer): ParseResult {
             testCaseId: parsedTestCase.testCaseId,
             testData: {
                 name: parsedTestCase.name,
+                displayId: parsedTestCase.testCaseId,
                 url: browserEntries[0]?.url || parsedTestCase.primaryUrl || '',
                 prompt: '',
                 steps: steps.length > 0 ? steps : undefined,
@@ -215,12 +216,10 @@ function parseConfigurationsRows(
         }
 
         if (section === 'basicinfo' || section === 'testcase') {
-            // New format: Type = "Test Case Name", Name = value
-            // Old format: Key = "Test Case Name", Value = value
             const type = normalizeHeader(getRowValue(row, ['type']) || '');
             if (type === 'testcasename' || type === 'testcaseid' || type === 'primaryurl') {
-                const value = getRowValue(row, ['name', 'key']) || '';
-                if (type) fieldMap.set(type, value);
+                const value = getRowValue(row, ['name']) || '';
+                if (type && value) fieldMap.set(type, value);
                 return;
             }
             const key = normalizeHeader(getRowValue(row, ['key', 'name']) || '');
