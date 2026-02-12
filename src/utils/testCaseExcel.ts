@@ -148,40 +148,39 @@ function buildWorkbook(data: TestCaseExcelExportData): XLSX.WorkBook {
     const projectVariableRows = (data.projectVariables || [])
         .filter((item) => item.type === 'URL' || item.type === 'VARIABLE' || item.type === 'SECRET' || item.type === 'FILE')
         .map((item) => ({
-            Section: 'Project Variables',
+            Section: 'Project Variable',
             Type: formatConfigTypeForSheet(item.type),
-            Key: item.name,
+            Name: item.name,
             Value: item.value,
         }));
 
     const testCaseVariableRows = (data.testCaseVariables || [])
         .filter((item) => item.type === 'URL' || item.type === 'VARIABLE' || item.type === 'SECRET' || item.type === 'FILE')
         .map((item) => ({
-            Section: 'Test Case Variables',
+            Section: 'Test Case Variable',
             Type: formatConfigTypeForSheet(item.type),
-            Key: item.name,
+            Name: item.name,
             Value: item.value,
         }));
 
     const stepRows = (data.steps || []).map((step, index) => ({
         'Step No': index + 1,
         Browser: browserDisplayById.get(step.target) || step.target,
-        Type: step.type === 'playwright-code' ? 'Code' : 'AI Action',
+        Type: step.type === 'playwright-code' ? 'Code' : 'AI',
         Action: normalizeLineBreaks(step.action),
     }));
 
     const configurationsRows: Array<Record<string, string | number>> = [
-        { Section: 'Test Case', Type: '/', Key: 'Test Case Name', Value: data.name || '' },
-        { Section: 'Test Case', Type: '/', Key: 'Test Case ID', Value: data.testCaseId || '' },
+        { Section: 'Basic Info', Type: 'Test Case Name', Name: data.name || '', Value: '' },
+        { Section: 'Basic Info', Type: 'Test Case ID', Name: data.testCaseId || '', Value: '' },
         ...projectVariableRows,
         ...testCaseVariableRows,
-        ...browserEntries.flatMap((entry, index) => {
-            const browserLabel = formatBrowserLabel(index);
-            return [
-                { Section: 'Browser Entry Points', Type: browserLabel, Key: 'Name', Value: entry.name || '' },
-                { Section: 'Browser Entry Points', Type: browserLabel, Key: 'URL', Value: entry.url || '' },
-            ];
-        }),
+        ...browserEntries.map((entry) => ({
+            Section: 'Browser Entry Point',
+            Type: 'Browser',
+            Name: entry.name || '',
+            Value: entry.url || '',
+        })),
     ];
 
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(configurationsRows), 'Configurations');
@@ -215,8 +214,16 @@ function parseConfigurationsRows(
             return;
         }
 
-        if (section === 'testcase') {
-            const key = normalizeHeader(getRowValue(row, ['key']) || '');
+        if (section === 'basicinfo' || section === 'testcase') {
+            // New format: Type = "Test Case Name", Name = value
+            // Old format: Key = "Test Case Name", Value = value
+            const type = normalizeHeader(getRowValue(row, ['type']) || '');
+            if (type === 'testcasename' || type === 'testcaseid' || type === 'primaryurl') {
+                const value = getRowValue(row, ['name', 'key']) || '';
+                if (type) fieldMap.set(type, value);
+                return;
+            }
+            const key = normalizeHeader(getRowValue(row, ['key', 'name']) || '');
             const value = getRowValue(row, ['value']) || '';
             if (key) {
                 fieldMap.set(key, value);
@@ -224,8 +231,9 @@ function parseConfigurationsRows(
             return;
         }
 
-        if (section === 'projectvariables' || section === 'testcasevariables') {
-            const rawName = getRowValue(row, ['key', 'name']);
+        if (section === 'projectvariable' || section === 'projectvariables'
+            || section === 'testcasevariable' || section === 'testcasevariables') {
+            const rawName = getRowValue(row, ['name', 'key']);
             const value = getRowValue(row, ['value']);
             const type = normalizeConfigType(getRowValue(row, ['type', 'config type']));
             if (!rawName) {
@@ -245,14 +253,31 @@ function parseConfigurationsRows(
                 return;
             }
             const name = rawName.trim().toUpperCase();
-            const destination = section === 'projectvariables' ? projectVariables : testCaseVariables;
+            const isProject = section === 'projectvariable' || section === 'projectvariables';
+            const destination = isProject ? projectVariables : testCaseVariables;
             destination.push({ name, type, value });
             return;
         }
 
-        if (section === 'browserentrypoints' || section === 'browser') {
+        if (section === 'browserentrypoint' || section === 'browserentrypoints' || section === 'browser') {
+            // New format: 1 row per browser — Type = "Browser", Name = browser name, Value = URL
+            const type = normalizeHeader(getRowValue(row, ['type']) || '');
+            if (type === 'browser') {
+                const name = getRowValue(row, ['name', 'key']) || '';
+                const url = getRowValue(row, ['value']) || '';
+                if (url) {
+                    const id = `browser_${String.fromCharCode('a'.charCodeAt(0) + browserEntries.length)}`;
+                    browserEntries.push({ id, name: name || undefined, url });
+                    if (name) {
+                        browserAliases[normalizeHeader(name)] = id;
+                    }
+                }
+                return;
+            }
+
+            // Old format: 2 rows per browser — Type = "Browser A", Key = "Name"/"URL"
             const browserLabel = getRowValue(row, ['type']) || '';
-            const key = normalizeHeader(getRowValue(row, ['key']) || '');
+            const key = normalizeHeader(getRowValue(row, ['key', 'name']) || '');
             const value = getRowValue(row, ['value']) || '';
             if (!browserLabel) {
                 warnings.push(`Missing browser label in Configurations row ${index + 1}`);
@@ -273,7 +298,7 @@ function parseConfigurationsRows(
         }
 
         if (section === 'file') {
-            const filename = getRowValue(row, ['key', 'name', 'filename', 'file name']);
+            const filename = getRowValue(row, ['name', 'key', 'filename', 'file name']);
             if (!filename) {
                 warnings.push(`Missing filename in Configurations row ${index + 1}`);
                 return;
@@ -288,12 +313,13 @@ function parseConfigurationsRows(
         }
     });
 
+    // Process old-format browser drafts (2-row per browser)
     Array.from(browserEntryDrafts.entries()).forEach(([browserLabel, draft], index) => {
         if (!draft.url) {
             warnings.push(`Missing browser URL for ${browserLabel}`);
             return;
         }
-        const id = browserLabelToId(browserLabel, index);
+        const id = browserLabelToId(browserLabel, index + browserEntries.length);
         browserEntries.push({
             id,
             name: draft.name,
@@ -449,7 +475,7 @@ function parseFileRows(rows: Array<Record<string, unknown>>, warnings: string[])
 function normalizeStepType(value?: string): TestStep['type'] {
     if (!value) return 'ai-action';
     const normalized = value.trim().toLowerCase();
-    if (normalized === 'playwright-code' || normalized === 'code' || normalized === 'playwright code') {
+    if (normalized === 'code') {
         return 'playwright-code';
     }
     return 'ai-action';
