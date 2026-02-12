@@ -9,7 +9,7 @@ import Breadcrumbs from "@/components/Breadcrumbs";
 import { formatDateTime } from "@/utils/dateFormatter";
 import { useI18n } from "@/i18n";
 
-import { TestStep, BrowserConfig } from "@/types";
+import { TestStep, BrowserConfig, ConfigItem } from "@/types";
 
 interface TestRun {
     id: string;
@@ -43,6 +43,8 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
     const [testCase, setTestCase] = useState<TestCase | null>(null);
     const [projectId, setProjectId] = useState<string>("");
     const [projectName, setProjectName] = useState<string>("");
+    const [projectConfigs, setProjectConfigs] = useState<ConfigItem[]>([]);
+    const [testCaseConfigs, setTestCaseConfigs] = useState<ConfigItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
@@ -79,10 +81,25 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                 const data = await response.json();
                 setTestCase(data);
                 setProjectId(data.projectId);
-                const projectResponse = await fetch(`/api/projects/${data.projectId}`, { headers });
+                const [projectResponse, projectConfigsResponse, testCaseConfigsResponse] = await Promise.all([
+                    fetch(`/api/projects/${data.projectId}`, { headers }),
+                    fetch(`/api/projects/${data.projectId}/configs`, { headers }),
+                    fetch(`/api/test-cases/${id}/configs`, { headers }),
+                ]);
+
                 if (projectResponse.ok) {
                     const projectData = await projectResponse.json();
                     setProjectName(projectData.name);
+                }
+                if (projectConfigsResponse.ok) {
+                    setProjectConfigs(await projectConfigsResponse.json());
+                } else {
+                    setProjectConfigs([]);
+                }
+                if (testCaseConfigsResponse.ok) {
+                    setTestCaseConfigs(await testCaseConfigsResponse.json());
+                } else {
+                    setTestCaseConfigs([]);
                 }
             }
         } catch (error) {
@@ -170,7 +187,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
         }
     };
 
-    const testData = (() => {
+    const { testData, snapshotProjectConfigs, snapshotTestCaseConfigs } = (() => {
         const baseConfig = testCase ? {
             name: testCase.name,
             url: testCase.url,
@@ -183,7 +200,9 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 
         if (testRun.configurationSnapshot) {
             try {
-                const savedConfig = JSON.parse(testRun.configurationSnapshot) as Partial<TestCase>;
+                const savedConfig = JSON.parse(testRun.configurationSnapshot) as Partial<TestCase> & {
+                    resolvedConfigurations?: Array<{ name: string; type: string; value: string; filename?: string; source: string }>;
+                };
                 const data = {
                     name: savedConfig.name ?? baseConfig?.name,
                     url: savedConfig.url ?? baseConfig?.url ?? '',
@@ -193,13 +212,61 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                     steps: savedConfig.steps ?? baseConfig?.steps,
                     browserConfig: savedConfig.browserConfig ?? baseConfig?.browserConfig,
                 };
-                return data;
+                const projectFileNameByVariableName = new Map(
+                    projectConfigs
+                        .filter((config) => config.type === 'FILE')
+                        .map((config) => [config.name, config.filename || config.value])
+                );
+                const testCaseFileNameByVariableName = new Map(
+                    testCaseConfigs
+                        .filter((config) => config.type === 'FILE')
+                        .map((config) => [config.name, config.filename || config.value])
+                );
+
+                const projectSnapshotConfigs: ConfigItem[] = [];
+                const testCaseSnapshotConfigs: ConfigItem[] = [];
+
+                (savedConfig.resolvedConfigurations || []).forEach((config, index) => {
+                    const source = config.source === 'project' ? 'project' : 'test-case';
+                    const resolvedFilename = config.type === 'FILE'
+                        ? (
+                            config.filename
+                            || (source === 'project'
+                                ? projectFileNameByVariableName.get(config.name)
+                                : testCaseFileNameByVariableName.get(config.name))
+                        )
+                        : undefined;
+
+                    const snapshotConfig: ConfigItem = {
+                        id: `snapshot-${index}`,
+                        name: config.name,
+                        type: config.type as ConfigItem['type'],
+                        value: config.value,
+                        ...(resolvedFilename ? { filename: resolvedFilename } : {}),
+                    };
+
+                    if (source === 'project') {
+                        projectSnapshotConfigs.push(snapshotConfig);
+                    } else {
+                        testCaseSnapshotConfigs.push(snapshotConfig);
+                    }
+                });
+
+                return {
+                    testData: data,
+                    snapshotProjectConfigs: projectSnapshotConfigs,
+                    snapshotTestCaseConfigs: testCaseSnapshotConfigs,
+                };
             } catch (error) {
                 console.error("Failed to parse configuration snapshot", error);
             }
         }
 
-        return baseConfig;
+        return {
+            testData: baseConfig,
+            snapshotProjectConfigs: [] as ConfigItem[],
+            snapshotTestCaseConfigs: [] as ConfigItem[],
+        };
     })();
 
     return (
@@ -226,6 +293,8 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                                 readOnly={true}
                                 testCaseId={id}
                                 onExport={testData ? handleExport : undefined}
+                                projectConfigs={snapshotProjectConfigs}
+                                testCaseConfigs={snapshotTestCaseConfigs}
                             />
                         )}
                     </div>

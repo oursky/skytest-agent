@@ -6,7 +6,7 @@ import { decrypt } from '@/lib/crypto';
 import { validateTargetUrl } from '@/lib/url-security';
 import { createLogger } from '@/lib/logger';
 import { resolveConfigs } from '@/lib/config-resolver';
-import type { BrowserConfig, TestStep } from '@/types';
+import type { BrowserConfig, ResolvedConfig, TestStep } from '@/types';
 
 const logger = createLogger('api:run-test');
 
@@ -23,7 +23,7 @@ interface RunTestRequest {
     testCaseId?: string;
 }
 
-function createConfigurationSnapshot(config: RunTestRequest, resolvedConfigurations?: { name: string; type: string; value: string; source: string }[]) {
+function createConfigurationSnapshot(config: RunTestRequest, resolvedConfigurations?: ResolvedConfig[]) {
     const { testCaseId: _testCaseId, ...rest } = config;
     const masked = resolvedConfigurations?.map(c => ({
         ...c,

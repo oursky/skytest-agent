@@ -8,7 +8,10 @@ import Link from 'next/link';
 
 const CONFIG_NAME_REGEX = /^[A-Z][A-Z0-9_]*$/;
 
-const TYPE_ORDER: ConfigType[] = ['URL', 'VARIABLE', 'SECRET', 'FILE'];
+const TYPE_ORDER: ConfigType[] = ['URL', 'VARIABLE', 'SECRET', 'FILE', 'RANDOM_STRING'];
+const ADDABLE_TEST_CASE_CONFIG_TYPES: ConfigType[] = ['URL', 'VARIABLE', 'SECRET', 'FILE', 'RANDOM_STRING'];
+
+const RANDOM_STRING_GENERATION_TYPES = ['TIMESTAMP_DATETIME', 'TIMESTAMP_UNIX', 'UUID'] as const;
 
 interface BrowserEntry {
     id: string;
@@ -48,11 +51,21 @@ function sortConfigs(configs: ConfigItem[]): ConfigItem[] {
     });
 }
 
+function randomStringGenerationLabel(value: string, t: (key: string) => string): string {
+    switch (value) {
+        case 'TIMESTAMP_UNIX': return t('configs.randomString.timestampUnix');
+        case 'TIMESTAMP_DATETIME': return t('configs.randomString.timestampDatetime');
+        case 'UUID': return t('configs.randomString.uuid');
+        default: return value;
+    }
+}
+
 function TypeSubHeader({ type, t }: { type: ConfigType; t: (key: string) => string }) {
     const key = type === 'URL' ? 'configs.title.urls'
         : type === 'VARIABLE' ? 'configs.title.variables'
             : type === 'SECRET' ? 'configs.title.secrets'
-                : 'configs.title.files';
+                : type === 'RANDOM_STRING' ? 'configs.title.randomStrings'
+                    : 'configs.title.files';
     return (
         <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider pt-2 first:pt-0">
             {t(key)}
@@ -77,13 +90,15 @@ export default function ConfigurationsSection({
     const [error, setError] = useState<string | null>(null);
     const [addTypeOpen, setAddTypeOpen] = useState(false);
     const [urlDropdownOpen, setUrlDropdownOpen] = useState<string | null>(null);
+    const [randomStringDropdownOpen, setRandomStringDropdownOpen] = useState<string | null>(null);
     const [showSecretInEdit, setShowSecretInEdit] = useState(false);
     const [fileUploadDraft, setFileUploadDraft] = useState<FileUploadDraft | null>(null);
     const addTypeRef = useRef<HTMLDivElement>(null);
     const urlDropdownRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+    const randomStringDropdownRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
     useEffect(() => {
-        if (!addTypeOpen && !urlDropdownOpen) return;
+        if (!addTypeOpen && !urlDropdownOpen && !randomStringDropdownOpen) return;
         const handleClickOutside = (e: MouseEvent) => {
             if (addTypeOpen && addTypeRef.current && !addTypeRef.current.contains(e.target as Node)) {
                 setAddTypeOpen(false);
@@ -94,10 +109,16 @@ export default function ConfigurationsSection({
                     setUrlDropdownOpen(null);
                 }
             }
+            if (randomStringDropdownOpen) {
+                const ref = randomStringDropdownRefs.current.get(randomStringDropdownOpen);
+                if (ref && !ref.contains(e.target as Node)) {
+                    setRandomStringDropdownOpen(null);
+                }
+            }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [addTypeOpen, urlDropdownOpen]);
+    }, [addTypeOpen, urlDropdownOpen, randomStringDropdownOpen]);
 
     const resolveTestCaseId = useCallback(async () => {
         if (testCaseId) {
@@ -121,7 +142,7 @@ export default function ConfigurationsSection({
             setError(t('configs.error.invalidName'));
             return;
         }
-        if (editState.type !== 'FILE' && !editState.value.trim()) {
+        if (editState.type !== 'FILE' && editState.type !== 'RANDOM_STRING' && !editState.value.trim()) {
             setError(t('configs.error.valueRequired'));
             return;
         }
@@ -163,6 +184,7 @@ export default function ConfigurationsSection({
             }
 
             setEditState(null);
+            setRandomStringDropdownOpen(null);
             onTestCaseConfigsChange(targetTestCaseId);
         } catch (err) {
             console.error('Failed to save config', err);
@@ -186,11 +208,11 @@ export default function ConfigurationsSection({
         }
     }, [resolveTestCaseId, getAccessToken, onTestCaseConfigsChange]);
 
-    const handleFileUploadSave = useCallback(async () => {
-        if (!fileUploadDraft) return;
+    const handleFileUploadSave = useCallback(async (draft: FileUploadDraft | null = fileUploadDraft) => {
+        if (!draft) return;
         setError(null);
 
-        const normalizedName = fileUploadDraft.name.trim().toUpperCase();
+        const normalizedName = draft.name.trim().toUpperCase();
         if (!normalizedName) {
             setError(t('configs.error.nameRequired'));
             return;
@@ -199,7 +221,7 @@ export default function ConfigurationsSection({
             setError(t('configs.error.invalidName'));
             return;
         }
-        if (!fileUploadDraft.file) {
+        if (!draft.file) {
             setError(t('configs.error.fileRequired'));
             return;
         }
@@ -211,7 +233,7 @@ export default function ConfigurationsSection({
         }
 
         const formData = new FormData();
-        formData.append('file', fileUploadDraft.file);
+        formData.append('file', draft.file);
         formData.append('name', normalizedName);
 
         try {
@@ -236,6 +258,55 @@ export default function ConfigurationsSection({
         }
     }, [fileUploadDraft, testCaseConfigs, resolveTestCaseId, getAccessToken, onTestCaseConfigsChange, t]);
 
+    const handleConfigEditorKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>) => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        event.stopPropagation();
+        void handleSave();
+    }, [handleSave]);
+
+    const renderRandomStringDropdown = (dropdownKey: string, value: string) => (
+        <div
+            className="relative"
+            ref={(el) => {
+                if (el) {
+                    randomStringDropdownRefs.current.set(dropdownKey, el);
+                    return;
+                }
+                randomStringDropdownRefs.current.delete(dropdownKey);
+            }}
+        >
+            <button
+                type="button"
+                onClick={() => setRandomStringDropdownOpen(randomStringDropdownOpen === dropdownKey ? null : dropdownKey)}
+                className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white text-left focus:outline-none focus:ring-1 focus:ring-primary flex items-center justify-between gap-2"
+            >
+                <span className="truncate">{randomStringGenerationLabel(value, t)}</span>
+                <svg className="w-3 h-3 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+            </button>
+            {randomStringDropdownOpen === dropdownKey && (
+                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-20 py-1 min-w-[180px]">
+                    {RANDOM_STRING_GENERATION_TYPES.map((generationType) => (
+                        <button
+                            key={generationType}
+                            type="button"
+                            onClick={() => {
+                                if (!editState) return;
+                                setEditState({ ...editState, value: generationType });
+                                setRandomStringDropdownOpen(null);
+                            }}
+                            className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 ${value === generationType ? 'bg-gray-50 text-gray-900' : 'text-gray-700'}`}
+                        >
+                            {randomStringGenerationLabel(generationType, t)}
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+
     const handleDownload = useCallback(async (config: ConfigItem) => {
         try {
             const targetTestCaseId = await resolveTestCaseId();
@@ -259,6 +330,7 @@ export default function ConfigurationsSection({
     const handleEdit = useCallback(async (config: ConfigItem) => {
         if (!testCaseId) return;
         setShowSecretInEdit(false);
+        setRandomStringDropdownOpen(null);
         if (config.type === 'SECRET') {
             try {
                 const token = await getAccessToken();
@@ -347,7 +419,7 @@ export default function ConfigurationsSection({
                             >
                                 <code className="font-mono text-gray-800 text-xs">{config.name}</code>
                                 <span className="text-gray-400 text-xs truncate">
-                                    {config.type === 'SECRET' ? '••••••' : config.type === 'FILE' ? (config.filename || config.value) : config.value}
+                                    {config.type === 'SECRET' ? '••••••' : config.type === 'FILE' ? (config.filename || config.value) : config.type === 'RANDOM_STRING' ? randomStringGenerationLabel(config.value, t) : config.value}
                                 </span>
                             </div>
                         ))}
@@ -376,8 +448,8 @@ export default function ConfigurationsSection({
                                 </svg>
                             </button>
                             {addTypeOpen && (
-                                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-10 py-1 min-w-[120px]">
-                                    {(['URL', 'VARIABLE', 'SECRET', 'FILE'] as ConfigType[]).map(type => (
+                                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-10 py-1 min-w-[150px]">
+                                    {ADDABLE_TEST_CASE_CONFIG_TYPES.map(type => (
                                         <button
                                             key={type}
                                             type="button"
@@ -387,9 +459,10 @@ export default function ConfigurationsSection({
                                                     setShowSecretInEdit(false);
                                                     setFileUploadDraft({ name: '', file: null });
                                                     setError(null);
+                                                    setRandomStringDropdownOpen(null);
                                                 } else {
                                                     setFileUploadDraft(null);
-                                                    setEditState({ name: '', value: '', type });
+                                                    setEditState({ name: '', value: type === 'RANDOM_STRING' ? 'TIMESTAMP_DATETIME' : '', type });
                                                     setError(null);
                                                     setShowSecretInEdit(false);
                                                 }
@@ -419,38 +492,56 @@ export default function ConfigurationsSection({
                                             type="text"
                                             value={editState.name}
                                             onChange={(e) => setEditState({ ...editState, name: e.target.value.toUpperCase() })}
+                                            onKeyDown={handleConfigEditorKeyDown}
                                             placeholder={t(`configs.name.placeholder.${config.type.toLowerCase()}`)}
                                             className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-primary"
                                         />
                                         <div className="flex-[2] relative">
-                                            <input
-                                                type={config.type === 'SECRET' && !showSecretInEdit ? 'password' : 'text'}
-                                                value={editState.value}
-                                                onChange={(e) => setEditState({ ...editState, value: e.target.value })}
-                                                placeholder={config.type === 'URL' ? t('configs.url.placeholder') : config.type === 'SECRET' ? t('configs.secret.placeholder') : t('configs.value.placeholder')}
-                                                className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary pr-7"
-                                            />
-                                            {config.type === 'SECRET' && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setShowSecretInEdit(!showSecretInEdit)}
-                                                    className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600"
-                                                >
-                                                    {showSecretInEdit ? (
-                                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                                                        </svg>
-                                                    ) : (
-                                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                                        </svg>
+                                            {config.type === 'RANDOM_STRING' ? (
+                                                renderRandomStringDropdown(`existing-${config.id}`, editState.value)
+                                            ) : (
+                                                <>
+                                                    <input
+                                                        type={config.type === 'SECRET' && !showSecretInEdit ? 'password' : 'text'}
+                                                        value={editState.value}
+                                                        onChange={(e) => setEditState({ ...editState, value: e.target.value })}
+                                                        onKeyDown={handleConfigEditorKeyDown}
+                                                        placeholder={config.type === 'URL' ? t('configs.url.placeholder') : config.type === 'SECRET' ? t('configs.secret.placeholder') : t('configs.value.placeholder')}
+                                                        className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary pr-7"
+                                                    />
+                                                    {config.type === 'SECRET' && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setShowSecretInEdit(!showSecretInEdit)}
+                                                            className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600"
+                                                        >
+                                                            {showSecretInEdit ? (
+                                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                                                </svg>
+                                                            ) : (
+                                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                                </svg>
+                                                            )}
+                                                        </button>
                                                     )}
-                                                </button>
+                                                </>
                                             )}
                                         </div>
                                         <button type="button" onClick={handleSave} className="px-2 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90">{t('common.save')}</button>
-                                        <button type="button" onClick={() => { setEditState(null); setError(null); }} className="px-2 py-1.5 text-xs text-gray-500">{t('common.cancel')}</button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setEditState(null);
+                                                setError(null);
+                                                setRandomStringDropdownOpen(null);
+                                            }}
+                                            className="px-2 py-1.5 text-xs text-gray-500"
+                                        >
+                                            {t('common.cancel')}
+                                        </button>
                                     </div>
                                     {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
                                 </div>
@@ -493,7 +584,7 @@ export default function ConfigurationsSection({
                             <div key={config.id} className="flex items-center gap-2 px-2 py-1.5 rounded text-sm group hover:bg-gray-50">
                                 <code className="font-mono text-gray-800 text-xs">{config.name}</code>
                                 <span className="text-gray-400 text-xs truncate">
-                                    {config.type === 'SECRET' ? '••••••' : config.value}
+                                    {config.type === 'SECRET' ? '••••••' : config.type === 'RANDOM_STRING' ? randomStringGenerationLabel(config.value, t) : config.value}
                                 </span>
                                 {overridesProject && (
                                     <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">{t('configs.override')}</span>
@@ -526,44 +617,62 @@ export default function ConfigurationsSection({
 
                     {editState && !editState.id && (
                         <div className="p-2 bg-blue-50/50 rounded">
-                            <div className="flex gap-2 items-start">
+                            <div className="flex gap-2 items-center">
                                 <input
                                     type="text"
                                     value={editState.name}
                                     onChange={(e) => setEditState({ ...editState, name: e.target.value.toUpperCase() })}
+                                    onKeyDown={handleConfigEditorKeyDown}
                                     placeholder={t(`configs.name.placeholder.${editState.type.toLowerCase()}`)}
                                     className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-primary"
                                     autoFocus
                                 />
                                 <div className="flex-[2] relative">
-                                    <input
-                                        type={editState.type === 'SECRET' && !showSecretInEdit ? 'password' : 'text'}
-                                        value={editState.value}
-                                        onChange={(e) => setEditState({ ...editState, value: e.target.value })}
-                                        placeholder={editState.type === 'URL' ? t('configs.url.placeholder') : editState.type === 'SECRET' ? t('configs.secret.placeholder') : t('configs.value.placeholder')}
-                                        className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary pr-7"
-                                    />
-                                    {editState.type === 'SECRET' && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowSecretInEdit(!showSecretInEdit)}
-                                            className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600"
-                                        >
-                                            {showSecretInEdit ? (
-                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                                                </svg>
-                                            ) : (
-                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                                </svg>
+                                    {editState.type === 'RANDOM_STRING' ? (
+                                        renderRandomStringDropdown('new-random-string', editState.value)
+                                    ) : (
+                                        <>
+                                            <input
+                                                type={editState.type === 'SECRET' && !showSecretInEdit ? 'password' : 'text'}
+                                                value={editState.value}
+                                                onChange={(e) => setEditState({ ...editState, value: e.target.value })}
+                                                onKeyDown={handleConfigEditorKeyDown}
+                                                placeholder={editState.type === 'URL' ? t('configs.url.placeholder') : editState.type === 'SECRET' ? t('configs.secret.placeholder') : t('configs.value.placeholder')}
+                                                className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary pr-7"
+                                            />
+                                            {editState.type === 'SECRET' && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowSecretInEdit(!showSecretInEdit)}
+                                                    className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600"
+                                                >
+                                                    {showSecretInEdit ? (
+                                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                                        </svg>
+                                                    ) : (
+                                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                        </svg>
+                                                    )}
+                                                </button>
                                             )}
-                                        </button>
+                                        </>
                                     )}
                                 </div>
                                 <button type="button" onClick={handleSave} className="px-2 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90">{t('common.save')}</button>
-                                <button type="button" onClick={() => { setEditState(null); setError(null); }} className="px-2 py-1.5 text-xs text-gray-500">{t('common.cancel')}</button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setEditState(null);
+                                        setError(null);
+                                        setRandomStringDropdownOpen(null);
+                                    }}
+                                    className="px-2 py-1.5 text-xs text-gray-500"
+                                >
+                                    {t('common.cancel')}
+                                </button>
                             </div>
                             {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
                         </div>
@@ -571,7 +680,7 @@ export default function ConfigurationsSection({
 
                     {fileUploadDraft && (
                         <div className="p-2 bg-blue-50/50 rounded">
-                            <div className="flex gap-2 items-start">
+                            <div className="flex gap-2 items-center">
                                 <input
                                     type="text"
                                     value={fileUploadDraft.name}
@@ -583,18 +692,24 @@ export default function ConfigurationsSection({
                                 <div className="flex-[2]">
                                     <input
                                         type="file"
-                                        onChange={(e) => setFileUploadDraft({ ...fileUploadDraft, file: e.target.files?.[0] || null })}
+                                        onChange={(e) => {
+                                            const selectedFile = e.target.files?.[0] || null;
+                                            const nextDraft = { ...fileUploadDraft, file: selectedFile };
+                                            setFileUploadDraft(nextDraft);
+                                            if (selectedFile) {
+                                                void handleFileUploadSave(nextDraft);
+                                            }
+                                        }}
                                         className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-primary file:mr-2 file:px-2 file:py-1 file:border-0 file:rounded file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
                                     />
                                 </div>
-                                <button type="button" onClick={handleFileUploadSave} className="px-2 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90">{t('common.save')}</button>
                                 <button
                                     type="button"
                                     onClick={() => {
                                         setFileUploadDraft(null);
                                         setError(null);
                                     }}
-                                    className="px-2 py-1.5 text-xs text-gray-500"
+                                    className="inline-flex items-center px-2 py-1.5 text-xs text-gray-500"
                                 >
                                     {t('common.cancel')}
                                 </button>
