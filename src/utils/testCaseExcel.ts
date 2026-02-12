@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import type { BrowserConfig, ConfigType, TestStep } from '@/types';
 
 type SupportedVariableType = Extract<ConfigType, 'URL' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING' | 'FILE'>;
+const VARIABLE_TYPE_ORDER: SupportedVariableType[] = ['URL', 'VARIABLE', 'SECRET', 'FILE', 'RANDOM_STRING'];
 
 interface ExcelProjectVariable {
     name: string;
@@ -147,7 +148,7 @@ function buildWorkbook(data: TestCaseExcelExportData): XLSX.WorkBook {
         browserEntries.map((entry, index) => [entry.id, entry.name || formatBrowserLabel(index)])
     );
 
-    const projectVariableRows = (data.projectVariables || [])
+    const projectVariableRows = sortVariablesForExport(data.projectVariables || [])
         .filter((item) => item.type === 'URL' || item.type === 'VARIABLE' || item.type === 'SECRET' || item.type === 'RANDOM_STRING' || item.type === 'FILE')
         .map((item) => ({
             Section: 'Project Variable',
@@ -156,7 +157,7 @@ function buildWorkbook(data: TestCaseExcelExportData): XLSX.WorkBook {
             Value: item.type === 'RANDOM_STRING' ? formatRandomStringValueForSheet(item.value) : item.value,
         }));
 
-    const testCaseVariableRows = (data.testCaseVariables || [])
+    const testCaseVariableRows = sortVariablesForExport(data.testCaseVariables || [])
         .filter((item) => item.type === 'URL' || item.type === 'VARIABLE' || item.type === 'SECRET' || item.type === 'RANDOM_STRING' || item.type === 'FILE')
         .map((item) => ({
             Section: 'Test Case Variable',
@@ -251,7 +252,7 @@ function parseConfigurationsRows(
             if (type === 'RANDOM_STRING') {
                 const normalizedGenType = normalizeRandomStringValue(value);
                 if (!normalizedGenType) {
-                    warnings.push(`Invalid random string type in Configurations row ${index + 1}. Expected: Timestamp (Unix), Timestamp (Datetime), or UUID`);
+                    warnings.push(`Invalid random string type in Configurations row ${index + 1}. Expected: Timestamp (Datetime), Timestamp (Unix), or UUID`);
                     return;
                 }
                 const name = rawName.trim().toUpperCase();
@@ -545,6 +546,14 @@ function formatConfigTypeForSheet(value: SupportedVariableType): string {
     if (value === 'SECRET') return 'Secret';
     if (value === 'RANDOM_STRING') return 'Random String';
     return 'File';
+}
+
+function sortVariablesForExport(items: ExcelProjectVariable[]): ExcelProjectVariable[] {
+    return [...items].sort((a, b) => {
+        const typeRankDiff = VARIABLE_TYPE_ORDER.indexOf(a.type) - VARIABLE_TYPE_ORDER.indexOf(b.type);
+        if (typeRankDiff !== 0) return typeRankDiff;
+        return a.name.localeCompare(b.name);
+    });
 }
 
 function formatBrowserLabel(index: number): string {

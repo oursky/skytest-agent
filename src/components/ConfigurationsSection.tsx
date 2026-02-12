@@ -8,9 +8,10 @@ import Link from 'next/link';
 
 const CONFIG_NAME_REGEX = /^[A-Z][A-Z0-9_]*$/;
 
-const TYPE_ORDER: ConfigType[] = ['URL', 'VARIABLE', 'SECRET', 'RANDOM_STRING', 'FILE'];
+const TYPE_ORDER: ConfigType[] = ['URL', 'VARIABLE', 'SECRET', 'FILE', 'RANDOM_STRING'];
+const ADDABLE_TEST_CASE_CONFIG_TYPES: ConfigType[] = ['URL', 'VARIABLE', 'SECRET', 'FILE', 'RANDOM_STRING'];
 
-const RANDOM_STRING_GENERATION_TYPES = ['TIMESTAMP_UNIX', 'TIMESTAMP_DATETIME', 'UUID'] as const;
+const RANDOM_STRING_GENERATION_TYPES = ['TIMESTAMP_DATETIME', 'TIMESTAMP_UNIX', 'UUID'] as const;
 
 interface BrowserEntry {
     id: string;
@@ -403,7 +404,7 @@ export default function ConfigurationsSection({
                             </button>
                             {addTypeOpen && (
                                 <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-10 py-1 min-w-[150px]">
-                                    {(['URL', 'VARIABLE', 'SECRET', 'FILE', 'RANDOM_STRING'] as ConfigType[]).map(type => (
+                                    {ADDABLE_TEST_CASE_CONFIG_TYPES.map(type => (
                                         <button
                                             key={type}
                                             type="button"
@@ -415,7 +416,7 @@ export default function ConfigurationsSection({
                                                     setError(null);
                                                 } else {
                                                     setFileUploadDraft(null);
-                                                    setEditState({ name: '', value: type === 'RANDOM_STRING' ? 'TIMESTAMP_UNIX' : '', type });
+                                                    setEditState({ name: '', value: type === 'RANDOM_STRING' ? 'TIMESTAMP_DATETIME' : '', type });
                                                     setError(null);
                                                     setShowSecretInEdit(false);
                                                 }
