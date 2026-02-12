@@ -4,7 +4,7 @@ import { TestStep, StepType, ConfigItem, ConfigType, TestCaseFile } from '@/type
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import dynamic from 'next/dynamic';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useI18n } from '@/i18n';
 import InsertVariableDropdown from './InsertVariableDropdown';
 
@@ -51,10 +51,22 @@ interface SortableStepItemProps {
     testCaseFiles?: TestCaseFile[];
 }
 
+function browserLabel(browser: BrowserEntry): string {
+    if (browser.config.name) {
+        return browser.config.name;
+    }
+    if (browser.id.startsWith('browser_')) {
+        return browser.id.replace('browser_', 'Browser ').toUpperCase();
+    }
+    return browser.id;
+}
+
 export default function SortableStepItem({ step, index, browsers, onRemove, onChange, onFilesChange, onTypeChange, readOnly, isAnyDragging, projectConfigs, testCaseConfigs, testCaseFiles }: SortableStepItemProps) {
     const { t } = useI18n();
     const stepTextareaRef = useRef<HTMLTextAreaElement>(null);
+    const browserDropdownRef = useRef<HTMLDivElement>(null);
     const [codeInsertRequest, setCodeInsertRequest] = useState<{ id: string; text: string } | null>(null);
+    const [browserDropdownOpen, setBrowserDropdownOpen] = useState(false);
 
     const {
         attributes,
@@ -93,6 +105,18 @@ export default function SortableStepItem({ step, index, browsers, onRemove, onCh
     const colorLight = colorsLight[safeIndex % colorsLight.length];
     const colorText = colorsText[safeIndex % colorsText.length];
     const colorBorder = colorsBorder[safeIndex % colorsBorder.length];
+    const selectedBrowser = browsers[safeIndex];
+
+    useEffect(() => {
+        if (!browserDropdownOpen) return;
+        const handleClickOutside = (event: MouseEvent) => {
+            if (browserDropdownRef.current && !browserDropdownRef.current.contains(event.target as Node)) {
+                setBrowserDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [browserDropdownOpen]);
 
     return (
         <div
@@ -120,27 +144,43 @@ export default function SortableStepItem({ step, index, browsers, onRemove, onCh
                 </span>
 
                 {/* Browser Select */}
-                <div className="relative">
-                    <select
-                        value={step.target}
-                        onChange={(e) => onChange('target', e.target.value)}
+                <div className="relative" ref={browserDropdownRef}>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            if (readOnly) return;
+                            setBrowserDropdownOpen((current) => !current);
+                        }}
                         disabled={readOnly}
-                        className={`text-xs font-bold uppercase tracking-wider pl-3 pr-8 py-1.5 rounded-md border appearance-none ${readOnly ? 'cursor-not-allowed opacity-80' : 'cursor-pointer focus:ring-2 focus:ring-offset-1'} ${colorLight} ${colorText} ${colorBorder}`}
+                        className={`text-xs font-bold uppercase tracking-wider pl-3 pr-2 py-1.5 rounded-md border min-w-[140px] flex items-center justify-between gap-2 ${readOnly ? 'cursor-not-allowed opacity-80' : 'cursor-pointer focus:ring-2 focus:ring-offset-1'} ${colorLight} ${colorText} ${colorBorder}`}
                         onPointerDown={(e) => e.stopPropagation()}
                     >
-                        {browsers.map(b => (
-                            <option key={b.id} value={b.id}>
-                                {b.config.name || (b.id.startsWith('browser_')
-                                    ? b.id.replace('browser_', 'Browser ').toUpperCase()
-                                    : b.id)}
-                            </option>
-                        ))}
-                    </select>
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
-                        <svg className={`w-3 h-3 ${colorText}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <span className="truncate">{selectedBrowser ? browserLabel(selectedBrowser) : step.target}</span>
+                        <svg className={`w-3 h-3 shrink-0 ${colorText}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </svg>
-                    </div>
+                    </button>
+                    {browserDropdownOpen && !readOnly && (
+                        <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-30 py-1 min-w-[180px]">
+                            {browsers.map((browser) => {
+                                const isSelected = browser.id === step.target;
+                                return (
+                                    <button
+                                        key={browser.id}
+                                        type="button"
+                                        onClick={() => {
+                                            onChange('target', browser.id);
+                                            setBrowserDropdownOpen(false);
+                                        }}
+                                        onPointerDown={(e) => e.stopPropagation()}
+                                        className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 ${isSelected ? 'bg-gray-50 text-gray-900 font-medium' : 'text-gray-700'}`}
+                                    >
+                                        {browserLabel(browser)}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
 
                 {/* Step Type Toggle */}

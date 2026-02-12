@@ -90,13 +90,15 @@ export default function ConfigurationsSection({
     const [error, setError] = useState<string | null>(null);
     const [addTypeOpen, setAddTypeOpen] = useState(false);
     const [urlDropdownOpen, setUrlDropdownOpen] = useState<string | null>(null);
+    const [randomStringDropdownOpen, setRandomStringDropdownOpen] = useState<string | null>(null);
     const [showSecretInEdit, setShowSecretInEdit] = useState(false);
     const [fileUploadDraft, setFileUploadDraft] = useState<FileUploadDraft | null>(null);
     const addTypeRef = useRef<HTMLDivElement>(null);
     const urlDropdownRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+    const randomStringDropdownRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
     useEffect(() => {
-        if (!addTypeOpen && !urlDropdownOpen) return;
+        if (!addTypeOpen && !urlDropdownOpen && !randomStringDropdownOpen) return;
         const handleClickOutside = (e: MouseEvent) => {
             if (addTypeOpen && addTypeRef.current && !addTypeRef.current.contains(e.target as Node)) {
                 setAddTypeOpen(false);
@@ -107,10 +109,16 @@ export default function ConfigurationsSection({
                     setUrlDropdownOpen(null);
                 }
             }
+            if (randomStringDropdownOpen) {
+                const ref = randomStringDropdownRefs.current.get(randomStringDropdownOpen);
+                if (ref && !ref.contains(e.target as Node)) {
+                    setRandomStringDropdownOpen(null);
+                }
+            }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [addTypeOpen, urlDropdownOpen]);
+    }, [addTypeOpen, urlDropdownOpen, randomStringDropdownOpen]);
 
     const resolveTestCaseId = useCallback(async () => {
         if (testCaseId) {
@@ -176,6 +184,7 @@ export default function ConfigurationsSection({
             }
 
             setEditState(null);
+            setRandomStringDropdownOpen(null);
             onTestCaseConfigsChange(targetTestCaseId);
         } catch (err) {
             console.error('Failed to save config', err);
@@ -263,6 +272,48 @@ export default function ConfigurationsSection({
         void handleFileUploadSave();
     }, [handleFileUploadSave]);
 
+    const renderRandomStringDropdown = (dropdownKey: string, value: string) => (
+        <div
+            className="relative"
+            ref={(el) => {
+                if (el) {
+                    randomStringDropdownRefs.current.set(dropdownKey, el);
+                    return;
+                }
+                randomStringDropdownRefs.current.delete(dropdownKey);
+            }}
+        >
+            <button
+                type="button"
+                onClick={() => setRandomStringDropdownOpen(randomStringDropdownOpen === dropdownKey ? null : dropdownKey)}
+                className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white text-left focus:outline-none focus:ring-1 focus:ring-primary flex items-center justify-between gap-2"
+            >
+                <span className="truncate">{randomStringGenerationLabel(value, t)}</span>
+                <svg className="w-3 h-3 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+            </button>
+            {randomStringDropdownOpen === dropdownKey && (
+                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-20 py-1 min-w-[180px]">
+                    {RANDOM_STRING_GENERATION_TYPES.map((generationType) => (
+                        <button
+                            key={generationType}
+                            type="button"
+                            onClick={() => {
+                                if (!editState) return;
+                                setEditState({ ...editState, value: generationType });
+                                setRandomStringDropdownOpen(null);
+                            }}
+                            className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 ${value === generationType ? 'bg-gray-50 text-gray-900' : 'text-gray-700'}`}
+                        >
+                            {randomStringGenerationLabel(generationType, t)}
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+
     const handleDownload = useCallback(async (config: ConfigItem) => {
         try {
             const targetTestCaseId = await resolveTestCaseId();
@@ -286,6 +337,7 @@ export default function ConfigurationsSection({
     const handleEdit = useCallback(async (config: ConfigItem) => {
         if (!testCaseId) return;
         setShowSecretInEdit(false);
+        setRandomStringDropdownOpen(null);
         if (config.type === 'SECRET') {
             try {
                 const token = await getAccessToken();
@@ -414,6 +466,7 @@ export default function ConfigurationsSection({
                                                     setShowSecretInEdit(false);
                                                     setFileUploadDraft({ name: '', file: null });
                                                     setError(null);
+                                                    setRandomStringDropdownOpen(null);
                                                 } else {
                                                     setFileUploadDraft(null);
                                                     setEditState({ name: '', value: type === 'RANDOM_STRING' ? 'TIMESTAMP_DATETIME' : '', type });
@@ -452,16 +505,7 @@ export default function ConfigurationsSection({
                                         />
                                         <div className="flex-[2] relative">
                                             {config.type === 'RANDOM_STRING' ? (
-                                                <select
-                                                    value={editState.value}
-                                                    onChange={(e) => setEditState({ ...editState, value: e.target.value })}
-                                                    onKeyDown={handleConfigEditorKeyDown}
-                                                    className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary bg-white"
-                                                >
-                                                    {RANDOM_STRING_GENERATION_TYPES.map(gt => (
-                                                        <option key={gt} value={gt}>{randomStringGenerationLabel(gt, t)}</option>
-                                                    ))}
-                                                </select>
+                                                renderRandomStringDropdown(`existing-${config.id}`, editState.value)
                                             ) : (
                                                 <>
                                                     <input
@@ -494,7 +538,17 @@ export default function ConfigurationsSection({
                                             )}
                                         </div>
                                         <button type="button" onClick={handleSave} className="px-2 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90">{t('common.save')}</button>
-                                        <button type="button" onClick={() => { setEditState(null); setError(null); }} className="px-2 py-1.5 text-xs text-gray-500">{t('common.cancel')}</button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setEditState(null);
+                                                setError(null);
+                                                setRandomStringDropdownOpen(null);
+                                            }}
+                                            className="px-2 py-1.5 text-xs text-gray-500"
+                                        >
+                                            {t('common.cancel')}
+                                        </button>
                                     </div>
                                     {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
                                 </div>
@@ -582,16 +636,7 @@ export default function ConfigurationsSection({
                                 />
                                 <div className="flex-[2] relative">
                                     {editState.type === 'RANDOM_STRING' ? (
-                                        <select
-                                            value={editState.value}
-                                            onChange={(e) => setEditState({ ...editState, value: e.target.value })}
-                                            onKeyDown={handleConfigEditorKeyDown}
-                                            className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary bg-white"
-                                        >
-                                            {RANDOM_STRING_GENERATION_TYPES.map(gt => (
-                                                <option key={gt} value={gt}>{randomStringGenerationLabel(gt, t)}</option>
-                                            ))}
-                                        </select>
+                                        renderRandomStringDropdown('new-random-string', editState.value)
                                     ) : (
                                         <>
                                             <input
@@ -624,7 +669,17 @@ export default function ConfigurationsSection({
                                     )}
                                 </div>
                                 <button type="button" onClick={handleSave} className="px-2 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90">{t('common.save')}</button>
-                                <button type="button" onClick={() => { setEditState(null); setError(null); }} className="px-2 py-1.5 text-xs text-gray-500">{t('common.cancel')}</button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setEditState(null);
+                                        setError(null);
+                                        setRandomStringDropdownOpen(null);
+                                    }}
+                                    className="px-2 py-1.5 text-xs text-gray-500"
+                                >
+                                    {t('common.cancel')}
+                                </button>
                             </div>
                             {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
                         </div>
