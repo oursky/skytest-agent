@@ -388,8 +388,8 @@ export default function ConfigurationsSection({
                                 </svg>
                             </button>
                             {addTypeOpen && (
-                                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-10 py-1 min-w-[120px]">
-                                    {(['URL', 'VARIABLE', 'SECRET', 'RANDOM_STRING', 'FILE'] as ConfigType[]).map(type => (
+                                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-10 py-1 min-w-[150px]">
+                                    {(['URL', 'VARIABLE', 'SECRET', 'FILE', 'RANDOM_STRING'] as ConfigType[]).map(type => (
                                         <button
                                             key={type}
                                             type="button"
