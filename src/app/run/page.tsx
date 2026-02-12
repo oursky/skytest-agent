@@ -841,7 +841,7 @@ function RunPageContent() {
                                 const tcId = updatedTestCaseId || testCaseId || currentTestCaseId;
                                 if (tcId) fetchTestCaseConfigs(tcId);
                             }}
-                            onEnsureTestCase={(data) => saveTestCase(data, { saveDraft: true })}
+                            onEnsureTestCase={ensureTestCaseFromData}
                         />
                     )}
                 </div>
