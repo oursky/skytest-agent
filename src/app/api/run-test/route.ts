@@ -19,42 +19,20 @@ interface RunTestRequest {
     prompt?: string;
     steps?: TestStep[];
     browserConfig?: Record<string, BrowserConfig>;
-    username?: string;
-    password?: string;
     testCaseId?: string;
 }
 
-function redactBrowserConfigCredentials(browserConfig?: Record<string, BrowserConfig>) {
-    if (!browserConfig) return undefined;
-
-    return Object.fromEntries(
-        Object.entries(browserConfig).map(([browserId, value]) => {
-            const safeConfig: BrowserConfig = { ...value };
-            delete safeConfig.username;
-            delete safeConfig.password;
-            return [browserId, safeConfig];
-        })
-    );
-}
-
 function createConfigurationSnapshot(config: RunTestRequest, resolvedConfigurations?: ResolvedConfig[]) {
-    const sanitized: RunTestRequest = { ...config };
-    delete sanitized.testCaseId;
-    delete sanitized.username;
-    delete sanitized.password;
-
-    const browserConfig = sanitized.browserConfig;
-    delete sanitized.browserConfig;
+    const { testCaseId, ...sanitized } = config;
+    void testCaseId;
 
     const masked = resolvedConfigurations?.map(c => ({
         ...c,
         value: c.type === 'SECRET' ? '••••••' : c.value,
     }));
-    const sanitizedBrowserConfig = redactBrowserConfigCredentials(browserConfig);
 
     return {
         ...sanitized,
-        ...(sanitizedBrowserConfig ? { browserConfig: sanitizedBrowserConfig } : {}),
         ...(masked && masked.length > 0 ? { resolvedConfigurations: masked } : {})
     };
 }
@@ -97,11 +75,7 @@ export async function POST(request: Request) {
     }
 
     const config = await request.json() as RunTestRequest;
-    const sanitizedConfig: RunTestRequest = {
-        ...config,
-        browserConfig: redactBrowserConfigCredentials(config.browserConfig),
-    };
-    const { url, prompt, steps, browserConfig, testCaseId } = sanitizedConfig;
+    const { url, prompt, steps, browserConfig, testCaseId } = config;
 
     const hasBrowserConfig = browserConfig && Object.keys(browserConfig).length > 0;
     const hasSteps = steps && steps.length > 0;
@@ -121,7 +95,7 @@ export async function POST(request: Request) {
         );
     }
 
-    const urlValidationError = validateConfigUrls(sanitizedConfig);
+    const urlValidationError = validateConfigUrls(config);
     if (urlValidationError) {
         return NextResponse.json(
             { error: urlValidationError },
@@ -184,7 +158,7 @@ export async function POST(request: Request) {
         });
 
         const resolved = await resolveConfigs(testCase.projectId, testCaseId);
-        const configurationSnapshot = JSON.stringify(createConfigurationSnapshot(sanitizedConfig, resolved.allConfigs));
+        const configurationSnapshot = JSON.stringify(createConfigurationSnapshot(config, resolved.allConfigs));
 
         const testRun = await prisma.testRun.create({
             data: {
@@ -211,7 +185,7 @@ export async function POST(request: Request) {
         }
 
         await queue.add(testRun.id, {
-            ...sanitizedConfig,
+            ...config,
             userId,
             openRouterApiKey,
             testCaseId,

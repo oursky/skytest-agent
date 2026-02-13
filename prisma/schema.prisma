@@ -55,8 +55,6 @@ model TestCase {
   prompt    String?
   steps     String?
   browserConfig String?
-  username  String?
-  password  String?
   testRuns  TestRun[]
   files     TestCaseFile[]
   configs   TestCaseConfig[]

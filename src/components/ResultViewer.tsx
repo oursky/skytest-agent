@@ -25,20 +25,8 @@ interface ResultViewerProps {
 }
 
 function collectSecrets(config?: TestData): string[] {
-    if (!config) return [];
-    const secrets = new Set<string>();
-
-    if (config.username) secrets.add(config.username);
-    if (config.password) secrets.add(config.password);
-
-    if (config.browserConfig) {
-        for (const entry of Object.values(config.browserConfig)) {
-            if (entry.username) secrets.add(entry.username);
-            if (entry.password) secrets.add(entry.password);
-        }
-    }
-
-    return Array.from(secrets).filter((value) => value.trim().length > 0);
+    void config;
+    return [];
 }
 
 function maskSensitiveText(text: string, secrets: string[]): string {

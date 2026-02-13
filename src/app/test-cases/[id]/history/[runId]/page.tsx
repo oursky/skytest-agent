@@ -27,8 +27,6 @@ interface TestCase {
     name: string;
     url: string;
     prompt: string;
-    username?: string;
-    password?: string;
     steps?: TestStep[];
     browserConfig?: Record<string, BrowserConfig>;
 }
@@ -192,8 +190,6 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
             name: testCase.name,
             url: testCase.url,
             prompt: testCase.prompt || '',
-            username: testCase.username,
-            password: testCase.password,
             steps: testCase.steps,
             browserConfig: testCase.browserConfig,
         } : undefined;
@@ -207,8 +203,6 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                     name: savedConfig.name ?? baseConfig?.name,
                     url: savedConfig.url ?? baseConfig?.url ?? '',
                     prompt: savedConfig.prompt ?? baseConfig?.prompt ?? '',
-                    username: savedConfig.username ?? baseConfig?.username,
-                    password: savedConfig.password ?? baseConfig?.password,
                     steps: savedConfig.steps ?? baseConfig?.steps,
                     browserConfig: savedConfig.browserConfig ?? baseConfig?.browserConfig,
                 };

@@ -247,8 +247,6 @@ export const MESSAGES: Record<Locale, Messages> = {
     'browserConfig.configuration': '{browser} Configuration',
     'browserConfig.remove': 'Remove',
     'browserConfig.url': 'URL',
-    'browserConfig.username': 'Username',
-    'browserConfig.password': 'Password',
 
     // SortableStepItem
     'step.drag': 'Drag step',
@@ -614,8 +612,6 @@ export const MESSAGES: Record<Locale, Messages> = {
     'browserConfig.configuration': '{browser} 設定',
     'browserConfig.remove': '移除',
     'browserConfig.url': 'URL',
-    'browserConfig.username': '使用者名稱',
-    'browserConfig.password': '密碼',
 
     // SortableStepItem
     'step.drag': '拖曳步驟',
@@ -981,8 +977,6 @@ export const MESSAGES: Record<Locale, Messages> = {
     'browserConfig.configuration': '{browser} 配置',
     'browserConfig.remove': '移除',
     'browserConfig.url': 'URL',
-    'browserConfig.username': '用户名',
-    'browserConfig.password': '密码',
 
     // SortableStepItem
     'step.drag': '拖拽步骤',

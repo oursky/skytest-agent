@@ -55,8 +55,6 @@ export async function POST(
                 prompt: existingTestCase.prompt,
                 steps: existingTestCase.steps,
                 browserConfig: existingTestCase.browserConfig,
-                username: existingTestCase.username,
-                password: existingTestCase.password,
                 projectId: existingTestCase.projectId,
                 displayId: existingTestCase.displayId,
                 status: 'DRAFT',

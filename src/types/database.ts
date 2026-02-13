@@ -20,8 +20,6 @@ export interface TestCase {
     steps?: TestStep[];
     browserConfig?: Record<string, BrowserConfig>;
     projectId: string;
-    username?: string;
-    password?: string;
     createdAt: string;
     updatedAt: string;
     testRuns?: TestRun[];

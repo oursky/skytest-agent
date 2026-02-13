@@ -52,10 +52,6 @@ export const config = {
             quality: 60,
         },
         security: {
-            credentialPlaceholders: {
-                username: '{{username}}',
-                password: '{{password}}',
-            },
             allowedUrlProtocols: ['http:', 'https:'],
             blockedHostnames: ['localhost', '127.0.0.1', '0.0.0.0', '::1'],
             blockedHostnameSuffixes: ['.local', '.internal', '.home', '.lan'],

@@ -13,8 +13,6 @@ import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 
 interface TestData {
     url: string;
-    username?: string;
-    password?: string;
     prompt: string;
     name?: string;
     displayId?: string;
@@ -316,8 +314,6 @@ function RunPageContent() {
                     name: data.name,
                     url: data.url,
                     prompt: data.prompt,
-                    username: data.username || "",
-                    password: data.password || "",
                     steps: data.steps,
                     browserConfig: data.browserConfig,
                 });
