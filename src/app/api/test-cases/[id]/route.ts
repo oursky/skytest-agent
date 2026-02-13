@@ -5,7 +5,7 @@ import { decrypt, encrypt } from '@/lib/crypto';
 import { createLogger } from '@/lib/logger';
 import { parseTestCaseJson } from '@/lib/test-case-utils';
 import { TestStep } from '@/types';
-import { getUploadPath } from '@/lib/file-security';
+import { getUploadPath, getTestCaseConfigUploadPath } from '@/lib/file-security';
 import fs from 'fs/promises';
 
 const logger = createLogger('api:test-cases:id');
@@ -177,12 +177,14 @@ export async function DELETE(
             where: { id },
         });
 
-        const uploadPath = getUploadPath(id);
-        try {
-            await fs.rm(uploadPath, { recursive: true, force: true });
-        } catch {
-            logger.warn('Failed to delete upload directory', { uploadPath });
-        }
+        const cleanupPaths = [getUploadPath(id), getTestCaseConfigUploadPath(id)];
+        await Promise.all(cleanupPaths.map(async (cleanupPath) => {
+            try {
+                await fs.rm(cleanupPath, { recursive: true, force: true });
+            } catch {
+                logger.warn('Failed to delete upload directory', { cleanupPath });
+            }
+        }));
 
         return NextResponse.json({ success: true });
     } catch (error) {
