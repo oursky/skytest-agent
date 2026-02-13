@@ -11,7 +11,12 @@ import fs from 'fs/promises';
 const logger = createLogger('api:test-cases:id');
 
 function cleanStepsForStorage(steps: TestStep[]): TestStep[] {
-    return steps.map(({ aiAction: _aiAction, codeAction: _codeAction, ...step }) => step);
+    return steps.map((step) => {
+        const { aiAction, codeAction, ...cleanedStep } = step;
+        void aiAction;
+        void codeAction;
+        return cleanedStep;
+    });
 }
 
 function decryptStoredCredential(value?: string | null): string | undefined {
@@ -62,7 +67,8 @@ export async function GET(
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const { project: _project, ...testCaseData } = testCase;
+        const { project, ...testCaseData } = testCase;
+        void project;
         const parsedTestCase = parseTestCaseJson(testCaseData);
         parsedTestCase.username = decryptStoredCredential(testCaseData.username) ?? null;
         parsedTestCase.password = decryptStoredCredential(testCaseData.password) ?? null;

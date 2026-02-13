@@ -10,7 +10,12 @@ const logger = createLogger('api:projects:test-cases');
 export const dynamic = 'force-dynamic';
 
 function cleanStepsForStorage(steps: TestStep[]): TestStep[] {
-    return steps.map(({ aiAction: _aiAction, codeAction: _codeAction, ...step }) => step);
+    return steps.map((step) => {
+        const { aiAction, codeAction, ...cleanedStep } = step;
+        void aiAction;
+        void codeAction;
+        return cleanedStep;
+    });
 }
 
 export async function GET(

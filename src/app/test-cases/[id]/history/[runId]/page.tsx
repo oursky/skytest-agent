@@ -159,7 +159,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
         return 'test_case';
     };
 
-    const handleExport = async (_data?: unknown) => {
+    const handleExport = async () => {
         try {
             const token = await getAccessToken();
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};

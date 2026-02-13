@@ -1,4 +1,4 @@
-import { TestStep, BrowserConfig, StepType } from '@/types';
+import { TestStep, BrowserConfig } from '@/types';
 
 export interface TestCaseData {
     name?: string;

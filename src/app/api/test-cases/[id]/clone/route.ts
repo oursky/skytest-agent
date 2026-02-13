@@ -100,7 +100,7 @@ export async function POST(
 
                 try {
                     await fs.link(src, dest);
-                } catch (e) {
+                } catch {
                     try {
                         await fs.copyFile(src, dest);
                     } catch (copyError) {

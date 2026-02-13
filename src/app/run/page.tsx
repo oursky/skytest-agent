@@ -462,26 +462,6 @@ function RunPageContent() {
         }
     };
 
-    const handleFilesChange = async (overrideId?: string, uploadedFiles?: TestCaseFile[]) => {
-        if (overrideId && !currentTestCaseId && !testCaseId) {
-            setCurrentTestCaseId(overrideId);
-        }
-
-        if (overrideId) {
-            refreshFilesRef.current = overrideId;
-        }
-
-        if (uploadedFiles && uploadedFiles.length > 0) {
-            setTestCaseFiles((prev) => {
-                const seen = new Set(prev.map(f => f.id));
-                const merged = [...uploadedFiles.filter(f => !seen.has(f.id)), ...prev];
-                return merged;
-            });
-        }
-
-        await refreshFiles(overrideId);
-    };
-
     const issueStreamToken = async (scope: 'project-events' | 'test-run-events', resourceId: string): Promise<string | null> => {
         const token = await getAccessToken();
         if (!token) return null;
@@ -551,7 +531,7 @@ function RunPageContent() {
             }
         };
 
-        es.onerror = (err) => {
+        es.onerror = () => {
             console.log('EventSource connection closed or error occurred');
             es.close();
             setEventSource(null);
