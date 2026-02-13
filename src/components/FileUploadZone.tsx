@@ -36,7 +36,7 @@ function FileUploadZoneInner({ testCaseId, onUploadComplete, disabled, ensureTes
         setEffectiveTestCaseId(testCaseId);
     }, [testCaseId]);
 
-    const validateFile = (file: File): string | null => {
+    const validateFile = useCallback((file: File): string | null => {
         if (file.size > config.files.maxFileSize) {
             const maxMB = Math.floor(config.files.maxFileSize / 1024 / 1024);
             return t('upload.error.fileTooLarge', { name: file.name, mb: maxMB });
@@ -45,9 +45,9 @@ function FileUploadZoneInner({ testCaseId, onUploadComplete, disabled, ensureTes
             return t('upload.error.fileTypeNotAllowed', { type: file.type });
         }
         return null;
-    };
+    }, [t]);
 
-    const uploadFile = async (file: File, id: string) => {
+    const uploadFile = useCallback(async (file: File, id: string) => {
         if (!id) throw new Error(t('upload.error.noTestCase'));
         const formData = new FormData();
         formData.append('file', file);
@@ -64,7 +64,7 @@ function FileUploadZoneInner({ testCaseId, onUploadComplete, disabled, ensureTes
         }
 
         return response.json();
-    };
+    }, [getAccessToken, t]);
 
     const handleFiles = useCallback(async (files: FileList | null) => {
         const fileArray = files ? Array.from(files) : [];
@@ -100,7 +100,7 @@ function FileUploadZoneInner({ testCaseId, onUploadComplete, disabled, ensureTes
         } finally {
             setIsUploading(false);
         }
-    }, [effectiveTestCaseId, onUploadComplete, ensureTestCase]);
+    }, [effectiveTestCaseId, onUploadComplete, ensureTestCase, t, uploadFile, validateFile]);
 
     const handleDragOver = useCallback((e: React.DragEvent) => {
         e.preventDefault();

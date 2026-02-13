@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, useCallback } from "react";
 import { useAuth } from "../../../../auth-provider";
 import { useRouter } from "next/navigation";
 import ResultViewer from "@/components/ResultViewer";
@@ -53,25 +53,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
         }
     }, [isAuthLoading, isLoggedIn, router]);
 
-    useEffect(() => {
-        const loadData = async () => {
-            if (!isLoggedIn || isAuthLoading) return;
-            setIsLoading(true);
-            try {
-                await Promise.all([fetchRunDetails(), fetchTestCase()]);
-            } catch (error) {
-                console.error("Error loading data:", error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        if (runId && id) {
-            loadData();
-        }
-    }, [runId, id, isLoggedIn, isAuthLoading]);
-
-    const fetchTestCase = async () => {
+    const fetchTestCase = useCallback(async () => {
         try {
             const token = await getAccessToken();
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
@@ -105,9 +87,9 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
         } catch (error) {
             console.error("Failed to fetch test case", error);
         }
-    };
+    }, [getAccessToken, id]);
 
-    const fetchRunDetails = async () => {
+    const fetchRunDetails = useCallback(async () => {
         try {
             const token = await getAccessToken();
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
@@ -129,7 +111,25 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
         } catch (error) {
             console.error("Failed to fetch run details", error);
         }
-    };
+    }, [getAccessToken, id, runId]);
+
+    useEffect(() => {
+        const loadData = async () => {
+            if (!isLoggedIn || isAuthLoading) return;
+            setIsLoading(true);
+            try {
+                await Promise.all([fetchRunDetails(), fetchTestCase()]);
+            } catch (error) {
+                console.error("Error loading data:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        if (runId && id) {
+            loadData();
+        }
+    }, [fetchRunDetails, fetchTestCase, runId, id, isLoggedIn, isAuthLoading]);
 
     if (isAuthLoading || isLoading) {
         return (

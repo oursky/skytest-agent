@@ -5,6 +5,7 @@ import { config } from '@/config/app';
 import { useAuth } from '@/app/auth-provider';
 import { useCallback, useEffect, useState } from 'react';
 import { useI18n } from '@/i18n';
+import Image from 'next/image';
 
 interface FileListProps {
     files: TestCaseFile[];
@@ -184,9 +185,12 @@ export default function FileList({ files, testCaseId, onDelete, readOnly }: File
                             className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors overflow-hidden"
                         >
                             {file.mimeType.startsWith('image/') && !readOnly && streamToken ? (
-                                <img
+                                <Image
                                     src={`/api/test-cases/${testCaseId}/files/${file.id}?inline=1&streamToken=${encodeURIComponent(streamToken)}`}
                                     alt={file.filename}
+                                    width={48}
+                                    height={48}
+                                    unoptimized
                                     className="w-12 h-12 object-cover rounded border border-gray-200"
                                 />
                             ) : (

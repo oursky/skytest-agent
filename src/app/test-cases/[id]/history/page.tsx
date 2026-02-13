@@ -63,6 +63,41 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
         }
     }, [isAuthLoading, isLoggedIn, router]);
 
+    const fetchTestCaseInfo = useCallback(async () => {
+        try {
+            const token = await getAccessToken();
+            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+            const response = await fetch(`/api/test-cases/${id}`, { headers });
+            if (response.ok) {
+                const data = await response.json();
+                setTestCaseName(data.name);
+                setProjectId(data.projectId);
+                const projectResponse = await fetch(`/api/projects/${data.projectId}`, { headers });
+                if (projectResponse.ok) {
+                    const projectData = await projectResponse.json();
+                    setProjectName(projectData.name);
+                }
+            }
+        } catch (error) {
+            console.error("Failed to fetch test case info", error);
+        }
+    }, [getAccessToken, id]);
+
+    const fetchHistory = useCallback(async () => {
+        try {
+            const token = await getAccessToken();
+            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+            const response = await fetch(`/api/test-cases/${id}/history?limit=100`, { headers });
+            if (response.ok) {
+                const result = await response.json();
+                setTestRuns(result.data || result);
+            }
+        } catch (error) {
+            console.error("Failed to fetch history", error);
+        }
+    }, [getAccessToken, id]);
+
     useEffect(() => {
         const loadData = async () => {
             if (!isLoggedIn || isAuthLoading) return;
@@ -79,7 +114,7 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
         if (id) {
             loadData();
         }
-    }, [id, isLoggedIn, isAuthLoading]);
+    }, [fetchHistory, fetchTestCaseInfo, id, isLoggedIn, isAuthLoading]);
 
     useEffect(() => {
         if (!isLoggedIn || isAuthLoading) return;
@@ -171,41 +206,6 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
             closeEventSource();
         };
     }, [id, isAuthLoading, isLoggedIn, issueStreamToken, projectId]);
-
-    const fetchTestCaseInfo = async () => {
-        try {
-            const token = await getAccessToken();
-            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-
-            const response = await fetch(`/api/test-cases/${id}`, { headers });
-            if (response.ok) {
-                const data = await response.json();
-                setTestCaseName(data.name);
-                setProjectId(data.projectId);
-                const projectResponse = await fetch(`/api/projects/${data.projectId}`, { headers });
-                if (projectResponse.ok) {
-                    const projectData = await projectResponse.json();
-                    setProjectName(projectData.name);
-                }
-            }
-        } catch (error) {
-            console.error("Failed to fetch test case info", error);
-        }
-    };
-
-    const fetchHistory = async () => {
-        try {
-            const token = await getAccessToken();
-            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const response = await fetch(`/api/test-cases/${id}/history?limit=100`, { headers });
-            if (response.ok) {
-                const result = await response.json();
-                setTestRuns(result.data || result);
-            }
-        } catch (error) {
-            console.error("Failed to fetch history", error);
-        }
-    };
 
     const handleDeleteRun = async () => {
         try {
