@@ -71,6 +71,10 @@ See `.env.example` for all available options. Required:
 
 Users provide their own [OpenRouter](https://openrouter.ai/) API keys via the app settings.
 
+Production note:
+- By default, test-run submission is blocked in production if the app is using single-node unsafe runtime assumptions (in-memory queue/SSE, SQLite, local uploads).
+- To run with that architecture intentionally, set `ALLOW_UNSAFE_SINGLE_NODE_PRODUCTION=true`.
+
 ## Troubleshooting
 
 - **Browsers not found**: `npx playwright install`

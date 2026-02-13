@@ -6,6 +6,8 @@ import { decrypt } from '@/lib/crypto';
 import { validateTargetUrl } from '@/lib/url-security';
 import { createLogger } from '@/lib/logger';
 import { resolveConfigs } from '@/lib/config-resolver';
+import { assertProductionRunSafety } from '@/lib/deployment-guard';
+import { getErrorMessage } from '@/lib/errors';
 import type { BrowserConfig, ResolvedConfig, TestStep } from '@/types';
 
 const logger = createLogger('api:run-test');
@@ -115,6 +117,13 @@ export async function POST(request: Request) {
             { error: urlValidationError },
             { status: 400 }
         );
+    }
+
+    try {
+        assertProductionRunSafety();
+    } catch (error) {
+        logger.error('Run submission blocked by deployment safety guard', error);
+        return NextResponse.json({ error: getErrorMessage(error) }, { status: 503 });
     }
 
     try {
