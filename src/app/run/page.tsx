@@ -102,7 +102,7 @@ function RunPageContent() {
 
     const isExcelFilename = (filename: string): boolean => {
         const normalized = filename.toLowerCase();
-        return normalized.endsWith('.xlsx') || normalized.endsWith('.xls');
+        return normalized.endsWith('.xlsx');
     };
 
     const isSupportedVariableConfig = (
@@ -227,7 +227,7 @@ function RunPageContent() {
             }
         }
 
-        const excelArrayBuffer = exportToExcelArrayBuffer({
+        const excelArrayBuffer = await exportToExcelArrayBuffer({
             name: exportData.name,
             testCaseId: exportData.displayId || undefined,
             steps: exportData.steps,
@@ -264,7 +264,7 @@ function RunPageContent() {
             if (!isExcelFilename(file.name)) return;
 
             const fileBuffer = await file.arrayBuffer();
-            const { data } = parseTestCaseExcel(fileBuffer);
+            const { data } = await parseTestCaseExcel(fileBuffer);
 
             setInitialData(data.testData);
             if (data.testCaseId) {
@@ -797,7 +797,7 @@ function RunPageContent() {
                 type="file"
                 ref={fileInputRef}
                 onChange={handleImport}
-                accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 className="hidden"
             />
 

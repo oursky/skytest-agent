@@ -97,7 +97,7 @@ export async function GET(
             })),
         };
 
-        const excelBuffer = exportToExcelBuffer(excelData);
+        const excelBuffer = await exportToExcelBuffer(excelData);
 
         const sanitizeSegment = (value: string) => value.replace(/[^a-zA-Z0-9._-]/g, '_');
         const sanitizedDisplayId = parsed.displayId ? sanitizeSegment(parsed.displayId) : '';
