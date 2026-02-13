@@ -14,7 +14,8 @@
     "start": "next start",
     "lint": "eslint",
     "load:test:smoke": "node scripts/load-test-smoke.mjs",
-    "audit:auth": "node scripts/audit-api-auth.mjs"
+    "audit:auth": "node scripts/audit-api-auth.mjs",
+    "audit:ownership": "node scripts/audit-api-ownership.mjs"
   },
   "dependencies": {
     "@authgear/web": "5.0.1",
