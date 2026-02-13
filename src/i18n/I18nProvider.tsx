@@ -91,7 +91,9 @@ export function I18nProvider({
 
     const preferred = detectClientPreferredLocale();
     if (preferred !== locale) {
-      setLocale(preferred);
+      queueMicrotask(() => {
+        setLocale(preferred);
+      });
       return;
     }
 

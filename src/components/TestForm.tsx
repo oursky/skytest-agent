@@ -133,9 +133,17 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
         const defaultBrowserId = nextBrowsers[0]?.id || 'browser_a';
         const validBrowserIds = new Set(nextBrowsers.map((browser) => browser.id));
 
-        setName(initialData.name || '');
-        setBrowsers(nextBrowsers);
-        setSteps(buildSteps(initialData, defaultBrowserId, validBrowserIds));
+        let cancelled = false;
+        queueMicrotask(() => {
+            if (cancelled) return;
+            setName(initialData.name || '');
+            setBrowsers(nextBrowsers);
+            setSteps(buildSteps(initialData, defaultBrowserId, validBrowserIds));
+        });
+
+        return () => {
+            cancelled = true;
+        };
     }, [initialData]);
 
     useEffect(() => {

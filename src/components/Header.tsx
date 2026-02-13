@@ -5,10 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/auth-provider';
 import { LOCALE_META, Locale, useI18n } from '@/i18n';
 
-function isLocale(value: string): value is Locale {
-    return value === 'en' || value === 'zh-Hant' || value === 'zh-Hans';
-}
-
 export default function Header() {
     const { isLoggedIn, isLoading: isAuthLoading, user, logout, openSettings, login } = useAuth();
     const router = useRouter();
@@ -31,12 +27,6 @@ export default function Header() {
         if (isDropdownOpen) document.addEventListener('click', closeDropdown);
         return () => document.removeEventListener('click', closeDropdown);
     }, [isDropdownOpen]);
-
-    useEffect(() => {
-        if (!isLanguageOpen) return;
-        const index = Math.max(0, localeOptions.indexOf(locale));
-        setLanguageFocusIndex(index);
-    }, [isLanguageOpen, locale, localeOptions]);
 
     useEffect(() => {
         if (!isLanguageOpen) return;
@@ -126,12 +116,19 @@ export default function Header() {
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     setIsDropdownOpen(false);
-                                    setIsLanguageOpen((open) => !open);
+                                    setIsLanguageOpen((open) => {
+                                        const nextOpen = !open;
+                                        if (nextOpen) {
+                                            setLanguageFocusIndex(Math.max(0, localeOptions.indexOf(locale)));
+                                        }
+                                        return nextOpen;
+                                    });
                                 }}
                                 onKeyDown={(e) => {
                                     if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
                                         e.preventDefault();
                                         setIsDropdownOpen(false);
+                                        setLanguageFocusIndex(Math.max(0, localeOptions.indexOf(locale)));
                                         setIsLanguageOpen(true);
                                     }
                                 }}
