@@ -4,6 +4,7 @@ import { verifyAuth, resolveUserId } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { subscribeProjectEvents } from '@/lib/project-events';
 import { verifyStreamToken } from '@/lib/stream-token';
+import { config as appConfig } from '@/config/app';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,6 +51,7 @@ export async function GET(
     let streamClosed = false;
     let unsubscribe: (() => void) | null = null;
     let heartbeat: ReturnType<typeof setInterval> | null = null;
+    let ttlTimer: ReturnType<typeof setTimeout> | null = null;
 
     const stream = new ReadableStream({
         start(controller) {
@@ -62,6 +64,10 @@ export async function GET(
                 if (heartbeat) {
                     clearInterval(heartbeat);
                     heartbeat = null;
+                }
+                if (ttlTimer) {
+                    clearTimeout(ttlTimer);
+                    ttlTimer = null;
                 }
                 if (unsubscribe) {
                     unsubscribe();
@@ -98,6 +104,10 @@ export async function GET(
                     cleanup();
                 }
             }, 15000);
+
+            ttlTimer = setTimeout(() => {
+                cleanup();
+            }, appConfig.queue.sseConnectionTtlMs);
         },
         cancel() {
             if (streamClosed) return;
@@ -105,6 +115,10 @@ export async function GET(
             if (heartbeat) {
                 clearInterval(heartbeat);
                 heartbeat = null;
+            }
+            if (ttlTimer) {
+                clearTimeout(ttlTimer);
+                ttlTimer = null;
             }
             if (unsubscribe) {
                 unsubscribe();

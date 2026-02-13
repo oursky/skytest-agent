@@ -112,6 +112,7 @@ export async function GET(
     }
 
     let pollInterval: ReturnType<typeof setInterval> | null = null;
+    let ttlTimer: ReturnType<typeof setTimeout> | null = null;
     let streamClosed = false;
 
     const stream = new ReadableStream({
@@ -124,6 +125,10 @@ export async function GET(
                 streamClosed = true;
                 if (pollInterval) {
                     clearInterval(pollInterval);
+                }
+                if (ttlTimer) {
+                    clearTimeout(ttlTimer);
+                    ttlTimer = null;
                 }
                 try {
                     controller.close();
@@ -227,11 +232,19 @@ export async function GET(
                     closeStream();
                 }
             }, appConfig.queue.pollInterval);
+
+            ttlTimer = setTimeout(() => {
+                closeStream();
+            }, appConfig.queue.sseConnectionTtlMs);
         },
         cancel() {
             streamClosed = true;
             if (pollInterval) {
                 clearInterval(pollInterval);
+            }
+            if (ttlTimer) {
+                clearTimeout(ttlTimer);
+                ttlTimer = null;
             }
         }
     });
