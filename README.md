@@ -78,16 +78,6 @@ Users provide their own [OpenRouter](https://openrouter.ai/) API keys via the ap
 - **View database**: `npx prisma studio`
 - **Auth redirect issues**: Check Authgear redirect URI matches your domain
 
-## Baseline Verification
-
-Run the core local quality/security baseline in one command:
-
-```bash
-npm run verify:baseline
-```
-
-This runs ESLint and TypeScript type-checking.
-
 ## Community & Contributing
 
 Bug reports, feature requests, and pull requests are all welcome.
