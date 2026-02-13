@@ -13,7 +13,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "load:test:smoke": "node scripts/load-test-smoke.mjs"
+    "load:test:smoke": "node scripts/load-test-smoke.mjs",
+    "audit:auth": "node scripts/audit-api-auth.mjs"
   },
   "dependencies": {
     "@authgear/web": "5.0.1",
