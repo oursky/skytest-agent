@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/auth';
+import { encrypt } from '@/lib/crypto';
 import { createLogger } from '@/lib/logger';
 import { TestStep } from '@/types';
 
@@ -94,6 +95,8 @@ export async function POST(
         const hasSteps = Array.isArray(steps) && steps.length > 0;
         const hasBrowserConfig = !!browserConfig && typeof browserConfig === 'object' && !Array.isArray(browserConfig) && Object.keys(browserConfig as Record<string, unknown>).length > 0;
         const cleanedSteps = hasSteps ? cleanStepsForStorage(steps as TestStep[]) : undefined;
+        const encryptedUsername = username ? encrypt(username) : undefined;
+        const encryptedPassword = password ? encrypt(password) : undefined;
 
         if (!name) {
             return NextResponse.json({ error: 'Name is required' }, { status: 400 });
@@ -109,8 +112,8 @@ export async function POST(
                 prompt,
                 steps: cleanedSteps ? JSON.stringify(cleanedSteps) : undefined,
                 browserConfig: hasBrowserConfig ? JSON.stringify(browserConfig) : undefined,
-                username,
-                password,
+                username: encryptedUsername,
+                password: encryptedPassword,
                 projectId: id,
                 displayId: displayId || undefined,
                 status: 'DRAFT',

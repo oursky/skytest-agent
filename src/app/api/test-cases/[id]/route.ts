@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/auth';
+import { decrypt, encrypt } from '@/lib/crypto';
 import { createLogger } from '@/lib/logger';
 import { parseTestCaseJson } from '@/lib/test-case-utils';
 import { TestStep } from '@/types';
@@ -10,7 +11,16 @@ import fs from 'fs/promises';
 const logger = createLogger('api:test-cases:id');
 
 function cleanStepsForStorage(steps: TestStep[]): TestStep[] {
-    return steps.map(({ aiAction, codeAction, ...step }) => step);
+    return steps.map(({ aiAction: _aiAction, codeAction: _codeAction, ...step }) => step);
+}
+
+function decryptStoredCredential(value?: string | null): string | undefined {
+    if (!value) return undefined;
+    try {
+        return decrypt(value);
+    } catch {
+        return value;
+    }
 }
 
 export async function GET(
@@ -54,6 +64,8 @@ export async function GET(
 
         const { project: _project, ...testCaseData } = testCase;
         const parsedTestCase = parseTestCaseJson(testCaseData);
+        parsedTestCase.username = decryptStoredCredential(testCaseData.username) ?? null;
+        parsedTestCase.password = decryptStoredCredential(testCaseData.password) ?? null;
 
         return NextResponse.json(parsedTestCase);
     } catch (error) {
@@ -98,6 +110,8 @@ export async function PUT(
         const hasSteps = steps && Array.isArray(steps) && steps.length > 0;
         const hasBrowserConfig = browserConfig && Object.keys(browserConfig).length > 0;
         const cleanedSteps = hasSteps ? cleanStepsForStorage(steps) : undefined;
+        const encryptedUsername = username === undefined ? undefined : (username ? encrypt(username) : null);
+        const encryptedPassword = password === undefined ? undefined : (password ? encrypt(password) : null);
 
         const updateData: Record<string, unknown> = {
             name,
@@ -105,8 +119,8 @@ export async function PUT(
             prompt,
             steps: cleanedSteps ? JSON.stringify(cleanedSteps) : undefined,
             browserConfig: hasBrowserConfig ? JSON.stringify(browserConfig) : undefined,
-            username,
-            password,
+            username: encryptedUsername,
+            password: encryptedPassword,
         };
 
         if (displayId !== undefined) {
