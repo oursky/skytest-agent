@@ -25,6 +25,7 @@ export class TestQueue {
     private concurrency = appConfig.queue.concurrency;
     private logs: Map<string, TestEvent[]> = new Map();
     private persistTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+    private persistedIndexes: Map<string, number> = new Map();
 
     private constructor() { }
 
@@ -42,6 +43,7 @@ export class TestQueue {
         this.queue.push(job);
 
         this.logs.set(runId, []);
+        this.persistedIndexes.set(runId, 0);
 
         try {
             await prisma.testRun.update({
@@ -102,7 +104,7 @@ export class TestQueue {
                         error: 'Test stopped by user',
                         completedAt: new Date(),
                         result: JSON.stringify(logBuffer),
-                        logs: JSON.stringify(logBuffer)
+                        logs: null
                     }
                 });
 
@@ -157,6 +159,7 @@ export class TestQueue {
                 }
 
                 this.logs.delete(runId);
+                this.persistedIndexes.delete(runId);
             } else {
                 try {
                     const run = await prisma.testRun.findUnique({
@@ -193,6 +196,7 @@ export class TestQueue {
                 } catch (error) {
                     logger.error(`Failed to cleanup orphaned run ${runId}`, error);
                 }
+                this.persistedIndexes.delete(runId);
             }
         }
     }
@@ -245,6 +249,11 @@ export class TestQueue {
         this.processNext();
     }
 
+    private serializeEventsChunk(events: TestEvent[]): string {
+        if (events.length === 0) return '';
+        return events.map((event) => JSON.stringify(event)).join('\n') + '\n';
+    }
+
     private schedulePersistEvents(runId: string) {
         if (this.persistTimers.has(runId)) {
             return;
@@ -254,15 +263,19 @@ export class TestQueue {
             this.persistTimers.delete(runId);
             const events = this.logs.get(runId);
             if (!events) return;
+            const persistedIndex = this.persistedIndexes.get(runId) ?? 0;
+            if (persistedIndex >= events.length) return;
+
+            const chunk = this.serializeEventsChunk(events.slice(persistedIndex));
+            if (!chunk) return;
 
             try {
-                await prisma.testRun.update({
-                    where: { id: runId },
-                    data: {
-                        result: JSON.stringify(events),
-                        logs: JSON.stringify(events)
-                    }
-                });
+                await prisma.$executeRaw`
+                    UPDATE "TestRun"
+                    SET "logs" = COALESCE("logs", '') || ${chunk}
+                    WHERE "id" = ${runId}
+                `;
+                this.persistedIndexes.set(runId, events.length);
             } catch (error) {
                 logger.warn(`Failed to persist live events for ${runId}`, error);
             }
@@ -308,7 +321,7 @@ export class TestQueue {
                     status: result.status,
                     error: result.error,
                     result: JSON.stringify(logBuffer),
-                    logs: JSON.stringify(logBuffer),
+                    logs: null,
                     completedAt: new Date()
                 }
             });
@@ -367,7 +380,7 @@ export class TestQueue {
                         status: 'FAIL',
                         error: getErrorMessage(err),
                         result: JSON.stringify(logBuffer),
-                        logs: JSON.stringify(logBuffer),
+                        logs: null,
                         completedAt: new Date()
                     }
                 });
@@ -391,6 +404,7 @@ export class TestQueue {
         } finally {
             this.running.delete(runId);
             this.cleanupFns.delete(runId);
+            this.persistedIndexes.delete(runId);
             const pendingTimer = this.persistTimers.get(runId);
             if (pendingTimer) {
                 clearTimeout(pendingTimer);
