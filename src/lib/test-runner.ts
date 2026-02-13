@@ -965,6 +965,28 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
     }
 
     return await withMidsceneApiKey(openRouterApiKey, async () => {
+        const runAbortController = new AbortController();
+        const runSignal = runAbortController.signal;
+        let timeoutExceeded = false;
+        const timeoutMessage = `Test exceeded maximum duration (${config.test.maxDuration}s)`;
+        const timeoutHandle = setTimeout(() => {
+            timeoutExceeded = true;
+            if (!runSignal.aborted) {
+                runAbortController.abort();
+            }
+        }, config.test.maxDuration * 1000);
+        const abortFromParent = () => {
+            if (!runSignal.aborted) {
+                runAbortController.abort();
+            }
+        };
+
+        if (signal?.aborted) {
+            abortFromParent();
+        } else {
+            signal?.addEventListener('abort', abortFromParent, { once: true });
+        }
+
         const resolvedUrl = url ? sub(url) : url;
         const resolvedPrompt = prompt ? sub(prompt) : prompt;
         const resolvedBrowserConfig = browserConfig
@@ -983,7 +1005,7 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
         const actionCounter: ActionCounter = { count: 0 };
 
         try {
-            browserInstances = await setupBrowserInstances(targetConfigs, onEvent, signal, actionCounter);
+            browserInstances = await setupBrowserInstances(targetConfigs, onEvent, runSignal, actionCounter);
 
             if (onCleanup && browserInstances) {
                 onCleanup(async () => {
@@ -995,7 +1017,7 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
 
             log('Executing test...', 'info');
 
-            if (signal?.aborted) throw new Error('Aborted');
+            if (runSignal.aborted) throw new Error('Aborted');
 
             const effectiveSteps = hasSteps
                 ? resolvedSteps!
@@ -1013,23 +1035,31 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
                 targetConfigs,
                 onEvent,
                 runId,
-                signal,
+                runSignal,
                 testCaseId,
                 files,
                 vars,
                 fileRefs
             );
 
-            if (signal?.aborted) throw new Error('Aborted');
+            if (runSignal.aborted) throw new Error('Aborted');
 
             log('✅ Test executed successfully', 'success');
 
-            await captureFinalScreenshots(browserInstances, onEvent, signal);
+            await captureFinalScreenshots(browserInstances, onEvent, runSignal);
 
             return { status: 'PASS', actionCount: actionCounter.count };
 
         } catch (error: unknown) {
-            if (signal?.aborted || (error instanceof Error && error.message === 'Aborted')) {
+            if (timeoutExceeded) {
+                log(`❌ Test failed: ${timeoutMessage}`, 'error');
+                if (browserInstances) {
+                    await captureErrorScreenshots(browserInstances, onEvent);
+                }
+                return { status: 'FAIL', error: timeoutMessage, actionCount: actionCounter.count };
+            }
+
+            if (signal?.aborted || runSignal.aborted || (error instanceof Error && error.message === 'Aborted')) {
                 return { status: 'CANCELLED', error: 'Test was cancelled by user', actionCount: actionCounter.count };
             }
 
@@ -1043,6 +1073,8 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
             return { status: 'FAIL', error: msg, actionCount: actionCounter.count };
 
         } finally {
+            clearTimeout(timeoutHandle);
+            signal?.removeEventListener('abort', abortFromParent);
             if (browserInstances) {
                 await cleanup(browserInstances.browser);
             }
