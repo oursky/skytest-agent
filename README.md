@@ -82,6 +82,25 @@ Production note:
 - **View database**: `npx prisma studio`
 - **Auth redirect issues**: Check Authgear redirect URI matches your domain
 
+## Load Test Smoke
+
+Use the built-in smoke harness to estimate run-submission throughput and SSE fanout behavior before public launch:
+
+```bash
+npm run load:test:smoke -- \
+  --base-url http://localhost:3000 \
+  --auth-token "<your access token>" \
+  --test-case-id "<test case id>" \
+  --requests 20 \
+  --concurrency 3
+```
+
+Optional flags:
+- `--sse true|false` (default `true`)
+- `--sse-hold-ms 3000`
+- `--url https://example.com`
+- `--prompt "Open the page and verify it loads"`
+
 ## Community & Contributing
 
 Bug reports, feature requests, and pull requests are all welcome.

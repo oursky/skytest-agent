@@ -12,7 +12,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "load:test:smoke": "node scripts/load-test-smoke.mjs"
   },
   "dependencies": {
     "@authgear/web": "5.0.1",
