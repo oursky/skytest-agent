@@ -275,6 +275,7 @@ export class TestQueue {
         const { runId, config, controller } = job;
         const logBuffer = this.logs.get(runId) || [];
         const userId = config.userId;
+        let screenshotCount = 0;
 
         try {
             const result = await runTest({
@@ -282,6 +283,17 @@ export class TestQueue {
                 config,
                 signal: controller.signal,
                 onEvent: (event) => {
+                    if (logBuffer.length >= appConfig.queue.maxEventsPerRun) {
+                        return;
+                    }
+
+                    if (event.type === 'screenshot') {
+                        if (screenshotCount >= appConfig.queue.maxScreenshotsPerRun) {
+                            return;
+                        }
+                        screenshotCount += 1;
+                    }
+
                     logBuffer.push(event);
                     this.schedulePersistEvents(runId);
                 },

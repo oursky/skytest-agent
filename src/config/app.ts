@@ -25,6 +25,8 @@ export const config = {
         concurrency: 2,
         pollInterval: 500,
         logRetentionMs: 10000,
+        maxEventsPerRun: 2000,
+        maxScreenshotsPerRun: 300,
     },
 
     test: {
