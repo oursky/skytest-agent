@@ -118,6 +118,14 @@ npm run smoke:authz -- \
 Optional:
 - `--file-id "<owner test case file id>"` to include file-download ownership checks.
 
+## Baseline Verification
+
+Run the core local quality/security baseline in one command:
+
+```bash
+npm run verify:baseline
+```
+
 ## Community & Contributing
 
 Bug reports, feature requests, and pull requests are all welcome.
