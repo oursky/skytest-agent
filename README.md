@@ -82,42 +82,6 @@ Production note:
 - **View database**: `npx prisma studio`
 - **Auth redirect issues**: Check Authgear redirect URI matches your domain
 
-## Load Test Smoke
-
-Use the built-in smoke harness to estimate run-submission throughput and SSE fanout behavior before public launch:
-
-```bash
-npm run load:test:smoke -- \
-  --base-url http://localhost:3000 \
-  --auth-token "<your access token>" \
-  --test-case-id "<test case id>" \
-  --requests 20 \
-  --concurrency 3
-```
-
-Optional flags:
-- `--sse true|false` (default `true`)
-- `--sse-hold-ms 3000`
-- `--url https://example.com`
-- `--prompt "Open the page and verify it loads"`
-
-## Auth Ownership Smoke
-
-Run a live owner-vs-attacker authorization check against critical API routes:
-
-```bash
-npm run smoke:authz -- \
-  --base-url http://localhost:3000 \
-  --owner-token "<owner access token>" \
-  --attacker-token "<attacker access token>" \
-  --project-id "<owner project id>" \
-  --test-case-id "<owner test case id>" \
-  --test-run-id "<owner test run id>"
-```
-
-Optional:
-- `--file-id "<owner test case file id>"` to include file-download ownership checks.
-
 ## Baseline Verification
 
 Run the core local quality/security baseline in one command:
@@ -125,6 +89,8 @@ Run the core local quality/security baseline in one command:
 ```bash
 npm run verify:baseline
 ```
+
+This runs ESLint and TypeScript type-checking.
 
 ## Community & Contributing
 
