@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { queue } from '@/lib/queue';
 import { prisma } from '@/lib/prisma';
-import { verifyAuth } from '@/lib/auth';
+import { verifyAuth, resolveUserId } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
@@ -21,14 +21,32 @@ export async function GET(
     }
 
     const { id } = await params;
+    const userId = await resolveUserId(authPayload);
+    if (!userId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     const testRun = await prisma.testRun.findUnique({
         where: { id },
-        select: { status: true, error: true, result: true, logs: true }
+        select: {
+            status: true,
+            error: true,
+            result: true,
+            logs: true,
+            testCase: {
+                select: {
+                    project: { select: { userId: true } }
+                }
+            }
+        }
     });
 
     if (!testRun) {
         return NextResponse.json({ error: 'Test run not found' }, { status: 404 });
+    }
+
+    if (testRun.testCase.project.userId !== userId) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     let pollInterval: ReturnType<typeof setInterval> | null = null;
