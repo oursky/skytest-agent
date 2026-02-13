@@ -1,6 +1,6 @@
 import { SignJWT, jwtVerify, JWTPayload } from 'jose';
 
-export type StreamScope = 'project-events' | 'test-run-events';
+export type StreamScope = 'project-events' | 'test-run-events' | 'test-case-files';
 
 interface StreamTokenPayload extends JWTPayload {
     uid: string;

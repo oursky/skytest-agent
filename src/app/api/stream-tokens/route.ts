@@ -12,7 +12,7 @@ interface StreamTokenRequestBody {
 }
 
 function isStreamScope(value: unknown): value is StreamScope {
-    return value === 'project-events' || value === 'test-run-events';
+    return value === 'project-events' || value === 'test-run-events' || value === 'test-case-files';
 }
 
 export async function POST(request: Request) {
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
             if (project.userId !== userId) {
                 return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
             }
-        } else {
+        } else if (body.scope === 'test-run-events') {
             const testRun = await prisma.testRun.findUnique({
                 where: { id: body.resourceId },
                 select: {
@@ -67,6 +67,19 @@ export async function POST(request: Request) {
                 return NextResponse.json({ error: 'Test run not found' }, { status: 404 });
             }
             if (testRun.testCase.project.userId !== userId) {
+                return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+            }
+        } else {
+            const testCase = await prisma.testCase.findUnique({
+                where: { id: body.resourceId },
+                select: {
+                    project: { select: { userId: true } }
+                }
+            });
+            if (!testCase) {
+                return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
+            }
+            if (testCase.project.userId !== userId) {
                 return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
             }
         }

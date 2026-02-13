@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyAuth } from '@/lib/auth';
+import { verifyAuth, resolveUserId } from '@/lib/auth';
 import { getFilePath } from '@/lib/file-security';
 import { createLogger } from '@/lib/logger';
+import { verifyStreamToken } from '@/lib/stream-token';
 import fs from 'fs/promises';
 
 const logger = createLogger('api:test-cases:file');
@@ -12,14 +13,29 @@ export async function GET(
     { params }: { params: Promise<{ id: string; fileId: string }> }
 ) {
     const url = new URL(request.url);
-    const tokenFromQuery = url.searchParams.get('token') || undefined;
-    const authPayload = await verifyAuth(request, tokenFromQuery);
-    if (!authPayload) {
+    const streamToken = url.searchParams.get('streamToken');
+    const authPayload = await verifyAuth(request);
+    let userId: string | null = null;
+    if (authPayload) {
+        userId = await resolveUserId(authPayload);
+    }
+
+    const { id, fileId } = await params;
+
+    if (!userId && streamToken) {
+        const streamIdentity = await verifyStreamToken({
+            token: streamToken,
+            scope: 'test-case-files',
+            resourceId: id
+        });
+        userId = streamIdentity?.userId ?? null;
+    }
+
+    if (!userId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     try {
-        const { id, fileId } = await params;
         const storedName = url.searchParams.get('storedName');
         const forceInline = url.searchParams.get('inline') === '1';
 
@@ -38,7 +54,7 @@ export async function GET(
                 return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
             }
 
-            if (testCase.project.userId !== authPayload.userId) {
+            if (testCase.project.userId !== userId) {
                 return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
             }
 
@@ -75,7 +91,7 @@ export async function GET(
                 return NextResponse.json({ error: 'File not found' }, { status: 404 });
             }
 
-            if (file.testCase.project.userId !== authPayload.userId) {
+            if (file.testCase.project.userId !== userId) {
                 return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
             }
 

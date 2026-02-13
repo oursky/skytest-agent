@@ -34,14 +34,12 @@ function getJwks() {
     }
 }
 
-export async function verifyAuth(request: Request, token?: string) {
-    let finalToken = token;
+export async function verifyAuth(request: Request) {
+    let finalToken: string | undefined;
 
-    if (!finalToken) {
-        const authHeader = request.headers.get('Authorization');
-        if (authHeader && authHeader.startsWith('Bearer ')) {
-            finalToken = authHeader.split(' ')[1];
-        }
+    const authHeader = request.headers.get('Authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        finalToken = authHeader.split(' ')[1];
     }
 
     if (!finalToken) {
