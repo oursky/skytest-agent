@@ -482,6 +482,27 @@ function RunPageContent() {
         await refreshFiles(overrideId);
     };
 
+    const issueStreamToken = async (scope: 'project-events' | 'test-run-events', resourceId: string): Promise<string | null> => {
+        const token = await getAccessToken();
+        if (!token) return null;
+
+        const response = await fetch('/api/stream-tokens', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({ scope, resourceId }),
+        });
+
+        if (!response.ok) {
+            return null;
+        }
+
+        const data = await response.json() as { streamToken?: string };
+        return typeof data.streamToken === 'string' ? data.streamToken : null;
+    };
+
     const connectToRun = async (runId: string) => {
         if (eventSource) eventSource.close();
 
@@ -492,8 +513,8 @@ function RunPageContent() {
         }));
         setCurrentRunId(runId);
 
-        const token = await getAccessToken();
-        if (!token) {
+        const streamToken = await issueStreamToken('test-run-events', runId);
+        if (!streamToken) {
             setResult(prev => ({
                 ...prev,
                 status: 'FAIL',
@@ -503,7 +524,7 @@ function RunPageContent() {
             return;
         }
 
-        const url = `/api/test-runs/${runId}/events?token=${token}`;
+        const url = `/api/test-runs/${runId}/events?streamToken=${encodeURIComponent(streamToken)}`;
         const es = new EventSource(url);
 
         es.onmessage = (event) => {

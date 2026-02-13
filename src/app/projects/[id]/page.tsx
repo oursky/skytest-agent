@@ -85,6 +85,27 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         return token ? { 'Authorization': `Bearer ${token}` } : {};
     }, [getAccessToken]);
 
+    const issueStreamToken = useCallback(async (scope: 'project-events' | 'test-run-events', resourceId: string): Promise<string | null> => {
+        const token = await getAccessToken();
+        if (!token) return null;
+
+        const response = await fetch('/api/stream-tokens', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ scope, resourceId })
+        });
+
+        if (!response.ok) {
+            return null;
+        }
+
+        const data = await response.json() as { streamToken?: string };
+        return typeof data.streamToken === 'string' ? data.streamToken : null;
+    }, [getAccessToken]);
+
     const fetchProject = useCallback(async (signal?: AbortSignal) => {
         if (!resolvedParams.id) return;
 
@@ -148,12 +169,12 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
             if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
 
-            const token = await getAccessToken();
+            const streamToken = await issueStreamToken('project-events', resolvedParams.id);
             if (disposed) return;
-            if (!token) return;
+            if (!streamToken) return;
 
             const eventsUrl = new URL(`/api/projects/${resolvedParams.id}/events`, window.location.origin);
-            eventsUrl.searchParams.set('token', token);
+            eventsUrl.searchParams.set('streamToken', streamToken);
 
             const es = new EventSource(eventsUrl.toString());
             eventSourceRef.current = es;
@@ -263,7 +284,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             refreshAbortRef.current?.abort();
             refreshAbortRef.current = null;
         };
-    }, [fetchData, fetchTestCases, getAccessToken, isLoggedIn, isAuthLoading, resolvedParams.id]);
+    }, [fetchData, fetchTestCases, issueStreamToken, isLoggedIn, isAuthLoading, resolvedParams.id]);
 
     const handleDeleteTestCase = async () => {
         try {

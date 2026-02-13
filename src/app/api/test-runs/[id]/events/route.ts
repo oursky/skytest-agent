@@ -3,6 +3,8 @@ import { queue } from '@/lib/queue';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
+import { verifyStreamToken } from '@/lib/stream-token';
+import { config as appConfig } from '@/config/app';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,15 +15,25 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const { searchParams } = new URL(request.url);
-    const token = searchParams.get('token');
-
-    const authPayload = await verifyAuth(request, token || undefined);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const streamToken = searchParams.get('streamToken');
 
     const { id } = await params;
-    const userId = await resolveUserId(authPayload);
+
+    let userId: string | null = null;
+    const authPayload = await verifyAuth(request);
+    if (authPayload) {
+        userId = await resolveUserId(authPayload);
+    }
+
+    if (!userId && streamToken) {
+        const streamIdentity = await verifyStreamToken({
+            token: streamToken,
+            scope: 'test-run-events',
+            resourceId: id
+        });
+        userId = streamIdentity?.userId ?? null;
+    }
+
     if (!userId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -180,7 +192,7 @@ export async function GET(
                     }
                     closeStream();
                 }
-            }, 500);
+            }, appConfig.queue.pollInterval);
         },
         cancel() {
             streamClosed = true;

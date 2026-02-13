@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use, useRef } from "react";
+import { useState, useEffect, use, useRef, useCallback } from "react";
 import { useAuth } from "../../../auth-provider";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -35,6 +35,27 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
     const [pageSize, setPageSize] = useState(10);
 
     const eventSourceRef = useRef<EventSource | null>(null);
+
+    const issueStreamToken = useCallback(async (scope: 'project-events' | 'test-run-events', resourceId: string): Promise<string | null> => {
+        const token = await getAccessToken();
+        if (!token) return null;
+
+        const response = await fetch('/api/stream-tokens', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ scope, resourceId })
+        });
+
+        if (!response.ok) {
+            return null;
+        }
+
+        const data = await response.json() as { streamToken?: string };
+        return typeof data.streamToken === 'string' ? data.streamToken : null;
+    }, [getAccessToken]);
 
     useEffect(() => {
         if (!isAuthLoading && !isLoggedIn) {
@@ -78,12 +99,12 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
 
             if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
 
-            const token = await getAccessToken();
+            const streamToken = await issueStreamToken('project-events', projectId);
             if (disposed) return;
-            if (!token) return;
+            if (!streamToken) return;
 
             const eventsUrl = new URL(`/api/projects/${projectId}/events`, window.location.origin);
-            eventsUrl.searchParams.set('token', token);
+            eventsUrl.searchParams.set('streamToken', streamToken);
 
             const es = new EventSource(eventsUrl.toString());
             eventSourceRef.current = es;
@@ -149,7 +170,7 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
             document.removeEventListener('visibilitychange', onVisibilityChange);
             closeEventSource();
         };
-    }, [getAccessToken, id, isAuthLoading, isLoggedIn, projectId]);
+    }, [id, isAuthLoading, isLoggedIn, issueStreamToken, projectId]);
 
     const fetchTestCaseInfo = async () => {
         try {
