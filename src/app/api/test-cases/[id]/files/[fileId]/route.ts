@@ -4,6 +4,7 @@ import { verifyAuth, resolveUserId } from '@/lib/auth';
 import { getFilePath } from '@/lib/file-security';
 import { createLogger } from '@/lib/logger';
 import { verifyStreamToken } from '@/lib/stream-token';
+import { buildContentDisposition } from '@/lib/http-headers';
 import fs from 'fs/promises';
 
 const logger = createLogger('api:test-cases:file');
@@ -108,7 +109,7 @@ export async function GET(
             return new NextResponse(buffer, {
                 headers: {
                     'Content-Type': mimeType,
-                    'Content-Disposition': `${dispositionType}; filename="${filename}"`,
+                    'Content-Disposition': buildContentDisposition(dispositionType, filename),
                     'Content-Length': size.toString(),
                 },
             });

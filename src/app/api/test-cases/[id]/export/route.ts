@@ -4,6 +4,7 @@ import { verifyAuth } from '@/lib/auth';
 import { getFilePath, getProjectConfigUploadPath, getTestCaseConfigUploadPath } from '@/lib/file-security';
 import { createLogger } from '@/lib/logger';
 import { parseTestCaseJson } from '@/lib/test-case-utils';
+import { buildContentDisposition } from '@/lib/http-headers';
 import { exportToExcelBuffer } from '@/utils/testCaseExcel';
 import archiver from 'archiver';
 import fs from 'fs/promises';
@@ -113,7 +114,7 @@ export async function GET(
             return new NextResponse(new Uint8Array(excelBuffer), {
                 headers: {
                     'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                    'Content-Disposition': `attachment; filename="${excelBasename}.xlsx"`,
+                    'Content-Disposition': buildContentDisposition('attachment', `${excelBasename}.xlsx`),
                     'Content-Length': excelBuffer.length.toString(),
                 },
             });
@@ -193,7 +194,7 @@ export async function GET(
         return new NextResponse(zipBuffer, {
             headers: {
                 'Content-Type': 'application/zip',
-                'Content-Disposition': `attachment; filename="${excelBasename}.zip"`,
+                'Content-Disposition': buildContentDisposition('attachment', `${excelBasename}.zip`),
                 'Content-Length': zipBuffer.length.toString(),
             },
         });
