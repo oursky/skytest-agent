@@ -18,6 +18,10 @@ function getCachedHostnameResult(hostname: string): UrlValidationResult | null {
         hostnameDnsCache.delete(hostname);
         return null;
     }
+    if (entry.valid) {
+        hostnameDnsCache.delete(hostname);
+        return null;
+    }
     return entry.valid ? { valid: true } : { valid: false, error: entry.error };
 }
 
@@ -90,9 +94,7 @@ export async function validateRuntimeRequestUrl(rawUrl: string): Promise<UrlVali
             return result;
         }
 
-        const result = { valid: true };
-        setCachedHostnameResult(hostname, result);
-        return result;
+        return { valid: true };
     } catch {
         const result = { valid: false, error: 'DNS lookup failed' };
         setCachedHostnameResult(hostname, result);
