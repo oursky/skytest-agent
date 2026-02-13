@@ -8,6 +8,7 @@ import { createLogger } from '@/lib/logger';
 import { resolveConfigs } from '@/lib/config-resolver';
 import { assertProductionRunSafety } from '@/lib/deployment-guard';
 import { getErrorMessage } from '@/lib/errors';
+import { config as appConfig } from '@/config/app';
 import type { BrowserConfig, ResolvedConfig, TestStep } from '@/types';
 
 const logger = createLogger('api:run-test');
@@ -85,6 +86,17 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const authId = authPayload.sub as string;
+
+    const contentLengthHeader = request.headers.get('content-length');
+    if (contentLengthHeader) {
+        const contentLength = Number.parseInt(contentLengthHeader, 10);
+        if (Number.isFinite(contentLength) && contentLength > appConfig.api.maxRunRequestBodyBytes) {
+            return NextResponse.json(
+                { error: 'Request body too large' },
+                { status: 413 }
+            );
+        }
+    }
 
     const config = await request.json() as RunTestRequest;
     const sanitizedConfig: RunTestRequest = {

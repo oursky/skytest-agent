@@ -13,6 +13,7 @@ export const config = {
     },
 
     api: {
+        maxRunRequestBodyBytes: 64 * 1024,
         endpoints: {
             PROJECTS: '/api/projects',
             TEST_CASES: '/api/test-cases',
