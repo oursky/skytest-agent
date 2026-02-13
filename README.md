@@ -101,6 +101,23 @@ Optional flags:
 - `--url https://example.com`
 - `--prompt "Open the page and verify it loads"`
 
+## Auth Ownership Smoke
+
+Run a live owner-vs-attacker authorization check against critical API routes:
+
+```bash
+npm run smoke:authz -- \
+  --base-url http://localhost:3000 \
+  --owner-token "<owner access token>" \
+  --attacker-token "<attacker access token>" \
+  --project-id "<owner project id>" \
+  --test-case-id "<owner test case id>" \
+  --test-run-id "<owner test run id>"
+```
+
+Optional:
+- `--file-id "<owner test case file id>"` to include file-download ownership checks.
+
 ## Community & Contributing
 
 Bug reports, feature requests, and pull requests are all welcome.
