@@ -1,10 +1,8 @@
-import { TestStep, BrowserConfig, StepType } from '@/types';
+import { TestStep, BrowserConfig } from '@/types';
 
 export interface TestCaseData {
     name?: string;
     url: string;
-    username?: string;
-    password?: string;
     prompt: string;
     steps?: TestStep[];
     browserConfig?: Record<string, BrowserConfig>;
@@ -34,17 +32,9 @@ export function exportToMarkdown(data: TestCaseData): string {
         for (const [id, config] of Object.entries(data.browserConfig)) {
             lines.push(`  - id: ${id}`);
             lines.push(`    url: ${escapeYamlString(config.url)}`);
-            if (config.username) {
-                lines.push(`    username: ${escapeYamlString(config.username)}`);
-            }
-            lines.push('    password: ""');
         }
     } else {
         lines.push(`url: ${escapeYamlString(data.url)}`);
-        if (data.username) {
-            lines.push(`username: ${escapeYamlString(data.username)}`);
-        }
-        lines.push('password: ""');
     }
 
     lines.push('---');
@@ -99,12 +89,10 @@ export function parseMarkdown(markdown: string): ParsedMarkdown {
     if (mode === 'multi-browser' && parsed.browsers) {
         // Multi-browser mode
         const browserConfig: Record<string, BrowserConfig> = {};
-        const browsers = parsed.browsers as Array<{ id: string; url?: string; username?: string; password?: string }>;
+        const browsers = parsed.browsers as Array<{ id: string; url?: string }>;
         for (const browser of browsers) {
             browserConfig[browser.id] = {
                 url: browser.url || '',
-                username: browser.username,
-                password: browser.password,
             };
         }
         data.browserConfig = browserConfig;
@@ -118,8 +106,6 @@ export function parseMarkdown(markdown: string): ParsedMarkdown {
     } else {
         // Simple mode
         data.url = (parsed.url as string) || '';
-        data.username = parsed.username as string | undefined;
-        data.password = parsed.password as string | undefined;
 
         // Parse prompt from body
         data.prompt = parsePromptFromBody(body);

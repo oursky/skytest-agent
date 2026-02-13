@@ -3,8 +3,6 @@ export type TestStatus = 'IDLE' | 'RUNNING' | 'PASS' | 'FAIL' | 'CANCELLED' | 'Q
 export interface BrowserConfig {
     name?: string;
     url: string;
-    username?: string;
-    password?: string;
 }
 
 export type StepType = 'ai-action' | 'playwright-code';
@@ -30,8 +28,6 @@ export interface TestStep {
 
 export interface TestData {
     url?: string;
-    username?: string;
-    password?: string;
     prompt?: string;
     name?: string;
     steps?: TestStep[];
@@ -43,8 +39,6 @@ export interface RunTestOptions {
     runId: string;
     config: {
         url?: string;
-        username?: string;
-        password?: string;
         prompt?: string;
         steps?: TestStep[];
         browserConfig?: Record<string, BrowserConfig>;

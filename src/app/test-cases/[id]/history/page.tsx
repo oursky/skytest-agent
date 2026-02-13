@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use, useRef } from "react";
+import { useState, useEffect, use, useRef, useCallback } from "react";
 import { useAuth } from "../../../auth-provider";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -36,11 +36,67 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
 
     const eventSourceRef = useRef<EventSource | null>(null);
 
+    const issueStreamToken = useCallback(async (scope: 'project-events' | 'test-run-events', resourceId: string): Promise<string | null> => {
+        const token = await getAccessToken();
+        if (!token) return null;
+
+        const response = await fetch('/api/stream-tokens', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ scope, resourceId })
+        });
+
+        if (!response.ok) {
+            return null;
+        }
+
+        const data = await response.json() as { streamToken?: string };
+        return typeof data.streamToken === 'string' ? data.streamToken : null;
+    }, [getAccessToken]);
+
     useEffect(() => {
         if (!isAuthLoading && !isLoggedIn) {
             router.push("/");
         }
     }, [isAuthLoading, isLoggedIn, router]);
+
+    const fetchTestCaseInfo = useCallback(async () => {
+        try {
+            const token = await getAccessToken();
+            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+            const response = await fetch(`/api/test-cases/${id}`, { headers });
+            if (response.ok) {
+                const data = await response.json();
+                setTestCaseName(data.name);
+                setProjectId(data.projectId);
+                const projectResponse = await fetch(`/api/projects/${data.projectId}`, { headers });
+                if (projectResponse.ok) {
+                    const projectData = await projectResponse.json();
+                    setProjectName(projectData.name);
+                }
+            }
+        } catch (error) {
+            console.error("Failed to fetch test case info", error);
+        }
+    }, [getAccessToken, id]);
+
+    const fetchHistory = useCallback(async () => {
+        try {
+            const token = await getAccessToken();
+            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+            const response = await fetch(`/api/test-cases/${id}/history?limit=100`, { headers });
+            if (response.ok) {
+                const result = await response.json();
+                setTestRuns(result.data || result);
+            }
+        } catch (error) {
+            console.error("Failed to fetch history", error);
+        }
+    }, [getAccessToken, id]);
 
     useEffect(() => {
         const loadData = async () => {
@@ -58,7 +114,7 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
         if (id) {
             loadData();
         }
-    }, [id, isLoggedIn, isAuthLoading]);
+    }, [fetchHistory, fetchTestCaseInfo, id, isLoggedIn, isAuthLoading]);
 
     useEffect(() => {
         if (!isLoggedIn || isAuthLoading) return;
@@ -78,12 +134,12 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
 
             if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
 
-            const token = await getAccessToken();
+            const streamToken = await issueStreamToken('project-events', projectId);
             if (disposed) return;
-            if (!token) return;
+            if (!streamToken) return;
 
             const eventsUrl = new URL(`/api/projects/${projectId}/events`, window.location.origin);
-            eventsUrl.searchParams.set('token', token);
+            eventsUrl.searchParams.set('streamToken', streamToken);
 
             const es = new EventSource(eventsUrl.toString());
             eventSourceRef.current = es;
@@ -149,42 +205,7 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
             document.removeEventListener('visibilitychange', onVisibilityChange);
             closeEventSource();
         };
-    }, [getAccessToken, id, isAuthLoading, isLoggedIn, projectId]);
-
-    const fetchTestCaseInfo = async () => {
-        try {
-            const token = await getAccessToken();
-            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-
-            const response = await fetch(`/api/test-cases/${id}`, { headers });
-            if (response.ok) {
-                const data = await response.json();
-                setTestCaseName(data.name);
-                setProjectId(data.projectId);
-                const projectResponse = await fetch(`/api/projects/${data.projectId}`, { headers });
-                if (projectResponse.ok) {
-                    const projectData = await projectResponse.json();
-                    setProjectName(projectData.name);
-                }
-            }
-        } catch (error) {
-            console.error("Failed to fetch test case info", error);
-        }
-    };
-
-    const fetchHistory = async () => {
-        try {
-            const token = await getAccessToken();
-            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const response = await fetch(`/api/test-cases/${id}/history?limit=100`, { headers });
-            if (response.ok) {
-                const result = await response.json();
-                setTestRuns(result.data || result);
-            }
-        } catch (error) {
-            console.error("Failed to fetch history", error);
-        }
-    };
+    }, [id, isAuthLoading, isLoggedIn, issueStreamToken, projectId]);
 
     const handleDeleteRun = async () => {
         try {

@@ -9,8 +9,6 @@ import { useAuth } from '@/app/auth-provider';
 
 interface TestData {
     url: string;
-    username?: string;
-    password?: string;
     prompt: string;
     name?: string;
     displayId?: string;
@@ -73,8 +71,6 @@ function buildBrowsers(data?: TestData): BrowserEntry[] {
             config: {
                 name: cfg.name || '',
                 url: cfg.url || '',
-                username: cfg.username || '',
-                password: cfg.password || ''
             }
         }));
     }
@@ -83,8 +79,6 @@ function buildBrowsers(data?: TestData): BrowserEntry[] {
         id: 'browser_a',
         config: {
             url: data?.url || '',
-            username: data?.username || '',
-            password: data?.password || ''
         }
     }];
 }
@@ -133,9 +127,17 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
         const defaultBrowserId = nextBrowsers[0]?.id || 'browser_a';
         const validBrowserIds = new Set(nextBrowsers.map((browser) => browser.id));
 
-        setName(initialData.name || '');
-        setBrowsers(nextBrowsers);
-        setSteps(buildSteps(initialData, defaultBrowserId, validBrowserIds));
+        let cancelled = false;
+        queueMicrotask(() => {
+            if (cancelled) return;
+            setName(initialData.name || '');
+            setBrowsers(nextBrowsers);
+            setSteps(buildSteps(initialData, defaultBrowserId, validBrowserIds));
+        });
+
+        return () => {
+            cancelled = true;
+        };
     }, [initialData]);
 
     useEffect(() => {
@@ -249,8 +251,6 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
             displayId: sampleDisplayId || undefined,
             url: SAMPLE_URL_CONFIG_VALUE,
             prompt: '',
-            username: undefined,
-            password: undefined,
             steps: sampleSteps,
             browserConfig: sampleBrowserConfig,
         };
@@ -283,8 +283,6 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
             displayId: displayId || undefined,
             url: browsers[0]?.config.url || '',
             prompt: '',
-            username: undefined,
-            password: undefined,
             steps,
             browserConfig: browserConfigMap
         };

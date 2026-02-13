@@ -3,8 +3,9 @@
 import { TestCaseFile } from '@/types';
 import { config } from '@/config/app';
 import { useAuth } from '@/app/auth-provider';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useI18n } from '@/i18n';
+import Image from 'next/image';
 
 interface FileListProps {
     files: TestCaseFile[];
@@ -73,31 +74,75 @@ function getFileIcon(mimeType: string): React.ReactNode {
 export default function FileList({ files, testCaseId, onDelete, readOnly }: FileListProps) {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
-    const [token, setToken] = useState<string | null>(null);
+    const [accessToken, setAccessToken] = useState<string | null>(null);
+    const [streamToken, setStreamToken] = useState<string | null>(null);
     const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({});
+
+    const requestFileStreamToken = useCallback(async (providedAccessToken?: string | null): Promise<string | null> => {
+        const tokenToUse = providedAccessToken ?? accessToken ?? await getAccessToken();
+        if (!tokenToUse) {
+            return null;
+        }
+
+        const response = await fetch('/api/stream-tokens', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${tokenToUse}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                scope: 'test-case-files',
+                resourceId: testCaseId
+            })
+        });
+
+        if (!response.ok) {
+            return null;
+        }
+
+        const data = await response.json() as { streamToken?: string };
+        return typeof data.streamToken === 'string' ? data.streamToken : null;
+    }, [accessToken, getAccessToken, testCaseId]);
 
     useEffect(() => {
         (async () => {
-            const t = await getAccessToken();
-            setToken(t);
+            const token = await getAccessToken();
+            setAccessToken(token);
+            if (!token) {
+                setStreamToken(null);
+                return;
+            }
+
+            const nextStreamToken = await requestFileStreamToken(token);
+            setStreamToken(nextStreamToken);
         })();
-    }, [getAccessToken]);
+    }, [getAccessToken, requestFileStreamToken]);
     if (files.length === 0) {
         return null;
     }
 
-    const handleDownload = (file: TestCaseFile) => {
-        const params = new URLSearchParams();
-        if (token) params.set('token', token);
-        if (readOnly) params.set('storedName', file.storedName);
-        const queryString = params.toString();
-        const url = `/api/test-cases/${testCaseId}/files/${file.id}${queryString ? `?${queryString}` : ''}`;
-        window.open(url, '_blank');
+    const handleDownload = async (file: TestCaseFile) => {
+        try {
+            const freshStreamToken = await requestFileStreamToken();
+            if (!freshStreamToken) {
+                return;
+            }
+
+            setStreamToken(freshStreamToken);
+            const params = new URLSearchParams();
+            params.set('streamToken', freshStreamToken);
+            if (readOnly) params.set('storedName', file.storedName);
+            const queryString = params.toString();
+            const url = `/api/test-cases/${testCaseId}/files/${file.id}${queryString ? `?${queryString}` : ''}`;
+            window.open(url, '_blank');
+        } catch (error) {
+            console.error('Failed to download file:', error);
+        }
     };
 
     const handleDelete = async (fileId: string) => {
         try {
-            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+            const headers: HeadersInit = accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {};
             const response = await fetch(`/api/test-cases/${testCaseId}/files/${fileId}`, {
                 method: 'DELETE',
                 headers,
@@ -139,10 +184,13 @@ export default function FileList({ files, testCaseId, onDelete, readOnly }: File
                             key={file.id}
                             className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors overflow-hidden"
                         >
-                            {file.mimeType.startsWith('image/') && !readOnly && token ? (
-                                <img
-                                    src={`/api/test-cases/${testCaseId}/files/${file.id}?inline=1&token=${token}`}
+                            {file.mimeType.startsWith('image/') && !readOnly && streamToken ? (
+                                <Image
+                                    src={`/api/test-cases/${testCaseId}/files/${file.id}?inline=1&streamToken=${encodeURIComponent(streamToken)}`}
                                     alt={file.filename}
+                                    width={48}
+                                    height={48}
+                                    unoptimized
                                     className="w-12 h-12 object-cover rounded border border-gray-200"
                                 />
                             ) : (

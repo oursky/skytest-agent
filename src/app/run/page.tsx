@@ -13,8 +13,6 @@ import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 
 interface TestData {
     url: string;
-    username?: string;
-    password?: string;
     prompt: string;
     name?: string;
     displayId?: string;
@@ -38,7 +36,7 @@ function RunPageContent() {
         status: 'IDLE',
         events: [],
     });
-    const [eventSource, setEventSource] = useState<EventSource | null>(null);
+    const eventSourceRef = useRef<EventSource | null>(null);
     const [currentTestCaseId, setCurrentTestCaseId] = useState<string | null>(null);
     const [currentRunId, setCurrentRunId] = useState<string | null>(null);
     const [projectIdFromTestCase, setProjectIdFromTestCase] = useState<string | null>(null);
@@ -102,7 +100,7 @@ function RunPageContent() {
 
     const isExcelFilename = (filename: string): boolean => {
         const normalized = filename.toLowerCase();
-        return normalized.endsWith('.xlsx') || normalized.endsWith('.xls');
+        return normalized.endsWith('.xlsx');
     };
 
     const isSupportedVariableConfig = (
@@ -227,7 +225,7 @@ function RunPageContent() {
             }
         }
 
-        const excelArrayBuffer = exportToExcelArrayBuffer({
+        const excelArrayBuffer = await exportToExcelArrayBuffer({
             name: exportData.name,
             testCaseId: exportData.displayId || undefined,
             steps: exportData.steps,
@@ -264,7 +262,7 @@ function RunPageContent() {
             if (!isExcelFilename(file.name)) return;
 
             const fileBuffer = await file.arrayBuffer();
-            const { data } = parseTestCaseExcel(fileBuffer);
+            const { data } = await parseTestCaseExcel(fileBuffer);
 
             setInitialData(data.testData);
             if (data.testCaseId) {
@@ -290,41 +288,21 @@ function RunPageContent() {
         }
     }, [isAuthLoading, isLoggedIn, router]);
 
-    useEffect(() => {
-        if (projectId) fetchProjectName(projectId);
-    }, [projectId]);
-
-    useEffect(() => {
-        if (projectIdFromTestCase && !projectId) fetchProjectName(projectIdFromTestCase);
-    }, [projectIdFromTestCase, projectId]);
-
-    useEffect(() => {
-        if (!runId || isAuthLoading || !isLoggedIn) return;
-        fetchTestRun(runId);
-        connectToRun(runId);
-    }, [runId, isAuthLoading, isLoggedIn]);
-
-    useEffect(() => {
-        return () => {
-            if (eventSource) {
-                eventSource.close();
+    const fetchProjectName = useCallback(async (projId: string) => {
+        try {
+            const token = await getAccessToken();
+            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+            const response = await fetch(`/api/projects/${projId}`, { headers });
+            if (response.ok) {
+                const data = await response.json();
+                setProjectName(data.name);
             }
-        };
-    }, [eventSource]);
-
-    useEffect(() => {
-        if (isAuthLoading) return;
-        if (!isLoggedIn) return;
-
-        if (testCaseId) {
-            fetchTestCase(testCaseId);
-            refreshFiles(testCaseId);
-        } else if (testCaseName) {
-            setInitialData({ name: testCaseName, url: '', prompt: '' });
+        } catch (error) {
+            console.error("Failed to fetch project name", error);
         }
-    }, [testCaseId, testCaseName, isAuthLoading, isLoggedIn]);
+    }, [getAccessToken]);
 
-    const fetchTestCase = async (id: string) => {
+    const fetchTestCase = useCallback(async (id: string) => {
         try {
             const token = await getAccessToken();
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
@@ -336,8 +314,6 @@ function RunPageContent() {
                     name: data.name,
                     url: data.url,
                     prompt: data.prompt,
-                    username: data.username || "",
-                    password: data.password || "",
                     steps: data.steps,
                     browserConfig: data.browserConfig,
                 });
@@ -363,9 +339,9 @@ function RunPageContent() {
         } catch (error) {
             console.error("Failed to fetch test case", error);
         }
-    };
+    }, [fetchProjectName, getAccessToken]);
 
-    const fetchTestRun = async (id: string) => {
+    const fetchTestRun = useCallback(async (id: string) => {
         try {
             const token = await getAccessToken();
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
@@ -389,21 +365,7 @@ function RunPageContent() {
         } catch (error) {
             console.error("Failed to fetch test run", error);
         }
-    };
-
-    const fetchProjectName = async (projId: string) => {
-        try {
-            const token = await getAccessToken();
-            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const response = await fetch(`/api/projects/${projId}`, { headers });
-            if (response.ok) {
-                const data = await response.json();
-                setProjectName(data.name);
-            }
-        } catch (error) {
-            console.error("Failed to fetch project name", error);
-        }
-    };
+    }, [fetchTestCase, getAccessToken]);
 
     const fetchProjectConfigs = useCallback(async (projId: string) => {
         try {
@@ -441,7 +403,7 @@ function RunPageContent() {
         if (tcId) fetchTestCaseConfigs(tcId);
     }, [testCaseId, currentTestCaseId, fetchTestCaseConfigs]);
 
-    const refreshFiles = async (overrideId?: string) => {
+    const refreshFiles = useCallback(async (overrideId?: string) => {
         const id = overrideId || refreshFilesRef.current || testCaseId || currentTestCaseId;
         if (!id) return;
 
@@ -460,30 +422,34 @@ function RunPageContent() {
         } catch (error) {
             console.error("Failed to fetch files", error);
         }
-    };
+    }, [currentTestCaseId, getAccessToken, testCaseId]);
 
-    const handleFilesChange = async (overrideId?: string, uploadedFiles?: TestCaseFile[]) => {
-        if (overrideId && !currentTestCaseId && !testCaseId) {
-            setCurrentTestCaseId(overrideId);
+    const issueStreamToken = useCallback(async (scope: 'project-events' | 'test-run-events', resourceId: string): Promise<string | null> => {
+        const token = await getAccessToken();
+        if (!token) return null;
+
+        const response = await fetch('/api/stream-tokens', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({ scope, resourceId }),
+        });
+
+        if (!response.ok) {
+            return null;
         }
 
-        if (overrideId) {
-            refreshFilesRef.current = overrideId;
+        const data = await response.json() as { streamToken?: string };
+        return typeof data.streamToken === 'string' ? data.streamToken : null;
+    }, [getAccessToken]);
+
+    const connectToRun = useCallback(async (runId: string) => {
+        if (eventSourceRef.current) {
+            eventSourceRef.current.close();
+            eventSourceRef.current = null;
         }
-
-        if (uploadedFiles && uploadedFiles.length > 0) {
-            setTestCaseFiles((prev) => {
-                const seen = new Set(prev.map(f => f.id));
-                const merged = [...uploadedFiles.filter(f => !seen.has(f.id)), ...prev];
-                return merged;
-            });
-        }
-
-        await refreshFiles(overrideId);
-    };
-
-    const connectToRun = async (runId: string) => {
-        if (eventSource) eventSource.close();
 
         setResult(prev => ({
             ...prev,
@@ -492,8 +458,8 @@ function RunPageContent() {
         }));
         setCurrentRunId(runId);
 
-        const token = await getAccessToken();
-        if (!token) {
+        const streamToken = await issueStreamToken('test-run-events', runId);
+        if (!streamToken) {
             setResult(prev => ({
                 ...prev,
                 status: 'FAIL',
@@ -503,7 +469,7 @@ function RunPageContent() {
             return;
         }
 
-        const url = `/api/test-runs/${runId}/events?token=${token}`;
+        const url = `/api/test-runs/${runId}/events?streamToken=${encodeURIComponent(streamToken)}`;
         const es = new EventSource(url);
 
         es.onmessage = (event) => {
@@ -514,7 +480,7 @@ function RunPageContent() {
                     setResult(prev => {
                         if (['PASS', 'FAIL', 'CANCELLED'].includes(data.status)) {
                             es.close();
-                            setEventSource(null);
+                            eventSourceRef.current = null;
                             setIsLoading(false);
                         }
                         return { ...prev, status: data.status, error: data.error };
@@ -530,10 +496,10 @@ function RunPageContent() {
             }
         };
 
-        es.onerror = (err) => {
+        es.onerror = () => {
             console.log('EventSource connection closed or error occurred');
             es.close();
-            setEventSource(null);
+            eventSourceRef.current = null;
             setIsLoading(false);
 
             setResult(prev => {
@@ -544,16 +510,51 @@ function RunPageContent() {
             });
         };
 
-        setEventSource(es);
-    };
+        eventSourceRef.current = es;
+    }, [issueStreamToken, t]);
+
+    useEffect(() => {
+        if (projectId) fetchProjectName(projectId);
+    }, [projectId, fetchProjectName]);
+
+    useEffect(() => {
+        if (projectIdFromTestCase && !projectId) fetchProjectName(projectIdFromTestCase);
+    }, [projectIdFromTestCase, projectId, fetchProjectName]);
+
+    useEffect(() => {
+        if (!runId || isAuthLoading || !isLoggedIn) return;
+        fetchTestRun(runId);
+        connectToRun(runId);
+    }, [runId, isAuthLoading, isLoggedIn, fetchTestRun, connectToRun]);
+
+    useEffect(() => {
+        return () => {
+            if (eventSourceRef.current) {
+                eventSourceRef.current.close();
+                eventSourceRef.current = null;
+            }
+        };
+    }, []);
+
+    useEffect(() => {
+        if (isAuthLoading) return;
+        if (!isLoggedIn) return;
+
+        if (testCaseId) {
+            fetchTestCase(testCaseId);
+            refreshFiles(testCaseId);
+        } else if (testCaseName) {
+            setInitialData({ name: testCaseName, url: '', prompt: '' });
+        }
+    }, [testCaseId, testCaseName, isAuthLoading, isLoggedIn, fetchTestCase, refreshFiles]);
 
     const handleStopTest = async () => {
         if (!currentRunId) return;
         setIsLoading(true);
         try {
-            if (eventSource) {
-                eventSource.close();
-                setEventSource(null);
+            if (eventSourceRef.current) {
+                eventSourceRef.current.close();
+                eventSourceRef.current = null;
             }
             const token = await getAccessToken();
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
@@ -792,7 +793,7 @@ function RunPageContent() {
                 type="file"
                 ref={fileInputRef}
                 onChange={handleImport}
-                accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 className="hidden"
             />
 

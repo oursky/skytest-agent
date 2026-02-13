@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { subscribeProjectEvents } from '@/lib/project-events';
+import { verifyStreamToken } from '@/lib/stream-token';
+import { config as appConfig } from '@/config/app';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,16 +15,26 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const { searchParams } = new URL(request.url);
-    const token = searchParams.get('token');
-
-    const authPayload = await verifyAuth(request, token || undefined);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const streamToken = searchParams.get('streamToken');
 
     const { id } = await params;
 
-    const userId = await resolveUserId(authPayload);
+    let userId: string | null = null;
+
+    const authPayload = await verifyAuth(request);
+    if (authPayload) {
+        userId = await resolveUserId(authPayload);
+    }
+
+    if (!userId && streamToken) {
+        const streamIdentity = await verifyStreamToken({
+            token: streamToken,
+            scope: 'project-events',
+            resourceId: id
+        });
+        userId = streamIdentity?.userId ?? null;
+    }
+
     if (!userId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -39,6 +51,7 @@ export async function GET(
     let streamClosed = false;
     let unsubscribe: (() => void) | null = null;
     let heartbeat: ReturnType<typeof setInterval> | null = null;
+    let ttlTimer: ReturnType<typeof setTimeout> | null = null;
 
     const stream = new ReadableStream({
         start(controller) {
@@ -51,6 +64,10 @@ export async function GET(
                 if (heartbeat) {
                     clearInterval(heartbeat);
                     heartbeat = null;
+                }
+                if (ttlTimer) {
+                    clearTimeout(ttlTimer);
+                    ttlTimer = null;
                 }
                 if (unsubscribe) {
                     unsubscribe();
@@ -87,6 +104,10 @@ export async function GET(
                     cleanup();
                 }
             }, 15000);
+
+            ttlTimer = setTimeout(() => {
+                cleanup();
+            }, appConfig.queue.sseConnectionTtlMs);
         },
         cancel() {
             if (streamClosed) return;
@@ -94,6 +115,10 @@ export async function GET(
             if (heartbeat) {
                 clearInterval(heartbeat);
                 heartbeat = null;
+            }
+            if (ttlTimer) {
+                clearTimeout(ttlTimer);
+                ttlTimer = null;
             }
             if (unsubscribe) {
                 unsubscribe();

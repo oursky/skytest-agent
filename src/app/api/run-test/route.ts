@@ -6,6 +6,7 @@ import { decrypt } from '@/lib/crypto';
 import { validateTargetUrl } from '@/lib/url-security';
 import { createLogger } from '@/lib/logger';
 import { resolveConfigs } from '@/lib/config-resolver';
+import { config as appConfig } from '@/config/app';
 import type { BrowserConfig, ResolvedConfig, TestStep } from '@/types';
 
 const logger = createLogger('api:run-test');
@@ -18,18 +19,22 @@ interface RunTestRequest {
     prompt?: string;
     steps?: TestStep[];
     browserConfig?: Record<string, BrowserConfig>;
-    username?: string;
-    password?: string;
     testCaseId?: string;
 }
 
 function createConfigurationSnapshot(config: RunTestRequest, resolvedConfigurations?: ResolvedConfig[]) {
-    const { testCaseId: _testCaseId, ...rest } = config;
+    const { testCaseId, ...sanitized } = config;
+    void testCaseId;
+
     const masked = resolvedConfigurations?.map(c => ({
         ...c,
         value: c.type === 'SECRET' ? '••••••' : c.value,
     }));
-    return { ...rest, ...(masked && masked.length > 0 ? { resolvedConfigurations: masked } : {}) };
+
+    return {
+        ...sanitized,
+        ...(masked && masked.length > 0 ? { resolvedConfigurations: masked } : {})
+    };
 }
 
 function validateConfigUrls(config: RunTestRequest): string | null {
@@ -57,6 +62,17 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const authId = authPayload.sub as string;
+
+    const contentLengthHeader = request.headers.get('content-length');
+    if (contentLengthHeader) {
+        const contentLength = Number.parseInt(contentLengthHeader, 10);
+        if (Number.isFinite(contentLength) && contentLength > appConfig.api.maxRunRequestBodyBytes) {
+            return NextResponse.json(
+                { error: 'Request body too large' },
+                { status: 413 }
+            );
+        }
+    }
 
     const config = await request.json() as RunTestRequest;
     const { url, prompt, steps, browserConfig, testCaseId } = config;
@@ -129,7 +145,7 @@ export async function POST(request: Request) {
         let openRouterApiKey: string;
         try {
             openRouterApiKey = decrypt(user.openRouterKey);
-        } catch (e) {
+        } catch {
             return NextResponse.json(
                 { error: 'Failed to decrypt API key. Please re-enter your API key.' },
                 { status: 400 }

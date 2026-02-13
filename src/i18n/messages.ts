@@ -207,7 +207,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'testForm.importTitle': 'Import test case from Excel',
     'testForm.exportTitle': 'Export test case to Excel',
     'testForm.importWarnings': 'Import warnings: {warnings}',
-    'testForm.importError.invalidExcelFormat': 'Only Excel files (.xlsx, .xls) are supported',
+    'testForm.importError.invalidExcelFormat': 'Only Excel files (.xlsx) are supported',
     'testForm.importError.failed': 'Failed to import file',
     'testForm.tab.configurations': 'Configurations',
     'testForm.tab.testSteps': 'Test Steps',
@@ -247,8 +247,6 @@ export const MESSAGES: Record<Locale, Messages> = {
     'browserConfig.configuration': '{browser} Configuration',
     'browserConfig.remove': 'Remove',
     'browserConfig.url': 'URL',
-    'browserConfig.username': 'Username',
-    'browserConfig.password': 'Password',
 
     // SortableStepItem
     'step.drag': 'Drag step',
@@ -574,7 +572,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'testForm.importTitle': '從 Excel 匯入測試案例',
     'testForm.exportTitle': '匯出測試案例為 Excel',
     'testForm.importWarnings': '匯入警告：{warnings}',
-    'testForm.importError.invalidExcelFormat': '僅支援 Excel 檔案（.xlsx、.xls）',
+    'testForm.importError.invalidExcelFormat': '僅支援 Excel 檔案（.xlsx）',
     'testForm.importError.failed': '匯入檔案失敗',
     'testForm.tab.configurations': '設定',
     'testForm.tab.testSteps': '測試步驟',
@@ -614,8 +612,6 @@ export const MESSAGES: Record<Locale, Messages> = {
     'browserConfig.configuration': '{browser} 設定',
     'browserConfig.remove': '移除',
     'browserConfig.url': 'URL',
-    'browserConfig.username': '使用者名稱',
-    'browserConfig.password': '密碼',
 
     // SortableStepItem
     'step.drag': '拖曳步驟',
@@ -941,7 +937,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'testForm.importTitle': '从 Excel 导入测试用例',
     'testForm.exportTitle': '导出测试用例为 Excel',
     'testForm.importWarnings': '导入警告：{warnings}',
-    'testForm.importError.invalidExcelFormat': '仅支持 Excel 文件（.xlsx、.xls）',
+    'testForm.importError.invalidExcelFormat': '仅支持 Excel 文件（.xlsx）',
     'testForm.importError.failed': '导入文件失败',
     'testForm.tab.configurations': '配置',
     'testForm.tab.testSteps': '测试步骤',
@@ -981,8 +977,6 @@ export const MESSAGES: Record<Locale, Messages> = {
     'browserConfig.configuration': '{browser} 配置',
     'browserConfig.remove': '移除',
     'browserConfig.url': 'URL',
-    'browserConfig.username': '用户名',
-    'browserConfig.password': '密码',
 
     // SortableStepItem
     'step.drag': '拖拽步骤',

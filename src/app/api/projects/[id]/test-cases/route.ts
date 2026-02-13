@@ -9,7 +9,12 @@ const logger = createLogger('api:projects:test-cases');
 export const dynamic = 'force-dynamic';
 
 function cleanStepsForStorage(steps: TestStep[]): TestStep[] {
-    return steps.map(({ aiAction: _aiAction, codeAction: _codeAction, ...step }) => step);
+    return steps.map((step) => {
+        const { aiAction, codeAction, ...cleanedStep } = step;
+        void aiAction;
+        void codeAction;
+        return cleanedStep;
+    });
 }
 
 export async function GET(
@@ -79,14 +84,12 @@ export async function POST(
         }
 
         const body: unknown = await request.json();
-        const { name, url, prompt, steps, browserConfig, username, password, displayId, saveDraft } = (body ?? {}) as {
+        const { name, url, prompt, steps, browserConfig, displayId, saveDraft } = (body ?? {}) as {
             name?: string;
             url?: string;
             prompt?: string;
             steps?: unknown;
             browserConfig?: unknown;
-            username?: string;
-            password?: string;
             displayId?: string;
             saveDraft?: boolean;
         };
@@ -109,8 +112,6 @@ export async function POST(
                 prompt,
                 steps: cleanedSteps ? JSON.stringify(cleanedSteps) : undefined,
                 browserConfig: hasBrowserConfig ? JSON.stringify(browserConfig) : undefined,
-                username,
-                password,
                 projectId: id,
                 displayId: displayId || undefined,
                 status: 'DRAFT',

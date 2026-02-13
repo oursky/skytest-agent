@@ -4,13 +4,18 @@ import { verifyAuth, resolveUserId } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { parseTestCaseJson } from '@/lib/test-case-utils';
 import { TestStep } from '@/types';
-import { getUploadPath } from '@/lib/file-security';
+import { getUploadPath, getTestCaseConfigUploadPath } from '@/lib/file-security';
 import fs from 'fs/promises';
 
 const logger = createLogger('api:test-cases:id');
 
 function cleanStepsForStorage(steps: TestStep[]): TestStep[] {
-    return steps.map(({ aiAction, codeAction, ...step }) => step);
+    return steps.map((step) => {
+        const { aiAction, codeAction, ...cleanedStep } = step;
+        void aiAction;
+        void codeAction;
+        return cleanedStep;
+    });
 }
 
 export async function GET(
@@ -52,7 +57,8 @@ export async function GET(
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const { project: _project, ...testCaseData } = testCase;
+        const { project, ...testCaseData } = testCase;
+        void project;
         const parsedTestCase = parseTestCaseJson(testCaseData);
 
         return NextResponse.json(parsedTestCase);
@@ -75,7 +81,7 @@ export async function PUT(
     try {
         const { id } = await params;
         const body = await request.json();
-        const { name, url, prompt, steps, browserConfig, username, password, displayId, saveDraft } = body;
+        const { name, url, prompt, steps, browserConfig, displayId, saveDraft } = body;
 
         const existingTestCase = await prisma.testCase.findUnique({
             where: { id },
@@ -105,8 +111,6 @@ export async function PUT(
             prompt,
             steps: cleanedSteps ? JSON.stringify(cleanedSteps) : undefined,
             browserConfig: hasBrowserConfig ? JSON.stringify(browserConfig) : undefined,
-            username,
-            password,
         };
 
         if (displayId !== undefined) {
@@ -163,12 +167,14 @@ export async function DELETE(
             where: { id },
         });
 
-        const uploadPath = getUploadPath(id);
-        try {
-            await fs.rm(uploadPath, { recursive: true, force: true });
-        } catch {
-            logger.warn('Failed to delete upload directory', { uploadPath });
-        }
+        const cleanupPaths = [getUploadPath(id), getTestCaseConfigUploadPath(id)];
+        await Promise.all(cleanupPaths.map(async (cleanupPath) => {
+            try {
+                await fs.rm(cleanupPath, { recursive: true, force: true });
+            } catch {
+                logger.warn('Failed to delete upload directory', { cleanupPath });
+            }
+        }));
 
         return NextResponse.json({ success: true });
     } catch (error) {

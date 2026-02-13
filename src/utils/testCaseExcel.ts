@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import ExcelJS, { CellValue, Worksheet } from 'exceljs';
 import type { BrowserConfig, ConfigType, TestStep } from '@/types';
 
 type SupportedVariableType = Extract<ConfigType, 'URL' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING' | 'FILE'>;
@@ -46,21 +46,26 @@ interface ParseResult {
     warnings: string[];
 }
 
-export function exportToExcelBuffer(data: TestCaseExcelExportData): Buffer {
+export async function exportToExcelBuffer(data: TestCaseExcelExportData): Promise<Buffer> {
     const workbook = buildWorkbook(data);
-    return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }) as Buffer;
+    const output = await workbook.xlsx.writeBuffer();
+    if (output instanceof ArrayBuffer) {
+        return Buffer.from(output);
+    }
+    return Buffer.from(output);
 }
 
-export function exportToExcelArrayBuffer(data: TestCaseExcelExportData): ArrayBuffer {
+export async function exportToExcelArrayBuffer(data: TestCaseExcelExportData): Promise<ArrayBuffer> {
     const workbook = buildWorkbook(data);
-    const arrayOutput = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer | Uint8Array;
+    const arrayOutput = await workbook.xlsx.writeBuffer();
     if (arrayOutput instanceof ArrayBuffer) {
         return arrayOutput;
     }
-    return new Uint8Array(arrayOutput).buffer;
+    const bytes = new Uint8Array(arrayOutput);
+    return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
 }
 
-export function parseTestCaseExcel(content: ArrayBuffer): ParseResult {
+export async function parseTestCaseExcel(content: ArrayBuffer): Promise<ParseResult> {
     const warnings: string[] = [];
     const emptyData: ParsedTestCaseExcel = {
         testData: {
@@ -72,9 +77,11 @@ export function parseTestCaseExcel(content: ArrayBuffer): ParseResult {
         files: [],
     };
 
-    let workbook: XLSX.WorkBook;
+    let workbook: ExcelJS.Workbook;
     try {
-        workbook = XLSX.read(content, { type: 'array' });
+        workbook = new ExcelJS.Workbook();
+        const workbookInput = content as unknown as Parameters<ExcelJS.Workbook['xlsx']['load']>[0];
+        await workbook.xlsx.load(workbookInput);
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Invalid Excel file';
         warnings.push(`Failed to parse Excel: ${errorMessage}`);
@@ -137,8 +144,8 @@ export function parseTestCaseExcel(content: ArrayBuffer): ParseResult {
     };
 }
 
-function buildWorkbook(data: TestCaseExcelExportData): XLSX.WorkBook {
-    const workbook = XLSX.utils.book_new();
+function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
+    const workbook = new ExcelJS.Workbook();
     const browserEntries = Object.entries(data.browserConfig || {}).map(([id, config]) => ({
         id,
         name: config.name || '',
@@ -186,10 +193,27 @@ function buildWorkbook(data: TestCaseExcelExportData): XLSX.WorkBook {
         })),
     ];
 
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(configurationsRows), 'Configurations');
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(stepRows), 'Test Steps');
+    appendRowsAsWorksheet(workbook, 'Configurations', configurationsRows);
+    appendRowsAsWorksheet(workbook, 'Test Steps', stepRows);
 
     return workbook;
+}
+
+function appendRowsAsWorksheet(
+    workbook: ExcelJS.Workbook,
+    name: string,
+    rows: Array<Record<string, string | number>>
+) {
+    const worksheet = workbook.addWorksheet(name);
+    if (rows.length === 0) {
+        return;
+    }
+
+    const headers = Object.keys(rows[0]);
+    worksheet.addRow(headers);
+    for (const row of rows) {
+        worksheet.addRow(headers.map((header) => row[header] ?? ''));
+    }
 }
 
 function parseConfigurationsRows(
@@ -362,14 +386,78 @@ function parseConfigurationsRows(
     };
 }
 
-function readSheetRows(workbook: XLSX.WorkBook, expectedName: string): Array<Record<string, unknown>> {
-    const matchedSheetName = workbook.SheetNames.find((sheetName) => normalizeHeader(sheetName) === normalizeHeader(expectedName));
-    if (!matchedSheetName) {
+function readSheetRows(workbook: ExcelJS.Workbook, expectedName: string): Array<Record<string, unknown>> {
+    const worksheet = workbook.worksheets.find((sheet) => normalizeHeader(sheet.name) === normalizeHeader(expectedName));
+    if (!worksheet) {
         return [];
     }
 
-    const worksheet = workbook.Sheets[matchedSheetName];
-    return XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: '' });
+    return worksheetToRows(worksheet);
+}
+
+function worksheetToRows(worksheet: Worksheet): Array<Record<string, unknown>> {
+    const headerRow = worksheet.getRow(1);
+    const headers: string[] = [];
+    headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+        const primitive = extractCellValue(cell.value);
+        headers[colNumber - 1] = primitive === undefined ? '' : String(primitive);
+    });
+
+    if (headers.every((header) => header.trim().length === 0)) {
+        return [];
+    }
+
+    const rows: Array<Record<string, unknown>> = [];
+    for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber += 1) {
+        const row = worksheet.getRow(rowNumber);
+        const record: Record<string, unknown> = {};
+        let hasValue = false;
+
+        headers.forEach((header, index) => {
+            if (!header) {
+                return;
+            }
+            const primitive = extractCellValue(row.getCell(index + 1).value);
+            const value = primitive === undefined ? '' : primitive;
+            record[header] = value;
+            if (String(value).trim().length > 0) {
+                hasValue = true;
+            }
+        });
+
+        if (hasValue) {
+            rows.push(record);
+        }
+    }
+
+    return rows;
+}
+
+function extractCellValue(value: CellValue | undefined): string | number | boolean | undefined {
+    if (value === null || value === undefined) {
+        return undefined;
+    }
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+        return value;
+    }
+    if (value instanceof Date) {
+        return value.toISOString();
+    }
+    if (typeof value === 'object') {
+        if ('result' in value) {
+            return extractCellValue(value.result as CellValue);
+        }
+        if ('text' in value && typeof value.text === 'string') {
+            return value.text;
+        }
+        if ('richText' in value && Array.isArray(value.richText)) {
+            return value.richText.map((part) => part.text).join('');
+        }
+        if ('hyperlink' in value && typeof value.hyperlink === 'string') {
+            return value.hyperlink;
+        }
+    }
+    return undefined;
 }
 
 function parseTestCaseRows(rows: Array<Record<string, unknown>>): { name?: string; testCaseId?: string; primaryUrl?: string } {

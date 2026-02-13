@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { verifyAuth } from '@/lib/auth';
 import { getProjectConfigUploadPath } from '@/lib/file-security';
 import { createLogger } from '@/lib/logger';
+import { buildContentDisposition } from '@/lib/http-headers';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -40,7 +41,7 @@ export async function GET(
             return new NextResponse(buffer, {
                 headers: {
                     'Content-Type': config.mimeType || 'application/octet-stream',
-                    'Content-Disposition': `attachment; filename="${config.filename || config.name}"`,
+                    'Content-Disposition': buildContentDisposition('attachment', config.filename || config.name),
                     'Content-Length': (config.size || buffer.length).toString(),
                 },
             });

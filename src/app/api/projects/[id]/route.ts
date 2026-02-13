@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
+import { getProjectConfigUploadPath, getTestCaseConfigUploadPath, getUploadPath } from '@/lib/file-security';
+import fs from 'fs/promises';
 
 const logger = createLogger('api:projects:id');
 
@@ -130,9 +132,30 @@ export async function DELETE(
             );
         }
 
+        const testCaseIds = await prisma.testCase.findMany({
+            where: { projectId: id },
+            select: { id: true }
+        });
+
         await prisma.project.delete({
             where: { id },
         });
+
+        const cleanupPaths = [
+            getProjectConfigUploadPath(id),
+            ...testCaseIds.flatMap(({ id: testCaseId }) => [
+                getUploadPath(testCaseId),
+                getTestCaseConfigUploadPath(testCaseId)
+            ])
+        ];
+
+        await Promise.all(cleanupPaths.map(async (cleanupPath) => {
+            try {
+                await fs.rm(cleanupPath, { recursive: true, force: true });
+            } catch {
+                logger.warn('Failed to delete upload directory', { cleanupPath });
+            }
+        }));
 
         return NextResponse.json({ success: true });
     } catch (error) {

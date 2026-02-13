@@ -13,6 +13,7 @@ export const config = {
     },
 
     api: {
+        maxRunRequestBodyBytes: 64 * 1024,
         endpoints: {
             PROJECTS: '/api/projects',
             TEST_CASES: '/api/test-cases',
@@ -24,7 +25,10 @@ export const config = {
     queue: {
         concurrency: 2,
         pollInterval: 500,
+        sseConnectionTtlMs: 5 * 60 * 1000,
         logRetentionMs: 10000,
+        maxEventsPerRun: 2000,
+        maxScreenshotsPerRun: 300,
     },
 
     test: {
@@ -48,10 +52,6 @@ export const config = {
             quality: 60,
         },
         security: {
-            credentialPlaceholders: {
-                username: '{{username}}',
-                password: '{{password}}',
-            },
             allowedUrlProtocols: ['http:', 'https:'],
             blockedHostnames: ['localhost', '127.0.0.1', '0.0.0.0', '::1'],
             blockedHostnameSuffixes: ['.local', '.internal', '.home', '.lan'],
