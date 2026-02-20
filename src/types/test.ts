@@ -49,7 +49,7 @@ export interface TestData {
     prompt?: string;
     name?: string;
     steps?: TestStep[];
-    browserConfig?: Record<string, BrowserConfig>;
+    browserConfig?: Record<string, BrowserConfig | TargetConfig>;
     files?: TestCaseFile[];
 }
 
@@ -59,7 +59,7 @@ export interface RunTestOptions {
         url?: string;
         prompt?: string;
         steps?: TestStep[];
-        browserConfig?: Record<string, BrowserConfig>;
+        browserConfig?: Record<string, BrowserConfig | TargetConfig>;
         userId?: string;
         openRouterApiKey?: string;
         testCaseId?: string;
