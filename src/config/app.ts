@@ -147,6 +147,42 @@ export const config = {
             '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
         ] as string[],
     },
+
+    emulator: {
+        maxInstances: parseInt(process.env.EMULATOR_MAX_INSTANCES || '2'),
+
+        bootTimeoutMs: 120_000,
+        acquireTimeoutMs: 180_000,
+        idleTimeoutMs: 300_000,
+        cleanTimeoutMs: 60_000,
+        healthCheckIntervalMs: 60_000,
+        forceReclaimMs: 660_000,
+
+        adb: {
+            commandTimeoutMs: 15_000,
+            maxRetries: 3,
+            retryDelayMs: 2_000,
+            installTimeoutMs: 120_000,
+        },
+
+        headless: true,
+        gpu: 'swiftshader_indirect',
+        memory: 2048,
+        cores: 2,
+
+        apk: {
+            maxSizeBytes: 200 * 1024 * 1024,
+            maxPerProject: 5,
+            uploadDir: './uploads/apks',
+        },
+
+        basePort: 5554,
+        portRange: 20,
+    },
+
+    features: {
+        androidEmulator: process.env.FEATURE_ANDROID_EMULATOR === 'true',
+    },
 } as const;
 
 export type Config = typeof config;

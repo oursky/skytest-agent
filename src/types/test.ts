@@ -5,6 +5,24 @@ export interface BrowserConfig {
     url: string;
 }
 
+export type TargetType = 'browser' | 'android';
+
+export interface BrowserTargetConfig {
+    type: 'browser';
+    name?: string;
+    url: string;
+}
+
+export interface AndroidTargetConfig {
+    type: 'android';
+    name?: string;
+    avdName: string;
+    apkId: string;
+    activity?: string;
+}
+
+export type TargetConfig = BrowserTargetConfig | AndroidTargetConfig;
+
 export type StepType = 'ai-action' | 'playwright-code';
 
 export interface TestCaseFile {
