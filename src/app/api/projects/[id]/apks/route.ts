@@ -59,6 +59,10 @@ export async function GET(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    if (!config.features.androidEmulator) {
+        return NextResponse.json({ error: 'Android emulator feature not enabled' }, { status: 404 });
+    }
+
     const { id } = await params;
 
     try {
@@ -94,6 +98,10 @@ export async function POST(
     const authPayload = await verifyAuth(request);
     if (!authPayload) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!config.features.androidEmulator) {
+        return NextResponse.json({ error: 'Android emulator feature not enabled' }, { status: 404 });
     }
 
     const { id } = await params;

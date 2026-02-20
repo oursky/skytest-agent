@@ -29,6 +29,33 @@ export class TestQueue {
 
     private constructor() { }
 
+    public async startup(): Promise<void> {
+        try {
+            const staleRuns = await prisma.testRun.findMany({
+                where: { status: { in: ['RUNNING', 'QUEUED'] } },
+                select: { id: true, testCaseId: true }
+            });
+
+            if (staleRuns.length > 0) {
+                logger.info(`Marking ${staleRuns.length} stale run(s) as FAIL on startup`);
+                await prisma.testRun.updateMany({
+                    where: { id: { in: staleRuns.map(r => r.id) } },
+                    data: { status: 'FAIL', error: 'Server restarted while test was in progress', completedAt: new Date() }
+                });
+
+                const staleTestCaseIds = [...new Set(staleRuns.map(r => r.testCaseId).filter(Boolean))] as string[];
+                if (staleTestCaseIds.length > 0) {
+                    await prisma.testCase.updateMany({
+                        where: { id: { in: staleTestCaseIds } },
+                        data: { status: 'FAIL' }
+                    });
+                }
+            }
+        } catch (e) {
+            logger.error('Failed to cleanup stale runs on startup', e);
+        }
+    }
+
     public static getInstance(): TestQueue {
         if (!TestQueue.instance) {
             TestQueue.instance = new TestQueue();
