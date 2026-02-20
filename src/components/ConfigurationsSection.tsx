@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAuth } from '@/app/auth-provider';
 import { useI18n } from '@/i18n';
-import type { ConfigItem, ConfigType, BrowserConfig } from '@/types';
+import type { ConfigItem, ConfigType, BrowserConfig, TargetConfig, AndroidTargetConfig } from '@/types';
 import Link from 'next/link';
 
 const CONFIG_NAME_REGEX = /^[A-Z][A-Z0-9_]*$/;
@@ -15,7 +15,25 @@ const RANDOM_STRING_GENERATION_TYPES = ['TIMESTAMP_DATETIME', 'TIMESTAMP_UNIX', 
 
 interface BrowserEntry {
     id: string;
-    config: BrowserConfig;
+    config: BrowserConfig | TargetConfig;
+}
+
+interface AvdProfile {
+    id: string;
+    name: string;
+    displayName: string;
+    apiLevel: number;
+}
+
+interface ProjectApk {
+    id: string;
+    filename: string;
+    packageName: string;
+    versionName: string | null;
+}
+
+function isAndroidConfig(config: BrowserConfig | TargetConfig): config is AndroidTargetConfig {
+    return 'type' in config && config.type === 'android';
 }
 
 interface ConfigurationsSectionProps {
@@ -93,12 +111,18 @@ export default function ConfigurationsSection({
     const [randomStringDropdownOpen, setRandomStringDropdownOpen] = useState<string | null>(null);
     const [showSecretInEdit, setShowSecretInEdit] = useState(false);
     const [fileUploadDraft, setFileUploadDraft] = useState<FileUploadDraft | null>(null);
+    const [avdProfiles, setAvdProfiles] = useState<AvdProfile[]>([]);
+    const [projectApks, setProjectApks] = useState<ProjectApk[]>([]);
+    const [avdDropdownOpen, setAvdDropdownOpen] = useState<string | null>(null);
+    const [apkDropdownOpen, setApkDropdownOpen] = useState<string | null>(null);
     const addTypeRef = useRef<HTMLDivElement>(null);
     const urlDropdownRefs = useRef<Map<string, HTMLDivElement>>(new Map());
     const randomStringDropdownRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+    const avdDropdownRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+    const apkDropdownRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
     useEffect(() => {
-        if (!addTypeOpen && !urlDropdownOpen && !randomStringDropdownOpen) return;
+        if (!addTypeOpen && !urlDropdownOpen && !randomStringDropdownOpen && !avdDropdownOpen && !apkDropdownOpen) return;
         const handleClickOutside = (e: MouseEvent) => {
             if (addTypeOpen && addTypeRef.current && !addTypeRef.current.contains(e.target as Node)) {
                 setAddTypeOpen(false);
@@ -115,10 +139,40 @@ export default function ConfigurationsSection({
                     setRandomStringDropdownOpen(null);
                 }
             }
+            if (avdDropdownOpen) {
+                const ref = avdDropdownRefs.current.get(avdDropdownOpen);
+                if (ref && !ref.contains(e.target as Node)) {
+                    setAvdDropdownOpen(null);
+                }
+            }
+            if (apkDropdownOpen) {
+                const ref = apkDropdownRefs.current.get(apkDropdownOpen);
+                if (ref && !ref.contains(e.target as Node)) {
+                    setApkDropdownOpen(null);
+                }
+            }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [addTypeOpen, urlDropdownOpen, randomStringDropdownOpen]);
+    }, [addTypeOpen, urlDropdownOpen, randomStringDropdownOpen, avdDropdownOpen, apkDropdownOpen]);
+
+    useEffect(() => {
+        const fetchAndroidData = async () => {
+            const token = await getAccessToken();
+            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+            const avdRes = await fetch('/api/avd-profiles', { headers });
+            if (avdRes.ok) {
+                setAvdProfiles(await avdRes.json());
+            }
+            if (projectId) {
+                const apkRes = await fetch(`/api/projects/${projectId}/apks`, { headers });
+                if (apkRes.ok) {
+                    setProjectApks(await apkRes.json());
+                }
+            }
+        };
+        fetchAndroidData().catch(() => {});
+    }, [projectId, getAccessToken]);
 
     const resolveTestCaseId = useCallback(async () => {
         if (testCaseId) {
@@ -359,6 +413,12 @@ export default function ConfigurationsSection({
         setBrowsers([...browsers, { id: newId, config: { url: '' } }]);
     };
 
+    const handleAddAndroid = () => {
+        const nextChar = String.fromCharCode('a'.charCodeAt(0) + browsers.length);
+        const newId = `android_${nextChar}`;
+        setBrowsers([...browsers, { id: newId, config: { type: 'android' as const, name: '', avdName: '', apkId: '' } }]);
+    };
+
     const handleRemoveBrowser = (index: number) => {
         if (browsers.length <= 1) return;
         const newBrowsers = [...browsers];
@@ -366,11 +426,11 @@ export default function ConfigurationsSection({
         setBrowsers(newBrowsers);
     };
 
-    const updateBrowser = (index: number, field: keyof BrowserConfig, value: string) => {
+    const updateTarget = (index: number, updates: Partial<BrowserConfig & AndroidTargetConfig>) => {
         const newBrowsers = [...browsers];
         newBrowsers[index] = {
             ...newBrowsers[index],
-            config: { ...newBrowsers[index].config, [field]: value }
+            config: { ...newBrowsers[index].config, ...updates } as BrowserConfig | TargetConfig
         };
         setBrowsers(newBrowsers);
     };
@@ -731,14 +791,158 @@ export default function ConfigurationsSection({
                 <div className="space-y-3">
                     {browsers.map((browser, index) => {
                         const colorClass = colors[index % colors.length];
-                        const label = `Browser ${String.fromCharCode('A'.charCodeAt(0) + index)}`;
+                        const android = isAndroidConfig(browser.config);
+                        const defaultLabel = android
+                            ? `Android ${String.fromCharCode('A'.charCodeAt(0) + index)}`
+                            : `Browser ${String.fromCharCode('A'.charCodeAt(0) + index)}`;
 
+                        if (android) {
+                            const cfg = browser.config as AndroidTargetConfig;
+                            const selectedAvd = avdProfiles.find(a => a.name === cfg.avdName);
+                            const selectedApk = projectApks.find(a => a.id === cfg.apkId);
+                            return (
+                                <div key={browser.id} className="p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <span className={`w-2.5 h-2.5 rounded-full ${colorClass}`}></span>
+                                            <span className="text-sm">📱</span>
+                                            <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">{cfg.name || defaultLabel}</span>
+                                        </div>
+                                        {browsers.length > 1 && !readOnly && (
+                                            <button type="button" onClick={() => handleRemoveBrowser(index)} className="text-xs text-gray-400 hover:text-red-500">
+                                                {t('common.remove')}
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-2">
+                                        <div>
+                                            <label className="text-[10px] font-medium text-gray-500 uppercase">{t('configs.browser.name')}</label>
+                                            <input
+                                                type="text"
+                                                value={cfg.name || ''}
+                                                onChange={(e) => updateTarget(index, { name: e.target.value })}
+                                                placeholder={t('configs.browser.name.placeholder')}
+                                                className="w-full mt-0.5 px-2 py-1.5 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                                                disabled={readOnly}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-medium text-gray-500 uppercase">{t('configs.android.avd')}</label>
+                                            <div
+                                                className="relative mt-0.5"
+                                                ref={(el) => {
+                                                    if (el) avdDropdownRefs.current.set(browser.id, el);
+                                                    else avdDropdownRefs.current.delete(browser.id);
+                                                }}
+                                            >
+                                                <button
+                                                    type="button"
+                                                    onClick={() => !readOnly && setAvdDropdownOpen(avdDropdownOpen === browser.id ? null : browser.id)}
+                                                    disabled={readOnly}
+                                                    className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white text-left flex items-center justify-between gap-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:bg-gray-50"
+                                                >
+                                                    <span className={selectedAvd ? 'text-gray-800' : 'text-gray-400'}>
+                                                        {selectedAvd ? selectedAvd.displayName : t('configs.android.avd.placeholder')}
+                                                    </span>
+                                                    <svg className="w-3 h-3 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                    </svg>
+                                                </button>
+                                                {avdDropdownOpen === browser.id && !readOnly && (
+                                                    <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-20 py-1 min-w-full">
+                                                        {avdProfiles.length === 0 ? (
+                                                            <div className="px-3 py-2 text-xs text-gray-400">No AVD profiles available</div>
+                                                        ) : (
+                                                            avdProfiles.map(avd => (
+                                                                <button
+                                                                    key={avd.id}
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        updateTarget(index, { avdName: avd.name });
+                                                                        setAvdDropdownOpen(null);
+                                                                    }}
+                                                                    className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 ${cfg.avdName === avd.name ? 'bg-gray-50 font-medium' : 'text-gray-700'}`}
+                                                                >
+                                                                    {avd.displayName}
+                                                                </button>
+                                                            ))
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                        {projectId && (
+                                            <div>
+                                                <label className="text-[10px] font-medium text-gray-500 uppercase">{t('configs.android.apk')}</label>
+                                                <div
+                                                    className="relative mt-0.5"
+                                                    ref={(el) => {
+                                                        if (el) apkDropdownRefs.current.set(browser.id, el);
+                                                        else apkDropdownRefs.current.delete(browser.id);
+                                                    }}
+                                                >
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => !readOnly && setApkDropdownOpen(apkDropdownOpen === browser.id ? null : browser.id)}
+                                                        disabled={readOnly}
+                                                        className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white text-left flex items-center justify-between gap-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:bg-gray-50"
+                                                    >
+                                                        <span className={selectedApk ? 'text-gray-800' : 'text-gray-400'}>
+                                                            {selectedApk ? selectedApk.filename : t('configs.android.apk.placeholder')}
+                                                        </span>
+                                                        <svg className="w-3 h-3 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                        </svg>
+                                                    </button>
+                                                    {apkDropdownOpen === browser.id && !readOnly && (
+                                                        <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-20 py-1 min-w-full">
+                                                            {projectApks.length === 0 ? (
+                                                                <div className="px-3 py-2 text-xs text-gray-400">{t('configs.android.apk.none')}</div>
+                                                            ) : (
+                                                                projectApks.map(apk => (
+                                                                    <button
+                                                                        key={apk.id}
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            updateTarget(index, { apkId: apk.id });
+                                                                            setApkDropdownOpen(null);
+                                                                        }}
+                                                                        className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 ${cfg.apkId === apk.id ? 'bg-gray-50 font-medium' : 'text-gray-700'}`}
+                                                                    >
+                                                                        <span className="font-medium text-gray-800">{apk.filename}</span>
+                                                                        {apk.packageName && <span className="text-gray-400 ml-1.5">{apk.packageName}</span>}
+                                                                    </button>
+                                                                ))
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                        <div>
+                                            <label className="text-[10px] font-medium text-gray-500 uppercase">{t('configs.android.activity')}</label>
+                                            <input
+                                                type="text"
+                                                value={cfg.activity || ''}
+                                                onChange={(e) => updateTarget(index, { activity: e.target.value || undefined })}
+                                                placeholder={t('configs.android.activity.placeholder')}
+                                                className="w-full mt-0.5 px-2 py-1.5 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                                                disabled={readOnly}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        }
+
+                        const cfg = browser.config as BrowserConfig;
                         return (
                             <div key={browser.id} className="p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                         <span className={`w-2.5 h-2.5 rounded-full ${colorClass}`}></span>
-                                        <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">{label}</span>
+                                        <span className="text-sm">🌐</span>
+                                        <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">{defaultLabel}</span>
                                     </div>
                                     {browsers.length > 1 && !readOnly && (
                                         <button
@@ -756,8 +960,8 @@ export default function ConfigurationsSection({
                                         <label className="text-[10px] font-medium text-gray-500 uppercase">{t('configs.browser.name')}</label>
                                         <input
                                             type="text"
-                                            value={browser.config.name || ''}
-                                            onChange={(e) => updateBrowser(index, 'name', e.target.value)}
+                                            value={cfg.name || ''}
+                                            onChange={(e) => updateTarget(index, { name: e.target.value })}
                                             placeholder={t('configs.browser.name.placeholder')}
                                             className="w-full mt-0.5 px-2 py-1.5 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-primary"
                                             disabled={readOnly}
@@ -768,8 +972,8 @@ export default function ConfigurationsSection({
                                         <div className={`flex mt-0.5 border border-gray-300 rounded bg-white ${readOnly ? '' : 'focus-within:ring-1 focus-within:ring-primary focus-within:border-primary'}`}>
                                             <input
                                                 type="text"
-                                                value={browser.config.url}
-                                                onChange={(e) => updateBrowser(index, 'url', e.target.value)}
+                                                value={cfg.url}
+                                                onChange={(e) => updateTarget(index, { url: e.target.value })}
                                                 placeholder={t('configs.browser.url.placeholder')}
                                                 className={`flex-1 px-2 py-1.5 text-xs bg-white focus:outline-none ${urlConfigs.length > 0 && !readOnly ? 'rounded-l' : 'rounded'}`}
                                                 disabled={readOnly}
@@ -792,7 +996,7 @@ export default function ConfigurationsSection({
                                                                     key={uc.id}
                                                                     type="button"
                                                                     onClick={() => {
-                                                                        updateBrowser(index, 'url', uc.value);
+                                                                        updateTarget(index, { url: uc.value });
                                                                         setUrlDropdownOpen(null);
                                                                     }}
                                                                     className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50"
@@ -813,16 +1017,28 @@ export default function ConfigurationsSection({
                     })}
 
                     {!readOnly && (
-                        <button
-                            type="button"
-                            onClick={handleAddBrowser}
-                            className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors text-xs font-medium flex items-center justify-center gap-2"
-                        >
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                            </svg>
-                            {t('configs.browser.addBrowser')}
-                        </button>
+                        <div className="flex gap-2">
+                            <button
+                                type="button"
+                                onClick={handleAddBrowser}
+                                className="flex-1 py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors text-xs font-medium flex items-center justify-center gap-1.5"
+                            >
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                                {t('configs.browser.addBrowser')}
+                            </button>
+                            {projectId && avdProfiles.length > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={handleAddAndroid}
+                                    className="flex-1 py-2 border-2 border-dashed border-green-300 rounded-lg text-green-600 hover:border-green-400 hover:text-green-700 transition-colors text-xs font-medium flex items-center justify-center gap-1.5"
+                                >
+                                    <span>📱</span>
+                                    {t('configs.target.addAndroid')}
+                                </button>
+                            )}
+                        </div>
                     )}
                 </div>
             </div>

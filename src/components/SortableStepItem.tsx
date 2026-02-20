@@ -29,8 +29,9 @@ const PlaywrightCodeEditor = dynamic(
 interface BrowserEntry {
     id: string;
     config: {
+        type?: string;
         name?: string;
-        url: string;
+        url?: string;
     };
 }
 
@@ -49,9 +50,16 @@ interface SortableStepItemProps {
     testCaseFiles?: TestCaseFile[];
 }
 
+function isAndroidEntry(browser: BrowserEntry): boolean {
+    return browser.config.type === 'android';
+}
+
 function browserLabel(browser: BrowserEntry): string {
     if (browser.config.name) {
         return browser.config.name;
+    }
+    if (browser.id.startsWith('android_')) {
+        return browser.id.replace('android_', 'Android ').toUpperCase();
     }
     if (browser.id.startsWith('browser_')) {
         return browser.id.replace('browser_', 'Browser ').toUpperCase();
@@ -104,6 +112,7 @@ export default function SortableStepItem({ step, index, browsers, onRemove, onCh
     const colorText = colorsText[safeIndex % colorsText.length];
     const colorBorder = colorsBorder[safeIndex % colorsBorder.length];
     const selectedBrowser = browsers[safeIndex];
+    const isAndroid = selectedBrowser ? isAndroidEntry(selectedBrowser) : false;
 
     useEffect(() => {
         if (!browserDropdownOpen) return;
@@ -141,7 +150,7 @@ export default function SortableStepItem({ step, index, browsers, onRemove, onCh
                     {index + 1}
                 </span>
 
-                {/* Browser Select */}
+                {/* Target Select */}
                 <div className="relative" ref={browserDropdownRef}>
                     <button
                         type="button"
@@ -153,7 +162,10 @@ export default function SortableStepItem({ step, index, browsers, onRemove, onCh
                         className={`text-xs font-bold uppercase tracking-wider pl-3 pr-2 py-1.5 rounded-md border min-w-[140px] flex items-center justify-between gap-2 ${readOnly ? 'cursor-not-allowed opacity-80' : 'cursor-pointer focus:ring-2 focus:ring-offset-1'} ${colorLight} ${colorText} ${colorBorder}`}
                         onPointerDown={(e) => e.stopPropagation()}
                     >
-                        <span className="truncate">{selectedBrowser ? browserLabel(selectedBrowser) : step.target}</span>
+                        <span className="flex items-center gap-1.5 truncate">
+                            <span>{isAndroid ? '📱' : '🌐'}</span>
+                            <span className="truncate">{selectedBrowser ? browserLabel(selectedBrowser) : step.target}</span>
+                        </span>
                         <svg className={`w-3 h-3 shrink-0 ${colorText}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </svg>
@@ -162,6 +174,7 @@ export default function SortableStepItem({ step, index, browsers, onRemove, onCh
                         <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-30 py-1 min-w-[180px]">
                             {browsers.map((browser) => {
                                 const isSelected = browser.id === step.target;
+                                const isAndroidOption = isAndroidEntry(browser);
                                 return (
                                     <button
                                         key={browser.id}
@@ -171,9 +184,10 @@ export default function SortableStepItem({ step, index, browsers, onRemove, onCh
                                             setBrowserDropdownOpen(false);
                                         }}
                                         onPointerDown={(e) => e.stopPropagation()}
-                                        className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 ${isSelected ? 'bg-gray-50 text-gray-900 font-medium' : 'text-gray-700'}`}
+                                        className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-1.5 ${isSelected ? 'bg-gray-50 text-gray-900 font-medium' : 'text-gray-700'}`}
                                     >
-                                        {browserLabel(browser)}
+                                        <span>{isAndroidOption ? '📱' : '🌐'}</span>
+                                        <span>{browserLabel(browser)}</span>
                                     </button>
                                 );
                             })}
@@ -198,13 +212,16 @@ export default function SortableStepItem({ step, index, browsers, onRemove, onCh
                         </button>
                         <button
                             type="button"
-                            onClick={() => onTypeChange('playwright-code')}
+                            onClick={() => !isAndroid && onTypeChange('playwright-code')}
                             onPointerDown={(e) => e.stopPropagation()}
+                            disabled={isAndroid}
                             className={`px-2 py-1 text-xs font-medium rounded transition-all ${stepType === 'playwright-code'
                                 ? 'bg-white text-orange-600 shadow-sm'
-                                : 'text-gray-500 hover:text-gray-700'
+                                : isAndroid
+                                    ? 'text-gray-300 cursor-not-allowed'
+                                    : 'text-gray-500 hover:text-gray-700'
                                 }`}
-                            title={t('step.type.codeTitle')}
+                            title={isAndroid ? 'Playwright Code is not available for Android targets' : t('step.type.codeTitle')}
                         >
                             Code
                         </button>

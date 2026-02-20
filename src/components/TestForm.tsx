@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { TestStep, BrowserConfig, ConfigItem, TestCaseFile } from '@/types';
+import { TestStep, BrowserConfig, TargetConfig, ConfigItem, TestCaseFile } from '@/types';
 import BuilderForm from './BuilderForm';
 import ConfigurationsSection from './ConfigurationsSection';
 import { useI18n } from '@/i18n';
@@ -13,7 +13,7 @@ interface TestData {
     name?: string;
     displayId?: string;
     steps?: TestStep[];
-    browserConfig?: Record<string, BrowserConfig>;
+    browserConfig?: Record<string, BrowserConfig | TargetConfig>;
 }
 
 interface TestFormProps {
@@ -40,7 +40,7 @@ interface TestFormProps {
 
 interface BrowserEntry {
     id: string;
-    config: BrowserConfig;
+    config: BrowserConfig | TargetConfig;
 }
 
 type TestFormTab = 'configurations' | 'test-steps';
@@ -66,13 +66,13 @@ function createStepId(prefix: string): string {
 
 function buildBrowsers(data?: TestData): BrowserEntry[] {
     if (data?.browserConfig && Object.keys(data.browserConfig).length > 0) {
-        return Object.entries(data.browserConfig).map(([id, cfg]) => ({
-            id,
-            config: {
-                name: cfg.name || '',
-                url: cfg.url || '',
+        return Object.entries(data.browserConfig).map(([id, cfg]) => {
+            if ('type' in cfg && cfg.type === 'android') {
+                return { id, config: cfg };
             }
-        }));
+            const browserCfg = cfg as BrowserConfig;
+            return { id, config: { name: browserCfg.name || '', url: browserCfg.url || '' } };
+        });
     }
 
     return [{
@@ -241,7 +241,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
             { id: createStepId('sample'), target: 'browser_b', action: t('sample.multi.step10'), type: 'ai-action' }
         ];
 
-        const sampleBrowserConfig: Record<string, BrowserConfig> = {};
+        const sampleBrowserConfig: Record<string, BrowserConfig | TargetConfig> = {};
         sampleBrowsers.forEach((browser) => {
             sampleBrowserConfig[browser.id] = browser.config;
         });
@@ -273,15 +273,20 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
     };
 
     const buildCurrentData = (): TestData => {
-        const browserConfigMap: Record<string, BrowserConfig> = {};
+        const browserConfigMap: Record<string, BrowserConfig | TargetConfig> = {};
         browsers.forEach((browser) => {
             browserConfigMap[browser.id] = browser.config;
         });
 
+        const firstConfig = browsers[0]?.config;
+        const firstUrl = firstConfig && !('type' in firstConfig && firstConfig.type === 'android')
+            ? (firstConfig as BrowserConfig).url || ''
+            : '';
+
         return {
             name: showNameInput ? name : undefined,
             displayId: displayId || undefined,
-            url: browsers[0]?.config.url || '',
+            url: firstUrl,
             prompt: '',
             steps,
             browserConfig: browserConfigMap

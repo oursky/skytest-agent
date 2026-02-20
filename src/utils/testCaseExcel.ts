@@ -1,5 +1,5 @@
 import ExcelJS, { CellValue, Worksheet } from 'exceljs';
-import type { BrowserConfig, ConfigType, TestStep } from '@/types';
+import type { BrowserConfig, TargetConfig, ConfigType, TestStep } from '@/types';
 
 type SupportedVariableType = Extract<ConfigType, 'URL' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING' | 'FILE'>;
 const VARIABLE_TYPE_ORDER: SupportedVariableType[] = ['URL', 'VARIABLE', 'SECRET', 'FILE', 'RANDOM_STRING'];
@@ -20,7 +20,7 @@ export interface TestCaseExcelExportData {
     name?: string;
     testCaseId?: string;
     steps?: TestStep[];
-    browserConfig?: Record<string, BrowserConfig>;
+    browserConfig?: Record<string, BrowserConfig | TargetConfig>;
     projectVariables?: ExcelProjectVariable[];
     testCaseVariables?: ExcelProjectVariable[];
     files?: ExcelFileEntry[];
@@ -146,11 +146,13 @@ export async function parseTestCaseExcel(content: ArrayBuffer): Promise<ParseRes
 
 function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
     const workbook = new ExcelJS.Workbook();
-    const browserEntries = Object.entries(data.browserConfig || {}).map(([id, config]) => ({
-        id,
-        name: config.name || '',
-        url: config.url || '',
-    }));
+    const browserEntries = Object.entries(data.browserConfig || {})
+        .filter(([, config]) => !('type' in config && config.type === 'android'))
+        .map(([id, config]) => ({
+            id,
+            name: config.name || '',
+            url: (config as BrowserConfig).url || '',
+        }));
     const browserDisplayById = new Map(
         browserEntries.map((entry, index) => [entry.id, entry.name || formatBrowserLabel(index)])
     );

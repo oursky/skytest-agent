@@ -6,7 +6,7 @@ import { useAuth } from "../auth-provider";
 import TestForm from "@/components/TestForm";
 import ResultViewer from "@/components/ResultViewer";
 import Breadcrumbs from "@/components/Breadcrumbs";
-import { TestStep, BrowserConfig, TestEvent, TestCaseFile, ConfigItem } from "@/types";
+import { TestStep, BrowserConfig, TargetConfig, TestEvent, TestCaseFile, ConfigItem } from "@/types";
 import { exportToExcelArrayBuffer, parseTestCaseExcel } from "@/utils/testCaseExcel";
 import { useI18n } from "@/i18n";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
@@ -17,7 +17,7 @@ interface TestData {
     name?: string;
     displayId?: string;
     steps?: TestStep[];
-    browserConfig?: Record<string, BrowserConfig>;
+    browserConfig?: Record<string, BrowserConfig | TargetConfig>;
 }
 
 interface TestResult {

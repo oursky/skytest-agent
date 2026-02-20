@@ -1,6 +1,6 @@
 'use client';
 
-import { TestStep, BrowserConfig, StepType, ConfigItem, TestCaseFile } from '@/types';
+import { TestStep, BrowserConfig, TargetConfig, StepType, ConfigItem, TestCaseFile } from '@/types';
 import {
     DndContext,
     closestCenter,
@@ -24,7 +24,7 @@ import { useI18n } from '@/i18n';
 
 interface BrowserEntry {
     id: string;
-    config: BrowserConfig;
+    config: BrowserConfig | TargetConfig;
 }
 
 interface BuilderFormProps {
