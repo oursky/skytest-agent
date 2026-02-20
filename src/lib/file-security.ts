@@ -58,3 +58,11 @@ export function getProjectConfigUploadPath(projectId: string): string {
 export function getTestCaseConfigUploadPath(testCaseId: string): string {
     return path.join(getUploadDir(), 'testcase-configs', testCaseId);
 }
+
+export function getApkUploadPath(projectId: string): string {
+    return path.join(process.cwd(), config.emulator.apk.uploadDir, projectId);
+}
+
+export function getApkFilePath(projectId: string, storedName: string): string {
+    return path.join(getApkUploadPath(projectId), storedName);
+}

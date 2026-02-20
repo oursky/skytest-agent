@@ -38,6 +38,7 @@ model Project {
   user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   testCases TestCase[]
   configs   ProjectConfig[]
+  apks      ProjectApk[]
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
 
@@ -142,4 +143,31 @@ model TestCaseConfig {
 
   @@unique([testCaseId, name])
   @@index([testCaseId])
+}
+
+model AvdProfile {
+  id          String   @id @default(cuid())
+  name        String   @unique         // "Pixel_7_API_34"
+  displayName String                   // "Pixel 7 (Android 14)"
+  apiLevel    Int                      // 34
+  screenSize  String?                  // "1080x2400"
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ProjectApk {
+  id           String   @id @default(cuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  filename     String
+  storedName   String
+  packageName  String
+  activityName String?
+  versionName  String?
+  size         Int
+  createdAt    DateTime @default(now())
+
+  @@unique([projectId, filename])
+  @@index([projectId])
 }
