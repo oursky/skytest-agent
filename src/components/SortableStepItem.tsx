@@ -163,7 +163,6 @@ export default function SortableStepItem({ step, index, browsers, onRemove, onCh
                         onPointerDown={(e) => e.stopPropagation()}
                     >
                         <span className="flex items-center gap-1.5 truncate">
-                            <span>{isAndroid ? '📱' : '🌐'}</span>
                             <span className="truncate">{selectedBrowser ? browserLabel(selectedBrowser) : step.target}</span>
                         </span>
                         <svg className={`w-3 h-3 shrink-0 ${colorText}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -186,7 +185,6 @@ export default function SortableStepItem({ step, index, browsers, onRemove, onCh
                                         onPointerDown={(e) => e.stopPropagation()}
                                         className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-1.5 ${isSelected ? 'bg-gray-50 text-gray-900 font-medium' : 'text-gray-700'}`}
                                     >
-                                        <span>{isAndroidOption ? '📱' : '🌐'}</span>
                                         <span>{browserLabel(browser)}</span>
                                     </button>
                                 );

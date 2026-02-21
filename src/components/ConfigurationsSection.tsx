@@ -809,7 +809,6 @@ export default function ConfigurationsSection({
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2">
                                             <span className={`w-2.5 h-2.5 rounded-full ${colorClass}`}></span>
-                                            <span className="text-sm">📱</span>
                                             <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">{cfg.name || defaultLabel}</span>
                                         </div>
                                         {browsers.length > 1 && !readOnly && (
@@ -972,7 +971,6 @@ export default function ConfigurationsSection({
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                         <span className={`w-2.5 h-2.5 rounded-full ${colorClass}`}></span>
-                                        <span className="text-sm">🌐</span>
                                         <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">{defaultLabel}</span>
                                     </div>
                                     {browsers.length > 1 && !readOnly && (
@@ -1065,7 +1063,6 @@ export default function ConfigurationsSection({
                                     onClick={handleAddAndroid}
                                     className="flex-1 py-2 border-2 border-dashed border-green-300 rounded-lg text-green-600 hover:border-green-400 hover:text-green-700 transition-colors text-xs font-medium flex items-center justify-center gap-1.5"
                                 >
-                                    <span>📱</span>
                                     {t('configs.target.addAndroid')}
                                 </button>
                             )}

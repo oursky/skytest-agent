@@ -110,7 +110,6 @@ export default function AdminEmulatorsPage() {
                                     {status.emulators.map((emulator) => (
                                         <div key={emulator.id} className="px-4 py-3 flex items-center justify-between gap-4">
                                             <div className="flex items-center gap-3 min-w-0">
-                                                <span className="text-lg">📱</span>
                                                 <div className="min-w-0">
                                                     <div className="text-sm font-medium text-gray-900 truncate">{emulator.avdName}</div>
                                                     <div className="text-xs text-gray-400 font-mono">{emulator.id}</div>

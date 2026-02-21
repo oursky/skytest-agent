@@ -322,7 +322,7 @@ export const MESSAGES: Record<Locale, Messages> = {
 
     // Project tabs
     'project.tab.testCases': 'Test Cases',
-    'project.tab.configs': 'Configurations',
+    'project.tab.configs': 'Variables',
     'project.tab.apks': 'APKs',
     'project.tab.emulators': 'Emulators',
 
@@ -718,7 +718,7 @@ export const MESSAGES: Record<Locale, Messages> = {
 
     // Project tabs
     'project.tab.testCases': '測試案例',
-    'project.tab.configs': '設定',
+    'project.tab.configs': '變數',
     'project.tab.apks': 'APK',
     'project.tab.emulators': '模擬器',
 
@@ -1114,7 +1114,7 @@ export const MESSAGES: Record<Locale, Messages> = {
 
     // Project tabs
     'project.tab.testCases': '测试用例',
-    'project.tab.configs': '配置',
+    'project.tab.configs': '变量',
     'project.tab.apks': 'APK',
     'project.tab.emulators': '模拟器',
 

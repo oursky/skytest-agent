@@ -56,7 +56,6 @@ export default function TimelineEvent({ event, isLast, onImageClick, targetType 
                                 }`}>
                                 {event.data.level?.toUpperCase() || 'INFO'}
                             </span>
-                            <span className="text-xs">{targetType === 'android' ? '📱' : '🌐'}</span>
                         </div>
                         <span className="text-xs text-muted-foreground">
                             {formatTime(event.timestamp)}
@@ -80,7 +79,7 @@ export default function TimelineEvent({ event, isLast, onImageClick, targetType 
                         </svg>
                         <span className="font-medium">{event.data.label || t('timeline.screenshot')}</span>
                         {targetType === 'android' && (
-                            <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">📱 Android</span>
+                            <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">Android</span>
                         )}
                     </div>
                     <div
