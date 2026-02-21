@@ -460,10 +460,6 @@ async function setupExecutionTargets(
         }
     }
 
-    if (androidTargetIds.length > 0 && !config.features.androidEmulator) {
-        throw new ConfigurationError('Android emulator feature is not enabled on this server.', 'android');
-    }
-
     for (const targetId of androidTargetIds) {
         if (signal?.aborted) throw new Error('Aborted');
 

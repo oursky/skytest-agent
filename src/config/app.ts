@@ -187,11 +187,6 @@ export const config = {
         portRange: 20,
     },
 
-    features: {
-        // INFRA-ONLY: controls whether EmulatorPool initializes at startup (instrumentation.ts).
-        // Does NOT gate API access — use user.androidEnabled for that.
-        androidEmulator: process.env.FEATURE_ANDROID_EMULATOR === 'true',
-    },
 } as const;
 
 export type Config = typeof config;
