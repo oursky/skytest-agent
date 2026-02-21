@@ -27,17 +27,25 @@ interface ApkMetadata {
     versionName: string;
 }
 
-function extractApkMetadata(apkPath: string): Promise<ApkMetadata> {
+async function extractApkMetadata(apkPath: string): Promise<ApkMetadata> {
     const androidHome = process.env.ANDROID_HOME ?? '';
     const buildToolsDir = androidHome ? path.join(androidHome, 'build-tools') : '';
 
-    return new Promise((resolve) => {
-        let aapt2Path = 'aapt2';
-        if (buildToolsDir) {
-            // Use the latest available build-tools version
-            aapt2Path = path.join(buildToolsDir, 'aapt2');
-        }
+    let aapt2Path = 'aapt2';
 
+    if (buildToolsDir) {
+        try {
+            const versions = await fs.readdir(buildToolsDir);
+            const latest = versions.filter(v => !v.startsWith('.')).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).reverse()[0];
+            if (latest) {
+                aapt2Path = path.join(buildToolsDir, latest, 'aapt2');
+            }
+        } catch (err) {
+            // Ignore error and fallback to 'aapt2'
+        }
+    }
+
+    return new Promise((resolve) => {
         execFile(aapt2Path, ['dump', 'badging', apkPath], { encoding: 'utf8' }, (error, stdout) => {
             if (error || !stdout) {
                 logger.warn('aapt2 not available or failed, metadata will be empty', error);
