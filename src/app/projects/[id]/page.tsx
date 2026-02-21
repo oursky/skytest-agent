@@ -9,8 +9,11 @@ import Breadcrumbs from "@/components/Breadcrumbs";
 import { formatDateTimeCompact } from "@/utils/dateFormatter";
 import { useI18n } from "@/i18n";
 import { getStatusBadgeClass } from '@/utils/statusBadge';
+import { isActiveRunStatus } from '@/utils/statusHelpers';
 import Pagination from '@/components/Pagination';
 import ProjectConfigs from '@/components/ProjectConfigs';
+import ApkManager from '@/components/ApkManager';
+import EmulatorStatusPanel from '@/components/EmulatorStatusPanel';
 
 interface TestRun {
     id: string;
@@ -58,7 +61,8 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     const [pageSize, setPageSize] = useState(10);
     const [searchInput, setSearchInput] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
-    const [activeTab, setActiveTab] = useState<'test-cases' | 'configs'>('test-cases');
+    const [activeTab, setActiveTab] = useState<'test-cases' | 'configs' | 'apks' | 'emulators'>('test-cases');
+    const [androidEnabled, setAndroidEnabled] = useState(false);
 
     const refreshAbortRef = useRef<AbortController | null>(null);
     const eventSourceRef = useRef<EventSource | null>(null);
@@ -71,13 +75,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
     useEffect(() => {
         const tab = searchParams.get('tab');
-        if (tab === 'configs') {
-            setActiveTab('configs');
-            return;
-        }
-        if (tab === 'test-cases') {
-            setActiveTab('test-cases');
-        }
+        if (tab === 'configs') { setActiveTab('configs'); return; }
+        if (tab === 'apks') { setActiveTab('apks'); return; }
+        if (tab === 'emulators') { setActiveTab('emulators'); return; }
+        if (tab === 'test-cases') { setActiveTab('test-cases'); }
     }, [searchParams]);
 
     const getAuthHeaders = useCallback(async (): Promise<HeadersInit> => {
@@ -136,6 +137,20 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         const testCasesData = await testCasesRes.json();
         setTestCases(testCasesData);
     }, [resolvedParams.id, getAuthHeaders]);
+
+    const fetchAndroidFeatureFlag = useCallback(async () => {
+        try {
+            const token = await getAccessToken();
+            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+            const res = await fetch('/api/user/features', { headers });
+            if (res.ok) {
+                const data = await res.json() as { androidEnabled: boolean };
+                setAndroidEnabled(data.androidEnabled);
+            }
+        } catch {
+            // ignore
+        }
+    }, [getAccessToken]);
 
     const fetchData = useCallback(async (silent = false) => {
         if (!resolvedParams.id) return;
@@ -254,6 +269,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
         fetchData();
         void connect();
+        void fetchAndroidFeatureFlag();
 
         const onFocus = () => {
             fetchData(true);
@@ -284,7 +300,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             refreshAbortRef.current?.abort();
             refreshAbortRef.current = null;
         };
-    }, [fetchData, fetchTestCases, issueStreamToken, isLoggedIn, isAuthLoading, resolvedParams.id]);
+    }, [fetchData, fetchTestCases, fetchAndroidFeatureFlag, issueStreamToken, isLoggedIn, isAuthLoading, resolvedParams.id]);
 
     const handleDeleteTestCase = async () => {
         try {
@@ -484,6 +500,30 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                         >
                             {t('project.tab.configs')}
                         </button>
+                        {androidEnabled && (
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('apks')}
+                                className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'apks'
+                                    ? 'border-primary text-primary'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                }`}
+                            >
+                                {t('project.tab.apks')}
+                            </button>
+                        )}
+                        {androidEnabled && (
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('emulators')}
+                                className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'emulators'
+                                    ? 'border-primary text-primary'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                }`}
+                            >
+                                {t('project.tab.emulators')}
+                            </button>
+                        )}
                     </nav>
                 </div>
 
@@ -580,6 +620,14 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     <ProjectConfigs projectId={id} />
                 )}
 
+                {activeTab === 'apks' && androidEnabled && (
+                    <ApkManager projectId={id} />
+                )}
+
+                {activeTab === 'emulators' && androidEnabled && (
+                    <EmulatorStatusPanel />
+                )}
+
                 <div className={`bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden ${activeTab !== 'test-cases' ? 'hidden' : ''}`}>
                     <div className="hidden md:grid grid-cols-24 gap-4 p-4 border-b border-gray-200 bg-gray-50 text-sm font-medium text-gray-500">
                         <button
@@ -669,7 +717,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                                                 {formatDateTimeCompact(testCase.updatedAt)}
                                             </div>
                                             <div className="md:col-span-5 flex justify-end gap-2">
-                                                {(!testCase.testRuns[0] || !['RUNNING', 'QUEUED'].includes(testCase.testRuns[0].status)) && (
+                                                {(!testCase.testRuns[0] || !isActiveRunStatus(testCase.testRuns[0].status)) && (
                                                     <Link
                                                         href={`/run?testCaseId=${testCase.id}&name=${encodeURIComponent(testCase.name)}`}
                                                         className="p-2 text-gray-500 hover:text-primary hover:bg-primary/10 rounded-md transition-colors inline-flex items-center justify-center"
@@ -682,7 +730,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                                                         </svg>
                                                     </Link>
                                                 )}
-                                                {testCase.testRuns[0] && ['RUNNING', 'QUEUED'].includes(testCase.testRuns[0].status) && (
+                                                {testCase.testRuns[0] && isActiveRunStatus(testCase.testRuns[0].status) && (
                                                     <Link
                                                         href={`/run?runId=${testCase.testRuns[0].id}&testCaseId=${testCase.id}`}
                                                         className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors inline-flex items-center justify-center animate-pulse"
@@ -717,12 +765,12 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                                                 </button>
                                                 <button
                                                     onClick={() => setDeleteModal({ isOpen: true, testCaseId: testCase.id, testCaseName: testCase.name })}
-                                                    disabled={testCase.testRuns[0] && ['RUNNING', 'QUEUED'].includes(testCase.testRuns[0].status)}
-                                                    className={`p-2 rounded-md transition-colors inline-flex items-center justify-center ${testCase.testRuns[0] && ['RUNNING', 'QUEUED'].includes(testCase.testRuns[0].status)
+                                                    disabled={testCase.testRuns[0] && isActiveRunStatus(testCase.testRuns[0].status)}
+                                                    className={`p-2 rounded-md transition-colors inline-flex items-center justify-center ${testCase.testRuns[0] && isActiveRunStatus(testCase.testRuns[0].status)
                                                         ? 'text-gray-300 cursor-not-allowed'
                                                         : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
                                                         }`}
-                                                    title={testCase.testRuns[0] && ['RUNNING', 'QUEUED'].includes(testCase.testRuns[0].status)
+                                                    title={testCase.testRuns[0] && isActiveRunStatus(testCase.testRuns[0].status)
                                                         ? t('project.tooltip.cannotDeleteRunning')
                                                         : t('project.tooltip.delete')}
                                                     aria-label={t('project.tooltip.delete')}

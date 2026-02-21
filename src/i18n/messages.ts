@@ -321,6 +321,26 @@ export const MESSAGES: Record<Locale, Messages> = {
     // Project tabs
     'project.tab.testCases': 'Test Cases',
     'project.tab.configs': 'Configurations',
+    'project.tab.apks': 'APKs',
+    'project.tab.emulators': 'Emulators',
+
+    // APK management
+    'apk.upload': 'Upload APK',
+    'apk.uploading': 'Uploading…',
+    'apk.empty': 'No APKs uploaded yet.',
+    'apk.delete.confirm': 'Delete this APK?',
+    'apk.size': '{size} MB',
+
+    // Emulator panel
+    'emulator.panel.title': 'Emulator Pool',
+    'emulator.panel.empty': 'No emulators running.',
+    'emulator.boot': 'Boot',
+    'emulator.stop': 'Stop',
+    'emulator.inUse': 'In Use',
+    'emulator.waiting': '{n} waiting',
+
+    // Feature flags
+    'feature.android.disabled': 'Android testing is not enabled for your account. Contact an administrator to enable it.',
 
     // Configurations
     'configs.title.urls': 'URLs',
@@ -694,6 +714,26 @@ export const MESSAGES: Record<Locale, Messages> = {
     // Project tabs
     'project.tab.testCases': '測試案例',
     'project.tab.configs': '設定',
+    'project.tab.apks': 'APK',
+    'project.tab.emulators': '模擬器',
+
+    // APK management
+    'apk.upload': '上傳 APK',
+    'apk.uploading': '上傳中…',
+    'apk.empty': '尚未上傳任何 APK。',
+    'apk.delete.confirm': '刪除此 APK？',
+    'apk.size': '{size} MB',
+
+    // Emulator panel
+    'emulator.panel.title': '模擬器池',
+    'emulator.panel.empty': '目前沒有執行中的模擬器。',
+    'emulator.boot': '啟動',
+    'emulator.stop': '停止',
+    'emulator.inUse': '使用中',
+    'emulator.waiting': '{n} 個等待中',
+
+    // Feature flags
+    'feature.android.disabled': '您的帳號尚未啟用 Android 測試功能，請聯繫管理員以啟用。',
 
     // Configurations
     'configs.title.urls': '網址',
@@ -1067,6 +1107,26 @@ export const MESSAGES: Record<Locale, Messages> = {
     // Project tabs
     'project.tab.testCases': '测试用例',
     'project.tab.configs': '配置',
+    'project.tab.apks': 'APK',
+    'project.tab.emulators': '模拟器',
+
+    // APK management
+    'apk.upload': '上传 APK',
+    'apk.uploading': '上传中…',
+    'apk.empty': '暂未上传任何 APK。',
+    'apk.delete.confirm': '删除此 APK？',
+    'apk.size': '{size} MB',
+
+    // Emulator panel
+    'emulator.panel.title': '模拟器池',
+    'emulator.panel.empty': '当前没有运行中的模拟器。',
+    'emulator.boot': '启动',
+    'emulator.stop': '停止',
+    'emulator.inUse': '使用中',
+    'emulator.waiting': '{n} 个等待中',
+
+    // Feature flags
+    'feature.android.disabled': '您的账号尚未启用 Android 测试功能，请联系管理员以启用。',
 
     // Configurations
     'configs.title.urls': '网址',
