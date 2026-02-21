@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { config as appConfig } from '@/config/app';
 import { createLogger } from './logger';
 import { ReliableAdb } from './adb-reliable';
@@ -83,6 +84,7 @@ export class EmulatorPool {
     private emulators: Map<string, EmulatorInstance> = new Map();
     private waitQueue: WaitQueueEntry[] = [];
     private usedPorts: Set<number> = new Set();
+    private kvmSupport: boolean | null = null;
 
     private constructor() {}
 
@@ -571,14 +573,31 @@ export class EmulatorPool {
     private async bootDockerContainer(instance: EmulatorInstance, dockerImage: string, port: number, containerName: string): Promise<void> {
         logger.info(`Starting Docker container ${containerName} for image ${dockerImage} on port ${port}`);
 
-        const { stdout } = await execFileAsync('docker', [
+        const dockerRunArgs = [
             'run', '-d',
             '--name', containerName,
-            '--device', '/dev/kvm',
             '-p', `${port}:5555`,
             '-e', 'EMULATOR_NO_BOOT_ANIM=1',
-            dockerImage,
-        ]);
+        ];
+
+        const runWithoutKvmArgs = [...dockerRunArgs, dockerImage];
+        let stdout: string;
+
+        if (this.supportsKvmDevice()) {
+            try {
+                const withKvmArgs = [...dockerRunArgs, '--device', '/dev/kvm', dockerImage];
+                ({ stdout } = await execFileAsync('docker', withKvmArgs));
+            } catch (error) {
+                if (!this.isKvmIncompatibleDockerError(error)) {
+                    throw error;
+                }
+
+                logger.warn('Docker runtime rejected /dev/kvm mapping; retrying without KVM acceleration', error);
+                ({ stdout } = await execFileAsync('docker', runWithoutKvmArgs));
+            }
+        } else {
+            ({ stdout } = await execFileAsync('docker', runWithoutKvmArgs));
+        }
 
         const containerId = stdout.trim();
         instance.containerId = containerId;
@@ -604,6 +623,28 @@ export class EmulatorPool {
 
     private sleep(ms: number): Promise<void> {
         return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    private supportsKvmDevice(): boolean {
+        if (this.kvmSupport !== null) {
+            return this.kvmSupport;
+        }
+
+        const supported = process.platform === 'linux' && existsSync('/dev/kvm');
+        this.kvmSupport = supported;
+
+        if (!supported) {
+            logger.info('Skipping /dev/kvm docker device mapping; host does not expose KVM');
+        }
+
+        return supported;
+    }
+
+    private isKvmIncompatibleDockerError(error: unknown): boolean {
+        const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+        return message.includes('unknown server os') ||
+            message.includes('/dev/kvm') ||
+            message.includes('device requests are only supported');
     }
 }
 
