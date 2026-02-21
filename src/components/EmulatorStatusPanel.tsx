@@ -34,7 +34,7 @@ export default function EmulatorStatusPanel({ projectId }: EmulatorStatusPanelPr
         try {
             const token = await getAccessToken();
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const res = await fetch('/api/admin/emulators', { headers });
+            const res = await fetch('/api/emulators', { headers });
             if (res.status === 403) { setForbidden(true); return; }
             if (!res.ok) return;
             setStatus(await res.json() as EmulatorPoolStatus);
@@ -108,7 +108,7 @@ export default function EmulatorStatusPanel({ projectId }: EmulatorStatusPanelPr
                 'Content-Type': 'application/json',
                 ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
             };
-            await fetch('/api/admin/emulators', {
+            await fetch('/api/emulators', {
                 method: 'POST',
                 headers,
                 body: JSON.stringify({ action: 'stop', emulatorId }),
@@ -128,7 +128,7 @@ export default function EmulatorStatusPanel({ projectId }: EmulatorStatusPanelPr
                 'Content-Type': 'application/json',
                 ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
             };
-            await fetch('/api/admin/emulators', {
+            await fetch('/api/emulators', {
                 method: 'POST',
                 headers,
                 body: JSON.stringify({ action: 'boot', avdName: selectedAvd, projectId }),

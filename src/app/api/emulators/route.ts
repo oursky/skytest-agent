@@ -4,7 +4,7 @@ import { verifyAuth, resolveUserId } from '@/lib/auth';
 import { emulatorPool } from '@/lib/emulator-pool';
 import { createLogger } from '@/lib/logger';
 
-const logger = createLogger('api:admin:emulators');
+const logger = createLogger('api:emulators');
 
 export const dynamic = 'force-dynamic';
 
