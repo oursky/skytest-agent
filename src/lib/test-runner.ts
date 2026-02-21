@@ -468,8 +468,12 @@ async function setupExecutionTargets(
 
         log(`Acquiring emulator for ${niceName}...`, 'info', targetId);
 
-        if (!androidConfig.emulatorId) {
-            throw new ConfigurationError('Android target must include an emulator.', 'android');
+        if (!projectId) {
+            throw new ConfigurationError('Project ID is required for Android targets.', 'android');
+        }
+
+        if (!androidConfig.avdName) {
+            throw new ConfigurationError('Android target must include an AVD profile.', 'android');
         }
 
         if (!androidConfig.appId) {
@@ -477,7 +481,7 @@ async function setupExecutionTargets(
         }
 
         const pool = EmulatorPool.getInstance();
-        const handle = await pool.acquireById(androidConfig.emulatorId, runId, signal);
+        const handle = await pool.acquire(projectId, androidConfig.avdName, runId, signal);
         handle.packageName = androidConfig.appId;
         emulatorHandles.set(targetId, handle);
 
@@ -1056,7 +1060,9 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
         const resolvedBrowserConfig = browserConfig
             ? Object.fromEntries(
                 Object.entries(browserConfig).map(([id, tc]) => {
-                    if (isAndroidTarget(tc)) return [id, tc];
+                    if (isAndroidTarget(tc)) {
+                        return [id, { ...tc, appId: tc.appId ? sub(tc.appId) : tc.appId }];
+                    }
                     const bc = tc as BrowserConfig;
                     return [id, { ...bc, url: bc.url ? sub(bc.url) : bc.url }];
                 })

@@ -326,7 +326,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'project.tab.android': 'Emulators',
 
     // Android setup
-    'android.setup.help': 'Review emulator runtime status. Install required apps on the emulator devices before running Android tests.',
+    'android.setup.help': 'Start an existing emulator on your Mac:\n1. List AVDs: `emulator -list-avds`\n2. Boot one AVD: `emulator -avd <AVD_NAME> -port 5554`\n3. Wait for device: `adb -s emulator-5554 wait-for-device`\n4. Confirm boot complete: `adb -s emulator-5554 shell getprop sys.boot_completed` (expect `1`)',
 
     // APK management
     'apk.upload': 'Upload APK',
@@ -361,6 +361,7 @@ export const MESSAGES: Record<Locale, Messages> = {
 
     // Configurations
     'configs.title.urls': 'URLs',
+    'configs.title.appIds': 'App IDs',
     'configs.title.variables': 'Variables',
     'configs.title.secrets': 'Secrets',
     'configs.title.files': 'Files',
@@ -368,6 +369,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'configs.name': 'Name',
     'configs.name.placeholder': 'MY_VARIABLE',
     'configs.name.placeholder.url': 'URL_1',
+    'configs.name.placeholder.app_id': 'APP_ID_1',
     'configs.name.placeholder.variable': 'VARIABLE_1',
     'configs.name.placeholder.secret': 'SECRET_1',
     'configs.name.placeholder.file': 'FILE_1',
@@ -388,6 +390,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'configs.error.valueRequired': 'Value is required',
     'configs.error.fileRequired': 'File is required',
     'configs.type.url': 'URL',
+    'configs.type.app_id': 'App ID',
     'configs.type.variable': 'Variable',
     'configs.type.secret': 'Secret',
     'configs.type.random_string': 'Random String',
@@ -421,6 +424,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'configs.android.apk': 'APK',
     'configs.android.activity': 'Launch Activity',
     'configs.android.avd.placeholder': 'Select AVD profile',
+    'configs.android.avd.none': 'No available AVD profiles',
     'configs.android.apk.placeholder': 'Select APK',
     'configs.android.apk.none': 'No APKs uploaded for this project',
     'configs.android.apk.upload': 'Upload APK…',
@@ -743,7 +747,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'project.tab.android': '模擬器',
 
     // Android setup
-    'android.setup.help': '查看模擬器執行狀態。執行 Android 測試前，請先在模擬器裝置上安裝所需應用程式。',
+    'android.setup.help': '在 Mac 啟動既有模擬器：\n1. 列出 AVD：`emulator -list-avds`\n2. 啟動 AVD：`emulator -avd <AVD_NAME> -port 5554`\n3. 等待裝置就緒：`adb -s emulator-5554 wait-for-device`\n4. 確認開機完成：`adb -s emulator-5554 shell getprop sys.boot_completed`（應為 `1`）',
 
     // APK management
     'apk.upload': '上傳 APK',
@@ -778,6 +782,7 @@ export const MESSAGES: Record<Locale, Messages> = {
 
     // Configurations
     'configs.title.urls': '網址',
+    'configs.title.appIds': 'App IDs',
     'configs.title.variables': '變數',
     'configs.title.secrets': '機密',
     'configs.title.files': '檔案',
@@ -785,6 +790,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'configs.name': '名稱',
     'configs.name.placeholder': 'MY_VARIABLE',
     'configs.name.placeholder.url': 'URL_1',
+    'configs.name.placeholder.app_id': 'APP_ID_1',
     'configs.name.placeholder.variable': 'VARIABLE_1',
     'configs.name.placeholder.secret': 'SECRET_1',
     'configs.name.placeholder.file': 'FILE_1',
@@ -805,6 +811,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'configs.error.valueRequired': '值為必填',
     'configs.error.fileRequired': '檔案為必填',
     'configs.type.url': '網址',
+    'configs.type.app_id': 'App ID',
     'configs.type.variable': '變數',
     'configs.type.secret': '機密',
     'configs.type.random_string': '隨機字串',
@@ -838,6 +845,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'configs.android.apk': 'APK',
     'configs.android.activity': '啟動 Activity',
     'configs.android.avd.placeholder': '選擇 AVD 設定檔',
+    'configs.android.avd.none': '沒有可用的 AVD 設定檔',
     'configs.android.apk.placeholder': '選擇 APK',
     'configs.android.apk.none': '此專案尚無上傳 APK',
     'configs.android.apk.upload': '上傳 APK…',
@@ -1160,7 +1168,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'project.tab.android': '模拟器',
 
     // Android setup
-    'android.setup.help': '查看模拟器运行状态。运行 Android 测试前，请先在模拟器设备中安装所需应用。',
+    'android.setup.help': '在 Mac 启动已有模拟器：\n1. 列出 AVD：`emulator -list-avds`\n2. 启动 AVD：`emulator -avd <AVD_NAME> -port 5554`\n3. 等待设备就绪：`adb -s emulator-5554 wait-for-device`\n4. 确认启动完成：`adb -s emulator-5554 shell getprop sys.boot_completed`（应为 `1`）',
 
     // APK management
     'apk.upload': '上传 APK',
@@ -1195,6 +1203,7 @@ export const MESSAGES: Record<Locale, Messages> = {
 
     // Configurations
     'configs.title.urls': '网址',
+    'configs.title.appIds': 'App IDs',
     'configs.title.variables': '变量',
     'configs.title.secrets': '密钥',
     'configs.title.files': '文件',
@@ -1202,6 +1211,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'configs.name': '名称',
     'configs.name.placeholder': 'MY_VARIABLE',
     'configs.name.placeholder.url': 'URL_1',
+    'configs.name.placeholder.app_id': 'APP_ID_1',
     'configs.name.placeholder.variable': 'VARIABLE_1',
     'configs.name.placeholder.secret': 'SECRET_1',
     'configs.name.placeholder.file': 'FILE_1',
@@ -1222,6 +1232,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'configs.error.valueRequired': '值为必填',
     'configs.error.fileRequired': '文件为必填',
     'configs.type.url': '网址',
+    'configs.type.app_id': 'App ID',
     'configs.type.variable': '变量',
     'configs.type.secret': '密钥',
     'configs.type.random_string': '随机字串',
@@ -1255,6 +1266,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'configs.android.apk': 'APK',
     'configs.android.activity': '启动 Activity',
     'configs.android.avd.placeholder': '选择 AVD 配置',
+    'configs.android.avd.none': '没有可用的 AVD 配置',
     'configs.android.apk.placeholder': '选择 APK',
     'configs.android.apk.none': '此项目暂无上传 APK',
     'configs.android.apk.upload': '上传 APK…',

@@ -105,12 +105,12 @@ function RunPageContent() {
 
     const isSupportedVariableConfig = (
         config: ConfigItem
-    ): config is ConfigItem & { type: 'URL' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING' | 'FILE' } => {
-        return config.type === 'URL' || config.type === 'VARIABLE' || config.type === 'SECRET' || config.type === 'RANDOM_STRING' || config.type === 'FILE';
+    ): config is ConfigItem & { type: 'URL' | 'APP_ID' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING' | 'FILE' } => {
+        return config.type === 'URL' || config.type === 'APP_ID' || config.type === 'VARIABLE' || config.type === 'SECRET' || config.type === 'RANDOM_STRING' || config.type === 'FILE';
     };
 
     const importVariablesToTestCase = async (
-        variables: Array<{ name: string; type: 'URL' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING'; value: string }>,
+        variables: Array<{ name: string; type: 'URL' | 'APP_ID' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING'; value: string }>,
         sourceData: TestData
     ): Promise<string | null> => {
         if (variables.length === 0) {
@@ -271,8 +271,8 @@ function RunPageContent() {
             setIsDirty(true);
 
             await importVariablesToTestCase(
-                [...data.projectVariables, ...data.testCaseVariables].filter((variable): variable is { name: string; type: 'URL' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING'; value: string } => (
-                    variable.type === 'URL' || variable.type === 'VARIABLE' || variable.type === 'SECRET' || variable.type === 'RANDOM_STRING'
+                [...data.projectVariables, ...data.testCaseVariables].filter((variable): variable is { name: string; type: 'URL' | 'APP_ID' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING'; value: string } => (
+                    variable.type === 'URL' || variable.type === 'APP_ID' || variable.type === 'VARIABLE' || variable.type === 'SECRET' || variable.type === 'RANDOM_STRING'
                 )),
                 data.testData
             );

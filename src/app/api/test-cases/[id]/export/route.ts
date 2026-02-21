@@ -44,7 +44,7 @@ export async function GET(
         const projectVariables = await prisma.projectConfig.findMany({
             where: {
                 projectId: testCase.projectId,
-                type: { in: ['URL', 'VARIABLE', 'SECRET', 'RANDOM_STRING', 'FILE'] }
+                type: { in: ['URL', 'APP_ID', 'VARIABLE', 'SECRET', 'RANDOM_STRING', 'FILE'] }
             },
             orderBy: { createdAt: 'asc' }
         });
@@ -52,13 +52,13 @@ export async function GET(
         const testCaseVariables = await prisma.testCaseConfig.findMany({
             where: {
                 testCaseId: testCase.id,
-                type: { in: ['URL', 'VARIABLE', 'SECRET', 'RANDOM_STRING', 'FILE'] }
+                type: { in: ['URL', 'APP_ID', 'VARIABLE', 'SECRET', 'RANDOM_STRING', 'FILE'] }
             },
             orderBy: { createdAt: 'asc' }
         });
 
-        type ExportableType = 'URL' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING' | 'FILE';
-        const validTypes = new Set<string>(['URL', 'VARIABLE', 'SECRET', 'RANDOM_STRING', 'FILE']);
+        type ExportableType = 'URL' | 'APP_ID' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING' | 'FILE';
+        const validTypes = new Set<string>(['URL', 'APP_ID', 'VARIABLE', 'SECRET', 'RANDOM_STRING', 'FILE']);
 
         const typedProjectVariables: Array<{ name: string; type: ExportableType; value: string }> = projectVariables.flatMap((variable) => {
             if (!validTypes.has(variable.type)) {

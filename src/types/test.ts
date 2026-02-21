@@ -16,7 +16,7 @@ export interface BrowserTargetConfig {
 export interface AndroidTargetConfig {
     type: 'android';
     name?: string;
-    emulatorId: string;
+    avdName: string;
     appId: string;
 }
 
@@ -79,7 +79,7 @@ export interface TestResult {
     actionCount?: number;
 }
 
-export type ConfigType = 'URL' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING' | 'FILE';
+export type ConfigType = 'URL' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING' | 'FILE' | 'APP_ID';
 
 export type RandomStringGenerationType = 'TIMESTAMP_UNIX' | 'TIMESTAMP_DATETIME' | 'UUID';
 

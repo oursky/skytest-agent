@@ -8,8 +8,8 @@ import Link from 'next/link';
 
 const CONFIG_NAME_REGEX = /^[A-Z][A-Z0-9_]*$/;
 
-const TYPE_ORDER: ConfigType[] = ['URL', 'VARIABLE', 'SECRET', 'FILE', 'RANDOM_STRING'];
-const ADDABLE_TEST_CASE_CONFIG_TYPES: ConfigType[] = ['URL', 'VARIABLE', 'SECRET', 'FILE', 'RANDOM_STRING'];
+const TYPE_ORDER: ConfigType[] = ['URL', 'APP_ID', 'VARIABLE', 'SECRET', 'FILE', 'RANDOM_STRING'];
+const ADDABLE_TEST_CASE_CONFIG_TYPES: ConfigType[] = ['URL', 'APP_ID', 'VARIABLE', 'SECRET', 'FILE', 'RANDOM_STRING'];
 
 const RANDOM_STRING_GENERATION_TYPES = ['TIMESTAMP_DATETIME', 'TIMESTAMP_UNIX', 'UUID'] as const;
 
@@ -18,16 +18,11 @@ interface BrowserEntry {
     config: BrowserConfig | TargetConfig;
 }
 
-type RuntimeEmulatorState = 'STARTING' | 'BOOTING' | 'IDLE' | 'ACQUIRED' | 'CLEANING' | 'STOPPING' | 'DEAD';
-
-interface RuntimeEmulator {
+interface AvdProfile {
     id: string;
-    avdName: string;
-    state: RuntimeEmulatorState;
-}
-
-interface EmulatorStatusResponse {
-    emulators: RuntimeEmulator[];
+    name: string;
+    displayName: string;
+    apiLevel: number | null;
 }
 
 function isAndroidConfig(config: BrowserConfig | TargetConfig): config is AndroidTargetConfig {
@@ -78,6 +73,7 @@ function randomStringGenerationLabel(value: string, t: (key: string) => string):
 
 function TypeSubHeader({ type, t }: { type: ConfigType; t: (key: string) => string }) {
     const key = type === 'URL' ? 'configs.title.urls'
+        : type === 'APP_ID' ? 'configs.title.appIds'
         : type === 'VARIABLE' ? 'configs.title.variables'
             : type === 'SECRET' ? 'configs.title.secrets'
                 : type === 'RANDOM_STRING' ? 'configs.title.randomStrings'
@@ -109,19 +105,17 @@ export default function ConfigurationsSection({
     const [randomStringDropdownOpen, setRandomStringDropdownOpen] = useState<string | null>(null);
     const [showSecretInEdit, setShowSecretInEdit] = useState(false);
     const [fileUploadDraft, setFileUploadDraft] = useState<FileUploadDraft | null>(null);
-    const [emulators, setEmulators] = useState<RuntimeEmulator[]>([]);
-    const [appIdsByEmulator, setAppIdsByEmulator] = useState<Record<string, string[]>>({});
-    const [loadingAppIdsFor, setLoadingAppIdsFor] = useState<string | null>(null);
-    const [emulatorDropdownOpen, setEmulatorDropdownOpen] = useState<string | null>(null);
+    const [avdProfiles, setAvdProfiles] = useState<AvdProfile[]>([]);
+    const [avdDropdownOpen, setAvdDropdownOpen] = useState<string | null>(null);
     const [appDropdownOpen, setAppDropdownOpen] = useState<string | null>(null);
     const addTypeRef = useRef<HTMLDivElement>(null);
     const urlDropdownRefs = useRef<Map<string, HTMLDivElement>>(new Map());
     const randomStringDropdownRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-    const emulatorDropdownRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+    const avdDropdownRefs = useRef<Map<string, HTMLDivElement>>(new Map());
     const appDropdownRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
     useEffect(() => {
-        if (!addTypeOpen && !urlDropdownOpen && !randomStringDropdownOpen && !emulatorDropdownOpen && !appDropdownOpen) return;
+        if (!addTypeOpen && !urlDropdownOpen && !randomStringDropdownOpen && !avdDropdownOpen && !appDropdownOpen) return;
         const handleClickOutside = (e: MouseEvent) => {
             if (addTypeOpen && addTypeRef.current && !addTypeRef.current.contains(e.target as Node)) {
                 setAddTypeOpen(false);
@@ -138,10 +132,10 @@ export default function ConfigurationsSection({
                     setRandomStringDropdownOpen(null);
                 }
             }
-            if (emulatorDropdownOpen) {
-                const ref = emulatorDropdownRefs.current.get(emulatorDropdownOpen);
+            if (avdDropdownOpen) {
+                const ref = avdDropdownRefs.current.get(avdDropdownOpen);
                 if (ref && !ref.contains(e.target as Node)) {
-                    setEmulatorDropdownOpen(null);
+                    setAvdDropdownOpen(null);
                 }
             }
             if (appDropdownOpen) {
@@ -153,39 +147,20 @@ export default function ConfigurationsSection({
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [addTypeOpen, urlDropdownOpen, randomStringDropdownOpen, emulatorDropdownOpen, appDropdownOpen]);
+    }, [addTypeOpen, urlDropdownOpen, randomStringDropdownOpen, avdDropdownOpen, appDropdownOpen]);
 
     useEffect(() => {
         if (!projectId) return;
-        const fetchAndroidData = async () => {
+        const fetchAvdProfiles = async () => {
             const token = await getAccessToken();
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const emulatorRes = await fetch('/api/emulators', { headers });
-            if (emulatorRes.ok) {
-                const data = await emulatorRes.json() as EmulatorStatusResponse;
-                setEmulators(data.emulators);
+            const avdRes = await fetch(`/api/projects/${projectId}/avd-profiles`, { headers });
+            if (avdRes.ok) {
+                setAvdProfiles(await avdRes.json() as AvdProfile[]);
             }
         };
-        void fetchAndroidData().catch(() => {});
+        void fetchAvdProfiles().catch(() => {});
     }, [projectId, getAccessToken]);
-
-    const loadAppIds = useCallback(async (emulatorId: string) => {
-        if (!projectId || !emulatorId || appIdsByEmulator[emulatorId]) return;
-
-        setLoadingAppIdsFor(emulatorId);
-        try {
-            const token = await getAccessToken();
-            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const response = await fetch(`/api/emulators/apps?emulatorId=${encodeURIComponent(emulatorId)}`, { headers });
-            if (!response.ok) {
-                return;
-            }
-            const appIds = await response.json() as string[];
-            setAppIdsByEmulator((current) => ({ ...current, [emulatorId]: appIds }));
-        } finally {
-            setLoadingAppIdsFor((current) => (current === emulatorId ? null : current));
-        }
-    }, [projectId, appIdsByEmulator, getAccessToken]);
 
     const resolveTestCaseId = useCallback(async () => {
         if (testCaseId) {
@@ -429,7 +404,7 @@ export default function ConfigurationsSection({
     const handleAddAndroid = () => {
         const nextChar = String.fromCharCode('a'.charCodeAt(0) + browsers.length);
         const newId = `android_${nextChar}`;
-        setBrowsers([...browsers, { id: newId, config: { type: 'android' as const, name: '', emulatorId: '', appId: '' } }]);
+        setBrowsers([...browsers, { id: newId, config: { type: 'android' as const, name: '', avdName: '', appId: '' } }]);
     };
 
     const handleRemoveBrowser = (index: number) => {
@@ -453,6 +428,9 @@ export default function ConfigurationsSection({
     const sortedTestCaseConfigs = sortConfigs(testCaseConfigs);
 
     const urlConfigs = [...projectConfigs, ...testCaseConfigs].filter(c => c.type === 'URL');
+    const appIdConfigs = [...projectConfigs, ...testCaseConfigs]
+        .filter((config) => config.type === 'APP_ID')
+        .sort((a, b) => a.value.localeCompare(b.value) || a.name.localeCompare(b.name));
 
     const colors = ['bg-blue-500', 'bg-purple-500', 'bg-orange-500', 'bg-green-500', 'bg-pink-500'];
 
@@ -812,15 +790,7 @@ export default function ConfigurationsSection({
 
                         if (android) {
                             const cfg = browser.config as AndroidTargetConfig;
-                            const selectedEmulator = emulators.find((emulator) => emulator.id === cfg.emulatorId);
-                            const availableEmulators = emulators
-                                .filter((emulator) => emulator.state === 'IDLE')
-                                .sort((a, b) => {
-                                    const byName = a.avdName.localeCompare(b.avdName);
-                                    return byName !== 0 ? byName : a.id.localeCompare(b.id);
-                                });
-                            const appIds = cfg.emulatorId ? (appIdsByEmulator[cfg.emulatorId] ?? []) : [];
-                            const appIdsLoading = loadingAppIdsFor === cfg.emulatorId;
+                            const selectedAvd = avdProfiles.find((avd) => avd.name === cfg.avdName);
                             return (
                                 <div key={browser.id} className="p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
                                     <div className="flex items-center justify-between">
@@ -847,46 +817,43 @@ export default function ConfigurationsSection({
                                             />
                                         </div>
                                         <div>
-                                            <label className="text-[10px] font-medium text-gray-500 uppercase">{t('configs.android.emulator')}</label>
+                                            <label className="text-[10px] font-medium text-gray-500 uppercase">{t('configs.android.avd')}</label>
                                             <div
                                                 className="relative mt-0.5"
                                                 ref={(el) => {
-                                                    if (el) emulatorDropdownRefs.current.set(browser.id, el);
-                                                    else emulatorDropdownRefs.current.delete(browser.id);
+                                                    if (el) avdDropdownRefs.current.set(browser.id, el);
+                                                    else avdDropdownRefs.current.delete(browser.id);
                                                 }}
                                             >
                                                 <button
                                                     type="button"
-                                                    onClick={() => !readOnly && setEmulatorDropdownOpen(emulatorDropdownOpen === browser.id ? null : browser.id)}
+                                                    onClick={() => !readOnly && setAvdDropdownOpen(avdDropdownOpen === browser.id ? null : browser.id)}
                                                     disabled={readOnly}
                                                     className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white text-left flex items-center justify-between gap-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:bg-gray-50"
                                                 >
-                                                    <span className={selectedEmulator ? 'text-gray-800' : 'text-gray-400'}>
-                                                        {selectedEmulator
-                                                            ? `${selectedEmulator.avdName} (${selectedEmulator.id})`
-                                                            : t('configs.android.emulator.placeholder')}
+                                                    <span className={selectedAvd ? 'text-gray-800' : 'text-gray-400'}>
+                                                        {selectedAvd ? selectedAvd.displayName : t('configs.android.avd.placeholder')}
                                                     </span>
                                                     <svg className="w-3 h-3 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                                     </svg>
                                                 </button>
-                                                {emulatorDropdownOpen === browser.id && !readOnly && (
+                                                {avdDropdownOpen === browser.id && !readOnly && (
                                                     <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-20 py-1 min-w-full">
-                                                        {availableEmulators.length === 0 ? (
-                                                            <div className="px-3 py-2 text-xs text-gray-400">{t('configs.android.emulator.none')}</div>
+                                                        {avdProfiles.length === 0 ? (
+                                                            <div className="px-3 py-2 text-xs text-gray-400">{t('configs.android.avd.none')}</div>
                                                         ) : (
-                                                            availableEmulators.map((emulator) => (
+                                                            avdProfiles.map((avd) => (
                                                                 <button
-                                                                    key={emulator.id}
+                                                                    key={avd.id}
                                                                     type="button"
                                                                     onClick={() => {
-                                                                        updateTarget(index, { emulatorId: emulator.id, appId: '' });
-                                                                        setEmulatorDropdownOpen(null);
-                                                                        void loadAppIds(emulator.id);
+                                                                        updateTarget(index, { avdName: avd.name });
+                                                                        setAvdDropdownOpen(null);
                                                                     }}
-                                                                    className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 ${cfg.emulatorId === emulator.id ? 'bg-gray-50 font-medium' : 'text-gray-700'}`}
+                                                                    className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 ${cfg.avdName === avd.name ? 'bg-gray-50 font-medium' : 'text-gray-700'}`}
                                                                 >
-                                                                    {emulator.avdName} <span className="text-gray-400 font-mono">({emulator.id})</span>
+                                                                    {avd.displayName}
                                                                 </button>
                                                             ))
                                                         )}
@@ -896,50 +863,49 @@ export default function ConfigurationsSection({
                                         </div>
                                         <div>
                                             <label className="text-[10px] font-medium text-gray-500 uppercase">{t('configs.android.appId')}</label>
-                                            <div
-                                                className="relative mt-0.5"
-                                                ref={(el) => {
-                                                    if (el) appDropdownRefs.current.set(browser.id, el);
-                                                    else appDropdownRefs.current.delete(browser.id);
-                                                }}
-                                            >
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        if (readOnly || !cfg.emulatorId) return;
-                                                        void loadAppIds(cfg.emulatorId);
-                                                        setAppDropdownOpen(appDropdownOpen === browser.id ? null : browser.id);
-                                                    }}
-                                                    disabled={readOnly || !cfg.emulatorId}
-                                                    className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white text-left flex items-center justify-between gap-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:bg-gray-50"
-                                                >
-                                                    <span className={cfg.appId ? 'text-gray-800' : 'text-gray-400'}>
-                                                        {cfg.appId || t('configs.android.appId.placeholder')}
-                                                    </span>
-                                                    <svg className="w-3 h-3 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                                    </svg>
-                                                </button>
-                                                {appDropdownOpen === browser.id && !readOnly && (
-                                                    <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-20 py-1 min-w-full max-h-60 overflow-auto">
-                                                        {appIdsLoading ? (
-                                                            <div className="px-3 py-2 text-xs text-gray-400">{t('common.loading')}</div>
-                                                        ) : appIds.length === 0 ? (
-                                                            <div className="px-3 py-2 text-xs text-gray-400">{t('configs.android.appId.none')}</div>
-                                                        ) : (
-                                                            appIds.map((appId) => (
-                                                                <button
-                                                                    key={appId}
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        updateTarget(index, { appId });
-                                                                        setAppDropdownOpen(null);
-                                                                    }}
-                                                                    className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 ${cfg.appId === appId ? 'bg-gray-50 font-medium' : 'text-gray-700'}`}
-                                                                >
-                                                                    {appId}
-                                                                </button>
-                                                            ))
+                                            <div className={`flex mt-0.5 border border-gray-300 rounded bg-white ${readOnly ? '' : 'focus-within:ring-1 focus-within:ring-primary focus-within:border-primary'}`}>
+                                                <input
+                                                    type="text"
+                                                    value={cfg.appId || ''}
+                                                    onChange={(e) => updateTarget(index, { appId: e.target.value })}
+                                                    placeholder={t('configs.android.appId.placeholder')}
+                                                    className={`flex-1 px-2 py-1.5 text-xs bg-white focus:outline-none ${appIdConfigs.length > 0 && !readOnly ? 'rounded-l' : 'rounded'}`}
+                                                    disabled={readOnly}
+                                                />
+                                                {appIdConfigs.length > 0 && !readOnly && (
+                                                    <div
+                                                        className="relative"
+                                                        ref={(el) => {
+                                                            if (el) appDropdownRefs.current.set(browser.id, el);
+                                                            else appDropdownRefs.current.delete(browser.id);
+                                                        }}
+                                                    >
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setAppDropdownOpen(appDropdownOpen === browser.id ? null : browser.id)}
+                                                            className="h-full px-2 border-l border-gray-300 rounded-r bg-white hover:bg-gray-50 text-gray-500 flex items-center"
+                                                        >
+                                                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                            </svg>
+                                                        </button>
+                                                        {appDropdownOpen === browser.id && (
+                                                            <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-20 py-1 min-w-[220px]">
+                                                                {appIdConfigs.map((appConfig) => (
+                                                                    <button
+                                                                        key={appConfig.id}
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            updateTarget(index, { appId: appConfig.value });
+                                                                            setAppDropdownOpen(null);
+                                                                        }}
+                                                                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50"
+                                                                    >
+                                                                        <span className="font-mono font-medium text-gray-700">{appConfig.name}</span>
+                                                                        <span className="text-gray-400 ml-2 truncate">{appConfig.value}</span>
+                                                                    </button>
+                                                                ))}
+                                                            </div>
                                                         )}
                                                     </div>
                                                 )}
@@ -1042,7 +1008,7 @@ export default function ConfigurationsSection({
                                 </svg>
                                 {t('configs.browser.addBrowser')}
                             </button>
-                            {projectId && emulators.length > 0 && (
+                            {projectId && avdProfiles.length > 0 && (
                                 <button
                                     type="button"
                                     onClick={handleAddAndroid}

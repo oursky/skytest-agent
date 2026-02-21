@@ -7,7 +7,7 @@ import { validateTargetUrl } from '@/lib/url-security';
 import { createLogger } from '@/lib/logger';
 import { resolveConfigs } from '@/lib/config-resolver';
 import { config as appConfig } from '@/config/app';
-import { emulatorPool } from '@/lib/emulator-pool';
+import { listAvailableAndroidProfiles } from '@/lib/android-profiles';
 import type { BrowserConfig, TargetConfig, AndroidTargetConfig, ResolvedConfig, TestStep } from '@/types';
 
 const logger = createLogger('api:run-test');
@@ -62,11 +62,8 @@ function isAndroidTargetConfig(config: BrowserConfig | TargetConfig): config is 
     return 'type' in config && config.type === 'android';
 }
 
-const APP_ID_REGEX = /^[A-Za-z0-9._]+$/;
-
 async function validateAndroidTargets(
-    browserConfig: RunTestRequest['browserConfig'],
-    projectIds: ReadonlySet<string>
+    browserConfig: RunTestRequest['browserConfig']
 ): Promise<string | null> {
     if (!browserConfig || Object.keys(browserConfig).length === 0) {
         return null;
@@ -77,27 +74,18 @@ async function validateAndroidTargets(
         return null;
     }
 
-    const status = emulatorPool.getStatus(projectIds);
-    const emulatorMap = new Map(status.emulators.map((emulator) => [emulator.id, emulator]));
+    const availableProfiles = await listAvailableAndroidProfiles();
+    const availableProfileNames = new Set(availableProfiles.map((profile) => profile.name));
 
     for (const target of androidTargets) {
-        if (!target.emulatorId) {
-            return 'Android target must include an emulator';
+        if (!target.avdName) {
+            return 'Android target must include an AVD profile';
         }
         if (!target.appId) {
             return 'Android target must include an app ID';
         }
-        if (!APP_ID_REGEX.test(target.appId)) {
-            return `App ID "${target.appId}" is invalid`;
-        }
-
-        const emulator = emulatorMap.get(target.emulatorId);
-        if (!emulator) {
-            return `Emulator "${target.emulatorId}" is not available`;
-        }
-
-        if (emulator.state !== 'IDLE') {
-            return `Emulator "${target.emulatorId}" is currently in use`;
+        if (!availableProfileNames.has(target.avdName)) {
+            return `AVD profile "${target.avdName}" is not available in current runtime inventory`;
         }
     }
 
@@ -190,13 +178,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const projects = await prisma.project.findMany({
-            where: { userId },
-            select: { id: true },
-        });
-        const projectIds = new Set(projects.map((project) => project.id));
-
-        const androidValidationError = await validateAndroidTargets(browserConfig, projectIds);
+        const androidValidationError = await validateAndroidTargets(browserConfig);
         if (androidValidationError) {
             return NextResponse.json({ error: androidValidationError }, { status: 400 });
         }

@@ -1,8 +1,8 @@
 import ExcelJS, { CellValue, Worksheet } from 'exceljs';
 import type { BrowserConfig, TargetConfig, ConfigType, TestStep } from '@/types';
 
-type SupportedVariableType = Extract<ConfigType, 'URL' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING' | 'FILE'>;
-const VARIABLE_TYPE_ORDER: SupportedVariableType[] = ['URL', 'VARIABLE', 'SECRET', 'FILE', 'RANDOM_STRING'];
+type SupportedVariableType = Extract<ConfigType, 'URL' | 'APP_ID' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING' | 'FILE'>;
+const VARIABLE_TYPE_ORDER: SupportedVariableType[] = ['URL', 'APP_ID', 'VARIABLE', 'SECRET', 'FILE', 'RANDOM_STRING'];
 
 interface ExcelProjectVariable {
     name: string;
@@ -158,7 +158,7 @@ function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
     );
 
     const projectVariableRows = sortVariablesForExport(data.projectVariables || [])
-        .filter((item) => item.type === 'URL' || item.type === 'VARIABLE' || item.type === 'SECRET' || item.type === 'RANDOM_STRING' || item.type === 'FILE')
+        .filter((item) => item.type === 'URL' || item.type === 'APP_ID' || item.type === 'VARIABLE' || item.type === 'SECRET' || item.type === 'RANDOM_STRING' || item.type === 'FILE')
         .map((item) => ({
             Section: 'Project Variable',
             Type: formatConfigTypeForSheet(item.type),
@@ -167,7 +167,7 @@ function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
         }));
 
     const testCaseVariableRows = sortVariablesForExport(data.testCaseVariables || [])
-        .filter((item) => item.type === 'URL' || item.type === 'VARIABLE' || item.type === 'SECRET' || item.type === 'RANDOM_STRING' || item.type === 'FILE')
+        .filter((item) => item.type === 'URL' || item.type === 'APP_ID' || item.type === 'VARIABLE' || item.type === 'SECRET' || item.type === 'RANDOM_STRING' || item.type === 'FILE')
         .map((item) => ({
             Section: 'Test Case Variable',
             Type: formatConfigTypeForSheet(item.type),
@@ -603,9 +603,10 @@ function normalizeStepType(value?: string): TestStep['type'] {
 function normalizeConfigType(value?: string): SupportedVariableType | null {
     if (!value) return null;
     const normalized = value.trim().toUpperCase().replace(/\s+/g, '_');
-    if (normalized === 'URL' || normalized === 'VARIABLE' || normalized === 'SECRET' || normalized === 'FILE') {
+    if (normalized === 'URL' || normalized === 'APP_ID' || normalized === 'VARIABLE' || normalized === 'SECRET' || normalized === 'FILE') {
         return normalized;
     }
+    if (normalized === 'APPID') return 'APP_ID';
     if (normalized === 'RANDOM_STRING' || normalized === 'RANDOMSTRING') {
         return 'RANDOM_STRING';
     }
@@ -632,6 +633,7 @@ function formatRandomStringValueForSheet(value: string): string {
 
 function formatConfigTypeForSheet(value: SupportedVariableType): string {
     if (value === 'URL') return 'URL';
+    if (value === 'APP_ID') return 'App ID';
     if (value === 'VARIABLE') return 'Variable';
     if (value === 'SECRET') return 'Secret';
     if (value === 'RANDOM_STRING') return 'Random String';
