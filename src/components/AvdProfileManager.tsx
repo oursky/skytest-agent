@@ -10,7 +10,6 @@ interface AvdProfileRecord {
     displayName: string;
     apiLevel: number | null;
     screenSize: string | null;
-    dockerImage: string | null;
     enabled: boolean;
 }
 
@@ -91,9 +90,6 @@ export default function AvdProfileManager({ projectId }: AvdProfileManagerProps)
                                     )}
                                     {profile.screenSize && (
                                         <span className="text-xs text-gray-400">{profile.screenSize}</span>
-                                    )}
-                                    {profile.dockerImage && (
-                                        <span className="text-xs text-gray-400 font-mono">{profile.dockerImage}</span>
                                     )}
                                 </div>
                             </div>

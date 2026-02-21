@@ -1,5 +1,4 @@
-// Minimal interfaces representing the @midscene/android API.
-// Will be replaced with proper imports from @midscene/android in Phase 2.
+// Minimal interfaces representing the Android runtime contract used by test-runner.
 
 export interface AndroidAgent {
     aiAct(instruction: string): Promise<void>;

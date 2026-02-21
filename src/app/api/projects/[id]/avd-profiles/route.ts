@@ -53,7 +53,6 @@ export async function GET(
             displayName: profile.displayName,
             apiLevel: profile.apiLevel,
             screenSize: profile.screenSize,
-            dockerImage: profile.dockerImage,
             enabled: true,
         })));
     } catch (error) {

@@ -23,7 +23,7 @@ interface AvdProfile {
     id: string;
     name: string;
     displayName: string;
-    apiLevel: number;
+    apiLevel: number | null;
 }
 
 interface ProjectApk {

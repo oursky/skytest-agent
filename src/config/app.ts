@@ -1,5 +1,3 @@
-import { androidDockerProfilePresets } from './android-presets';
-
 export const config = {
     app: {
         name: 'SkyTest Agent',
@@ -159,9 +157,7 @@ export const config = {
         bootRetryDelayMs: parseInt(process.env.EMULATOR_BOOT_RETRY_DELAY_MS || '5000'),
         acquireTimeoutMs: 180_000,
         idleTimeoutMs: 300_000,
-        cleanTimeoutMs: 60_000,
         healthCheckIntervalMs: 60_000,
-        forceReclaimMs: 660_000,
 
         adb: {
             commandTimeoutMs: 15_000,
@@ -174,30 +170,6 @@ export const config = {
             maxSizeBytes: 200 * 1024 * 1024,
             maxPerProject: 5,
             uploadDir: './uploads/apks',
-        },
-
-        avdProfile: {
-            maxPerProject: 10,
-            apiLevels: [
-                { value: 35, label: 'API 35 — Android 15' },
-                { value: 34, label: 'API 34 — Android 14' },
-                { value: 33, label: 'API 33 — Android 13' },
-                { value: 31, label: 'API 31 — Android 12' },
-                { value: 30, label: 'API 30 — Android 11' },
-            ],
-            screenSizes: [
-                { value: '1080x2400', label: '1080 × 2400 — Pixel 9, Galaxy S24' },
-                { value: '1080x2340', label: '1080 × 2340 — Pixel 8, Galaxy S23' },
-                { value: '1440x3200', label: '1440 × 3200 — Galaxy S24 Ultra' },
-                { value: '1080x1920', label: '1080 × 1920 — Pixel 5, Older phones' },
-                { value: '1200x1920', label: '1200 × 1920 — Tablet 10″' },
-            ],
-        },
-
-        docker: {
-            stopTimeoutMs: 15_000,
-            containerNamePrefix: 'skytest-emu-',
-            profiles: androidDockerProfilePresets,
         },
 
         basePort: 5554,

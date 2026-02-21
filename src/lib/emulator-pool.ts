@@ -1,7 +1,8 @@
-import { execFile } from 'node:child_process';
+import { ChildProcess, execFile, spawn } from 'node:child_process';
 import { config as appConfig } from '@/config/app';
 import { createLogger } from './logger';
 import { ReliableAdb } from './adb-reliable';
+import { resolveAndroidToolPath } from './android-sdk';
 import type { AndroidDevice, AndroidAgent } from '@/types/android';
 
 const logger = createLogger('emulator-pool');
@@ -43,7 +44,6 @@ interface WaitQueueEntry {
     projectId: string;
     avdName: string;
     runId: string;
-    dockerImage?: string;
     resolve: (handle: EmulatorHandle) => void;
     reject: (error: Error) => void;
     timeoutId: NodeJS.Timeout;
@@ -56,7 +56,8 @@ interface EmulatorInstance {
     avdName: string;
     state: EmulatorState;
     port: number;
-    containerId: string | null;
+    serial: string;
+    process: ChildProcess | null;
     adb: ReliableAdb;
     device: AndroidDevice | null;
     agent: AndroidAgent | null;
@@ -69,11 +70,34 @@ interface EmulatorInstance {
     memoryUsageMb: number | undefined;
 }
 
+interface MidsceneAndroidDevice {
+    connect(): Promise<void>;
+}
+
+interface MidsceneAndroidDeviceConstructor {
+    new (udid: string): MidsceneAndroidDevice;
+}
+
+interface MidsceneAndroidAgentConstructor {
+    new (
+        device: MidsceneAndroidDevice,
+        options?: { groupName?: string; aiActionContext?: string }
+    ): AndroidAgent;
+}
+
+interface MidsceneAndroidRuntimeModule {
+    AndroidDevice: MidsceneAndroidDeviceConstructor;
+    AndroidAgent: MidsceneAndroidAgentConstructor;
+}
+
 function execFileAsync(file: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
     return new Promise((resolve, reject) => {
         execFile(file, args, { encoding: 'utf8' }, (error, stdout, stderr) => {
-            if (error) reject(error);
-            else resolve({ stdout: String(stdout), stderr: String(stderr) });
+            if (error) {
+                reject(error);
+                return;
+            }
+            resolve({ stdout: String(stdout), stderr: String(stderr) });
         });
     });
 }
@@ -83,8 +107,13 @@ export class EmulatorPool {
     private emulators: Map<string, EmulatorInstance> = new Map();
     private waitQueue: WaitQueueEntry[] = [];
     private usedPorts: Set<number> = new Set();
+    private readonly adbPath: string;
+    private readonly emulatorPath: string;
 
-    private constructor() {}
+    private constructor() {
+        this.adbPath = resolveAndroidToolPath('adb');
+        this.emulatorPath = resolveAndroidToolPath('emulator');
+    }
 
     static getInstance(): EmulatorPool {
         if (!EmulatorPool.instance) {
@@ -95,24 +124,17 @@ export class EmulatorPool {
 
     async initialize(): Promise<void> {
         await this.ensureAdbServer();
-        await this.cleanupOrphans();
-        await this.prePullDockerImages();
     }
 
-    async boot(projectId: string, avdName: string, dockerImage?: string): Promise<EmulatorHandle> {
-        if (!dockerImage) {
-            throw new Error(`Docker image is required for AVD "${avdName}"`);
-        }
-
-        const port = this.allocatePort();
+    async boot(projectId: string, avdName: string): Promise<EmulatorHandle> {
+        const port = await this.allocatePort();
         if (port === null) {
             throw new Error('No available ports for emulator');
         }
 
-        const containerName = `${appConfig.emulator.docker.containerNamePrefix}${port}`;
-        const id = containerName;
-        const adbSerial = `localhost:${port}`;
-        const adb = new ReliableAdb(adbSerial);
+        const serial = `emulator-${port}`;
+        const id = serial;
+        const adb = new ReliableAdb(serial, this.adbPath);
 
         const instance: EmulatorInstance = {
             id,
@@ -120,7 +142,8 @@ export class EmulatorPool {
             avdName,
             state: 'STARTING',
             port,
-            containerId: null,
+            serial,
+            process: null,
             adb,
             device: null,
             agent: null,
@@ -137,13 +160,7 @@ export class EmulatorPool {
         this.usedPorts.add(port);
 
         try {
-            await this.bootDockerContainer(instance, dockerImage, port, containerName);
-        } catch (error) {
-            await this.stopInstance(instance);
-            throw error;
-        }
-
-        try {
+            await this.launchEmulatorProcess(instance);
             await Promise.race([
                 this.waitForBoot(instance),
                 new Promise<never>((_, reject) =>
@@ -153,6 +170,7 @@ export class EmulatorPool {
                     )
                 ),
             ]);
+            await this.attachAndroidRuntime(instance);
         } catch (error) {
             await this.stopInstance(instance);
             throw error;
@@ -166,7 +184,7 @@ export class EmulatorPool {
         return this.makeHandle(instance);
     }
 
-    async acquire(projectId: string, avdName: string, runId: string, dockerImage?: string, signal?: AbortSignal): Promise<EmulatorHandle> {
+    async acquire(projectId: string, avdName: string, runId: string, signal?: AbortSignal): Promise<EmulatorHandle> {
         if (signal?.aborted) throw new Error('Acquisition cancelled');
 
         await this.reclaimStaleBootingInstances();
@@ -176,32 +194,35 @@ export class EmulatorPool {
             return this.lockEmulator(idleEmulator, runId);
         }
 
-        const activeCount = Array.from(this.emulators.values()).filter(e => e.state !== 'DEAD').length;
-
+        const activeCount = Array.from(this.emulators.values()).filter((emulator) => emulator.state !== 'DEAD').length;
         if (activeCount < appConfig.emulator.maxInstances) {
-            const handle = await this.bootWithRetries(projectId, avdName, dockerImage, signal);
+            const handle = await this.bootWithRetries(projectId, avdName, signal);
             const instance = this.emulators.get(handle.id);
-            if (!instance) throw new Error(`Emulator ${handle.id} disappeared after boot`);
+            if (!instance) {
+                throw new Error(`Emulator ${handle.id} disappeared after boot`);
+            }
             return this.lockEmulator(instance, runId);
         }
 
         return new Promise<EmulatorHandle>((resolve, reject) => {
             const timeoutId = setTimeout(() => {
-                const idx = this.waitQueue.findIndex(e => e.timeoutId === timeoutId);
-                if (idx !== -1) this.waitQueue.splice(idx, 1);
+                const index = this.waitQueue.findIndex((entry) => entry.timeoutId === timeoutId);
+                if (index !== -1) {
+                    this.waitQueue.splice(index, 1);
+                }
                 reject(new Error(
                     `No emulator available within ${appConfig.emulator.acquireTimeoutMs / 1000}s. ` +
                     `All ${appConfig.emulator.maxInstances} emulators are in use.`
                 ));
             }, appConfig.emulator.acquireTimeoutMs);
 
-            const entry: WaitQueueEntry = { projectId, avdName, runId, dockerImage, resolve, reject, timeoutId, signal };
+            const entry: WaitQueueEntry = { projectId, avdName, runId, resolve, reject, timeoutId, signal };
 
             if (signal) {
                 signal.addEventListener('abort', () => {
-                    const idx = this.waitQueue.findIndex(e => e === entry);
-                    if (idx !== -1) {
-                        this.waitQueue.splice(idx, 1);
+                    const index = this.waitQueue.findIndex((candidate) => candidate === entry);
+                    if (index !== -1) {
+                        this.waitQueue.splice(index, 1);
                         clearTimeout(timeoutId);
                         reject(new Error('Acquisition cancelled'));
                     }
@@ -232,7 +253,6 @@ export class EmulatorPool {
         instance.state = 'CLEANING';
         instance.runId = null;
         instance.acquiredAt = null;
-        instance.agent = null;
         logger.info(`Releasing emulator ${instance.id}`);
 
         const cleanSuccess = await this.cleanEmulator(instance, handle.packageName);
@@ -250,45 +270,37 @@ export class EmulatorPool {
 
     async stop(emulatorId: string): Promise<void> {
         const instance = this.emulators.get(emulatorId);
-        if (!instance) return;
+        if (!instance) {
+            return;
+        }
         await this.stopInstance(instance);
     }
 
     getStatus(projectIds?: ReadonlySet<string>): EmulatorPoolStatus {
         const now = Date.now();
-        const filteredEmulators = Array.from(this.emulators.values())
-            .filter(e => e.state !== 'DEAD')
-            .filter(e => !projectIds || projectIds.has(e.projectId));
+        const emulators = Array.from(this.emulators.values())
+            .filter((instance) => instance.state !== 'DEAD')
+            .filter((instance) => !projectIds || projectIds.has(instance.projectId));
 
         return {
             maxEmulators: appConfig.emulator.maxInstances,
-            emulators: filteredEmulators.map(e => ({
-                    id: e.id,
-                    projectId: e.projectId,
-                    avdName: e.avdName,
-                    state: e.state,
-                    runId: e.runId ?? undefined,
-                    uptimeMs: now - e.startedAt,
-                    memoryUsageMb: e.memoryUsageMb,
-                })),
+            emulators: emulators.map((instance) => ({
+                id: instance.id,
+                projectId: instance.projectId,
+                avdName: instance.avdName,
+                state: instance.state,
+                runId: instance.runId ?? undefined,
+                uptimeMs: now - instance.startedAt,
+                memoryUsageMb: instance.memoryUsageMb,
+            })),
             waitingRequests: projectIds
-                ? this.waitQueue.filter(entry => projectIds.has(entry.projectId)).length
+                ? this.waitQueue.filter((entry) => projectIds.has(entry.projectId)).length
                 : this.waitQueue.length,
         };
     }
 
     getEmulatorState(id: string): EmulatorState | null {
         return this.emulators.get(id)?.state ?? null;
-    }
-
-    setEmulatorAgent(id: string, agent: AndroidAgent): void {
-        const instance = this.emulators.get(id);
-        if (instance) instance.agent = agent;
-    }
-
-    setEmulatorDevice(id: string, device: AndroidDevice): void {
-        const instance = this.emulators.get(id);
-        if (instance) instance.device = device;
     }
 
     async installApk(handle: EmulatorHandle, apkPath: string): Promise<void> {
@@ -310,6 +322,84 @@ export class EmulatorPool {
     async killAll(): Promise<void> {
         for (const instance of this.emulators.values()) {
             await this.stopInstance(instance);
+        }
+    }
+
+    private async launchEmulatorProcess(instance: EmulatorInstance): Promise<void> {
+        const args = [
+            '-avd', instance.avdName,
+            '-port', String(instance.port),
+            '-no-boot-anim',
+            '-no-snapshot-save',
+        ];
+
+        logger.info(`Launching emulator process for ${instance.avdName} on ${instance.serial}`);
+
+        const processHandle = spawn(this.emulatorPath, args, {
+            detached: true,
+            stdio: 'ignore',
+        });
+
+        const spawnReady = new Promise<void>((resolve, reject) => {
+            let settled = false;
+            const done = (fn: () => void) => {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                fn();
+            };
+
+            processHandle.once('error', (error) => {
+                done(() => reject(error));
+            });
+
+            setTimeout(() => {
+                done(() => resolve());
+            }, 200);
+        });
+
+        processHandle.unref();
+        instance.process = processHandle;
+        this.bindProcessLifecycle(instance);
+
+        await spawnReady;
+        instance.state = 'BOOTING';
+    }
+
+    private bindProcessLifecycle(instance: EmulatorInstance): void {
+        const processHandle = instance.process;
+        if (!processHandle) {
+            return;
+        }
+
+        processHandle.once('exit', (code, signal) => {
+            if (instance.state === 'DEAD' || instance.state === 'STOPPING') {
+                return;
+            }
+
+            logger.warn(`Emulator process exited unexpectedly for ${instance.id} (code=${String(code)}, signal=${String(signal)})`);
+            this.transitionToDead(instance);
+            this.wakeNextWaiter(true);
+        });
+    }
+
+    private async attachAndroidRuntime(instance: EmulatorInstance): Promise<void> {
+        try {
+            const module = await import('@midscene/android') as unknown as MidsceneAndroidRuntimeModule;
+            const runtimeDevice = new module.AndroidDevice(instance.serial);
+            await runtimeDevice.connect();
+
+            instance.device = {
+                deviceId: instance.serial,
+                shell: async (command: string) => instance.adb.shell(command),
+            };
+            instance.agent = new module.AndroidAgent(runtimeDevice, {
+                groupName: `${instance.projectId}-${instance.avdName}-${instance.port}`,
+            });
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            throw new Error(`Failed to attach Android runtime for ${instance.id}: ${message}`);
         }
     }
 
@@ -362,18 +452,24 @@ export class EmulatorPool {
         const pollMs = 3000;
         while (true) {
             await this.sleep(pollMs);
-            if (instance.state === 'DEAD') throw new Error(`Emulator ${instance.id} died during boot`);
+            if (instance.state === 'DEAD') {
+                throw new Error(`Emulator ${instance.id} died during boot`);
+            }
+
             try {
                 const bootCompleted = await instance.adb.shell('getprop sys.boot_completed', {
                     timeoutMs: 5000,
                     retries: 1,
                 });
+
                 if (bootCompleted.trim() === '1') {
                     const health = await instance.adb.healthCheck();
-                    if (health.healthy) return;
+                    if (health.healthy) {
+                        return;
+                    }
                 }
             } catch {
-                // Not ready yet, keep polling
+                // Keep waiting until boot completes.
             }
         }
     }
@@ -382,15 +478,11 @@ export class EmulatorPool {
         try {
             if (packageName) {
                 await instance.adb.shell(`am force-stop ${packageName}`, { timeoutMs: 15_000, retries: 1 }).catch(() => {});
-                const uninstallResult = await instance.adb
-                    .shell(`pm uninstall ${packageName}`, { timeoutMs: 15_000, retries: 1 })
-                    .catch(() => 'failed');
-                if (String(uninstallResult).includes('failed')) {
-                    await instance.adb.shell(`pm clear ${packageName}`, { timeoutMs: 15_000, retries: 1 }).catch(() => {});
-                }
+                await instance.adb.shell(`pm clear ${packageName}`, { timeoutMs: 15_000, retries: 1 }).catch(() => {});
             }
             await instance.adb.shell('input keyevent KEYCODE_HOME', { timeoutMs: 15_000, retries: 1 }).catch(() => {});
             await instance.adb.shell('am kill-all', { timeoutMs: 15_000, retries: 1 }).catch(() => {});
+
             const health = await instance.adb.healthCheck();
             return health.healthy;
         } catch (error) {
@@ -402,20 +494,32 @@ export class EmulatorPool {
     private transitionToDead(instance: EmulatorInstance): void {
         this.clearInstanceTimers(instance);
         instance.state = 'DEAD';
+        instance.process = null;
+        instance.device = null;
+        instance.agent = null;
         this.usedPorts.delete(instance.port);
         this.emulators.delete(instance.id);
         logger.info(`Emulator ${instance.id} is DEAD`);
     }
 
     private async stopInstance(instance: EmulatorInstance): Promise<void> {
-        if (instance.state === 'DEAD') return;
+        if (instance.state === 'DEAD') {
+            return;
+        }
+
         this.clearInstanceTimers(instance);
         instance.state = 'STOPPING';
 
         try {
-            if (instance.containerId) {
-                await execFileAsync('docker', ['stop', instance.containerId]).catch(() => {});
-                await execFileAsync('docker', ['rm', instance.containerId]).catch(() => {});
+            await execFileAsync(this.adbPath, ['-s', instance.serial, 'emu', 'kill']).catch(() => {});
+
+            if (instance.process?.pid) {
+                const killTarget = process.platform === 'win32' ? instance.process.pid : -instance.process.pid;
+                try {
+                    process.kill(killTarget, 'SIGTERM');
+                } catch {
+                    // Process may have already exited.
+                }
             }
         } catch (error) {
             logger.warn(`Error stopping emulator ${instance.id}`, error);
@@ -440,7 +544,10 @@ export class EmulatorPool {
     }
 
     private scheduleIdleTimeout(instance: EmulatorInstance): void {
-        if (instance.idleTimer) clearTimeout(instance.idleTimer);
+        if (instance.idleTimer) {
+            clearTimeout(instance.idleTimer);
+        }
+
         instance.idleTimer = setTimeout(async () => {
             if (instance.state === 'IDLE') {
                 logger.info(`Emulator ${instance.id} stopped after ${appConfig.emulator.idleTimeoutMs}ms idle`);
@@ -450,9 +557,15 @@ export class EmulatorPool {
     }
 
     private scheduleHealthCheck(instance: EmulatorInstance): void {
-        if (instance.healthCheckTimer) clearTimeout(instance.healthCheckTimer);
+        if (instance.healthCheckTimer) {
+            clearTimeout(instance.healthCheckTimer);
+        }
+
         instance.healthCheckTimer = setTimeout(async () => {
-            if (instance.state !== 'IDLE') return;
+            if (instance.state !== 'IDLE') {
+                return;
+            }
+
             const result = await instance.adb.healthCheck();
             if (!result.healthy) {
                 logger.warn(`Emulator ${instance.id} failed health check, attempting reconnect`);
@@ -463,66 +576,71 @@ export class EmulatorPool {
                     return;
                 }
             }
+
             this.scheduleHealthCheck(instance);
         }, appConfig.emulator.healthCheckIntervalMs);
     }
 
     private wakeNextWaiter(bootReplacementIfNeeded = false): void {
-        if (this.waitQueue.length === 0) return;
+        if (this.waitQueue.length === 0) {
+            return;
+        }
 
         for (let index = 0; index < this.waitQueue.length; index++) {
             const entry = this.waitQueue[index];
             const idle = this.findIdleEmulator(entry.projectId, entry.avdName);
-            if (idle) {
-                this.waitQueue.splice(index, 1);
-                clearTimeout(entry.timeoutId);
-                try {
-                    entry.resolve(this.lockEmulator(idle, entry.runId));
-                } catch (err) {
-                    entry.reject(err instanceof Error ? err : new Error(String(err)));
-                }
-                return;
+            if (!idle) {
+                continue;
             }
+
+            this.waitQueue.splice(index, 1);
+            clearTimeout(entry.timeoutId);
+            try {
+                entry.resolve(this.lockEmulator(idle, entry.runId));
+            } catch (error) {
+                entry.reject(error instanceof Error ? error : new Error(String(error)));
+            }
+            return;
         }
 
-        if (!bootReplacementIfNeeded) return;
+        if (!bootReplacementIfNeeded) {
+            return;
+        }
 
         const entry = this.waitQueue[0];
-
-        const activeCount = Array.from(this.emulators.values()).filter(e => e.state !== 'DEAD').length;
-        if (activeCount >= appConfig.emulator.maxInstances) return;
+        const activeCount = Array.from(this.emulators.values()).filter((emulator) => emulator.state !== 'DEAD').length;
+        if (activeCount >= appConfig.emulator.maxInstances) {
+            return;
+        }
 
         this.waitQueue.shift();
         clearTimeout(entry.timeoutId);
 
-        this.bootWithRetries(entry.projectId, entry.avdName, entry.dockerImage, entry.signal)
-            .then(handle => {
+        this.bootWithRetries(entry.projectId, entry.avdName, entry.signal)
+            .then((handle) => {
                 const instance = this.emulators.get(handle.id);
-                if (instance) {
-                    entry.resolve(this.lockEmulator(instance, entry.runId));
-                } else {
+                if (!instance) {
                     entry.reject(new Error(`Replacement emulator ${handle.id} disappeared after boot`));
+                    return;
                 }
+                entry.resolve(this.lockEmulator(instance, entry.runId));
             })
-            .catch(err => {
-                entry.reject(err instanceof Error ? err : new Error(String(err)));
+            .catch((error) => {
+                entry.reject(error instanceof Error ? error : new Error(String(error)));
             });
     }
 
-    private async bootWithRetries(
-        projectId: string,
-        avdName: string,
-        dockerImage?: string,
-        signal?: AbortSignal
-    ): Promise<EmulatorHandle> {
+    private async bootWithRetries(projectId: string, avdName: string, signal?: AbortSignal): Promise<EmulatorHandle> {
         const maxAttempts = Math.max(1, appConfig.emulator.bootMaxAttempts);
         let lastError: unknown = null;
 
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-            if (signal?.aborted) throw new Error('Acquisition cancelled');
+            if (signal?.aborted) {
+                throw new Error('Acquisition cancelled');
+            }
 
             try {
-                return await this.boot(projectId, avdName, dockerImage);
+                return await this.boot(projectId, avdName);
             } catch (error) {
                 lastError = error;
                 logger.warn(`Emulator boot attempt ${attempt}/${maxAttempts} failed for AVD ${avdName}`, error);
@@ -539,88 +657,55 @@ export class EmulatorPool {
         );
     }
 
-    private allocatePort(): number | null {
+    private async allocatePort(): Promise<number | null> {
+        const adbUsedPorts = await this.getAdbEmulatorPorts();
+
         for (
             let port = appConfig.emulator.basePort;
             port < appConfig.emulator.basePort + appConfig.emulator.portRange;
             port += 2
         ) {
-            if (!this.usedPorts.has(port)) return port;
+            if (this.usedPorts.has(port)) {
+                continue;
+            }
+            if (adbUsedPorts.has(port)) {
+                continue;
+            }
+            return port;
         }
+
         return null;
+    }
+
+    private async getAdbEmulatorPorts(): Promise<Set<number>> {
+        const ports = new Set<number>();
+        try {
+            const { stdout } = await execFileAsync(this.adbPath, ['devices']);
+            const lines = stdout.split('\n').map((line) => line.trim()).filter((line) => line.length > 0);
+            for (const line of lines) {
+                const match = line.match(/^emulator-(\d+)\s+/);
+                if (!match) {
+                    continue;
+                }
+                const port = Number.parseInt(match[1], 10);
+                if (Number.isFinite(port)) {
+                    ports.add(port);
+                }
+            }
+        } catch (error) {
+            logger.warn('Failed to inspect ADB emulator ports', error);
+        }
+
+        return ports;
     }
 
     private async ensureAdbServer(): Promise<void> {
         try {
-            await execFileAsync('adb', ['kill-server']).catch(() => {});
-            await execFileAsync('adb', ['start-server']);
+            await execFileAsync(this.adbPath, ['kill-server']).catch(() => {});
+            await execFileAsync(this.adbPath, ['start-server']);
             logger.info('ADB server started');
         } catch (error) {
             logger.warn('Failed to restart ADB server', error);
-        }
-    }
-
-    private async cleanupOrphans(): Promise<void> {
-        try {
-            const prefix = appConfig.emulator.docker.containerNamePrefix;
-            const { stdout } = await execFileAsync('docker', ['ps', '-a', '--filter', `name=${prefix}`, '-q']);
-            const ids = stdout.trim().split('\n').filter(Boolean);
-            for (const cid of ids) {
-                logger.info(`Removing orphan Docker container ${cid}`);
-                await execFileAsync('docker', ['stop', cid]).catch(() => {});
-                await execFileAsync('docker', ['rm', cid]).catch(() => {});
-            }
-        } catch (error) {
-            logger.warn('Failed to cleanup orphan Docker containers', error);
-        }
-    }
-
-    private async bootDockerContainer(instance: EmulatorInstance, dockerImage: string, port: number, containerName: string): Promise<void> {
-        logger.info(`Starting Docker container ${containerName} for image ${dockerImage} on port ${port}`);
-
-        const dockerRunArgs = [
-            'run', '-d',
-            '--name', containerName,
-            '--device', '/dev/kvm',
-            '-p', `${port}:5555`,
-            '-e', 'EMULATOR_NO_BOOT_ANIM=1',
-            dockerImage,
-        ];
-
-        let stdout: string;
-        try {
-            ({ stdout } = await execFileAsync('docker', dockerRunArgs));
-        } catch (error) {
-            if (!this.isKvmIncompatibleDockerError(error)) {
-                throw error;
-            }
-
-            throw new Error(
-                'Docker runtime does not support /dev/kvm. ' +
-                'Android emulator containers require KVM acceleration. ' +
-                'Run Android tests on a Linux Docker host with /dev/kvm enabled.'
-            );
-        }
-
-        const containerId = stdout.trim();
-        instance.containerId = containerId;
-        instance.state = 'BOOTING';
-        logger.info(`Docker container started`, { containerId, containerName, port });
-    }
-
-    private async prePullDockerImages(): Promise<void> {
-        try {
-            const { listAvailableAndroidProfiles } = await import('@/lib/android-profiles');
-            const profiles = await listAvailableAndroidProfiles();
-            const images = [...new Set(profiles.map(profile => profile.dockerImage).filter(Boolean))] as string[];
-            for (const image of images) {
-                logger.info(`Pulling Docker image: ${image}`);
-                await execFileAsync('docker', ['pull', image]).catch((err) => {
-                    logger.warn(`Failed to pull Docker image ${image}`, err);
-                });
-            }
-        } catch (error) {
-            logger.warn('Failed to pre-pull Docker images', error);
         }
     }
 
@@ -639,14 +724,7 @@ export class EmulatorPool {
     }
 
     private sleep(ms: number): Promise<void> {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
-
-    private isKvmIncompatibleDockerError(error: unknown): boolean {
-        const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
-        return message.includes('unknown server os') ||
-            message.includes('/dev/kvm') ||
-            message.includes('device requests are only supported');
+        return new Promise((resolve) => setTimeout(resolve, ms));
     }
 }
 

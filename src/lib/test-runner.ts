@@ -491,7 +491,7 @@ async function setupExecutionTargets(
         }
 
         const pool = EmulatorPool.getInstance();
-        const handle = await pool.acquire(projectId, androidConfig.avdName, runId, profile.dockerImage ?? undefined, signal);
+        const handle = await pool.acquire(projectId, androidConfig.avdName, runId, signal);
         handle.packageName = apk.packageName;
         emulatorHandles.set(targetId, handle);
 
