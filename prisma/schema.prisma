@@ -11,6 +11,7 @@ model User {
   authId          String    @unique
   email           String?
   openRouterKey   String?   // Encrypted OpenRouter API key
+  androidEnabled  Boolean   @default(false)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   projects        Project[]
@@ -151,6 +152,7 @@ model AvdProfile {
   displayName String                   // "Pixel 7 (Android 14)"
   apiLevel    Int                      // 34
   screenSize  String?                  // "1080x2400"
+  dockerImage String?                  // e.g. "budtmo/docker-android:emulator_34.0"; null = use native AVD
   enabled     Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
