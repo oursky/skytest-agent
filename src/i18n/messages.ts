@@ -326,7 +326,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'project.tab.android': 'Android Setup',
 
     // Android setup
-    'android.setup.help': 'Upload APKs, configure AVD profiles, and monitor the emulator pool. Emulators are automatically started when you run a test with an Android target.',
+    'android.setup.help': 'Upload APKs, review available runtime AVD profiles, and monitor the emulator pool. Emulators are automatically started when you run a test with an Android target.',
 
     // APK management
     'apk.upload': 'Upload APK',
@@ -343,7 +343,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'avdProfile.apiLevel': 'API Level',
     'avdProfile.screenSize': 'Screen Size',
     'avdProfile.help.intro': 'AVD profiles define virtual Android devices for running your mobile tests. Each profile specifies an Android version and screen size.',
-    'avdProfile.help.setup': 'To use: 1. Add a profile below  2. In your test case, open the Configurations tab and click "Add Android Target"  3. Select the profile and an APK, then run the test',
+    'avdProfile.help.setup': 'To use: 1. Review available runtime profiles below  2. In your test case, open the Configurations tab and click "Add Android Target"  3. Select a profile and APK, then run the test',
     'avdProfile.delete.confirm': 'Delete this AVD profile?',
     'avdProfile.create': 'Create',
     'avdProfile.creating': 'Creating…',
@@ -737,7 +737,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'project.tab.android': 'Android 設定',
 
     // Android setup
-    'android.setup.help': '上傳 APK、設定 AVD 設定檔，並監控模擬器池。當您執行含有 Android 目標的測試時，模擬器會自動啟動。',
+    'android.setup.help': '上傳 APK、查看可用的執行環境 AVD 設定檔，並監控模擬器池。當您執行含有 Android 目標的測試時，模擬器會自動啟動。',
 
     // APK management
     'apk.upload': '上傳 APK',
@@ -754,7 +754,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'avdProfile.apiLevel': 'API 等級',
     'avdProfile.screenSize': '螢幕尺寸',
     'avdProfile.help.intro': 'AVD 設定檔定義用於執行行動測試的虛擬 Android 裝置。每個設定檔指定 Android 版本與螢幕尺寸。',
-    'avdProfile.help.setup': '使用方式：1. 在下方新增設定檔  2. 在測試案例中開啟「設定」分頁，點擊「新增 Android 目標」  3. 選擇設定檔與 APK，然後執行測試',
+    'avdProfile.help.setup': '使用方式：1. 在下方查看可用的執行環境設定檔  2. 在測試案例中開啟「設定」分頁，點擊「新增 Android 目標」  3. 選擇設定檔與 APK，然後執行測試',
     'avdProfile.delete.confirm': '刪除此 AVD 設定檔？',
     'avdProfile.create': '建立',
     'avdProfile.creating': '建立中…',
@@ -1148,7 +1148,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'project.tab.android': 'Android 设置',
 
     // Android setup
-    'android.setup.help': '上传 APK、配置 AVD 配置文件，并监控模拟器池。当您运行含有 Android 目标的测试时，模拟器会自动启动。',
+    'android.setup.help': '上传 APK、查看可用的运行时 AVD 配置，并监控模拟器池。当您运行含有 Android 目标的测试时，模拟器会自动启动。',
 
     // APK management
     'apk.upload': '上传 APK',
@@ -1165,7 +1165,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'avdProfile.apiLevel': 'API 等级',
     'avdProfile.screenSize': '屏幕尺寸',
     'avdProfile.help.intro': 'AVD 配置定义用于运行移动测试的虚拟 Android 设备。每个配置指定 Android 版本与屏幕尺寸。',
-    'avdProfile.help.setup': '使用方式：1. 在下方添加配置  2. 在测试用例中打开「配置」标签页，点击「添加 Android 目标」  3. 选择配置与 APK，然后运行测试',
+    'avdProfile.help.setup': '使用方式：1. 在下方查看可用的运行时配置  2. 在测试用例中打开「配置」标签页，点击「添加 Android 目标」  3. 选择配置与 APK，然后运行测试',
     'avdProfile.delete.confirm': '删除此 AVD 配置？',
     'avdProfile.create': '创建',
     'avdProfile.creating': '创建中…',
