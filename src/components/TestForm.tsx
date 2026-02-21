@@ -156,6 +156,24 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
         });
     }, [steps.length, browsers]);
 
+    useEffect(() => {
+        const fallbackTargetId = browsers[0]?.id;
+        if (!fallbackTargetId) return;
+
+        const validTargetIds = new Set(browsers.map((browser) => browser.id));
+        setSteps((currentSteps) => {
+            let changed = false;
+            const nextSteps = currentSteps.map((step) => {
+                if (validTargetIds.has(step.target)) {
+                    return step;
+                }
+                changed = true;
+                return { ...step, target: fallbackTargetId };
+            });
+            return changed ? nextSteps : currentSteps;
+        });
+    }, [browsers]);
+
     const ensureSampleConfigs = async (targetTestCaseId?: string) => {
         try {
             const existingNames = new Set(

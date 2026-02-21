@@ -54,19 +54,6 @@ function isAndroidEntry(browser: BrowserEntry): boolean {
     return browser.config.type === 'android';
 }
 
-function browserLabel(browser: BrowserEntry): string {
-    if (browser.config.name) {
-        return browser.config.name;
-    }
-    if (browser.id.startsWith('android_')) {
-        return browser.id.replace('android_', 'Android ').toUpperCase();
-    }
-    if (browser.id.startsWith('browser_')) {
-        return browser.id.replace('browser_', 'Browser ').toUpperCase();
-    }
-    return browser.id;
-}
-
 export default function SortableStepItem({ step, index, browsers, onRemove, onChange, onFilesChange, onTypeChange, readOnly, isAnyDragging, projectConfigs, testCaseConfigs, testCaseFiles }: SortableStepItemProps) {
     const { t } = useI18n();
     const stepTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -113,6 +100,13 @@ export default function SortableStepItem({ step, index, browsers, onRemove, onCh
     const colorBorder = colorsBorder[safeIndex % colorsBorder.length];
     const selectedBrowser = browsers[safeIndex];
     const isAndroid = selectedBrowser ? isAndroidEntry(selectedBrowser) : false;
+    const getDefaultBrowserLabel = (browser: BrowserEntry, indexValue: number): string => {
+        if (browser.config.name) {
+            return browser.config.name;
+        }
+        const letter = String.fromCharCode('A'.charCodeAt(0) + indexValue);
+        return isAndroidEntry(browser) ? `Android ${letter}` : `Browser ${letter}`;
+    };
 
     useEffect(() => {
         if (!browserDropdownOpen) return;
@@ -163,7 +157,7 @@ export default function SortableStepItem({ step, index, browsers, onRemove, onCh
                         onPointerDown={(e) => e.stopPropagation()}
                     >
                         <span className="flex items-center gap-1.5 truncate">
-                            <span className="truncate">{selectedBrowser ? browserLabel(selectedBrowser) : step.target}</span>
+                            <span className="truncate">{selectedBrowser ? getDefaultBrowserLabel(selectedBrowser, safeIndex) : step.target}</span>
                         </span>
                         <svg className={`w-3 h-3 shrink-0 ${colorText}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -171,9 +165,8 @@ export default function SortableStepItem({ step, index, browsers, onRemove, onCh
                     </button>
                     {browserDropdownOpen && !readOnly && (
                         <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-30 py-1 min-w-[180px]">
-                            {browsers.map((browser) => {
+                            {browsers.map((browser, browserListIndex) => {
                                 const isSelected = browser.id === step.target;
-                                const isAndroidOption = isAndroidEntry(browser);
                                 return (
                                     <button
                                         key={browser.id}
@@ -185,7 +178,7 @@ export default function SortableStepItem({ step, index, browsers, onRemove, onCh
                                         onPointerDown={(e) => e.stopPropagation()}
                                         className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-1.5 ${isSelected ? 'bg-gray-50 text-gray-900 font-medium' : 'text-gray-700'}`}
                                     >
-                                        <span>{browserLabel(browser)}</span>
+                                        <span>{getDefaultBrowserLabel(browser, browserListIndex)}</span>
                                     </button>
                                 );
                             })}

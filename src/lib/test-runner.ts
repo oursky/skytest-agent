@@ -840,7 +840,7 @@ async function executeSteps(
         if (signal?.aborted) throw new Error('Aborted');
 
         const step = steps[i];
-        const effectiveTargetId = step.target || targetIds[0];
+        const effectiveTargetId = (step.target && targetConfigs[step.target]) ? step.target : targetIds[0];
         const stepType = step.type || 'ai-action';
         const targetConfig = targetConfigs[effectiveTargetId];
         const isAndroid = targetConfig ? isAndroidTarget(targetConfig) : false;
