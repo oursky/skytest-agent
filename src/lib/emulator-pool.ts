@@ -138,7 +138,12 @@ export class EmulatorPool {
         this.emulators.set(id, instance);
         this.usedPorts.add(port);
 
-        await this.bootDockerContainer(instance, dockerImage, port, containerName);
+        try {
+            await this.bootDockerContainer(instance, dockerImage, port, containerName);
+        } catch (error) {
+            await this.stopInstance(instance);
+            throw error;
+        }
 
         try {
             await Promise.race([
@@ -165,6 +170,8 @@ export class EmulatorPool {
 
     async acquire(projectId: string, avdName: string, runId: string, dockerImage?: string, signal?: AbortSignal): Promise<EmulatorHandle> {
         if (signal?.aborted) throw new Error('Acquisition cancelled');
+
+        await this.reclaimStaleBootingInstances();
 
         const idleEmulator = this.findIdleEmulator(projectId, avdName);
         if (idleEmulator) {
@@ -618,6 +625,20 @@ export class EmulatorPool {
             }
         } catch (error) {
             logger.warn('Failed to pre-pull Docker images', error);
+        }
+    }
+
+    private async reclaimStaleBootingInstances(): Promise<void> {
+        const maxBootAgeMs = appConfig.emulator.bootTimeoutMs + appConfig.emulator.bootRetryDelayMs;
+        const now = Date.now();
+        const staleInstances = Array.from(this.emulators.values()).filter((instance) =>
+            (instance.state === 'STARTING' || instance.state === 'BOOTING') &&
+            now - instance.startedAt > maxBootAgeMs
+        );
+
+        for (const instance of staleInstances) {
+            logger.warn(`Reclaiming stale emulator ${instance.id} in state ${instance.state}`);
+            await this.stopInstance(instance);
         }
     }
 

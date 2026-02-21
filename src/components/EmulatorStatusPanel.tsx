@@ -13,6 +13,7 @@ export default function EmulatorStatusPanel() {
     const { t } = useI18n();
     const [status, setStatus] = useState<EmulatorPoolStatus | null>(null);
     const [forbidden, setForbidden] = useState(false);
+    const [requestFailed, setRequestFailed] = useState(false);
     const [stopping, setStopping] = useState<string | null>(null);
     const pollRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -22,11 +23,20 @@ export default function EmulatorStatusPanel() {
             const token = await getAccessToken();
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
             const res = await fetch('/api/emulators', { headers });
-            if (res.status === 403) { setForbidden(true); return; }
-            if (!res.ok) return;
+            if (res.status === 403) {
+                setForbidden(true);
+                setRequestFailed(false);
+                return;
+            }
+            if (!res.ok) {
+                setRequestFailed(true);
+                return;
+            }
+            setForbidden(false);
+            setRequestFailed(false);
             setStatus(await res.json() as EmulatorPoolStatus);
         } catch {
-            // ignore
+            setRequestFailed(true);
         }
     }, [getAccessToken]);
 
@@ -80,8 +90,6 @@ export default function EmulatorStatusPanel() {
         }
     };
 
-    if (forbidden) return null;
-
     return (
         <div className="space-y-3">
             <div className="flex items-center justify-between">
@@ -97,7 +105,15 @@ export default function EmulatorStatusPanel() {
             </div>
 
             <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                {!status ? (
+                {forbidden ? (
+                    <div className="p-4 text-sm text-yellow-800 bg-yellow-50 border border-yellow-200">
+                        {t('feature.android.disabled')}
+                    </div>
+                ) : requestFailed && !status ? (
+                    <div className="p-8 text-center text-sm text-gray-400">
+                        {t('emulator.panel.empty')}
+                    </div>
+                ) : !status ? (
                     <div className="flex justify-center py-8">
                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
                     </div>
