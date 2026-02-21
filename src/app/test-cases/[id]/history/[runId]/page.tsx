@@ -8,6 +8,7 @@ import TestForm from "@/components/TestForm";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import { formatDateTime } from "@/utils/dateFormatter";
 import { useI18n } from "@/i18n";
+import { parseStoredEvents } from "@/lib/test-events";
 
 import { TestStep, BrowserConfig, TargetConfig, ConfigItem } from "@/types";
 
@@ -15,7 +16,8 @@ interface TestRun {
     id: string;
     status: 'IDLE' | 'RUNNING' | 'PASS' | 'FAIL' | 'CANCELLED' | 'QUEUED' | 'PREPARING';
     createdAt: string;
-    result: string;
+    result: string | null;
+    logs: string | null;
     error: string | null;
     configurationSnapshot: string | null;
     files?: Array<{ id: string; filename: string; storedName: string; mimeType: string; size: number; createdAt: string }>;
@@ -145,7 +147,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
         );
     }
 
-    const events = testRun.result ? JSON.parse(testRun.result) : [];
+    const events = parseStoredEvents(testRun.result || testRun.logs);
 
     const buildExcelBaseName = (testCaseIdentifier?: string, testCaseName?: string): string => {
         const sanitize = (value: string) => value.replace(/[^a-zA-Z0-9._-]/g, '_');

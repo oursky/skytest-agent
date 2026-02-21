@@ -26,6 +26,11 @@ interface TestResult {
     error?: string;
 }
 
+function buildEventKey(event: TestEvent): string {
+    const browserId = event.browserId || '';
+    return `${event.type}|${event.timestamp}|${browserId}|${JSON.stringify(event.data)}`;
+}
+
 function RunPageContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
@@ -37,6 +42,8 @@ function RunPageContent() {
         events: [],
     });
     const eventSourceRef = useRef<EventSource | null>(null);
+    const connectRequestIdRef = useRef(0);
+    const eventKeySetRef = useRef<Set<string>>(new Set());
     const [currentTestCaseId, setCurrentTestCaseId] = useState<string | null>(null);
     const [currentRunId, setCurrentRunId] = useState<string | null>(null);
     const [projectIdFromTestCase, setProjectIdFromTestCase] = useState<string | null>(null);
@@ -446,10 +453,14 @@ function RunPageContent() {
     }, [getAccessToken]);
 
     const connectToRun = useCallback(async (runId: string) => {
+        connectRequestIdRef.current += 1;
+        const requestId = connectRequestIdRef.current;
+
         if (eventSourceRef.current) {
             eventSourceRef.current.close();
             eventSourceRef.current = null;
         }
+        eventKeySetRef.current = new Set();
 
         setResult(prev => ({
             ...prev,
@@ -459,6 +470,10 @@ function RunPageContent() {
         setCurrentRunId(runId);
 
         const streamToken = await issueStreamToken('test-run-events', runId);
+        if (requestId !== connectRequestIdRef.current) {
+            return;
+        }
+
         if (!streamToken) {
             setResult(prev => ({
                 ...prev,
@@ -473,6 +488,10 @@ function RunPageContent() {
         const es = new EventSource(url);
 
         es.onmessage = (event) => {
+            if (requestId !== connectRequestIdRef.current) {
+                return;
+            }
+
             try {
                 const data = JSON.parse(event.data);
 
@@ -486,9 +505,16 @@ function RunPageContent() {
                         return { ...prev, status: data.status, error: data.error };
                     });
                 } else if (data.type === 'log' || data.type === 'screenshot') {
+                    const streamEvent = data as TestEvent;
+                    const eventKey = buildEventKey(streamEvent);
+                    if (eventKeySetRef.current.has(eventKey)) {
+                        return;
+                    }
+                    eventKeySetRef.current.add(eventKey);
+
                     setResult(prev => ({
                         ...prev,
-                        events: [...prev.events, data]
+                        events: [...prev.events, streamEvent]
                     }));
                 }
             } catch (e) {
@@ -497,6 +523,11 @@ function RunPageContent() {
         };
 
         es.onerror = () => {
+            if (requestId !== connectRequestIdRef.current) {
+                es.close();
+                return;
+            }
+
             console.log('EventSource connection closed or error occurred');
             es.close();
             eventSourceRef.current = null;
@@ -509,6 +540,11 @@ function RunPageContent() {
                 return { ...prev, error: t('run.error.connectionLost') };
             });
         };
+
+        if (requestId !== connectRequestIdRef.current) {
+            es.close();
+            return;
+        }
 
         eventSourceRef.current = es;
     }, [issueStreamToken, t]);
@@ -529,10 +565,12 @@ function RunPageContent() {
 
     useEffect(() => {
         return () => {
+            connectRequestIdRef.current += 1;
             if (eventSourceRef.current) {
                 eventSourceRef.current.close();
                 eventSourceRef.current = null;
             }
+            eventKeySetRef.current.clear();
         };
     }, []);
 
@@ -552,6 +590,7 @@ function RunPageContent() {
         if (!currentRunId) return;
         setIsLoading(true);
         try {
+            connectRequestIdRef.current += 1;
             if (eventSourceRef.current) {
                 eventSourceRef.current.close();
                 eventSourceRef.current = null;
