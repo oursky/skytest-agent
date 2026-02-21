@@ -289,7 +289,7 @@ export const MESSAGES: Record<Locale, Messages> = {
 
     // ResultStatus
     'status.preparing': 'Setting up…',
-    'status.preparing.detail': 'Starting the Android emulator and installing the app. This may take a few minutes.',
+    'status.preparing.detail': 'Starting the Android emulator and preparing the app state. This may take a few minutes.',
     'results.pass.title': 'Test Passed',
     'results.pass.body': 'All test steps completed successfully without errors.',
     'results.cancelled.title': 'Test Cancelled',
@@ -323,10 +323,10 @@ export const MESSAGES: Record<Locale, Messages> = {
     // Project tabs
     'project.tab.testCases': 'Test Cases',
     'project.tab.configs': 'Variables',
-    'project.tab.android': 'Android Setup',
+    'project.tab.android': 'Emulators',
 
     // Android setup
-    'android.setup.help': 'Upload APKs, review available runtime AVD profiles, and monitor the emulator pool. Emulators are automatically started when you run a test with an Android target.',
+    'android.setup.help': 'Review emulator runtime status. Install required apps on the emulator devices before running Android tests.',
 
     // APK management
     'apk.upload': 'Upload APK',
@@ -411,6 +411,12 @@ export const MESSAGES: Record<Locale, Messages> = {
     'configs.browser.url': 'URL',
     'configs.browser.url.placeholder': 'Select a URL or type one',
     'configs.browser.addBrowser': 'Add Another Browser',
+    'configs.android.emulator': 'Emulator',
+    'configs.android.appId': 'App ID',
+    'configs.android.emulator.placeholder': 'Select emulator',
+    'configs.android.emulator.none': 'No available emulators',
+    'configs.android.appId.placeholder': 'Select app ID',
+    'configs.android.appId.none': 'No app IDs found on this emulator',
     'configs.android.avd': 'AVD Profile',
     'configs.android.apk': 'APK',
     'configs.android.activity': 'Launch Activity',
@@ -700,7 +706,7 @@ export const MESSAGES: Record<Locale, Messages> = {
 
     // ResultStatus
     'status.preparing': '準備中…',
-    'status.preparing.detail': '正在啟動 Android 模擬器並安裝應用程式，這可能需要幾分鐘。',
+    'status.preparing.detail': '正在啟動 Android 模擬器並準備應用程式狀態，這可能需要幾分鐘。',
     'results.pass.title': '測試成功',
     'results.pass.body': '所有測試步驟已成功完成，未發生錯誤。',
     'results.cancelled.title': '測試已取消',
@@ -734,10 +740,10 @@ export const MESSAGES: Record<Locale, Messages> = {
     // Project tabs
     'project.tab.testCases': '測試案例',
     'project.tab.configs': '變數',
-    'project.tab.android': 'Android 設定',
+    'project.tab.android': '模擬器',
 
     // Android setup
-    'android.setup.help': '上傳 APK、查看可用的執行環境 AVD 設定檔，並監控模擬器池。當您執行含有 Android 目標的測試時，模擬器會自動啟動。',
+    'android.setup.help': '查看模擬器執行狀態。執行 Android 測試前，請先在模擬器裝置上安裝所需應用程式。',
 
     // APK management
     'apk.upload': '上傳 APK',
@@ -822,6 +828,12 @@ export const MESSAGES: Record<Locale, Messages> = {
     'configs.browser.url': 'URL',
     'configs.browser.url.placeholder': '選擇或輸入 URL',
     'configs.browser.addBrowser': '新增瀏覽器',
+    'configs.android.emulator': '模擬器',
+    'configs.android.appId': 'App ID',
+    'configs.android.emulator.placeholder': '選擇模擬器',
+    'configs.android.emulator.none': '沒有可用的模擬器',
+    'configs.android.appId.placeholder': '選擇 App ID',
+    'configs.android.appId.none': '此模擬器找不到可用的 App ID',
     'configs.android.avd': 'AVD 設定檔',
     'configs.android.apk': 'APK',
     'configs.android.activity': '啟動 Activity',
@@ -1111,7 +1123,7 @@ export const MESSAGES: Record<Locale, Messages> = {
 
     // ResultStatus
     'status.preparing': '准备中…',
-    'status.preparing.detail': '正在启动 Android 模拟器并安装应用程序，这可能需要几分钟。',
+    'status.preparing.detail': '正在启动 Android 模拟器并准备应用状态，这可能需要几分钟。',
     'results.pass.title': '测试通过',
     'results.pass.body': '所有测试步骤已成功完成，未发生错误。',
     'results.cancelled.title': '测试已取消',
@@ -1145,10 +1157,10 @@ export const MESSAGES: Record<Locale, Messages> = {
     // Project tabs
     'project.tab.testCases': '测试用例',
     'project.tab.configs': '变量',
-    'project.tab.android': 'Android 设置',
+    'project.tab.android': '模拟器',
 
     // Android setup
-    'android.setup.help': '上传 APK、查看可用的运行时 AVD 配置，并监控模拟器池。当您运行含有 Android 目标的测试时，模拟器会自动启动。',
+    'android.setup.help': '查看模拟器运行状态。运行 Android 测试前，请先在模拟器设备中安装所需应用。',
 
     // APK management
     'apk.upload': '上传 APK',
@@ -1233,6 +1245,12 @@ export const MESSAGES: Record<Locale, Messages> = {
     'configs.browser.url': 'URL',
     'configs.browser.url.placeholder': '选择或输入 URL',
     'configs.browser.addBrowser': '添加浏览器',
+    'configs.android.emulator': '模拟器',
+    'configs.android.appId': 'App ID',
+    'configs.android.emulator.placeholder': '选择模拟器',
+    'configs.android.emulator.none': '没有可用模拟器',
+    'configs.android.appId.placeholder': '选择 App ID',
+    'configs.android.appId.none': '该模拟器上未找到可用 App ID',
     'configs.android.avd': 'AVD 配置',
     'configs.android.apk': 'APK',
     'configs.android.activity': '启动 Activity',

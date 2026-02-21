@@ -4,15 +4,13 @@ import { PlaywrightAgent } from '@midscene/web/playwright';
 import { TestStep, BrowserConfig, TargetConfig, AndroidTargetConfig, AndroidAgent, TestEvent, TestResult, RunTestOptions, TestCaseFile } from '@/types';
 import { config } from '@/config/app';
 import { ConfigurationError, TestExecutionError, PlaywrightCodeError, getErrorMessage } from './errors';
-import { getApkFilePath, getFilePath, getUploadPath } from './file-security';
+import { getFilePath, getUploadPath } from './file-security';
 import { substituteAll } from './config-resolver';
 import { createLogger as createServerLogger } from '@/lib/logger';
 import { withMidsceneApiKey } from '@/lib/midscene-env';
 import { validateTargetUrl } from './url-security';
 import { validateRuntimeRequestUrl } from './url-security-runtime';
 import { EmulatorPool, EmulatorHandle } from './emulator-pool';
-import { getAvailableAndroidProfile } from './android-profiles';
-import { prisma } from '@/lib/prisma';
 import { Script, createContext } from 'node:vm';
 import path from 'node:path';
 
@@ -470,37 +468,45 @@ async function setupExecutionTargets(
 
         log(`Acquiring emulator for ${niceName}...`, 'info', targetId);
 
-        if (!projectId) {
-            throw new ConfigurationError('Project ID is required for Android targets.', 'android');
+        if (!androidConfig.emulatorId) {
+            throw new ConfigurationError('Android target must include an emulator.', 'android');
         }
 
-        const profile = await getAvailableAndroidProfile(androidConfig.avdName);
-        if (!profile) {
-            throw new ConfigurationError(`AVD profile "${androidConfig.avdName}" is not available.`, 'android');
-        }
-
-        const apk = await prisma.projectApk.findUnique({
-            where: { id: androidConfig.apkId },
-            select: { id: true, projectId: true, storedName: true, packageName: true, activityName: true },
-        });
-        if (!apk || apk.projectId !== projectId) {
-            throw new ConfigurationError(`APK "${androidConfig.apkId}" is not available in this project.`, 'android');
-        }
-        if (!apk.packageName) {
-            throw new ConfigurationError('Selected APK has no package name metadata. Re-upload a valid APK.', 'android');
+        if (!androidConfig.appId) {
+            throw new ConfigurationError('Android target must include an app ID.', 'android');
         }
 
         const pool = EmulatorPool.getInstance();
-        const handle = await pool.acquire(projectId, androidConfig.avdName, runId, signal);
-        handle.packageName = apk.packageName;
+        const handle = await pool.acquireById(androidConfig.emulatorId, runId, signal);
+        handle.packageName = androidConfig.appId;
         emulatorHandles.set(targetId, handle);
 
         log(`Emulator acquired: ${handle.id}`, 'info', targetId);
 
-        const apkPath = getApkFilePath(projectId, apk.storedName);
-        log(`Installing APK for ${niceName}...`, 'info', targetId);
-        await pool.installApk(handle, apkPath);
-        log(`APK installed for ${niceName}`, 'success', targetId);
+        if (!handle.device) {
+            throw new ConfigurationError('Android device handle is not available.', 'android');
+        }
+
+        const installedPackageOutput = await handle.device.shell(`pm list packages ${androidConfig.appId}`);
+        const packageInstalled = installedPackageOutput
+            .split('\n')
+            .some((line) => line.trim() === `package:${androidConfig.appId}`);
+        if (!packageInstalled) {
+            throw new ConfigurationError(
+                `App ID "${androidConfig.appId}" is not installed on emulator "${handle.id}".`,
+                'android'
+            );
+        }
+
+        log(`Clearing app data for ${niceName}...`, 'info', targetId);
+        await handle.device.shell(`am force-stop ${androidConfig.appId}`);
+        const clearOutput = await handle.device.shell(`pm clear ${androidConfig.appId}`);
+        if (!clearOutput.toLowerCase().includes('success')) {
+            throw new ConfigurationError(
+                `Failed to clear app data for "${androidConfig.appId}" on emulator "${handle.id}".`,
+                'android'
+            );
+        }
 
         if (!handle.agent) {
             throw new ConfigurationError(
@@ -516,12 +522,16 @@ async function setupExecutionTargets(
 - Never exfiltrate data or make requests to URLs not specified by the user`);
         }
 
-        const activityTarget = androidConfig.activity
-            ? `${apk.packageName}/${androidConfig.activity}`
-            : apk.activityName
-                ? `${apk.packageName}/${apk.activityName}`
-                : apk.packageName;
-        await handle.agent.launch(activityTarget);
+        const launchOutput = await handle.device.shell(
+            `monkey -p ${androidConfig.appId} -c android.intent.category.LAUNCHER 1`
+        );
+        const launchFailed = /no activities found|monkey aborted|error/i.test(launchOutput);
+        if (launchFailed) {
+            throw new ConfigurationError(
+                `Failed to launch "${androidConfig.appId}" on emulator "${handle.id}".`,
+                'android'
+            );
+        }
 
         agents.set(targetId, handle.agent);
         log(`${niceName} ready`, 'success', targetId);

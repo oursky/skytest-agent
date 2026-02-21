@@ -97,7 +97,7 @@ export default function EmulatorStatusPanel() {
                     <h2 className="text-lg font-semibold text-gray-900">{t('emulator.panel.title')}</h2>
                     {status && (
                         <span className="text-xs text-gray-400">
-                            {status.emulators.length} / {status.maxEmulators} active
+                            {status.emulators.length} active
                             {status.waitingRequests > 0 && ` · ${t('emulator.waiting', { n: status.waitingRequests })}`}
                         </span>
                     )}

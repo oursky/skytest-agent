@@ -16,9 +16,8 @@ export interface BrowserTargetConfig {
 export interface AndroidTargetConfig {
     type: 'android';
     name?: string;
-    avdName: string;
-    apkId: string;
-    activity?: string;
+    emulatorId: string;
+    appId: string;
 }
 
 export type TargetConfig = BrowserTargetConfig | AndroidTargetConfig;

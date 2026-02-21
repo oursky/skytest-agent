@@ -233,6 +233,32 @@ export class EmulatorPool {
         });
     }
 
+    async acquireById(emulatorId: string, runId: string, signal?: AbortSignal): Promise<EmulatorHandle> {
+        if (signal?.aborted) throw new Error('Acquisition cancelled');
+
+        const start = Date.now();
+        const timeoutMs = appConfig.emulator.acquireTimeoutMs;
+
+        while (Date.now() - start < timeoutMs) {
+            if (signal?.aborted) {
+                throw new Error('Acquisition cancelled');
+            }
+
+            const instance = this.emulators.get(emulatorId);
+            if (!instance || instance.state === 'DEAD') {
+                throw new Error(`Emulator "${emulatorId}" is not available`);
+            }
+
+            if (instance.state === 'IDLE') {
+                return this.lockEmulator(instance, runId);
+            }
+
+            await this.sleep(1000);
+        }
+
+        throw new Error(`Emulator "${emulatorId}" was not available within ${timeoutMs / 1000}s`);
+    }
+
     async release(handle: EmulatorHandle): Promise<void> {
         const instance = this.emulators.get(handle.id);
         if (!instance) {
@@ -309,6 +335,23 @@ export class EmulatorPool {
             throw new Error(`Emulator ${handle.id} not found`);
         }
         await instance.adb.installApk(apkPath);
+    }
+
+    async listInstalledPackages(emulatorId: string): Promise<string[]> {
+        const instance = this.emulators.get(emulatorId);
+        if (!instance || instance.state === 'DEAD') {
+            throw new Error(`Emulator "${emulatorId}" is not available`);
+        }
+
+        const output = await instance.adb.shell('pm list packages', { timeoutMs: 30_000, retries: 1 });
+        const packages = output
+            .split('\n')
+            .map((line) => line.trim())
+            .filter((line) => line.startsWith('package:'))
+            .map((line) => line.slice('package:'.length).trim())
+            .filter((line) => line.length > 0);
+
+        return Array.from(new Set(packages)).sort((a, b) => a.localeCompare(b));
     }
 
     async drainAll(): Promise<void> {

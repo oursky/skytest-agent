@@ -7,7 +7,7 @@ import { validateTargetUrl } from '@/lib/url-security';
 import { createLogger } from '@/lib/logger';
 import { resolveConfigs } from '@/lib/config-resolver';
 import { config as appConfig } from '@/config/app';
-import { listAvailableAndroidProfiles } from '@/lib/android-profiles';
+import { emulatorPool } from '@/lib/emulator-pool';
 import type { BrowserConfig, TargetConfig, AndroidTargetConfig, ResolvedConfig, TestStep } from '@/types';
 
 const logger = createLogger('api:run-test');
@@ -62,9 +62,11 @@ function isAndroidTargetConfig(config: BrowserConfig | TargetConfig): config is 
     return 'type' in config && config.type === 'android';
 }
 
+const APP_ID_REGEX = /^[A-Za-z0-9._]+$/;
+
 async function validateAndroidTargets(
     browserConfig: RunTestRequest['browserConfig'],
-    projectId: string
+    projectIds: ReadonlySet<string>
 ): Promise<string | null> {
     if (!browserConfig || Object.keys(browserConfig).length === 0) {
         return null;
@@ -75,35 +77,27 @@ async function validateAndroidTargets(
         return null;
     }
 
-    const availableProfiles = await listAvailableAndroidProfiles();
-    const availableProfileNames = new Set(availableProfiles.map(profile => profile.name));
+    const status = emulatorPool.getStatus(projectIds);
+    const emulatorMap = new Map(status.emulators.map((emulator) => [emulator.id, emulator]));
 
-    const apkIds = new Set<string>();
     for (const target of androidTargets) {
-        if (!target.avdName) {
-            return 'Android target must include an AVD profile';
+        if (!target.emulatorId) {
+            return 'Android target must include an emulator';
         }
-        if (!target.apkId) {
-            return 'Android target must include an APK';
+        if (!target.appId) {
+            return 'Android target must include an app ID';
         }
-        if (!availableProfileNames.has(target.avdName)) {
-            return `AVD profile "${target.avdName}" is not available in current runtime inventory`;
+        if (!APP_ID_REGEX.test(target.appId)) {
+            return `App ID "${target.appId}" is invalid`;
         }
-        apkIds.add(target.apkId);
-    }
 
-    const apks = await prisma.projectApk.findMany({
-        where: {
-            projectId,
-            id: { in: Array.from(apkIds) },
-        },
-        select: { id: true },
-    });
-    const apkIdSet = new Set(apks.map(apk => apk.id));
+        const emulator = emulatorMap.get(target.emulatorId);
+        if (!emulator) {
+            return `Emulator "${target.emulatorId}" is not available`;
+        }
 
-    for (const apkId of apkIds) {
-        if (!apkIdSet.has(apkId)) {
-            return `APK "${apkId}" is not available in this project`;
+        if (emulator.state !== 'IDLE') {
+            return `Emulator "${target.emulatorId}" is currently in use`;
         }
     }
 
@@ -196,7 +190,13 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const androidValidationError = await validateAndroidTargets(browserConfig, testCase.projectId);
+        const projects = await prisma.project.findMany({
+            where: { userId },
+            select: { id: true },
+        });
+        const projectIds = new Set(projects.map((project) => project.id));
+
+        const androidValidationError = await validateAndroidTargets(browserConfig, projectIds);
         if (androidValidationError) {
             return NextResponse.json({ error: androidValidationError }, { status: 400 });
         }
