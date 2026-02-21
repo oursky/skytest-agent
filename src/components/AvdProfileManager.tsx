@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/app/auth-provider';
 import { useI18n } from '@/i18n';
+import { config } from '@/config/app';
 import Modal from '@/components/Modal';
 
 interface AvdProfileRecord {
@@ -20,6 +21,14 @@ interface AvdProfileManagerProps {
     projectId: string;
 }
 
+const apiLevels = config.emulator.avdProfile.apiLevels;
+const screenSizes = config.emulator.avdProfile.screenSizes;
+
+function generateName(displayName: string, apiLevel: number, screenSize: string): string {
+    const slug = displayName.trim().replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_|_$/g, '');
+    return `${slug}_API_${apiLevel}_${screenSize}`;
+}
+
 export default function AvdProfileManager({ projectId }: AvdProfileManagerProps) {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
@@ -29,18 +38,36 @@ export default function AvdProfileManager({ projectId }: AvdProfileManagerProps)
     const [showForm, setShowForm] = useState(false);
     const [creating, setCreating] = useState(false);
     const [createError, setCreateError] = useState<string | null>(null);
-    const [formData, setFormData] = useState({
-        name: '',
-        displayName: '',
-        apiLevel: '',
-        screenSize: '',
-        dockerImage: '',
-    });
+
+    const [formDisplayName, setFormDisplayName] = useState('');
+    const [formApiLevel, setFormApiLevel] = useState<number | null>(null);
+    const [formScreenSize, setFormScreenSize] = useState<string | null>(null);
+    const [apiLevelOpen, setApiLevelOpen] = useState(false);
+    const [screenSizeOpen, setScreenSizeOpen] = useState(false);
+    const apiLevelRef = useRef<HTMLDivElement>(null);
+    const screenSizeRef = useRef<HTMLDivElement>(null);
+
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; profileId: string; displayName: string }>({
         isOpen: false, profileId: '', displayName: ''
     });
     const [deleting, setDeleting] = useState(false);
     const [deleteError, setDeleteError] = useState<string | null>(null);
+
+    const canCreate = formDisplayName.trim() !== '' && formApiLevel !== null && formScreenSize !== null;
+
+    useEffect(() => {
+        if (!apiLevelOpen && !screenSizeOpen) return;
+        const handleClickOutside = (e: MouseEvent) => {
+            if (apiLevelOpen && apiLevelRef.current && !apiLevelRef.current.contains(e.target as Node)) {
+                setApiLevelOpen(false);
+            }
+            if (screenSizeOpen && screenSizeRef.current && !screenSizeRef.current.contains(e.target as Node)) {
+                setScreenSizeOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [apiLevelOpen, screenSizeOpen]);
 
     const fetchProfiles = useCallback(async () => {
         try {
@@ -68,16 +95,22 @@ export default function AvdProfileManager({ projectId }: AvdProfileManagerProps)
         void fetchProfiles();
     }, [fetchProfiles]);
 
+    const resetForm = () => {
+        setFormDisplayName('');
+        setFormApiLevel(null);
+        setFormScreenSize(null);
+        setCreateError(null);
+        setApiLevelOpen(false);
+        setScreenSizeOpen(false);
+    };
+
     const handleCreate = async () => {
+        if (!canCreate || formApiLevel === null || formScreenSize === null) return;
+
         setCreating(true);
         setCreateError(null);
 
-        const apiLevel = parseInt(formData.apiLevel, 10);
-        if (!formData.name.trim() || !formData.displayName.trim() || isNaN(apiLevel) || apiLevel < 1) {
-            setCreateError('name, displayName, and a valid apiLevel are required');
-            setCreating(false);
-            return;
-        }
+        const name = generateName(formDisplayName, formApiLevel, formScreenSize);
 
         try {
             const token = await getAccessToken();
@@ -89,11 +122,10 @@ export default function AvdProfileManager({ projectId }: AvdProfileManagerProps)
                 method: 'POST',
                 headers,
                 body: JSON.stringify({
-                    name: formData.name.trim(),
-                    displayName: formData.displayName.trim(),
-                    apiLevel,
-                    screenSize: formData.screenSize.trim() || undefined,
-                    dockerImage: formData.dockerImage.trim() || undefined,
+                    name,
+                    displayName: formDisplayName.trim(),
+                    apiLevel: formApiLevel,
+                    screenSize: formScreenSize,
                 }),
             });
 
@@ -105,7 +137,7 @@ export default function AvdProfileManager({ projectId }: AvdProfileManagerProps)
             const newProfile = await res.json() as AvdProfileRecord;
             setProfiles(prev => [newProfile, ...prev]);
             setShowForm(false);
-            setFormData({ name: '', displayName: '', apiLevel: '', screenSize: '', dockerImage: '' });
+            resetForm();
         } catch (err) {
             const msg = err instanceof Error ? err.message : 'Create failed';
             setCreateError(msg);
@@ -149,6 +181,9 @@ export default function AvdProfileManager({ projectId }: AvdProfileManagerProps)
         );
     }
 
+    const selectedApiLabel = apiLevels.find(a => a.value === formApiLevel)?.label;
+    const selectedScreenLabel = screenSizes.find(s => s.value === formScreenSize)?.label;
+
     return (
         <>
             <Modal
@@ -173,7 +208,7 @@ export default function AvdProfileManager({ projectId }: AvdProfileManagerProps)
                     <h2 className="text-lg font-semibold text-gray-900">{t('avdProfile.title')}</h2>
                     <button
                         type="button"
-                        onClick={() => { setShowForm(!showForm); setCreateError(null); }}
+                        onClick={() => { setShowForm(!showForm); resetForm(); }}
                         className="px-3 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors flex items-center gap-2 cursor-pointer"
                     >
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -183,59 +218,87 @@ export default function AvdProfileManager({ projectId }: AvdProfileManagerProps)
                     </button>
                 </div>
 
+                <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-600 space-y-1">
+                    <p>{t('avdProfile.help.intro')}</p>
+                    <p>{t('avdProfile.help.setup')}</p>
+                </div>
+
                 {showForm && (
                     <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">{t('avdProfile.name')}</label>
-                                <input
-                                    type="text"
-                                    value={formData.name}
-                                    onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                                    placeholder="Pixel_7_API_34"
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">{t('avdProfile.displayName')}</label>
-                                <input
-                                    type="text"
-                                    value={formData.displayName}
-                                    onChange={e => setFormData(prev => ({ ...prev, displayName: e.target.value }))}
-                                    placeholder="Pixel 7 (Android 14)"
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                                />
-                            </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">{t('avdProfile.displayName')}</label>
+                            <input
+                                type="text"
+                                value={formDisplayName}
+                                onChange={e => setFormDisplayName(e.target.value)}
+                                placeholder="e.g. Pixel 9 - Android 16"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('avdProfile.apiLevel')}</label>
-                                <input
-                                    type="number"
-                                    value={formData.apiLevel}
-                                    onChange={e => setFormData(prev => ({ ...prev, apiLevel: e.target.value }))}
-                                    placeholder="34"
-                                    min="1"
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                                />
+                                <div className="relative" ref={apiLevelRef}>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setApiLevelOpen(!apiLevelOpen); setScreenSizeOpen(false); }}
+                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-white text-left flex items-center justify-between gap-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                                    >
+                                        <span className={selectedApiLabel ? 'text-gray-800' : 'text-gray-400'}>
+                                            {selectedApiLabel ?? t('avdProfile.apiLevel')}
+                                        </span>
+                                        <svg className="w-4 h-4 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </button>
+                                    {apiLevelOpen && (
+                                        <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-20 py-1 min-w-full">
+                                            {apiLevels.map(opt => (
+                                                <button
+                                                    key={opt.value}
+                                                    type="button"
+                                                    onClick={() => { setFormApiLevel(opt.value); setApiLevelOpen(false); }}
+                                                    className={`w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 ${formApiLevel === opt.value ? 'bg-gray-50 font-medium' : 'text-gray-700'}`}
+                                                >
+                                                    {opt.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
+
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('avdProfile.screenSize')}</label>
-                                <input
-                                    type="text"
-                                    value={formData.screenSize}
-                                    onChange={e => setFormData(prev => ({ ...prev, screenSize: e.target.value }))}
-                                    placeholder="1080x2400"
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                                />
-                            </div>
-                            <div className="sm:col-span-2">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">{t('avdProfile.dockerImage')}</label>
-                                <input
-                                    type="text"
-                                    value={formData.dockerImage}
-                                    onChange={e => setFormData(prev => ({ ...prev, dockerImage: e.target.value }))}
-                                    placeholder="budtmo/docker-android:emulator_34.0"
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                                />
+                                <div className="relative" ref={screenSizeRef}>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setScreenSizeOpen(!screenSizeOpen); setApiLevelOpen(false); }}
+                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-white text-left flex items-center justify-between gap-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                                    >
+                                        <span className={selectedScreenLabel ? 'text-gray-800' : 'text-gray-400'}>
+                                            {selectedScreenLabel ?? t('avdProfile.screenSize')}
+                                        </span>
+                                        <svg className="w-4 h-4 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </button>
+                                    {screenSizeOpen && (
+                                        <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-20 py-1 min-w-full">
+                                            {screenSizes.map(opt => (
+                                                <button
+                                                    key={opt.value}
+                                                    type="button"
+                                                    onClick={() => { setFormScreenSize(opt.value); setScreenSizeOpen(false); }}
+                                                    className={`w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 ${formScreenSize === opt.value ? 'bg-gray-50 font-medium' : 'text-gray-700'}`}
+                                                >
+                                                    {opt.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
@@ -248,7 +311,7 @@ export default function AvdProfileManager({ projectId }: AvdProfileManagerProps)
                         <div className="flex justify-end gap-2">
                             <button
                                 type="button"
-                                onClick={() => { setShowForm(false); setCreateError(null); }}
+                                onClick={() => { setShowForm(false); resetForm(); }}
                                 className="px-3 py-2 text-sm text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
                             >
                                 {t('common.cancel')}
@@ -256,7 +319,7 @@ export default function AvdProfileManager({ projectId }: AvdProfileManagerProps)
                             <button
                                 type="button"
                                 onClick={() => void handleCreate()}
-                                disabled={creating}
+                                disabled={creating || !canCreate}
                                 className="px-3 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-2"
                             >
                                 {creating && (

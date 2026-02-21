@@ -179,6 +179,20 @@ export const config = {
 
         avdProfile: {
             maxPerProject: 10,
+            apiLevels: [
+                { value: 35, label: 'API 35 — Android 15' },
+                { value: 34, label: 'API 34 — Android 14' },
+                { value: 33, label: 'API 33 — Android 13' },
+                { value: 31, label: 'API 31 — Android 12' },
+                { value: 30, label: 'API 30 — Android 11' },
+            ],
+            screenSizes: [
+                { value: '1080x2400', label: '1080 × 2400 (Phone)' },
+                { value: '1080x2340', label: '1080 × 2340 (Phone)' },
+                { value: '1440x3200', label: '1440 × 3200 (Phone QHD+)' },
+                { value: '1080x1920', label: '1080 × 1920 (Phone FHD)' },
+                { value: '1200x1920', label: '1200 × 1920 (Tablet 10″)' },
+            ],
         },
 
         docker: {
