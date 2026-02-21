@@ -338,6 +338,7 @@ async function setupExecutionTargets(
     targetConfigs: Record<string, BrowserConfig | TargetConfig>,
     onEvent: EventHandler,
     runId: string,
+    projectId: string | undefined,
     signal?: AbortSignal,
     actionCounter?: ActionCounter
 ): Promise<ExecutionTargets> {
@@ -469,7 +470,9 @@ async function setupExecutionTargets(
         log(`Acquiring emulator for ${niceName}...`, 'info', targetId);
 
         const pool = EmulatorPool.getInstance();
-        const profile = await prisma.avdProfile.findUnique({ where: { name: androidConfig.avdName } });
+        const profile = projectId
+            ? await prisma.avdProfile.findUnique({ where: { projectId_name: { projectId, name: androidConfig.avdName } } })
+            : null;
         const handle = await pool.acquire(androidConfig.avdName, runId, profile?.dockerImage ?? undefined, signal);
         emulatorHandles.set(targetId, handle);
 
@@ -978,7 +981,7 @@ async function cleanupTargets(targets: ExecutionTargets): Promise<void> {
 
 export async function runTest(options: RunTestOptions): Promise<TestResult> {
     const { config: testConfig, onEvent, signal, runId, onCleanup, onPreparing } = options;
-    const { url, prompt, steps, browserConfig, openRouterApiKey, testCaseId, files, resolvedVariables, resolvedFiles } = testConfig;
+    const { url, prompt, steps, browserConfig, openRouterApiKey, testCaseId, projectId, files, resolvedVariables, resolvedFiles } = testConfig;
     const log = createLogger(onEvent);
 
     const vars = resolvedVariables || {};
@@ -1037,7 +1040,7 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
             const hasAndroid = Object.values(targetConfigs).some(tc => 'type' in tc && tc.type === 'android');
             if (hasAndroid && onPreparing) await onPreparing();
 
-            executionTargets = await setupExecutionTargets(targetConfigs, onEvent, runId, runSignal, actionCounter);
+            executionTargets = await setupExecutionTargets(targetConfigs, onEvent, runId, projectId, runSignal, actionCounter);
 
             if (onCleanup && executionTargets) {
                 const capturedTargets = executionTargets;

@@ -177,6 +177,10 @@ export const config = {
             uploadDir: './uploads/apks',
         },
 
+        avdProfile: {
+            maxPerProject: 10,
+        },
+
         docker: {
             enabled: process.env.EMULATOR_DOCKER === 'true',
             stopTimeoutMs: 15_000,

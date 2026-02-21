@@ -12,7 +12,11 @@ interface AvdProfile {
     displayName: string;
 }
 
-export default function EmulatorStatusPanel() {
+interface EmulatorStatusPanelProps {
+    projectId: string;
+}
+
+export default function EmulatorStatusPanel({ projectId }: EmulatorStatusPanelProps) {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
     const [status, setStatus] = useState<EmulatorPoolStatus | null>(null);
@@ -41,7 +45,7 @@ export default function EmulatorStatusPanel() {
         try {
             const token = await getAccessToken();
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const res = await fetch('/api/avd-profiles', { headers });
+            const res = await fetch(`/api/projects/${projectId}/avd-profiles`, { headers });
             if (res.ok) {
                 const data = await res.json() as AvdProfile[];
                 setAvdProfiles(data);
@@ -50,7 +54,7 @@ export default function EmulatorStatusPanel() {
         } catch {
             // ignore
         }
-    }, [getAccessToken]);
+    }, [projectId, getAccessToken]);
 
     useEffect(() => {
         void fetchStatus();
@@ -115,7 +119,7 @@ export default function EmulatorStatusPanel() {
             await fetch('/api/admin/emulators', {
                 method: 'POST',
                 headers,
-                body: JSON.stringify({ action: 'boot', avdName: selectedAvd }),
+                body: JSON.stringify({ action: 'boot', avdName: selectedAvd, projectId }),
             });
             await fetchStatus();
         } finally {

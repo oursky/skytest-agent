@@ -48,17 +48,17 @@ export async function POST(request: Request) {
     }
 
     try {
-        const body = await request.json() as { action: string; emulatorId?: string; avdName?: string };
-        const { action, emulatorId, avdName } = body;
+        const body = await request.json() as { action: string; emulatorId?: string; avdName?: string; projectId?: string };
+        const { action, emulatorId, avdName, projectId } = body;
 
         if (action === 'stop' && emulatorId) {
             await emulatorPool.stop(emulatorId);
             return NextResponse.json({ success: true });
         }
 
-        if (action === 'boot' && avdName) {
+        if (action === 'boot' && avdName && projectId) {
             const profile = await prisma.avdProfile.findUnique({
-                where: { name: avdName },
+                where: { projectId_name: { projectId, name: avdName } },
                 select: { dockerImage: true },
             });
             logger.info('Emulator boot requested', { avdName, userId });

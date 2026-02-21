@@ -14,6 +14,7 @@ import Pagination from '@/components/Pagination';
 import ProjectConfigs from '@/components/ProjectConfigs';
 import ApkManager from '@/components/ApkManager';
 import EmulatorStatusPanel from '@/components/EmulatorStatusPanel';
+import AvdProfileManager from '@/components/AvdProfileManager';
 
 interface TestRun {
     id: string;
@@ -625,7 +626,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 )}
 
                 {activeTab === 'emulators' && androidEnabled && (
-                    <EmulatorStatusPanel />
+                    <div className="space-y-8">
+                        <AvdProfileManager projectId={id} />
+                        <EmulatorStatusPanel projectId={id} />
+                    </div>
                 )}
 
                 <div className={`bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden ${activeTab !== 'test-cases' ? 'hidden' : ''}`}>

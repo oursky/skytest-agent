@@ -159,18 +159,17 @@ export default function ConfigurationsSection({
     }, [addTypeOpen, urlDropdownOpen, randomStringDropdownOpen, avdDropdownOpen, apkDropdownOpen]);
 
     useEffect(() => {
+        if (!projectId) return;
         const fetchAndroidData = async () => {
             const token = await getAccessToken();
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const avdRes = await fetch('/api/avd-profiles', { headers });
+            const avdRes = await fetch(`/api/projects/${projectId}/avd-profiles`, { headers });
             if (avdRes.ok) {
                 setAvdProfiles(await avdRes.json());
             }
-            if (projectId) {
-                const apkRes = await fetch(`/api/projects/${projectId}/apks`, { headers });
-                if (apkRes.ok) {
-                    setProjectApks(await apkRes.json());
-                }
+            const apkRes = await fetch(`/api/projects/${projectId}/apks`, { headers });
+            if (apkRes.ok) {
+                setProjectApks(await apkRes.json());
             }
         };
         fetchAndroidData().catch(() => {});

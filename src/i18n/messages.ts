@@ -333,6 +333,19 @@ export const MESSAGES: Record<Locale, Messages> = {
     'apk.delete.confirm': 'Delete this APK?',
     'apk.size': '{size} MB',
 
+    // AVD Profiles
+    'avdProfile.title': 'AVD Profiles',
+    'avdProfile.add': 'Add Profile',
+    'avdProfile.empty': 'No AVD profiles yet.',
+    'avdProfile.name': 'Name',
+    'avdProfile.displayName': 'Display Name',
+    'avdProfile.apiLevel': 'API Level',
+    'avdProfile.screenSize': 'Screen Size',
+    'avdProfile.dockerImage': 'Docker Image',
+    'avdProfile.delete.confirm': 'Delete this AVD profile?',
+    'avdProfile.create': 'Create',
+    'avdProfile.creating': 'Creating…',
+
     // Emulator panel
     'emulator.panel.title': 'Emulator Pool',
     'emulator.panel.empty': 'No emulators running.',
@@ -729,6 +742,19 @@ export const MESSAGES: Record<Locale, Messages> = {
     'apk.delete.confirm': '刪除此 APK？',
     'apk.size': '{size} MB',
 
+    // AVD Profiles
+    'avdProfile.title': 'AVD 設定檔',
+    'avdProfile.add': '新增設定檔',
+    'avdProfile.empty': '尚無 AVD 設定檔。',
+    'avdProfile.name': '名稱',
+    'avdProfile.displayName': '顯示名稱',
+    'avdProfile.apiLevel': 'API 等級',
+    'avdProfile.screenSize': '螢幕尺寸',
+    'avdProfile.dockerImage': 'Docker 映像',
+    'avdProfile.delete.confirm': '刪除此 AVD 設定檔？',
+    'avdProfile.create': '建立',
+    'avdProfile.creating': '建立中…',
+
     // Emulator panel
     'emulator.panel.title': '模擬器池',
     'emulator.panel.empty': '目前沒有執行中的模擬器。',
@@ -1124,6 +1150,19 @@ export const MESSAGES: Record<Locale, Messages> = {
     'apk.empty': '暂未上传任何 APK。',
     'apk.delete.confirm': '删除此 APK？',
     'apk.size': '{size} MB',
+
+    // AVD Profiles
+    'avdProfile.title': 'AVD 配置',
+    'avdProfile.add': '添加配置',
+    'avdProfile.empty': '暂无 AVD 配置。',
+    'avdProfile.name': '名称',
+    'avdProfile.displayName': '显示名称',
+    'avdProfile.apiLevel': 'API 等级',
+    'avdProfile.screenSize': '屏幕尺寸',
+    'avdProfile.dockerImage': 'Docker 镜像',
+    'avdProfile.delete.confirm': '删除此 AVD 配置？',
+    'avdProfile.create': '创建',
+    'avdProfile.creating': '创建中…',
 
     // Emulator panel
     'emulator.panel.title': '模拟器池',
