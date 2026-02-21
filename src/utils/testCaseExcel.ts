@@ -633,7 +633,7 @@ function formatRandomStringValueForSheet(value: string): string {
 
 function formatConfigTypeForSheet(value: SupportedVariableType): string {
     if (value === 'URL') return 'URL';
-    if (value === 'APP_ID') return 'App ID';
+    if (value === 'APP_ID') return 'AppID';
     if (value === 'VARIABLE') return 'Variable';
     if (value === 'SECRET') return 'Secret';
     if (value === 'RANDOM_STRING') return 'Random String';
