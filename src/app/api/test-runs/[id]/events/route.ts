@@ -208,7 +208,7 @@ export async function GET(
                             return;
                         }
 
-                        if (['RUNNING', 'QUEUED'].includes(freshRun.status) && freshRun.status !== lastSentStatus) {
+                        if (['RUNNING', 'QUEUED', 'PREPARING'].includes(freshRun.status) && freshRun.status !== lastSentStatus) {
                             safeEnqueue({ type: 'status', status: freshRun.status });
                             lastSentStatus = freshRun.status;
                         }

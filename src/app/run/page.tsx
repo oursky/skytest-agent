@@ -21,7 +21,7 @@ interface TestData {
 }
 
 interface TestResult {
-    status: 'IDLE' | 'RUNNING' | 'PASS' | 'FAIL' | 'CANCELLED' | 'QUEUED';
+    status: 'IDLE' | 'RUNNING' | 'PASS' | 'FAIL' | 'CANCELLED' | 'QUEUED' | 'PREPARING';
     events: TestEvent[];
     error?: string;
 }
@@ -329,7 +329,7 @@ function RunPageContent() {
 
                 if (data.testRuns && data.testRuns.length > 0) {
                     const latestRun = data.testRuns[0];
-                    if (['RUNNING', 'QUEUED'].includes(latestRun.status)) {
+                    if (['RUNNING', 'QUEUED', 'PREPARING'].includes(latestRun.status)) {
                         setActiveRunId(latestRun.id);
                     } else {
                         setActiveRunId(null);
@@ -773,10 +773,11 @@ function RunPageContent() {
 
     const isRunInProgress =
         isLoading
-        || ['RUNNING', 'QUEUED'].includes(result.status)
+        || ['RUNNING', 'QUEUED', 'PREPARING'].includes(result.status)
         || !!activeRunId
         || testCaseStatus === 'RUNNING'
-        || testCaseStatus === 'QUEUED';
+        || testCaseStatus === 'QUEUED'
+        || testCaseStatus === 'PREPARING';
 
     if (isAuthLoading) return null;
 
@@ -802,7 +803,7 @@ function RunPageContent() {
                     {testCaseId ? t('run.title.runTest') : t('run.title.startNewRun')}
                 </h1>
                 <div className="flex items-center gap-2">
-                    {['RUNNING', 'QUEUED'].includes(result.status) && (
+                    {['RUNNING', 'QUEUED', 'PREPARING'].includes(result.status) && (
                         <button
                             onClick={handleStopTest}
                             className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors flex items-center gap-2"

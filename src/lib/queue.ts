@@ -32,7 +32,7 @@ export class TestQueue {
     public async startup(): Promise<void> {
         try {
             const staleRuns = await prisma.testRun.findMany({
-                where: { status: { in: ['RUNNING', 'QUEUED'] } },
+                where: { status: { in: ['RUNNING', 'QUEUED', 'PREPARING'] } },
                 select: { id: true, testCaseId: true }
             });
 
@@ -198,7 +198,7 @@ export class TestQueue {
                         }
                     });
 
-                    if (run && ['RUNNING', 'QUEUED'].includes(run.status)) {
+                    if (run && ['RUNNING', 'QUEUED', 'PREPARING'].includes(run.status)) {
                         await prisma.testRun.update({
                             where: { id: runId },
                             data: { status: 'CANCELLED', error: 'Force cancelled (orphaned run)', completedAt: new Date() }

@@ -248,7 +248,7 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
         );
     }
 
-    const isRunningOrQueued = ['RUNNING', 'QUEUED'].includes(deleteModal.status || '');
+    const isRunningOrQueued = ['RUNNING', 'QUEUED', 'PREPARING'].includes(deleteModal.status || '');
 
     return (
         <main className="min-h-screen bg-gray-50">
@@ -301,7 +301,7 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
                         <>
                         <div className="divide-y divide-gray-100">
                             {paginatedTestRuns.map((run) => {
-                                const isRunRunningOrQueued = ['RUNNING', 'QUEUED'].includes(run.status);
+                                const isRunRunningOrQueued = ['RUNNING', 'QUEUED', 'PREPARING'].includes(run.status);
                                 return (
                                     <div key={run.id} className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-gray-50 transition-colors">
                                         <div className="col-span-3">

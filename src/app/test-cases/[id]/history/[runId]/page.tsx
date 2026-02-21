@@ -9,11 +9,11 @@ import Breadcrumbs from "@/components/Breadcrumbs";
 import { formatDateTime } from "@/utils/dateFormatter";
 import { useI18n } from "@/i18n";
 
-import { TestStep, BrowserConfig, ConfigItem } from "@/types";
+import { TestStep, BrowserConfig, TargetConfig, ConfigItem } from "@/types";
 
 interface TestRun {
     id: string;
-    status: 'IDLE' | 'RUNNING' | 'PASS' | 'FAIL';
+    status: 'IDLE' | 'RUNNING' | 'PASS' | 'FAIL' | 'CANCELLED' | 'QUEUED' | 'PREPARING';
     createdAt: string;
     result: string;
     error: string | null;
@@ -28,7 +28,7 @@ interface TestCase {
     url: string;
     prompt: string;
     steps?: TestStep[];
-    browserConfig?: Record<string, BrowserConfig>;
+    browserConfig?: Record<string, BrowserConfig | TargetConfig>;
 }
 
 export default function RunDetailPage({ params }: { params: Promise<{ id: string; runId: string }> }) {

@@ -288,6 +288,8 @@ export const MESSAGES: Record<Locale, Messages> = {
     'results.closeLightbox': 'Close lightbox',
 
     // ResultStatus
+    'status.preparing': 'Setting up…',
+    'status.preparing.detail': 'Starting the Android emulator and installing the app. This may take up to a minute.',
     'results.pass.title': 'Test Passed',
     'results.pass.body': 'All test steps completed successfully without errors.',
     'results.cancelled.title': 'Test Cancelled',
@@ -682,6 +684,8 @@ export const MESSAGES: Record<Locale, Messages> = {
     'results.closeLightbox': '關閉預覽',
 
     // ResultStatus
+    'status.preparing': '準備中…',
+    'status.preparing.detail': '正在啟動 Android 模擬器並安裝應用程式，這可能需要約一分鐘。',
     'results.pass.title': '測試成功',
     'results.pass.body': '所有測試步驟已成功完成，未發生錯誤。',
     'results.cancelled.title': '測試已取消',
@@ -1076,6 +1080,8 @@ export const MESSAGES: Record<Locale, Messages> = {
     'results.closeLightbox': '关闭预览',
 
     // ResultStatus
+    'status.preparing': '准备中…',
+    'status.preparing.detail': '正在启动 Android 模拟器并安装应用程序，这可能需要约一分钟。',
     'results.pass.title': '测试通过',
     'results.pass.body': '所有测试步骤已成功完成，未发生错误。',
     'results.cancelled.title': '测试已取消',
