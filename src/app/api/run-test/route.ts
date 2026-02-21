@@ -7,7 +7,8 @@ import { validateTargetUrl } from '@/lib/url-security';
 import { createLogger } from '@/lib/logger';
 import { resolveConfigs } from '@/lib/config-resolver';
 import { config as appConfig } from '@/config/app';
-import type { BrowserConfig, ResolvedConfig, TestStep } from '@/types';
+import { listAvailableAndroidProfiles } from '@/lib/android-profiles';
+import type { BrowserConfig, TargetConfig, AndroidTargetConfig, ResolvedConfig, TestStep } from '@/types';
 
 const logger = createLogger('api:run-test');
 
@@ -18,7 +19,7 @@ interface RunTestRequest {
     url?: string;
     prompt?: string;
     steps?: TestStep[];
-    browserConfig?: Record<string, BrowserConfig>;
+    browserConfig?: Record<string, BrowserConfig | TargetConfig>;
     testCaseId?: string;
 }
 
@@ -42,6 +43,7 @@ function validateConfigUrls(config: RunTestRequest): string | null {
     if (config.url) urls.push(config.url);
     if (config.browserConfig) {
         for (const entry of Object.values(config.browserConfig)) {
+            if ('type' in entry && entry.type === 'android') continue;
             if (entry.url) urls.push(entry.url);
         }
     }
@@ -50,6 +52,58 @@ function validateConfigUrls(config: RunTestRequest): string | null {
         const result = validateTargetUrl(url);
         if (!result.valid) {
             return result.error || 'Target URL is not allowed';
+        }
+    }
+
+    return null;
+}
+
+function isAndroidTargetConfig(config: BrowserConfig | TargetConfig): config is AndroidTargetConfig {
+    return 'type' in config && config.type === 'android';
+}
+
+async function validateAndroidTargets(
+    browserConfig: RunTestRequest['browserConfig'],
+    projectId: string
+): Promise<string | null> {
+    if (!browserConfig || Object.keys(browserConfig).length === 0) {
+        return null;
+    }
+
+    const androidTargets = Object.values(browserConfig).filter(isAndroidTargetConfig);
+    if (androidTargets.length === 0) {
+        return null;
+    }
+
+    const availableProfiles = await listAvailableAndroidProfiles();
+    const availableProfileNames = new Set(availableProfiles.map(profile => profile.name));
+
+    const apkIds = new Set<string>();
+    for (const target of androidTargets) {
+        if (!target.avdName) {
+            return 'Android target must include an AVD profile';
+        }
+        if (!target.apkId) {
+            return 'Android target must include an APK';
+        }
+        if (!availableProfileNames.has(target.avdName)) {
+            return `AVD profile "${target.avdName}" is not available in current runtime inventory`;
+        }
+        apkIds.add(target.apkId);
+    }
+
+    const apks = await prisma.projectApk.findMany({
+        where: {
+            projectId,
+            id: { in: Array.from(apkIds) },
+        },
+        select: { id: true },
+    });
+    const apkIdSet = new Set(apks.map(apk => apk.id));
+
+    for (const apkId of apkIds) {
+        if (!apkIdSet.has(apkId)) {
+            return `APK "${apkId}" is not available in this project`;
         }
     }
 
@@ -140,6 +194,11 @@ export async function POST(request: Request) {
 
         if (testCase.project.userId !== userId) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+
+        const androidValidationError = await validateAndroidTargets(browserConfig, testCase.projectId);
+        if (androidValidationError) {
+            return NextResponse.json({ error: androidValidationError }, { status: 400 });
         }
 
         let openRouterApiKey: string;

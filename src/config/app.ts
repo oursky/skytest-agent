@@ -153,6 +153,8 @@ export const config = {
         maxInstances: parseInt(process.env.EMULATOR_MAX_INSTANCES || '2'),
 
         bootTimeoutMs: 120_000,
+        bootMaxAttempts: parseInt(process.env.EMULATOR_BOOT_MAX_ATTEMPTS || '2'),
+        bootRetryDelayMs: parseInt(process.env.EMULATOR_BOOT_RETRY_DELAY_MS || '5000'),
         acquireTimeoutMs: 180_000,
         idleTimeoutMs: 300_000,
         cleanTimeoutMs: 60_000,
@@ -199,6 +201,7 @@ export const config = {
             enabled: process.env.EMULATOR_DOCKER === 'true',
             stopTimeoutMs: 15_000,
             containerNamePrefix: 'skytest-emu-',
+            profilesJson: process.env.EMULATOR_DOCKER_PROFILES || '[]',
         },
 
         basePort: 5554,

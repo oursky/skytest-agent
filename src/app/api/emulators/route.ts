@@ -28,7 +28,12 @@ export async function GET(request: Request) {
     }
 
     try {
-        const status = emulatorPool.getStatus();
+        const projects = await prisma.project.findMany({
+            where: { userId },
+            select: { id: true },
+        });
+        const projectIds = new Set(projects.map(project => project.id));
+        const status = emulatorPool.getStatus(projectIds);
 
         const acquiredRunIds = status.emulators
             .filter(e => e.state === 'ACQUIRED' && e.runId)

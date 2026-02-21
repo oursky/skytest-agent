@@ -4,13 +4,14 @@ import { PlaywrightAgent } from '@midscene/web/playwright';
 import { TestStep, BrowserConfig, TargetConfig, AndroidTargetConfig, AndroidAgent, TestEvent, TestResult, RunTestOptions, TestCaseFile } from '@/types';
 import { config } from '@/config/app';
 import { ConfigurationError, TestExecutionError, PlaywrightCodeError, getErrorMessage } from './errors';
-import { getFilePath, getUploadPath } from './file-security';
+import { getApkFilePath, getFilePath, getUploadPath } from './file-security';
 import { substituteAll } from './config-resolver';
 import { createLogger as createServerLogger } from '@/lib/logger';
 import { withMidsceneApiKey } from '@/lib/midscene-env';
 import { validateTargetUrl } from './url-security';
 import { validateRuntimeRequestUrl } from './url-security-runtime';
 import { EmulatorPool, EmulatorHandle } from './emulator-pool';
+import { getAvailableAndroidProfile } from './android-profiles';
 import { prisma } from '@/lib/prisma';
 import { Script, createContext } from 'node:vm';
 import path from 'node:path';
@@ -469,14 +470,36 @@ async function setupExecutionTargets(
 
         log(`Acquiring emulator for ${niceName}...`, 'info', targetId);
 
+        if (!projectId) {
+            throw new ConfigurationError('Project ID is required for Android targets.', 'android');
+        }
+
+        const profile = await getAvailableAndroidProfile(androidConfig.avdName);
+        if (!profile) {
+            throw new ConfigurationError(`AVD profile "${androidConfig.avdName}" is not available.`, 'android');
+        }
+
+        const apk = await prisma.projectApk.findUnique({
+            where: { id: androidConfig.apkId },
+            select: { id: true, projectId: true, storedName: true, packageName: true, activityName: true },
+        });
+        if (!apk || apk.projectId !== projectId) {
+            throw new ConfigurationError(`APK "${androidConfig.apkId}" is not available in this project.`, 'android');
+        }
+        if (!apk.packageName) {
+            throw new ConfigurationError('Selected APK has no package name metadata. Re-upload a valid APK.', 'android');
+        }
+
         const pool = EmulatorPool.getInstance();
-        const profile = projectId
-            ? await prisma.avdProfile.findUnique({ where: { projectId_name: { projectId, name: androidConfig.avdName } } })
-            : null;
-        const handle = await pool.acquire(androidConfig.avdName, runId, profile?.dockerImage ?? undefined, signal);
+        const handle = await pool.acquire(projectId, androidConfig.avdName, runId, profile.dockerImage ?? undefined, signal);
         emulatorHandles.set(targetId, handle);
 
         log(`Emulator acquired: ${handle.id}`, 'info', targetId);
+
+        const apkPath = getApkFilePath(projectId, apk.storedName);
+        log(`Installing APK for ${niceName}...`, 'info', targetId);
+        await pool.installApk(handle, apkPath);
+        log(`APK installed for ${niceName}`, 'success', targetId);
 
         if (!handle.agent) {
             throw new ConfigurationError(
@@ -493,8 +516,10 @@ async function setupExecutionTargets(
         }
 
         const activityTarget = androidConfig.activity
-            ? `${androidConfig.apkId}/${androidConfig.activity}`
-            : androidConfig.apkId;
+            ? `${apk.packageName}/${androidConfig.activity}`
+            : apk.activityName
+                ? `${apk.packageName}/${apk.activityName}`
+                : apk.packageName;
         await handle.agent.launch(activityTarget);
 
         agents.set(targetId, handle.agent);
