@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/auth';
 import { emulatorPool } from '@/lib/emulator-pool';
+import { listAvailableAndroidProfiles } from '@/lib/android-profiles';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('api:emulators');
@@ -61,7 +62,12 @@ export async function GET(request: Request) {
             }
         }
 
-        return NextResponse.json(status);
+        const avdProfiles = await listAvailableAndroidProfiles();
+
+        return NextResponse.json({
+            ...status,
+            avdProfiles,
+        });
     } catch (error) {
         logger.error('Failed to get emulator pool status', error);
         return NextResponse.json({ error: 'Failed to get pool status' }, { status: 500 });

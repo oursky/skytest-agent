@@ -326,7 +326,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'project.tab.android': 'Emulators',
 
     // Android setup
-    'android.setup.help': 'Start an existing emulator on your Mac:\n1. List AVDs: `emulator -list-avds`\n2. Boot one AVD: `emulator -avd <AVD_NAME> -port 5554`\n3. Wait for device: `adb -s emulator-5554 wait-for-device`\n4. Confirm boot complete: `adb -s emulator-5554 shell getprop sys.boot_completed` (expect `1`)',
+    'android.setup.help': 'Start an existing emulator on your Mac:\n1. List AVDs: `emulator -list-avds`\n2. Boot one AVD: `emulator -avd <AVD_NAME> -port 5554`',
 
     // APK management
     'apk.upload': 'Upload APK',
@@ -353,6 +353,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'emulator.panel.empty': 'No emulators running.',
     'emulator.stop': 'Stop',
     'emulator.inUse': 'In Use',
+    'emulator.notRunning': 'Not running',
     'emulator.testRun': 'Test Run',
     'emulator.waiting': '{n} waiting',
 
@@ -747,7 +748,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'project.tab.android': '模擬器',
 
     // Android setup
-    'android.setup.help': '在 Mac 啟動既有模擬器：\n1. 列出 AVD：`emulator -list-avds`\n2. 啟動 AVD：`emulator -avd <AVD_NAME> -port 5554`\n3. 等待裝置就緒：`adb -s emulator-5554 wait-for-device`\n4. 確認開機完成：`adb -s emulator-5554 shell getprop sys.boot_completed`（應為 `1`）',
+    'android.setup.help': '在 Mac 啟動既有模擬器：\n1. 列出 AVD：`emulator -list-avds`\n2. 啟動 AVD：`emulator -avd <AVD_NAME> -port 5554`',
 
     // APK management
     'apk.upload': '上傳 APK',
@@ -774,6 +775,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'emulator.panel.empty': '目前沒有執行中的模擬器。',
     'emulator.stop': '停止',
     'emulator.inUse': '使用中',
+    'emulator.notRunning': '未啟動',
     'emulator.testRun': '測試執行',
     'emulator.waiting': '{n} 個等待中',
 
@@ -1168,7 +1170,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'project.tab.android': '模拟器',
 
     // Android setup
-    'android.setup.help': '在 Mac 启动已有模拟器：\n1. 列出 AVD：`emulator -list-avds`\n2. 启动 AVD：`emulator -avd <AVD_NAME> -port 5554`\n3. 等待设备就绪：`adb -s emulator-5554 wait-for-device`\n4. 确认启动完成：`adb -s emulator-5554 shell getprop sys.boot_completed`（应为 `1`）',
+    'android.setup.help': '在 Mac 启动已有模拟器：\n1. 列出 AVD：`emulator -list-avds`\n2. 启动 AVD：`emulator -avd <AVD_NAME> -port 5554`',
 
     // APK management
     'apk.upload': '上传 APK',
@@ -1195,6 +1197,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'emulator.panel.empty': '当前没有运行中的模拟器。',
     'emulator.stop': '停止',
     'emulator.inUse': '使用中',
+    'emulator.notRunning': '未启动',
     'emulator.testRun': '测试运行',
     'emulator.waiting': '{n} 个等待中',
 

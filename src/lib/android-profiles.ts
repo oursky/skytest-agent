@@ -104,8 +104,7 @@ export async function listAvailableAndroidProfiles(): Promise<AvailableAndroidPr
                     apiLevel: config.apiLevel,
                     screenSize: config.screenSize,
                 };
-            })
-            .sort((a, b) => a.displayName.localeCompare(b.displayName));
+            });
     } catch (error) {
         logger.warn(`Failed to list local AVD profiles: ${getAndroidSdkSetupHint()}`, error);
         return [];
