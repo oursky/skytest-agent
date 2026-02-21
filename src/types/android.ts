@@ -6,9 +6,11 @@ export interface AndroidAgent {
     aiQuery(query: string): Promise<unknown>;
     launch(packageOrActivity: string): Promise<void>;
     setAIActContext(context: string): void;
+    onTaskStartTip?: (tip: string) => void | Promise<void>;
 }
 
 export interface AndroidDevice {
     deviceId: string;
     shell(command: string): Promise<string>;
+    screenshotBase64?: () => Promise<string>;
 }

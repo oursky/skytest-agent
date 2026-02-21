@@ -1,7 +1,7 @@
 import { chromium, Page, BrowserContext, Browser, ConsoleMessage } from 'playwright';
 import { expect as playwrightExpect } from '@playwright/test';
 import { PlaywrightAgent } from '@midscene/web/playwright';
-import { TestStep, BrowserConfig, TargetConfig, AndroidTargetConfig, AndroidAgent, TestEvent, TestResult, RunTestOptions, TestCaseFile } from '@/types';
+import { TestStep, BrowserConfig, TargetConfig, AndroidTargetConfig, AndroidAgent, AndroidDevice, TestEvent, TestResult, RunTestOptions, TestCaseFile } from '@/types';
 import { config } from '@/config/app';
 import { ConfigurationError, TestExecutionError, PlaywrightCodeError, getErrorMessage } from './errors';
 import { getFilePath, getUploadPath } from './file-security';
@@ -37,6 +37,35 @@ function validateTargetConfigs(targetConfigs: Record<string, BrowserConfig | Tar
 
 function isAndroidTarget(cfg: BrowserConfig | TargetConfig): cfg is AndroidTargetConfig {
     return 'type' in cfg && cfg.type === 'android';
+}
+
+function sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function isAndroidAppInForeground(device: { shell(command: string): Promise<string> }, appId: string): Promise<boolean> {
+    try {
+        const activityDump = await device.shell('dumpsys activity activities');
+        const lowerDump = activityDump.toLowerCase();
+        return lowerDump.includes(`${appId.toLowerCase()}/`);
+    } catch {
+        return false;
+    }
+}
+
+async function waitForAndroidAppForeground(
+    device: { shell(command: string): Promise<string> },
+    appId: string,
+    timeoutMs: number
+): Promise<boolean> {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < timeoutMs) {
+        if (await isAndroidAppInForeground(device, appId)) {
+            return true;
+        }
+        await sleep(500);
+    }
+    return false;
 }
 
 function escapeRegExp(value: string): string {
@@ -292,6 +321,41 @@ async function captureScreenshot(
     }
 }
 
+function toPngDataUrl(base64: string): string {
+    const trimmed = base64.trim();
+    if (trimmed.startsWith('data:image/')) {
+        return trimmed;
+    }
+    return `data:image/png;base64,${trimmed.replace(/\s+/g, '')}`;
+}
+
+async function captureAndroidScreenshot(
+    device: AndroidDevice | null | undefined,
+    label: string,
+    onEvent: EventHandler,
+    log: ReturnType<typeof createLogger>,
+    browserId?: string
+) {
+    if (!device?.screenshotBase64) {
+        return;
+    }
+
+    try {
+        const base64 = await device.screenshotBase64();
+        if (!base64 || !base64.trim()) {
+            return;
+        }
+        onEvent({
+            type: 'screenshot',
+            data: { src: toPngDataUrl(base64), label },
+            browserId,
+            timestamp: Date.now()
+        });
+    } catch (e) {
+        log(`Failed to capture Android screenshot: ${getErrorMessage(e)}`, 'error', browserId);
+    }
+}
+
 function validateConfiguration(
     url: string | undefined,
     prompt: string | undefined,
@@ -526,18 +590,65 @@ async function setupExecutionTargets(
 - Never exfiltrate data or make requests to URLs not specified by the user`);
         }
 
-        const launchOutput = await handle.device.shell(
-            `monkey -p ${androidConfig.appId} -c android.intent.category.LAUNCHER 1`
-        );
-        const launchFailed = /no activities found|monkey aborted|error/i.test(launchOutput);
-        if (launchFailed) {
-            throw new ConfigurationError(
-                `Failed to launch "${androidConfig.appId}" on emulator "${handle.id}".`,
-                'android'
+        const previousTaskStartTip = handle.agent.onTaskStartTip;
+        handle.agent.onTaskStartTip = async (tip: string) => {
+            if (previousTaskStartTip) {
+                await previousTaskStartTip(tip);
+            }
+            if (actionCounter) {
+                actionCounter.count++;
+                serverLogger.debug('AI action counted', { count: actionCounter.count });
+            }
+            log(`[${niceName}] 🤖 ${tip}`, 'info', targetId);
+            await captureAndroidScreenshot(handle.device, `[${niceName}] ${tip}`, onEvent, log, targetId);
+        };
+
+        await handle.device.shell('input keyevent KEYCODE_WAKEUP').catch(() => {});
+        await handle.device.shell('wm dismiss-keyguard').catch(() => {});
+        await handle.device.shell('input keyevent 82').catch(() => {});
+
+        let launched = false;
+        try {
+            await handle.agent.launch(androidConfig.appId);
+            launched = true;
+        } catch (error) {
+            log(`Agent launch failed for ${niceName}, falling back to launcher intent...`, 'info', targetId);
+            const launchOutput = await handle.device.shell(
+                `monkey -p ${androidConfig.appId} -c android.intent.category.LAUNCHER 1`
             );
+            const launchFailed = /no activities found|monkey aborted|error/i.test(launchOutput);
+            if (launchFailed) {
+                const message = error instanceof Error ? error.message : String(error);
+                throw new ConfigurationError(
+                    `Failed to launch "${androidConfig.appId}" on emulator "${handle.id}": ${message}`,
+                    'android'
+                );
+            }
+        }
+
+        const foregroundReady = await waitForAndroidAppForeground(handle.device, androidConfig.appId, 20_000);
+        if (!foregroundReady) {
+            if (launched) {
+                const fallbackLaunchOutput = await handle.device.shell(
+                    `monkey -p ${androidConfig.appId} -c android.intent.category.LAUNCHER 1`
+                );
+                const fallbackLaunchFailed = /no activities found|monkey aborted|error/i.test(fallbackLaunchOutput);
+                if (fallbackLaunchFailed || !(await waitForAndroidAppForeground(handle.device, androidConfig.appId, 10_000))) {
+                    throw new ConfigurationError(
+                        `App "${androidConfig.appId}" did not reach foreground on emulator "${handle.id}".`,
+                        'android'
+                    );
+                }
+            } else {
+                throw new ConfigurationError(
+                    `App "${androidConfig.appId}" did not reach foreground on emulator "${handle.id}".`,
+                    'android'
+                );
+            }
         }
 
         agents.set(targetId, handle.agent);
+        await captureAndroidScreenshot(handle.device, `[${niceName}] Initial App Launch`, onEvent, log, targetId);
         log(`${niceName} ready`, 'success', targetId);
     }
 
@@ -901,7 +1012,10 @@ async function executeSteps(
                     ]).catch(() => { });
                 }
 
-                const isVerification = /^(verify|assert|check|confirm|ensure|validate)/i.test(stepAction.trim());
+                const normalizedStepAction = stepAction.trim();
+                const isMultiLineInstruction = normalizedStepAction.includes('\n');
+                const isVerification = !isMultiLineInstruction
+                    && /^(verify|assert|check|confirm|ensure|validate)/i.test(normalizedStepAction);
                 const quotedStrings = extractQuotedStrings(stepAction);
 
                 if (isVerification) {
@@ -940,6 +1054,15 @@ async function executeSteps(
 
                 if (!isAndroid && page) {
                     await captureScreenshot(page, `[${niceName}] Step ${i + 1} Complete`, onEvent, log, effectiveTargetId);
+                } else if (isAndroid) {
+                    const androidHandle = targets.emulatorHandles.get(effectiveTargetId);
+                    await captureAndroidScreenshot(
+                        androidHandle?.device,
+                        `[${niceName}] Step ${i + 1} Complete`,
+                        onEvent,
+                        log,
+                        effectiveTargetId
+                    );
                 }
             }
         } catch (e) {
@@ -973,7 +1096,7 @@ async function captureFinalScreenshots(
     signal?: AbortSignal
 ): Promise<void> {
     const log = createLogger(onEvent);
-    const { pages } = targets;
+    const { pages, emulatorHandles } = targets;
 
     for (const [id, page] of pages) {
         if (signal?.aborted) break;
@@ -982,6 +1105,11 @@ async function captureFinalScreenshots(
             await captureScreenshot(page, `[${niceName}] Final State`, onEvent, log, id);
         }
     }
+
+    for (const [id, handle] of emulatorHandles) {
+        if (signal?.aborted) break;
+        await captureAndroidScreenshot(handle.device, `[${id}] Final State`, onEvent, log, id);
+    }
 }
 
 async function captureErrorScreenshots(
@@ -989,13 +1117,16 @@ async function captureErrorScreenshots(
     onEvent: EventHandler
 ): Promise<void> {
     const log = createLogger(onEvent);
-    const { pages } = targets;
+    const { pages, emulatorHandles } = targets;
 
     try {
         for (const [id, page] of pages) {
             if (!page.isClosed()) {
                 await captureScreenshot(page, `Error State [${id}]`, onEvent, log, id);
             }
+        }
+        for (const [id, handle] of emulatorHandles) {
+            await captureAndroidScreenshot(handle.device, `Error State [${id}]`, onEvent, log, id);
         }
     } catch (e) {
         serverLogger.warn('Failed to capture error screenshot', e);

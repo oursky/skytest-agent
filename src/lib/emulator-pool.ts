@@ -72,6 +72,7 @@ interface EmulatorInstance {
 
 interface MidsceneAndroidDevice {
     connect(): Promise<void>;
+    screenshotBase64?(): Promise<string>;
 }
 
 interface MidsceneAndroidDeviceConstructor {
@@ -435,6 +436,9 @@ export class EmulatorPool {
             instance.device = {
                 deviceId: instance.serial,
                 shell: async (command: string) => instance.adb.shell(command),
+                screenshotBase64: typeof runtimeDevice.screenshotBase64 === 'function'
+                    ? async () => runtimeDevice.screenshotBase64!()
+                    : undefined,
             };
             instance.agent = new module.AndroidAgent(runtimeDevice, {
                 groupName: `${instance.projectId}-${instance.avdName}-${instance.port}`,

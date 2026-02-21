@@ -1,13 +1,56 @@
 import { NextResponse } from 'next/server';
+import { execFile } from 'node:child_process';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/auth';
 import { emulatorPool } from '@/lib/emulator-pool';
 import { listAvailableAndroidProfiles } from '@/lib/android-profiles';
+import { resolveAndroidToolPath } from '@/lib/android-sdk';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('api:emulators');
 
 export const dynamic = 'force-dynamic';
+
+function execFileAsync(file: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
+    return new Promise((resolve, reject) => {
+        execFile(file, args, { encoding: 'utf8' }, (error, stdout, stderr) => {
+            if (error) {
+                reject(error);
+                return;
+            }
+            resolve({ stdout: String(stdout), stderr: String(stderr) });
+        });
+    });
+}
+
+async function listRunningAdbEmulators(): Promise<Array<{ id: string; avdName: string }>> {
+    try {
+        const adbPath = resolveAndroidToolPath('adb');
+        const { stdout } = await execFileAsync(adbPath, ['devices']);
+        const serials = stdout
+            .split('\n')
+            .map((line) => line.trim())
+            .filter((line) => /^emulator-\d+\s+device$/i.test(line))
+            .map((line) => line.split(/\s+/)[0]);
+
+        const running: Array<{ id: string; avdName: string }> = [];
+        for (const serial of serials) {
+            try {
+                const { stdout: avdStdout } = await execFileAsync(adbPath, ['-s', serial, 'emu', 'avd', 'name']);
+                const avdName = avdStdout
+                    .split('\n')
+                    .map((line) => line.trim())
+                    .find((line) => line.length > 0 && !/^ok$/i.test(line));
+                running.push({ id: serial, avdName: avdName || serial });
+            } catch {
+                running.push({ id: serial, avdName: serial });
+            }
+        }
+        return running;
+    } catch {
+        return [];
+    }
+}
 
 async function isAndroidEnabled(userId: string): Promise<boolean> {
     const user = await prisma.user.findUnique({
@@ -63,6 +106,20 @@ export async function GET(request: Request) {
         }
 
         const avdProfiles = await listAvailableAndroidProfiles();
+        const adbRunning = await listRunningAdbEmulators();
+        const knownRuntimeIds = new Set(status.emulators.map((emulator) => emulator.id));
+        for (const runtime of adbRunning) {
+            if (knownRuntimeIds.has(runtime.id)) {
+                continue;
+            }
+            status.emulators.push({
+                id: runtime.id,
+                projectId: '',
+                avdName: runtime.avdName,
+                state: 'IDLE',
+                uptimeMs: 0,
+            });
+        }
 
         return NextResponse.json({
             ...status,

@@ -28,6 +28,10 @@ const EMULATOR_STATE_PRIORITY: Record<EmulatorPoolStatusItem['state'], number> =
     DEAD: 6,
 };
 
+function normalizeAvdName(name: string): string {
+    return name.trim().toLowerCase();
+}
+
 export default function EmulatorStatusPanel() {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
@@ -113,9 +117,10 @@ export default function EmulatorStatusPanel() {
     const runtimeByAvd = new Map<string, EmulatorPoolStatusItem>();
     if (status) {
         for (const emulator of status.emulators) {
-            const existing = runtimeByAvd.get(emulator.avdName);
+            const normalizedAvdName = normalizeAvdName(emulator.avdName);
+            const existing = runtimeByAvd.get(normalizedAvdName);
             if (!existing || EMULATOR_STATE_PRIORITY[emulator.state] < EMULATOR_STATE_PRIORITY[existing.state]) {
-                runtimeByAvd.set(emulator.avdName, emulator);
+                runtimeByAvd.set(normalizedAvdName, emulator);
             }
         }
     }
@@ -154,7 +159,7 @@ export default function EmulatorStatusPanel() {
                 ) : (
                     <div className="divide-y divide-gray-100">
                         {status.avdProfiles.map((profile) => {
-                            const emulator = runtimeByAvd.get(profile.name);
+                            const emulator = runtimeByAvd.get(normalizeAvdName(profile.name));
                             return (
                             <div key={profile.name} className="px-4 py-3">
                                 <div className="flex items-center justify-between gap-4">
