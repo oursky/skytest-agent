@@ -17,6 +17,7 @@ export interface EmulatorHandle {
     agent: AndroidAgent | null;
     acquiredAt: number;
     runId: string;
+    packageName?: string;
 }
 
 export interface EmulatorPoolStatusItem {
@@ -227,8 +228,17 @@ export class EmulatorPool {
         instance.agent = null;
         logger.info(`Releasing emulator ${instance.id}`);
 
-        await this.stopInstance(instance);
-        this.wakeNextWaiter(true);
+        const cleanSuccess = await this.cleanEmulator(instance, handle.packageName);
+        if (!cleanSuccess) {
+            await this.stopInstance(instance);
+            this.wakeNextWaiter(true);
+            return;
+        }
+
+        instance.state = 'IDLE';
+        this.scheduleIdleTimeout(instance);
+        this.scheduleHealthCheck(instance);
+        this.wakeNextWaiter();
     }
 
     async stop(emulatorId: string): Promise<void> {
@@ -361,6 +371,27 @@ export class EmulatorPool {
         }
     }
 
+    private async cleanEmulator(instance: EmulatorInstance, packageName?: string): Promise<boolean> {
+        try {
+            if (packageName) {
+                await instance.adb.shell(`am force-stop ${packageName}`, { timeoutMs: 15_000, retries: 1 }).catch(() => {});
+                const uninstallResult = await instance.adb
+                    .shell(`pm uninstall ${packageName}`, { timeoutMs: 15_000, retries: 1 })
+                    .catch(() => 'failed');
+                if (String(uninstallResult).includes('failed')) {
+                    await instance.adb.shell(`pm clear ${packageName}`, { timeoutMs: 15_000, retries: 1 }).catch(() => {});
+                }
+            }
+            await instance.adb.shell('input keyevent KEYCODE_HOME', { timeoutMs: 15_000, retries: 1 }).catch(() => {});
+            await instance.adb.shell('am kill-all', { timeoutMs: 15_000, retries: 1 }).catch(() => {});
+            const health = await instance.adb.healthCheck();
+            return health.healthy;
+        } catch (error) {
+            logger.warn(`Failed to clean emulator ${instance.id}`, error);
+            return false;
+        }
+    }
+
     private transitionToDead(instance: EmulatorInstance): void {
         this.clearInstanceTimers(instance);
         instance.state = 'DEAD';
@@ -432,21 +463,24 @@ export class EmulatorPool {
     private wakeNextWaiter(bootReplacementIfNeeded = false): void {
         if (this.waitQueue.length === 0) return;
 
-        const entry = this.waitQueue[0];
-        const idle = this.findIdleEmulator(entry.projectId, entry.avdName);
-
-        if (idle) {
-            this.waitQueue.shift();
-            clearTimeout(entry.timeoutId);
-            try {
-                entry.resolve(this.lockEmulator(idle, entry.runId));
-            } catch (err) {
-                entry.reject(err instanceof Error ? err : new Error(String(err)));
+        for (let index = 0; index < this.waitQueue.length; index++) {
+            const entry = this.waitQueue[index];
+            const idle = this.findIdleEmulator(entry.projectId, entry.avdName);
+            if (idle) {
+                this.waitQueue.splice(index, 1);
+                clearTimeout(entry.timeoutId);
+                try {
+                    entry.resolve(this.lockEmulator(idle, entry.runId));
+                } catch (err) {
+                    entry.reject(err instanceof Error ? err : new Error(String(err)));
+                }
+                return;
             }
-            return;
         }
 
         if (!bootReplacementIfNeeded) return;
+
+        const entry = this.waitQueue[0];
 
         const activeCount = Array.from(this.emulators.values()).filter(e => e.state !== 'DEAD').length;
         if (activeCount >= appConfig.emulator.maxInstances) return;
