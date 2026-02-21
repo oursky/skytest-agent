@@ -372,8 +372,7 @@ export class EmulatorPool {
         const args = [
             '-avd', instance.avdName,
             '-port', String(instance.port),
-            '-no-boot-anim',
-            '-no-snapshot-save',
+            ...appConfig.emulator.launchArgs,
         ];
 
         logger.info(`Launching emulator process for ${instance.avdName} on ${instance.serial}`);
