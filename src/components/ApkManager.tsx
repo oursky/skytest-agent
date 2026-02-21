@@ -178,6 +178,9 @@ export default function ApkManager({ projectId }: ApkManagerProps) {
                                             {apk.packageName && (
                                                 <span className="text-xs text-gray-500 font-mono">{apk.packageName}</span>
                                             )}
+                                            {apk.activityName && (
+                                                <span className="text-xs text-gray-400 font-mono">.{apk.activityName.split('.').pop()}</span>
+                                            )}
                                             {apk.versionName && (
                                                 <span className="text-xs text-gray-400">{apk.versionName}</span>
                                             )}

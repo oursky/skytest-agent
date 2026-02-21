@@ -19,16 +19,21 @@ export interface EmulatorHandle {
     packageName?: string;
 }
 
+export interface EmulatorPoolStatusItem {
+    id: string;
+    avdName: string;
+    state: EmulatorState;
+    runId?: string;
+    runTestCaseId?: string;
+    runTestCaseName?: string;
+    runTestCaseDisplayId?: string;
+    uptimeMs: number;
+    memoryUsageMb?: number;
+}
+
 export interface EmulatorPoolStatus {
     maxEmulators: number;
-    emulators: Array<{
-        id: string;
-        avdName: string;
-        state: EmulatorState;
-        runId?: string;
-        uptimeMs: number;
-        memoryUsageMb?: number;
-    }>;
+    emulators: EmulatorPoolStatusItem[];
     waitingRequests: number;
 }
 

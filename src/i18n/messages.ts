@@ -323,8 +323,10 @@ export const MESSAGES: Record<Locale, Messages> = {
     // Project tabs
     'project.tab.testCases': 'Test Cases',
     'project.tab.configs': 'Variables',
-    'project.tab.apks': 'APKs',
-    'project.tab.emulators': 'Emulators',
+    'project.tab.android': 'Android Setup',
+
+    // Android setup
+    'android.setup.help': 'Upload APKs, configure AVD profiles, and monitor the emulator pool. Emulators are automatically started when you run a test with an Android target.',
 
     // APK management
     'apk.upload': 'Upload APK',
@@ -349,9 +351,9 @@ export const MESSAGES: Record<Locale, Messages> = {
     // Emulator panel
     'emulator.panel.title': 'Emulator Pool',
     'emulator.panel.empty': 'No emulators running.',
-    'emulator.boot': 'Boot',
     'emulator.stop': 'Stop',
     'emulator.inUse': 'In Use',
+    'emulator.testRun': 'Test Run',
     'emulator.waiting': '{n} waiting',
 
     // Feature flags
@@ -732,8 +734,10 @@ export const MESSAGES: Record<Locale, Messages> = {
     // Project tabs
     'project.tab.testCases': '測試案例',
     'project.tab.configs': '變數',
-    'project.tab.apks': 'APK',
-    'project.tab.emulators': '模擬器',
+    'project.tab.android': 'Android 設定',
+
+    // Android setup
+    'android.setup.help': '上傳 APK、設定 AVD 設定檔，並監控模擬器池。當您執行含有 Android 目標的測試時，模擬器會自動啟動。',
 
     // APK management
     'apk.upload': '上傳 APK',
@@ -758,9 +762,9 @@ export const MESSAGES: Record<Locale, Messages> = {
     // Emulator panel
     'emulator.panel.title': '模擬器池',
     'emulator.panel.empty': '目前沒有執行中的模擬器。',
-    'emulator.boot': '啟動',
     'emulator.stop': '停止',
     'emulator.inUse': '使用中',
+    'emulator.testRun': '測試執行',
     'emulator.waiting': '{n} 個等待中',
 
     // Feature flags
@@ -1141,8 +1145,10 @@ export const MESSAGES: Record<Locale, Messages> = {
     // Project tabs
     'project.tab.testCases': '测试用例',
     'project.tab.configs': '变量',
-    'project.tab.apks': 'APK',
-    'project.tab.emulators': '模拟器',
+    'project.tab.android': 'Android 设置',
+
+    // Android setup
+    'android.setup.help': '上传 APK、配置 AVD 配置文件，并监控模拟器池。当您运行含有 Android 目标的测试时，模拟器会自动启动。',
 
     // APK management
     'apk.upload': '上传 APK',
@@ -1167,9 +1173,9 @@ export const MESSAGES: Record<Locale, Messages> = {
     // Emulator panel
     'emulator.panel.title': '模拟器池',
     'emulator.panel.empty': '当前没有运行中的模拟器。',
-    'emulator.boot': '启动',
     'emulator.stop': '停止',
     'emulator.inUse': '使用中',
+    'emulator.testRun': '测试运行',
     'emulator.waiting': '{n} 个等待中',
 
     // Feature flags

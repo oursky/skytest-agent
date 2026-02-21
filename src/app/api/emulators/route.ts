@@ -29,6 +29,33 @@ export async function GET(request: Request) {
 
     try {
         const status = emulatorPool.getStatus();
+
+        const acquiredRunIds = status.emulators
+            .filter(e => e.state === 'ACQUIRED' && e.runId)
+            .map(e => e.runId as string);
+
+        if (acquiredRunIds.length > 0) {
+            const runs = await prisma.testRun.findMany({
+                where: { id: { in: acquiredRunIds } },
+                select: {
+                    id: true,
+                    testCase: { select: { id: true, name: true, displayId: true } },
+                },
+            });
+            const runMap = new Map(runs.map(r => [r.id, r]));
+
+            for (const emulator of status.emulators) {
+                if (emulator.runId) {
+                    const run = runMap.get(emulator.runId);
+                    if (run) {
+                        emulator.runTestCaseId = run.testCase.id;
+                        emulator.runTestCaseName = run.testCase.name;
+                        emulator.runTestCaseDisplayId = run.testCase.displayId ?? undefined;
+                    }
+                }
+            }
+        }
+
         return NextResponse.json(status);
     } catch (error) {
         logger.error('Failed to get emulator pool status', error);
@@ -48,21 +75,11 @@ export async function POST(request: Request) {
     }
 
     try {
-        const body = await request.json() as { action: string; emulatorId?: string; avdName?: string; projectId?: string };
-        const { action, emulatorId, avdName, projectId } = body;
+        const body = await request.json() as { action: string; emulatorId?: string };
+        const { action, emulatorId } = body;
 
         if (action === 'stop' && emulatorId) {
             await emulatorPool.stop(emulatorId);
-            return NextResponse.json({ success: true });
-        }
-
-        if (action === 'boot' && avdName && projectId) {
-            const profile = await prisma.avdProfile.findUnique({
-                where: { projectId_name: { projectId, name: avdName } },
-                select: { dockerImage: true },
-            });
-            logger.info('Emulator boot requested', { avdName, userId });
-            await emulatorPool.boot(avdName, profile?.dockerImage ?? undefined);
             return NextResponse.json({ success: true });
         }
 

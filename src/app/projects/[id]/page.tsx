@@ -12,9 +12,7 @@ import { getStatusBadgeClass } from '@/utils/statusBadge';
 import { isActiveRunStatus } from '@/utils/statusHelpers';
 import Pagination from '@/components/Pagination';
 import ProjectConfigs from '@/components/ProjectConfigs';
-import ApkManager from '@/components/ApkManager';
-import EmulatorStatusPanel from '@/components/EmulatorStatusPanel';
-import AvdProfileManager from '@/components/AvdProfileManager';
+import AndroidSetup from '@/components/AndroidSetup';
 
 interface TestRun {
     id: string;
@@ -62,7 +60,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     const [pageSize, setPageSize] = useState(10);
     const [searchInput, setSearchInput] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
-    const [activeTab, setActiveTab] = useState<'test-cases' | 'configs' | 'apks' | 'emulators'>('test-cases');
+    const [activeTab, setActiveTab] = useState<'test-cases' | 'configs' | 'android'>('test-cases');
     const [androidEnabled, setAndroidEnabled] = useState(false);
 
     const refreshAbortRef = useRef<AbortController | null>(null);
@@ -77,8 +75,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     useEffect(() => {
         const tab = searchParams.get('tab');
         if (tab === 'configs') { setActiveTab('configs'); return; }
-        if (tab === 'apks') { setActiveTab('apks'); return; }
-        if (tab === 'emulators') { setActiveTab('emulators'); return; }
+        if (tab === 'android') { setActiveTab('android'); return; }
         if (tab === 'test-cases') { setActiveTab('test-cases'); }
     }, [searchParams]);
 
@@ -504,25 +501,13 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                         {androidEnabled && (
                             <button
                                 type="button"
-                                onClick={() => setActiveTab('apks')}
-                                className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'apks'
+                                onClick={() => setActiveTab('android')}
+                                className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'android'
                                     ? 'border-primary text-primary'
                                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                 }`}
                             >
-                                {t('project.tab.apks')}
-                            </button>
-                        )}
-                        {androidEnabled && (
-                            <button
-                                type="button"
-                                onClick={() => setActiveTab('emulators')}
-                                className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'emulators'
-                                    ? 'border-primary text-primary'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                }`}
-                            >
-                                {t('project.tab.emulators')}
+                                {t('project.tab.android')}
                             </button>
                         )}
                     </nav>
@@ -621,15 +606,8 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     <ProjectConfigs projectId={id} />
                 )}
 
-                {activeTab === 'apks' && androidEnabled && (
-                    <ApkManager projectId={id} />
-                )}
-
-                {activeTab === 'emulators' && androidEnabled && (
-                    <div className="space-y-8">
-                        <AvdProfileManager projectId={id} />
-                        <EmulatorStatusPanel projectId={id} />
-                    </div>
+                {activeTab === 'android' && androidEnabled && (
+                    <AndroidSetup projectId={id} />
                 )}
 
                 <div className={`bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden ${activeTab !== 'test-cases' ? 'hidden' : ''}`}>
