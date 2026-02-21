@@ -76,6 +76,16 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
 
     const events = useMemo(() => result.events.map((event) => maskEvent(event, secrets)), [result.events, secrets]);
 
+    const targetTypeMap = useMemo<Record<string, 'browser' | 'android'>>(() => {
+        const cfg = meta?.config?.browserConfig ?? {};
+        return Object.fromEntries(
+            Object.entries(cfg).map(([id, c]) => [
+                id,
+                'type' in c && (c as { type?: string }).type === 'android' ? 'android' : 'browser'
+            ])
+        );
+    }, [meta?.config?.browserConfig]);
+
     useEffect(() => {
         if (!autoScroll) return;
         if (scrollContainerRef.current) {
@@ -272,6 +282,7 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
                                     event={event}
                                     isLast={index === events.length - 1}
                                     onImageClick={(src, label) => setLightboxImage({ src, label })}
+                                    targetType={targetTypeMap[event.browserId ?? ''] ?? 'browser'}
                                 />
                             ))}
 
