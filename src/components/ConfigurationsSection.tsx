@@ -5,6 +5,7 @@ import { useAuth } from '@/app/auth-provider';
 import { useI18n } from '@/i18n';
 import type { ConfigItem, ConfigType, BrowserConfig, TargetConfig, AndroidTargetConfig } from '@/types';
 import Link from 'next/link';
+import { useApkUpload } from '@/hooks/useApkUpload';
 
 const CONFIG_NAME_REGEX = /^[A-Z][A-Z0-9_]*$/;
 
@@ -104,6 +105,7 @@ export default function ConfigurationsSection({
 }: ConfigurationsSectionProps) {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
+    const { triggerUpload: triggerApkUpload, uploading: apkUploading, error: apkUploadError, fileInputProps: apkFileInputProps } = useApkUpload(projectId ?? '', getAccessToken);
     const [editState, setEditState] = useState<EditState | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [addTypeOpen, setAddTypeOpen] = useState(false);
@@ -457,6 +459,8 @@ export default function ConfigurationsSection({
     };
 
     return (
+        <>
+        {projectId && <input {...apkFileInputProps} />}
         <div className="border border-gray-200 rounded-lg bg-white divide-y divide-gray-100">
             <div className="px-4 py-3">
                 <div className="flex items-center justify-between mb-2">
@@ -914,6 +918,33 @@ export default function ConfigurationsSection({
                                                                     </button>
                                                                 ))
                                                             )}
+                                                            <div className="border-t border-gray-100 mt-1 pt-1">
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={apkUploading}
+                                                                    onClick={() => triggerApkUpload((newApk) => {
+                                                                        setProjectApks(prev => [{ ...newApk, versionName: newApk.versionName ?? null }, ...prev]);
+                                                                        updateTarget(index, { apkId: newApk.id });
+                                                                        setApkDropdownOpen(null);
+                                                                    })}
+                                                                    className="w-full text-left px-3 py-1.5 text-xs text-primary hover:bg-primary/5 disabled:opacity-50 flex items-center gap-1.5"
+                                                                >
+                                                                    {apkUploading ? (
+                                                                        <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                                                        </svg>
+                                                                    ) : (
+                                                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                                                        </svg>
+                                                                    )}
+                                                                    {t('configs.android.apk.upload')}
+                                                                </button>
+                                                                {apkUploadError && (
+                                                                    <p className="px-3 pb-1 text-xs text-red-600">{apkUploadError}</p>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     )}
                                                 </div>
@@ -1057,5 +1088,6 @@ export default function ConfigurationsSection({
                 </div>
             )}
         </div>
+        </>
     );
 }

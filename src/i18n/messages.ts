@@ -400,6 +400,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'configs.android.avd.placeholder': 'Select AVD profile',
     'configs.android.apk.placeholder': 'Select APK',
     'configs.android.apk.none': 'No APKs uploaded for this project',
+    'configs.android.apk.upload': 'Upload APK…',
     'configs.android.activity.placeholder': 'e.g. com.example.MainActivity (optional)',
     'configs.target.addAndroid': 'Add Android Target',
   },
@@ -793,6 +794,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'configs.android.avd.placeholder': '選擇 AVD 設定檔',
     'configs.android.apk.placeholder': '選擇 APK',
     'configs.android.apk.none': '此專案尚無上傳 APK',
+    'configs.android.apk.upload': '上傳 APK…',
     'configs.android.activity.placeholder': '例如：com.example.MainActivity（選填）',
     'configs.target.addAndroid': '新增 Android 目標',
   },
@@ -1186,6 +1188,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'configs.android.avd.placeholder': '选择 AVD 配置',
     'configs.android.apk.placeholder': '选择 APK',
     'configs.android.apk.none': '此项目暂无上传 APK',
+    'configs.android.apk.upload': '上传 APK…',
     'configs.android.activity.placeholder': '例如：com.example.MainActivity（可选）',
     'configs.target.addAndroid': '添加 Android 目标',
   }
