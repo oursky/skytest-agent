@@ -2,23 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/app/auth-provider';
-import type { EmulatorState, EmulatorPoolStatus } from '@/lib/emulator-pool';
-
-const STATE_COLORS: Record<EmulatorState, string> = {
-    STARTING: 'bg-gray-100 text-gray-600',
-    BOOTING: 'bg-yellow-100 text-yellow-800',
-    IDLE: 'bg-green-100 text-green-800',
-    ACQUIRED: 'bg-blue-100 text-blue-800',
-    CLEANING: 'bg-orange-100 text-orange-800',
-    STOPPING: 'bg-red-100 text-red-800',
-    DEAD: 'bg-gray-100 text-gray-500',
-};
-
-function formatUptime(ms: number): string {
-    if (ms < 60_000) return `${Math.floor(ms / 1000)}s`;
-    if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m ${Math.floor((ms % 60_000) / 1000)}s`;
-    return `${Math.floor(ms / 3_600_000)}h ${Math.floor((ms % 3_600_000) / 60_000)}m`;
-}
+import type { EmulatorPoolStatus } from '@/lib/emulator-pool';
+import { EMULATOR_STATE_COLORS } from '@/utils/emulatorColors';
+import { formatUptime } from '@/utils/dateFormatter';
 
 export default function AdminEmulatorsPage() {
     const { getAccessToken } = useAuth();
@@ -131,7 +117,7 @@ export default function AdminEmulatorsPage() {
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-3 shrink-0">
-                                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATE_COLORS[emulator.state]}`}>
+                                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${EMULATOR_STATE_COLORS[emulator.state]}`}>
                                                     {emulator.state}
                                                 </span>
                                                 {emulator.runId && (
