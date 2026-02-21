@@ -1143,9 +1143,9 @@ async function cleanupTargets(targets: ExecutionTargets): Promise<void> {
     const pool = EmulatorPool.getInstance();
     for (const [targetId, handle] of targets.emulatorHandles) {
         try {
-            await pool.release(handle);
+            await pool.stop(handle.id);
         } catch (e) {
-            serverLogger.warn(`Failed to release emulator for ${targetId}`, e);
+            serverLogger.warn(`Failed to stop emulator for ${targetId}`, e);
         }
     }
 }

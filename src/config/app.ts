@@ -174,14 +174,18 @@ export const config = {
 
         basePort: 5554,
         portRange: 20,
-        launchArgs: [
-            '-no-window',
-            '-no-audio',
-            '-no-boot-anim',
-            '-no-snapshot-save',
-            '-gpu',
-            'swiftshader_indirect',
-        ] as string[],
+        launchArgs: {
+            shared: [
+                '-no-audio',
+                '-no-boot-anim',
+                '-no-snapshot-save',
+                '-gpu',
+                'swiftshader_indirect',
+            ] as string[],
+            headless: [
+                '-no-window',
+            ] as string[],
+        },
     },
 
 } as const;

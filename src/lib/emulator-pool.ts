@@ -8,6 +8,11 @@ import type { AndroidDevice, AndroidAgent } from '@/types/android';
 const logger = createLogger('emulator-pool');
 
 export type EmulatorState = 'STARTING' | 'BOOTING' | 'IDLE' | 'ACQUIRED' | 'CLEANING' | 'STOPPING' | 'DEAD';
+export type EmulatorLaunchMode = 'headless' | 'window';
+
+interface BootOptions {
+    headless?: boolean;
+}
 
 export interface EmulatorHandle {
     id: string;
@@ -68,6 +73,7 @@ interface EmulatorInstance {
     healthCheckTimer: NodeJS.Timeout | null;
     forceReclaimTimer: NodeJS.Timeout | null;
     memoryUsageMb: number | undefined;
+    launchMode: EmulatorLaunchMode;
 }
 
 interface MidsceneAndroidDevice {
@@ -127,7 +133,8 @@ export class EmulatorPool {
         await this.ensureAdbServer();
     }
 
-    async boot(projectId: string, avdName: string): Promise<EmulatorHandle> {
+    async boot(projectId: string, avdName: string, options?: BootOptions): Promise<EmulatorHandle> {
+        const launchMode: EmulatorLaunchMode = options?.headless === false ? 'window' : 'headless';
         const port = await this.allocatePort();
         if (port === null) {
             throw new Error('No available ports for emulator');
@@ -155,6 +162,7 @@ export class EmulatorPool {
             healthCheckTimer: null,
             forceReclaimTimer: null,
             memoryUsageMb: undefined,
+            launchMode,
         };
 
         this.emulators.set(id, instance);
@@ -190,14 +198,19 @@ export class EmulatorPool {
 
         await this.reclaimStaleBootingInstances();
 
-        const idleEmulator = this.findIdleEmulator(projectId, avdName);
+        const idleEmulator = this.findIdleEmulator(projectId, avdName, 'headless');
         if (idleEmulator) {
             return this.lockEmulator(idleEmulator, runId);
         }
 
+        const idleWindowEmulator = this.findIdleEmulator(projectId, avdName, 'window');
+        if (idleWindowEmulator) {
+            await this.stopInstance(idleWindowEmulator);
+        }
+
         const activeCount = Array.from(this.emulators.values()).filter((emulator) => emulator.state !== 'DEAD').length;
         if (activeCount < appConfig.emulator.maxInstances) {
-            const handle = await this.bootWithRetries(projectId, avdName, signal);
+            const handle = await this.bootWithRetries(projectId, avdName, signal, { headless: true });
             const instance = this.emulators.get(handle.id);
             if (!instance) {
                 throw new Error(`Emulator ${handle.id} disappeared after boot`);
@@ -370,10 +383,12 @@ export class EmulatorPool {
     }
 
     private async launchEmulatorProcess(instance: EmulatorInstance): Promise<void> {
+        const modeArgs = instance.launchMode === 'headless' ? appConfig.emulator.launchArgs.headless : [];
         const args = [
             '-avd', instance.avdName,
             '-port', String(instance.port),
-            ...appConfig.emulator.launchArgs,
+            ...modeArgs,
+            ...appConfig.emulator.launchArgs.shared,
         ];
 
         logger.info(`Launching emulator process for ${instance.avdName} on ${instance.serial}`);
@@ -429,8 +444,8 @@ export class EmulatorPool {
 
     private async attachAndroidRuntime(instance: EmulatorInstance): Promise<void> {
         try {
-            const module = await import('@midscene/android') as unknown as MidsceneAndroidRuntimeModule;
-            const runtimeDevice = new module.AndroidDevice(instance.serial);
+            const runtimeModule = await import('@midscene/android') as unknown as MidsceneAndroidRuntimeModule;
+            const runtimeDevice = new runtimeModule.AndroidDevice(instance.serial);
             await runtimeDevice.connect();
 
             instance.device = {
@@ -440,7 +455,7 @@ export class EmulatorPool {
                     ? async () => runtimeDevice.screenshotBase64!()
                     : undefined,
             };
-            instance.agent = new module.AndroidAgent(runtimeDevice, {
+            instance.agent = new runtimeModule.AndroidAgent(runtimeDevice, {
                 groupName: `${instance.projectId}-${instance.avdName}-${instance.port}`,
             });
         } catch (error) {
@@ -449,9 +464,10 @@ export class EmulatorPool {
         }
     }
 
-    private findIdleEmulator(projectId: string, avdName: string): EmulatorInstance | null {
+    private findIdleEmulator(projectId: string, avdName: string, launchMode?: EmulatorLaunchMode): EmulatorInstance | null {
         for (const instance of this.emulators.values()) {
-            if (instance.state === 'IDLE' && instance.projectId === projectId && instance.avdName === avdName) {
+            const modeMatches = !launchMode || instance.launchMode === launchMode;
+            if (instance.state === 'IDLE' && instance.projectId === projectId && instance.avdName === avdName && modeMatches) {
                 return instance;
             }
         }
@@ -634,7 +650,7 @@ export class EmulatorPool {
 
         for (let index = 0; index < this.waitQueue.length; index++) {
             const entry = this.waitQueue[index];
-            const idle = this.findIdleEmulator(entry.projectId, entry.avdName);
+            const idle = this.findIdleEmulator(entry.projectId, entry.avdName, 'headless');
             if (!idle) {
                 continue;
             }
@@ -662,7 +678,7 @@ export class EmulatorPool {
         this.waitQueue.shift();
         clearTimeout(entry.timeoutId);
 
-        this.bootWithRetries(entry.projectId, entry.avdName, entry.signal)
+        this.bootWithRetries(entry.projectId, entry.avdName, entry.signal, { headless: true })
             .then((handle) => {
                 const instance = this.emulators.get(handle.id);
                 if (!instance) {
@@ -676,7 +692,12 @@ export class EmulatorPool {
             });
     }
 
-    private async bootWithRetries(projectId: string, avdName: string, signal?: AbortSignal): Promise<EmulatorHandle> {
+    private async bootWithRetries(
+        projectId: string,
+        avdName: string,
+        signal?: AbortSignal,
+        options?: BootOptions
+    ): Promise<EmulatorHandle> {
         const maxAttempts = Math.max(1, appConfig.emulator.bootMaxAttempts);
         let lastError: unknown = null;
 
@@ -686,7 +707,7 @@ export class EmulatorPool {
             }
 
             try {
-                return await this.boot(projectId, avdName);
+                return await this.boot(projectId, avdName, options);
             } catch (error) {
                 lastError = error;
                 logger.warn(`Emulator boot attempt ${attempt}/${maxAttempts} failed for AVD ${avdName}`, error);

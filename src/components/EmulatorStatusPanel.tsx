@@ -32,13 +32,30 @@ function normalizeAvdName(name: string): string {
     return name.trim().toLowerCase();
 }
 
-export default function EmulatorStatusPanel() {
+const EMULATOR_STATE_LABEL_KEYS: Record<EmulatorPoolStatusItem['state'], string> = {
+    STARTING: 'emulator.state.starting',
+    BOOTING: 'emulator.state.booting',
+    IDLE: 'emulator.state.idle',
+    ACQUIRED: 'emulator.inUse',
+    CLEANING: 'emulator.state.cleaning',
+    STOPPING: 'emulator.state.stopping',
+    DEAD: 'emulator.state.dead',
+};
+
+interface EmulatorStatusPanelProps {
+    projectId: string;
+}
+
+export default function EmulatorStatusPanel({ projectId }: EmulatorStatusPanelProps) {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
     const [status, setStatus] = useState<EmulatorStatusResponse | null>(null);
     const [forbidden, setForbidden] = useState(false);
     const [requestFailed, setRequestFailed] = useState(false);
     const [stopping, setStopping] = useState<string | null>(null);
+    const [bootingProfile, setBootingProfile] = useState<string | null>(null);
+    const [bootingMode, setBootingMode] = useState<'window' | 'headless' | null>(null);
+    const [actionError, setActionError] = useState<string | null>(null);
     const pollRef = useRef<NodeJS.Timeout | null>(null);
 
     const fetchStatus = useCallback(async () => {
@@ -46,7 +63,7 @@ export default function EmulatorStatusPanel() {
         try {
             const token = await getAccessToken();
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const res = await fetch('/api/emulators', { headers });
+            const res = await fetch(`/api/emulators?projectId=${encodeURIComponent(projectId)}`, { headers });
             if (res.status === 403) {
                 setForbidden(true);
                 setRequestFailed(false);
@@ -62,7 +79,7 @@ export default function EmulatorStatusPanel() {
         } catch {
             setRequestFailed(true);
         }
-    }, [getAccessToken]);
+    }, [getAccessToken, projectId]);
 
     useEffect(() => {
         void fetchStatus();
@@ -96,21 +113,67 @@ export default function EmulatorStatusPanel() {
     }, [fetchStatus]);
 
     const handleStop = async (emulatorId: string) => {
+        setActionError(null);
         setStopping(emulatorId);
+        setStatus((current) => {
+            if (!current) return current;
+            return {
+                ...current,
+                emulators: current.emulators.map((emulator) =>
+                    emulator.id === emulatorId
+                        ? { ...emulator, state: 'STOPPING' }
+                        : emulator
+                ),
+            };
+        });
         try {
             const token = await getAccessToken();
             const headers: HeadersInit = {
                 'Content-Type': 'application/json',
                 ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
             };
-            await fetch('/api/emulators', {
+            const response = await fetch('/api/emulators', {
                 method: 'POST',
                 headers,
                 body: JSON.stringify({ action: 'stop', emulatorId }),
             });
+            if (!response.ok) {
+                throw new Error('stop failed');
+            }
+            await fetchStatus();
+        } catch {
+            setActionError(t('emulator.actionFailed'));
             await fetchStatus();
         } finally {
             setStopping(null);
+        }
+    };
+
+    const handleBoot = async (avdName: string, mode: 'window' | 'headless') => {
+        setActionError(null);
+        setBootingProfile(avdName);
+        setBootingMode(mode);
+        try {
+            const token = await getAccessToken();
+            const headers: HeadersInit = {
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            };
+            const response = await fetch('/api/emulators', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ action: 'boot', projectId, avdName, mode }),
+            });
+            if (!response.ok) {
+                throw new Error('boot failed');
+            }
+            await fetchStatus();
+        } catch {
+            setActionError(t('emulator.actionFailed'));
+            await fetchStatus();
+        } finally {
+            setBootingProfile(null);
+            setBootingMode(null);
         }
     };
 
@@ -138,6 +201,11 @@ export default function EmulatorStatusPanel() {
                     )}
                 </div>
             </div>
+            {actionError && (
+                <div className="px-3 py-2 text-xs rounded border border-red-200 bg-red-50 text-red-700">
+                    {actionError}
+                </div>
+            )}
 
             <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
                 {forbidden ? (
@@ -173,7 +241,7 @@ export default function EmulatorStatusPanel() {
                                     </div>
                                     <div className="flex items-center gap-3 shrink-0">
                                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${emulator ? EMULATOR_STATE_COLORS[emulator.state] : 'bg-gray-100 text-gray-600'}`}>
-                                            {emulator ? (emulator.state === 'ACQUIRED' ? t('emulator.inUse') : emulator.state) : t('emulator.notRunning')}
+                                            {emulator ? t(EMULATOR_STATE_LABEL_KEYS[emulator.state]) : t('emulator.notRunning')}
                                         </span>
                                         {emulator && (
                                             <>
@@ -181,17 +249,41 @@ export default function EmulatorStatusPanel() {
                                                 {emulator.memoryUsageMb && (
                                                     <span className="text-xs text-gray-400">{emulator.memoryUsageMb}MB</span>
                                                 )}
-                                                {(emulator.state === 'IDLE' || emulator.state === 'BOOTING' || emulator.state === 'STARTING') && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => void handleStop(emulator.id)}
-                                                        disabled={stopping === emulator.id}
-                                                        className="text-xs px-2 py-1 text-red-600 border border-red-200 rounded hover:bg-red-50 disabled:opacity-50"
-                                                    >
-                                                        {stopping === emulator.id ? 'Stopping…' : t('emulator.stop')}
-                                                    </button>
-                                                )}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void handleStop(emulator.id)}
+                                                    disabled={stopping === emulator.id || emulator.state === 'STOPPING'}
+                                                    className="text-xs px-2 py-1 text-red-600 border border-red-200 rounded hover:bg-red-50 disabled:opacity-50"
+                                                >
+                                                    {stopping === emulator.id || emulator.state === 'STOPPING'
+                                                        ? t('emulator.stopping')
+                                                        : t('emulator.stop')}
+                                                </button>
                                             </>
+                                        )}
+                                        {!emulator && (
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void handleBoot(profile.name, 'window')}
+                                                    disabled={bootingProfile === profile.name}
+                                                    className="text-xs px-2 py-1 text-blue-700 border border-blue-200 rounded hover:bg-blue-50 disabled:opacity-50"
+                                                >
+                                                    {bootingProfile === profile.name && bootingMode === 'window'
+                                                        ? t('emulator.booting')
+                                                        : t('emulator.bootWindow')}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void handleBoot(profile.name, 'headless')}
+                                                    disabled={bootingProfile === profile.name}
+                                                    className="text-xs px-2 py-1 text-blue-700 border border-blue-200 rounded hover:bg-blue-50 disabled:opacity-50"
+                                                >
+                                                    {bootingProfile === profile.name && bootingMode === 'headless'
+                                                        ? t('emulator.booting')
+                                                        : t('emulator.bootHeadless')}
+                                                </button>
+                                            </div>
                                         )}
                                     </div>
                                 </div>

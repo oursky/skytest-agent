@@ -11,9 +11,9 @@ const logger = createLogger('api:emulators');
 
 export const dynamic = 'force-dynamic';
 
-function execFileAsync(file: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
+function execFileAsync(file: string, args: string[], timeoutMs?: number): Promise<{ stdout: string; stderr: string }> {
     return new Promise((resolve, reject) => {
-        execFile(file, args, { encoding: 'utf8' }, (error, stdout, stderr) => {
+        execFile(file, args, { encoding: 'utf8', ...(timeoutMs ? { timeout: timeoutMs } : {}) }, (error, stdout, stderr) => {
             if (error) {
                 reject(error);
                 return;
@@ -21,6 +21,28 @@ function execFileAsync(file: string, args: string[]): Promise<{ stdout: string; 
             resolve({ stdout: String(stdout), stderr: String(stderr) });
         });
     });
+}
+
+async function ensureProjectOwnership(projectId: string, userId: string): Promise<boolean> {
+    const project = await prisma.project.findFirst({
+        where: { id: projectId, userId },
+        select: { id: true },
+    });
+    return Boolean(project);
+}
+
+async function stopUnmanagedEmulator(emulatorId: string): Promise<boolean> {
+    if (!/^emulator-\d+$/i.test(emulatorId)) {
+        return false;
+    }
+
+    try {
+        const adbPath = resolveAndroidToolPath('adb');
+        await execFileAsync(adbPath, ['-s', emulatorId, 'emu', 'kill'], 5000);
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 async function listRunningAdbEmulators(): Promise<Array<{ id: string; avdName: string }>> {
@@ -72,11 +94,24 @@ export async function GET(request: Request) {
     }
 
     try {
-        const projects = await prisma.project.findMany({
-            where: { userId },
-            select: { id: true },
-        });
-        const projectIds = new Set(projects.map(project => project.id));
+        const { searchParams } = new URL(request.url);
+        const requestedProjectId = searchParams.get('projectId')?.trim();
+
+        let projectIds: Set<string>;
+        if (requestedProjectId) {
+            const owned = await ensureProjectOwnership(requestedProjectId, userId);
+            if (!owned) {
+                return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+            }
+            projectIds = new Set([requestedProjectId]);
+        } else {
+            const projects = await prisma.project.findMany({
+                where: { userId },
+                select: { id: true },
+            });
+            projectIds = new Set(projects.map(project => project.id));
+        }
+
         const status = emulatorPool.getStatus(projectIds);
 
         const acquiredRunIds = status.emulators
@@ -143,12 +178,61 @@ export async function POST(request: Request) {
     }
 
     try {
-        const body = await request.json() as { action: string; emulatorId?: string };
-        const { action, emulatorId } = body;
+        const body = await request.json() as {
+            action: string;
+            emulatorId?: string;
+            projectId?: string;
+            avdName?: string;
+            mode?: 'window' | 'headless';
+        };
+        const { action } = body;
 
-        if (action === 'stop' && emulatorId) {
-            await emulatorPool.stop(emulatorId);
+        if (action === 'stop' && body.emulatorId) {
+            const emulatorId = body.emulatorId;
+            const managedState = emulatorPool.getEmulatorState(emulatorId);
+            if (managedState) {
+                await emulatorPool.stop(emulatorId);
+                return NextResponse.json({ success: true });
+            }
+
+            const stoppedUnmanaged = await stopUnmanagedEmulator(emulatorId);
+            if (!stoppedUnmanaged) {
+                return NextResponse.json({ error: 'Emulator not found' }, { status: 404 });
+            }
             return NextResponse.json({ success: true });
+        }
+
+        if (action === 'boot' && body.projectId && body.avdName) {
+            const projectId = body.projectId.trim();
+            const avdName = body.avdName.trim();
+            const mode = body.mode === 'window' ? 'window' : 'headless';
+
+            if (!projectId || !avdName) {
+                return NextResponse.json({ error: 'projectId and avdName are required' }, { status: 400 });
+            }
+
+            const owned = await ensureProjectOwnership(projectId, userId);
+            if (!owned) {
+                return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+            }
+
+            const availableProfiles = await listAvailableAndroidProfiles();
+            if (!availableProfiles.some((profile) => profile.name === avdName)) {
+                return NextResponse.json({ error: `Unknown AVD profile "${avdName}"` }, { status: 400 });
+            }
+
+            const existing = emulatorPool.getStatus(new Set([projectId])).emulators.find(
+                (emulator) => emulator.avdName === avdName && emulator.state !== 'DEAD'
+            );
+            if (existing) {
+                return NextResponse.json(
+                    { error: `Emulator for "${avdName}" is already running` },
+                    { status: 409 }
+                );
+            }
+
+            const handle = await emulatorPool.boot(projectId, avdName, { headless: mode === 'headless' });
+            return NextResponse.json({ success: true, emulatorId: handle.id, state: handle.state });
         }
 
         return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
