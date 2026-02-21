@@ -339,6 +339,17 @@ export class TestQueue {
                 },
                 onCleanup: (cleanup) => {
                     this.registerCleanup(runId, cleanup);
+                },
+                onPreparing: async () => {
+                    await prisma.testRun.update({ where: { id: runId }, data: { status: 'PREPARING' } });
+                    if (config.testCaseId) {
+                        await prisma.testCase.update({ where: { id: config.testCaseId }, data: { status: 'PREPARING' } });
+                    }
+                    if (config.projectId && config.testCaseId) {
+                        publishProjectEvent(config.projectId, {
+                            type: 'test-run-status', testCaseId: config.testCaseId, runId, status: 'PREPARING'
+                        });
+                    }
                 }
             });
 

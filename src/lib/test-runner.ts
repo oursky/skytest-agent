@@ -981,7 +981,7 @@ async function cleanupTargets(targets: ExecutionTargets): Promise<void> {
 }
 
 export async function runTest(options: RunTestOptions): Promise<TestResult> {
-    const { config: testConfig, onEvent, signal, runId, onCleanup } = options;
+    const { config: testConfig, onEvent, signal, runId, onCleanup, onPreparing } = options;
     const { url, prompt, steps, browserConfig, openRouterApiKey, testCaseId, files, resolvedVariables, resolvedFiles } = testConfig;
     const log = createLogger(onEvent);
 
@@ -1038,6 +1038,9 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
         const actionCounter: ActionCounter = { count: 0 };
 
         try {
+            const hasAndroid = Object.values(targetConfigs).some(tc => 'type' in tc && tc.type === 'android');
+            if (hasAndroid && onPreparing) await onPreparing();
+
             executionTargets = await setupExecutionTargets(targetConfigs, onEvent, runId, runSignal, actionCounter);
 
             if (onCleanup && executionTargets) {
