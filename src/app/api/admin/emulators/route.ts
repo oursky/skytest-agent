@@ -1,12 +1,20 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+import { verifyAuth, resolveUserId } from '@/lib/auth';
 import { emulatorPool } from '@/lib/emulator-pool';
 import { createLogger } from '@/lib/logger';
-import { config } from '@/config/app';
 
 const logger = createLogger('api:admin:emulators');
 
 export const dynamic = 'force-dynamic';
+
+async function isAndroidEnabled(userId: string): Promise<boolean> {
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { androidEnabled: true },
+    });
+    return user?.androidEnabled ?? false;
+}
 
 export async function GET(request: Request) {
     const authPayload = await verifyAuth(request);
@@ -14,8 +22,9 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!config.features.androidEmulator) {
-        return NextResponse.json({ error: 'Android emulator feature not enabled' }, { status: 404 });
+    const userId = await resolveUserId(authPayload);
+    if (!userId || !(await isAndroidEnabled(userId))) {
+        return NextResponse.json({ error: 'Android testing is not enabled for your account' }, { status: 403 });
     }
 
     try {
@@ -33,16 +42,27 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!config.features.androidEmulator) {
-        return NextResponse.json({ error: 'Android emulator feature not enabled' }, { status: 404 });
+    const userId = await resolveUserId(authPayload);
+    if (!userId || !(await isAndroidEnabled(userId))) {
+        return NextResponse.json({ error: 'Android testing is not enabled for your account' }, { status: 403 });
     }
 
     try {
-        const body = await request.json() as { action: string; emulatorId?: string };
-        const { action, emulatorId } = body;
+        const body = await request.json() as { action: string; emulatorId?: string; avdName?: string };
+        const { action, emulatorId, avdName } = body;
 
         if (action === 'stop' && emulatorId) {
             await emulatorPool.stop(emulatorId);
+            return NextResponse.json({ success: true });
+        }
+
+        if (action === 'boot' && avdName) {
+            const profile = await prisma.avdProfile.findUnique({
+                where: { name: avdName },
+                select: { dockerImage: true },
+            });
+            logger.info('Emulator boot requested', { avdName, userId });
+            await emulatorPool.boot(avdName, profile?.dockerImage ?? undefined);
             return NextResponse.json({ success: true });
         }
 

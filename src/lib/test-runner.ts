@@ -11,6 +11,7 @@ import { withMidsceneApiKey } from '@/lib/midscene-env';
 import { validateTargetUrl } from './url-security';
 import { validateRuntimeRequestUrl } from './url-security-runtime';
 import { EmulatorPool, EmulatorHandle } from './emulator-pool';
+import { prisma } from '@/lib/prisma';
 import { Script, createContext } from 'node:vm';
 import path from 'node:path';
 
@@ -472,7 +473,8 @@ async function setupExecutionTargets(
         log(`Acquiring emulator for ${niceName}...`, 'info', targetId);
 
         const pool = EmulatorPool.getInstance();
-        const handle = await pool.acquire(androidConfig.avdName, runId, signal);
+        const profile = await prisma.avdProfile.findUnique({ where: { name: androidConfig.avdName } });
+        const handle = await pool.acquire(androidConfig.avdName, runId, profile?.dockerImage ?? undefined, signal);
         emulatorHandles.set(targetId, handle);
 
         log(`Emulator acquired: ${handle.id}`, 'info', targetId);

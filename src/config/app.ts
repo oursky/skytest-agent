@@ -100,6 +100,7 @@ export const config = {
         statusColors: {
             IDLE: 'bg-gray-100 text-gray-700',
             QUEUED: 'bg-blue-100 text-blue-700',
+            PREPARING: 'bg-cyan-100 text-cyan-700',
             RUNNING: 'bg-yellow-100 text-yellow-700',
             PASS: 'bg-green-100 text-green-700',
             FAIL: 'bg-red-100 text-red-700',
@@ -176,11 +177,19 @@ export const config = {
             uploadDir: './uploads/apks',
         },
 
+        docker: {
+            enabled: process.env.EMULATOR_DOCKER === 'true',
+            stopTimeoutMs: 15_000,
+            containerNamePrefix: 'skytest-emu-',
+        },
+
         basePort: 5554,
         portRange: 20,
     },
 
     features: {
+        // INFRA-ONLY: controls whether EmulatorPool initializes at startup (instrumentation.ts).
+        // Does NOT gate API access — use user.androidEnabled for that.
         androidEmulator: process.env.FEATURE_ANDROID_EMULATOR === 'true',
     },
 } as const;

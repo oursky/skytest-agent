@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyAuth } from '@/lib/auth';
+import { verifyAuth, resolveUserId } from '@/lib/auth';
 import { getApkUploadPath } from '@/lib/file-security';
 import { createLogger } from '@/lib/logger';
 import { config } from '@/config/app';
@@ -8,6 +8,14 @@ import { execFile } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'fs/promises';
 import path from 'path';
+
+async function isAndroidEnabled(userId: string): Promise<boolean> {
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { androidEnabled: true },
+    });
+    return user?.androidEnabled ?? false;
+}
 
 const logger = createLogger('api:projects:apks');
 
@@ -59,8 +67,9 @@ export async function GET(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!config.features.androidEmulator) {
-        return NextResponse.json({ error: 'Android emulator feature not enabled' }, { status: 404 });
+    const userId = await resolveUserId(authPayload);
+    if (!userId || !(await isAndroidEnabled(userId))) {
+        return NextResponse.json({ error: 'Android testing is not enabled for your account' }, { status: 403 });
     }
 
     const { id } = await params;
@@ -75,7 +84,7 @@ export async function GET(
             return NextResponse.json({ error: 'Project not found' }, { status: 404 });
         }
 
-        if (project.userId !== authPayload.userId) {
+        if (project.userId !== userId) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -100,8 +109,9 @@ export async function POST(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!config.features.androidEmulator) {
-        return NextResponse.json({ error: 'Android emulator feature not enabled' }, { status: 404 });
+    const userId = await resolveUserId(authPayload);
+    if (!userId || !(await isAndroidEnabled(userId))) {
+        return NextResponse.json({ error: 'Android testing is not enabled for your account' }, { status: 403 });
     }
 
     const { id } = await params;
@@ -116,7 +126,7 @@ export async function POST(
             return NextResponse.json({ error: 'Project not found' }, { status: 404 });
         }
 
-        if (project.userId !== authPayload.userId) {
+        if (project.userId !== userId) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

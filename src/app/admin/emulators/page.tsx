@@ -5,6 +5,7 @@ import { useAuth } from '@/app/auth-provider';
 import type { EmulatorState, EmulatorPoolStatus } from '@/lib/emulator-pool';
 
 const STATE_COLORS: Record<EmulatorState, string> = {
+    STARTING: 'bg-gray-100 text-gray-600',
     BOOTING: 'bg-yellow-100 text-yellow-800',
     IDLE: 'bg-green-100 text-green-800',
     ACQUIRED: 'bg-blue-100 text-blue-800',
