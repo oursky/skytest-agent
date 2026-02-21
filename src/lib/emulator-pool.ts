@@ -1,4 +1,4 @@
-import { spawn, ChildProcess, execFile } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { config as appConfig } from '@/config/app';
 import { createLogger } from './logger';
 import { ReliableAdb } from './adb-reliable';
@@ -55,8 +55,6 @@ interface EmulatorInstance {
     avdName: string;
     state: EmulatorState;
     port: number;
-    process: ChildProcess | null;
-    pid: number | null;
     containerId: string | null;
     adb: ReliableAdb;
     device: AndroidDevice | null;
@@ -97,31 +95,30 @@ export class EmulatorPool {
     async initialize(): Promise<void> {
         await this.ensureAdbServer();
         await this.cleanupOrphans();
-
-        if (appConfig.emulator.docker.enabled) {
-            await this.prePullDockerImages();
-        }
+        await this.prePullDockerImages();
     }
 
     async boot(projectId: string, avdName: string, dockerImage?: string): Promise<EmulatorHandle> {
+        if (!dockerImage) {
+            throw new Error(`Docker image is required for AVD "${avdName}"`);
+        }
+
         const port = this.allocatePort();
         if (port === null) {
             throw new Error('No available ports for emulator');
         }
 
         const containerName = `${appConfig.emulator.docker.containerNamePrefix}${port}`;
-        const id = appConfig.emulator.docker.enabled && dockerImage ? containerName : `emulator-${port}`;
-        const adbSerial = appConfig.emulator.docker.enabled && dockerImage ? `localhost:${port}` : `emulator-${port}`;
+        const id = containerName;
+        const adbSerial = `localhost:${port}`;
         const adb = new ReliableAdb(adbSerial);
 
         const instance: EmulatorInstance = {
             id,
             projectId,
             avdName,
-            state: appConfig.emulator.docker.enabled && dockerImage ? 'STARTING' : 'BOOTING',
+            state: 'STARTING',
             port,
-            process: null,
-            pid: null,
             containerId: null,
             adb,
             device: null,
@@ -138,11 +135,7 @@ export class EmulatorPool {
         this.emulators.set(id, instance);
         this.usedPorts.add(port);
 
-        if (appConfig.emulator.docker.enabled && dockerImage) {
-            await this.bootDockerContainer(instance, dockerImage, port, containerName);
-        } else {
-            this.bootNativeEmulator(instance, avdName, port);
-        }
+        await this.bootDockerContainer(instance, dockerImage, port, containerName);
 
         try {
             await Promise.race([
@@ -385,15 +378,6 @@ export class EmulatorPool {
             if (instance.containerId) {
                 await execFileAsync('docker', ['stop', instance.containerId]).catch(() => {});
                 await execFileAsync('docker', ['rm', instance.containerId]).catch(() => {});
-            } else {
-                await execFileAsync('adb', ['-s', instance.id, 'emu', 'kill']).catch(() => {});
-                if (instance.process && !instance.process.killed) {
-                    instance.process.kill('SIGTERM');
-                    await this.sleep(2000);
-                    if (!instance.process.killed) {
-                        instance.process.kill('SIGKILL');
-                    }
-                }
             }
         } catch (error) {
             logger.warn(`Error stopping emulator ${instance.id}`, error);
@@ -537,66 +521,17 @@ export class EmulatorPool {
 
     private async cleanupOrphans(): Promise<void> {
         try {
-            const { stdout } = await execFileAsync('adb', ['devices']);
-            const lines = stdout.split('\n').slice(1);
-            for (const line of lines) {
-                const [deviceId] = line.trim().split(/\s+/);
-                if (deviceId?.startsWith('emulator-')) {
-                    logger.info(`Killing orphan emulator ${deviceId}`);
-                    await execFileAsync('adb', ['-s', deviceId, 'emu', 'kill']).catch(() => {});
-                }
+            const prefix = appConfig.emulator.docker.containerNamePrefix;
+            const { stdout } = await execFileAsync('docker', ['ps', '-a', '--filter', `name=${prefix}`, '-q']);
+            const ids = stdout.trim().split('\n').filter(Boolean);
+            for (const cid of ids) {
+                logger.info(`Removing orphan Docker container ${cid}`);
+                await execFileAsync('docker', ['stop', cid]).catch(() => {});
+                await execFileAsync('docker', ['rm', cid]).catch(() => {});
             }
         } catch (error) {
-            logger.warn('Failed to cleanup orphan emulators', error);
+            logger.warn('Failed to cleanup orphan Docker containers', error);
         }
-
-        if (appConfig.emulator.docker.enabled) {
-            try {
-                const prefix = appConfig.emulator.docker.containerNamePrefix;
-                const { stdout } = await execFileAsync('docker', ['ps', '-a', '--filter', `name=${prefix}`, '-q']);
-                const ids = stdout.trim().split('\n').filter(Boolean);
-                for (const cid of ids) {
-                    logger.info(`Removing orphan Docker container ${cid}`);
-                    await execFileAsync('docker', ['stop', cid]).catch(() => {});
-                    await execFileAsync('docker', ['rm', cid]).catch(() => {});
-                }
-            } catch (error) {
-                logger.warn('Failed to cleanup orphan Docker containers', error);
-            }
-        }
-    }
-
-    private bootNativeEmulator(instance: EmulatorInstance, avdName: string, port: number): void {
-        const emulatorBin = process.env.ANDROID_HOME
-            ? `${process.env.ANDROID_HOME}/emulator/emulator`
-            : 'emulator';
-
-        const launchArgs: string[] = [
-            '-avd', avdName,
-            '-port', String(port),
-            '-no-snapshot-save',
-            '-gpu', appConfig.emulator.gpu,
-            '-memory', String(appConfig.emulator.memory),
-            '-cores', String(appConfig.emulator.cores),
-        ];
-
-        if (appConfig.emulator.headless) {
-            launchArgs.push('-no-window', '-no-audio', '-no-boot-anim');
-        }
-
-        logger.info(`Booting native emulator ${instance.id} (AVD: ${avdName})`);
-
-        const proc = spawn(emulatorBin, launchArgs, { detached: false, stdio: 'ignore' });
-        instance.process = proc;
-        instance.pid = proc.pid ?? null;
-        instance.state = 'BOOTING';
-
-        proc.on('exit', (code) => {
-            logger.info(`Emulator ${instance.id} process exited with code ${code}`);
-            if (instance.state !== 'STOPPING' && instance.state !== 'DEAD') {
-                this.transitionToDead(instance);
-            }
-        });
     }
 
     private async bootDockerContainer(instance: EmulatorInstance, dockerImage: string, port: number, containerName: string): Promise<void> {

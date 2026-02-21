@@ -1,3 +1,5 @@
+import { androidDockerProfilePresets } from './android-presets';
+
 export const config = {
     app: {
         name: 'SkyTest Agent',
@@ -168,11 +170,6 @@ export const config = {
             installTimeoutMs: 120_000,
         },
 
-        headless: true,
-        gpu: 'swiftshader_indirect',
-        memory: 2048,
-        cores: 2,
-
         apk: {
             maxSizeBytes: 200 * 1024 * 1024,
             maxPerProject: 5,
@@ -198,10 +195,9 @@ export const config = {
         },
 
         docker: {
-            enabled: process.env.EMULATOR_DOCKER === 'true',
             stopTimeoutMs: 15_000,
             containerNamePrefix: 'skytest-emu-',
-            profilesJson: process.env.EMULATOR_DOCKER_PROFILES || '[]',
+            profiles: androidDockerProfilePresets,
         },
 
         basePort: 5554,
