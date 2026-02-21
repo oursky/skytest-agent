@@ -25,6 +25,8 @@ export default function EmulatorStatusPanel({ projectId }: EmulatorStatusPanelPr
     const [avdProfiles, setAvdProfiles] = useState<AvdProfile[]>([]);
     const [selectedAvd, setSelectedAvd] = useState('');
     const [booting, setBooting] = useState(false);
+    const [avdDropdownOpen, setAvdDropdownOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
     const pollRef = useRef<NodeJS.Timeout | null>(null);
 
     const fetchStatus = useCallback(async () => {
@@ -55,6 +57,16 @@ export default function EmulatorStatusPanel({ projectId }: EmulatorStatusPanelPr
             // ignore
         }
     }, [projectId, getAccessToken]);
+
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+                setAvdDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     useEffect(() => {
         void fetchStatus();
@@ -131,36 +143,7 @@ export default function EmulatorStatusPanel({ projectId }: EmulatorStatusPanelPr
 
     return (
         <div className="space-y-4">
-            <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-900">{t('emulator.panel.title')}</h2>
-                {avdProfiles.length > 0 && (
-                    <div className="flex items-center gap-2">
-                        <select
-                            value={selectedAvd}
-                            onChange={e => setSelectedAvd(e.target.value)}
-                            className="text-sm border border-gray-300 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-primary"
-                        >
-                            {avdProfiles.map(p => (
-                                <option key={p.name} value={p.name}>{p.displayName}</option>
-                            ))}
-                        </select>
-                        <button
-                            type="button"
-                            onClick={() => void handleBoot()}
-                            disabled={booting || !selectedAvd}
-                            className="px-3 py-1.5 text-sm bg-primary text-white rounded-md hover:bg-primary/90 transition-colors flex items-center gap-1.5 disabled:opacity-50"
-                        >
-                            {booting ? (
-                                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                </svg>
-                            ) : null}
-                            {t('emulator.boot')}
-                        </button>
-                    </div>
-                )}
-            </div>
+            <h2 className="text-lg font-semibold text-gray-900">{t('emulator.panel.title')}</h2>
 
             {status && (
                 <div className="grid grid-cols-3 gap-4">
@@ -184,42 +167,90 @@ export default function EmulatorStatusPanel({ projectId }: EmulatorStatusPanelPr
                     <div className="flex justify-center py-8">
                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
                     </div>
-                ) : status.emulators.length === 0 ? (
-                    <div className="p-8 text-center text-sm text-gray-400">
-                        {t('emulator.panel.empty')}
-                    </div>
                 ) : (
-                    <div className="divide-y divide-gray-100">
-                        {status.emulators.map(emulator => (
-                            <div key={emulator.id} className="px-4 py-3 flex items-center justify-between gap-4">
-                                <div className="flex items-center gap-3 min-w-0">
-                                    <div className="min-w-0">
-                                        <div className="text-sm font-medium text-gray-900 truncate">{emulator.avdName}</div>
-                                        <div className="text-xs text-gray-400 font-mono">{emulator.id}</div>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-3 shrink-0">
-                                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${EMULATOR_STATE_COLORS[emulator.state]}`}>
-                                        {emulator.state === 'ACQUIRED' ? t('emulator.inUse') : emulator.state}
-                                    </span>
-                                    <span className="text-xs text-gray-400">{formatUptime(emulator.uptimeMs)}</span>
-                                    {emulator.memoryUsageMb && (
-                                        <span className="text-xs text-gray-400">{emulator.memoryUsageMb}MB</span>
-                                    )}
-                                    {(emulator.state === 'IDLE' || emulator.state === 'BOOTING' || emulator.state === 'STARTING') && (
-                                        <button
-                                            type="button"
-                                            onClick={() => void handleStop(emulator.id)}
-                                            disabled={stopping === emulator.id}
-                                            className="text-xs px-2 py-1 text-red-600 border border-red-200 rounded hover:bg-red-50 disabled:opacity-50"
-                                        >
-                                            {stopping === emulator.id ? 'Stopping…' : t('emulator.stop')}
-                                        </button>
-                                    )}
-                                </div>
+                    <>
+                        {status.emulators.length === 0 ? (
+                            <div className="p-8 text-center text-sm text-gray-400">
+                                {t('emulator.panel.empty')}
                             </div>
-                        ))}
-                    </div>
+                        ) : (
+                            <div className="divide-y divide-gray-100">
+                                {status.emulators.map(emulator => (
+                                    <div key={emulator.id} className="px-4 py-3 flex items-center justify-between gap-4">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className="min-w-0">
+                                                <div className="text-sm font-medium text-gray-900 truncate">{emulator.avdName}</div>
+                                                <div className="text-xs text-gray-400 font-mono">{emulator.id}</div>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-3 shrink-0">
+                                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${EMULATOR_STATE_COLORS[emulator.state]}`}>
+                                                {emulator.state === 'ACQUIRED' ? t('emulator.inUse') : emulator.state}
+                                            </span>
+                                            <span className="text-xs text-gray-400">{formatUptime(emulator.uptimeMs)}</span>
+                                            {emulator.memoryUsageMb && (
+                                                <span className="text-xs text-gray-400">{emulator.memoryUsageMb}MB</span>
+                                            )}
+                                            {(emulator.state === 'IDLE' || emulator.state === 'BOOTING' || emulator.state === 'STARTING') && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void handleStop(emulator.id)}
+                                                    disabled={stopping === emulator.id}
+                                                    className="text-xs px-2 py-1 text-red-600 border border-red-200 rounded hover:bg-red-50 disabled:opacity-50"
+                                                >
+                                                    {stopping === emulator.id ? 'Stopping…' : t('emulator.stop')}
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        {avdProfiles.length > 0 && (
+                            <div className="flex items-center justify-center gap-2 px-4 py-4 border-t border-gray-200 bg-gray-50">
+                                <div className="relative" ref={dropdownRef}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setAvdDropdownOpen(prev => !prev)}
+                                        className="flex items-center gap-1.5 text-sm border border-gray-300 rounded-md px-3 py-1.5 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary shadow-sm"
+                                    >
+                                        <span>{avdProfiles.find(p => p.name === selectedAvd)?.displayName ?? selectedAvd}</span>
+                                        <svg className={`w-4 h-4 text-gray-400 transition-transform ${avdDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </button>
+                                    {avdDropdownOpen && (
+                                        <div className="absolute bottom-full left-0 mb-1 w-48 bg-white border border-gray-200 rounded-md shadow-lg z-10">
+                                            {avdProfiles.map(p => (
+                                                <button
+                                                    key={p.name}
+                                                    type="button"
+                                                    onClick={() => { setSelectedAvd(p.name); setAvdDropdownOpen(false); }}
+                                                    className={`block w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${p.name === selectedAvd ? 'text-primary font-medium' : 'text-gray-700'}`}
+                                                >
+                                                    {p.displayName}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => void handleBoot()}
+                                    disabled={booting || !selectedAvd}
+                                    className="px-3 py-1.5 text-sm bg-primary text-white rounded-md hover:bg-primary/90 transition-colors flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
+                                >
+                                    {booting ? (
+                                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                        </svg>
+                                    ) : null}
+                                    {t('emulator.boot')}
+                                </button>
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
         </div>
