@@ -16,6 +16,7 @@ interface Job {
 }
 
 type CleanupFn = () => Promise<void>;
+type QueueRunStatus = 'QUEUED' | 'PREPARING' | 'RUNNING' | 'PASS' | 'FAIL' | 'CANCELLED';
 
 export class TestQueue {
     private static instance: TestQueue;
@@ -88,20 +89,25 @@ export class TestQueue {
             logger.error(`Failed to update status for ${runId}`, e);
         }
 
-        if (config.projectId && config.testCaseId) {
-            publishProjectEvent(config.projectId, {
-                type: 'test-run-status',
-                testCaseId: config.testCaseId,
-                runId,
-                status: 'QUEUED'
-            });
-        }
+        this.publishRunStatus(config.projectId, config.testCaseId, runId, 'QUEUED');
 
         this.processNext();
     }
 
     public registerCleanup(runId: string, cleanup: CleanupFn) {
         this.cleanupFns.set(runId, cleanup);
+    }
+
+    private publishRunStatus(projectId: string | undefined, testCaseId: string | undefined, runId: string, status: QueueRunStatus) {
+        if (!projectId || !testCaseId) {
+            return;
+        }
+        publishProjectEvent(projectId, {
+            type: 'test-run-status',
+            testCaseId,
+            runId,
+            status
+        });
     }
 
     public async cancel(runId: string) {
@@ -144,14 +150,7 @@ export class TestQueue {
                     });
                 }
 
-                if (job.config.projectId && job.config.testCaseId) {
-                    publishProjectEvent(job.config.projectId, {
-                        type: 'test-run-status',
-                        testCaseId: job.config.testCaseId,
-                        runId,
-                        status: 'CANCELLED'
-                    });
-                }
+                this.publishRunStatus(job.config.projectId, job.config.testCaseId, runId, 'CANCELLED');
             } catch (e) {
                 logger.error(`Failed to mark ${runId} as cancelled`, e);
             }
@@ -175,14 +174,7 @@ export class TestQueue {
                         });
                     }
 
-                    if (job.config.projectId && job.config.testCaseId) {
-                        publishProjectEvent(job.config.projectId, {
-                            type: 'test-run-status',
-                            testCaseId: job.config.testCaseId,
-                            runId,
-                            status: 'CANCELLED'
-                        });
-                    }
+                    this.publishRunStatus(job.config.projectId, job.config.testCaseId, runId, 'CANCELLED');
                 } catch (error) {
                     logger.error(`Failed to mark ${runId} as cancelled`, error);
                 }
@@ -213,14 +205,7 @@ export class TestQueue {
                             });
                         }
 
-                        if (run.testCaseId && run.testCase?.projectId) {
-                            publishProjectEvent(run.testCase.projectId, {
-                                type: 'test-run-status',
-                                testCaseId: run.testCaseId,
-                                runId,
-                                status: 'CANCELLED'
-                            });
-                        }
+                        this.publishRunStatus(run.testCase?.projectId, run.testCaseId ?? undefined, runId, 'CANCELLED');
                     }
                 } catch (error) {
                     logger.error(`Failed to cleanup orphaned run ${runId}`, error);
@@ -275,14 +260,7 @@ export class TestQueue {
                 });
             }
 
-            if (job.config.projectId && job.config.testCaseId) {
-                publishProjectEvent(job.config.projectId, {
-                    type: 'test-run-status',
-                    testCaseId: job.config.testCaseId,
-                    runId: job.runId,
-                    status: startStatus
-                });
-            }
+            this.publishRunStatus(job.config.projectId, job.config.testCaseId, job.runId, startStatus);
         } catch (error) {
             logger.error(`Failed to mark job ${job.runId} as ${startStatus}`, error);
         }
@@ -362,11 +340,7 @@ export class TestQueue {
                     if (config.testCaseId) {
                         await prisma.testCase.update({ where: { id: config.testCaseId }, data: { status: 'PREPARING' } });
                     }
-                    if (config.projectId && config.testCaseId) {
-                        publishProjectEvent(config.projectId, {
-                            type: 'test-run-status', testCaseId: config.testCaseId, runId, status: 'PREPARING'
-                        });
-                    }
+                    this.publishRunStatus(config.projectId, config.testCaseId, runId, 'PREPARING');
                 },
                 onRunning: async () => {
                     if (this.activeStatuses.get(runId) === 'RUNNING') {
@@ -378,11 +352,7 @@ export class TestQueue {
                     if (config.testCaseId) {
                         await prisma.testCase.update({ where: { id: config.testCaseId }, data: { status: 'RUNNING' } });
                     }
-                    if (config.projectId && config.testCaseId) {
-                        publishProjectEvent(config.projectId, {
-                            type: 'test-run-status', testCaseId: config.testCaseId, runId, status: 'RUNNING'
-                        });
-                    }
+                    this.publishRunStatus(config.projectId, config.testCaseId, runId, 'RUNNING');
                 }
             });
 
@@ -413,14 +383,7 @@ export class TestQueue {
                 });
             }
 
-            if (config.projectId && config.testCaseId) {
-                publishProjectEvent(config.projectId, {
-                    type: 'test-run-status',
-                    testCaseId: config.testCaseId,
-                    runId,
-                    status: result.status
-                });
-            }
+            this.publishRunStatus(config.projectId, config.testCaseId, runId, result.status as QueueRunStatus);
 
             logger.info('Test completed', {
                 runId,
@@ -472,14 +435,7 @@ export class TestQueue {
                     });
                 }
 
-                if (config.projectId && config.testCaseId) {
-                    publishProjectEvent(config.projectId, {
-                        type: 'test-run-status',
-                        testCaseId: config.testCaseId,
-                        runId,
-                        status: 'FAIL'
-                    });
-                }
+                this.publishRunStatus(config.projectId, config.testCaseId, runId, 'FAIL');
             }
         } finally {
             this.running.delete(runId);
