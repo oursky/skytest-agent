@@ -163,7 +163,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
         try {
             const token = await getAccessToken();
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const response = await fetch(`/api/test-cases/${id}/export`, { headers });
+            const response = await fetch(`/api/test-cases/${id}/export?xlsxOnly=true`, { headers });
             if (!response.ok) {
                 throw new Error('Export request failed');
             }

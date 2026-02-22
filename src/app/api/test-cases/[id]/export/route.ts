@@ -24,6 +24,7 @@ export async function GET(
 
     try {
         const { id } = await params;
+        const xlsxOnly = new URL(request.url).searchParams.get('xlsxOnly') === 'true';
 
         const testCase = await prisma.testCase.findUnique({
             where: { id },
@@ -110,7 +111,7 @@ export async function GET(
         const testCaseFileVariables = testCaseVariables.filter((variable) => variable.type === 'FILE');
         const hasAttachedFiles = testCase.files.length > 0 || projectFileVariables.length > 0 || testCaseFileVariables.length > 0;
 
-        if (!hasAttachedFiles) {
+        if (xlsxOnly || !hasAttachedFiles) {
             return new NextResponse(new Uint8Array(excelBuffer), {
                 headers: {
                     'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

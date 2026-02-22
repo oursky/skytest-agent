@@ -269,7 +269,10 @@ function RunPageContent() {
             if (!isExcelFilename(file.name)) return;
 
             const fileBuffer = await file.arrayBuffer();
-            const { data } = await parseTestCaseExcel(fileBuffer);
+            const { data, warnings } = await parseTestCaseExcel(fileBuffer);
+            if (warnings.length > 0) {
+                console.warn('Import warnings:', warnings);
+            }
 
             setInitialData(data.testData);
             if (data.testCaseId) {
@@ -278,7 +281,7 @@ function RunPageContent() {
             setIsDirty(true);
 
             await importVariablesToTestCase(
-                [...data.projectVariables, ...data.testCaseVariables].filter((variable): variable is { name: string; type: 'URL' | 'APP_ID' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING'; value: string } => (
+                data.testCaseVariables.filter((variable): variable is { name: string; type: 'URL' | 'APP_ID' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING'; value: string } => (
                     variable.type === 'URL' || variable.type === 'APP_ID' || variable.type === 'VARIABLE' || variable.type === 'SECRET' || variable.type === 'RANDOM_STRING'
                 )),
                 data.testData

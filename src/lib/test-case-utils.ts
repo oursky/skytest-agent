@@ -1,4 +1,4 @@
-import type { TestStep, BrowserConfig } from '@/types';
+import type { TestStep, BrowserConfig, TargetConfig } from '@/types';
 
 interface TestCaseWithJsonFields {
     steps?: string | null;
@@ -7,7 +7,7 @@ interface TestCaseWithJsonFields {
 
 type ParsedTestCase<T extends TestCaseWithJsonFields> = Omit<T, 'steps' | 'browserConfig'> & {
     steps?: TestStep[];
-    browserConfig?: Record<string, BrowserConfig>;
+    browserConfig?: Record<string, BrowserConfig | TargetConfig>;
 };
 
 export function parseTestCaseJson<T extends TestCaseWithJsonFields>(testCase: T): ParsedTestCase<T> {

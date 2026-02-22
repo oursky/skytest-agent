@@ -16,6 +16,11 @@ interface ExcelFileEntry {
     size?: number;
 }
 
+interface ExcelTargetEntry {
+    id: string;
+    config: BrowserConfig | TargetConfig;
+}
+
 export interface TestCaseExcelExportData {
     name?: string;
     testCaseId?: string;
@@ -34,7 +39,7 @@ export interface ParsedTestCaseExcel {
         url: string;
         prompt: string;
         steps?: TestStep[];
-        browserConfig?: Record<string, BrowserConfig>;
+        browserConfig?: Record<string, BrowserConfig | TargetConfig>;
     };
     projectVariables: ExcelProjectVariable[];
     testCaseVariables: ExcelProjectVariable[];
@@ -93,8 +98,8 @@ export async function parseTestCaseExcel(content: ArrayBuffer): Promise<ParseRes
     const parsedConfigurations = parseConfigurationsRows(configurationsRows, warnings);
 
     let parsedTestCase = parsedConfigurations.testCase;
-    let browserEntries = parsedConfigurations.browserEntries;
-    let browserAliases = parsedConfigurations.browserAliases;
+    let targetEntries = parsedConfigurations.targetEntries;
+    let targetAliases = parsedConfigurations.targetAliases;
     let projectVariables = parsedConfigurations.projectVariables;
     let testCaseVariables = parsedConfigurations.testCaseVariables;
     let files = parsedConfigurations.files;
@@ -106,24 +111,22 @@ export async function parseTestCaseExcel(content: ArrayBuffer): Promise<ParseRes
         const browserRows = readSheetRows(workbook, 'Browser Entry Points');
         const fileRows = readSheetRows(workbook, 'Files');
         parsedTestCase = parseTestCaseRows(testCaseRows);
-        browserEntries = parseBrowserRows(browserRows, warnings);
-        browserAliases = {};
+        targetEntries = parseBrowserRows(browserRows, warnings).map((browser) => ({ id: browser.id, config: { name: browser.name, url: browser.url } }));
+        targetAliases = {};
         projectVariables = parseProjectVariableRows(variableRows, warnings);
         testCaseVariables = [];
         files = parseFileRows(fileRows, warnings);
     }
 
-    const browserConfig: Record<string, BrowserConfig> = {};
-    browserEntries.forEach((browser) => {
-        browserConfig[browser.id] = {
-            name: browser.name,
-            url: browser.url,
-        };
+    const targetConfig: Record<string, BrowserConfig | TargetConfig> = {};
+    targetEntries.forEach((entry) => {
+        targetConfig[entry.id] = entry.config;
     });
 
-    const fallbackBrowserId = browserEntries[0]?.id || 'browser_a';
-    const validBrowserIds = new Set(browserEntries.map((browser) => browser.id));
-    const steps = parseStepRows(stepRows, validBrowserIds, browserAliases, fallbackBrowserId, warnings);
+    const firstBrowserEntry = targetEntries.find((entry) => !('type' in entry.config && entry.config.type === 'android'));
+    const fallbackTargetId = targetEntries[0]?.id || 'browser_a';
+    const validTargetIds = new Set(targetEntries.map((entry) => entry.id));
+    const steps = parseStepRows(stepRows, validTargetIds, targetAliases, fallbackTargetId, warnings);
 
     return {
         data: {
@@ -131,10 +134,10 @@ export async function parseTestCaseExcel(content: ArrayBuffer): Promise<ParseRes
             testData: {
                 name: parsedTestCase.name,
                 displayId: parsedTestCase.testCaseId,
-                url: browserEntries[0]?.url || parsedTestCase.primaryUrl || '',
+                url: (firstBrowserEntry?.config as BrowserConfig | undefined)?.url || parsedTestCase.primaryUrl || '',
                 prompt: '',
                 steps: steps.length > 0 ? steps : undefined,
-                browserConfig: Object.keys(browserConfig).length > 0 ? browserConfig : undefined,
+                browserConfig: Object.keys(targetConfig).length > 0 ? targetConfig : undefined,
             },
             projectVariables,
             testCaseVariables,
@@ -146,15 +149,12 @@ export async function parseTestCaseExcel(content: ArrayBuffer): Promise<ParseRes
 
 function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
     const workbook = new ExcelJS.Workbook();
-    const browserEntries = Object.entries(data.browserConfig || {})
-        .filter(([, config]) => !('type' in config && config.type === 'android'))
-        .map(([id, config]) => ({
-            id,
-            name: config.name || '',
-            url: (config as BrowserConfig).url || '',
-        }));
-    const browserDisplayById = new Map(
-        browserEntries.map((entry, index) => [entry.id, entry.name || formatBrowserLabel(index)])
+    const targetEntries = Object.entries(data.browserConfig || {}).map(([id, config]) => ({ id, config }));
+    const targetDisplayById = new Map(
+        targetEntries.map((entry, index) => [
+            entry.id,
+            entry.config.name || formatTargetLabel(index, 'type' in entry.config && entry.config.type === 'android' ? 'android' : 'browser')
+        ])
     );
 
     const projectVariableRows = sortVariablesForExport(data.projectVariables || [])
@@ -177,7 +177,7 @@ function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
 
     const stepRows = (data.steps || []).map((step, index) => ({
         'Step No': index + 1,
-        Browser: browserDisplayById.get(step.target) || step.target,
+        Browser: targetDisplayById.get(step.target) || step.target,
         Type: step.type === 'playwright-code' ? 'Code' : 'AI',
         Action: normalizeLineBreaks(step.action),
     }));
@@ -187,12 +187,28 @@ function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
         { Section: 'Basic Info', Type: 'Test Case ID', Name: data.testCaseId || '', Value: '' },
         ...projectVariableRows,
         ...testCaseVariableRows,
-        ...browserEntries.map((entry) => ({
-            Section: 'Browser Entry Point',
-            Type: 'Browser',
-            Name: entry.name || '',
-            Value: entry.url || '',
-        })),
+        ...targetEntries.map((entry) => {
+            if ('type' in entry.config && entry.config.type === 'android') {
+                return {
+                    Section: 'Entry Point',
+                    Type: 'Android',
+                    Name: entry.config.name || '',
+                    Value: entry.config.appId || '',
+                    Emulator: entry.config.avdName || '',
+                    'App ID': entry.config.appId || '',
+                    'Clear App Data': entry.config.clearAppState ? 'Yes' : 'No',
+                    'Allow All Permissions': entry.config.allowAllPermissions ? 'Yes' : 'No',
+                };
+            }
+
+            return {
+                Section: 'Entry Point',
+                Type: 'Browser',
+                Name: entry.config.name || '',
+                Value: (entry.config as BrowserConfig).url || '',
+                URL: (entry.config as BrowserConfig).url || '',
+            };
+        }),
     ];
 
     appendRowsAsWorksheet(workbook, 'Configurations', configurationsRows);
@@ -211,7 +227,15 @@ function appendRowsAsWorksheet(
         return;
     }
 
-    const headers = Object.keys(rows[0]);
+    const headers: string[] = [];
+    const seen = new Set<string>();
+    for (const row of rows) {
+        for (const key of Object.keys(row)) {
+            if (seen.has(key)) continue;
+            seen.add(key);
+            headers.push(key);
+        }
+    }
     worksheet.addRow(headers);
     for (const row of rows) {
         worksheet.addRow(headers.map((header) => row[header] ?? ''));
@@ -225,16 +249,16 @@ function parseConfigurationsRows(
     testCase: { name?: string; testCaseId?: string; primaryUrl?: string };
     projectVariables: ExcelProjectVariable[];
     testCaseVariables: ExcelProjectVariable[];
-    browserEntries: Array<{ id: string; name?: string; url: string }>;
-    browserAliases: Record<string, string>;
+    targetEntries: ExcelTargetEntry[];
+    targetAliases: Record<string, string>;
     files: ExcelFileEntry[];
 } {
     const fieldMap = new Map<string, string>();
     const projectVariables: ExcelProjectVariable[] = [];
     const testCaseVariables: ExcelProjectVariable[] = [];
-    const browserEntries: Array<{ id: string; name?: string; url: string }> = [];
+    const targetEntries: ExcelTargetEntry[] = [];
     const browserEntryDrafts = new Map<string, { name?: string; url?: string }>();
-    const browserAliases: Record<string, string> = {};
+    const targetAliases: Record<string, string> = {};
     const files: ExcelFileEntry[] = [];
 
     rows.forEach((row, index) => {
@@ -302,17 +326,40 @@ function parseConfigurationsRows(
             return;
         }
 
-        if (section === 'browserentrypoint' || section === 'browserentrypoints' || section === 'browser') {
-            // New format: 1 row per browser — Type = "Browser", Name = browser name, Value = URL
+        if (section === 'entrypoint' || section === 'entrypoints' || section === 'browserentrypoint' || section === 'browserentrypoints' || section === 'browser') {
+            // New format: 1 row per entry point — Type = "Browser"/"Android"
             const type = normalizeHeader(getRowValue(row, ['type']) || '');
             if (type === 'browser') {
                 const name = getRowValue(row, ['name', 'key']) || '';
-                const url = getRowValue(row, ['value']) || '';
+                const url = getRowValue(row, ['url', 'value']) || '';
                 if (url) {
-                    const id = `browser_${String.fromCharCode('a'.charCodeAt(0) + browserEntries.length)}`;
-                    browserEntries.push({ id, name: name || undefined, url });
+                    const id = `browser_${String.fromCharCode('a'.charCodeAt(0) + targetEntries.length)}`;
+                    targetEntries.push({ id, config: { name: name || undefined, url } });
                     if (name) {
-                        browserAliases[normalizeHeader(name)] = id;
+                        targetAliases[normalizeHeader(name)] = id;
+                    }
+                }
+                return;
+            }
+            if (type === 'android') {
+                const name = getRowValue(row, ['name', 'key']) || '';
+                const avdName = getRowValue(row, ['emulator', 'avd', 'avdname']) || '';
+                const appId = getRowValue(row, ['appid', 'app id', 'value']) || '';
+                if (appId || avdName || name) {
+                    const id = `android_${String.fromCharCode('a'.charCodeAt(0) + targetEntries.length)}`;
+                    targetEntries.push({
+                        id,
+                        config: {
+                            type: 'android',
+                            name: name || undefined,
+                            avdName,
+                            appId,
+                            clearAppState: parseBooleanCell(getRowValue(row, ['clearappdata', 'clear app data']), true),
+                            allowAllPermissions: parseBooleanCell(getRowValue(row, ['allowallpermissions', 'allow all permissions']), true),
+                        }
+                    });
+                    if (name) {
+                        targetAliases[normalizeHeader(name)] = id;
                     }
                 }
                 return;
@@ -362,15 +409,17 @@ function parseConfigurationsRows(
             warnings.push(`Missing browser URL for ${browserLabel}`);
             return;
         }
-        const id = browserLabelToId(browserLabel, index + browserEntries.length);
-        browserEntries.push({
+        const id = browserLabelToId(browserLabel, index + targetEntries.length);
+        targetEntries.push({
             id,
-            name: draft.name,
-            url: draft.url,
+            config: {
+                name: draft.name,
+                url: draft.url,
+            }
         });
-        browserAliases[normalizeHeader(browserLabel)] = id;
+        targetAliases[normalizeHeader(browserLabel)] = id;
         if (draft.name) {
-            browserAliases[normalizeHeader(draft.name)] = id;
+            targetAliases[normalizeHeader(draft.name)] = id;
         }
     });
 
@@ -382,8 +431,8 @@ function parseConfigurationsRows(
         },
         projectVariables,
         testCaseVariables,
-        browserEntries,
-        browserAliases,
+        targetEntries,
+        targetAliases,
         files,
     };
 }
@@ -652,6 +701,14 @@ function formatBrowserLabel(index: number): string {
     return `Browser ${String.fromCharCode('A'.charCodeAt(0) + index)}`;
 }
 
+function formatAndroidLabel(index: number): string {
+    return `Android ${String.fromCharCode('A'.charCodeAt(0) + index)}`;
+}
+
+function formatTargetLabel(index: number, type: 'browser' | 'android'): string {
+    return type === 'android' ? formatAndroidLabel(index) : formatBrowserLabel(index);
+}
+
 function browserLabelToId(label: string, index: number): string {
     const match = label.trim().match(/^browser\s+([a-z])$/i);
     if (match) {
@@ -667,6 +724,14 @@ function normalizeBrowserId(value: string, index: number): string {
 
 function normalizeHeader(value: string): string {
     return value.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function parseBooleanCell(value: string | undefined, defaultValue: boolean): boolean {
+    if (!value) return defaultValue;
+    const normalized = value.trim().toLowerCase();
+    if (['1', 'true', 'yes', 'y', 'on'].includes(normalized)) return true;
+    if (['0', 'false', 'no', 'n', 'off'].includes(normalized)) return false;
+    return defaultValue;
 }
 
 function getRowValue(row: Record<string, unknown>, candidates: string[]): string | undefined {
