@@ -195,7 +195,6 @@ function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
                     Name: entry.config.name || '',
                     Value: entry.config.appId || '',
                     Emulator: entry.config.avdName || '',
-                    'App ID': entry.config.appId || '',
                     'Clear App Data': entry.config.clearAppState ? 'Yes' : 'No',
                     'Allow All Permissions': entry.config.allowAllPermissions ? 'Yes' : 'No',
                 };
@@ -206,7 +205,6 @@ function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
                 Type: 'Browser',
                 Name: entry.config.name || '',
                 Value: (entry.config as BrowserConfig).url || '',
-                URL: (entry.config as BrowserConfig).url || '',
             };
         }),
     ];
@@ -331,7 +329,7 @@ function parseConfigurationsRows(
             const type = normalizeHeader(getRowValue(row, ['type']) || '');
             if (type === 'browser') {
                 const name = getRowValue(row, ['name', 'key']) || '';
-                const url = getRowValue(row, ['url', 'value']) || '';
+                const url = getRowValue(row, ['value']) || '';
                 if (url) {
                     const targetIndex = targetEntries.length;
                     const id = `browser_${String.fromCharCode('a'.charCodeAt(0) + targetIndex)}`;
@@ -346,7 +344,7 @@ function parseConfigurationsRows(
             if (type === 'android') {
                 const name = getRowValue(row, ['name', 'key']) || '';
                 const avdName = getRowValue(row, ['emulator', 'avd', 'avdname']) || '';
-                const appId = getRowValue(row, ['appid', 'app id', 'value']) || '';
+                const appId = getRowValue(row, ['value']) || '';
                 if (appId || avdName || name) {
                     const targetIndex = targetEntries.length;
                     const id = `android_${String.fromCharCode('a'.charCodeAt(0) + targetIndex)}`;
