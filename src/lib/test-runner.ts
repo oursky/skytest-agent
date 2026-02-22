@@ -1315,7 +1315,16 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
         const hasSteps = resolvedSteps && resolvedSteps.length > 0;
 
         let executionTargets: ExecutionTargets | null = null;
+        let cleanupDone = false;
         const actionCounter: ActionCounter = { count: 0 };
+
+        const cleanupExecutionTargets = async (targets: ExecutionTargets): Promise<void> => {
+            if (cleanupDone) {
+                return;
+            }
+            cleanupDone = true;
+            await cleanupTargets(targets);
+        };
 
         try {
             const hasAndroid = Object.values(targetConfigs).some(tc => 'type' in tc && tc.type === 'android');
@@ -1326,7 +1335,7 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
             if (onCleanup && executionTargets) {
                 const capturedTargets = executionTargets;
                 onCleanup(async () => {
-                    await cleanupTargets(capturedTargets);
+                    await cleanupExecutionTargets(capturedTargets);
                 });
             }
 
@@ -1393,7 +1402,7 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
             clearTimeout(timeoutHandle);
             signal?.removeEventListener('abort', abortFromParent);
             if (executionTargets) {
-                await cleanupTargets(executionTargets);
+                await cleanupExecutionTargets(executionTargets);
             }
         }
     });
