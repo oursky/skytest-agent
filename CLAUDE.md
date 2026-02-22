@@ -51,6 +51,21 @@ src/
 - Prisma + SQLite, Server-Sent Events
 - Playwright 1.57, Midscene.js
 
+## Docs To Read First
+- `docs/README.md` - Documentation index and audience split
+- `docs/maintainers/coding-agent-maintenance-guide.md` - Maintainer/coding-agent runtime invariants and footguns
+- `docs/maintainers/android-runtime-maintenance.md` - Android runtime behavior, isolation model, and hosting constraints
+- `docs/maintainers/test-case-excel-format.md` - Current import/export format contract (no backward compatibility)
+
+If you are changing operator-facing Android behavior, also read:
+- `docs/operators/mac-android-emulator-guide.md`
+- `docs/operators/android-runtime-deployment-checklist.md`
+
+## Docs Structure (Audience Split)
+- `docs/operators/` - Self-hosting / setup / runbooks for repo users and operators
+- `docs/maintainers/` - Technical maintenance notes for developers and coding agents
+- `docs/plans/` - Design notes and implementation plans (historical context, not stable contract)
+
 ## Rules
 1. **No `any`** - All types in `src/types/index.ts`
 2. **Singletons only** - Use `lib/prisma.ts` and `lib/queue.ts`, never create new instances
@@ -65,6 +80,7 @@ src/
 - Align on intent and success criteria before coding.
 - For non-trivial changes, capture design notes in `docs/plans/YYYY-MM-DD-<slug>-design.md`.
 - For multi-step work, write a plan in `docs/plans/YYYY-MM-DD-<slug>.md`.
+- When changing runtime behavior (Android emulator pool, queueing, import/export), update the relevant docs in `docs/operators/` and/or `docs/maintainers/`.
 - Prefer test-first for new behavior; reproduce and trace root causes before fixes.
 - Self-review spec compliance first, then code quality; verify before completion claims.
 - Run `npx tsc --noEmit` to verify TypeScript compilation before committing.

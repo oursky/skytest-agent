@@ -1,6 +1,14 @@
 # Android Runtime Maintenance Notes
 
+Audience: maintainers / coding agents changing Android runtime behavior.
+
 This document describes the current Android emulator runtime behavior and operational constraints for SkyTest.
+
+Related docs:
+
+- `docs/maintainers/coding-agent-maintenance-guide.md`
+- `docs/operators/android-runtime-deployment-checklist.md`
+- `docs/operators/mac-android-emulator-guide.md`
 
 ## Deployment Model (Important)
 
@@ -89,4 +97,3 @@ Known limitation:
 
 - If secret values were rotated after the run, older secret values that appear in historical logs may not be masked.
 - Fully solving this requires masking at event-write time (or another server-side historical redaction strategy).
-

@@ -1,5 +1,7 @@
 # Android Runtime Deployment Checklist
 
+Audience: operators / self-hosters who run SkyTest with Android testing enabled.
+
 Use this checklist before enabling Android testing on a host or environment.
 
 ## Hosting Model
@@ -10,13 +12,14 @@ Use this checklist before enabling Android testing on a host or environment.
 
 Reference:
 
-- `docs/android-runtime-maintenance.md` (deployment model and singleton constraints)
+- `docs/maintainers/android-runtime-maintenance.md` (deployment model and singleton constraints)
+- `docs/operators/mac-android-emulator-guide.md` (host setup + troubleshooting)
 
 ## Host Prerequisites
 
 - [ ] Android SDK installed and available to the app process
 - [ ] `adb` and `emulator` binaries resolvable from configured SDK path
-- [ ] Required AVD emulator templates ("Emulators") are created on the host
+- [ ] Required emulator templates (AVDs, shown as "Emulators" in UI) are created on the host
 - [ ] Host has sufficient CPU/RAM for configured emulator pool size
 
 ## Security / Multi-Tenant Safety
@@ -44,4 +47,3 @@ Reference:
 - [ ] If Android runs stall, check `adb devices` and host emulator processes
 - [ ] If pool behavior becomes inconsistent after host issues, restart the app process (stale active runs will be marked failed on startup)
 - [ ] If emulator templates change, revalidate test case Android entry points against current runtime inventory
-

@@ -1,6 +1,12 @@
 # Test Case Excel Import/Export Format
 
+Audience: maintainers / coding agents changing import/export behavior.
+
 This document describes the current supported Excel format for test case import/export.
+
+Related docs:
+
+- `docs/maintainers/coding-agent-maintenance-guide.md`
 
 ## Compatibility Policy
 
@@ -13,7 +19,7 @@ This document describes the current supported Excel format for test case import/
 - `Configurations`
 - `Test Steps`
 
-## Configurations Sheet (Current)
+## Configurations Sheet
 
 The `Configurations` sheet is a row-based table with sections such as:
 
@@ -70,4 +76,3 @@ Warnings may still be produced during parsing for invalid/unsupported rows.
 - Export includes the current workbook format.
 - Android entry points are exported with emulator name, app ID (in `Value`), and toggles.
 - Some export surfaces may support zipped attachments for download, but run-page import is designed for Excel workbook import.
-
