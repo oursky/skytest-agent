@@ -569,35 +569,16 @@ export class EmulatorPool {
         this.clearInstanceTimers(instance);
         instance.state = 'STOPPING';
         const processHandle = instance.process;
-        const killTarget = processHandle?.pid
-            ? (process.platform === 'win32' ? processHandle.pid : -processHandle.pid)
-            : null;
+        const killTarget = this.getProcessKillTarget(processHandle);
 
         try {
-            await execFileAsync(this.adbPath, ['-s', instance.serial, 'emu', 'kill']).catch(() => {});
-
-            if (killTarget !== null) {
-                try {
-                    process.kill(killTarget, 'SIGTERM');
-                } catch {
-                    // Process may have already exited.
-                }
-            }
+            await this.sendAdbEmulatorKill(instance);
+            this.tryKillProcess(killTarget, 'SIGTERM');
         } catch (error) {
             logger.warn(`Error stopping emulator ${instance.id}`, error);
         }
 
-        if (processHandle) {
-            const exitedAfterTerm = await this.waitForProcessExit(processHandle, 5000);
-            if (!exitedAfterTerm && killTarget !== null) {
-                try {
-                    process.kill(killTarget, 'SIGKILL');
-                } catch {
-                    // Process may have already exited.
-                }
-                await this.waitForProcessExit(processHandle, 3000);
-            }
-        }
+        await this.ensureProcessStopped(processHandle, killTarget);
 
         this.transitionToDead(instance);
         this.wakeNextWaiter(true);
@@ -805,6 +786,42 @@ export class EmulatorPool {
 
     private sleep(ms: number): Promise<void> {
         return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    private getProcessKillTarget(processHandle: ChildProcess | null): number | null {
+        if (!processHandle?.pid) {
+            return null;
+        }
+        return process.platform === 'win32' ? processHandle.pid : -processHandle.pid;
+    }
+
+    private async sendAdbEmulatorKill(instance: EmulatorInstance): Promise<void> {
+        await execFileAsync(this.adbPath, ['-s', instance.serial, 'emu', 'kill']).catch(() => {});
+    }
+
+    private tryKillProcess(killTarget: number | null, signal: NodeJS.Signals): void {
+        if (killTarget === null) {
+            return;
+        }
+        try {
+            process.kill(killTarget, signal);
+        } catch {
+            // Process may have already exited.
+        }
+    }
+
+    private async ensureProcessStopped(processHandle: ChildProcess | null, killTarget: number | null): Promise<void> {
+        if (!processHandle) {
+            return;
+        }
+
+        const exitedAfterTerm = await this.waitForProcessExit(processHandle, 5000);
+        if (exitedAfterTerm || killTarget === null) {
+            return;
+        }
+
+        this.tryKillProcess(killTarget, 'SIGKILL');
+        await this.waitForProcessExit(processHandle, 3000);
     }
 
     private waitForProcessExit(processHandle: ChildProcess, timeoutMs: number): Promise<boolean> {
