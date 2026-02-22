@@ -83,6 +83,16 @@ function buildBrowsers(data?: TestData): BrowserEntry[] {
     }];
 }
 
+function hasMissingRequiredEntryPointFields(browsers: BrowserEntry[]): boolean {
+    return browsers.some(({ config }) => {
+        if ('type' in config && config.type === 'android') {
+            return !config.appId?.trim();
+        }
+
+        return !config.url?.trim();
+    });
+}
+
 function buildSteps(data: TestData | undefined, browserId: string, validBrowserIds: Set<string>): TestStep[] {
     if (data?.steps && data.steps.length > 0) {
         return data.steps.map((step) => ({
@@ -313,8 +323,14 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        if (hasMissingRequiredEntryPointFields(browsers)) {
+            setActiveTab('configurations');
+            return;
+        }
         onSubmit(buildCurrentData());
     };
+
+    const runDisabled = isLoading || hasMissingRequiredEntryPointFields(browsers);
 
     return (
         <form onSubmit={handleSubmit} className="glass-panel h-[800px] flex flex-col">
@@ -443,15 +459,31 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                         />
                     </div>
                 ) : (
-                    <BuilderForm
-                        browsers={browsers}
-                        steps={steps}
-                        setSteps={setSteps}
-                        readOnly={readOnly}
-                        projectConfigs={projectConfigs}
-                        testCaseConfigs={testCaseConfigs}
-                        testCaseFiles={testCaseFiles}
-                    />
+                    <div className="space-y-4">
+                        {!readOnly && (
+                            <div className="border border-gray-200 rounded-lg bg-gray-50 p-4 space-y-3">
+                                <p className="text-xs text-gray-600 leading-snug">{t('configs.hint.intro')}</p>
+                                <div>
+                                    <p className="text-xs font-medium text-gray-700">{t('configs.hint.aiStep')}</p>
+                                    <code className="block mt-1 bg-white border border-gray-200 px-2 py-1.5 rounded text-[11px] text-gray-600 whitespace-pre-wrap">{t('configs.hint.aiExample')}</code>
+                                </div>
+                                <div>
+                                    <p className="text-xs font-medium text-gray-700">{t('configs.hint.codeStep')}</p>
+                                    <code className="block mt-1 bg-white border border-gray-200 px-2 py-1.5 rounded text-[11px] text-gray-600 whitespace-pre-wrap">{t('configs.hint.codeExample')}</code>
+                                </div>
+                            </div>
+                        )}
+
+                        <BuilderForm
+                            browsers={browsers}
+                            steps={steps}
+                            setSteps={setSteps}
+                            readOnly={readOnly}
+                            projectConfigs={projectConfigs}
+                            testCaseConfigs={testCaseConfigs}
+                            testCaseFiles={testCaseFiles}
+                        />
+                    </div>
                 )}
             </div>
 
@@ -495,7 +527,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                     )}
                     <button
                         type="submit"
-                        disabled={isLoading}
+                        disabled={runDisabled}
                         className="btn-primary w-full flex justify-center items-center gap-2 h-11 text-base shadow-lg hover:shadow-xl transition-all"
                     >
                         {isLoading ? (

@@ -29,14 +29,6 @@ function isAndroidConfig(config: BrowserConfig | TargetConfig): config is Androi
     return 'type' in config && config.type === 'android';
 }
 
-function isEmptyEntryPoint(config: BrowserConfig | TargetConfig): boolean {
-    if (isAndroidConfig(config)) {
-        return !config.name?.trim() && !config.avdName?.trim() && !config.appId?.trim();
-    }
-
-    return !config.name?.trim() && !config.url?.trim();
-}
-
 interface ConfigurationsSectionProps {
     projectId?: string;
     projectConfigs: ConfigItem[];
@@ -802,10 +794,6 @@ export default function ConfigurationsSection({
                 <div className="px-4 py-3">
                     <div className="space-y-3">
                     {browsers.map((browser, index) => {
-                        if (readOnly && isEmptyEntryPoint(browser.config)) {
-                            return null;
-                        }
-
                         const colorClass = colors[index % colors.length];
                         const android = isAndroidConfig(browser.config);
                         const defaultLabel = android
@@ -886,7 +874,9 @@ export default function ConfigurationsSection({
                                             </div>
                                         </div>
                                         <div>
-                                            <label className="text-[10px] font-medium text-gray-500 uppercase">{t('configs.android.appId')}</label>
+                                            <label className="text-[10px] font-medium text-gray-500 uppercase">
+                                                {t('configs.android.appId')} {!readOnly && <span className="text-red-500">*</span>}
+                                            </label>
                                             <div className={`flex mt-0.5 border border-gray-300 rounded bg-white ${readOnly ? '' : 'focus-within:ring-1 focus-within:ring-primary focus-within:border-primary'}`}>
                                                 <input
                                                     type="text"
@@ -998,7 +988,9 @@ export default function ConfigurationsSection({
                                         />
                                     </div>
                                     <div className="relative">
-                                        <label className="text-[10px] font-medium text-gray-500 uppercase">{t('configs.browser.url')}</label>
+                                        <label className="text-[10px] font-medium text-gray-500 uppercase">
+                                            {t('configs.browser.url')} {!readOnly && <span className="text-red-500">*</span>}
+                                        </label>
                                         <div className={`flex mt-0.5 border border-gray-300 rounded bg-white ${readOnly ? '' : 'focus-within:ring-1 focus-within:ring-primary focus-within:border-primary'}`}>
                                             <input
                                                 type="text"
@@ -1075,19 +1067,6 @@ export default function ConfigurationsSection({
                     </div>
                 </div>
 
-                {!readOnly && (
-                    <div className="px-4 py-2 bg-gray-50 space-y-2 rounded-b-lg border-t border-gray-100">
-                        <p className="text-[11px] text-gray-500 leading-snug">{t('configs.hint.intro')}</p>
-                        <div>
-                            <p className="text-[11px] font-medium text-gray-700">{t('configs.hint.aiStep')}</p>
-                            <code className="block bg-white border border-gray-200 px-2 py-1 rounded text-[11px] text-gray-600 whitespace-pre-wrap">{t('configs.hint.aiExample')}</code>
-                        </div>
-                        <div>
-                            <p className="text-[11px] font-medium text-gray-700">{t('configs.hint.codeStep')}</p>
-                            <code className="block bg-white border border-gray-200 px-2 py-1 rounded text-[11px] text-gray-600 whitespace-pre-wrap">{t('configs.hint.codeExample')}</code>
-                        </div>
-                    </div>
-                )}
             </div>
         </div>
         </div>
