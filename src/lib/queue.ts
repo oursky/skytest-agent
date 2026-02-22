@@ -265,9 +265,11 @@ export class TestQueue {
             logger.error(`Failed to mark job ${job.runId} as ${startStatus}`, error);
         }
 
-        this.executeJob(job);
+        void this.executeJob(job).catch((error) => {
+            logger.error(`Unhandled queue execution rejection for ${job.runId}`, error);
+        });
 
-        this.processNext();
+        void this.processNext();
     }
 
     private serializeEventsChunk(events: TestEvent[]): string {
