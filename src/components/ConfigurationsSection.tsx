@@ -29,6 +29,14 @@ function isAndroidConfig(config: BrowserConfig | TargetConfig): config is Androi
     return 'type' in config && config.type === 'android';
 }
 
+function isEmptyEntryPoint(config: BrowserConfig | TargetConfig): boolean {
+    if (isAndroidConfig(config)) {
+        return !config.name?.trim() && !config.avdName?.trim() && !config.appId?.trim();
+    }
+
+    return !config.name?.trim() && !config.url?.trim();
+}
+
 interface ConfigurationsSectionProps {
     projectId?: string;
     projectConfigs: ConfigItem[];
@@ -794,6 +802,10 @@ export default function ConfigurationsSection({
                 <div className="px-4 py-3">
                     <div className="space-y-3">
                     {browsers.map((browser, index) => {
+                        if (readOnly && isEmptyEntryPoint(browser.config)) {
+                            return null;
+                        }
+
                         const colorClass = colors[index % colors.length];
                         const android = isAndroidConfig(browser.config);
                         const defaultLabel = android
@@ -823,7 +835,7 @@ export default function ConfigurationsSection({
                                                 type="text"
                                                 value={cfg.name || ''}
                                                 onChange={(e) => updateTarget(index, { name: e.target.value })}
-                                                placeholder={t('configs.browser.name.placeholder')}
+                                                placeholder={t('configs.android.name.placeholder')}
                                                 className="w-full mt-0.5 px-2 py-1.5 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-primary"
                                                 disabled={readOnly}
                                             />
