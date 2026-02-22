@@ -540,9 +540,9 @@ async function setupExecutionTargets(
             if (signal?.aborted) throw new Error('Aborted');
 
             const browserConfig = targetConfigs[browserId] as BrowserConfig;
-            const niceName = getBrowserNiceName(browserId);
+            const targetLabel = getBrowserNiceName(browserId);
 
-            log(`Initializing ${niceName}...`, 'info', browserId);
+            log(`Initializing ${targetLabel}...`, 'info', browserId);
 
             const context = await browser.newContext({
                 viewport: config.test.browser.viewport
@@ -566,13 +566,13 @@ async function setupExecutionTargets(
                         if (now - last > config.test.security.blockedRequestLogDedupMs) {
                             blockedRequestLogDedup.set(key, now);
                             log(
-                                `[${niceName}] Blocked request to ${hostname}: ${validation.error ?? 'not allowed'}`,
+                                `[${targetLabel}] Blocked request to ${hostname}: ${validation.error ?? 'not allowed'}`,
                                 'error',
                                 browserId
                             );
                         }
                     } catch {
-                        log(`[${niceName}] Blocked request: ${validation.error ?? 'not allowed'}`, 'error', browserId);
+                        log(`[${targetLabel}] Blocked request: ${validation.error ?? 'not allowed'}`, 'error', browserId);
                     }
 
                     await route.abort('blockedbyclient');
@@ -587,10 +587,10 @@ async function setupExecutionTargets(
                 const type = msg.type();
                 if (type === 'log' || type === 'info') {
                     if (!msg.text().includes('[midscene]')) {
-                        log(`[${niceName}] ${msg.text()}`, 'info', browserId);
+                        log(`[${targetLabel}] ${msg.text()}`, 'info', browserId);
                     }
                 } else if (type === 'error') {
-                    log(`[${niceName} Error] ${msg.text()}`, 'error', browserId);
+                    log(`[${targetLabel} Error] ${msg.text()}`, 'error', browserId);
                 }
             });
 
@@ -598,12 +598,12 @@ async function setupExecutionTargets(
             pages.set(browserId, page);
 
             if (browserConfig.url) {
-                log(`[${niceName}] Navigating to ${browserConfig.url}...`, 'info', browserId);
+                log(`[${targetLabel}] Navigating to ${browserConfig.url}...`, 'info', browserId);
                 await page.goto(browserConfig.url, {
                     timeout: config.test.browser.timeout,
                     waitUntil: 'domcontentloaded'
                 });
-                await captureScreenshot(page, `[${niceName}] Initial Page Load`, onEvent, log, browserId);
+                await captureScreenshot(page, `[${targetLabel}] Initial Page Load`, onEvent, log, browserId);
             }
 
             const agent = new PlaywrightAgent(page, {
@@ -613,9 +613,9 @@ async function setupExecutionTargets(
                         actionCounter.count++;
                         serverLogger.debug('AI action counted', { count: actionCounter.count });
                     }
-                    log(`[${niceName}] 🤖 ${tip}`, 'info', browserId);
+                    log(`[${targetLabel}] 🤖 ${tip}`, 'info', browserId);
                     if (page && !page.isClosed()) {
-                        await captureScreenshot(page, `[${niceName}] ${tip}`, onEvent, log, browserId);
+                        await captureScreenshot(page, `[${targetLabel}] ${tip}`, onEvent, log, browserId);
                     }
                 }
             });
@@ -638,9 +638,9 @@ async function setupExecutionTargets(
         if (signal?.aborted) throw new Error('Aborted');
 
         const androidConfig = targetConfigs[targetId] as AndroidTargetConfig;
-        const niceName = androidConfig.name || targetId;
+        const targetLabel = androidConfig.name || targetId;
 
-        log(`Acquiring emulator for ${niceName}...`, 'info', targetId);
+        log(`Acquiring emulator for ${targetLabel}...`, 'info', targetId);
 
         if (!projectId) {
             throw new ConfigurationError('Project ID is required for Android targets.', 'android');
@@ -675,7 +675,7 @@ async function setupExecutionTargets(
         }
 
         if (androidConfig.clearAppState) {
-            log(`Clearing app data for ${niceName}...`, 'info', targetId);
+            log(`Clearing app data for ${targetLabel}...`, 'info', targetId);
             const cleared = await clearAndroidAppData(handle.device, androidConfig.appId);
             if (!cleared) {
                 throw new ConfigurationError(
@@ -684,11 +684,11 @@ async function setupExecutionTargets(
                 );
             }
         } else {
-            log(`Keeping existing app state for ${niceName}.`, 'info', targetId);
+            log(`Keeping existing app state for ${targetLabel}.`, 'info', targetId);
         }
 
         if (androidConfig.allowAllPermissions) {
-            log(`Auto-granting app permissions for ${niceName}...`, 'info', targetId);
+            log(`Auto-granting app permissions for ${targetLabel}...`, 'info', targetId);
             await grantAndroidAppPermissions(handle.device, androidConfig.appId, log, targetId);
         }
 
@@ -715,8 +715,8 @@ async function setupExecutionTargets(
                 actionCounter.count++;
                 serverLogger.debug('AI action counted', { count: actionCounter.count });
             }
-            log(`[${niceName}] 🤖 ${tip}`, 'info', targetId);
-            await captureAndroidScreenshot(handle.device, `[${niceName}] ${tip}`, onEvent, log, targetId);
+            log(`[${targetLabel}] 🤖 ${tip}`, 'info', targetId);
+            await captureAndroidScreenshot(handle.device, `[${targetLabel}] ${tip}`, onEvent, log, targetId);
         };
 
         await wakeAndUnlockAndroidDevice(handle.device);
@@ -726,7 +726,7 @@ async function setupExecutionTargets(
             await handle.agent.launch(androidConfig.appId);
             launched = true;
         } catch (error) {
-            log(`Agent launch failed for ${niceName}, falling back to launcher intent...`, 'info', targetId);
+            log(`Agent launch failed for ${targetLabel}, falling back to launcher intent...`, 'info', targetId);
             const launchedByIntent = await launchAndroidAppWithLauncherIntent(handle.device, androidConfig.appId);
             if (!launchedByIntent) {
                 const message = error instanceof Error ? error.message : String(error);
@@ -756,8 +756,8 @@ async function setupExecutionTargets(
         }
 
         agents.set(targetId, handle.agent);
-        await captureAndroidScreenshot(handle.device, `[${niceName}] Initial App Launch`, onEvent, log, targetId);
-        log(`${niceName} ready`, 'success', targetId);
+        await captureAndroidScreenshot(handle.device, `[${targetLabel}] Initial App Launch`, onEvent, log, targetId);
+        log(`${targetLabel} ready`, 'success', targetId);
     }
 
     return { browser, contexts, pages, agents, emulatorHandles };
@@ -788,12 +788,12 @@ async function verifyQuotedStringsExist(
     browserId?: string,
     context: 'assertion' | 'action' = 'assertion'
 ): Promise<void> {
-    const niceName = getBrowserNiceName(browserId || 'main');
+    const targetLabel = getBrowserNiceName(browserId || 'main');
 
     for (const expected of expectedStrings) {
         const queryPrompt = `Look at the current page and find any text that might match or relate to "${expected}". Return the EXACT text as it appears on the page, or return "NOT_FOUND" if no similar text exists. Do not interpret or modify the text - return it exactly as shown.`;
 
-        log(`[${niceName}] Checking for exact text: "${expected}"`, 'info', browserId);
+        log(`[${targetLabel}] Checking for exact text: "${expected}"`, 'info', browserId);
 
         const result = await agent.aiQuery(queryPrompt);
         const actualText = String(result).trim();
@@ -811,7 +811,7 @@ async function verifyQuotedStringsExist(
             );
         }
 
-        log(`[${niceName}] Exact match confirmed: "${expected}"`, 'success', browserId);
+        log(`[${targetLabel}] Exact match confirmed: "${expected}"`, 'success', browserId);
     }
 }
 
@@ -871,7 +871,7 @@ async function executePlaywrightCode(
     const timeoutMs = config.test.playwrightCode.statementTimeoutMs;
     const syncTimeoutMs = config.test.playwrightCode.syncTimeoutMs;
     const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
-    const niceName = getBrowserNiceName(browserId || 'main');
+    const targetLabel = getBrowserNiceName(browserId || 'main');
 
     try {
         new AsyncFunction('page', code);
@@ -1000,7 +1000,7 @@ async function executePlaywrightCode(
 
             await captureScreenshot(
                 page,
-                `[${niceName}] Step ${stepIndex + 1}.${i + 1}: ${statementPreview}`,
+                `[${targetLabel}] Step ${stepIndex + 1}.${i + 1}: ${statementPreview}`,
                 onEvent,
                 log,
                 browserId
@@ -1066,7 +1066,7 @@ async function executeSteps(
 
         const agent = agents.get(effectiveTargetId);
         const page = pages.get(effectiveTargetId);
-        const niceName = isAndroid
+        const targetLabel = isAndroid
             ? ((targetConfig as AndroidTargetConfig).name || effectiveTargetId)
             : getBrowserNiceName(effectiveTargetId);
 
@@ -1107,7 +1107,7 @@ async function executeSteps(
                     );
                 }
 
-                log(`[Step ${i + 1}] Executing AI action on ${niceName}: ${step.action}`, 'info', effectiveTargetId);
+                log(`[Step ${i + 1}] Executing AI action on ${targetLabel}: ${step.action}`, 'info', effectiveTargetId);
 
                 const stepAction = step.action;
 
@@ -1161,12 +1161,12 @@ async function executeSteps(
                 }
 
                 if (!isAndroid && page) {
-                    await captureScreenshot(page, `[${niceName}] Step ${i + 1} Complete`, onEvent, log, effectiveTargetId);
+                    await captureScreenshot(page, `[${targetLabel}] Step ${i + 1} Complete`, onEvent, log, effectiveTargetId);
                 } else if (isAndroid) {
                     const androidHandle = targets.emulatorHandles.get(effectiveTargetId);
                     await captureAndroidScreenshot(
                         androidHandle?.device,
-                        `[${niceName}] Step ${i + 1} Complete`,
+                        `[${targetLabel}] Step ${i + 1} Complete`,
                         onEvent,
                         log,
                         effectiveTargetId
@@ -1208,9 +1208,9 @@ async function captureFinalScreenshots(
 
     for (const [id, page] of pages) {
         if (signal?.aborted) break;
-        const niceName = getBrowserNiceName(id);
+        const targetLabel = getBrowserNiceName(id);
         if (!page.isClosed()) {
-            await captureScreenshot(page, `[${niceName}] Final State`, onEvent, log, id);
+            await captureScreenshot(page, `[${targetLabel}] Final State`, onEvent, log, id);
         }
     }
 
