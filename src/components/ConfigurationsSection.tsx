@@ -934,7 +934,6 @@ export default function ConfigurationsSection({
                                                 />
                                                 <span>
                                                     <span className="block font-medium">{t('configs.android.clearAppState')}</span>
-                                                    <span className="block text-[11px] text-gray-500">{t('configs.android.clearAppState.help')}</span>
                                                 </span>
                                             </label>
                                             <label className="flex items-start gap-2 text-xs text-gray-700">
@@ -947,7 +946,6 @@ export default function ConfigurationsSection({
                                                 />
                                                 <span>
                                                     <span className="block font-medium">{t('configs.android.allowAllPermissions')}</span>
-                                                    <span className="block text-[11px] text-gray-500">{t('configs.android.allowAllPermissions.help')}</span>
                                                 </span>
                                             </label>
                                         </div>
