@@ -68,6 +68,19 @@ async function waitForAndroidAppForeground(
     return false;
 }
 
+async function wakeAndUnlockAndroidDevice(device: AndroidDevice): Promise<void> {
+    await device.shell('input keyevent KEYCODE_WAKEUP').catch(() => {});
+    await device.shell('wm dismiss-keyguard').catch(() => {});
+    await device.shell('input keyevent 82').catch(() => {});
+}
+
+async function launchAndroidAppWithLauncherIntent(device: AndroidDevice, appId: string): Promise<boolean> {
+    const launchOutput = await device.shell(
+        `monkey -p ${appId} -c android.intent.category.LAUNCHER 1`
+    );
+    return !/no activities found|monkey aborted|error/i.test(launchOutput);
+}
+
 function extractAndroidPermissionsFromDumpsys(packageDump: string): string[] {
     const permissions = new Set<string>();
 
@@ -697,9 +710,7 @@ async function setupExecutionTargets(
             await captureAndroidScreenshot(handle.device, `[${niceName}] ${tip}`, onEvent, log, targetId);
         };
 
-        await handle.device.shell('input keyevent KEYCODE_WAKEUP').catch(() => {});
-        await handle.device.shell('wm dismiss-keyguard').catch(() => {});
-        await handle.device.shell('input keyevent 82').catch(() => {});
+        await wakeAndUnlockAndroidDevice(handle.device);
 
         let launched = false;
         try {
@@ -707,11 +718,8 @@ async function setupExecutionTargets(
             launched = true;
         } catch (error) {
             log(`Agent launch failed for ${niceName}, falling back to launcher intent...`, 'info', targetId);
-            const launchOutput = await handle.device.shell(
-                `monkey -p ${androidConfig.appId} -c android.intent.category.LAUNCHER 1`
-            );
-            const launchFailed = /no activities found|monkey aborted|error/i.test(launchOutput);
-            if (launchFailed) {
+            const launchedByIntent = await launchAndroidAppWithLauncherIntent(handle.device, androidConfig.appId);
+            if (!launchedByIntent) {
                 const message = error instanceof Error ? error.message : String(error);
                 throw new ConfigurationError(
                     `Failed to launch "${androidConfig.appId}" on emulator "${handle.id}": ${message}`,
@@ -723,11 +731,8 @@ async function setupExecutionTargets(
         const foregroundReady = await waitForAndroidAppForeground(handle.device, androidConfig.appId, 20_000);
         if (!foregroundReady) {
             if (launched) {
-                const fallbackLaunchOutput = await handle.device.shell(
-                    `monkey -p ${androidConfig.appId} -c android.intent.category.LAUNCHER 1`
-                );
-                const fallbackLaunchFailed = /no activities found|monkey aborted|error/i.test(fallbackLaunchOutput);
-                if (fallbackLaunchFailed || !(await waitForAndroidAppForeground(handle.device, androidConfig.appId, 10_000))) {
+                const fallbackLaunchSucceeded = await launchAndroidAppWithLauncherIntent(handle.device, androidConfig.appId);
+                if (!fallbackLaunchSucceeded || !(await waitForAndroidAppForeground(handle.device, androidConfig.appId, 10_000))) {
                     throw new ConfigurationError(
                         `App "${androidConfig.appId}" did not reach foreground on emulator "${handle.id}".`,
                         'android'
