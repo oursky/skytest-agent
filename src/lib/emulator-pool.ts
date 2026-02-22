@@ -340,10 +340,6 @@ export class EmulatorPool {
         };
     }
 
-    getEmulatorState(id: string): EmulatorState | null {
-        return this.emulators.get(id)?.state ?? null;
-    }
-
     async installApk(handle: EmulatorHandle, apkPath: string): Promise<void> {
         const instance = this.emulators.get(handle.id);
         if (!instance) {
