@@ -39,7 +39,6 @@ model Project {
   user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   testCases TestCase[]
   configs     ProjectConfig[]
-  apks        ProjectApk[]
   avdProfiles AvdProfile[]
   createdAt   DateTime        @default(now())
   updatedAt DateTime        @updatedAt
@@ -161,21 +160,5 @@ model AvdProfile {
   updatedAt   DateTime @updatedAt
 
   @@unique([projectId, name])
-  @@index([projectId])
-}
-
-model ProjectApk {
-  id           String   @id @default(cuid())
-  projectId    String
-  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  filename     String
-  storedName   String
-  packageName  String
-  activityName String?
-  versionName  String?
-  size         Int
-  createdAt    DateTime @default(now())
-
-  @@unique([projectId, filename])
   @@index([projectId])
 }

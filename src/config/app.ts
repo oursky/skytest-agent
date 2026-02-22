@@ -167,12 +167,6 @@ export const config = {
             installTimeoutMs: 120_000,
         },
 
-        apk: {
-            maxSizeBytes: 200 * 1024 * 1024,
-            maxPerProject: 5,
-            uploadDir: './uploads/apks',
-        },
-
         basePort: 5554,
         portRange: 20,
         launchArgs: {
