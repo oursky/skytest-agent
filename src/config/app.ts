@@ -154,8 +154,8 @@ export const config = {
         maxInstances: parseInt(process.env.EMULATOR_MAX_INSTANCES || '2'),
 
         bootTimeoutMs: 120_000,
-        bootMaxAttempts: parseInt(process.env.EMULATOR_BOOT_MAX_ATTEMPTS || '2'),
-        bootRetryDelayMs: parseInt(process.env.EMULATOR_BOOT_RETRY_DELAY_MS || '5000'),
+        bootMaxAttempts: 2,
+        bootRetryDelayMs: 5_000,
         acquireTimeoutMs: 180_000,
         idleTimeoutMs: 300_000,
         healthCheckIntervalMs: 60_000,
