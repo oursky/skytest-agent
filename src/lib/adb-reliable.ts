@@ -133,19 +133,6 @@ export class ReliableAdb {
         throw lastError ?? new Error(`ADB shell failed after ${maxRetries} retries`);
     }
 
-    async installApk(apkPath: string, opts: { timeoutMs?: number } = {}): Promise<void> {
-        const timeoutMs = opts.timeoutMs ?? config.emulator.adb.installTimeoutMs;
-        const { stdout, stderr } = await withTimeout(
-            runExecFile(this.adbPath, ['-s', this.deviceId, 'install', '-r', '-t', apkPath]),
-            timeoutMs,
-            `adb install ${apkPath}`
-        );
-        const output = stdout + stderr;
-        if (output.includes('INSTALL_FAILED') || output.toLowerCase().includes('failure [')) {
-            throw new Error(`APK install failed: ${output.trim()}`);
-        }
-    }
-
     async healthCheck(): Promise<HealthCheckResult> {
         const start = Date.now();
         const details = {

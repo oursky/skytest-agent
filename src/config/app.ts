@@ -164,7 +164,6 @@ export const config = {
             commandTimeoutMs: 15_000,
             maxRetries: 3,
             retryDelayMs: 2_000,
-            installTimeoutMs: 120_000,
         },
 
         basePort: 5554,
