@@ -24,6 +24,11 @@ interface CancelRunOptions {
     resultJson?: string;
     clearLogsField?: boolean;
 }
+interface TerminalRunResultOptions {
+    status: QueueRunStatus;
+    error?: string;
+    serializedResult: string;
+}
 
 export class TestQueue {
     private static instance: TestQueue;
@@ -155,6 +160,26 @@ export class TestQueue {
 
         await this.updateTestCaseStatus(options.testCaseId, 'CANCELLED');
         this.publishRunStatus(options.projectId, options.testCaseId, runId, 'CANCELLED');
+    }
+
+    private async persistTerminalRunResult(
+        runId: string,
+        config: RunTestOptions['config'],
+        options: TerminalRunResultOptions
+    ): Promise<void> {
+        await prisma.testRun.update({
+            where: { id: runId },
+            data: {
+                status: options.status,
+                error: options.error,
+                result: options.serializedResult,
+                logs: null,
+                completedAt: new Date()
+            }
+        });
+
+        await this.updateTestCaseStatus(config.testCaseId, options.status);
+        this.publishRunStatus(config.projectId, config.testCaseId, runId, options.status);
     }
 
     private triggerProcessNext(): void {
@@ -376,20 +401,11 @@ export class TestQueue {
                 return;
             }
 
-            await prisma.testRun.update({
-                where: { id: runId },
-                data: {
-                    status: result.status,
-                    error: result.error,
-                    result: JSON.stringify(logBuffer),
-                    logs: null,
-                    completedAt: new Date()
-                }
+            await this.persistTerminalRunResult(runId, config, {
+                status: result.status as QueueRunStatus,
+                error: result.error,
+                serializedResult: JSON.stringify(logBuffer),
             });
-
-            await this.updateTestCaseStatus(config.testCaseId, result.status as QueueRunStatus);
-
-            this.publishRunStatus(config.projectId, config.testCaseId, runId, result.status as QueueRunStatus);
 
             logger.info('Test completed', {
                 runId,
@@ -423,20 +439,11 @@ export class TestQueue {
 
             const current = await prisma.testRun.findUnique({ where: { id: runId }, select: { status: true } });
             if (current?.status !== 'CANCELLED') {
-                await prisma.testRun.update({
-                    where: { id: runId },
-                    data: {
-                        status: 'FAIL',
-                        error: getErrorMessage(err),
-                        result: JSON.stringify(logBuffer),
-                        logs: null,
-                        completedAt: new Date()
-                    }
+                await this.persistTerminalRunResult(runId, config, {
+                    status: 'FAIL',
+                    error: getErrorMessage(err),
+                    serializedResult: JSON.stringify(logBuffer),
                 });
-
-                await this.updateTestCaseStatus(config.testCaseId, 'FAIL');
-
-                this.publishRunStatus(config.projectId, config.testCaseId, runId, 'FAIL');
             }
         } finally {
             this.running.delete(runId);
