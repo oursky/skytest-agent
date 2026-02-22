@@ -64,6 +64,8 @@ function RunPageContent() {
     const [testCaseStatus, setTestCaseStatus] = useState<string | null>(null);
     const [projectConfigs, setProjectConfigs] = useState<ConfigItem[]>([]);
     const [testCaseConfigs, setTestCaseConfigs] = useState<ConfigItem[]>([]);
+    const [projectSecretValues, setProjectSecretValues] = useState<string[]>([]);
+    const [testCaseSecretValues, setTestCaseSecretValues] = useState<string[]>([]);
     const refreshFilesRef = useRef<string | null>(null);
     useUnsavedChanges(isDirty, t('run.unsavedChangesWarning'));
 
@@ -391,12 +393,29 @@ function RunPageContent() {
         try {
             const token = await getAccessToken();
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const response = await fetch(`/api/projects/${projId}/configs`, { headers });
+            const [response, secretsResponse] = await Promise.all([
+                fetch(`/api/projects/${projId}/configs`, { headers }),
+                fetch(`/api/projects/${projId}/configs?includeSecretValues=true`, { headers }),
+            ]);
             if (response.ok) {
                 setProjectConfigs(await response.json());
+            } else {
+                setProjectConfigs([]);
+            }
+            if (secretsResponse.ok) {
+                const configs = await secretsResponse.json() as Array<{ type?: string; value?: string }>;
+                setProjectSecretValues(
+                    configs
+                        .filter((config) => config.type === 'SECRET' && typeof config.value === 'string' && config.value.length > 0)
+                        .map((config) => config.value as string)
+                );
+            } else {
+                setProjectSecretValues([]);
             }
         } catch (error) {
             console.error("Failed to fetch project configs", error);
+            setProjectConfigs([]);
+            setProjectSecretValues([]);
         }
     }, [getAccessToken]);
 
@@ -404,23 +423,50 @@ function RunPageContent() {
         try {
             const token = await getAccessToken();
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const response = await fetch(`/api/test-cases/${tcId}/configs`, { headers });
+            const [response, secretsResponse] = await Promise.all([
+                fetch(`/api/test-cases/${tcId}/configs`, { headers }),
+                fetch(`/api/test-cases/${tcId}/configs?includeSecretValues=true`, { headers }),
+            ]);
             if (response.ok) {
                 setTestCaseConfigs(await response.json());
+            } else {
+                setTestCaseConfigs([]);
+            }
+            if (secretsResponse.ok) {
+                const configs = await secretsResponse.json() as Array<{ type?: string; value?: string }>;
+                setTestCaseSecretValues(
+                    configs
+                        .filter((config) => config.type === 'SECRET' && typeof config.value === 'string' && config.value.length > 0)
+                        .map((config) => config.value as string)
+                );
+            } else {
+                setTestCaseSecretValues([]);
             }
         } catch (error) {
             console.error("Failed to fetch test case configs", error);
+            setTestCaseConfigs([]);
+            setTestCaseSecretValues([]);
         }
     }, [getAccessToken]);
 
     useEffect(() => {
         const effectiveProjectId = projectId || projectIdFromTestCase;
-        if (effectiveProjectId) fetchProjectConfigs(effectiveProjectId);
+        if (effectiveProjectId) {
+            fetchProjectConfigs(effectiveProjectId);
+        } else {
+            setProjectConfigs([]);
+            setProjectSecretValues([]);
+        }
     }, [projectId, projectIdFromTestCase, fetchProjectConfigs]);
 
     useEffect(() => {
         const tcId = testCaseId || currentTestCaseId;
-        if (tcId) fetchTestCaseConfigs(tcId);
+        if (tcId) {
+            fetchTestCaseConfigs(tcId);
+        } else {
+            setTestCaseConfigs([]);
+            setTestCaseSecretValues([]);
+        }
     }, [testCaseId, currentTestCaseId, fetchTestCaseConfigs]);
 
     const refreshFiles = useCallback(async (overrideId?: string) => {
@@ -924,6 +970,7 @@ function RunPageContent() {
                             testCaseName: initialData?.name || null,
                             config: initialData,
                             files: testCaseFiles,
+                            secretValues: [...projectSecretValues, ...testCaseSecretValues],
                         }}
                     />
                 </div>

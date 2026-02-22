@@ -17,6 +17,7 @@ interface ResultViewerMeta {
     testCaseName?: string | null;
     config?: TestData;
     files?: TestCaseFile[];
+    secretValues?: string[];
 }
 
 interface ResultViewerProps {
@@ -24,9 +25,15 @@ interface ResultViewerProps {
     meta?: ResultViewerMeta;
 }
 
-function collectSecrets(config?: TestData): string[] {
-    void config;
-    return [];
+function collectSecrets(secretValues?: string[]): string[] {
+    if (!secretValues || secretValues.length === 0) {
+        return [];
+    }
+    return [...new Set(
+        secretValues
+            .map((value) => value.trim())
+            .filter((value) => value.length > 0 && value !== '••••••')
+    )];
 }
 
 function maskSensitiveText(text: string, secrets: string[]): string {
@@ -72,7 +79,7 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
     const [lightboxImage, setLightboxImage] = useState<{ src: string; label: string } | null>(null);
     const [copied, setCopied] = useState(false);
 
-    const secrets = useMemo(() => collectSecrets(meta?.config), [meta?.config]);
+    const secrets = useMemo(() => collectSecrets(meta?.secretValues), [meta?.secretValues]);
 
     const events = useMemo(() => result.events.map((event) => maskEvent(event, secrets)), [result.events, secrets]);
 

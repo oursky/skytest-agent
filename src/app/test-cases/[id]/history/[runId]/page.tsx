@@ -45,6 +45,8 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
     const [projectName, setProjectName] = useState<string>("");
     const [projectConfigs, setProjectConfigs] = useState<ConfigItem[]>([]);
     const [testCaseConfigs, setTestCaseConfigs] = useState<ConfigItem[]>([]);
+    const [projectSecretValues, setProjectSecretValues] = useState<string[]>([]);
+    const [testCaseSecretValues, setTestCaseSecretValues] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
@@ -63,10 +65,12 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                 const data = await response.json();
                 setTestCase(data);
                 setProjectId(data.projectId);
-                const [projectResponse, projectConfigsResponse, testCaseConfigsResponse] = await Promise.all([
+                const [projectResponse, projectConfigsResponse, testCaseConfigsResponse, projectSecretsResponse, testCaseSecretsResponse] = await Promise.all([
                     fetch(`/api/projects/${data.projectId}`, { headers }),
                     fetch(`/api/projects/${data.projectId}/configs`, { headers }),
                     fetch(`/api/test-cases/${id}/configs`, { headers }),
+                    fetch(`/api/projects/${data.projectId}/configs?includeSecretValues=true`, { headers }),
+                    fetch(`/api/test-cases/${id}/configs?includeSecretValues=true`, { headers }),
                 ]);
 
                 if (projectResponse.ok) {
@@ -83,9 +87,33 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                 } else {
                     setTestCaseConfigs([]);
                 }
+                if (projectSecretsResponse.ok) {
+                    const configs = await projectSecretsResponse.json() as Array<{ type?: string; value?: string }>;
+                    setProjectSecretValues(
+                        configs
+                            .filter((config) => config.type === 'SECRET' && typeof config.value === 'string' && config.value.length > 0)
+                            .map((config) => config.value as string)
+                    );
+                } else {
+                    setProjectSecretValues([]);
+                }
+                if (testCaseSecretsResponse.ok) {
+                    const configs = await testCaseSecretsResponse.json() as Array<{ type?: string; value?: string }>;
+                    setTestCaseSecretValues(
+                        configs
+                            .filter((config) => config.type === 'SECRET' && typeof config.value === 'string' && config.value.length > 0)
+                            .map((config) => config.value as string)
+                    );
+                } else {
+                    setTestCaseSecretValues([]);
+                }
             }
         } catch (error) {
             console.error("Failed to fetch test case", error);
+            setProjectConfigs([]);
+            setTestCaseConfigs([]);
+            setProjectSecretValues([]);
+            setTestCaseSecretValues([]);
         }
     }, [getAccessToken, id]);
 
@@ -309,6 +337,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                                 projectName,
                                 testCaseName: testCase?.name || null,
                                 config: testData,
+                                secretValues: [...projectSecretValues, ...testCaseSecretValues],
                             }}
                         />
                     </div>
