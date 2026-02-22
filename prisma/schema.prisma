@@ -39,7 +39,6 @@ model Project {
   user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   testCases TestCase[]
   configs     ProjectConfig[]
-  avdProfiles AvdProfile[]
   createdAt   DateTime        @default(now())
   updatedAt DateTime        @updatedAt
 
@@ -144,21 +143,4 @@ model TestCaseConfig {
 
   @@unique([testCaseId, name])
   @@index([testCaseId])
-}
-
-model AvdProfile {
-  id          String   @id @default(cuid())
-  projectId   String
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name        String                   // "Pixel_7_API_34"
-  displayName String                   // "Pixel 7 (Android 14)"
-  apiLevel    Int                      // 34
-  screenSize  String?                  // "1080x2400"
-  dockerImage String?                  // e.g. "budtmo/docker-android:emulator_34.0"; null = use native AVD
-  enabled     Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@unique([projectId, name])
-  @@index([projectId])
 }

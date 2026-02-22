@@ -46,22 +46,9 @@ export async function GET(
             displayName: profile.displayName,
             apiLevel: profile.apiLevel,
             screenSize: profile.screenSize,
-            enabled: true,
         })));
     } catch (error) {
         logger.error('Failed to fetch AVD profiles', error);
         return NextResponse.json({ error: 'Failed to fetch AVD profiles' }, { status: 500 });
     }
-}
-
-export async function POST(
-    request: Request,
-    { params }: { params: Promise<{ id: string }> }
-) {
-    void request;
-    void params;
-    return NextResponse.json(
-        { error: 'AVD profiles are managed by system runtime inventory and cannot be created manually.' },
-        { status: 405 }
-    );
 }

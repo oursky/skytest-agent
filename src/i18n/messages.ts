@@ -329,17 +329,6 @@ export const MESSAGES: Record<Locale, Messages> = {
     'android.setup.help': 'Start an existing emulator on your Mac:\n1. List emulators: `emulator -list-avds`\n2. Boot one emulator: `emulator -avd <AVD_NAME> -port 5554`',
 
     // Emulators
-    'avdProfile.title': 'Emulators',
-    'avdProfile.add': 'Add Emulator',
-    'avdProfile.empty': 'No emulators yet.',
-    'avdProfile.displayName': 'Display Name',
-    'avdProfile.apiLevel': 'API Level',
-    'avdProfile.screenSize': 'Screen Size',
-    'avdProfile.help.intro': 'Emulators define virtual Android devices for running your mobile tests. Each emulator specifies an Android version and screen size.',
-    'avdProfile.help.setup': 'To use: 1. Review available emulators below  2. In your test case, open the Configurations tab and click "Add Android Target"  3. Select an emulator and app ID, then run the test',
-    'avdProfile.delete.confirm': 'Delete this emulator?',
-    'avdProfile.create': 'Create',
-    'avdProfile.creating': 'Creating…',
 
     // Emulator panel
     'emulator.panel.title': 'Emulator Pool',
@@ -752,17 +741,6 @@ export const MESSAGES: Record<Locale, Messages> = {
     'android.setup.help': '在 Mac 啟動既有模擬器：\n1. 列出模擬器：`emulator -list-avds`\n2. 啟動模擬器：`emulator -avd <AVD_NAME> -port 5554`',
 
     // Emulators
-    'avdProfile.title': '模擬器',
-    'avdProfile.add': '新增模擬器',
-    'avdProfile.empty': '尚無模擬器。',
-    'avdProfile.displayName': '顯示名稱',
-    'avdProfile.apiLevel': 'API 等級',
-    'avdProfile.screenSize': '螢幕尺寸',
-    'avdProfile.help.intro': '模擬器定義用於執行行動測試的虛擬 Android 裝置。每個模擬器指定 Android 版本與螢幕尺寸。',
-    'avdProfile.help.setup': '使用方式：1. 在下方查看可用的模擬器  2. 在測試案例中開啟「設定」分頁，點擊「新增 Android 目標」  3. 選擇模擬器與 App ID，然後執行測試',
-    'avdProfile.delete.confirm': '刪除此模擬器？',
-    'avdProfile.create': '建立',
-    'avdProfile.creating': '建立中…',
 
     // Emulator panel
     'emulator.panel.title': '模擬器池',
@@ -1175,17 +1153,6 @@ export const MESSAGES: Record<Locale, Messages> = {
     'android.setup.help': '在 Mac 启动已有模拟器：\n1. 列出模拟器：`emulator -list-avds`\n2. 启动模拟器：`emulator -avd <AVD_NAME> -port 5554`',
 
     // Emulators
-    'avdProfile.title': '模拟器',
-    'avdProfile.add': '添加模拟器',
-    'avdProfile.empty': '暂无模拟器。',
-    'avdProfile.displayName': '显示名称',
-    'avdProfile.apiLevel': 'API 等级',
-    'avdProfile.screenSize': '屏幕尺寸',
-    'avdProfile.help.intro': '模拟器定义用于运行移动测试的虚拟 Android 设备。每个模拟器指定 Android 版本与屏幕尺寸。',
-    'avdProfile.help.setup': '使用方式：1. 在下方查看可用的模拟器  2. 在测试用例中打开「配置」标签页，点击「添加 Android 目标」  3. 选择模拟器与 App ID，然后运行测试',
-    'avdProfile.delete.confirm': '删除此模拟器？',
-    'avdProfile.create': '创建',
-    'avdProfile.creating': '创建中…',
 
     // Emulator panel
     'emulator.panel.title': '模拟器池',
