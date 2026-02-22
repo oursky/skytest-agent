@@ -333,8 +333,10 @@ function parseConfigurationsRows(
                 const name = getRowValue(row, ['name', 'key']) || '';
                 const url = getRowValue(row, ['url', 'value']) || '';
                 if (url) {
-                    const id = `browser_${String.fromCharCode('a'.charCodeAt(0) + targetEntries.length)}`;
+                    const targetIndex = targetEntries.length;
+                    const id = `browser_${String.fromCharCode('a'.charCodeAt(0) + targetIndex)}`;
                     targetEntries.push({ id, config: { name: name || undefined, url } });
+                    targetAliases[normalizeHeader(formatTargetLabel(targetIndex, 'browser'))] = id;
                     if (name) {
                         targetAliases[normalizeHeader(name)] = id;
                     }
@@ -346,7 +348,8 @@ function parseConfigurationsRows(
                 const avdName = getRowValue(row, ['emulator', 'avd', 'avdname']) || '';
                 const appId = getRowValue(row, ['appid', 'app id', 'value']) || '';
                 if (appId || avdName || name) {
-                    const id = `android_${String.fromCharCode('a'.charCodeAt(0) + targetEntries.length)}`;
+                    const targetIndex = targetEntries.length;
+                    const id = `android_${String.fromCharCode('a'.charCodeAt(0) + targetIndex)}`;
                     targetEntries.push({
                         id,
                         config: {
@@ -358,6 +361,7 @@ function parseConfigurationsRows(
                             allowAllPermissions: parseBooleanCell(getRowValue(row, ['allowallpermissions', 'allow all permissions']), true),
                         }
                     });
+                    targetAliases[normalizeHeader(formatTargetLabel(targetIndex, 'android'))] = id;
                     if (name) {
                         targetAliases[normalizeHeader(name)] = id;
                     }
