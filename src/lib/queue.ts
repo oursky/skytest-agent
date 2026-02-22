@@ -79,12 +79,7 @@ export class TestQueue {
                 where: { id: runId },
                 data: { status: 'QUEUED' }
             });
-            if (config.testCaseId) {
-                await prisma.testCase.update({
-                    where: { id: config.testCaseId },
-                    data: { status: 'QUEUED' }
-                });
-            }
+            await this.updateTestCaseStatus(config.testCaseId, 'QUEUED');
         } catch (e) {
             logger.error(`Failed to update status for ${runId}`, e);
         }
@@ -107,6 +102,16 @@ export class TestQueue {
             testCaseId,
             runId,
             status
+        });
+    }
+
+    private async updateTestCaseStatus(testCaseId: string | undefined, status: QueueRunStatus): Promise<void> {
+        if (!testCaseId) {
+            return;
+        }
+        await prisma.testCase.update({
+            where: { id: testCaseId },
+            data: { status }
         });
     }
 
@@ -143,12 +148,7 @@ export class TestQueue {
                     }
                 });
 
-                if (job.config.testCaseId) {
-                    await prisma.testCase.update({
-                        where: { id: job.config.testCaseId },
-                        data: { status: 'CANCELLED' }
-                    });
-                }
+                await this.updateTestCaseStatus(job.config.testCaseId, 'CANCELLED');
 
                 this.publishRunStatus(job.config.projectId, job.config.testCaseId, runId, 'CANCELLED');
             } catch (e) {
@@ -167,12 +167,7 @@ export class TestQueue {
                         data: { status: 'CANCELLED', error: 'Cancelled while queued', completedAt: new Date() }
                     });
 
-                    if (job.config.testCaseId) {
-                        await prisma.testCase.update({
-                            where: { id: job.config.testCaseId },
-                            data: { status: 'CANCELLED' }
-                        });
-                    }
+                    await this.updateTestCaseStatus(job.config.testCaseId, 'CANCELLED');
 
                     this.publishRunStatus(job.config.projectId, job.config.testCaseId, runId, 'CANCELLED');
                 } catch (error) {
@@ -198,12 +193,7 @@ export class TestQueue {
                             data: { status: 'CANCELLED', error: 'Force cancelled (orphaned run)', completedAt: new Date() }
                         });
 
-                        if (run.testCaseId) {
-                            await prisma.testCase.update({
-                                where: { id: run.testCaseId },
-                                data: { status: 'CANCELLED' }
-                            });
-                        }
+                        await this.updateTestCaseStatus(run.testCaseId ?? undefined, 'CANCELLED');
 
                         this.publishRunStatus(run.testCase?.projectId, run.testCaseId ?? undefined, runId, 'CANCELLED');
                     }
@@ -253,12 +243,7 @@ export class TestQueue {
                 }
             });
 
-            if (job.config.testCaseId) {
-                await prisma.testCase.update({
-                    where: { id: job.config.testCaseId },
-                    data: { status: startStatus }
-                });
-            }
+            await this.updateTestCaseStatus(job.config.testCaseId, startStatus);
 
             this.publishRunStatus(job.config.projectId, job.config.testCaseId, job.runId, startStatus);
         } catch (error) {
@@ -339,9 +324,7 @@ export class TestQueue {
                 onPreparing: async () => {
                     this.activeStatuses.set(runId, 'PREPARING');
                     await prisma.testRun.update({ where: { id: runId }, data: { status: 'PREPARING' } });
-                    if (config.testCaseId) {
-                        await prisma.testCase.update({ where: { id: config.testCaseId }, data: { status: 'PREPARING' } });
-                    }
+                    await this.updateTestCaseStatus(config.testCaseId, 'PREPARING');
                     this.publishRunStatus(config.projectId, config.testCaseId, runId, 'PREPARING');
                 },
                 onRunning: async () => {
@@ -351,9 +334,7 @@ export class TestQueue {
 
                     this.activeStatuses.set(runId, 'RUNNING');
                     await prisma.testRun.update({ where: { id: runId }, data: { status: 'RUNNING' } });
-                    if (config.testCaseId) {
-                        await prisma.testCase.update({ where: { id: config.testCaseId }, data: { status: 'RUNNING' } });
-                    }
+                    await this.updateTestCaseStatus(config.testCaseId, 'RUNNING');
                     this.publishRunStatus(config.projectId, config.testCaseId, runId, 'RUNNING');
                 }
             });
@@ -378,12 +359,7 @@ export class TestQueue {
                 }
             });
 
-            if (config.testCaseId) {
-                await prisma.testCase.update({
-                    where: { id: config.testCaseId },
-                    data: { status: result.status }
-                });
-            }
+            await this.updateTestCaseStatus(config.testCaseId, result.status as QueueRunStatus);
 
             this.publishRunStatus(config.projectId, config.testCaseId, runId, result.status as QueueRunStatus);
 
@@ -430,12 +406,7 @@ export class TestQueue {
                     }
                 });
 
-                if (config.testCaseId) {
-                    await prisma.testCase.update({
-                        where: { id: config.testCaseId },
-                        data: { status: 'FAIL' }
-                    });
-                }
+                await this.updateTestCaseStatus(config.testCaseId, 'FAIL');
 
                 this.publishRunStatus(config.projectId, config.testCaseId, runId, 'FAIL');
             }
