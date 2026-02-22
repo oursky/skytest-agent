@@ -84,6 +84,12 @@ async function validateAndroidTargets(
         if (!target.appId) {
             return 'Android target must include an app ID';
         }
+        if (typeof target.clearAppState !== 'boolean') {
+            return 'Android target clearAppState must be a boolean';
+        }
+        if (typeof target.allowAllPermissions !== 'boolean') {
+            return 'Android target allowAllPermissions must be a boolean';
+        }
         if (!availableProfileNames.has(target.avdName)) {
             return `AVD profile "${target.avdName}" is not available in current runtime inventory`;
         }

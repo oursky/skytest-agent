@@ -441,6 +441,10 @@ export const MESSAGES: Record<Locale, Messages> = {
     'configs.android.apk.none': 'No APKs uploaded for this project',
     'configs.android.apk.upload': 'Upload APK…',
     'configs.android.activity.placeholder': 'e.g. com.example.MainActivity (optional)',
+    'configs.android.clearAppState': 'Clear app state',
+    'configs.android.clearAppState.help': 'Force-stop and clear app data before launch (keeps app installed).',
+    'configs.android.allowAllPermissions': 'Allow all permissions',
+    'configs.android.allowAllPermissions.help': 'Automatically attempt to grant requested app permissions before launch.',
     'configs.target.addAndroid': 'Add Android Target',
   },
 
@@ -874,6 +878,10 @@ export const MESSAGES: Record<Locale, Messages> = {
     'configs.android.apk.none': '此專案尚無上傳 APK',
     'configs.android.apk.upload': '上傳 APK…',
     'configs.android.activity.placeholder': '例如：com.example.MainActivity（選填）',
+    'configs.android.clearAppState': '清除 App 狀態',
+    'configs.android.clearAppState.help': '啟動前強制停止並清除 App 資料（不會解除安裝 App）。',
+    'configs.android.allowAllPermissions': '允許所有權限',
+    'configs.android.allowAllPermissions.help': '啟動前自動嘗試授予 App 請求的權限。',
     'configs.target.addAndroid': '新增 Android 目標',
   },
 
@@ -1307,6 +1315,10 @@ export const MESSAGES: Record<Locale, Messages> = {
     'configs.android.apk.none': '此项目暂无上传 APK',
     'configs.android.apk.upload': '上传 APK…',
     'configs.android.activity.placeholder': '例如：com.example.MainActivity（可选）',
+    'configs.android.clearAppState': '清除 App 状态',
+    'configs.android.clearAppState.help': '启动前强制停止并清除 App 数据（不会卸载 App）。',
+    'configs.android.allowAllPermissions': '允许所有权限',
+    'configs.android.allowAllPermissions.help': '启动前自动尝试授予 App 请求的权限。',
     'configs.target.addAndroid': '添加 Android 目标',
   }
 };

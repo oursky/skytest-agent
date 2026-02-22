@@ -68,6 +68,90 @@ async function waitForAndroidAppForeground(
     return false;
 }
 
+function extractAndroidPermissionsFromDumpsys(packageDump: string): string[] {
+    const permissions = new Set<string>();
+
+    for (const match of packageDump.matchAll(/^\s*([A-Za-z0-9_.]+):\s+granted=(?:true|false)/gm)) {
+        permissions.add(match[1]);
+    }
+
+    const lines = packageDump.split('\n');
+    let inRequestedPermissions = false;
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (!inRequestedPermissions) {
+            if (trimmed.toLowerCase() === 'requested permissions:') {
+                inRequestedPermissions = true;
+            }
+            continue;
+        }
+
+        if (!trimmed) {
+            continue;
+        }
+
+        if (trimmed.endsWith(':') && !trimmed.includes('.')) {
+            break;
+        }
+
+        if (/^[A-Za-z0-9_.]+$/.test(trimmed) && trimmed.includes('.')) {
+            permissions.add(trimmed);
+            continue;
+        }
+
+        if (trimmed.includes(':')) {
+            break;
+        }
+    }
+
+    return [...permissions];
+}
+
+async function grantAndroidAppPermissions(
+    device: { shell(command: string): Promise<string> },
+    appId: string,
+    log: ReturnType<typeof createLogger>,
+    browserId?: string
+): Promise<void> {
+    try {
+        const packageDump = await device.shell(`dumpsys package ${appId}`);
+        const permissions = extractAndroidPermissionsFromDumpsys(packageDump);
+
+        if (permissions.length === 0) {
+            log(`No grantable permissions detected for ${appId}; skipping auto-grant.`, 'info', browserId);
+            return;
+        }
+
+        let granted = 0;
+        let skipped = 0;
+
+        for (const permission of permissions) {
+            try {
+                const output = (await device.shell(`pm grant ${appId} ${permission}`)).trim();
+                if (!output) {
+                    granted += 1;
+                    continue;
+                }
+
+                skipped += 1;
+                if (!/not a changeable permission type|operation not allowed|securityexception|unknown permission|java\.lang\./i.test(output)) {
+                    log(`pm grant ${permission}: ${output}`, 'info', browserId);
+                }
+            } catch (error) {
+                skipped += 1;
+                const message = getErrorMessage(error);
+                if (!/not a changeable permission type|operation not allowed|securityexception|unknown permission|java\.lang\./i.test(message)) {
+                    log(`pm grant ${permission} failed: ${message}`, 'info', browserId);
+                }
+            }
+        }
+
+        log(`Auto-grant permissions attempted for ${appId}: ${granted} granted, ${skipped} skipped.`, 'info', browserId);
+    } catch (error) {
+        log(`Failed to auto-grant permissions for ${appId}: ${getErrorMessage(error)}`, 'error', browserId);
+    }
+}
+
 function escapeRegExp(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -566,14 +650,23 @@ async function setupExecutionTargets(
             );
         }
 
-        log(`Clearing app data for ${niceName}...`, 'info', targetId);
-        await handle.device.shell(`am force-stop ${androidConfig.appId}`);
-        const clearOutput = await handle.device.shell(`pm clear ${androidConfig.appId}`);
-        if (!clearOutput.toLowerCase().includes('success')) {
-            throw new ConfigurationError(
-                `Failed to clear app data for "${androidConfig.appId}" on emulator "${handle.id}".`,
-                'android'
-            );
+        if (androidConfig.clearAppState) {
+            log(`Clearing app data for ${niceName}...`, 'info', targetId);
+            await handle.device.shell(`am force-stop ${androidConfig.appId}`);
+            const clearOutput = await handle.device.shell(`pm clear ${androidConfig.appId}`);
+            if (!clearOutput.toLowerCase().includes('success')) {
+                throw new ConfigurationError(
+                    `Failed to clear app data for "${androidConfig.appId}" on emulator "${handle.id}".`,
+                    'android'
+                );
+            }
+        } else {
+            log(`Keeping existing app state for ${niceName}.`, 'info', targetId);
+        }
+
+        if (androidConfig.allowAllPermissions) {
+            log(`Auto-granting app permissions for ${niceName}...`, 'info', targetId);
+            await grantAndroidAppPermissions(handle.device, androidConfig.appId, log, targetId);
         }
 
         if (!handle.agent) {

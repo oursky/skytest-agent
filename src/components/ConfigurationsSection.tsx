@@ -404,7 +404,17 @@ export default function ConfigurationsSection({
     const handleAddAndroid = () => {
         const nextChar = String.fromCharCode('a'.charCodeAt(0) + browsers.length);
         const newId = `android_${nextChar}`;
-        setBrowsers([...browsers, { id: newId, config: { type: 'android' as const, name: '', avdName: '', appId: '' } }]);
+        setBrowsers([...browsers, {
+            id: newId,
+            config: {
+                type: 'android' as const,
+                name: '',
+                avdName: '',
+                appId: '',
+                clearAppState: true,
+                allowAllPermissions: true,
+            }
+        }]);
     };
 
     const handleRemoveBrowser = (index: number) => {
@@ -910,6 +920,34 @@ export default function ConfigurationsSection({
                                                     </div>
                                                 )}
                                             </div>
+                                        </div>
+                                        <div className="space-y-2 rounded border border-gray-200 bg-white p-2">
+                                            <label className="flex items-start gap-2 text-xs text-gray-700">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={cfg.clearAppState}
+                                                    onChange={(e) => updateTarget(index, { clearAppState: e.target.checked })}
+                                                    disabled={readOnly}
+                                                    className="mt-0.5 h-3.5 w-3.5 rounded border-gray-300 text-primary focus:ring-primary disabled:opacity-50"
+                                                />
+                                                <span>
+                                                    <span className="block font-medium">{t('configs.android.clearAppState')}</span>
+                                                    <span className="block text-[11px] text-gray-500">{t('configs.android.clearAppState.help')}</span>
+                                                </span>
+                                            </label>
+                                            <label className="flex items-start gap-2 text-xs text-gray-700">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={cfg.allowAllPermissions}
+                                                    onChange={(e) => updateTarget(index, { allowAllPermissions: e.target.checked })}
+                                                    disabled={readOnly}
+                                                    className="mt-0.5 h-3.5 w-3.5 rounded border-gray-300 text-primary focus:ring-primary disabled:opacity-50"
+                                                />
+                                                <span>
+                                                    <span className="block font-medium">{t('configs.android.allowAllPermissions')}</span>
+                                                    <span className="block text-[11px] text-gray-500">{t('configs.android.allowAllPermissions.help')}</span>
+                                                </span>
+                                            </label>
                                         </div>
                                     </div>
                                 </div>

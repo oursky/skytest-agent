@@ -18,6 +18,8 @@ export interface AndroidTargetConfig {
     name?: string;
     avdName: string;
     appId: string;
+    clearAppState: boolean;
+    allowAllPermissions: boolean;
 }
 
 export type TargetConfig = BrowserTargetConfig | AndroidTargetConfig;
