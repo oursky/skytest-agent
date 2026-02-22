@@ -93,7 +93,7 @@ export class TestQueue {
 
         this.publishRunStatus(config.projectId, config.testCaseId, runId, 'QUEUED');
 
-        this.processNext();
+        this.triggerProcessNext();
     }
 
     public registerCleanup(runId: string, cleanup: CleanupFn) {
@@ -157,6 +157,12 @@ export class TestQueue {
         this.publishRunStatus(options.projectId, options.testCaseId, runId, 'CANCELLED');
     }
 
+    private triggerProcessNext(): void {
+        void this.processNext().catch((error) => {
+            logger.error('Failed to advance test queue', error);
+        });
+    }
+
     public async cancel(runId: string) {
         if (this.running.has(runId)) {
             const job = this.running.get(runId)!;
@@ -175,7 +181,7 @@ export class TestQueue {
 
             this.running.delete(runId);
             this.activeStatuses.delete(runId);
-            this.processNext();
+            this.triggerProcessNext();
 
             const logBuffer = this.logs.get(runId) || [];
             try {
@@ -283,7 +289,7 @@ export class TestQueue {
             logger.error(`Unhandled queue execution rejection for ${job.runId}`, error);
         });
 
-        void this.processNext();
+        this.triggerProcessNext();
     }
 
     private serializeEventsChunk(events: TestEvent[]): string {
@@ -446,7 +452,7 @@ export class TestQueue {
                 this.logs.delete(runId);
             }, appConfig.queue.logRetentionMs);
 
-            this.processNext();
+            this.triggerProcessNext();
         }
     }
 
