@@ -259,28 +259,32 @@ export class TestQueue {
         const startStatus = this.getStartStatus(job.config);
         this.activeStatuses.set(job.runId, startStatus);
 
-        await prisma.testRun.update({
-            where: { id: job.runId },
-            data: {
-                status: startStatus,
-                startedAt: new Date()
+        try {
+            await prisma.testRun.update({
+                where: { id: job.runId },
+                data: {
+                    status: startStatus,
+                    startedAt: new Date()
+                }
+            });
+
+            if (job.config.testCaseId) {
+                await prisma.testCase.update({
+                    where: { id: job.config.testCaseId },
+                    data: { status: startStatus }
+                });
             }
-        });
 
-        if (job.config.testCaseId) {
-            await prisma.testCase.update({
-                where: { id: job.config.testCaseId },
-                data: { status: startStatus }
-            });
-        }
-
-        if (job.config.projectId && job.config.testCaseId) {
-            publishProjectEvent(job.config.projectId, {
-                type: 'test-run-status',
-                testCaseId: job.config.testCaseId,
-                runId: job.runId,
-                status: startStatus
-            });
+            if (job.config.projectId && job.config.testCaseId) {
+                publishProjectEvent(job.config.projectId, {
+                    type: 'test-run-status',
+                    testCaseId: job.config.testCaseId,
+                    runId: job.runId,
+                    status: startStatus
+                });
+            }
+        } catch (error) {
+            logger.error(`Failed to mark job ${job.runId} as ${startStatus}`, error);
         }
 
         this.executeJob(job);
