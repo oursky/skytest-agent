@@ -23,6 +23,7 @@ interface ResultViewerMeta {
 interface ResultViewerProps {
     result: Omit<TestRun, 'id' | 'testCaseId' | 'createdAt'> & { events: TestEvent[] };
     meta?: ResultViewerMeta;
+    requestSecretValues?: () => Promise<string[]>;
 }
 
 function collectSecrets(secretValues?: string[]): string[] {
@@ -70,7 +71,7 @@ function maskEvent(event: TestEvent, secrets: string[]): TestEvent {
     return event;
 }
 
-export default function ResultViewer({ result, meta }: ResultViewerProps) {
+export default function ResultViewer({ result, meta, requestSecretValues }: ResultViewerProps) {
     const { t } = useI18n();
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -78,8 +79,12 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
     const [autoScroll, setAutoScroll] = useState(true);
     const [lightboxImage, setLightboxImage] = useState<{ src: string; label: string } | null>(null);
     const [copied, setCopied] = useState(false);
+    const [loadedSecretValues, setLoadedSecretValues] = useState<string[] | null>(null);
 
-    const secrets = useMemo(() => collectSecrets(meta?.secretValues), [meta?.secretValues]);
+    const secrets = useMemo(
+        () => collectSecrets(loadedSecretValues ?? meta?.secretValues),
+        [loadedSecretValues, meta?.secretValues]
+    );
 
     const events = useMemo(() => result.events.map((event) => maskEvent(event, secrets)), [result.events, secrets]);
 
@@ -124,7 +129,8 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
         }
     };
 
-    const buildLogsText = (): string => {
+    const buildLogsText = (maskingSecrets: string[] = secrets): string => {
+        const maskedEvents = result.events.map((event) => maskEvent(event, maskingSecrets));
         const lines: string[] = [];
         lines.push(`# SkyTest Agent Run Report`);
         lines.push(`Generated: ${new Date().toISOString()}`);
@@ -141,14 +147,14 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
         if (meta?.projectName) lines.push(`Project Name: ${meta.projectName}`);
         lines.push(`Status: ${result.status}`);
         if (result.error) lines.push(`Error: ${result.error}`);
-        lines.push(`Events: ${events.length}`);
+        lines.push(`Events: ${maskedEvents.length}`);
         lines.push('');
         if (meta?.config) {
             lines.push('## Configuration');
             try {
                 const configJson = JSON.stringify(meta.config, null, 2);
                 lines.push('```json');
-                lines.push(maskSensitiveText(configJson, secrets));
+                lines.push(maskSensitiveText(configJson, maskingSecrets));
                 lines.push('```');
             } catch {
                 // ignore
@@ -163,7 +169,7 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
             lines.push('');
         }
         lines.push('## Events');
-        for (const ev of events) {
+        for (const ev of maskedEvents) {
             const t = formatTime(ev.timestamp);
             if (ev.type === 'log' && 'message' in ev.data) {
                 const level = ev.data.level?.toUpperCase() || 'INFO';
@@ -179,7 +185,13 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
 
     const handleCopyLogs = async () => {
         try {
-            await navigator.clipboard.writeText(buildLogsText());
+            let copySecrets = secrets;
+            if (copySecrets.length === 0 && requestSecretValues) {
+                const fetchedSecrets = collectSecrets(await requestSecretValues());
+                setLoadedSecretValues(fetchedSecrets);
+                copySecrets = fetchedSecrets;
+            }
+            await navigator.clipboard.writeText(buildLogsText(copySecrets));
             setCopied(true);
             window.setTimeout(() => setCopied(false), 1200);
         } catch {
