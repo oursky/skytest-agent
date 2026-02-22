@@ -386,6 +386,15 @@ export class TestQueue {
                 }
             });
 
+            const current = await prisma.testRun.findUnique({
+                where: { id: runId },
+                select: { status: true }
+            });
+            if (current?.status === 'CANCELLED') {
+                logger.info(`Skipping final result update for cancelled run ${runId}`);
+                return;
+            }
+
             await prisma.testRun.update({
                 where: { id: runId },
                 data: {
