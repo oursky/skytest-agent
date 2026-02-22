@@ -115,6 +115,13 @@ export class TestQueue {
         });
     }
 
+    private async syncActiveRunStatus(runId: string, config: RunTestOptions['config'], status: 'PREPARING' | 'RUNNING'): Promise<void> {
+        this.activeStatuses.set(runId, status);
+        await prisma.testRun.update({ where: { id: runId }, data: { status } });
+        await this.updateTestCaseStatus(config.testCaseId, status);
+        this.publishRunStatus(config.projectId, config.testCaseId, runId, status);
+    }
+
     public async cancel(runId: string) {
         if (this.running.has(runId)) {
             const job = this.running.get(runId)!;
@@ -322,20 +329,13 @@ export class TestQueue {
                     this.registerCleanup(runId, cleanup);
                 },
                 onPreparing: async () => {
-                    this.activeStatuses.set(runId, 'PREPARING');
-                    await prisma.testRun.update({ where: { id: runId }, data: { status: 'PREPARING' } });
-                    await this.updateTestCaseStatus(config.testCaseId, 'PREPARING');
-                    this.publishRunStatus(config.projectId, config.testCaseId, runId, 'PREPARING');
+                    await this.syncActiveRunStatus(runId, config, 'PREPARING');
                 },
                 onRunning: async () => {
                     if (this.activeStatuses.get(runId) === 'RUNNING') {
                         return;
                     }
-
-                    this.activeStatuses.set(runId, 'RUNNING');
-                    await prisma.testRun.update({ where: { id: runId }, data: { status: 'RUNNING' } });
-                    await this.updateTestCaseStatus(config.testCaseId, 'RUNNING');
-                    this.publishRunStatus(config.projectId, config.testCaseId, runId, 'RUNNING');
+                    await this.syncActiveRunStatus(runId, config, 'RUNNING');
                 }
             });
 
