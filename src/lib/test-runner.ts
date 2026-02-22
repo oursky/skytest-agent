@@ -631,6 +631,7 @@ async function setupExecutionTargets(
         const pool = EmulatorPool.getInstance();
         const handle = await pool.acquire(projectId, androidConfig.avdName, runId, signal);
         handle.packageName = androidConfig.appId;
+        handle.clearPackageDataOnRelease = androidConfig.clearAppState;
         emulatorHandles.set(targetId, handle);
 
         log(`Emulator acquired: ${handle.id}`, 'info', targetId);
@@ -1236,9 +1237,9 @@ async function cleanupTargets(targets: ExecutionTargets): Promise<void> {
     const pool = EmulatorPool.getInstance();
     for (const [targetId, handle] of targets.emulatorHandles) {
         try {
-            await pool.stop(handle.id);
+            await pool.release(handle);
         } catch (e) {
-            serverLogger.warn(`Failed to stop emulator for ${targetId}`, e);
+            serverLogger.warn(`Failed to release emulator for ${targetId}`, e);
         }
     }
 }

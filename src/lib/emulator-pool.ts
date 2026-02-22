@@ -24,6 +24,7 @@ export interface EmulatorHandle {
     acquiredAt: number;
     runId: string;
     packageName?: string;
+    clearPackageDataOnRelease?: boolean;
 }
 
 export interface EmulatorPoolStatusItem {
@@ -295,10 +296,10 @@ export class EmulatorPool {
         instance.acquiredAt = null;
         logger.info(`Releasing emulator ${instance.id}`);
 
-        const cleanSuccess = await this.cleanEmulator(instance, handle.packageName);
+        const packageToClear = handle.clearPackageDataOnRelease === false ? undefined : handle.packageName;
+        const cleanSuccess = await this.cleanEmulator(instance, packageToClear);
         if (!cleanSuccess) {
             await this.stopInstance(instance);
-            this.wakeNextWaiter(true);
             return;
         }
 
@@ -565,18 +566,21 @@ export class EmulatorPool {
     }
 
     private async stopInstance(instance: EmulatorInstance): Promise<void> {
-        if (instance.state === 'DEAD') {
+        if (instance.state === 'DEAD' || instance.state === 'STOPPING') {
             return;
         }
 
         this.clearInstanceTimers(instance);
         instance.state = 'STOPPING';
+        const processHandle = instance.process;
+        const killTarget = processHandle?.pid
+            ? (process.platform === 'win32' ? processHandle.pid : -processHandle.pid)
+            : null;
 
         try {
             await execFileAsync(this.adbPath, ['-s', instance.serial, 'emu', 'kill']).catch(() => {});
 
-            if (instance.process?.pid) {
-                const killTarget = process.platform === 'win32' ? instance.process.pid : -instance.process.pid;
+            if (killTarget !== null) {
                 try {
                     process.kill(killTarget, 'SIGTERM');
                 } catch {
@@ -587,7 +591,20 @@ export class EmulatorPool {
             logger.warn(`Error stopping emulator ${instance.id}`, error);
         }
 
+        if (processHandle) {
+            const exitedAfterTerm = await this.waitForProcessExit(processHandle, 5000);
+            if (!exitedAfterTerm && killTarget !== null) {
+                try {
+                    process.kill(killTarget, 'SIGKILL');
+                } catch {
+                    // Process may have already exited.
+                }
+                await this.waitForProcessExit(processHandle, 3000);
+            }
+        }
+
         this.transitionToDead(instance);
+        this.wakeNextWaiter(true);
     }
 
     private clearInstanceTimers(instance: EmulatorInstance): void {
@@ -792,6 +809,28 @@ export class EmulatorPool {
 
     private sleep(ms: number): Promise<void> {
         return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    private waitForProcessExit(processHandle: ChildProcess, timeoutMs: number): Promise<boolean> {
+        if (processHandle.exitCode !== null || processHandle.signalCode !== null) {
+            return Promise.resolve(true);
+        }
+
+        return new Promise((resolve) => {
+            let settled = false;
+            const done = (result: boolean) => {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                clearTimeout(timeoutId);
+                processHandle.off('exit', onExit);
+                resolve(result);
+            };
+            const onExit = () => done(true);
+            const timeoutId = setTimeout(() => done(false), timeoutMs);
+            processHandle.once('exit', onExit);
+        });
     }
 }
 
