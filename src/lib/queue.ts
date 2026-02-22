@@ -17,6 +17,13 @@ interface Job {
 
 type CleanupFn = () => Promise<void>;
 type QueueRunStatus = 'QUEUED' | 'PREPARING' | 'RUNNING' | 'PASS' | 'FAIL' | 'CANCELLED';
+interface CancelRunOptions {
+    errorMessage: string;
+    testCaseId?: string;
+    projectId?: string;
+    resultJson?: string;
+    clearLogsField?: boolean;
+}
 
 export class TestQueue {
     private static instance: TestQueue;
@@ -122,6 +129,34 @@ export class TestQueue {
         this.publishRunStatus(config.projectId, config.testCaseId, runId, status);
     }
 
+    private async markRunCancelled(runId: string, options: CancelRunOptions): Promise<void> {
+        const data: {
+            status: 'CANCELLED';
+            error: string;
+            completedAt: Date;
+            result?: string;
+            logs?: null;
+        } = {
+            status: 'CANCELLED',
+            error: options.errorMessage,
+            completedAt: new Date(),
+        };
+        if (options.resultJson !== undefined) {
+            data.result = options.resultJson;
+        }
+        if (options.clearLogsField) {
+            data.logs = null;
+        }
+
+        await prisma.testRun.update({
+            where: { id: runId },
+            data
+        });
+
+        await this.updateTestCaseStatus(options.testCaseId, 'CANCELLED');
+        this.publishRunStatus(options.projectId, options.testCaseId, runId, 'CANCELLED');
+    }
+
     public async cancel(runId: string) {
         if (this.running.has(runId)) {
             const job = this.running.get(runId)!;
@@ -144,20 +179,13 @@ export class TestQueue {
 
             const logBuffer = this.logs.get(runId) || [];
             try {
-                await prisma.testRun.update({
-                    where: { id: runId },
-                    data: {
-                        status: 'CANCELLED',
-                        error: 'Test stopped by user',
-                        completedAt: new Date(),
-                        result: JSON.stringify(logBuffer),
-                        logs: null
-                    }
+                await this.markRunCancelled(runId, {
+                    errorMessage: 'Test stopped by user',
+                    testCaseId: job.config.testCaseId,
+                    projectId: job.config.projectId,
+                    resultJson: JSON.stringify(logBuffer),
+                    clearLogsField: true,
                 });
-
-                await this.updateTestCaseStatus(job.config.testCaseId, 'CANCELLED');
-
-                this.publishRunStatus(job.config.projectId, job.config.testCaseId, runId, 'CANCELLED');
             } catch (e) {
                 logger.error(`Failed to mark ${runId} as cancelled`, e);
             }
@@ -169,14 +197,11 @@ export class TestQueue {
                 this.queue.splice(index, 1);
 
                 try {
-                    await prisma.testRun.update({
-                        where: { id: runId },
-                        data: { status: 'CANCELLED', error: 'Cancelled while queued', completedAt: new Date() }
+                    await this.markRunCancelled(runId, {
+                        errorMessage: 'Cancelled while queued',
+                        testCaseId: job.config.testCaseId,
+                        projectId: job.config.projectId,
                     });
-
-                    await this.updateTestCaseStatus(job.config.testCaseId, 'CANCELLED');
-
-                    this.publishRunStatus(job.config.projectId, job.config.testCaseId, runId, 'CANCELLED');
                 } catch (error) {
                     logger.error(`Failed to mark ${runId} as cancelled`, error);
                 }
@@ -195,14 +220,11 @@ export class TestQueue {
                     });
 
                     if (run && ['RUNNING', 'QUEUED', 'PREPARING'].includes(run.status)) {
-                        await prisma.testRun.update({
-                            where: { id: runId },
-                            data: { status: 'CANCELLED', error: 'Force cancelled (orphaned run)', completedAt: new Date() }
+                        await this.markRunCancelled(runId, {
+                            errorMessage: 'Force cancelled (orphaned run)',
+                            testCaseId: run.testCaseId ?? undefined,
+                            projectId: run.testCase?.projectId,
                         });
-
-                        await this.updateTestCaseStatus(run.testCaseId ?? undefined, 'CANCELLED');
-
-                        this.publishRunStatus(run.testCase?.projectId, run.testCaseId ?? undefined, runId, 'CANCELLED');
                     }
                 } catch (error) {
                     logger.error(`Failed to cleanup orphaned run ${runId}`, error);
