@@ -1,27 +1,13 @@
 import { NextResponse } from 'next/server';
-import { execFile } from 'node:child_process';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/auth';
 import { emulatorPool } from '@/lib/emulator-pool';
 import { listAvailableAndroidProfiles } from '@/lib/android-profiles';
-import { resolveAndroidToolPath } from '@/lib/android-sdk';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('api:emulators');
 
 export const dynamic = 'force-dynamic';
-
-function execFileAsync(file: string, args: string[], timeoutMs?: number): Promise<{ stdout: string; stderr: string }> {
-    return new Promise((resolve, reject) => {
-        execFile(file, args, { encoding: 'utf8', ...(timeoutMs ? { timeout: timeoutMs } : {}) }, (error, stdout, stderr) => {
-            if (error) {
-                reject(error);
-                return;
-            }
-            resolve({ stdout: String(stdout), stderr: String(stderr) });
-        });
-    });
-}
 
 async function ensureProjectOwnership(projectId: string, userId: string): Promise<boolean> {
     const project = await prisma.project.findFirst({
@@ -29,49 +15,6 @@ async function ensureProjectOwnership(projectId: string, userId: string): Promis
         select: { id: true },
     });
     return Boolean(project);
-}
-
-async function stopUnmanagedEmulator(emulatorId: string): Promise<boolean> {
-    if (!/^emulator-\d+$/i.test(emulatorId)) {
-        return false;
-    }
-
-    try {
-        const adbPath = resolveAndroidToolPath('adb');
-        await execFileAsync(adbPath, ['-s', emulatorId, 'emu', 'kill'], 5000);
-        return true;
-    } catch {
-        return false;
-    }
-}
-
-async function listRunningAdbEmulators(): Promise<Array<{ id: string; avdName: string }>> {
-    try {
-        const adbPath = resolveAndroidToolPath('adb');
-        const { stdout } = await execFileAsync(adbPath, ['devices']);
-        const serials = stdout
-            .split('\n')
-            .map((line) => line.trim())
-            .filter((line) => /^emulator-\d+\s+device$/i.test(line))
-            .map((line) => line.split(/\s+/)[0]);
-
-        const running: Array<{ id: string; avdName: string }> = [];
-        for (const serial of serials) {
-            try {
-                const { stdout: avdStdout } = await execFileAsync(adbPath, ['-s', serial, 'emu', 'avd', 'name']);
-                const avdName = avdStdout
-                    .split('\n')
-                    .map((line) => line.trim())
-                    .find((line) => line.length > 0 && !/^ok$/i.test(line));
-                running.push({ id: serial, avdName: avdName || serial });
-            } catch {
-                running.push({ id: serial, avdName: serial });
-            }
-        }
-        return running;
-    } catch {
-        return [];
-    }
 }
 
 async function isAndroidEnabled(userId: string): Promise<boolean> {
@@ -141,20 +84,6 @@ export async function GET(request: Request) {
         }
 
         const avdProfiles = await listAvailableAndroidProfiles();
-        const adbRunning = await listRunningAdbEmulators();
-        const knownRuntimeIds = new Set(status.emulators.map((emulator) => emulator.id));
-        for (const runtime of adbRunning) {
-            if (knownRuntimeIds.has(runtime.id)) {
-                continue;
-            }
-            status.emulators.push({
-                id: runtime.id,
-                projectId: '',
-                avdName: runtime.avdName,
-                state: 'IDLE',
-                uptimeMs: 0,
-            });
-        }
 
         return NextResponse.json({
             ...status,
@@ -189,17 +118,21 @@ export async function POST(request: Request) {
 
         if (action === 'stop' && body.emulatorId) {
             const emulatorId = body.emulatorId;
-            const managedState = emulatorPool.getEmulatorState(emulatorId);
-            if (managedState) {
+            const ownedEmulator = emulatorPool
+                .getStatus(new Set(
+                    (await prisma.project.findMany({
+                        where: { userId },
+                        select: { id: true },
+                    })).map((project) => project.id)
+                ))
+                .emulators
+                .find((emulator) => emulator.id === emulatorId);
+
+            if (ownedEmulator) {
                 await emulatorPool.stop(emulatorId);
                 return NextResponse.json({ success: true });
             }
-
-            const stoppedUnmanaged = await stopUnmanagedEmulator(emulatorId);
-            if (!stoppedUnmanaged) {
-                return NextResponse.json({ error: 'Emulator not found' }, { status: 404 });
-            }
-            return NextResponse.json({ success: true });
+            return NextResponse.json({ error: 'Emulator not found' }, { status: 404 });
         }
 
         if (action === 'boot' && body.projectId && body.avdName) {
