@@ -104,20 +104,6 @@ export async function parseTestCaseExcel(content: ArrayBuffer): Promise<ParseRes
     let testCaseVariables = parsedConfigurations.testCaseVariables;
     let files = parsedConfigurations.files;
 
-    // Backward compatibility with older multi-sheet exports.
-    if (configurationsRows.length === 0) {
-        const testCaseRows = readSheetRows(workbook, 'Test Case');
-        const variableRows = readSheetRows(workbook, 'Project Variables');
-        const browserRows = readSheetRows(workbook, 'Browser Entry Points');
-        const fileRows = readSheetRows(workbook, 'Files');
-        parsedTestCase = parseTestCaseRows(testCaseRows);
-        targetEntries = parseBrowserRows(browserRows, warnings).map((browser) => ({ id: browser.id, config: { name: browser.name, url: browser.url } }));
-        targetAliases = {};
-        projectVariables = parseProjectVariableRows(variableRows, warnings);
-        testCaseVariables = [];
-        files = parseFileRows(fileRows, warnings);
-    }
-
     const targetConfig: Record<string, BrowserConfig | TargetConfig> = {};
     targetEntries.forEach((entry) => {
         targetConfig[entry.id] = entry.config;
@@ -255,7 +241,6 @@ function parseConfigurationsRows(
     const projectVariables: ExcelProjectVariable[] = [];
     const testCaseVariables: ExcelProjectVariable[] = [];
     const targetEntries: ExcelTargetEntry[] = [];
-    const browserEntryDrafts = new Map<string, { name?: string; url?: string }>();
     const targetAliases: Record<string, string> = {};
     const files: ExcelFileEntry[] = [];
 
@@ -325,7 +310,6 @@ function parseConfigurationsRows(
         }
 
         if (section === 'entrypoint' || section === 'entrypoints' || section === 'browserentrypoint' || section === 'browserentrypoints' || section === 'browser') {
-            // New format: 1 row per entry point — Type = "Browser"/"Android"
             const type = normalizeHeader(getRowValue(row, ['type']) || '');
             if (type === 'browser') {
                 const name = getRowValue(row, ['name', 'key']) || '';
@@ -367,25 +351,6 @@ function parseConfigurationsRows(
                 return;
             }
 
-            // Old format: 2 rows per browser — Type = "Browser A", Key = "Name"/"URL"
-            const browserLabel = getRowValue(row, ['type']) || '';
-            const key = normalizeHeader(getRowValue(row, ['key', 'name']) || '');
-            const value = getRowValue(row, ['value']) || '';
-            if (!browserLabel) {
-                warnings.push(`Missing browser label in Configurations row ${index + 1}`);
-                return;
-            }
-            if (!key) {
-                warnings.push(`Missing browser key in Configurations row ${index + 1}`);
-                return;
-            }
-            const entry = browserEntryDrafts.get(browserLabel) || {};
-            if (key === 'name') {
-                entry.name = value;
-            } else if (key === 'url') {
-                entry.url = value;
-            }
-            browserEntryDrafts.set(browserLabel, entry);
             return;
         }
 
@@ -402,26 +367,6 @@ function parseConfigurationsRows(
                 mimeType: getRowValue(row, ['mimetype', 'mime type', 'type']),
                 size: Number.isFinite(size) ? size : undefined,
             });
-        }
-    });
-
-    // Process old-format browser drafts (2-row per browser)
-    Array.from(browserEntryDrafts.entries()).forEach(([browserLabel, draft], index) => {
-        if (!draft.url) {
-            warnings.push(`Missing browser URL for ${browserLabel}`);
-            return;
-        }
-        const id = browserLabelToId(browserLabel, index + targetEntries.length);
-        targetEntries.push({
-            id,
-            config: {
-                name: draft.name,
-                url: draft.url,
-            }
-        });
-        targetAliases[normalizeHeader(browserLabel)] = id;
-        if (draft.name) {
-            targetAliases[normalizeHeader(draft.name)] = id;
         }
     });
 
@@ -513,42 +458,6 @@ function extractCellValue(value: CellValue | undefined): string | number | boole
     return undefined;
 }
 
-function parseTestCaseRows(rows: Array<Record<string, unknown>>): { name?: string; testCaseId?: string; primaryUrl?: string } {
-    const fieldMap = new Map<string, string>();
-    for (const row of rows) {
-        const fieldName = getRowValue(row, ['field', 'key']);
-        const fieldValue = getRowValue(row, ['value']);
-        if (!fieldName || fieldValue === undefined) {
-            continue;
-        }
-        fieldMap.set(normalizeHeader(fieldName), fieldValue);
-    }
-
-    const firstRow = rows[0];
-    return {
-        name: fieldMap.get('name') || getRowValue(firstRow || {}, ['name', 'test case name']),
-        testCaseId: fieldMap.get('testcaseid') || getRowValue(firstRow || {}, ['test case id', 'testcaseid', 'id']),
-        primaryUrl: fieldMap.get('primaryurl') || getRowValue(firstRow || {}, ['primary url', 'url']),
-    };
-}
-
-function parseBrowserRows(rows: Array<Record<string, unknown>>, warnings: string[]): Array<{ id: string; name?: string; url: string }> {
-    return rows.flatMap((row, index) => {
-        const url = getRowValue(row, ['url', 'entry url']);
-        if (!url) {
-            warnings.push(`Missing URL in Browser Entry Points row ${index + 1}`);
-            return [];
-        }
-
-        const rawId = getRowValue(row, ['id']) || `browser_${String.fromCharCode('a'.charCodeAt(0) + index)}`;
-        return [{
-            id: normalizeBrowserId(rawId, index),
-            name: getRowValue(row, ['name']),
-            url,
-        }];
-    });
-}
-
 function parseStepRows(
     rows: Array<Record<string, unknown>>,
     validBrowserIds: Set<string>,
@@ -583,63 +492,6 @@ function parseStepNo(value: string | undefined, fallback: number): number {
         return fallback;
     }
     return parsed;
-}
-
-function parseProjectVariableRows(rows: Array<Record<string, unknown>>, warnings: string[]): ExcelProjectVariable[] {
-    return rows.flatMap((row, index) => {
-        const rawName = getRowValue(row, ['name']);
-        const type = normalizeConfigType(getRowValue(row, ['type']));
-        const value = getRowValue(row, ['value']);
-
-        if (!rawName) {
-            warnings.push(`Missing name in Project Variables row ${index + 1}`);
-            return [];
-        }
-        if (!type) {
-            warnings.push(`Invalid type in Project Variables row ${index + 1}`);
-            return [];
-        }
-        if (type === 'FILE') {
-            warnings.push(`file_type_skipped:${rawName.trim().toUpperCase()}`);
-            return [];
-        }
-        if (type === 'RANDOM_STRING') {
-            const normalizedGenType = normalizeRandomStringValue(value);
-            if (!normalizedGenType) {
-                warnings.push(`Invalid random string type in Project Variables row ${index + 1}`);
-                return [];
-            }
-            return [{ name: rawName.trim().toUpperCase(), type: type as SupportedVariableType, value: normalizedGenType }];
-        }
-        if (!value) {
-            warnings.push(`Missing value in Project Variables row ${index + 1}`);
-            return [];
-        }
-
-        return [{
-            name: rawName.trim().toUpperCase(),
-            type: type as SupportedVariableType,
-            value,
-        }];
-    });
-}
-
-function parseFileRows(rows: Array<Record<string, unknown>>, warnings: string[]): ExcelFileEntry[] {
-    return rows.flatMap((row, index) => {
-        const filename = getRowValue(row, ['filename', 'file name', 'name']);
-        if (!filename) {
-            warnings.push(`Missing filename in Files row ${index + 1}`);
-            return [];
-        }
-
-        const sizeRaw = getRowValue(row, ['size']);
-        const size = sizeRaw ? Number(sizeRaw) : undefined;
-        return [{
-            filename,
-            mimeType: getRowValue(row, ['mimetype', 'mime type', 'type']),
-            size: Number.isFinite(size) ? size : undefined,
-        }];
-    });
 }
 
 function normalizeStepType(value?: string): TestStep['type'] {
@@ -709,19 +561,6 @@ function formatAndroidLabel(index: number): string {
 
 function formatTargetLabel(index: number, type: 'browser' | 'android'): string {
     return type === 'android' ? formatAndroidLabel(index) : formatBrowserLabel(index);
-}
-
-function browserLabelToId(label: string, index: number): string {
-    const match = label.trim().match(/^browser\s+([a-z])$/i);
-    if (match) {
-        return `browser_${match[1].toLowerCase()}`;
-    }
-    return `browser_${String.fromCharCode('a'.charCodeAt(0) + index)}`;
-}
-
-function normalizeBrowserId(value: string, index: number): string {
-    const normalized = value.toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
-    return normalized || `browser_${String.fromCharCode('a'.charCodeAt(0) + index)}`;
 }
 
 function normalizeHeader(value: string): string {
