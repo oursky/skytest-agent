@@ -81,6 +81,19 @@ async function launchAndroidAppWithLauncherIntent(device: AndroidDevice, appId: 
     return !/no activities found|monkey aborted|error/i.test(launchOutput);
 }
 
+async function isAndroidPackageInstalled(device: AndroidDevice, appId: string): Promise<boolean> {
+    const installedPackageOutput = await device.shell(`pm list packages ${appId}`);
+    return installedPackageOutput
+        .split('\n')
+        .some((line) => line.trim() === `package:${appId}`);
+}
+
+async function clearAndroidAppData(device: AndroidDevice, appId: string): Promise<boolean> {
+    await device.shell(`am force-stop ${appId}`);
+    const clearOutput = await device.shell(`pm clear ${appId}`);
+    return clearOutput.toLowerCase().includes('success');
+}
+
 function extractAndroidPermissionsFromDumpsys(packageDump: string): string[] {
     const permissions = new Set<string>();
 
@@ -653,10 +666,7 @@ async function setupExecutionTargets(
             throw new ConfigurationError('Android device handle is not available.', 'android');
         }
 
-        const installedPackageOutput = await handle.device.shell(`pm list packages ${androidConfig.appId}`);
-        const packageInstalled = installedPackageOutput
-            .split('\n')
-            .some((line) => line.trim() === `package:${androidConfig.appId}`);
+        const packageInstalled = await isAndroidPackageInstalled(handle.device, androidConfig.appId);
         if (!packageInstalled) {
             throw new ConfigurationError(
                 `App ID "${androidConfig.appId}" is not installed on emulator "${handle.id}".`,
@@ -666,9 +676,8 @@ async function setupExecutionTargets(
 
         if (androidConfig.clearAppState) {
             log(`Clearing app data for ${niceName}...`, 'info', targetId);
-            await handle.device.shell(`am force-stop ${androidConfig.appId}`);
-            const clearOutput = await handle.device.shell(`pm clear ${androidConfig.appId}`);
-            if (!clearOutput.toLowerCase().includes('success')) {
+            const cleared = await clearAndroidAppData(handle.device, androidConfig.appId);
+            if (!cleared) {
                 throw new ConfigurationError(
                     `Failed to clear app data for "${androidConfig.appId}" on emulator "${handle.id}".`,
                     'android'
