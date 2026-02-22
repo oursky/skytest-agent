@@ -248,32 +248,6 @@ export class EmulatorPool {
         });
     }
 
-    async acquireById(emulatorId: string, runId: string, signal?: AbortSignal): Promise<EmulatorHandle> {
-        if (signal?.aborted) throw new Error('Acquisition cancelled');
-
-        const start = Date.now();
-        const timeoutMs = appConfig.emulator.acquireTimeoutMs;
-
-        while (Date.now() - start < timeoutMs) {
-            if (signal?.aborted) {
-                throw new Error('Acquisition cancelled');
-            }
-
-            const instance = this.emulators.get(emulatorId);
-            if (!instance || instance.state === 'DEAD') {
-                throw new Error(`Emulator "${emulatorId}" is not available`);
-            }
-
-            if (instance.state === 'IDLE') {
-                return this.lockEmulator(instance, runId);
-            }
-
-            await this.sleep(1000);
-        }
-
-        throw new Error(`Emulator "${emulatorId}" was not available within ${timeoutMs / 1000}s`);
-    }
-
     async release(handle: EmulatorHandle): Promise<void> {
         const instance = this.emulators.get(handle.id);
         if (!instance) {
@@ -340,14 +314,6 @@ export class EmulatorPool {
         };
     }
 
-    async installApk(handle: EmulatorHandle, apkPath: string): Promise<void> {
-        const instance = this.emulators.get(handle.id);
-        if (!instance) {
-            throw new Error(`Emulator ${handle.id} not found`);
-        }
-        await instance.adb.installApk(apkPath);
-    }
-
     async listInstalledPackages(emulatorId: string): Promise<string[]> {
         const instance = this.emulators.get(emulatorId);
         if (!instance || instance.state === 'DEAD') {
@@ -363,20 +329,6 @@ export class EmulatorPool {
             .filter((line) => line.length > 0);
 
         return Array.from(new Set(packages)).sort((a, b) => a.localeCompare(b));
-    }
-
-    async drainAll(): Promise<void> {
-        for (const instance of this.emulators.values()) {
-            if (instance.state === 'IDLE') {
-                await this.stopInstance(instance);
-            }
-        }
-    }
-
-    async killAll(): Promise<void> {
-        for (const instance of this.emulators.values()) {
-            await this.stopInstance(instance);
-        }
     }
 
     private async launchEmulatorProcess(instance: EmulatorInstance): Promise<void> {
