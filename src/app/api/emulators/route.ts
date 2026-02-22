@@ -17,6 +17,14 @@ async function ensureProjectOwnership(projectId: string, userId: string): Promis
     return Boolean(project);
 }
 
+async function listOwnedProjectIds(userId: string): Promise<Set<string>> {
+    const projects = await prisma.project.findMany({
+        where: { userId },
+        select: { id: true },
+    });
+    return new Set(projects.map((project) => project.id));
+}
+
 async function isAndroidEnabled(userId: string): Promise<boolean> {
     const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -48,11 +56,7 @@ export async function GET(request: Request) {
             }
             projectIds = new Set([requestedProjectId]);
         } else {
-            const projects = await prisma.project.findMany({
-                where: { userId },
-                select: { id: true },
-            });
-            projectIds = new Set(projects.map(project => project.id));
+            projectIds = await listOwnedProjectIds(userId);
         }
 
         const status = emulatorPool.getStatus(projectIds);
@@ -118,13 +122,9 @@ export async function POST(request: Request) {
 
         if (action === 'stop' && body.emulatorId) {
             const emulatorId = body.emulatorId;
+            const ownedProjectIds = await listOwnedProjectIds(userId);
             const ownedEmulator = emulatorPool
-                .getStatus(new Set(
-                    (await prisma.project.findMany({
-                        where: { userId },
-                        select: { id: true },
-                    })).map((project) => project.id)
-                ))
+                .getStatus(ownedProjectIds)
                 .emulators
                 .find((emulator) => emulator.id === emulatorId);
 

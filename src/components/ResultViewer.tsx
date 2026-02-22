@@ -74,7 +74,6 @@ function maskEvent(event: TestEvent, secrets: string[]): TestEvent {
 export default function ResultViewer({ result, meta, requestSecretValues }: ResultViewerProps) {
     const { t } = useI18n();
 
-    const messagesEndRef = useRef<HTMLDivElement>(null);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const [autoScroll, setAutoScroll] = useState(true);
     const [lightboxImage, setLightboxImage] = useState<{ src: string; label: string } | null>(null);
@@ -107,6 +106,10 @@ export default function ResultViewer({ result, meta, requestSecretValues }: Resu
             });
         }
     }, [events.length, autoScroll]);
+
+    useEffect(() => {
+        setLoadedSecretValues(null);
+    }, [meta?.runId, meta?.testCaseId, meta?.projectId]);
 
     const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
         const container = e.currentTarget;
@@ -318,7 +321,6 @@ export default function ResultViewer({ result, meta, requestSecretValues }: Resu
                             )}
 
                             <ResultStatus status={result.status} error={result.error} eventCount={events.length} />
-                            <div ref={messagesEndRef} />
                         </>
                     )}
                 </div>
