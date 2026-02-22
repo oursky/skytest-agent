@@ -1151,7 +1151,7 @@ async function cleanupTargets(targets: ExecutionTargets): Promise<void> {
 }
 
 export async function runTest(options: RunTestOptions): Promise<TestResult> {
-    const { config: testConfig, onEvent, signal, runId, onCleanup, onPreparing } = options;
+    const { config: testConfig, onEvent, signal, runId, onCleanup, onPreparing, onRunning } = options;
     const { url, prompt, steps, browserConfig, openRouterApiKey, testCaseId, projectId, files, resolvedVariables, resolvedFiles } = testConfig;
     const log = createLogger(onEvent);
 
@@ -1221,6 +1221,8 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
                     await cleanupTargets(capturedTargets);
                 });
             }
+
+            if (onRunning) await onRunning();
 
             log('Executing test...', 'info');
 

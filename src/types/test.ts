@@ -71,6 +71,7 @@ export interface RunTestOptions {
     signal?: AbortSignal;
     onCleanup?: (cleanup: () => Promise<void>) => void;
     onPreparing?: () => Promise<void>;
+    onRunning?: () => Promise<void>;
 }
 
 export interface TestResult {

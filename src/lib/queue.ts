@@ -21,6 +21,7 @@ export class TestQueue {
     private static instance: TestQueue;
     private queue: Job[] = [];
     private running: Map<string, Job> = new Map();
+    private activeStatuses: Map<string, 'PREPARING' | 'RUNNING'> = new Map();
     private cleanupFns: Map<string, CleanupFn> = new Map();
     private concurrency = appConfig.queue.concurrency;
     private logs: Map<string, TestEvent[]> = new Map();
@@ -120,6 +121,7 @@ export class TestQueue {
             }
 
             this.running.delete(runId);
+            this.activeStatuses.delete(runId);
             this.processNext();
 
             const logBuffer = this.logs.get(runId) || [];
@@ -233,10 +235,18 @@ export class TestQueue {
     }
 
     public getStatus(runId: string) {
-        if (this.running.has(runId)) return 'RUNNING';
+        const activeStatus = this.activeStatuses.get(runId);
+        if (activeStatus) return activeStatus;
         const inQueue = this.queue.find(j => j.runId === runId);
         if (inQueue) return 'QUEUED';
         return null;
+    }
+
+    private getStartStatus(config: RunTestOptions['config']): 'PREPARING' | 'RUNNING' {
+        const hasAndroidTarget = Object.values(config.browserConfig ?? {}).some(
+            (target) => 'type' in target && target.type === 'android'
+        );
+        return hasAndroidTarget ? 'PREPARING' : 'RUNNING';
     }
 
     private async processNext() {
@@ -246,11 +256,13 @@ export class TestQueue {
         if (!job) return;
 
         this.running.set(job.runId, job);
+        const startStatus = this.getStartStatus(job.config);
+        this.activeStatuses.set(job.runId, startStatus);
 
         await prisma.testRun.update({
             where: { id: job.runId },
             data: {
-                status: 'RUNNING',
+                status: startStatus,
                 startedAt: new Date()
             }
         });
@@ -258,7 +270,7 @@ export class TestQueue {
         if (job.config.testCaseId) {
             await prisma.testCase.update({
                 where: { id: job.config.testCaseId },
-                data: { status: 'RUNNING' }
+                data: { status: startStatus }
             });
         }
 
@@ -267,7 +279,7 @@ export class TestQueue {
                 type: 'test-run-status',
                 testCaseId: job.config.testCaseId,
                 runId: job.runId,
-                status: 'RUNNING'
+                status: startStatus
             });
         }
 
@@ -341,6 +353,7 @@ export class TestQueue {
                     this.registerCleanup(runId, cleanup);
                 },
                 onPreparing: async () => {
+                    this.activeStatuses.set(runId, 'PREPARING');
                     await prisma.testRun.update({ where: { id: runId }, data: { status: 'PREPARING' } });
                     if (config.testCaseId) {
                         await prisma.testCase.update({ where: { id: config.testCaseId }, data: { status: 'PREPARING' } });
@@ -348,6 +361,22 @@ export class TestQueue {
                     if (config.projectId && config.testCaseId) {
                         publishProjectEvent(config.projectId, {
                             type: 'test-run-status', testCaseId: config.testCaseId, runId, status: 'PREPARING'
+                        });
+                    }
+                },
+                onRunning: async () => {
+                    if (this.activeStatuses.get(runId) === 'RUNNING') {
+                        return;
+                    }
+
+                    this.activeStatuses.set(runId, 'RUNNING');
+                    await prisma.testRun.update({ where: { id: runId }, data: { status: 'RUNNING' } });
+                    if (config.testCaseId) {
+                        await prisma.testCase.update({ where: { id: config.testCaseId }, data: { status: 'RUNNING' } });
+                    }
+                    if (config.projectId && config.testCaseId) {
+                        publishProjectEvent(config.projectId, {
+                            type: 'test-run-status', testCaseId: config.testCaseId, runId, status: 'RUNNING'
                         });
                     }
                 }
@@ -441,6 +470,7 @@ export class TestQueue {
             }
         } finally {
             this.running.delete(runId);
+            this.activeStatuses.delete(runId);
             this.cleanupFns.delete(runId);
             this.persistedIndexes.delete(runId);
             const pendingTimer = this.persistTimers.get(runId);
