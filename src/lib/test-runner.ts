@@ -621,7 +621,7 @@ async function setupExecutionTargets(
         }
 
         if (!androidConfig.avdName) {
-            throw new ConfigurationError('Android target must include an AVD profile.', 'android');
+            throw new ConfigurationError('Android target must include an emulator.', 'android');
         }
 
         if (!androidConfig.appId) {

@@ -326,7 +326,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'project.tab.android': 'Emulators',
 
     // Android setup
-    'android.setup.help': 'Start an existing emulator on your Mac:\n1. List AVDs: `emulator -list-avds`\n2. Boot one AVD: `emulator -avd <AVD_NAME> -port 5554`',
+    'android.setup.help': 'Start an existing emulator on your Mac:\n1. List emulators: `emulator -list-avds`\n2. Boot one emulator: `emulator -avd <AVD_NAME> -port 5554`',
 
     // APK management
     'apk.upload': 'Upload APK',
@@ -335,16 +335,16 @@ export const MESSAGES: Record<Locale, Messages> = {
     'apk.delete.confirm': 'Delete this APK?',
     'apk.size': '{size} MB',
 
-    // AVD Profiles
-    'avdProfile.title': 'AVD Profiles',
-    'avdProfile.add': 'Add Profile',
-    'avdProfile.empty': 'No AVD profiles yet.',
+    // Emulators
+    'avdProfile.title': 'Emulators',
+    'avdProfile.add': 'Add Emulator',
+    'avdProfile.empty': 'No emulators yet.',
     'avdProfile.displayName': 'Display Name',
     'avdProfile.apiLevel': 'API Level',
     'avdProfile.screenSize': 'Screen Size',
-    'avdProfile.help.intro': 'AVD profiles define virtual Android devices for running your mobile tests. Each profile specifies an Android version and screen size.',
-    'avdProfile.help.setup': 'To use: 1. Review available runtime profiles below  2. In your test case, open the Configurations tab and click "Add Android Target"  3. Select a profile and APK, then run the test',
-    'avdProfile.delete.confirm': 'Delete this AVD profile?',
+    'avdProfile.help.intro': 'Emulators define virtual Android devices for running your mobile tests. Each emulator specifies an Android version and screen size.',
+    'avdProfile.help.setup': 'To use: 1. Review available emulators below  2. In your test case, open the Configurations tab and click "Add Android Target"  3. Select an emulator and APK, then run the test',
+    'avdProfile.delete.confirm': 'Delete this emulator?',
     'avdProfile.create': 'Create',
     'avdProfile.creating': 'Creating…',
 
@@ -419,7 +419,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'configs.noVariables': 'No variables available',
     'configs.section.projectVariables': 'Project Variables',
     'configs.section.testCaseVariables': 'Test Case Variables',
-    'configs.section.browserConfig': 'Browser Entry Points',
+    'configs.section.browserConfig': 'Entry Points',
     'configs.section.projectVariables.empty': '—',
     'configs.browser.name': 'Name',
     'configs.browser.name.placeholder': 'e.g. Admin Panel',
@@ -432,11 +432,11 @@ export const MESSAGES: Record<Locale, Messages> = {
     'configs.android.emulator.none': 'No available emulators',
     'configs.android.appId.placeholder': 'Select App ID or type one',
     'configs.android.appId.none': 'No app IDs found on this emulator',
-    'configs.android.avd': 'AVD Profile',
+    'configs.android.avd': 'Select Emulator',
     'configs.android.apk': 'APK',
     'configs.android.activity': 'Launch Activity',
-    'configs.android.avd.placeholder': 'Select AVD profile',
-    'configs.android.avd.none': 'No available AVD profiles',
+    'configs.android.avd.placeholder': 'Select emulator',
+    'configs.android.avd.none': 'No available emulators',
     'configs.android.apk.placeholder': 'Select APK',
     'configs.android.apk.none': 'No APKs uploaded for this project',
     'configs.android.apk.upload': 'Upload APK…',
@@ -763,7 +763,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'project.tab.android': '模擬器',
 
     // Android setup
-    'android.setup.help': '在 Mac 啟動既有模擬器：\n1. 列出 AVD：`emulator -list-avds`\n2. 啟動 AVD：`emulator -avd <AVD_NAME> -port 5554`',
+    'android.setup.help': '在 Mac 啟動既有模擬器：\n1. 列出模擬器：`emulator -list-avds`\n2. 啟動模擬器：`emulator -avd <AVD_NAME> -port 5554`',
 
     // APK management
     'apk.upload': '上傳 APK',
@@ -772,16 +772,16 @@ export const MESSAGES: Record<Locale, Messages> = {
     'apk.delete.confirm': '刪除此 APK？',
     'apk.size': '{size} MB',
 
-    // AVD Profiles
-    'avdProfile.title': 'AVD 設定檔',
-    'avdProfile.add': '新增設定檔',
-    'avdProfile.empty': '尚無 AVD 設定檔。',
+    // Emulators
+    'avdProfile.title': '模擬器',
+    'avdProfile.add': '新增模擬器',
+    'avdProfile.empty': '尚無模擬器。',
     'avdProfile.displayName': '顯示名稱',
     'avdProfile.apiLevel': 'API 等級',
     'avdProfile.screenSize': '螢幕尺寸',
-    'avdProfile.help.intro': 'AVD 設定檔定義用於執行行動測試的虛擬 Android 裝置。每個設定檔指定 Android 版本與螢幕尺寸。',
-    'avdProfile.help.setup': '使用方式：1. 在下方查看可用的執行環境設定檔  2. 在測試案例中開啟「設定」分頁，點擊「新增 Android 目標」  3. 選擇設定檔與 APK，然後執行測試',
-    'avdProfile.delete.confirm': '刪除此 AVD 設定檔？',
+    'avdProfile.help.intro': '模擬器定義用於執行行動測試的虛擬 Android 裝置。每個模擬器指定 Android 版本與螢幕尺寸。',
+    'avdProfile.help.setup': '使用方式：1. 在下方查看可用的模擬器  2. 在測試案例中開啟「設定」分頁，點擊「新增 Android 目標」  3. 選擇模擬器與 APK，然後執行測試',
+    'avdProfile.delete.confirm': '刪除此模擬器？',
     'avdProfile.create': '建立',
     'avdProfile.creating': '建立中…',
 
@@ -856,7 +856,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'configs.noVariables': '無可用變數',
     'configs.section.projectVariables': '專案變數',
     'configs.section.testCaseVariables': '測試案例變數',
-    'configs.section.browserConfig': '瀏覽器起始連結',
+    'configs.section.browserConfig': '起始點',
     'configs.section.projectVariables.empty': '—',
     'configs.browser.name': '名稱',
     'configs.browser.name.placeholder': '例如：管理後台',
@@ -869,11 +869,11 @@ export const MESSAGES: Record<Locale, Messages> = {
     'configs.android.emulator.none': '沒有可用的模擬器',
     'configs.android.appId.placeholder': '選擇 App ID',
     'configs.android.appId.none': '此模擬器找不到可用的 App ID',
-    'configs.android.avd': 'AVD 設定檔',
+    'configs.android.avd': '選擇模擬器',
     'configs.android.apk': 'APK',
     'configs.android.activity': '啟動 Activity',
-    'configs.android.avd.placeholder': '選擇 AVD 設定檔',
-    'configs.android.avd.none': '沒有可用的 AVD 設定檔',
+    'configs.android.avd.placeholder': '選擇模擬器',
+    'configs.android.avd.none': '沒有可用的模擬器',
     'configs.android.apk.placeholder': '選擇 APK',
     'configs.android.apk.none': '此專案尚無上傳 APK',
     'configs.android.apk.upload': '上傳 APK…',
@@ -1200,7 +1200,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'project.tab.android': '模拟器',
 
     // Android setup
-    'android.setup.help': '在 Mac 启动已有模拟器：\n1. 列出 AVD：`emulator -list-avds`\n2. 启动 AVD：`emulator -avd <AVD_NAME> -port 5554`',
+    'android.setup.help': '在 Mac 启动已有模拟器：\n1. 列出模拟器：`emulator -list-avds`\n2. 启动模拟器：`emulator -avd <AVD_NAME> -port 5554`',
 
     // APK management
     'apk.upload': '上传 APK',
@@ -1209,16 +1209,16 @@ export const MESSAGES: Record<Locale, Messages> = {
     'apk.delete.confirm': '删除此 APK？',
     'apk.size': '{size} MB',
 
-    // AVD Profiles
-    'avdProfile.title': 'AVD 配置',
-    'avdProfile.add': '添加配置',
-    'avdProfile.empty': '暂无 AVD 配置。',
+    // Emulators
+    'avdProfile.title': '模拟器',
+    'avdProfile.add': '添加模拟器',
+    'avdProfile.empty': '暂无模拟器。',
     'avdProfile.displayName': '显示名称',
     'avdProfile.apiLevel': 'API 等级',
     'avdProfile.screenSize': '屏幕尺寸',
-    'avdProfile.help.intro': 'AVD 配置定义用于运行移动测试的虚拟 Android 设备。每个配置指定 Android 版本与屏幕尺寸。',
-    'avdProfile.help.setup': '使用方式：1. 在下方查看可用的运行时配置  2. 在测试用例中打开「配置」标签页，点击「添加 Android 目标」  3. 选择配置与 APK，然后运行测试',
-    'avdProfile.delete.confirm': '删除此 AVD 配置？',
+    'avdProfile.help.intro': '模拟器定义用于运行移动测试的虚拟 Android 设备。每个模拟器指定 Android 版本与屏幕尺寸。',
+    'avdProfile.help.setup': '使用方式：1. 在下方查看可用的模拟器  2. 在测试用例中打开「配置」标签页，点击「添加 Android 目标」  3. 选择模拟器与 APK，然后运行测试',
+    'avdProfile.delete.confirm': '删除此模拟器？',
     'avdProfile.create': '创建',
     'avdProfile.creating': '创建中…',
 
@@ -1293,7 +1293,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'configs.noVariables': '无可用变量',
     'configs.section.projectVariables': '项目变量',
     'configs.section.testCaseVariables': '测试用例变量',
-    'configs.section.browserConfig': '浏览器起始链接',
+    'configs.section.browserConfig': '起始点',
     'configs.section.projectVariables.empty': '—',
     'configs.browser.name': '名称',
     'configs.browser.name.placeholder': '例如：管理后台',
@@ -1306,11 +1306,11 @@ export const MESSAGES: Record<Locale, Messages> = {
     'configs.android.emulator.none': '没有可用模拟器',
     'configs.android.appId.placeholder': '选择 App ID',
     'configs.android.appId.none': '该模拟器上未找到可用 App ID',
-    'configs.android.avd': 'AVD 配置',
+    'configs.android.avd': '选择模拟器',
     'configs.android.apk': 'APK',
     'configs.android.activity': '启动 Activity',
-    'configs.android.avd.placeholder': '选择 AVD 配置',
-    'configs.android.avd.none': '没有可用的 AVD 配置',
+    'configs.android.avd.placeholder': '选择模拟器',
+    'configs.android.avd.none': '没有可用的模拟器',
     'configs.android.apk.placeholder': '选择 APK',
     'configs.android.apk.none': '此项目暂无上传 APK',
     'configs.android.apk.upload': '上传 APK…',

@@ -358,11 +358,21 @@ function RunPageContent() {
 
                 if (data.configurationSnapshot) {
                     try {
-                        const config = JSON.parse(data.configurationSnapshot);
-                        setInitialData(config);
+                        const snapshot = JSON.parse(data.configurationSnapshot) as Partial<TestData> & { testCaseId?: string };
+                        setInitialData({
+                            url: snapshot.url || '',
+                            prompt: snapshot.prompt || '',
+                            name: snapshot.name,
+                            displayId: snapshot.displayId,
+                            steps: snapshot.steps,
+                            browserConfig: snapshot.browserConfig,
+                        });
+                        if (typeof snapshot.displayId === 'string') {
+                            setDisplayId(snapshot.displayId);
+                        }
 
-                        if (config.testCaseId) {
-                            fetchTestCase(config.testCaseId);
+                        if (snapshot.testCaseId) {
+                            fetchTestCase(snapshot.testCaseId);
                         }
                     } catch (e) {
                         console.error("Failed to parse configuration snapshot", e);

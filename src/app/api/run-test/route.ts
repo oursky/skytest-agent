@@ -16,6 +16,7 @@ export const dynamic = 'force-dynamic';
 
 interface RunTestRequest {
     name?: string;
+    displayId?: string;
     url?: string;
     prompt?: string;
     steps?: TestStep[];
@@ -79,7 +80,7 @@ async function validateAndroidTargets(
 
     for (const target of androidTargets) {
         if (!target.avdName) {
-            return 'Android target must include an AVD profile';
+            return 'Android target must include an emulator';
         }
         if (!target.appId) {
             return 'Android target must include an app ID';
@@ -91,7 +92,7 @@ async function validateAndroidTargets(
             return 'Android target allowAllPermissions must be a boolean';
         }
         if (!availableProfileNames.has(target.avdName)) {
-            return `AVD profile "${target.avdName}" is not available in current runtime inventory`;
+            return `Emulator "${target.avdName}" is not available in current runtime inventory`;
         }
     }
 

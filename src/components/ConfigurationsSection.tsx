@@ -458,7 +458,7 @@ export default function ConfigurationsSection({
     };
 
     return (
-        <>
+        <div className="space-y-6">
         <div className="border border-gray-200 rounded-lg bg-white divide-y divide-gray-100">
             <div className="px-4 py-3">
                 <div className="flex items-center justify-between mb-2">
@@ -786,11 +786,13 @@ export default function ConfigurationsSection({
                 </div>
             </div>
 
-            <div className="px-4 py-3">
-                <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('configs.section.browserConfig')}</span>
-                </div>
-                <div className="space-y-3">
+        </div>
+
+        <div className="space-y-2">
+            <label className="block text-sm font-medium text-foreground">{t('configs.section.browserConfig')}</label>
+            <div className="border border-gray-200 rounded-lg bg-white">
+                <div className="px-4 py-3">
+                    <div className="space-y-3">
                     {browsers.map((browser, index) => {
                         const colorClass = colors[index % colors.length];
                         const android = isAndroidConfig(browser.config);
@@ -842,7 +844,7 @@ export default function ConfigurationsSection({
                                                     className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white text-left flex items-center justify-between gap-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:bg-gray-50"
                                                 >
                                                     <span className={selectedAvd ? 'text-gray-800' : 'text-gray-400'}>
-                                                        {selectedAvd ? selectedAvd.displayName : t('configs.android.avd.placeholder')}
+                                                        {selectedAvd?.displayName || cfg.avdName || t('configs.android.avd.placeholder')}
                                                     </span>
                                                     <svg className="w-3 h-3 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -1060,23 +1062,24 @@ export default function ConfigurationsSection({
                             )}
                         </div>
                     )}
+                    </div>
                 </div>
-            </div>
 
-            {!readOnly && (
-                <div className="px-4 py-2 bg-gray-50 space-y-2 rounded-b-lg">
-                    <p className="text-[11px] text-gray-500 leading-snug">{t('configs.hint.intro')}</p>
-                    <div>
-                        <p className="text-[11px] font-medium text-gray-700">{t('configs.hint.aiStep')}</p>
-                        <code className="block bg-white border border-gray-200 px-2 py-1 rounded text-[11px] text-gray-600 whitespace-pre-wrap">{t('configs.hint.aiExample')}</code>
+                {!readOnly && (
+                    <div className="px-4 py-2 bg-gray-50 space-y-2 rounded-b-lg border-t border-gray-100">
+                        <p className="text-[11px] text-gray-500 leading-snug">{t('configs.hint.intro')}</p>
+                        <div>
+                            <p className="text-[11px] font-medium text-gray-700">{t('configs.hint.aiStep')}</p>
+                            <code className="block bg-white border border-gray-200 px-2 py-1 rounded text-[11px] text-gray-600 whitespace-pre-wrap">{t('configs.hint.aiExample')}</code>
+                        </div>
+                        <div>
+                            <p className="text-[11px] font-medium text-gray-700">{t('configs.hint.codeStep')}</p>
+                            <code className="block bg-white border border-gray-200 px-2 py-1 rounded text-[11px] text-gray-600 whitespace-pre-wrap">{t('configs.hint.codeExample')}</code>
+                        </div>
                     </div>
-                    <div>
-                        <p className="text-[11px] font-medium text-gray-700">{t('configs.hint.codeStep')}</p>
-                        <code className="block bg-white border border-gray-200 px-2 py-1 rounded text-[11px] text-gray-600 whitespace-pre-wrap">{t('configs.hint.codeExample')}</code>
-                    </div>
-                </div>
-            )}
+                )}
+            </div>
         </div>
-        </>
+        </div>
     );
 }

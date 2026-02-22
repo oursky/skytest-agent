@@ -400,7 +400,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                         {showNameInput && (
                             <div className="space-y-2">
                                 <label className="block text-sm font-medium text-foreground">
-                                    {t('testForm.testCaseName')} <span className="text-red-500">*</span>
+                                    {t('testForm.testCaseName')} {!readOnly && <span className="text-red-500">*</span>}
                                 </label>
                                 <input
                                     type="text"
@@ -414,7 +414,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                             </div>
                         )}
 
-                        {showNameInput && onDisplayIdChange && (
+                        {showNameInput && (onDisplayIdChange || readOnly) && (
                             <div className="space-y-2">
                                 <label className="block text-sm font-medium text-foreground">
                                     {t('testForm.testCaseId')}
@@ -424,7 +424,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                                     className="input-field"
                                     placeholder={t('testForm.testCaseId.placeholder')}
                                     value={displayId || ''}
-                                    onChange={(e) => onDisplayIdChange(e.target.value)}
+                                    onChange={(e) => onDisplayIdChange?.(e.target.value)}
                                     disabled={readOnly}
                                 />
                             </div>

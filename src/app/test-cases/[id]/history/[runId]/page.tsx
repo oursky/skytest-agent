@@ -189,6 +189,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 
     const { testData, snapshotProjectConfigs, snapshotTestCaseConfigs } = (() => {
         const baseConfig = testCase ? {
+            displayId: testCase.displayId,
             name: testCase.name,
             url: testCase.url,
             prompt: testCase.prompt || '',
@@ -202,6 +203,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                     resolvedConfigurations?: Array<{ name: string; type: string; value: string; filename?: string; source: string }>;
                 };
                 const data = {
+                    displayId: savedConfig.displayId ?? baseConfig?.displayId,
                     name: savedConfig.name ?? baseConfig?.name,
                     url: savedConfig.url ?? baseConfig?.url ?? '',
                     prompt: savedConfig.prompt ?? baseConfig?.prompt ?? '',
@@ -285,9 +287,11 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                                 onSubmit={() => { }}
                                 isLoading={false}
                                 initialData={testData}
-                                showNameInput={false}
+                                showNameInput={true}
                                 readOnly={true}
                                 testCaseId={id}
+                                displayId={testData.displayId}
+                                projectId={projectId}
                                 onExport={testData ? handleExport : undefined}
                                 projectConfigs={snapshotProjectConfigs}
                                 testCaseConfigs={snapshotTestCaseConfigs}
