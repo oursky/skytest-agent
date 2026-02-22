@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/auth';
+import { getUserFeatures } from '@/lib/user-features';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,14 +16,7 @@ export async function GET(request: Request) {
     }
 
     try {
-        const user = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { androidEnabled: true },
-        });
-
-        return NextResponse.json({
-            androidEnabled: user?.androidEnabled ?? false,
-        });
+        return NextResponse.json(await getUserFeatures(userId));
     } catch (error) {
         console.error('Failed to fetch user features', error);
         return NextResponse.json({ error: 'Failed to fetch features' }, { status: 500 });

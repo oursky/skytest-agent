@@ -4,18 +4,11 @@ import { verifyAuth, resolveUserId } from '@/lib/auth';
 import { getApkUploadPath } from '@/lib/file-security';
 import { createLogger } from '@/lib/logger';
 import { config } from '@/config/app';
+import { isAndroidEnabledForUser } from '@/lib/user-features';
 import { execFile } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'fs/promises';
 import path from 'path';
-
-async function isAndroidEnabled(userId: string): Promise<boolean> {
-    const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { androidEnabled: true },
-    });
-    return user?.androidEnabled ?? false;
-}
 
 const logger = createLogger('api:projects:apks');
 
@@ -76,7 +69,7 @@ export async function GET(
     }
 
     const userId = await resolveUserId(authPayload);
-    if (!userId || !(await isAndroidEnabled(userId))) {
+    if (!userId || !(await isAndroidEnabledForUser(userId))) {
         return NextResponse.json({ error: 'Android testing is not enabled for your account' }, { status: 403 });
     }
 
@@ -118,7 +111,7 @@ export async function POST(
     }
 
     const userId = await resolveUserId(authPayload);
-    if (!userId || !(await isAndroidEnabled(userId))) {
+    if (!userId || !(await isAndroidEnabledForUser(userId))) {
         return NextResponse.json({ error: 'Android testing is not enabled for your account' }, { status: 403 });
     }
 

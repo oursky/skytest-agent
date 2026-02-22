@@ -3,14 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { listAvailableAndroidProfiles } from '@/lib/android-profiles';
-
-async function isAndroidEnabled(userId: string): Promise<boolean> {
-    const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { androidEnabled: true },
-    });
-    return user?.androidEnabled ?? false;
-}
+import { isAndroidEnabledForUser } from '@/lib/user-features';
 
 const logger = createLogger('api:projects:avd-profiles');
 
@@ -26,7 +19,7 @@ export async function GET(
     }
 
     const userId = await resolveUserId(authPayload);
-    if (!userId || !(await isAndroidEnabled(userId))) {
+    if (!userId || !(await isAndroidEnabledForUser(userId))) {
         return NextResponse.json({ error: 'Android testing is not enabled for your account' }, { status: 403 });
     }
 

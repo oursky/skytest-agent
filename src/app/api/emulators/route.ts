@@ -4,6 +4,7 @@ import { verifyAuth, resolveUserId } from '@/lib/auth';
 import { emulatorPool } from '@/lib/emulator-pool';
 import { listAvailableAndroidProfiles } from '@/lib/android-profiles';
 import { createLogger } from '@/lib/logger';
+import { isAndroidEnabledForUser } from '@/lib/user-features';
 
 const logger = createLogger('api:emulators');
 
@@ -25,14 +26,6 @@ async function listOwnedProjectIds(userId: string): Promise<Set<string>> {
     return new Set(projects.map((project) => project.id));
 }
 
-async function isAndroidEnabled(userId: string): Promise<boolean> {
-    const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { androidEnabled: true },
-    });
-    return user?.androidEnabled ?? false;
-}
-
 export async function GET(request: Request) {
     const authPayload = await verifyAuth(request);
     if (!authPayload) {
@@ -40,7 +33,7 @@ export async function GET(request: Request) {
     }
 
     const userId = await resolveUserId(authPayload);
-    if (!userId || !(await isAndroidEnabled(userId))) {
+    if (!userId || !(await isAndroidEnabledForUser(userId))) {
         return NextResponse.json({ error: 'Android testing is not enabled for your account' }, { status: 403 });
     }
 
@@ -106,7 +99,7 @@ export async function POST(request: Request) {
     }
 
     const userId = await resolveUserId(authPayload);
-    if (!userId || !(await isAndroidEnabled(userId))) {
+    if (!userId || !(await isAndroidEnabledForUser(userId))) {
         return NextResponse.json({ error: 'Android testing is not enabled for your account' }, { status: 403 });
     }
 

@@ -63,6 +63,14 @@ function isAndroidTargetConfig(config: BrowserConfig | TargetConfig): config is 
     return 'type' in config && config.type === 'android';
 }
 
+function hasAndroidTargets(browserConfig: RunTestRequest['browserConfig']): boolean {
+    if (!browserConfig || Object.keys(browserConfig).length === 0) {
+        return false;
+    }
+
+    return Object.values(browserConfig).some(isAndroidTargetConfig);
+}
+
 async function validateAndroidTargets(
     browserConfig: RunTestRequest['browserConfig']
 ): Promise<string | null> {
@@ -156,7 +164,7 @@ export async function POST(request: Request) {
 
         const user = await prisma.user.findUnique({
             where: { authId },
-            select: { id: true, openRouterKey: true }
+            select: { id: true, openRouterKey: true, androidEnabled: true }
         });
 
         if (!user) {
@@ -171,6 +179,15 @@ export async function POST(request: Request) {
         }
 
         const userId = user.id;
+        const requestHasAndroidTargets = hasAndroidTargets(browserConfig);
+
+        if (requestHasAndroidTargets && !user.androidEnabled) {
+            await queue.cancelActiveAndroidRunsForUser(userId);
+            return NextResponse.json(
+                { error: 'Android testing is not enabled for your account' },
+                { status: 403 }
+            );
+        }
 
         const testCase = await prisma.testCase.findUnique({
             where: { id: testCaseId },
