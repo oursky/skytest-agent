@@ -16,7 +16,7 @@ interface BootOptions {
 
 export interface EmulatorHandle {
     id: string;
-    projectId: string;
+    currentProjectId?: string;
     avdName: string;
     state: EmulatorState;
     device: AndroidDevice | null;
@@ -29,10 +29,11 @@ export interface EmulatorHandle {
 
 export interface EmulatorPoolStatusItem {
     id: string;
-    projectId: string;
+    currentProjectId?: string;
     avdName: string;
     state: EmulatorState;
     runId?: string;
+    runProjectId?: string;
     runTestCaseId?: string;
     runTestCaseName?: string;
     runTestCaseDisplayId?: string;
@@ -44,6 +45,11 @@ export interface EmulatorPoolStatus {
     maxEmulators: number;
     emulators: EmulatorPoolStatusItem[];
     waitingRequests: number;
+}
+
+interface EmulatorAcquireProbeRequest {
+    projectId: string;
+    avdName: string;
 }
 
 interface WaitQueueEntry {
@@ -58,7 +64,7 @@ interface WaitQueueEntry {
 
 interface EmulatorInstance {
     id: string;
-    projectId: string;
+    currentProjectId: string | null;
     avdName: string;
     state: EmulatorState;
     port: number;
@@ -134,7 +140,7 @@ export class EmulatorPool {
         await this.ensureAdbServer();
     }
 
-    async boot(projectId: string, avdName: string, options?: BootOptions): Promise<EmulatorHandle> {
+    async boot(projectId: string | null, avdName: string, options?: BootOptions): Promise<EmulatorHandle> {
         const launchMode: EmulatorLaunchMode = options?.headless === false ? 'window' : 'headless';
         const port = await this.allocatePort();
         if (port === null) {
@@ -147,7 +153,7 @@ export class EmulatorPool {
 
         const instance: EmulatorInstance = {
             id,
-            projectId,
+            currentProjectId: projectId,
             avdName,
             state: 'STARTING',
             port,
@@ -199,12 +205,12 @@ export class EmulatorPool {
 
         await this.reclaimStaleBootingInstances();
 
-        const idleEmulator = this.findIdleEmulator(projectId, avdName, 'headless');
+        const idleEmulator = this.findIdleEmulator(avdName, 'headless');
         if (idleEmulator) {
-            return this.lockEmulator(idleEmulator, runId);
+            return this.lockEmulator(idleEmulator, runId, projectId);
         }
 
-        const idleWindowEmulator = this.findIdleEmulator(projectId, avdName, 'window');
+        const idleWindowEmulator = this.findIdleEmulator(avdName, 'window');
         if (idleWindowEmulator) {
             await this.stopInstance(idleWindowEmulator);
         }
@@ -216,7 +222,7 @@ export class EmulatorPool {
             if (!instance) {
                 throw new Error(`Emulator ${handle.id} disappeared after boot`);
             }
-            return this.lockEmulator(instance, runId);
+            return this.lockEmulator(instance, runId, projectId);
         }
 
         return new Promise<EmulatorHandle>((resolve, reject) => {
@@ -248,6 +254,59 @@ export class EmulatorPool {
         });
     }
 
+    async canAcquireBatchImmediately(requests: ReadonlyArray<EmulatorAcquireProbeRequest>): Promise<boolean> {
+        if (requests.length === 0) {
+            return true;
+        }
+
+        await this.reclaimStaleBootingInstances();
+
+        const activeInstances = Array.from(this.emulators.values()).filter((instance) => instance.state !== 'DEAD');
+        const reservedInstanceIds = new Set<string>();
+        let activeCount = activeInstances.length;
+
+        const findMatchingIdle = (request: EmulatorAcquireProbeRequest, launchMode: EmulatorLaunchMode): EmulatorInstance | null => {
+            for (const instance of activeInstances) {
+                if (reservedInstanceIds.has(instance.id)) {
+                    continue;
+                }
+                if (instance.state !== 'IDLE') {
+                    continue;
+                }
+                if (instance.launchMode !== launchMode) {
+                    continue;
+                }
+                if (instance.avdName !== request.avdName) {
+                    continue;
+                }
+                return instance;
+            }
+            return null;
+        };
+
+        for (const request of requests) {
+            const idleHeadless = findMatchingIdle(request, 'headless');
+            if (idleHeadless) {
+                reservedInstanceIds.add(idleHeadless.id);
+                continue;
+            }
+
+            const idleWindow = findMatchingIdle(request, 'window');
+            if (idleWindow) {
+                reservedInstanceIds.add(idleWindow.id);
+                continue;
+            }
+
+            if (activeCount >= appConfig.emulator.maxInstances) {
+                return false;
+            }
+
+            activeCount += 1;
+        }
+
+        return true;
+    }
+
     async release(handle: EmulatorHandle): Promise<void> {
         const instance = this.emulators.get(handle.id);
         if (!instance) {
@@ -266,6 +325,7 @@ export class EmulatorPool {
         }
 
         instance.state = 'CLEANING';
+        instance.currentProjectId = null;
         instance.runId = null;
         instance.acquiredAt = null;
         logger.info(`Releasing emulator ${instance.id}`);
@@ -277,10 +337,7 @@ export class EmulatorPool {
             return;
         }
 
-        instance.state = 'IDLE';
-        this.scheduleIdleTimeout(instance);
-        this.scheduleHealthCheck(instance);
-        this.wakeNextWaiter();
+        await this.stopInstance(instance);
     }
 
     async stop(emulatorId: string): Promise<void> {
@@ -291,26 +348,23 @@ export class EmulatorPool {
         await this.stopInstance(instance);
     }
 
-    getStatus(projectIds?: ReadonlySet<string>): EmulatorPoolStatus {
+    getStatus(_projectIds?: ReadonlySet<string>): EmulatorPoolStatus {
         const now = Date.now();
         const emulators = Array.from(this.emulators.values())
-            .filter((instance) => instance.state !== 'DEAD')
-            .filter((instance) => !projectIds || projectIds.has(instance.projectId));
+            .filter((instance) => instance.state !== 'DEAD');
 
         return {
             maxEmulators: appConfig.emulator.maxInstances,
             emulators: emulators.map((instance) => ({
                 id: instance.id,
-                projectId: instance.projectId,
+                currentProjectId: instance.currentProjectId ?? undefined,
                 avdName: instance.avdName,
                 state: instance.state,
                 runId: instance.runId ?? undefined,
                 uptimeMs: now - instance.startedAt,
                 memoryUsageMb: instance.memoryUsageMb,
             })),
-            waitingRequests: projectIds
-                ? this.waitQueue.filter((entry) => projectIds.has(entry.projectId)).length
-                : this.waitQueue.length,
+            waitingRequests: this.waitQueue.length,
         };
     }
 
@@ -405,7 +459,7 @@ export class EmulatorPool {
                     : undefined,
             };
             instance.agent = new runtimeModule.AndroidAgent(runtimeDevice, {
-                groupName: `${instance.projectId}-${instance.avdName}-${instance.port}`,
+                groupName: `${instance.currentProjectId ?? 'global'}-${instance.avdName}-${instance.port}`,
             });
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
@@ -413,17 +467,17 @@ export class EmulatorPool {
         }
     }
 
-    private findIdleEmulator(projectId: string, avdName: string, launchMode?: EmulatorLaunchMode): EmulatorInstance | null {
+    private findIdleEmulator(avdName: string, launchMode?: EmulatorLaunchMode): EmulatorInstance | null {
         for (const instance of this.emulators.values()) {
             const modeMatches = !launchMode || instance.launchMode === launchMode;
-            if (instance.state === 'IDLE' && instance.projectId === projectId && instance.avdName === avdName && modeMatches) {
+            if (instance.state === 'IDLE' && instance.avdName === avdName && modeMatches) {
                 return instance;
             }
         }
         return null;
     }
 
-    private lockEmulator(instance: EmulatorInstance, runId: string): EmulatorHandle {
+    private lockEmulator(instance: EmulatorInstance, runId: string, projectId: string): EmulatorHandle {
         if (instance.idleTimer) {
             clearTimeout(instance.idleTimer);
             instance.idleTimer = null;
@@ -434,6 +488,7 @@ export class EmulatorPool {
         }
 
         instance.state = 'ACQUIRED';
+        instance.currentProjectId = projectId;
         instance.runId = runId;
         instance.acquiredAt = Date.now();
 
@@ -449,7 +504,7 @@ export class EmulatorPool {
     private makeHandle(instance: EmulatorInstance): EmulatorHandle {
         return {
             id: instance.id,
-            projectId: instance.projectId,
+            currentProjectId: instance.currentProjectId ?? undefined,
             avdName: instance.avdName,
             state: instance.state,
             device: instance.device,
@@ -596,7 +651,7 @@ export class EmulatorPool {
 
         for (let index = 0; index < this.waitQueue.length; index++) {
             const entry = this.waitQueue[index];
-            const idle = this.findIdleEmulator(entry.projectId, entry.avdName, 'headless');
+            const idle = this.findIdleEmulator(entry.avdName, 'headless');
             if (!idle) {
                 continue;
             }
@@ -604,7 +659,7 @@ export class EmulatorPool {
             this.waitQueue.splice(index, 1);
             clearTimeout(entry.timeoutId);
             try {
-                entry.resolve(this.lockEmulator(idle, entry.runId));
+                entry.resolve(this.lockEmulator(idle, entry.runId, entry.projectId));
             } catch (error) {
                 entry.reject(error instanceof Error ? error : new Error(String(error)));
             }
@@ -631,7 +686,7 @@ export class EmulatorPool {
                     entry.reject(new Error(`Replacement emulator ${handle.id} disappeared after boot`));
                     return;
                 }
-                entry.resolve(this.lockEmulator(instance, entry.runId));
+                entry.resolve(this.lockEmulator(instance, entry.runId, entry.projectId));
             })
             .catch((error) => {
                 entry.reject(error instanceof Error ? error : new Error(String(error)));

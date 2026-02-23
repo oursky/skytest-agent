@@ -6,6 +6,7 @@ import { getErrorMessage } from './errors';
 import { UsageService } from './usage';
 import { createLogger } from './logger';
 import { publishProjectEvent } from '@/lib/project-events';
+import { emulatorPool } from './emulator-pool';
 
 const logger = createLogger('queue');
 
@@ -44,6 +45,10 @@ export class TestQueue {
     private persistedIndexes: Map<string, number> = new Map();
     private androidFeatureEnforcementTimer: ReturnType<typeof setInterval> | null = null;
     private androidFeatureEnforcementRunning = false;
+    private processNextRunning = false;
+    private processNextRequested = false;
+    private blockedQueueRetryTimer: ReturnType<typeof setTimeout> | null = null;
+    private pendingAndroidReservations: Map<string, Array<{ projectId: string; avdName: string }>> = new Map();
 
     private constructor() { }
 
@@ -189,6 +194,10 @@ export class TestQueue {
     }
 
     private triggerProcessNext(): void {
+        if (this.processNextRunning) {
+            this.processNextRequested = true;
+            return;
+        }
         void this.processNext().catch((error) => {
             logger.error('Failed to advance test queue', error);
         });
@@ -212,6 +221,7 @@ export class TestQueue {
 
             this.running.delete(runId);
             this.activeStatuses.delete(runId);
+            this.clearPendingAndroidReservation(runId);
             this.triggerProcessNext();
 
             const logBuffer = this.logs.get(runId) || [];
@@ -310,11 +320,101 @@ export class TestQueue {
         return androidRunIds.length;
     }
 
-    private getStartStatus(config: RunTestOptions['config']): 'PREPARING' | 'RUNNING' {
-        const hasAndroidTarget = Object.values(config.browserConfig ?? {}).some(
-            (target) => 'type' in target && target.type === 'android'
-        );
-        return hasAndroidTarget ? 'PREPARING' : 'RUNNING';
+    private getStartStatus(): 'PREPARING' {
+        return 'PREPARING';
+    }
+
+    private getActiveRunCountForProject(projectId: string | undefined): number {
+        if (!projectId) {
+            return 0;
+        }
+
+        let count = 0;
+        for (const job of this.running.values()) {
+            if (job.config.projectId === projectId) {
+                count += 1;
+            }
+        }
+        return count;
+    }
+
+    private getAndroidAcquireProbeRequests(config: RunTestOptions['config']): Array<{ projectId: string; avdName: string }> {
+        if (!config.projectId || !config.browserConfig) {
+            return [];
+        }
+
+        const requests: Array<{ projectId: string; avdName: string }> = [];
+        for (const target of Object.values(config.browserConfig)) {
+            if (!('type' in target) || target.type !== 'android') {
+                continue;
+            }
+            if (!target.avdName) {
+                continue;
+            }
+            requests.push({
+                projectId: config.projectId,
+                avdName: target.avdName
+            });
+        }
+
+        return requests;
+    }
+
+    private getAllPendingAndroidReservations(): Array<{ projectId: string; avdName: string }> {
+        const reservations: Array<{ projectId: string; avdName: string }> = [];
+        for (const requests of this.pendingAndroidReservations.values()) {
+            reservations.push(...requests);
+        }
+        return reservations;
+    }
+
+    private clearPendingAndroidReservation(runId: string): void {
+        this.pendingAndroidReservations.delete(runId);
+    }
+
+    private async canStartJobNow(job: Job): Promise<boolean> {
+        const perProjectActive = this.getActiveRunCountForProject(job.config.projectId);
+        if (perProjectActive >= appConfig.queue.maxConcurrentPerProject) {
+            return false;
+        }
+
+        const androidRequests = this.getAndroidAcquireProbeRequests(job.config);
+        if (androidRequests.length === 0) {
+            return true;
+        }
+
+        const pendingReservations = this.getAllPendingAndroidReservations();
+        return emulatorPool.canAcquireBatchImmediately([...pendingReservations, ...androidRequests]);
+    }
+
+    private async findNextStartableJobIndex(): Promise<number> {
+        for (let index = 0; index < this.queue.length; index += 1) {
+            const job = this.queue[index];
+            if (await this.canStartJobNow(job)) {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    private scheduleBlockedQueueRetry(): void {
+        if (this.blockedQueueRetryTimer) {
+            return;
+        }
+
+        this.blockedQueueRetryTimer = setTimeout(() => {
+            this.blockedQueueRetryTimer = null;
+            this.triggerProcessNext();
+        }, appConfig.queue.pollInterval);
+    }
+
+    private clearBlockedQueueRetry(): void {
+        if (!this.blockedQueueRetryTimer) {
+            return;
+        }
+        clearTimeout(this.blockedQueueRetryTimer);
+        this.blockedQueueRetryTimer = null;
     }
 
     private hasAndroidTargetsInSnapshot(configurationSnapshot: string | null): boolean {
@@ -403,15 +503,14 @@ export class TestQueue {
         }
     }
 
-    private async processNext() {
-        if (this.running.size >= this.concurrency) return;
-
-        const job = this.queue.shift();
-        if (!job) return;
-
+    private async startJob(job: Job): Promise<void> {
         this.running.set(job.runId, job);
-        const startStatus = this.getStartStatus(job.config);
+        const startStatus = this.getStartStatus();
         this.activeStatuses.set(job.runId, startStatus);
+        const androidRequests = this.getAndroidAcquireProbeRequests(job.config);
+        if (androidRequests.length > 0) {
+            this.pendingAndroidReservations.set(job.runId, androidRequests);
+        }
 
         try {
             await prisma.testRun.update({
@@ -423,7 +522,6 @@ export class TestQueue {
             });
 
             await this.updateTestCaseStatus(job.config.testCaseId, startStatus);
-
             this.publishRunStatus(job.config.projectId, job.config.testCaseId, job.runId, startStatus);
         } catch (error) {
             logger.error(`Failed to mark job ${job.runId} as ${startStatus}`, error);
@@ -432,8 +530,52 @@ export class TestQueue {
         void this.executeJob(job).catch((error) => {
             logger.error(`Unhandled queue execution rejection for ${job.runId}`, error);
         });
+    }
 
-        this.triggerProcessNext();
+    private async processNext() {
+        if (this.processNextRunning) {
+            this.processNextRequested = true;
+            return;
+        }
+
+        this.processNextRunning = true;
+
+        try {
+            do {
+                this.processNextRequested = false;
+
+                let startedAny = false;
+
+                while (this.running.size < this.concurrency) {
+                    const nextIndex = await this.findNextStartableJobIndex();
+                    if (nextIndex === -1) {
+                        break;
+                    }
+
+                    const [job] = this.queue.splice(nextIndex, 1);
+                    if (!job) {
+                        break;
+                    }
+
+                    this.clearBlockedQueueRetry();
+                    await this.startJob(job);
+                    startedAny = true;
+                }
+
+                if (!startedAny && this.queue.length > 0 && this.running.size < this.concurrency) {
+                    this.scheduleBlockedQueueRetry();
+                }
+
+                if (this.queue.length === 0) {
+                    this.clearBlockedQueueRetry();
+                }
+            } while (this.processNextRequested);
+        } finally {
+            this.processNextRunning = false;
+            if (this.processNextRequested) {
+                this.triggerProcessNext();
+            }
+        }
     }
 
     private serializeEventsChunk(events: TestEvent[]): string {
@@ -501,12 +643,16 @@ export class TestQueue {
                     this.registerCleanup(runId, cleanup);
                 },
                 onPreparing: async () => {
+                    if (this.activeStatuses.get(runId) === 'PREPARING') {
+                        return;
+                    }
                     await this.syncActiveRunStatus(runId, config, 'PREPARING');
                 },
                 onRunning: async () => {
                     if (this.activeStatuses.get(runId) === 'RUNNING') {
                         return;
                     }
+                    this.clearPendingAndroidReservation(runId);
                     await this.syncActiveRunStatus(runId, config, 'RUNNING');
                 }
             });
@@ -567,6 +713,7 @@ export class TestQueue {
         } finally {
             this.running.delete(runId);
             this.activeStatuses.delete(runId);
+            this.clearPendingAndroidReservation(runId);
             this.cleanupFns.delete(runId);
             this.persistedIndexes.delete(runId);
             const pendingTimer = this.persistTimers.get(runId);

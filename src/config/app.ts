@@ -24,6 +24,7 @@ export const config = {
 
     queue: {
         concurrency: 2,
+        maxConcurrentPerProject: 2,
         pollInterval: 500,
         sseConnectionTtlMs: 5 * 60 * 1000,
         androidFeatureEnforcementIntervalMs: 15_000,

@@ -32,11 +32,14 @@ function normalizeAvdName(name: string): string {
     return name.trim().toLowerCase();
 }
 
-const EMULATOR_STATE_LABEL_KEYS: Record<EmulatorPoolStatusItem['state'], string> = {
+function isEmulatorInUseByCurrentProject(emulator: EmulatorPoolStatusItem, projectId: string): boolean {
+    return emulator.state === 'ACQUIRED' && emulator.runProjectId === projectId;
+}
+
+const EMULATOR_STATE_LABEL_KEYS: Record<Exclude<EmulatorPoolStatusItem['state'], 'ACQUIRED'>, string> = {
     STARTING: 'emulator.state.starting',
     BOOTING: 'emulator.state.booting',
     IDLE: 'emulator.state.idle',
-    ACQUIRED: 'emulator.inUse',
     CLEANING: 'emulator.state.cleaning',
     STOPPING: 'emulator.state.stopping',
     DEAD: 'emulator.state.dead',
@@ -54,7 +57,6 @@ export default function EmulatorStatusPanel({ projectId }: EmulatorStatusPanelPr
     const [requestFailed, setRequestFailed] = useState(false);
     const [stopping, setStopping] = useState<string | null>(null);
     const [bootingProfile, setBootingProfile] = useState<string | null>(null);
-    const [bootingMode, setBootingMode] = useState<'window' | 'headless' | null>(null);
     const [actionError, setActionError] = useState<string | null>(null);
     const pollRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -149,10 +151,9 @@ export default function EmulatorStatusPanel({ projectId }: EmulatorStatusPanelPr
         }
     };
 
-    const handleBoot = async (avdName: string, mode: 'window' | 'headless') => {
+    const handleBoot = async (avdName: string) => {
         setActionError(null);
         setBootingProfile(avdName);
-        setBootingMode(mode);
         try {
             const token = await getAccessToken();
             const headers: HeadersInit = {
@@ -162,7 +163,7 @@ export default function EmulatorStatusPanel({ projectId }: EmulatorStatusPanelPr
             const response = await fetch('/api/emulators', {
                 method: 'POST',
                 headers,
-                body: JSON.stringify({ action: 'boot', projectId, avdName, mode }),
+                body: JSON.stringify({ action: 'boot', avdName }),
             });
             if (!response.ok) {
                 throw new Error('boot failed');
@@ -173,7 +174,6 @@ export default function EmulatorStatusPanel({ projectId }: EmulatorStatusPanelPr
             await fetchStatus();
         } finally {
             setBootingProfile(null);
-            setBootingMode(null);
         }
     };
 
@@ -241,7 +241,13 @@ export default function EmulatorStatusPanel({ projectId }: EmulatorStatusPanelPr
                                     </div>
                                     <div className="flex items-center gap-3 shrink-0">
                                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${emulator ? EMULATOR_STATE_COLORS[emulator.state] : 'bg-gray-100 text-gray-600'}`}>
-                                            {emulator ? t(EMULATOR_STATE_LABEL_KEYS[emulator.state]) : t('emulator.notRunning')}
+                                            {emulator
+                                                ? emulator.state === 'ACQUIRED'
+                                                    ? t(isEmulatorInUseByCurrentProject(emulator, projectId)
+                                                        ? 'emulator.inUseCurrentProject'
+                                                        : 'emulator.inUseOtherProject')
+                                                    : t(EMULATOR_STATE_LABEL_KEYS[emulator.state])
+                                                : t('emulator.notRunning')}
                                         </span>
                                         {emulator && (
                                             <>
@@ -252,7 +258,11 @@ export default function EmulatorStatusPanel({ projectId }: EmulatorStatusPanelPr
                                                 <button
                                                     type="button"
                                                     onClick={() => void handleStop(emulator.id)}
-                                                    disabled={stopping === emulator.id || emulator.state === 'STOPPING'}
+                                                    disabled={
+                                                        stopping === emulator.id
+                                                        || emulator.state === 'STOPPING'
+                                                        || (emulator.state === 'ACQUIRED' && !isEmulatorInUseByCurrentProject(emulator, projectId))
+                                                    }
                                                     className="text-xs px-2 py-1 text-red-600 border border-red-200 rounded hover:bg-red-50 disabled:opacity-50"
                                                 >
                                                     {stopping === emulator.id || emulator.state === 'STOPPING'
@@ -262,32 +272,22 @@ export default function EmulatorStatusPanel({ projectId }: EmulatorStatusPanelPr
                                             </>
                                         )}
                                         {!emulator && (
-                                            <div className="flex items-center gap-2">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => void handleBoot(profile.name, 'window')}
-                                                    disabled={bootingProfile === profile.name}
-                                                    className="text-xs px-2 py-1 text-blue-700 border border-blue-200 rounded hover:bg-blue-50 disabled:opacity-50"
-                                                >
-                                                    {bootingProfile === profile.name && bootingMode === 'window'
-                                                        ? t('emulator.booting')
-                                                        : t('emulator.bootWindow')}
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => void handleBoot(profile.name, 'headless')}
-                                                    disabled={bootingProfile === profile.name}
-                                                    className="text-xs px-2 py-1 text-blue-700 border border-blue-200 rounded hover:bg-blue-50 disabled:opacity-50"
-                                                >
-                                                    {bootingProfile === profile.name && bootingMode === 'headless'
-                                                        ? t('emulator.booting')
-                                                        : t('emulator.bootHeadless')}
-                                                </button>
-                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => void handleBoot(profile.name)}
+                                                disabled={bootingProfile === profile.name}
+                                                className="text-xs px-2 py-1 text-blue-700 border border-blue-200 rounded hover:bg-blue-50 disabled:opacity-50"
+                                            >
+                                                {bootingProfile === profile.name
+                                                    ? t('emulator.booting')
+                                                    : t('emulator.bootWindow')}
+                                            </button>
                                         )}
                                     </div>
                                 </div>
-                                {emulator?.state === 'ACQUIRED' && emulator.runTestCaseId && (
+                                {emulator?.state === 'ACQUIRED'
+                                    && emulator.runTestCaseId
+                                    && isEmulatorInUseByCurrentProject(emulator, projectId) && (
                                     <div className="mt-1.5 ml-0.5">
                                         <Link
                                             href={`/test-cases/${emulator.runTestCaseId}/history/${emulator.runId}`}

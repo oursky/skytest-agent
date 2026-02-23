@@ -63,7 +63,7 @@ export async function GET(request: Request) {
                 where: { id: { in: acquiredRunIds } },
                 select: {
                     id: true,
-                    testCase: { select: { id: true, name: true, displayId: true } },
+                    testCase: { select: { id: true, name: true, displayId: true, projectId: true } },
                 },
             });
             const runMap = new Map(runs.map(r => [r.id, r]));
@@ -75,6 +75,7 @@ export async function GET(request: Request) {
                         emulator.runTestCaseId = run.testCase.id;
                         emulator.runTestCaseName = run.testCase.name;
                         emulator.runTestCaseDisplayId = run.testCase.displayId ?? undefined;
+                        emulator.runProjectId = run.testCase.projectId;
                     }
                 }
             }
@@ -107,39 +108,43 @@ export async function POST(request: Request) {
         const body = await request.json() as {
             action: string;
             emulatorId?: string;
-            projectId?: string;
             avdName?: string;
-            mode?: 'window' | 'headless';
         };
         const { action } = body;
 
         if (action === 'stop' && body.emulatorId) {
             const emulatorId = body.emulatorId;
-            const ownedProjectIds = await listOwnedProjectIds(userId);
-            const ownedEmulator = emulatorPool
-                .getStatus(ownedProjectIds)
-                .emulators
-                .find((emulator) => emulator.id === emulatorId);
-
-            if (ownedEmulator) {
-                await emulatorPool.stop(emulatorId);
-                return NextResponse.json({ success: true });
+            const emulator = emulatorPool.getStatus().emulators.find((item) => item.id === emulatorId);
+            if (!emulator) {
+                return NextResponse.json({ error: 'Emulator not found' }, { status: 404 });
             }
-            return NextResponse.json({ error: 'Emulator not found' }, { status: 404 });
+
+            if (emulator.state === 'ACQUIRED' && emulator.runId) {
+                const testRun = await prisma.testRun.findUnique({
+                    where: { id: emulator.runId },
+                    select: {
+                        testCase: {
+                            select: {
+                                project: { select: { userId: true } }
+                            }
+                        }
+                    }
+                });
+
+                if (!testRun || testRun.testCase.project.userId !== userId) {
+                    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+                }
+            }
+
+            await emulatorPool.stop(emulatorId);
+            return NextResponse.json({ success: true });
         }
 
-        if (action === 'boot' && body.projectId && body.avdName) {
-            const projectId = body.projectId.trim();
+        if (action === 'boot' && body.avdName) {
             const avdName = body.avdName.trim();
-            const mode = body.mode === 'window' ? 'window' : 'headless';
 
-            if (!projectId || !avdName) {
-                return NextResponse.json({ error: 'projectId and avdName are required' }, { status: 400 });
-            }
-
-            const owned = await ensureProjectOwnership(projectId, userId);
-            if (!owned) {
-                return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+            if (!avdName) {
+                return NextResponse.json({ error: 'avdName is required' }, { status: 400 });
             }
 
             const availableProfiles = await listAvailableAndroidProfiles();
@@ -147,7 +152,7 @@ export async function POST(request: Request) {
                 return NextResponse.json({ error: `Unknown AVD profile "${avdName}"` }, { status: 400 });
             }
 
-            const existing = emulatorPool.getStatus(new Set([projectId])).emulators.find(
+            const existing = emulatorPool.getStatus().emulators.find(
                 (emulator) => emulator.avdName === avdName && emulator.state !== 'DEAD'
             );
             if (existing) {
@@ -157,7 +162,7 @@ export async function POST(request: Request) {
                 );
             }
 
-            const handle = await emulatorPool.boot(projectId, avdName, { headless: mode === 'headless' });
+            const handle = await emulatorPool.boot(null, avdName, { headless: false });
             return NextResponse.json({ success: true, emulatorId: handle.id, state: handle.state });
         }
 
