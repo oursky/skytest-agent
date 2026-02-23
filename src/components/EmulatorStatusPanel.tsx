@@ -6,7 +6,6 @@ import { useAuth } from '@/app/auth-provider';
 import { useI18n } from '@/i18n';
 import type { EmulatorPoolStatus, EmulatorPoolStatusItem } from '@/lib/emulator-pool';
 import { EMULATOR_STATE_COLORS } from '@/utils/emulatorColors';
-import { formatUptime } from '@/utils/dateFormatter';
 
 interface EmulatorStatusResponse extends EmulatorPoolStatus {
     avdProfiles: Array<{
@@ -228,6 +227,8 @@ export default function EmulatorStatusPanel({ projectId }: EmulatorStatusPanelPr
                     <div className="divide-y divide-gray-100">
                         {status.avdProfiles.map((profile) => {
                             const emulator = runtimeByAvd.get(normalizeAvdName(profile.name));
+                            const isBootingThisProfile = !emulator && bootingProfile === profile.name;
+                            const displayState = emulator?.state ?? (isBootingThisProfile ? 'BOOTING' : null);
                             return (
                             <div key={profile.name} className="px-4 py-3">
                                 <div className="flex items-center justify-between gap-4">
@@ -240,18 +241,17 @@ export default function EmulatorStatusPanel({ projectId }: EmulatorStatusPanelPr
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-3 shrink-0">
-                                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${emulator ? EMULATOR_STATE_COLORS[emulator.state] : 'bg-gray-100 text-gray-600'}`}>
-                                            {emulator
-                                                ? emulator.state === 'ACQUIRED'
-                                                    ? t(isEmulatorInUseByCurrentProject(emulator, projectId)
+                                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${displayState ? EMULATOR_STATE_COLORS[displayState] : 'bg-gray-100 text-gray-600'}`}>
+                                            {displayState
+                                                ? displayState === 'ACQUIRED'
+                                                    ? t(emulator && isEmulatorInUseByCurrentProject(emulator, projectId)
                                                         ? 'emulator.inUseCurrentProject'
                                                         : 'emulator.inUseOtherProject')
-                                                    : t(EMULATOR_STATE_LABEL_KEYS[emulator.state])
+                                                    : t(EMULATOR_STATE_LABEL_KEYS[displayState])
                                                 : t('emulator.notRunning')}
                                         </span>
                                         {emulator && (
                                             <>
-                                                <span className="text-xs text-gray-400">{formatUptime(emulator.uptimeMs)}</span>
                                                 {emulator.memoryUsageMb && (
                                                     <span className="text-xs text-gray-400">{emulator.memoryUsageMb}MB</span>
                                                 )}
@@ -265,9 +265,7 @@ export default function EmulatorStatusPanel({ projectId }: EmulatorStatusPanelPr
                                                     }
                                                     className="text-xs px-2 py-1 text-red-600 border border-red-200 rounded hover:bg-red-50 disabled:opacity-50"
                                                 >
-                                                    {stopping === emulator.id || emulator.state === 'STOPPING'
-                                                        ? t('emulator.stopping')
-                                                        : t('emulator.stop')}
+                                                    {t('emulator.stop')}
                                                 </button>
                                             </>
                                         )}
@@ -278,9 +276,7 @@ export default function EmulatorStatusPanel({ projectId }: EmulatorStatusPanelPr
                                                 disabled={bootingProfile === profile.name}
                                                 className="text-xs px-2 py-1 text-blue-700 border border-blue-200 rounded hover:bg-blue-50 disabled:opacity-50"
                                             >
-                                                {bootingProfile === profile.name
-                                                    ? t('emulator.booting')
-                                                    : t('emulator.bootWindow')}
+                                                {t('emulator.bootWindow')}
                                             </button>
                                         )}
                                     </div>
