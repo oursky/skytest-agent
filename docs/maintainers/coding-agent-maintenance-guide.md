@@ -7,8 +7,8 @@ It complements `AGENTS.md` with project-specific runtime invariants that are eas
 ## Read These First (For Android Runtime Changes)
 
 - `AGENTS.md` (repo workflow, constraints, style)
-- `docs/maintainers/android-runtime-maintenance.md` (runtime behavior + hosting constraints)
-- `docs/operators/android-runtime-deployment-checklist.md` (operator expectations you should not accidentally invalidate)
+- [`docs/maintainers/android-runtime-maintenance.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/android-runtime-maintenance.md) (runtime behavior + hosting constraints)
+- [`docs/operators/android-runtime-deployment-checklist.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/android-runtime-deployment-checklist.md) (operator expectations you should not accidentally invalidate)
 
 ## High-Risk Runtime Areas
 
@@ -75,12 +75,12 @@ If you add features that expose emulator state or control:
 When changing Android runtime behavior, update docs in the same PR/commit series:
 
 - Operator-facing impact:
-  - `docs/operators/mac-android-emulator-guide.md`
-  - `docs/operators/android-runtime-deployment-checklist.md`
+  - [`docs/operators/mac-android-emulator-guide.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/mac-android-emulator-guide.md)
+  - [`docs/operators/android-runtime-deployment-checklist.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/android-runtime-deployment-checklist.md)
 - Maintainer-facing impact:
-  - `docs/maintainers/android-runtime-maintenance.md`
+  - [`docs/maintainers/android-runtime-maintenance.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/android-runtime-maintenance.md)
 - Import/export behavior:
-  - `docs/maintainers/test-case-excel-format.md`
+  - [`docs/maintainers/test-case-excel-format.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/test-case-excel-format.md)
 
 ## Common Footguns
 
@@ -89,4 +89,3 @@ When changing Android runtime behavior, update docs in the same PR/commit series
 - Adding unguarded fire-and-forget promises in queue processing
 - Overwriting `CANCELLED` status after the job finishes late
 - Changing operator-visible emulator behavior without updating setup/runbook docs
-

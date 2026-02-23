@@ -14,8 +14,8 @@ If you are running a server without Android SDK/emulator tooling, skip this chec
 
 Reference:
 
-- `docs/maintainers/android-runtime-maintenance.md` (deployment model and singleton constraints)
-- `docs/operators/mac-android-emulator-guide.md` (host setup + troubleshooting)
+- [`docs/maintainers/android-runtime-maintenance.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/android-runtime-maintenance.md) (deployment model and singleton constraints)
+- [`docs/operators/mac-android-emulator-guide.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/mac-android-emulator-guide.md) (host setup + troubleshooting)
 
 ## Host Prerequisites
 

@@ -6,7 +6,7 @@ This document describes the current supported Excel format for test case import/
 
 Related docs:
 
-- `docs/maintainers/coding-agent-maintenance-guide.md`
+- [`docs/maintainers/coding-agent-maintenance-guide.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/coding-agent-maintenance-guide.md)
 
 ## Compatibility Policy
 

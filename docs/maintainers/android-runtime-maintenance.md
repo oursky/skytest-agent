@@ -6,9 +6,9 @@ This document describes the current Android emulator runtime behavior and operat
 
 Related docs:
 
-- `docs/maintainers/coding-agent-maintenance-guide.md`
-- `docs/operators/android-runtime-deployment-checklist.md`
-- `docs/operators/mac-android-emulator-guide.md`
+- [`docs/maintainers/coding-agent-maintenance-guide.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/coding-agent-maintenance-guide.md)
+- [`docs/operators/android-runtime-deployment-checklist.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/android-runtime-deployment-checklist.md)
+- [`docs/operators/mac-android-emulator-guide.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/mac-android-emulator-guide.md)
 
 ## Runtime Capability Gating (Important)
 

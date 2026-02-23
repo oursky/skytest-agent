@@ -9,23 +9,23 @@ This `docs/` folder contains two types of documentation:
 
 Core app features can run without Android SDK/emulator tooling. Android operator docs below apply only when enabling Android testing on a host.
 
-- `docs/operators/mac-android-emulator-guide.md`
+- [`docs/operators/mac-android-emulator-guide.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/mac-android-emulator-guide.md)
   - macOS setup, emulator creation, operations, troubleshooting
-- `docs/operators/android-runtime-deployment-checklist.md`
+- [`docs/operators/android-runtime-deployment-checklist.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/android-runtime-deployment-checklist.md)
   - preflight checklist for enabling Android runtime on a host/environment
 
 ## Maintainer / Coding-Agent Docs
 
-- `docs/maintainers/coding-agent-maintenance-guide.md`
+- [`docs/maintainers/coding-agent-maintenance-guide.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/coding-agent-maintenance-guide.md)
   - code map, invariants, and maintenance traps for queue/emulator runtime
-- `docs/maintainers/android-runtime-maintenance.md`
+- [`docs/maintainers/android-runtime-maintenance.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/android-runtime-maintenance.md)
   - Android runtime behavior, isolation model, and operational constraints
-- `docs/maintainers/test-case-excel-format.md`
+- [`docs/maintainers/test-case-excel-format.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/test-case-excel-format.md)
   - current import/export Excel format contract and compatibility policy
 
 ## Design Notes / Plans
 
-- `docs/plans/`
+- [`docs/plans/`](https://github.com/oursky/skytest-agent/tree/main/docs/plans)
   - implementation plans and design notes used during feature development
   - useful for historical context, but not a stable contract
 
@@ -35,4 +35,4 @@ Core app features can run without Android SDK/emulator tooling. Android operator
 - When runtime behavior changes (queueing, emulator cleanup, isolation, API visibility), update both:
   - operator runbooks/checklists
   - maintainer/runtime notes
-- If import/export behavior changes, update `docs/maintainers/test-case-excel-format.md`.
+- If import/export behavior changes, update [`docs/maintainers/test-case-excel-format.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/test-case-excel-format.md).

@@ -12,8 +12,8 @@ It covers:
 
 Related docs:
 
-- `docs/operators/android-runtime-deployment-checklist.md`
-- `docs/maintainers/android-runtime-maintenance.md` (runtime behavior and limitations)
+- [`docs/operators/android-runtime-deployment-checklist.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/android-runtime-deployment-checklist.md)
+- [`docs/maintainers/android-runtime-maintenance.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/android-runtime-maintenance.md) (runtime behavior and limitations)
 
 ## 1. Host Setup
 
@@ -174,7 +174,7 @@ Important:
 - Do not assume every run fully stops the emulator
 - Do not assume every run fully wipes emulator state
 
-See `docs/maintainers/android-runtime-maintenance.md` for exact cleanup/isolation behavior.
+See [`docs/maintainers/android-runtime-maintenance.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/android-runtime-maintenance.md) for exact cleanup/isolation behavior.
 
 ### Emulator Status Meanings
 
