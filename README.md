@@ -77,7 +77,7 @@ Users provide their own [OpenRouter](https://openrouter.ai/) API keys via the ap
 - **Database errors**: `rm -f dev.db && npx prisma db push`
 - **View database**: `npx prisma studio`
 - **Auth redirect issues**: Check Authgear redirect URI matches your domain
-- **Android emulator (feature-flagged)**: See `docs/operators/mac-android-emulator-guide.md`
+- **Android emulator (feature-flagged)**: See [macOS Android Emulator Guide](https://github.com/oursky/skytest-agent/blob/main/docs/operators/mac-android-emulator-guide.md)
 
 ## Community & Contributing
 
