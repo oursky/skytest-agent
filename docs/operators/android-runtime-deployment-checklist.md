@@ -1,10 +1,10 @@
 # Android Runtime Deployment Checklist
 
-Audience: operators / self-hosters who run SkyTest with Android testing enabled.
+Audience: operators / self-hosters who run this app with Android testing enabled.
 
 Use this checklist before enabling Android testing on a host or environment.
 
-If you are running a server without Android SDK/emulator tooling, skip this checklist. SkyTest basic features remain available, while Android UI/API paths are hidden or rejected by server capability gating.
+If you are running a server without Android SDK/emulator tooling, skip this checklist. Basic features remain available, while Android UI/API paths are hidden or rejected by server capability gating.
 
 ## Hosting Model
 

@@ -1,6 +1,6 @@
 # macOS Android Emulator Guide (Operator / Self-Hosting)
 
-This guide is for people who clone this repository and want to run SkyTest with Android testing on macOS.
+This guide is for people who clone this repository and want to run this app with Android testing on macOS.
 
 It covers:
 
@@ -84,9 +84,9 @@ emulator -list-avds
 
 ## 2. Create Emulator Templates (AVDs)
 
-SkyTest UI uses the term "Emulators" for user-facing clarity, but under the hood Android SDK still calls them AVDs.
+The UI uses the term "Emulators" for user-facing clarity, but under the hood Android SDK still calls them AVDs.
 
-SkyTest stores the emulator template name and boots by that name.
+The app stores the emulator template name and boots by that name.
 
 Examples:
 
@@ -135,7 +135,7 @@ Boot with window:
 emulator -avd Pixel_7_API_34 -port 5554
 ```
 
-Boot headless:
+Launch headless from CLI (debugging only):
 
 ```bash
 emulator -avd Pixel_7_API_34 -port 5554 -no-window -no-audio -no-boot-anim
@@ -153,14 +153,14 @@ Stop emulator:
 adb -s emulator-5554 emu kill
 ```
 
-## 4. SkyTest Android Runtime Behavior (Operator View)
+## 4. Android Runtime Behavior (Operator View)
 
 ### Emulator Controls in UI
 
 In Project -> Emulators:
 
-- If an emulator template is not running: `Boot (window)` / `Boot (headless)`
-- If a SkyTest-managed emulator is running: `Stop`
+- If an emulator template is not running: `Boot (window)`
+- If an app-managed emulator is running: `Stop`
 
 ### What Test Runs Do
 
@@ -214,10 +214,10 @@ adb -s emulator-5554 emu kill
 
 Then boot again.
 
-### Emulator visible in `adb devices` but not controllable in SkyTest UI
+### Emulator visible in `adb devices` but not controllable in the UI
 
 - It may be an unmanaged emulator (for example started by Android Studio/manual CLI)
-- SkyTest user APIs only control SkyTest-managed emulators
+- User APIs only control app-managed emulators
 - Stop it manually:
 
 ```bash
@@ -252,6 +252,5 @@ emulator -avd Pixel_7_API_34 -port 5554 -verbose
 1. `emulator -list-avds` returns at least one emulator template
 2. Boot one emulator manually and confirm `adb devices` shows it
 3. Open project Emulators tab and verify the template appears and can be booted
-4. Boot and stop a SkyTest-managed emulator from the UI
+4. Boot and stop an app-managed emulator from the UI
 5. Run one Android test and verify emulator status becomes `In Use` and then returns to `IDLE` or stops
-

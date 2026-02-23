@@ -2,7 +2,7 @@
 
 Audience: maintainers / coding agents changing Android runtime behavior.
 
-This document describes the current Android emulator runtime behavior and operational constraints for SkyTest.
+This document describes the current Android emulator runtime behavior and operational constraints for this app.
 
 Related docs:
 
@@ -34,13 +34,13 @@ Implications:
 ## Managed vs Unmanaged Emulators
 
 - Managed emulators are those started and tracked by `emulatorPool`.
-- Unmanaged emulators are any host emulators visible to `adb` but not tracked by SkyTest (for example, Android Studio/manual launches).
+- Unmanaged emulators are any host emulators visible to `adb` but not tracked by the app (for example, Android Studio/manual launches).
 
 Security behavior:
 
 - `/api/emulators` now returns only pool-managed emulators owned by the current user’s projects.
 - `/api/emulators` stop action only allows stopping owned managed emulators.
-- SkyTest does not expose or control unmanaged host emulators through the user API.
+- The app does not expose or control unmanaged host emulators through the user API.
 
 ## Reuse and Isolation Model
 

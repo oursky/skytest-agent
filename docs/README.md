@@ -2,12 +2,12 @@
 
 This `docs/` folder contains two types of documentation:
 
-- Operator / self-hosting docs: for people setting up and running SkyTest on their own machines/servers
+- Operator / self-hosting docs: for people setting up and running this app on their own machines/servers
 - Maintainer / coding-agent docs: for developers working on this repo and Android runtime behavior
 
 ## Operator / Self-Hosting Docs
 
-Core SkyTest can run without Android SDK/emulator tooling. Android operator docs below apply only when enabling Android testing on a host.
+Core app features can run without Android SDK/emulator tooling. Android operator docs below apply only when enabling Android testing on a host.
 
 - `docs/operators/mac-android-emulator-guide.md`
   - macOS setup, emulator creation, operations, troubleshooting
