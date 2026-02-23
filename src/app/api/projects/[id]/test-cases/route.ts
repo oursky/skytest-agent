@@ -101,8 +101,8 @@ export async function POST(
         if (!name) {
             return NextResponse.json({ error: 'Name is required' }, { status: 400 });
         }
-        if (!saveDraft && (!url || (!prompt && !hasSteps))) {
-            return NextResponse.json({ error: 'Name, URL, and either Prompt or Steps are required' }, { status: 400 });
+        if (!saveDraft && ((!url && !hasBrowserConfig) || (!prompt && !hasSteps))) {
+            return NextResponse.json({ error: 'Name, and either URL or BrowserConfig, and either Prompt or Steps are required' }, { status: 400 });
         }
 
         const testCase = await prisma.testCase.create({

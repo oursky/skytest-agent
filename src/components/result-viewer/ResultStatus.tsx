@@ -119,5 +119,24 @@ export default function ResultStatus({ status, error, eventCount }: ResultStatus
         );
     }
 
+    if (status === 'PREPARING') {
+        return (
+            <div className="mt-6 p-6 bg-cyan-50 border border-cyan-200 rounded-lg">
+                <div className="flex items-start gap-4">
+                    <div className="flex-shrink-0 w-10 h-10 bg-cyan-100 rounded-lg flex items-center justify-center">
+                        <svg className="w-6 h-6 text-cyan-600 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                    </div>
+                    <div className="flex-1 space-y-1">
+                        <h3 className="text-lg font-semibold text-cyan-900">{t('status.preparing')}</h3>
+                        <p className="text-sm text-cyan-700 leading-relaxed">{t('status.preparing.detail')}</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return null;
 }

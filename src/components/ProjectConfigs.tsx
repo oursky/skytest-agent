@@ -13,6 +13,7 @@ const CONFIG_NAME_REGEX = /^[A-Z][A-Z0-9_]*$/;
 
 const TYPE_SECTIONS: { type: ConfigType; titleKey: string }[] = [
     { type: 'URL', titleKey: 'configs.title.urls' },
+    { type: 'APP_ID', titleKey: 'configs.title.appIds' },
     { type: 'VARIABLE', titleKey: 'configs.title.variables' },
     { type: 'SECRET', titleKey: 'configs.title.secrets' },
     { type: 'FILE', titleKey: 'configs.title.files' },

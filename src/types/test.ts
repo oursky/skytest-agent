@@ -1,9 +1,28 @@
-export type TestStatus = 'IDLE' | 'RUNNING' | 'PASS' | 'FAIL' | 'CANCELLED' | 'QUEUED' | 'DRAFT';
+export type TestStatus = 'IDLE' | 'RUNNING' | 'PASS' | 'FAIL' | 'CANCELLED' | 'QUEUED' | 'DRAFT' | 'PREPARING';
 
 export interface BrowserConfig {
     name?: string;
     url: string;
 }
+
+export type TargetType = 'browser' | 'android';
+
+export interface BrowserTargetConfig {
+    type: 'browser';
+    name?: string;
+    url: string;
+}
+
+export interface AndroidTargetConfig {
+    type: 'android';
+    name?: string;
+    avdName: string;
+    appId: string;
+    clearAppState: boolean;
+    allowAllPermissions: boolean;
+}
+
+export type TargetConfig = BrowserTargetConfig | AndroidTargetConfig;
 
 export type StepType = 'ai-action' | 'playwright-code';
 
@@ -31,7 +50,7 @@ export interface TestData {
     prompt?: string;
     name?: string;
     steps?: TestStep[];
-    browserConfig?: Record<string, BrowserConfig>;
+    browserConfig?: Record<string, BrowserConfig | TargetConfig>;
     files?: TestCaseFile[];
 }
 
@@ -41,7 +60,7 @@ export interface RunTestOptions {
         url?: string;
         prompt?: string;
         steps?: TestStep[];
-        browserConfig?: Record<string, BrowserConfig>;
+        browserConfig?: Record<string, BrowserConfig | TargetConfig>;
         userId?: string;
         openRouterApiKey?: string;
         testCaseId?: string;
@@ -53,6 +72,8 @@ export interface RunTestOptions {
     onEvent: (event: TestEvent) => void;
     signal?: AbortSignal;
     onCleanup?: (cleanup: () => Promise<void>) => void;
+    onPreparing?: () => Promise<void>;
+    onRunning?: () => Promise<void>;
 }
 
 export interface TestResult {
@@ -61,7 +82,7 @@ export interface TestResult {
     actionCount?: number;
 }
 
-export type ConfigType = 'URL' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING' | 'FILE';
+export type ConfigType = 'URL' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING' | 'FILE' | 'APP_ID';
 
 export type RandomStringGenerationType = 'TIMESTAMP_UNIX' | 'TIMESTAMP_DATETIME' | 'UUID';
 

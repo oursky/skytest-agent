@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { TestStep, BrowserConfig, ConfigItem, TestCaseFile } from '@/types';
+import { TestStep, BrowserConfig, TargetConfig, ConfigItem, TestCaseFile } from '@/types';
 import BuilderForm from './BuilderForm';
 import ConfigurationsSection from './ConfigurationsSection';
 import { useI18n } from '@/i18n';
@@ -13,7 +13,7 @@ interface TestData {
     name?: string;
     displayId?: string;
     steps?: TestStep[];
-    browserConfig?: Record<string, BrowserConfig>;
+    browserConfig?: Record<string, BrowserConfig | TargetConfig>;
 }
 
 interface TestFormProps {
@@ -36,11 +36,12 @@ interface TestFormProps {
     testCaseFiles?: TestCaseFile[];
     onTestCaseConfigsChange?: (id?: string) => void;
     onEnsureTestCase?: (data: TestData) => Promise<string | null>;
+    androidAvailable?: boolean;
 }
 
 interface BrowserEntry {
     id: string;
-    config: BrowserConfig;
+    config: BrowserConfig | TargetConfig;
 }
 
 type TestFormTab = 'configurations' | 'test-steps';
@@ -66,13 +67,13 @@ function createStepId(prefix: string): string {
 
 function buildBrowsers(data?: TestData): BrowserEntry[] {
     if (data?.browserConfig && Object.keys(data.browserConfig).length > 0) {
-        return Object.entries(data.browserConfig).map(([id, cfg]) => ({
-            id,
-            config: {
-                name: cfg.name || '',
-                url: cfg.url || '',
+        return Object.entries(data.browserConfig).map(([id, cfg]) => {
+            if ('type' in cfg && cfg.type === 'android') {
+                return { id, config: cfg };
             }
-        }));
+            const browserCfg = cfg as BrowserConfig;
+            return { id, config: { name: browserCfg.name || '', url: browserCfg.url || '' } };
+        });
     }
 
     return [{
@@ -81,6 +82,16 @@ function buildBrowsers(data?: TestData): BrowserEntry[] {
             url: data?.url || '',
         }
     }];
+}
+
+function hasMissingRequiredEntryPointFields(browsers: BrowserEntry[]): boolean {
+    return browsers.some(({ config }) => {
+        if ('type' in config && config.type === 'android') {
+            return !config.appId?.trim();
+        }
+
+        return !config.url?.trim();
+    });
 }
 
 function buildSteps(data: TestData | undefined, browserId: string, validBrowserIds: Set<string>): TestStep[] {
@@ -108,7 +119,7 @@ function buildSteps(data: TestData | undefined, browserId: string, validBrowserI
         }));
 }
 
-export default function TestForm({ onSubmit, isLoading, initialData, showNameInput, readOnly, onExport, onImport, testCaseId, onSaveDraft, onDiscard, isSaving, displayId, onDisplayIdChange, projectId, projectConfigs, testCaseConfigs, testCaseFiles, onTestCaseConfigsChange, onEnsureTestCase }: TestFormProps) {
+export default function TestForm({ onSubmit, isLoading, initialData, showNameInput, readOnly, onExport, onImport, testCaseId, onSaveDraft, onDiscard, isSaving, displayId, onDisplayIdChange, projectId, projectConfigs, testCaseConfigs, testCaseFiles, onTestCaseConfigsChange, onEnsureTestCase, androidAvailable = true }: TestFormProps) {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
     const [activeTab, setActiveTab] = useState<TestFormTab>('configurations');
@@ -155,6 +166,24 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
             });
         });
     }, [steps.length, browsers]);
+
+    useEffect(() => {
+        const fallbackTargetId = browsers[0]?.id;
+        if (!fallbackTargetId) return;
+
+        const validTargetIds = new Set(browsers.map((browser) => browser.id));
+        setSteps((currentSteps) => {
+            let changed = false;
+            const nextSteps = currentSteps.map((step) => {
+                if (validTargetIds.has(step.target)) {
+                    return step;
+                }
+                changed = true;
+                return { ...step, target: fallbackTargetId };
+            });
+            return changed ? nextSteps : currentSteps;
+        });
+    }, [browsers]);
 
     const ensureSampleConfigs = async (targetTestCaseId?: string) => {
         try {
@@ -241,7 +270,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
             { id: createStepId('sample'), target: 'browser_b', action: t('sample.multi.step10'), type: 'ai-action' }
         ];
 
-        const sampleBrowserConfig: Record<string, BrowserConfig> = {};
+        const sampleBrowserConfig: Record<string, BrowserConfig | TargetConfig> = {};
         sampleBrowsers.forEach((browser) => {
             sampleBrowserConfig[browser.id] = browser.config;
         });
@@ -273,15 +302,20 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
     };
 
     const buildCurrentData = (): TestData => {
-        const browserConfigMap: Record<string, BrowserConfig> = {};
+        const browserConfigMap: Record<string, BrowserConfig | TargetConfig> = {};
         browsers.forEach((browser) => {
             browserConfigMap[browser.id] = browser.config;
         });
 
+        const firstConfig = browsers[0]?.config;
+        const firstUrl = firstConfig && !('type' in firstConfig && firstConfig.type === 'android')
+            ? (firstConfig as BrowserConfig).url || ''
+            : '';
+
         return {
             name: showNameInput ? name : undefined,
             displayId: displayId || undefined,
-            url: browsers[0]?.config.url || '',
+            url: firstUrl,
             prompt: '',
             steps,
             browserConfig: browserConfigMap
@@ -290,8 +324,14 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        if (hasMissingRequiredEntryPointFields(browsers)) {
+            setActiveTab('configurations');
+            return;
+        }
         onSubmit(buildCurrentData());
     };
+
+    const runDisabled = isLoading || hasMissingRequiredEntryPointFields(browsers);
 
     return (
         <form onSubmit={handleSubmit} className="glass-panel h-[800px] flex flex-col">
@@ -377,7 +417,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                         {showNameInput && (
                             <div className="space-y-2">
                                 <label className="block text-sm font-medium text-foreground">
-                                    {t('testForm.testCaseName')} <span className="text-red-500">*</span>
+                                    {t('testForm.testCaseName')} {!readOnly && <span className="text-red-500">*</span>}
                                 </label>
                                 <input
                                     type="text"
@@ -391,7 +431,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                             </div>
                         )}
 
-                        {showNameInput && onDisplayIdChange && (
+                        {showNameInput && (onDisplayIdChange || readOnly) && (
                             <div className="space-y-2">
                                 <label className="block text-sm font-medium text-foreground">
                                     {t('testForm.testCaseId')}
@@ -401,7 +441,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                                     className="input-field"
                                     placeholder={t('testForm.testCaseId.placeholder')}
                                     value={displayId || ''}
-                                    onChange={(e) => onDisplayIdChange(e.target.value)}
+                                    onChange={(e) => onDisplayIdChange?.(e.target.value)}
                                     disabled={readOnly}
                                 />
                             </div>
@@ -417,18 +457,35 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                             readOnly={readOnly}
                             browsers={browsers}
                             setBrowsers={setBrowsers}
+                            androidAvailable={androidAvailable}
                         />
                     </div>
                 ) : (
-                    <BuilderForm
-                        browsers={browsers}
-                        steps={steps}
-                        setSteps={setSteps}
-                        readOnly={readOnly}
-                        projectConfigs={projectConfigs}
-                        testCaseConfigs={testCaseConfigs}
-                        testCaseFiles={testCaseFiles}
-                    />
+                    <div className="space-y-4">
+                        {!readOnly && (
+                            <div className="border border-gray-200 rounded-lg bg-gray-50 p-4 space-y-3">
+                                <p className="text-xs text-gray-600 leading-snug">{t('configs.hint.intro')}</p>
+                                <div>
+                                    <p className="text-xs font-medium text-gray-700">{t('configs.hint.aiStep')}</p>
+                                    <code className="block mt-1 bg-white border border-gray-200 px-2 py-1.5 rounded text-[11px] text-gray-600 whitespace-pre-wrap">{t('configs.hint.aiExample')}</code>
+                                </div>
+                                <div>
+                                    <p className="text-xs font-medium text-gray-700">{t('configs.hint.codeStep')}</p>
+                                    <code className="block mt-1 bg-white border border-gray-200 px-2 py-1.5 rounded text-[11px] text-gray-600 whitespace-pre-wrap">{t('configs.hint.codeExample')}</code>
+                                </div>
+                            </div>
+                        )}
+
+                        <BuilderForm
+                            browsers={browsers}
+                            steps={steps}
+                            setSteps={setSteps}
+                            readOnly={readOnly}
+                            projectConfigs={projectConfigs}
+                            testCaseConfigs={testCaseConfigs}
+                            testCaseFiles={testCaseFiles}
+                        />
+                    </div>
                 )}
             </div>
 
@@ -472,7 +529,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                     )}
                     <button
                         type="submit"
-                        disabled={isLoading}
+                        disabled={runDisabled}
                         className="btn-primary w-full flex justify-center items-center gap-2 h-11 text-base shadow-lg hover:shadow-xl transition-all"
                     >
                         {isLoading ? (

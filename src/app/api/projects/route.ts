@@ -36,7 +36,7 @@ export async function GET(request: Request) {
                         testRuns: {
                             where: {
                                 status: {
-                                    in: ['RUNNING', 'QUEUED']
+                                    in: ['RUNNING', 'QUEUED', 'PREPARING']
                                 }
                             },
                             select: {

@@ -120,7 +120,7 @@ export async function DELETE(
                     projectId: id
                 },
                 status: {
-                    in: ['RUNNING', 'QUEUED']
+                    in: ['RUNNING', 'QUEUED', 'PREPARING']
                 }
             }
         });

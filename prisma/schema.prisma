@@ -11,6 +11,7 @@ model User {
   authId          String    @unique
   email           String?
   openRouterKey   String?   // Encrypted OpenRouter API key
+  androidEnabled  Boolean   @default(false)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   projects        Project[]
@@ -37,8 +38,8 @@ model Project {
   userId    String
   user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   testCases TestCase[]
-  configs   ProjectConfig[]
-  createdAt DateTime        @default(now())
+  configs     ProjectConfig[]
+  createdAt   DateTime        @default(now())
   updatedAt DateTime        @updatedAt
 
   @@index([userId, updatedAt(sort: Desc)])

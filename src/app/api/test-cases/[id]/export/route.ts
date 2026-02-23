@@ -24,6 +24,7 @@ export async function GET(
 
     try {
         const { id } = await params;
+        const xlsxOnly = new URL(request.url).searchParams.get('xlsxOnly') === 'true';
 
         const testCase = await prisma.testCase.findUnique({
             where: { id },
@@ -44,7 +45,7 @@ export async function GET(
         const projectVariables = await prisma.projectConfig.findMany({
             where: {
                 projectId: testCase.projectId,
-                type: { in: ['URL', 'VARIABLE', 'SECRET', 'RANDOM_STRING', 'FILE'] }
+                type: { in: ['URL', 'APP_ID', 'VARIABLE', 'SECRET', 'RANDOM_STRING', 'FILE'] }
             },
             orderBy: { createdAt: 'asc' }
         });
@@ -52,13 +53,13 @@ export async function GET(
         const testCaseVariables = await prisma.testCaseConfig.findMany({
             where: {
                 testCaseId: testCase.id,
-                type: { in: ['URL', 'VARIABLE', 'SECRET', 'RANDOM_STRING', 'FILE'] }
+                type: { in: ['URL', 'APP_ID', 'VARIABLE', 'SECRET', 'RANDOM_STRING', 'FILE'] }
             },
             orderBy: { createdAt: 'asc' }
         });
 
-        type ExportableType = 'URL' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING' | 'FILE';
-        const validTypes = new Set<string>(['URL', 'VARIABLE', 'SECRET', 'RANDOM_STRING', 'FILE']);
+        type ExportableType = 'URL' | 'APP_ID' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING' | 'FILE';
+        const validTypes = new Set<string>(['URL', 'APP_ID', 'VARIABLE', 'SECRET', 'RANDOM_STRING', 'FILE']);
 
         const typedProjectVariables: Array<{ name: string; type: ExportableType; value: string }> = projectVariables.flatMap((variable) => {
             if (!validTypes.has(variable.type)) {
@@ -110,7 +111,7 @@ export async function GET(
         const testCaseFileVariables = testCaseVariables.filter((variable) => variable.type === 'FILE');
         const hasAttachedFiles = testCase.files.length > 0 || projectFileVariables.length > 0 || testCaseFileVariables.length > 0;
 
-        if (!hasAttachedFiles) {
+        if (xlsxOnly || !hasAttachedFiles) {
             return new NextResponse(new Uint8Array(excelBuffer), {
                 headers: {
                     'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

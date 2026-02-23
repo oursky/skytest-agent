@@ -8,14 +8,16 @@ import TestForm from "@/components/TestForm";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import { formatDateTime } from "@/utils/dateFormatter";
 import { useI18n } from "@/i18n";
+import { parseStoredEvents } from "@/lib/test-events";
 
-import { TestStep, BrowserConfig, ConfigItem } from "@/types";
+import { TestStep, BrowserConfig, TargetConfig, ConfigItem } from "@/types";
 
 interface TestRun {
     id: string;
-    status: 'IDLE' | 'RUNNING' | 'PASS' | 'FAIL';
+    status: 'IDLE' | 'RUNNING' | 'PASS' | 'FAIL' | 'CANCELLED' | 'QUEUED' | 'PREPARING';
     createdAt: string;
-    result: string;
+    result: string | null;
+    logs: string | null;
     error: string | null;
     configurationSnapshot: string | null;
     files?: Array<{ id: string; filename: string; storedName: string; mimeType: string; size: number; createdAt: string }>;
@@ -28,7 +30,7 @@ interface TestCase {
     url: string;
     prompt: string;
     steps?: TestStep[];
-    browserConfig?: Record<string, BrowserConfig>;
+    browserConfig?: Record<string, BrowserConfig | TargetConfig>;
 }
 
 export default function RunDetailPage({ params }: { params: Promise<{ id: string; runId: string }> }) {
@@ -84,8 +86,44 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
             }
         } catch (error) {
             console.error("Failed to fetch test case", error);
+            setProjectConfigs([]);
+            setTestCaseConfigs([]);
         }
     }, [getAccessToken, id]);
+
+    const fetchSecretValuesForCopyLogs = useCallback(async (): Promise<string[]> => {
+        if (!projectId && !id) {
+            return [];
+        }
+
+        try {
+            const token = await getAccessToken();
+            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+            const [projectResponse, testCaseResponse] = await Promise.all([
+                projectId ? fetch(`/api/projects/${projectId}/configs?includeSecretValues=true`, { headers }) : Promise.resolve(null),
+                fetch(`/api/test-cases/${id}/configs?includeSecretValues=true`, { headers }),
+            ]);
+
+            const collect = async (response: Response | null): Promise<string[]> => {
+                if (!response || !response.ok) {
+                    return [];
+                }
+                const configs = await response.json() as Array<{ type?: string; value?: string }>;
+                return configs
+                    .filter((config) => config.type === 'SECRET' && typeof config.value === 'string' && config.value.length > 0)
+                    .map((config) => config.value as string);
+            };
+
+            const [projectSecrets, testCaseSecrets] = await Promise.all([
+                collect(projectResponse),
+                collect(testCaseResponse),
+            ]);
+            return [...projectSecrets, ...testCaseSecrets];
+        } catch (error) {
+            console.error('Failed to fetch secret config values for copy logs', error);
+            return [];
+        }
+    }, [getAccessToken, id, projectId]);
 
     const fetchRunDetails = useCallback(async () => {
         try {
@@ -145,7 +183,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
         );
     }
 
-    const events = testRun.result ? JSON.parse(testRun.result) : [];
+    const events = parseStoredEvents(testRun.result || testRun.logs);
 
     const buildExcelBaseName = (testCaseIdentifier?: string, testCaseName?: string): string => {
         const sanitize = (value: string) => value.replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -161,7 +199,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
         try {
             const token = await getAccessToken();
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const response = await fetch(`/api/test-cases/${id}/export`, { headers });
+            const response = await fetch(`/api/test-cases/${id}/export?xlsxOnly=true`, { headers });
             if (!response.ok) {
                 throw new Error('Export request failed');
             }
@@ -187,6 +225,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 
     const { testData, snapshotProjectConfigs, snapshotTestCaseConfigs } = (() => {
         const baseConfig = testCase ? {
+            displayId: testCase.displayId,
             name: testCase.name,
             url: testCase.url,
             prompt: testCase.prompt || '',
@@ -200,6 +239,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                     resolvedConfigurations?: Array<{ name: string; type: string; value: string; filename?: string; source: string }>;
                 };
                 const data = {
+                    displayId: savedConfig.displayId ?? baseConfig?.displayId,
                     name: savedConfig.name ?? baseConfig?.name,
                     url: savedConfig.url ?? baseConfig?.url ?? '',
                     prompt: savedConfig.prompt ?? baseConfig?.prompt ?? '',
@@ -283,9 +323,11 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                                 onSubmit={() => { }}
                                 isLoading={false}
                                 initialData={testData}
-                                showNameInput={false}
+                                showNameInput={true}
                                 readOnly={true}
                                 testCaseId={id}
+                                displayId={testData.displayId}
+                                projectId={projectId}
                                 onExport={testData ? handleExport : undefined}
                                 projectConfigs={snapshotProjectConfigs}
                                 testCaseConfigs={snapshotTestCaseConfigs}
@@ -296,6 +338,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                     <div className="h-full min-h-[500px]">
                         <ResultViewer
                             result={{ status: testRun.status, events, error: testRun.error || undefined }}
+                            requestSecretValues={fetchSecretValuesForCopyLogs}
                             meta={{
                                 runId,
                                 testCaseId: id,

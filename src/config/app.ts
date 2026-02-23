@@ -24,8 +24,10 @@ export const config = {
 
     queue: {
         concurrency: 2,
+        maxConcurrentPerProject: 2,
         pollInterval: 500,
         sseConnectionTtlMs: 5 * 60 * 1000,
+        androidFeatureEnforcementIntervalMs: 15_000,
         logRetentionMs: 10000,
         maxEventsPerRun: 2000,
         maxScreenshotsPerRun: 300,
@@ -100,6 +102,7 @@ export const config = {
         statusColors: {
             IDLE: 'bg-gray-100 text-gray-700',
             QUEUED: 'bg-blue-100 text-blue-700',
+            PREPARING: 'bg-cyan-100 text-cyan-700',
             RUNNING: 'bg-yellow-100 text-yellow-700',
             PASS: 'bg-green-100 text-green-700',
             FAIL: 'bg-red-100 text-red-700',
@@ -147,6 +150,39 @@ export const config = {
             '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
         ] as string[],
     },
+
+    emulator: {
+        maxInstances: parseInt(process.env.EMULATOR_MAX_INSTANCES || '2'),
+
+        bootTimeoutMs: 120_000,
+        bootMaxAttempts: 2,
+        bootRetryDelayMs: 5_000,
+        acquireTimeoutMs: 180_000,
+        idleTimeoutMs: 300_000,
+        healthCheckIntervalMs: 60_000,
+
+        adb: {
+            commandTimeoutMs: 15_000,
+            maxRetries: 3,
+            retryDelayMs: 2_000,
+        },
+
+        basePort: 5554,
+        portRange: 20,
+        launchArgs: {
+            shared: [
+                '-no-audio',
+                '-no-boot-anim',
+                '-no-snapshot-save',
+                '-gpu',
+                'swiftshader_indirect',
+            ] as string[],
+            headless: [
+                '-no-window',
+            ] as string[],
+        },
+    },
+
 } as const;
 
 export type Config = typeof config;

@@ -6,7 +6,7 @@ import { useAuth } from "../auth-provider";
 import TestForm from "@/components/TestForm";
 import ResultViewer from "@/components/ResultViewer";
 import Breadcrumbs from "@/components/Breadcrumbs";
-import { TestStep, BrowserConfig, TestEvent, TestCaseFile, ConfigItem } from "@/types";
+import { TestStep, BrowserConfig, TargetConfig, TestEvent, TestCaseFile, ConfigItem } from "@/types";
 import { exportToExcelArrayBuffer, parseTestCaseExcel } from "@/utils/testCaseExcel";
 import { useI18n } from "@/i18n";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
@@ -17,13 +17,18 @@ interface TestData {
     name?: string;
     displayId?: string;
     steps?: TestStep[];
-    browserConfig?: Record<string, BrowserConfig>;
+    browserConfig?: Record<string, BrowserConfig | TargetConfig>;
 }
 
 interface TestResult {
-    status: 'IDLE' | 'RUNNING' | 'PASS' | 'FAIL' | 'CANCELLED' | 'QUEUED';
+    status: 'IDLE' | 'RUNNING' | 'PASS' | 'FAIL' | 'CANCELLED' | 'QUEUED' | 'PREPARING';
     events: TestEvent[];
     error?: string;
+}
+
+function buildEventKey(event: TestEvent): string {
+    const browserId = event.browserId || '';
+    return `${event.type}|${event.timestamp}|${browserId}|${JSON.stringify(event.data)}`;
 }
 
 function RunPageContent() {
@@ -37,6 +42,8 @@ function RunPageContent() {
         events: [],
     });
     const eventSourceRef = useRef<EventSource | null>(null);
+    const connectRequestIdRef = useRef(0);
+    const eventKeySetRef = useRef<Set<string>>(new Set());
     const [currentTestCaseId, setCurrentTestCaseId] = useState<string | null>(null);
     const [currentRunId, setCurrentRunId] = useState<string | null>(null);
     const [projectIdFromTestCase, setProjectIdFromTestCase] = useState<string | null>(null);
@@ -57,6 +64,7 @@ function RunPageContent() {
     const [testCaseStatus, setTestCaseStatus] = useState<string | null>(null);
     const [projectConfigs, setProjectConfigs] = useState<ConfigItem[]>([]);
     const [testCaseConfigs, setTestCaseConfigs] = useState<ConfigItem[]>([]);
+    const [androidAvailable, setAndroidAvailable] = useState(false);
     const refreshFilesRef = useRef<string | null>(null);
     useUnsavedChanges(isDirty, t('run.unsavedChangesWarning'));
 
@@ -105,12 +113,12 @@ function RunPageContent() {
 
     const isSupportedVariableConfig = (
         config: ConfigItem
-    ): config is ConfigItem & { type: 'URL' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING' | 'FILE' } => {
-        return config.type === 'URL' || config.type === 'VARIABLE' || config.type === 'SECRET' || config.type === 'RANDOM_STRING' || config.type === 'FILE';
+    ): config is ConfigItem & { type: 'URL' | 'APP_ID' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING' | 'FILE' } => {
+        return config.type === 'URL' || config.type === 'APP_ID' || config.type === 'VARIABLE' || config.type === 'SECRET' || config.type === 'RANDOM_STRING' || config.type === 'FILE';
     };
 
     const importVariablesToTestCase = async (
-        variables: Array<{ name: string; type: 'URL' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING'; value: string }>,
+        variables: Array<{ name: string; type: 'URL' | 'APP_ID' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING'; value: string }>,
         sourceData: TestData
     ): Promise<string | null> => {
         if (variables.length === 0) {
@@ -262,7 +270,10 @@ function RunPageContent() {
             if (!isExcelFilename(file.name)) return;
 
             const fileBuffer = await file.arrayBuffer();
-            const { data } = await parseTestCaseExcel(fileBuffer);
+            const { data, warnings } = await parseTestCaseExcel(fileBuffer);
+            if (warnings.length > 0) {
+                console.warn('Import warnings:', warnings);
+            }
 
             setInitialData(data.testData);
             if (data.testCaseId) {
@@ -271,8 +282,8 @@ function RunPageContent() {
             setIsDirty(true);
 
             await importVariablesToTestCase(
-                [...data.projectVariables, ...data.testCaseVariables].filter((variable): variable is { name: string; type: 'URL' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING'; value: string } => (
-                    variable.type === 'URL' || variable.type === 'VARIABLE' || variable.type === 'SECRET' || variable.type === 'RANDOM_STRING'
+                data.testCaseVariables.filter((variable): variable is { name: string; type: 'URL' | 'APP_ID' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING'; value: string } => (
+                    variable.type === 'URL' || variable.type === 'APP_ID' || variable.type === 'VARIABLE' || variable.type === 'SECRET' || variable.type === 'RANDOM_STRING'
                 )),
                 data.testData
             );
@@ -287,6 +298,38 @@ function RunPageContent() {
             router.push("/");
         }
     }, [isAuthLoading, isLoggedIn, router]);
+
+    useEffect(() => {
+        if (isAuthLoading || !isLoggedIn) {
+            return;
+        }
+
+        let cancelled = false;
+
+        const fetchUserFeatures = async () => {
+            try {
+                const token = await getAccessToken();
+                const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+                const response = await fetch('/api/user/features', { headers });
+                if (!response.ok) {
+                    return;
+                }
+
+                const data = await response.json() as { androidEnabled: boolean; androidAvailable?: boolean };
+                if (!cancelled) {
+                    setAndroidAvailable(data.androidAvailable ?? data.androidEnabled);
+                }
+            } catch {
+                // ignore
+            }
+        };
+
+        void fetchUserFeatures();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [isAuthLoading, isLoggedIn, getAccessToken]);
 
     const fetchProjectName = useCallback(async (projId: string) => {
         try {
@@ -329,7 +372,7 @@ function RunPageContent() {
 
                 if (data.testRuns && data.testRuns.length > 0) {
                     const latestRun = data.testRuns[0];
-                    if (['RUNNING', 'QUEUED'].includes(latestRun.status)) {
+                    if (['RUNNING', 'QUEUED', 'PREPARING'].includes(latestRun.status)) {
                         setActiveRunId(latestRun.id);
                     } else {
                         setActiveRunId(null);
@@ -351,11 +394,21 @@ function RunPageContent() {
 
                 if (data.configurationSnapshot) {
                     try {
-                        const config = JSON.parse(data.configurationSnapshot);
-                        setInitialData(config);
+                        const snapshot = JSON.parse(data.configurationSnapshot) as Partial<TestData> & { testCaseId?: string };
+                        setInitialData({
+                            url: snapshot.url || '',
+                            prompt: snapshot.prompt || '',
+                            name: snapshot.name,
+                            displayId: snapshot.displayId,
+                            steps: snapshot.steps,
+                            browserConfig: snapshot.browserConfig,
+                        });
+                        if (typeof snapshot.displayId === 'string') {
+                            setDisplayId(snapshot.displayId);
+                        }
 
-                        if (config.testCaseId) {
-                            fetchTestCase(config.testCaseId);
+                        if (snapshot.testCaseId) {
+                            fetchTestCase(snapshot.testCaseId);
                         }
                     } catch (e) {
                         console.error("Failed to parse configuration snapshot", e);
@@ -374,9 +427,12 @@ function RunPageContent() {
             const response = await fetch(`/api/projects/${projId}/configs`, { headers });
             if (response.ok) {
                 setProjectConfigs(await response.json());
+            } else {
+                setProjectConfigs([]);
             }
         } catch (error) {
             console.error("Failed to fetch project configs", error);
+            setProjectConfigs([]);
         }
     }, [getAccessToken]);
 
@@ -387,20 +443,72 @@ function RunPageContent() {
             const response = await fetch(`/api/test-cases/${tcId}/configs`, { headers });
             if (response.ok) {
                 setTestCaseConfigs(await response.json());
+            } else {
+                setTestCaseConfigs([]);
             }
         } catch (error) {
             console.error("Failed to fetch test case configs", error);
+            setTestCaseConfigs([]);
         }
     }, [getAccessToken]);
 
+    const fetchSecretValuesForCopyLogs = useCallback(async (): Promise<string[]> => {
+        const effectiveProjectId = projectId || projectIdFromTestCase;
+        const effectiveTestCaseId = testCaseId || currentTestCaseId;
+        if (!effectiveProjectId && !effectiveTestCaseId) {
+            return [];
+        }
+
+        try {
+            const token = await getAccessToken();
+            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+            const [projectResponse, testCaseResponse] = await Promise.all([
+                effectiveProjectId
+                    ? fetch(`/api/projects/${effectiveProjectId}/configs?includeSecretValues=true`, { headers })
+                    : Promise.resolve(null),
+                effectiveTestCaseId
+                    ? fetch(`/api/test-cases/${effectiveTestCaseId}/configs?includeSecretValues=true`, { headers })
+                    : Promise.resolve(null),
+            ]);
+
+            const collect = async (response: Response | null): Promise<string[]> => {
+                if (!response || !response.ok) {
+                    return [];
+                }
+                const configs = await response.json() as Array<{ type?: string; value?: string }>;
+                return configs
+                    .filter((config) => config.type === 'SECRET' && typeof config.value === 'string' && config.value.length > 0)
+                    .map((config) => config.value as string);
+            };
+
+            const [projectSecrets, testCaseSecrets] = await Promise.all([
+                collect(projectResponse),
+                collect(testCaseResponse),
+            ]);
+            return [...projectSecrets, ...testCaseSecrets];
+        } catch (error) {
+            console.error('Failed to fetch secret config values for copy logs', error);
+            return [];
+        }
+    }, [currentTestCaseId, getAccessToken, projectId, projectIdFromTestCase, testCaseId]);
+
     useEffect(() => {
         const effectiveProjectId = projectId || projectIdFromTestCase;
-        if (effectiveProjectId) fetchProjectConfigs(effectiveProjectId);
+        if (effectiveProjectId) {
+            fetchProjectConfigs(effectiveProjectId);
+        } else {
+            setProjectConfigs([]);
+        }
     }, [projectId, projectIdFromTestCase, fetchProjectConfigs]);
 
     useEffect(() => {
         const tcId = testCaseId || currentTestCaseId;
-        if (tcId) fetchTestCaseConfigs(tcId);
+        if (tcId) {
+            fetchTestCaseConfigs(tcId);
+        } else {
+            setTestCaseConfigs([]);
+        }
     }, [testCaseId, currentTestCaseId, fetchTestCaseConfigs]);
 
     const refreshFiles = useCallback(async (overrideId?: string) => {
@@ -446,10 +554,14 @@ function RunPageContent() {
     }, [getAccessToken]);
 
     const connectToRun = useCallback(async (runId: string) => {
+        connectRequestIdRef.current += 1;
+        const requestId = connectRequestIdRef.current;
+
         if (eventSourceRef.current) {
             eventSourceRef.current.close();
             eventSourceRef.current = null;
         }
+        eventKeySetRef.current = new Set();
 
         setResult(prev => ({
             ...prev,
@@ -459,6 +571,10 @@ function RunPageContent() {
         setCurrentRunId(runId);
 
         const streamToken = await issueStreamToken('test-run-events', runId);
+        if (requestId !== connectRequestIdRef.current) {
+            return;
+        }
+
         if (!streamToken) {
             setResult(prev => ({
                 ...prev,
@@ -473,6 +589,10 @@ function RunPageContent() {
         const es = new EventSource(url);
 
         es.onmessage = (event) => {
+            if (requestId !== connectRequestIdRef.current) {
+                return;
+            }
+
             try {
                 const data = JSON.parse(event.data);
 
@@ -486,9 +606,16 @@ function RunPageContent() {
                         return { ...prev, status: data.status, error: data.error };
                     });
                 } else if (data.type === 'log' || data.type === 'screenshot') {
+                    const streamEvent = data as TestEvent;
+                    const eventKey = buildEventKey(streamEvent);
+                    if (eventKeySetRef.current.has(eventKey)) {
+                        return;
+                    }
+                    eventKeySetRef.current.add(eventKey);
+
                     setResult(prev => ({
                         ...prev,
-                        events: [...prev.events, data]
+                        events: [...prev.events, streamEvent]
                     }));
                 }
             } catch (e) {
@@ -497,6 +624,11 @@ function RunPageContent() {
         };
 
         es.onerror = () => {
+            if (requestId !== connectRequestIdRef.current) {
+                es.close();
+                return;
+            }
+
             console.log('EventSource connection closed or error occurred');
             es.close();
             eventSourceRef.current = null;
@@ -509,6 +641,11 @@ function RunPageContent() {
                 return { ...prev, error: t('run.error.connectionLost') };
             });
         };
+
+        if (requestId !== connectRequestIdRef.current) {
+            es.close();
+            return;
+        }
 
         eventSourceRef.current = es;
     }, [issueStreamToken, t]);
@@ -529,10 +666,12 @@ function RunPageContent() {
 
     useEffect(() => {
         return () => {
+            connectRequestIdRef.current += 1;
             if (eventSourceRef.current) {
                 eventSourceRef.current.close();
                 eventSourceRef.current = null;
             }
+            eventKeySetRef.current.clear();
         };
     }, []);
 
@@ -552,6 +691,7 @@ function RunPageContent() {
         if (!currentRunId) return;
         setIsLoading(true);
         try {
+            connectRequestIdRef.current += 1;
             if (eventSourceRef.current) {
                 eventSourceRef.current.close();
                 eventSourceRef.current = null;
@@ -773,10 +913,11 @@ function RunPageContent() {
 
     const isRunInProgress =
         isLoading
-        || ['RUNNING', 'QUEUED'].includes(result.status)
+        || ['RUNNING', 'QUEUED', 'PREPARING'].includes(result.status)
         || !!activeRunId
         || testCaseStatus === 'RUNNING'
-        || testCaseStatus === 'QUEUED';
+        || testCaseStatus === 'QUEUED'
+        || testCaseStatus === 'PREPARING';
 
     if (isAuthLoading) return null;
 
@@ -802,7 +943,7 @@ function RunPageContent() {
                     {testCaseId ? t('run.title.runTest') : t('run.title.startNewRun')}
                 </h1>
                 <div className="flex items-center gap-2">
-                    {['RUNNING', 'QUEUED'].includes(result.status) && (
+                    {['RUNNING', 'QUEUED', 'PREPARING'].includes(result.status) && (
                         <button
                             onClick={handleStopTest}
                             className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors flex items-center gap-2"
@@ -857,12 +998,14 @@ function RunPageContent() {
                                 if (tcId) fetchTestCaseConfigs(tcId);
                             }}
                             onEnsureTestCase={ensureTestCaseFromData}
+                            androidAvailable={androidAvailable}
                         />
                     )}
                 </div>
                 <div className="h-full">
                     <ResultViewer
                         result={result}
+                        requestSecretValues={fetchSecretValuesForCopyLogs}
                         meta={{
                             runId: currentRunId,
                             testCaseId: testCaseId || currentTestCaseId || refreshFilesRef.current,

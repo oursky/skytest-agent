@@ -5,60 +5,11 @@ import { verifyAuth, resolveUserId } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { verifyStreamToken } from '@/lib/stream-token';
 import { config as appConfig } from '@/config/app';
-import { TestEvent } from '@/types';
+import { parseStoredEvents } from '@/lib/test-events';
 
 export const dynamic = 'force-dynamic';
 
 const logger = createLogger('api:test-runs:events');
-
-function isTestEvent(value: unknown): value is TestEvent {
-    if (typeof value !== 'object' || value === null) {
-        return false;
-    }
-
-    const event = value as Partial<TestEvent> & { data?: unknown };
-    const hasValidType = event.type === 'log' || event.type === 'screenshot';
-    return hasValidType && typeof event.timestamp === 'number' && typeof event.data === 'object' && event.data !== null;
-}
-
-function parseStoredEvents(stored: string | null | undefined): TestEvent[] {
-    if (!stored) {
-        return [];
-    }
-
-    const trimmed = stored.trim();
-    if (!trimmed) {
-        return [];
-    }
-
-    try {
-        const parsed = JSON.parse(trimmed);
-        if (Array.isArray(parsed)) {
-            return parsed.filter(isTestEvent);
-        }
-    } catch {
-        // Fallback to NDJSON parsing.
-    }
-
-    const events: TestEvent[] = [];
-    for (const line of trimmed.split('\n')) {
-        const eventLine = line.trim();
-        if (!eventLine) {
-            continue;
-        }
-
-        try {
-            const parsed = JSON.parse(eventLine);
-            if (isTestEvent(parsed)) {
-                events.push(parsed);
-            }
-        } catch {
-            // Ignore malformed lines to keep stream alive.
-        }
-    }
-
-    return events;
-}
 
 export async function GET(
     request: Request,
@@ -208,7 +159,7 @@ export async function GET(
                             return;
                         }
 
-                        if (['RUNNING', 'QUEUED'].includes(freshRun.status) && freshRun.status !== lastSentStatus) {
+                        if (['RUNNING', 'QUEUED', 'PREPARING'].includes(freshRun.status) && freshRun.status !== lastSentStatus) {
                             safeEnqueue({ type: 'status', status: freshRun.status });
                             lastSentStatus = freshRun.status;
                         }

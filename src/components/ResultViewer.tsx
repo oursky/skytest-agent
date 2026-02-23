@@ -17,16 +17,24 @@ interface ResultViewerMeta {
     testCaseName?: string | null;
     config?: TestData;
     files?: TestCaseFile[];
+    secretValues?: string[];
 }
 
 interface ResultViewerProps {
     result: Omit<TestRun, 'id' | 'testCaseId' | 'createdAt'> & { events: TestEvent[] };
     meta?: ResultViewerMeta;
+    requestSecretValues?: () => Promise<string[]>;
 }
 
-function collectSecrets(config?: TestData): string[] {
-    void config;
-    return [];
+function collectSecrets(secretValues?: string[]): string[] {
+    if (!secretValues || secretValues.length === 0) {
+        return [];
+    }
+    return [...new Set(
+        secretValues
+            .map((value) => value.trim())
+            .filter((value) => value.length > 0 && value !== '••••••')
+    )];
 }
 
 function maskSensitiveText(text: string, secrets: string[]): string {
@@ -63,18 +71,31 @@ function maskEvent(event: TestEvent, secrets: string[]): TestEvent {
     return event;
 }
 
-export default function ResultViewer({ result, meta }: ResultViewerProps) {
+export default function ResultViewer({ result, meta, requestSecretValues }: ResultViewerProps) {
     const { t } = useI18n();
 
-    const messagesEndRef = useRef<HTMLDivElement>(null);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const [autoScroll, setAutoScroll] = useState(true);
     const [lightboxImage, setLightboxImage] = useState<{ src: string; label: string } | null>(null);
     const [copied, setCopied] = useState(false);
+    const [loadedSecretValues, setLoadedSecretValues] = useState<string[] | null>(null);
 
-    const secrets = useMemo(() => collectSecrets(meta?.config), [meta?.config]);
+    const secrets = useMemo(
+        () => collectSecrets(loadedSecretValues ?? meta?.secretValues),
+        [loadedSecretValues, meta?.secretValues]
+    );
 
     const events = useMemo(() => result.events.map((event) => maskEvent(event, secrets)), [result.events, secrets]);
+
+    const targetTypeMap = useMemo<Record<string, 'browser' | 'android'>>(() => {
+        const cfg = meta?.config?.browserConfig ?? {};
+        return Object.fromEntries(
+            Object.entries(cfg).map(([id, c]) => [
+                id,
+                'type' in c && (c as { type?: string }).type === 'android' ? 'android' : 'browser'
+            ])
+        );
+    }, [meta?.config?.browserConfig]);
 
     useEffect(() => {
         if (!autoScroll) return;
@@ -85,6 +106,10 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
             });
         }
     }, [events.length, autoScroll]);
+
+    useEffect(() => {
+        setLoadedSecretValues(null);
+    }, [meta?.runId, meta?.testCaseId, meta?.projectId]);
 
     const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
         const container = e.currentTarget;
@@ -107,7 +132,8 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
         }
     };
 
-    const buildLogsText = (): string => {
+    const buildLogsText = (maskingSecrets: string[] = secrets): string => {
+        const maskedEvents = result.events.map((event) => maskEvent(event, maskingSecrets));
         const lines: string[] = [];
         lines.push(`# SkyTest Agent Run Report`);
         lines.push(`Generated: ${new Date().toISOString()}`);
@@ -124,14 +150,14 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
         if (meta?.projectName) lines.push(`Project Name: ${meta.projectName}`);
         lines.push(`Status: ${result.status}`);
         if (result.error) lines.push(`Error: ${result.error}`);
-        lines.push(`Events: ${events.length}`);
+        lines.push(`Events: ${maskedEvents.length}`);
         lines.push('');
         if (meta?.config) {
             lines.push('## Configuration');
             try {
                 const configJson = JSON.stringify(meta.config, null, 2);
                 lines.push('```json');
-                lines.push(maskSensitiveText(configJson, secrets));
+                lines.push(maskSensitiveText(configJson, maskingSecrets));
                 lines.push('```');
             } catch {
                 // ignore
@@ -146,7 +172,7 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
             lines.push('');
         }
         lines.push('## Events');
-        for (const ev of events) {
+        for (const ev of maskedEvents) {
             const t = formatTime(ev.timestamp);
             if (ev.type === 'log' && 'message' in ev.data) {
                 const level = ev.data.level?.toUpperCase() || 'INFO';
@@ -162,7 +188,13 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
 
     const handleCopyLogs = async () => {
         try {
-            await navigator.clipboard.writeText(buildLogsText());
+            let copySecrets = secrets;
+            if (copySecrets.length === 0 && requestSecretValues) {
+                const fetchedSecrets = collectSecrets(await requestSecretValues());
+                setLoadedSecretValues(fetchedSecrets);
+                copySecrets = fetchedSecrets;
+            }
+            await navigator.clipboard.writeText(buildLogsText(copySecrets));
             setCopied(true);
             window.setTimeout(() => setCopied(false), 1200);
         } catch {
@@ -272,6 +304,7 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
                                     event={event}
                                     isLast={index === events.length - 1}
                                     onImageClick={(src, label) => setLightboxImage({ src, label })}
+                                    targetType={targetTypeMap[event.browserId ?? ''] ?? 'browser'}
                                 />
                             ))}
 
@@ -288,7 +321,6 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
                             )}
 
                             <ResultStatus status={result.status} error={result.error} eventCount={events.length} />
-                            <div ref={messagesEndRef} />
                         </>
                     )}
                 </div>

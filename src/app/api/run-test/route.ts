@@ -7,7 +7,9 @@ import { validateTargetUrl } from '@/lib/url-security';
 import { createLogger } from '@/lib/logger';
 import { resolveConfigs } from '@/lib/config-resolver';
 import { config as appConfig } from '@/config/app';
-import type { BrowserConfig, ResolvedConfig, TestStep } from '@/types';
+import { listAvailableAndroidProfiles } from '@/lib/android-profiles';
+import { isAndroidRuntimeAvailable } from '@/lib/android-sdk';
+import type { BrowserConfig, TargetConfig, AndroidTargetConfig, ResolvedConfig, TestStep } from '@/types';
 
 const logger = createLogger('api:run-test');
 
@@ -15,10 +17,11 @@ export const dynamic = 'force-dynamic';
 
 interface RunTestRequest {
     name?: string;
+    displayId?: string;
     url?: string;
     prompt?: string;
     steps?: TestStep[];
-    browserConfig?: Record<string, BrowserConfig>;
+    browserConfig?: Record<string, BrowserConfig | TargetConfig>;
     testCaseId?: string;
 }
 
@@ -42,6 +45,7 @@ function validateConfigUrls(config: RunTestRequest): string | null {
     if (config.url) urls.push(config.url);
     if (config.browserConfig) {
         for (const entry of Object.values(config.browserConfig)) {
+            if ('type' in entry && entry.type === 'android') continue;
             if (entry.url) urls.push(entry.url);
         }
     }
@@ -50,6 +54,54 @@ function validateConfigUrls(config: RunTestRequest): string | null {
         const result = validateTargetUrl(url);
         if (!result.valid) {
             return result.error || 'Target URL is not allowed';
+        }
+    }
+
+    return null;
+}
+
+function isAndroidTargetConfig(config: BrowserConfig | TargetConfig): config is AndroidTargetConfig {
+    return 'type' in config && config.type === 'android';
+}
+
+function hasAndroidTargets(browserConfig: RunTestRequest['browserConfig']): boolean {
+    if (!browserConfig || Object.keys(browserConfig).length === 0) {
+        return false;
+    }
+
+    return Object.values(browserConfig).some(isAndroidTargetConfig);
+}
+
+async function validateAndroidTargets(
+    browserConfig: RunTestRequest['browserConfig']
+): Promise<string | null> {
+    if (!browserConfig || Object.keys(browserConfig).length === 0) {
+        return null;
+    }
+
+    const androidTargets = Object.values(browserConfig).filter(isAndroidTargetConfig);
+    if (androidTargets.length === 0) {
+        return null;
+    }
+
+    const availableProfiles = await listAvailableAndroidProfiles();
+    const availableProfileNames = new Set(availableProfiles.map((profile) => profile.name));
+
+    for (const target of androidTargets) {
+        if (!target.avdName) {
+            return 'Android target must include an emulator';
+        }
+        if (!target.appId) {
+            return 'Android target must include an app ID';
+        }
+        if (typeof target.clearAppState !== 'boolean') {
+            return 'Android target clearAppState must be a boolean';
+        }
+        if (typeof target.allowAllPermissions !== 'boolean') {
+            return 'Android target allowAllPermissions must be a boolean';
+        }
+        if (!availableProfileNames.has(target.avdName)) {
+            return `Emulator "${target.avdName}" is not available in current runtime inventory`;
         }
     }
 
@@ -113,7 +165,7 @@ export async function POST(request: Request) {
 
         const user = await prisma.user.findUnique({
             where: { authId },
-            select: { id: true, openRouterKey: true }
+            select: { id: true, openRouterKey: true, androidEnabled: true }
         });
 
         if (!user) {
@@ -128,6 +180,24 @@ export async function POST(request: Request) {
         }
 
         const userId = user.id;
+        const requestHasAndroidTargets = hasAndroidTargets(browserConfig);
+
+        if (requestHasAndroidTargets) {
+            if (!user.androidEnabled) {
+                await queue.cancelActiveAndroidRunsForUser(userId);
+                return NextResponse.json(
+                    { error: 'Android testing is not enabled for your account' },
+                    { status: 403 }
+                );
+            }
+
+            if (!isAndroidRuntimeAvailable()) {
+                return NextResponse.json(
+                    { error: 'Android testing is not available on this server' },
+                    { status: 503 }
+                );
+            }
+        }
 
         const testCase = await prisma.testCase.findUnique({
             where: { id: testCaseId },
@@ -140,6 +210,11 @@ export async function POST(request: Request) {
 
         if (testCase.project.userId !== userId) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+
+        const androidValidationError = await validateAndroidTargets(browserConfig);
+        if (androidValidationError) {
+            return NextResponse.json({ error: androidValidationError }, { status: 400 });
         }
 
         let openRouterApiKey: string;
