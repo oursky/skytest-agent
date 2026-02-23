@@ -64,6 +64,7 @@ function RunPageContent() {
     const [testCaseStatus, setTestCaseStatus] = useState<string | null>(null);
     const [projectConfigs, setProjectConfigs] = useState<ConfigItem[]>([]);
     const [testCaseConfigs, setTestCaseConfigs] = useState<ConfigItem[]>([]);
+    const [androidAvailable, setAndroidAvailable] = useState(false);
     const refreshFilesRef = useRef<string | null>(null);
     useUnsavedChanges(isDirty, t('run.unsavedChangesWarning'));
 
@@ -297,6 +298,38 @@ function RunPageContent() {
             router.push("/");
         }
     }, [isAuthLoading, isLoggedIn, router]);
+
+    useEffect(() => {
+        if (isAuthLoading || !isLoggedIn) {
+            return;
+        }
+
+        let cancelled = false;
+
+        const fetchUserFeatures = async () => {
+            try {
+                const token = await getAccessToken();
+                const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+                const response = await fetch('/api/user/features', { headers });
+                if (!response.ok) {
+                    return;
+                }
+
+                const data = await response.json() as { androidEnabled: boolean; androidAvailable?: boolean };
+                if (!cancelled) {
+                    setAndroidAvailable(data.androidAvailable ?? data.androidEnabled);
+                }
+            } catch {
+                // ignore
+            }
+        };
+
+        void fetchUserFeatures();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [isAuthLoading, isLoggedIn, getAccessToken]);
 
     const fetchProjectName = useCallback(async (projId: string) => {
         try {
@@ -965,6 +998,7 @@ function RunPageContent() {
                                 if (tcId) fetchTestCaseConfigs(tcId);
                             }}
                             onEnsureTestCase={ensureTestCaseFromData}
+                            androidAvailable={androidAvailable}
                         />
                     )}
                 </div>

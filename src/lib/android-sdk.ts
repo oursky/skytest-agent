@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { accessSync, constants, existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -11,6 +11,7 @@ const TOOL_RELATIVE_PATHS: Record<AndroidTool, string[]> = {
 };
 
 let cachedSdkRoot: string | null | undefined;
+let cachedAndroidRuntimeAvailable: boolean | undefined;
 
 function executableName(baseName: string): string {
     return process.platform === 'win32' ? `${baseName}.exe` : baseName;
@@ -60,7 +61,67 @@ export function resolveAndroidToolPath(tool: AndroidTool): string {
     return toolPath ?? executableName(tool);
 }
 
+function isExecutableFile(filePath: string): boolean {
+    if (!existsSync(filePath)) {
+        return false;
+    }
+
+    try {
+        accessSync(filePath, constants.X_OK);
+        return true;
+    } catch {
+        return process.platform === 'win32';
+    }
+}
+
+function hasPathSeparator(value: string): boolean {
+    return value.includes('/') || value.includes('\\');
+}
+
+function isExecutableInPath(command: string): boolean {
+    const pathValue = process.env.PATH;
+    if (!pathValue) {
+        return false;
+    }
+
+    const candidates = process.platform === 'win32' && !/\.[a-z0-9]+$/i.test(command)
+        ? (process.env.PATHEXT || '.EXE;.CMD;.BAT')
+            .split(';')
+            .filter(Boolean)
+            .map((ext) => `${command}${ext}`)
+        : [command];
+
+    for (const dir of pathValue.split(path.delimiter)) {
+        if (!dir) {
+            continue;
+        }
+        for (const candidate of candidates) {
+            if (isExecutableFile(path.join(dir, candidate))) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+export function isAndroidToolAvailable(tool: AndroidTool): boolean {
+    const toolPath = resolveAndroidToolPath(tool);
+    if (path.isAbsolute(toolPath) || hasPathSeparator(toolPath)) {
+        return isExecutableFile(toolPath);
+    }
+    return isExecutableInPath(toolPath);
+}
+
+export function isAndroidRuntimeAvailable(): boolean {
+    if (cachedAndroidRuntimeAvailable !== undefined) {
+        return cachedAndroidRuntimeAvailable;
+    }
+
+    cachedAndroidRuntimeAvailable = isAndroidToolAvailable('adb') && isAndroidToolAvailable('emulator');
+    return cachedAndroidRuntimeAvailable;
+}
+
 export function getAndroidSdkSetupHint(): string {
     return 'Android SDK tools are not available. Install Android SDK and ensure `adb` and `emulator` are in PATH, or set ANDROID_HOME/ANDROID_SDK_ROOT.';
 }
-

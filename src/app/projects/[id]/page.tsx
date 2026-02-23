@@ -61,7 +61,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     const [searchInput, setSearchInput] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTab, setActiveTab] = useState<'test-cases' | 'configs' | 'android'>('test-cases');
-    const [androidEnabled, setAndroidEnabled] = useState(false);
+    const [androidAvailable, setAndroidAvailable] = useState(false);
 
     const refreshAbortRef = useRef<AbortController | null>(null);
     const eventSourceRef = useRef<EventSource | null>(null);
@@ -75,9 +75,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     useEffect(() => {
         const tab = searchParams.get('tab');
         if (tab === 'configs') { setActiveTab('configs'); return; }
-        if (tab === 'android') { setActiveTab('android'); return; }
+        if (tab === 'android' && androidAvailable) { setActiveTab('android'); return; }
         if (tab === 'test-cases') { setActiveTab('test-cases'); }
-    }, [searchParams]);
+        if (tab === 'android' && !androidAvailable) { setActiveTab('test-cases'); }
+    }, [searchParams, androidAvailable]);
 
     const getAuthHeaders = useCallback(async (): Promise<HeadersInit> => {
         const token = await getAccessToken();
@@ -142,8 +143,8 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
             const res = await fetch('/api/user/features', { headers });
             if (res.ok) {
-                const data = await res.json() as { androidEnabled: boolean };
-                setAndroidEnabled(data.androidEnabled);
+                const data = await res.json() as { androidEnabled: boolean; androidAvailable?: boolean };
+                setAndroidAvailable(data.androidAvailable ?? data.androidEnabled);
             }
         } catch {
             // ignore
@@ -498,7 +499,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                         >
                             {t('project.tab.configs')}
                         </button>
-                        {androidEnabled && (
+                        {androidAvailable && (
                             <button
                                 type="button"
                                 onClick={() => setActiveTab('android')}
@@ -606,7 +607,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     <ProjectConfigs projectId={id} />
                 )}
 
-                {activeTab === 'android' && androidEnabled && (
+                {activeTab === 'android' && androidAvailable && (
                     <AndroidSetup projectId={id} />
                 )}
 

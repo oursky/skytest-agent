@@ -4,6 +4,8 @@ Audience: operators / self-hosters who run SkyTest with Android testing enabled.
 
 Use this checklist before enabling Android testing on a host or environment.
 
+If you are running a server without Android SDK/emulator tooling, skip this checklist. SkyTest basic features remain available, while Android UI/API paths are hidden or rejected by server capability gating.
+
 ## Hosting Model
 
 - [ ] Run the app as a single long-lived process for Android runtime usage
@@ -24,7 +26,7 @@ Reference:
 
 ## Security / Multi-Tenant Safety
 
-- [ ] Confirm `/api/emulators` is only used by authenticated, Android-enabled users
+- [ ] Confirm `/api/emulators` is only used by authenticated users with Android enabled and Android-capable server runtime
 - [ ] Confirm users only see pool-managed emulators for their own projects
 - [ ] Confirm users cannot stop unmanaged host emulators through user APIs
 - [ ] Treat the host as sensitive: local ADB/emulator access should be restricted to trusted operators

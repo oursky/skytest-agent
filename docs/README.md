@@ -7,6 +7,8 @@ This `docs/` folder contains two types of documentation:
 
 ## Operator / Self-Hosting Docs
 
+Core SkyTest can run without Android SDK/emulator tooling. Android operator docs below apply only when enabling Android testing on a host.
+
 - `docs/operators/mac-android-emulator-guide.md`
   - macOS setup, emulator creation, operations, troubleshooting
 - `docs/operators/android-runtime-deployment-checklist.md`
@@ -34,4 +36,3 @@ This `docs/` folder contains two types of documentation:
   - operator runbooks/checklists
   - maintainer/runtime notes
 - If import/export behavior changes, update `docs/maintainers/test-case-excel-format.md`.
-

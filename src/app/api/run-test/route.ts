@@ -8,6 +8,7 @@ import { createLogger } from '@/lib/logger';
 import { resolveConfigs } from '@/lib/config-resolver';
 import { config as appConfig } from '@/config/app';
 import { listAvailableAndroidProfiles } from '@/lib/android-profiles';
+import { isAndroidRuntimeAvailable } from '@/lib/android-sdk';
 import type { BrowserConfig, TargetConfig, AndroidTargetConfig, ResolvedConfig, TestStep } from '@/types';
 
 const logger = createLogger('api:run-test');
@@ -181,12 +182,21 @@ export async function POST(request: Request) {
         const userId = user.id;
         const requestHasAndroidTargets = hasAndroidTargets(browserConfig);
 
-        if (requestHasAndroidTargets && !user.androidEnabled) {
-            await queue.cancelActiveAndroidRunsForUser(userId);
-            return NextResponse.json(
-                { error: 'Android testing is not enabled for your account' },
-                { status: 403 }
-            );
+        if (requestHasAndroidTargets) {
+            if (!user.androidEnabled) {
+                await queue.cancelActiveAndroidRunsForUser(userId);
+                return NextResponse.json(
+                    { error: 'Android testing is not enabled for your account' },
+                    { status: 403 }
+                );
+            }
+
+            if (!isAndroidRuntimeAvailable()) {
+                return NextResponse.json(
+                    { error: 'Android testing is not available on this server' },
+                    { status: 503 }
+                );
+            }
         }
 
         const testCase = await prisma.testCase.findUnique({

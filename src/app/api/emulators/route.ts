@@ -4,11 +4,18 @@ import { verifyAuth, resolveUserId } from '@/lib/auth';
 import { emulatorPool } from '@/lib/emulator-pool';
 import { listAvailableAndroidProfiles } from '@/lib/android-profiles';
 import { createLogger } from '@/lib/logger';
-import { isAndroidEnabledForUser } from '@/lib/user-features';
+import { getAndroidAccessStatusForUser, type AndroidAccessStatus } from '@/lib/user-features';
 
 const logger = createLogger('api:emulators');
 
 export const dynamic = 'force-dynamic';
+
+function getAndroidAccessError(status: Exclude<AndroidAccessStatus, 'enabled'>) {
+    if (status === 'runtime-unavailable') {
+        return { error: 'Android testing is not available on this server', status: 503 as const };
+    }
+    return { error: 'Android testing is not enabled for your account', status: 403 as const };
+}
 
 async function ensureProjectOwnership(projectId: string, userId: string): Promise<boolean> {
     const project = await prisma.project.findFirst({
@@ -33,8 +40,14 @@ export async function GET(request: Request) {
     }
 
     const userId = await resolveUserId(authPayload);
-    if (!userId || !(await isAndroidEnabledForUser(userId))) {
-        return NextResponse.json({ error: 'Android testing is not enabled for your account' }, { status: 403 });
+    if (!userId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const androidAccessStatus = await getAndroidAccessStatusForUser(userId);
+    if (androidAccessStatus !== 'enabled') {
+        const error = getAndroidAccessError(androidAccessStatus);
+        return NextResponse.json({ error: error.error }, { status: error.status });
     }
 
     try {
@@ -100,8 +113,14 @@ export async function POST(request: Request) {
     }
 
     const userId = await resolveUserId(authPayload);
-    if (!userId || !(await isAndroidEnabledForUser(userId))) {
-        return NextResponse.json({ error: 'Android testing is not enabled for your account' }, { status: 403 });
+    if (!userId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const androidAccessStatus = await getAndroidAccessStatusForUser(userId);
+    if (androidAccessStatus !== 'enabled') {
+        const error = getAndroidAccessError(androidAccessStatus);
+        return NextResponse.json({ error: error.error }, { status: error.status });
     }
 
     try {

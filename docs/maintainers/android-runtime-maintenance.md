@@ -10,6 +10,15 @@ Related docs:
 - `docs/operators/android-runtime-deployment-checklist.md`
 - `docs/operators/mac-android-emulator-guide.md`
 
+## Runtime Capability Gating (Important)
+
+- Android support is now gated by two conditions:
+  - per-user feature flag (`androidEnabled`)
+  - server runtime capability (Android tooling available on the host)
+- Effective Android availability is `androidEnabled && androidRuntimeAvailable`.
+- Non-Android servers are supported: the app should still boot and serve browser-only features.
+- Android UI/API surfaces should be hidden or rejected when the server runtime is not Android-capable (do not rely on the user flag alone).
+
 ## Deployment Model (Important)
 
 - `src/lib/queue.ts` and `src/lib/emulator-pool.ts` are in-process singletons.

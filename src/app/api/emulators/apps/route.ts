@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/auth';
 import { emulatorPool } from '@/lib/emulator-pool';
 import { createLogger } from '@/lib/logger';
-import { isAndroidEnabledForUser } from '@/lib/user-features';
+import { getAndroidAccessStatusForUser } from '@/lib/user-features';
 
 const logger = createLogger('api:emulators:apps');
 
@@ -16,8 +16,20 @@ export async function GET(request: Request) {
     }
 
     const userId = await resolveUserId(authPayload);
-    if (!userId || !(await isAndroidEnabledForUser(userId))) {
-        return NextResponse.json({ error: 'Android testing is not enabled for your account' }, { status: 403 });
+    if (!userId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const androidAccessStatus = await getAndroidAccessStatusForUser(userId);
+    if (androidAccessStatus !== 'enabled') {
+        return NextResponse.json(
+            {
+                error: androidAccessStatus === 'runtime-unavailable'
+                    ? 'Android testing is not available on this server'
+                    : 'Android testing is not enabled for your account'
+            },
+            { status: androidAccessStatus === 'runtime-unavailable' ? 503 : 403 }
+        );
     }
 
     const { searchParams } = new URL(request.url);
