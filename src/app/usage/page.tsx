@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { formatDateTime } from '@/utils/dateFormatter';
 import { useI18n } from '@/i18n';
+import Modal from '@/components/Modal';
 
 interface TestRunInfo {
     id: string;
@@ -52,6 +53,7 @@ export default function UsagePage() {
     const [isSavingKey, setIsSavingKey] = useState(false);
     const [keyError, setKeyError] = useState<string | null>(null);
     const [keySuccess, setKeySuccess] = useState<string | null>(null);
+    const [isDeleteApiKeyModalOpen, setIsDeleteApiKeyModalOpen] = useState(false);
 
     useEffect(() => {
         if (!isAuthLoading && !isLoggedIn) {
@@ -191,6 +193,18 @@ export default function UsagePage() {
 
     return (
         <main className="min-h-screen bg-gray-50">
+            <Modal
+                isOpen={isDeleteApiKeyModalOpen}
+                onClose={() => setIsDeleteApiKeyModalOpen(false)}
+                title={t('usage.apiKey.deleteConfirm.title')}
+                onConfirm={handleDeleteApiKey}
+                confirmText={t('usage.apiKey.deleteConfirm.confirm')}
+                confirmVariant="danger"
+            >
+                <p className="text-sm text-gray-700">
+                    {t('usage.apiKey.deleteConfirm.body')}
+                </p>
+            </Modal>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
 
                 {/* API Key Section */}
@@ -214,7 +228,7 @@ export default function UsagePage() {
                                 {apiKeyState.maskedKey}
                             </code>
                             <button
-                                onClick={handleDeleteApiKey}
+                                onClick={() => setIsDeleteApiKeyModalOpen(true)}
                                 className="text-sm text-red-600 hover:text-red-800"
                             >
                                 {t('usage.apiKey.remove')}
