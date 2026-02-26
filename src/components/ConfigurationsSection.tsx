@@ -3,8 +3,9 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAuth } from '@/app/auth-provider';
 import { useI18n } from '@/i18n';
-import type { ConfigItem, ConfigType, BrowserConfig, TargetConfig, AndroidTargetConfig } from '@/types';
+import type { ConfigItem, ConfigType, BrowserConfig, TargetConfig, AndroidTargetConfig, AndroidDeviceSelector } from '@/types';
 import Link from 'next/link';
+import { normalizeAndroidTargetConfig } from '@/lib/android-target-config';
 
 const CONFIG_NAME_REGEX = /^[A-Z][A-Z0-9_]*$/;
 
@@ -18,15 +19,153 @@ interface BrowserEntry {
     config: BrowserConfig | TargetConfig;
 }
 
-interface AvdProfile {
+interface DeviceInventoryResponse {
+    devices: Array<{
+        id: string;
+        kind: 'emulator' | 'physical';
+        serial: string;
+        emulatorProfileName?: string;
+        state: 'STARTING' | 'BOOTING' | 'IDLE' | 'ACQUIRED' | 'CLEANING' | 'STOPPING' | 'DEAD';
+        runProjectId?: string;
+    }>;
+    connectedDevices: Array<{
+        serial: string;
+        adbState: 'device' | 'offline' | 'unauthorized' | 'unknown';
+        kind: 'emulator' | 'physical';
+        manufacturer: string | null;
+        model: string | null;
+        androidVersion: string | null;
+        apiLevel: number | null;
+        emulatorProfileName: string | null;
+    }>;
+    emulatorProfiles: Array<{
+        id: string;
+        name: string;
+        displayName: string;
+        apiLevel: number | null;
+    }>;
+}
+
+interface AndroidDeviceOption {
     id: string;
-    name: string;
-    displayName: string;
-    apiLevel: number | null;
+    selector: AndroidDeviceSelector;
+    label: string;
+    detail: string;
+    statusKey: string;
+    statusColorClass: string;
+    disabled?: boolean;
+    group: 'physical' | 'emulator';
+}
+
+const DEVICE_STATE_PRIORITY: Record<DeviceInventoryResponse['devices'][number]['state'], number> = {
+    ACQUIRED: 0,
+    CLEANING: 1,
+    IDLE: 2,
+    BOOTING: 3,
+    STARTING: 4,
+    STOPPING: 5,
+    DEAD: 6,
+};
+
+const ADB_STATE_PRIORITY: Record<DeviceInventoryResponse['connectedDevices'][number]['adbState'], number> = {
+    device: 0,
+    unauthorized: 1,
+    offline: 2,
+    unknown: 3,
+};
+
+function buildAndroidDeviceOptionLabel(option: DeviceInventoryResponse['connectedDevices'][number]): string {
+    if (option.kind === 'emulator') {
+        return option.emulatorProfileName || option.model || option.serial;
+    }
+    return [option.manufacturer, option.model].filter(Boolean).join(' ').trim() || option.serial;
+}
+
+function joinAndroidDeviceDetail(parts: Array<string | null | undefined>): string {
+    return parts.filter((part): part is string => Boolean(part && part.trim())).join(', ');
+}
+
+function buildAndroidVersionDetail(androidVersion: string | null | undefined, apiLevel: number | null | undefined): string {
+    return joinAndroidDeviceDetail([
+        androidVersion ? `Android ${androidVersion}` : null,
+        apiLevel !== null && apiLevel !== undefined ? `API ${apiLevel}` : null,
+    ]);
+}
+
+function buildAndroidDeviceOptionDetail(option: DeviceInventoryResponse['connectedDevices'][number]): string {
+    return joinAndroidDeviceDetail([option.serial, buildAndroidVersionDetail(option.androidVersion, option.apiLevel)]) || option.serial;
+}
+
+function getInventoryOnlyStatusKey(option: DeviceInventoryResponse['connectedDevices'][number]): string {
+    if (option.adbState === 'device') return 'device.state.idle';
+    if (option.adbState === 'unauthorized') return 'device.adb.unauthorized';
+    if (option.adbState === 'offline') return 'device.adb.offline';
+    return 'device.adb.unknown';
+}
+
+function getInventoryOnlyStatusColorClass(option: DeviceInventoryResponse['connectedDevices'][number]): string {
+    if (option.adbState === 'device') return 'bg-green-100 text-green-700';
+    if (option.adbState === 'unauthorized') return 'bg-amber-100 text-amber-700';
+    return 'bg-gray-100 text-gray-600';
+}
+
+function normalizeDeviceName(name: string): string {
+    return name.trim().toLowerCase();
+}
+
+function isRuntimeInUseByCurrentProject(
+    runtime: DeviceInventoryResponse['devices'][number],
+    projectId?: string
+): boolean {
+    return runtime.state === 'ACQUIRED' && Boolean(projectId && runtime.runProjectId === projectId);
+}
+
+function getRuntimeStatusKey(
+    runtime: DeviceInventoryResponse['devices'][number],
+    projectId?: string
+): string {
+    if (runtime.state === 'ACQUIRED') {
+        return isRuntimeInUseByCurrentProject(runtime, projectId)
+            ? 'device.inUseCurrentProject'
+            : 'device.inUseOtherProject';
+    }
+
+    if (runtime.state === 'STARTING') return 'device.state.starting';
+    if (runtime.state === 'BOOTING') return 'device.state.booting';
+    if (runtime.state === 'IDLE') return 'device.state.idle';
+    if (runtime.state === 'CLEANING') return 'device.state.cleaning';
+    if (runtime.state === 'STOPPING') return 'device.state.stopping';
+    return 'device.state.dead';
+}
+
+function getRuntimeStatusColorClass(runtime: DeviceInventoryResponse['devices'][number]): string {
+    if (runtime.state === 'STARTING') return 'bg-blue-100 text-blue-700';
+    if (runtime.state === 'BOOTING') return 'bg-blue-100 text-blue-700';
+    if (runtime.state === 'IDLE') return 'bg-green-100 text-green-700';
+    if (runtime.state === 'ACQUIRED') return 'bg-amber-100 text-amber-700';
+    if (runtime.state === 'CLEANING') return 'bg-yellow-100 text-yellow-700';
+    if (runtime.state === 'STOPPING') return 'bg-red-100 text-red-700';
+    return 'bg-gray-100 text-gray-600';
 }
 
 function isAndroidConfig(config: BrowserConfig | TargetConfig): config is AndroidTargetConfig {
     return 'type' in config && config.type === 'android';
+}
+
+function isSameAndroidDeviceSelector(a: AndroidDeviceSelector, b: AndroidDeviceSelector): boolean {
+    if (a.mode !== b.mode) {
+        return false;
+    }
+    if (a.mode === 'connected-device') {
+        return b.mode === 'connected-device' && a.serial === b.serial;
+    }
+    return b.mode === 'emulator-profile' && a.emulatorProfileName === b.emulatorProfileName;
+}
+
+function getAndroidDeviceSelectorLabel(selector: AndroidDeviceSelector): string {
+    return selector.mode === 'connected-device'
+        ? selector.serial
+        : selector.emulatorProfileName;
 }
 
 interface ConfigurationsSectionProps {
@@ -107,7 +246,7 @@ export default function ConfigurationsSection({
     const [randomStringDropdownOpen, setRandomStringDropdownOpen] = useState<string | null>(null);
     const [showSecretInEdit, setShowSecretInEdit] = useState(false);
     const [fileUploadDraft, setFileUploadDraft] = useState<FileUploadDraft | null>(null);
-    const [avdProfiles, setAvdProfiles] = useState<AvdProfile[]>([]);
+    const [androidDeviceOptions, setAndroidDeviceOptions] = useState<AndroidDeviceOption[]>([]);
     const [avdDropdownOpen, setAvdDropdownOpen] = useState<string | null>(null);
     const [appDropdownOpen, setAppDropdownOpen] = useState<string | null>(null);
     const addTypeRef = useRef<HTMLDivElement>(null);
@@ -152,17 +291,140 @@ export default function ConfigurationsSection({
     }, [addTypeOpen, urlDropdownOpen, randomStringDropdownOpen, avdDropdownOpen, appDropdownOpen]);
 
     useEffect(() => {
-        if (!projectId || !androidAvailable) return;
-        const fetchAvdProfiles = async () => {
+        if (readOnly || !projectId || !androidAvailable) return;
+        const fetchDeviceInventory = async () => {
             const token = await getAccessToken();
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const avdRes = await fetch(`/api/projects/${projectId}/avd-profiles`, { headers });
-            if (avdRes.ok) {
-                setAvdProfiles(await avdRes.json() as AvdProfile[]);
+            const res = await fetch(`/api/devices?projectId=${encodeURIComponent(projectId)}`, { headers });
+            if (res.ok) {
+                const payload = await res.json() as DeviceInventoryResponse;
+
+                const runtimeBySerial = new Map<string, DeviceInventoryResponse['devices'][number]>();
+                const runtimeByEmulatorProfile = new Map<string, DeviceInventoryResponse['devices'][number]>();
+                for (const runtime of payload.devices) {
+                    runtimeBySerial.set(runtime.serial, runtime);
+                    if (runtime.kind === 'emulator' && runtime.emulatorProfileName) {
+                        const key = normalizeDeviceName(runtime.emulatorProfileName);
+                        const existing = runtimeByEmulatorProfile.get(key);
+                        if (!existing || DEVICE_STATE_PRIORITY[runtime.state] < DEVICE_STATE_PRIORITY[existing.state]) {
+                            runtimeByEmulatorProfile.set(key, runtime);
+                        }
+                    }
+                }
+
+                const connectedPhysicalDevices = payload.connectedDevices.filter((device) => device.kind === 'physical');
+                const physicalOptions: AndroidDeviceOption[] = connectedPhysicalDevices.map((device) => {
+                    const runtime = runtimeBySerial.get(device.serial);
+                    return {
+                        id: `physical:${device.serial}`,
+                        selector: { mode: 'connected-device', serial: device.serial },
+                        label: buildAndroidDeviceOptionLabel(device),
+                        detail: buildAndroidDeviceOptionDetail(device),
+                        statusKey: runtime ? getRuntimeStatusKey(runtime, projectId) : getInventoryOnlyStatusKey(device),
+                        statusColorClass: runtime ? getRuntimeStatusColorClass(runtime) : getInventoryOnlyStatusColorClass(device),
+                        disabled: device.adbState !== 'device',
+                        group: 'physical',
+                    };
+                });
+
+                const connectedEmulatorsBySerial = new Map<string, DeviceInventoryResponse['connectedDevices'][number]>();
+                const connectedEmulatorsByProfile = new Map<string, DeviceInventoryResponse['connectedDevices'][number]>();
+                for (const connected of payload.connectedDevices) {
+                    if (connected.kind !== 'emulator') continue;
+                    connectedEmulatorsBySerial.set(connected.serial, connected);
+                    if (!connected.emulatorProfileName) continue;
+                    const key = normalizeDeviceName(connected.emulatorProfileName);
+                    const existing = connectedEmulatorsByProfile.get(key);
+                    if (!existing || ADB_STATE_PRIORITY[connected.adbState] < ADB_STATE_PRIORITY[existing.adbState]) {
+                        connectedEmulatorsByProfile.set(key, connected);
+                    }
+                }
+
+                const emulatorOptions: AndroidDeviceOption[] = [];
+                const usedConnectedEmulatorSerials = new Set<string>();
+                const usedRuntimeIds = new Set<string>();
+
+                for (const profile of payload.emulatorProfiles) {
+                    const profileKey = normalizeDeviceName(profile.name);
+                    const runtime = runtimeByEmulatorProfile.get(profileKey);
+                    if (runtime) {
+                        usedRuntimeIds.add(runtime.id);
+                    }
+
+                    const connected = runtime
+                        ? connectedEmulatorsBySerial.get(runtime.serial)
+                        : connectedEmulatorsByProfile.get(profileKey);
+                    if (connected) {
+                        usedConnectedEmulatorSerials.add(connected.serial);
+                    }
+
+                    emulatorOptions.push({
+                        id: `emulator-profile:${profile.name}`,
+                        selector: { mode: 'emulator-profile', emulatorProfileName: profile.name },
+                        label: profile.displayName || profile.name,
+                        detail: joinAndroidDeviceDetail([
+                            connected?.serial ?? runtime?.serial,
+                            buildAndroidVersionDetail(connected?.androidVersion, connected?.apiLevel ?? profile.apiLevel),
+                        ]) || (profile.apiLevel !== null ? `API ${profile.apiLevel}` : profile.name),
+                        statusKey: runtime
+                            ? getRuntimeStatusKey(runtime, projectId)
+                            : connected
+                                ? getInventoryOnlyStatusKey(connected)
+                                : 'device.notRunning',
+                        statusColorClass: runtime
+                            ? getRuntimeStatusColorClass(runtime)
+                            : connected
+                                ? getInventoryOnlyStatusColorClass(connected)
+                                : 'bg-gray-100 text-gray-600',
+                        group: 'emulator',
+                    });
+                }
+
+                for (const connected of payload.connectedDevices) {
+                    if (connected.kind !== 'emulator' || usedConnectedEmulatorSerials.has(connected.serial)) {
+                        continue;
+                    }
+                    if (!connected.emulatorProfileName) {
+                        continue;
+                    }
+                    const runtime = runtimeBySerial.get(connected.serial);
+                    if (runtime) {
+                        usedRuntimeIds.add(runtime.id);
+                    }
+                    emulatorOptions.push({
+                        id: `emulator-connected:${connected.serial}`,
+                        selector: { mode: 'connected-device', serial: connected.serial },
+                        label: buildAndroidDeviceOptionLabel(connected),
+                        detail: buildAndroidDeviceOptionDetail(connected),
+                        statusKey: runtime ? getRuntimeStatusKey(runtime, projectId) : getInventoryOnlyStatusKey(connected),
+                        statusColorClass: runtime ? getRuntimeStatusColorClass(runtime) : getInventoryOnlyStatusColorClass(connected),
+                        disabled: connected.adbState !== 'device',
+                        group: 'emulator',
+                    });
+                }
+
+                for (const runtime of payload.devices) {
+                    if (runtime.kind !== 'emulator' || usedRuntimeIds.has(runtime.id)) {
+                        continue;
+                    }
+                    emulatorOptions.push({
+                        id: `emulator-runtime:${runtime.id}`,
+                        selector: runtime.emulatorProfileName
+                            ? { mode: 'emulator-profile', emulatorProfileName: runtime.emulatorProfileName }
+                            : { mode: 'connected-device', serial: runtime.serial },
+                        label: runtime.emulatorProfileName || runtime.serial,
+                        detail: runtime.serial,
+                        statusKey: getRuntimeStatusKey(runtime, projectId),
+                        statusColorClass: getRuntimeStatusColorClass(runtime),
+                        group: 'emulator',
+                    });
+                }
+
+                setAndroidDeviceOptions([...physicalOptions, ...emulatorOptions]);
             }
         };
-        void fetchAvdProfiles().catch(() => {});
-    }, [projectId, getAccessToken, androidAvailable]);
+        void fetchDeviceInventory().catch(() => {});
+    }, [projectId, getAccessToken, androidAvailable, readOnly]);
 
     const resolveTestCaseId = useCallback(async () => {
         if (testCaseId) {
@@ -178,11 +440,13 @@ export default function ConfigurationsSection({
         if (!editState) return;
         setError(null);
 
-        if (!editState.name.trim()) {
+        const normalizedName = editState.name.trim().toUpperCase();
+
+        if (!normalizedName) {
             setError(t('configs.error.nameRequired'));
             return;
         }
-        if (!CONFIG_NAME_REGEX.test(editState.name)) {
+        if (!CONFIG_NAME_REGEX.test(normalizedName)) {
             setError(t('configs.error.invalidName'));
             return;
         }
@@ -207,7 +471,7 @@ export default function ConfigurationsSection({
                 const res = await fetch(`/api/test-cases/${targetTestCaseId}/configs/${editState.id}`, {
                     method: 'PUT',
                     headers,
-                    body: JSON.stringify({ name: editState.name, type: editState.type, value: editState.value }),
+                    body: JSON.stringify({ name: normalizedName, type: editState.type, value: editState.value }),
                 });
                 if (!res.ok) {
                     const data = await res.json().catch(() => ({}));
@@ -218,7 +482,7 @@ export default function ConfigurationsSection({
                 const res = await fetch(`/api/test-cases/${targetTestCaseId}/configs`, {
                     method: 'POST',
                     headers,
-                    body: JSON.stringify({ name: editState.name, type: editState.type, value: editState.value }),
+                    body: JSON.stringify({ name: normalizedName, type: editState.type, value: editState.value }),
                 });
                 if (!res.ok) {
                     const data = await res.json().catch(() => ({}));
@@ -411,7 +675,7 @@ export default function ConfigurationsSection({
             config: {
                 type: 'android' as const,
                 name: '',
-                avdName: '',
+                deviceSelector: { mode: 'emulator-profile', emulatorProfileName: '' } as const,
                 appId: '',
                 clearAppState: true,
                 allowAllPermissions: true,
@@ -465,7 +729,7 @@ export default function ConfigurationsSection({
             <div className="px-4 py-3">
                 <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('configs.section.projectVariables')}</span>
-                    {projectId && (
+                    {!readOnly && projectId && (
                         <Link
                             href={`/projects/${projectId}?tab=configs`}
                             className="text-xs text-primary hover:text-primary/80"
@@ -555,7 +819,7 @@ export default function ConfigurationsSection({
                                         <input
                                             type="text"
                                             value={editState.name}
-                                            onChange={(e) => setEditState({ ...editState, name: e.target.value.toUpperCase() })}
+                                            onChange={(e) => setEditState({ ...editState, name: e.target.value })}
                                             onKeyDown={handleConfigEditorKeyDown}
                                             placeholder={t(`configs.name.placeholder.${config.type.toLowerCase()}`)}
                                             className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-primary"
@@ -685,7 +949,7 @@ export default function ConfigurationsSection({
                                 <input
                                     type="text"
                                     value={editState.name}
-                                    onChange={(e) => setEditState({ ...editState, name: e.target.value.toUpperCase() })}
+                                    onChange={(e) => setEditState({ ...editState, name: e.target.value })}
                                     onKeyDown={handleConfigEditorKeyDown}
                                     placeholder={t(`configs.name.placeholder.${editState.type.toLowerCase()}`)}
                                     className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-primary"
@@ -748,7 +1012,7 @@ export default function ConfigurationsSection({
                                 <input
                                     type="text"
                                     value={fileUploadDraft.name}
-                                    onChange={(e) => setFileUploadDraft({ ...fileUploadDraft, name: e.target.value.toUpperCase() })}
+                                    onChange={(e) => setFileUploadDraft({ ...fileUploadDraft, name: e.target.value })}
                                     placeholder={t('configs.name.placeholder.file')}
                                     className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-primary"
                                     autoFocus
@@ -804,7 +1068,13 @@ export default function ConfigurationsSection({
 
                         if (android) {
                             const cfg = browser.config as AndroidTargetConfig;
-                            const selectedAvd = avdProfiles.find((avd) => avd.name === cfg.avdName);
+                            const normalizedAndroidConfig = normalizeAndroidTargetConfig(cfg);
+                            const selectedDeviceOption = androidDeviceOptions.find((option) =>
+                                isSameAndroidDeviceSelector(option.selector, normalizedAndroidConfig.deviceSelector)
+                            );
+                            const selectedDeviceLabel = selectedDeviceOption?.label || getAndroidDeviceSelectorLabel(normalizedAndroidConfig.deviceSelector);
+                            const physicalDeviceOptions = androidDeviceOptions.filter((option) => option.group === 'physical');
+                            const emulatorDeviceOptions = androidDeviceOptions.filter((option) => option.group === 'emulator');
                             return (
                                 <div key={browser.id} className="p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
                                     <div className="flex items-center justify-between">
@@ -831,7 +1101,7 @@ export default function ConfigurationsSection({
                                             />
                                         </div>
                                         <div>
-                                            <label className="text-[10px] font-medium text-gray-500 uppercase">{t('configs.android.avd')}</label>
+                                            <label className="text-[10px] font-medium text-gray-500 uppercase">{t('configs.android.device')}</label>
                                             <div
                                                 className="relative mt-0.5"
                                                 ref={(el) => {
@@ -845,31 +1115,75 @@ export default function ConfigurationsSection({
                                                     disabled={readOnly}
                                                     className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white text-left flex items-center justify-between gap-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:bg-gray-50"
                                                 >
-                                                    <span className={selectedAvd ? 'text-gray-800' : 'text-gray-400'}>
-                                                        {selectedAvd?.displayName || cfg.avdName || t('configs.android.avd.placeholder')}
+                                                    <span className={selectedDeviceLabel ? 'text-gray-800' : 'text-gray-400'}>
+                                                        {selectedDeviceLabel || t('configs.android.device.placeholder')}
                                                     </span>
                                                     <svg className="w-3 h-3 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                                     </svg>
                                                 </button>
                                                 {avdDropdownOpen === browser.id && !readOnly && (
-                                                    <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-20 py-1 min-w-full">
-                                                        {avdProfiles.length === 0 ? (
-                                                            <div className="px-3 py-2 text-xs text-gray-400">{t('configs.android.avd.none')}</div>
+                                                    <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-20 py-1 min-w-full max-h-80 overflow-y-auto">
+                                                        {androidDeviceOptions.length === 0 ? (
+                                                            <div className="px-3 py-2 text-xs text-gray-400">{t('configs.android.device.none')}</div>
                                                         ) : (
-                                                            avdProfiles.map((avd) => (
-                                                                <button
-                                                                    key={avd.id}
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        updateTarget(index, { avdName: avd.name });
-                                                                        setAvdDropdownOpen(null);
-                                                                    }}
-                                                                    className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 ${cfg.avdName === avd.name ? 'bg-gray-50 font-medium' : 'text-gray-700'}`}
-                                                                >
-                                                                    {avd.displayName}
-                                                                </button>
-                                                            ))
+                                                            <>
+                                                                {physicalDeviceOptions.length > 0 && (
+                                                                    <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                                                                        {t('device.section.connected')}
+                                                                    </div>
+                                                                )}
+                                                                {physicalDeviceOptions.map((option) => (
+                                                                    <button
+                                                                        key={option.id}
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            if (option.disabled) return;
+                                                                            updateTarget(index, { deviceSelector: option.selector });
+                                                                            setAvdDropdownOpen(null);
+                                                                        }}
+                                                                        disabled={option.disabled}
+                                                                        className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 disabled:opacity-50 ${selectedDeviceOption && isSameAndroidDeviceSelector(selectedDeviceOption.selector, option.selector) ? 'bg-gray-50 font-medium' : 'text-gray-700'}`}
+                                                                    >
+                                                                        <div className="flex items-center justify-between gap-2">
+                                                                            <div className="min-w-0">
+                                                                                <div className="truncate">{option.label}</div>
+                                                                                <div className="text-[10px] text-gray-400 truncate">{option.detail}</div>
+                                                                            </div>
+                                                                            <span className={`shrink-0 text-[10px] px-2 py-0.5 rounded-full font-medium ${option.statusColorClass}`}>
+                                                                                {t(option.statusKey)}
+                                                                            </span>
+                                                                        </div>
+                                                                    </button>
+                                                                ))}
+                                                                {emulatorDeviceOptions.length > 0 && (
+                                                                    <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                                                                        {t('device.section.profiles')}
+                                                                    </div>
+                                                                )}
+                                                                {emulatorDeviceOptions.map((option) => (
+                                                                    <button
+                                                                        key={option.id}
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            updateTarget(index, { deviceSelector: option.selector });
+                                                                            setAvdDropdownOpen(null);
+                                                                        }}
+                                                                        disabled={option.disabled}
+                                                                        className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 disabled:opacity-50 ${selectedDeviceOption && isSameAndroidDeviceSelector(selectedDeviceOption.selector, option.selector) ? 'bg-gray-50 font-medium' : 'text-gray-700'}`}
+                                                                    >
+                                                                        <div className="flex items-center justify-between gap-2">
+                                                                            <div className="min-w-0">
+                                                                                <div className="truncate">{option.label}</div>
+                                                                                <div className="text-[10px] text-gray-400 truncate">{option.detail}</div>
+                                                                            </div>
+                                                                            <span className={`shrink-0 text-[10px] px-2 py-0.5 rounded-full font-medium ${option.statusColorClass}`}>
+                                                                                {t(option.statusKey)}
+                                                                            </span>
+                                                                        </div>
+                                                                    </button>
+                                                                ))}
+                                                            </>
                                                         )}
                                                     </div>
                                                 )}
@@ -1052,7 +1366,7 @@ export default function ConfigurationsSection({
                                 </svg>
                                 {t('configs.browser.addBrowser')}
                             </button>
-                            {androidAvailable && projectId && avdProfiles.length > 0 && (
+                            {androidAvailable && projectId && androidDeviceOptions.length > 0 && (
                                 <button
                                     type="button"
                                     onClick={handleAddAndroid}

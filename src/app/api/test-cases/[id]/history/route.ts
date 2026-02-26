@@ -20,6 +20,7 @@ export async function GET(
         const page = Math.max(1, parseInt(url.searchParams.get('page') || '1'));
         const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') || '20')));
         const skip = (page - 1) * limit;
+        const includePayload = url.searchParams.get('includePayload') === '1';
 
         const testCase = await prisma.testCase.findUnique({
             where: { id },
@@ -34,14 +35,29 @@ export async function GET(
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const [testRuns, total] = await Promise.all([
-            prisma.testRun.findMany({
+        const testRunsPromise = includePayload
+            ? prisma.testRun.findMany({
                 where: { testCaseId: id },
                 orderBy: { createdAt: 'desc' },
                 include: { files: true },
                 skip,
                 take: limit
-            }),
+            })
+            : prisma.testRun.findMany({
+                where: { testCaseId: id },
+                orderBy: { createdAt: 'desc' },
+                select: {
+                    id: true,
+                    status: true,
+                    createdAt: true,
+                    error: true,
+                },
+                skip,
+                take: limit
+            });
+
+        const [testRuns, total] = await Promise.all([
+            testRunsPromise,
             prisma.testRun.count({ where: { testCaseId: id } })
         ]);
 

@@ -3,8 +3,7 @@ export async function register() {
         const { queue } = await import('@/lib/queue');
         await queue.startup();
 
-        const { EmulatorPool } = await import('@/lib/emulator-pool');
-        const pool = EmulatorPool.getInstance();
-        await pool.initialize();
+        const { androidDeviceManager } = await import('@/lib/android-device-manager');
+        await androidDeviceManager.initialize();
     }
 }

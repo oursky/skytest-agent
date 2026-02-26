@@ -13,10 +13,22 @@ export interface BrowserTargetConfig {
     url: string;
 }
 
+export interface AndroidEmulatorProfileSelector {
+    mode: 'emulator-profile';
+    emulatorProfileName: string;
+}
+
+export interface AndroidConnectedDeviceSelector {
+    mode: 'connected-device';
+    serial: string;
+}
+
+export type AndroidDeviceSelector = AndroidEmulatorProfileSelector | AndroidConnectedDeviceSelector;
+
 export interface AndroidTargetConfig {
     type: 'android';
     name?: string;
-    avdName: string;
+    deviceSelector: AndroidDeviceSelector;
     appId: string;
     clearAppState: boolean;
     allowAllPermissions: boolean;

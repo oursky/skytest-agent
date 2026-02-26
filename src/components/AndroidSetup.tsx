@@ -1,6 +1,6 @@
 'use client';
 
-import EmulatorStatusPanel from '@/components/EmulatorStatusPanel';
+import DeviceStatusPanel from '@/components/DeviceStatusPanel';
 
 interface AndroidSetupProps {
     projectId: string;
@@ -9,7 +9,7 @@ interface AndroidSetupProps {
 export default function AndroidSetup({ projectId }: AndroidSetupProps) {
     return (
         <div className="space-y-8">
-            <EmulatorStatusPanel projectId={projectId} />
+            <DeviceStatusPanel projectId={projectId} />
         </div>
     );
 }

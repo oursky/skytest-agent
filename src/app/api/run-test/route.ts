@@ -7,8 +7,9 @@ import { validateTargetUrl } from '@/lib/url-security';
 import { createLogger } from '@/lib/logger';
 import { resolveConfigs } from '@/lib/config-resolver';
 import { config as appConfig } from '@/config/app';
-import { listAvailableAndroidProfiles } from '@/lib/android-profiles';
-import { isAndroidRuntimeAvailable } from '@/lib/android-sdk';
+import { listAndroidDeviceInventory } from '@/lib/android-devices';
+import { isAndroidAdbAvailable, isAndroidEmulatorAvailable } from '@/lib/android-sdk';
+import { normalizeAndroidTargetConfig } from '@/lib/android-target-config';
 import type { BrowserConfig, TargetConfig, AndroidTargetConfig, ResolvedConfig, TestStep } from '@/types';
 
 const logger = createLogger('api:run-test');
@@ -72,6 +73,16 @@ function hasAndroidTargets(browserConfig: RunTestRequest['browserConfig']): bool
     return Object.values(browserConfig).some(isAndroidTargetConfig);
 }
 
+function hasAndroidEmulatorProfileTargets(browserConfig: RunTestRequest['browserConfig']): boolean {
+    if (!browserConfig || Object.keys(browserConfig).length === 0) {
+        return false;
+    }
+
+    return Object.values(browserConfig)
+        .filter(isAndroidTargetConfig)
+        .some((target) => normalizeAndroidTargetConfig(target).deviceSelector.mode === 'emulator-profile');
+}
+
 async function validateAndroidTargets(
     browserConfig: RunTestRequest['browserConfig']
 ): Promise<string | null> {
@@ -84,12 +95,19 @@ async function validateAndroidTargets(
         return null;
     }
 
-    const availableProfiles = await listAvailableAndroidProfiles();
-    const availableProfileNames = new Set(availableProfiles.map((profile) => profile.name));
+    const inventory = await listAndroidDeviceInventory();
+    const availableProfileNames = new Set(inventory.emulatorProfiles.map((profile) => profile.name));
+    const connectedDeviceBySerial = new Map(inventory.connectedDevices.map((device) => [device.serial, device]));
 
     for (const target of androidTargets) {
-        if (!target.avdName) {
-            return 'Android target must include an emulator';
+        const normalizedTarget = normalizeAndroidTargetConfig(target);
+        const selector = normalizedTarget.deviceSelector;
+
+        if (selector.mode === 'emulator-profile' && !selector.emulatorProfileName) {
+            return 'Android target must include a device';
+        }
+        if (selector.mode === 'connected-device' && !selector.serial) {
+            return 'Android target must include a device';
         }
         if (!target.appId) {
             return 'Android target must include an app ID';
@@ -100,8 +118,20 @@ async function validateAndroidTargets(
         if (typeof target.allowAllPermissions !== 'boolean') {
             return 'Android target allowAllPermissions must be a boolean';
         }
-        if (!availableProfileNames.has(target.avdName)) {
-            return `Emulator "${target.avdName}" is not available in current runtime inventory`;
+        if (selector.mode === 'emulator-profile' && !availableProfileNames.has(selector.emulatorProfileName)) {
+            return `Device "${selector.emulatorProfileName}" is not available in current runtime inventory`;
+        }
+        if (selector.mode === 'connected-device') {
+            const connectedDevice = connectedDeviceBySerial.get(selector.serial);
+            if (!connectedDevice) {
+                return `Device "${selector.serial}" is not connected`;
+            }
+            if (connectedDevice.adbState === 'unauthorized') {
+                return `Device "${selector.serial}" is unauthorized. Allow USB debugging on the device and try again.`;
+            }
+            if (connectedDevice.adbState !== 'device') {
+                return `Device "${selector.serial}" is not ready (state: ${connectedDevice.adbState})`;
+            }
         }
     }
 
@@ -191,9 +221,15 @@ export async function POST(request: Request) {
                 );
             }
 
-            if (!isAndroidRuntimeAvailable()) {
+            if (!isAndroidAdbAvailable()) {
                 return NextResponse.json(
                     { error: 'Android testing is not available on this server' },
+                    { status: 503 }
+                );
+            }
+            if (hasAndroidEmulatorProfileTargets(browserConfig) && !isAndroidEmulatorAvailable()) {
+                return NextResponse.json(
+                    { error: 'Android emulator testing is not available on this server' },
                     { status: 503 }
                 );
             }

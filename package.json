@@ -27,7 +27,7 @@
     "@dnd-kit/sortable": "10.0.0",
     "@dnd-kit/utilities": "3.2.2",
     "@langfuse/openai": "4.6.1",
-    "@midscene/android": "1.2.2",
+    "@midscene/android": "1.4.6",
     "@monaco-editor/react": "4.7.0",
     "@prisma/adapter-better-sqlite3": "7.2.0",
     "@prisma/client": "7.2.0",
@@ -45,7 +45,7 @@
     "react-dom": "19.2.3"
   },
   "devDependencies": {
-    "@midscene/web": "1.1.0",
+    "@midscene/web": "1.4.6",
     "@playwright/test": "1.57.0",
     "@types/better-sqlite3": "7.6.13",
     "@types/node": "25.0.3",

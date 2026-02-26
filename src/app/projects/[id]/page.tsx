@@ -3,7 +3,7 @@
 import { useState, useEffect, use, useCallback, useRef } from "react";
 import { useAuth } from "../../auth-provider";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Modal from "@/components/Modal";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import { formatDateTimeCompact } from "@/utils/dateFormatter";
@@ -25,10 +25,6 @@ interface TestCase {
     displayId?: string;
     status?: string;
     name: string;
-    url: string;
-    prompt: string;
-    steps: string | null;
-    browserConfig: string | null;
     updatedAt: string;
     testRuns: TestRun[];
 }
@@ -47,6 +43,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     const resolvedParams = use(params);
     const { id } = resolvedParams;
     const router = useRouter();
+    const pathname = usePathname();
     const searchParams = useSearchParams();
     const { t } = useI18n();
 
@@ -79,6 +76,16 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         if (tab === 'test-cases') { setActiveTab('test-cases'); }
         if (tab === 'android' && !androidAvailable) { setActiveTab('test-cases'); }
     }, [searchParams, androidAvailable]);
+
+    const handleTabChange = useCallback((tab: 'test-cases' | 'configs' | 'android') => {
+        setActiveTab(tab);
+
+        const params = new URLSearchParams(searchParams.toString());
+        params.set('tab', tab);
+        const query = params.toString();
+
+        router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    }, [pathname, router, searchParams]);
 
     const getAuthHeaders = useCallback(async (): Promise<HeadersInit> => {
         const token = await getAccessToken();
@@ -481,7 +488,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     <nav className="flex gap-6 -mb-px">
                         <button
                             type="button"
-                            onClick={() => setActiveTab('test-cases')}
+                            onClick={() => handleTabChange('test-cases')}
                             className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'test-cases'
                                 ? 'border-primary text-primary'
                                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -491,7 +498,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                         </button>
                         <button
                             type="button"
-                            onClick={() => setActiveTab('configs')}
+                            onClick={() => handleTabChange('configs')}
                             className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'configs'
                                 ? 'border-primary text-primary'
                                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -502,7 +509,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                         {androidAvailable && (
                             <button
                                 type="button"
-                                onClick={() => setActiveTab('android')}
+                                onClick={() => handleTabChange('android')}
                                 className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'android'
                                     ? 'border-primary text-primary'
                                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'

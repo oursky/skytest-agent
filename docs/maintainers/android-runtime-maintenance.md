@@ -2,7 +2,7 @@
 
 Audience: maintainers / coding agents changing Android runtime behavior.
 
-This document describes the current Android emulator runtime behavior and operational constraints for this app.
+This document describes the current Android device runtime behavior and operational constraints for this app.
 
 Related docs:
 
@@ -21,31 +21,43 @@ Related docs:
 
 ## Deployment Model (Important)
 
-- `src/lib/queue.ts` and `src/lib/emulator-pool.ts` are in-process singletons.
-- Queue state, emulator ownership, and emulator wait queues live only in memory.
+- `src/lib/queue.ts`, `src/lib/android-device-manager.ts`, and `src/lib/emulator-pool.ts` are in-process singletons.
+- Queue state, device ownership, and emulator wait queues live only in memory.
 - This runtime is currently intended for a single long-lived app process.
 
 Implications:
 
-- Do not run multiple app replicas against the same host emulator environment without adding centralized coordination/locking.
+- Do not run multiple app replicas against the same host Android device/ADB environment without adding centralized coordination/locking.
 - Serverless/ephemeral runtimes are not compatible with the current emulator pool design.
 - Process restart will clear queue/pool state and active runs are marked failed on startup.
 
-## Managed vs Unmanaged Emulators
+## Managed Runtime Devices vs Host Inventory
 
-- Managed emulators are those started and tracked by `emulatorPool`.
-- Unmanaged emulators are any host emulators visible to `adb` but not tracked by the app (for example, Android Studio/manual launches).
+- Managed runtime devices are those tracked by `androidDeviceManager`:
+  - emulator instances started/tracked via `emulatorPool`
+  - connected physical devices currently attached as reusable leases
+- Host inventory is discovered from ADB + local profiles:
+  - connected devices (`adb devices -l`)
+  - emulator profiles (AVDs) available on the host
+- Unmanaged connected emulators are host emulators visible to ADB but not currently tracked by the app runtime (for example, Android Studio/manual launches).
 
 Security behavior:
 
-- `/api/emulators` now returns only pool-managed emulators owned by the current user’s projects.
-- `/api/emulators` stop action only allows stopping owned managed emulators.
-- The app does not expose or control unmanaged host emulators through the user API.
+- `/api/devices` requires auth + Android access (`androidEnabled && androidRuntimeAvailable`).
+- `/api/devices` returns:
+  - runtime device status for the current host/process (used by the project device panel)
+  - host inventory (`connectedDevices`, `emulatorProfiles`) for device selection/UI display
+- Ownership checks are enforced for project-scoped actions and run metadata, but inventory visibility is intentionally host-level. Treat host access as privileged.
+- `/api/devices` stop action:
+  - allows stopping managed emulators
+  - allows stopping connected emulators by serial (ADB `emu kill`) when not managed
+  - rejects stopping connected physical devices
 
 ## Reuse and Isolation Model
 
-- Emulator reuse is project-scoped (`projectId` + emulator template name).
-- After a run, Android targets are released back to the pool (not always fully shut down).
+- Emulator-profile reuse is project-scoped (`projectId` + emulator profile/AVD name).
+- Connected physical devices are leased by serial and reused in-process when healthy.
+- After a run, Android targets are released through `androidDeviceManager` (not always fully shut down).
 - Cleanup is best-effort and includes:
   - returning to home
   - `am kill-all`
@@ -54,12 +66,14 @@ Security behavior:
 What persists across runs by design:
 
 - Emulator disk state outside the explicitly targeted app package
+- Physical-device state outside the explicitly targeted app package
 - Other installed apps and their data
 - System settings and general device state changes that cleanup does not revert
 
 If stronger isolation is required in the future:
 
 - dedicated emulator per run, or
+- dedicated physical device per tenant/project, or
 - full wipe/cold-boot policy, or
 - tenant-isolated emulator hosts/containers
 
@@ -74,13 +88,20 @@ If stronger isolation is required in the future:
 
 This preserves app state across runs when the emulator is reused.
 
+For connected physical devices, the same app-specific cleanup toggle semantics apply.
+
 ## Queueing and Capacity Behavior
 
-- If no matching idle emulator is available and pool capacity is available, the pool boots a new emulator.
-- If capacity is full, requests wait in an in-memory wait queue until:
-  - a matching emulator is released, or
-  - capacity is freed and a replacement boot is triggered, or
-  - the acquire timeout is reached
+- Emulator-profile acquisition:
+  - if no matching idle emulator is available and pool capacity is available, the pool boots a new emulator
+  - if capacity is full, requests wait in an in-memory wait queue until:
+    - a matching emulator is released, or
+    - capacity is freed and a replacement boot is triggered, or
+    - the acquire timeout is reached
+- Connected-device acquisition:
+  - targets a specific serial
+  - fails if the device is missing, unauthorized/offline, or already acquired
+  - reuses an in-process lease if healthy, otherwise recreates the lease/attachment
 
 Capacity-freeing events that now wake waiters:
 
@@ -95,6 +116,7 @@ Capacity-freeing events that now wake waiters:
 - Stop requests attempt `adb emu kill` and process termination.
 - The pool now waits for process exit (bounded timeout) before freeing ports and marking the emulator dead.
 - If the process does not exit after `SIGTERM`, a `SIGKILL` attempt is made before final cleanup.
+- Connected physical devices are not stopped by app APIs; only emulator stop flows perform process termination.
 
 ## Copy Log Secret Masking
 

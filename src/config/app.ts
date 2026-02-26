@@ -53,6 +53,9 @@ export const config = {
             type: 'jpeg' as const,
             quality: 60,
         },
+        android: {
+            postLaunchStabilizationMs: 8_000,
+        },
         security: {
             allowedUrlProtocols: ['http:', 'https:'],
             blockedHostnames: ['localhost', '127.0.0.1', '0.0.0.0', '::1'],
@@ -152,12 +155,9 @@ export const config = {
     },
 
     emulator: {
-        maxInstances: parseInt(process.env.EMULATOR_MAX_INSTANCES || '2'),
-
         bootTimeoutMs: 120_000,
         bootMaxAttempts: 2,
         bootRetryDelayMs: 5_000,
-        acquireTimeoutMs: 180_000,
         idleTimeoutMs: 300_000,
         healthCheckIntervalMs: 60_000,
 
@@ -168,12 +168,10 @@ export const config = {
         },
 
         basePort: 5554,
-        portRange: 20,
         launchArgs: {
             shared: [
                 '-no-audio',
                 '-no-boot-anim',
-                '-no-snapshot-save',
                 '-gpu',
                 'swiftshader_indirect',
             ] as string[],

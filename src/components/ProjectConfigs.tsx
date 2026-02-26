@@ -64,11 +64,13 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
         if (!editState) return;
         setError(null);
 
-        if (!editState.name.trim()) {
+        const normalizedName = editState.name.trim().toUpperCase();
+
+        if (!normalizedName) {
             setError(t('configs.error.nameRequired'));
             return;
         }
-        if (!CONFIG_NAME_REGEX.test(editState.name)) {
+        if (!CONFIG_NAME_REGEX.test(normalizedName)) {
             setError(t('configs.error.invalidName'));
             return;
         }
@@ -77,7 +79,7 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
             return;
         }
 
-        const duplicate = configs.find(c => c.name === editState.name && c.id !== editState.id);
+        const duplicate = configs.find(c => c.name === normalizedName && c.id !== editState.id);
         if (duplicate) {
             setError(t('configs.error.nameTaken'));
             return;
@@ -94,7 +96,7 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                 const res = await fetch(`/api/projects/${projectId}/configs/${editState.id}`, {
                     method: 'PUT',
                     headers,
-                    body: JSON.stringify({ name: editState.name, type: editState.type, value: editState.value }),
+                    body: JSON.stringify({ name: normalizedName, type: editState.type, value: editState.value }),
                 });
                 if (!res.ok) {
                     const data = await res.json().catch(() => ({}));
@@ -105,7 +107,7 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                 const res = await fetch(`/api/projects/${projectId}/configs`, {
                     method: 'POST',
                     headers,
-                    body: JSON.stringify({ name: editState.name, type: editState.type, value: editState.value }),
+                    body: JSON.stringify({ name: normalizedName, type: editState.type, value: editState.value }),
                 });
                 if (!res.ok) {
                     const data = await res.json().catch(() => ({}));
@@ -305,7 +307,7 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                                 <input
                                                     type="text"
                                                     value={editState.name}
-                                                    onChange={(e) => setEditState({ ...editState, name: e.target.value.toUpperCase() })}
+                                                    onChange={(e) => setEditState({ ...editState, name: e.target.value })}
                                                     onKeyDown={handleConfigEditorKeyDown}
                                                     placeholder={t(`configs.name.placeholder.${type.toLowerCase()}`)}
                                                     className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md font-mono bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
@@ -406,7 +408,7 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                         <input
                                             type="text"
                                             value={editState.name}
-                                            onChange={(e) => setEditState({ ...editState, name: e.target.value.toUpperCase() })}
+                                            onChange={(e) => setEditState({ ...editState, name: e.target.value })}
                                             onKeyDown={handleConfigEditorKeyDown}
                                             placeholder={t(`configs.name.placeholder.${type.toLowerCase()}`)}
                                             className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md font-mono bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
@@ -453,7 +455,7 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                         <input
                                             type="text"
                                             value={fileUploadDraft.name}
-                                            onChange={(e) => setFileUploadDraft({ ...fileUploadDraft, name: e.target.value.toUpperCase() })}
+                                            onChange={(e) => setFileUploadDraft({ ...fileUploadDraft, name: e.target.value })}
                                             placeholder={t('configs.name.placeholder.file')}
                                             className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md font-mono bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                                             autoFocus

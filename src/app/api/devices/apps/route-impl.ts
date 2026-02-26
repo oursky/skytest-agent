@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/auth';
-import { emulatorPool } from '@/lib/emulator-pool';
+import { androidDeviceManager } from '@/lib/android-device-manager';
 import { createLogger } from '@/lib/logger';
 import { getAndroidAccessStatusForUser } from '@/lib/user-features';
 
-const logger = createLogger('api:emulators:apps');
+const logger = createLogger('api:devices:apps');
 
 export const dynamic = 'force-dynamic';
 
@@ -33,9 +33,9 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const emulatorId = searchParams.get('emulatorId')?.trim() ?? '';
-    if (!emulatorId) {
-        return NextResponse.json({ error: 'emulatorId is required' }, { status: 400 });
+    const deviceId = (searchParams.get('deviceId') ?? '').trim();
+    if (!deviceId) {
+        return NextResponse.json({ error: 'deviceId is required' }, { status: 400 });
     }
 
     try {
@@ -45,13 +45,15 @@ export async function GET(request: Request) {
         });
         const projectIds = new Set(projects.map((project) => project.id));
 
-        const status = emulatorPool.getStatus(projectIds);
-        const emulator = status.emulators.find((item) => item.id === emulatorId);
-        if (!emulator) {
-            return NextResponse.json({ error: `Emulator "${emulatorId}" is not available` }, { status: 404 });
+        const status = androidDeviceManager.getStatus(projectIds);
+        const activeManagedDevice = status.devices.find((item) => item.id === deviceId);
+        if (activeManagedDevice && activeManagedDevice.state === 'ACQUIRED' && activeManagedDevice.runProjectId) {
+            if (!projectIds.has(activeManagedDevice.runProjectId)) {
+                return NextResponse.json({ error: `Device "${deviceId}" is not available` }, { status: 404 });
+            }
         }
 
-        const appIds = await emulatorPool.listInstalledPackages(emulatorId);
+        const appIds = await androidDeviceManager.listInstalledPackages(deviceId);
         return NextResponse.json(appIds);
     } catch (error) {
         logger.error('Failed to list installed app IDs', error);

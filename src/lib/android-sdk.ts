@@ -12,6 +12,8 @@ const TOOL_RELATIVE_PATHS: Record<AndroidTool, string[]> = {
 
 let cachedSdkRoot: string | null | undefined;
 let cachedAndroidRuntimeAvailable: boolean | undefined;
+let cachedAndroidAdbAvailable: boolean | undefined;
+let cachedAndroidEmulatorAvailable: boolean | undefined;
 
 function executableName(baseName: string): string {
     return process.platform === 'win32' ? `${baseName}.exe` : baseName;
@@ -118,8 +120,26 @@ export function isAndroidRuntimeAvailable(): boolean {
         return cachedAndroidRuntimeAvailable;
     }
 
-    cachedAndroidRuntimeAvailable = isAndroidToolAvailable('adb') && isAndroidToolAvailable('emulator');
+    cachedAndroidRuntimeAvailable = isAndroidAdbAvailable() && isAndroidEmulatorAvailable();
     return cachedAndroidRuntimeAvailable;
+}
+
+export function isAndroidAdbAvailable(): boolean {
+    if (cachedAndroidAdbAvailable !== undefined) {
+        return cachedAndroidAdbAvailable;
+    }
+
+    cachedAndroidAdbAvailable = isAndroidToolAvailable('adb');
+    return cachedAndroidAdbAvailable;
+}
+
+export function isAndroidEmulatorAvailable(): boolean {
+    if (cachedAndroidEmulatorAvailable !== undefined) {
+        return cachedAndroidEmulatorAvailable;
+    }
+
+    cachedAndroidEmulatorAvailable = isAndroidToolAvailable('emulator');
+    return cachedAndroidEmulatorAvailable;
 }
 
 export function getAndroidSdkSetupHint(): string {

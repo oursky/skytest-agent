@@ -44,10 +44,20 @@ export async function GET(
         const testCases = await prisma.testCase.findMany({
             where: { projectId: id },
             orderBy: { updatedAt: 'desc' },
-            include: {
+            select: {
+                id: true,
+                displayId: true,
+                status: true,
+                name: true,
+                updatedAt: true,
                 testRuns: {
                     take: 1,
                     orderBy: { createdAt: 'desc' },
+                    select: {
+                        id: true,
+                        status: true,
+                        createdAt: true,
+                    },
                 },
             },
         });

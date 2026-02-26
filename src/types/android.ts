@@ -3,6 +3,7 @@
 export interface AndroidAgent {
     aiAct(instruction: string): Promise<void>;
     aiAssert(assertion: string): Promise<void>;
+    aiWaitFor(assertion: string, options?: { timeoutMs?: number; checkIntervalMs?: number }): Promise<void>;
     aiQuery(query: string): Promise<unknown>;
     launch(packageOrActivity: string): Promise<void>;
     setAIActContext(context: string): void;

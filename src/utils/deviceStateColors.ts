@@ -1,6 +1,8 @@
-import type { EmulatorState } from '@/lib/emulator-pool';
+import type { AndroidDevicePoolStatusItem } from '@/lib/android-device-manager';
 
-export const EMULATOR_STATE_COLORS: Record<EmulatorState, string> = {
+type DeviceState = AndroidDevicePoolStatusItem['state'];
+
+export const DEVICE_STATE_COLORS: Record<DeviceState, string> = {
     STARTING: 'bg-gray-100 text-gray-600',
     BOOTING:  'bg-yellow-100 text-yellow-800',
     IDLE:     'bg-green-100 text-green-800',
