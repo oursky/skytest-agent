@@ -431,11 +431,13 @@ export default function ConfigurationsSection({
         if (!editState) return;
         setError(null);
 
-        if (!editState.name.trim()) {
+        const normalizedName = editState.name.trim().toUpperCase();
+
+        if (!normalizedName) {
             setError(t('configs.error.nameRequired'));
             return;
         }
-        if (!CONFIG_NAME_REGEX.test(editState.name)) {
+        if (!CONFIG_NAME_REGEX.test(normalizedName)) {
             setError(t('configs.error.invalidName'));
             return;
         }
@@ -460,7 +462,7 @@ export default function ConfigurationsSection({
                 const res = await fetch(`/api/test-cases/${targetTestCaseId}/configs/${editState.id}`, {
                     method: 'PUT',
                     headers,
-                    body: JSON.stringify({ name: editState.name, type: editState.type, value: editState.value }),
+                    body: JSON.stringify({ name: normalizedName, type: editState.type, value: editState.value }),
                 });
                 if (!res.ok) {
                     const data = await res.json().catch(() => ({}));
@@ -471,7 +473,7 @@ export default function ConfigurationsSection({
                 const res = await fetch(`/api/test-cases/${targetTestCaseId}/configs`, {
                     method: 'POST',
                     headers,
-                    body: JSON.stringify({ name: editState.name, type: editState.type, value: editState.value }),
+                    body: JSON.stringify({ name: normalizedName, type: editState.type, value: editState.value }),
                 });
                 if (!res.ok) {
                     const data = await res.json().catch(() => ({}));
@@ -808,7 +810,7 @@ export default function ConfigurationsSection({
                                         <input
                                             type="text"
                                             value={editState.name}
-                                            onChange={(e) => setEditState({ ...editState, name: e.target.value.toUpperCase() })}
+                                            onChange={(e) => setEditState({ ...editState, name: e.target.value })}
                                             onKeyDown={handleConfigEditorKeyDown}
                                             placeholder={t(`configs.name.placeholder.${config.type.toLowerCase()}`)}
                                             className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-primary"
@@ -938,7 +940,7 @@ export default function ConfigurationsSection({
                                 <input
                                     type="text"
                                     value={editState.name}
-                                    onChange={(e) => setEditState({ ...editState, name: e.target.value.toUpperCase() })}
+                                    onChange={(e) => setEditState({ ...editState, name: e.target.value })}
                                     onKeyDown={handleConfigEditorKeyDown}
                                     placeholder={t(`configs.name.placeholder.${editState.type.toLowerCase()}`)}
                                     className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-primary"
@@ -1001,7 +1003,7 @@ export default function ConfigurationsSection({
                                 <input
                                     type="text"
                                     value={fileUploadDraft.name}
-                                    onChange={(e) => setFileUploadDraft({ ...fileUploadDraft, name: e.target.value.toUpperCase() })}
+                                    onChange={(e) => setFileUploadDraft({ ...fileUploadDraft, name: e.target.value })}
                                     placeholder={t('configs.name.placeholder.file')}
                                     className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-primary"
                                     autoFocus
