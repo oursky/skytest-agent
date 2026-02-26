@@ -10,13 +10,17 @@ Related docs:
 
 ## Compatibility Policy
 
-- Only the current `Configurations` + `Test Steps` workbook format is supported for import.
-- Legacy multi-sheet import formats are not supported.
-- No backward compatibility is maintained for old Excel layouts.
+- Current export format uses dedicated target sheets: `Browsers` and `Android`.
+- Import supports both:
+  - current multi-sheet target format (`Browsers` + `Android`)
+  - target rows embedded in `Configurations` (fallback compatibility path)
+- Legacy layouts outside those parser paths are not guaranteed to work.
 
-## Sheets
+## Sheets (Current Export)
 
 - `Configurations`
+- `Browsers`
+- `Android`
 - `Test Steps`
 
 ## Configurations Sheet
@@ -26,10 +30,10 @@ The `Configurations` sheet is a row-based table with sections such as:
 - `Basic Info` / `Test Case`
 - `Project Variable`
 - `Test Case Variable`
-- `Entry Point`
+- `Entry Point` (import fallback path; current exports use dedicated target sheets)
 - `File`
 
-### Entry Points
+### Entry Points (Configurations Fallback Import)
 
 - One row per entry point.
 - Browser entry points:
@@ -39,27 +43,55 @@ The `Configurations` sheet is a row-based table with sections such as:
 - Android entry points:
   - `Type = Android`
   - `Name` (optional label)
-  - `Emulator`
+  - `Device` / `Emulator` / `AVD` (parser accepts aliases)
   - `Value` (App ID)
   - `Clear App Data` (boolean)
   - `Allow All Permissions` (boolean)
 
 Notes:
 
-- `URL` and `App ID` dedicated columns are not used in the current format.
+- `Device` values can be:
+  - emulator profile name (for `emulator-profile` targets)
+  - `serial:<adb-serial>` (for `connected-device` targets)
+- `URL` and `App ID` dedicated columns are not used in this fallback path.
 - Entry point values must be read from the shared `Value` column.
+
+## Browsers Sheet (Current Export)
+
+- Columns: `Target`, `Name`, `URL`
+- `Target` labels are generated (for example `Browser A`, `Browser B`)
+- `Name` is optional display label
+
+## Android Sheet (Current Export)
+
+- Columns:
+  - `Target`
+  - `Name`
+  - `Device`
+  - `APP ID`
+  - `Clear App Data`
+  - `Allow Permissions`
+  - `Device Details (separate by /)`
+- `Device` stores the canonical raw selector value:
+  - emulator profile name for `emulator-profile`
+  - `serial:<adb-serial>` for `connected-device`
+- `Device Details (separate by /)` is a display/helper field (for example `Pixel_7_API_34 / Emulator profile` or `<serial> / Connected device`)
+- Import can also infer connected-device mode from `Device Details` hints when `Device` omits the `serial:` prefix
 
 ## Test Steps Sheet
 
 - Steps include action text and target mapping.
-- Target mapping supports both browser and Android entry points from the current `Configurations` sheet.
+- Export currently uses the `Browser` column name for target labels (historical naming), even when a step targets Android.
+- Import resolves target labels/aliases from either:
+  - `Browsers` + `Android` sheets (current format), or
+  - `Configurations` entry-point rows (fallback path)
 
 ## Import Behavior (Current Product Policy)
 
 Import does:
 
 - import test case metadata (name, test case ID)
-- import entry points (browser + Android)
+- import targets (browser + Android, including connected-device selectors)
 - import test steps
 - import test case variables (supported non-file types)
 
@@ -73,6 +105,6 @@ Warnings may still be produced during parsing for invalid/unsupported rows.
 
 ## Export Behavior
 
-- Export includes the current workbook format.
-- Android entry points are exported with emulator name, app ID (in `Value`), and toggles.
+- Export includes `Configurations`, `Browsers`, `Android`, and `Test Steps`.
+- Android targets are exported with device selector, app ID, and toggles.
 - Some export surfaces may support zipped attachments for download, but run-page import is designed for Excel workbook import.
