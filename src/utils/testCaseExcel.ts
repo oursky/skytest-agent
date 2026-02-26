@@ -5,6 +5,8 @@ import { formatAndroidDeviceSelectorDisplay } from '@/lib/android-device-selecto
 
 type SupportedVariableType = Extract<ConfigType, 'URL' | 'APP_ID' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING' | 'FILE'>;
 const VARIABLE_TYPE_ORDER: SupportedVariableType[] = ['URL', 'APP_ID', 'VARIABLE', 'SECRET', 'FILE', 'RANDOM_STRING'];
+const BROWSER_TARGET_SHEET_NAMES = ['Browser Targets', 'Browsers'] as const;
+const ANDROID_TARGET_SHEET_NAMES = ['Android Targets', 'Android'] as const;
 
 interface ExcelProjectVariable {
     name: string;
@@ -96,8 +98,8 @@ export async function parseTestCaseExcel(content: ArrayBuffer): Promise<ParseRes
     }
 
     const configurationsRows = readSheetRows(workbook, 'Configurations');
-    const browserRows = readSheetRows(workbook, 'Browsers');
-    const androidRows = readSheetRows(workbook, 'Android');
+    const browserRows = readSheetRows(workbook, BROWSER_TARGET_SHEET_NAMES);
+    const androidRows = readSheetRows(workbook, ANDROID_TARGET_SHEET_NAMES);
     const stepRows = readSheetRows(workbook, 'Test Steps');
     const parsedConfigurations = parseConfigurationsRows(configurationsRows, warnings);
     const parsedBrowserTargets = parseBrowserTargetRows(browserRows, warnings);
@@ -225,13 +227,17 @@ function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
     });
 
     appendRowsAsWorksheet(workbook, 'Configurations', configurationsRows, ['Section', 'Type', 'Name', 'Value']);
-    appendRowsAsWorksheet(workbook, 'Browsers', browserTargetRows, ['Target', 'Name', 'URL']);
-    appendRowsAsWorksheet(
-        workbook,
-        'Android',
-        androidTargetRows,
-        ['Target', 'Name', 'Device', 'APP ID', 'Clear App Data', 'Allow Permissions', 'Device Details (separate by /)']
-    );
+    if (browserTargetRows.length > 0) {
+        appendRowsAsWorksheet(workbook, 'Browser Targets', browserTargetRows, ['Target', 'Name', 'URL']);
+    }
+    if (androidTargetRows.length > 0) {
+        appendRowsAsWorksheet(
+            workbook,
+            'Android Targets',
+            androidTargetRows,
+            ['Target', 'Name', 'Device', 'APP ID', 'Clear App Data', 'Allow Permissions', 'Device Details (separate by /)']
+        );
+    }
     appendRowsAsWorksheet(workbook, 'Test Steps', stepRows);
 
     return workbook;
@@ -572,8 +578,10 @@ function normalizeAndroidDeviceDetailHint(value?: string): 'connected-device' | 
     return null;
 }
 
-function readSheetRows(workbook: ExcelJS.Workbook, expectedName: string): Array<Record<string, unknown>> {
-    const worksheet = workbook.worksheets.find((sheet) => normalizeHeader(sheet.name) === normalizeHeader(expectedName));
+function readSheetRows(workbook: ExcelJS.Workbook, expectedNames: string | readonly string[]): Array<Record<string, unknown>> {
+    const names = Array.isArray(expectedNames) ? expectedNames : [expectedNames];
+    const normalizedNames = new Set(names.map(normalizeHeader));
+    const worksheet = workbook.worksheets.find((sheet) => normalizedNames.has(normalizeHeader(sheet.name)));
     if (!worksheet) {
         return [];
     }
