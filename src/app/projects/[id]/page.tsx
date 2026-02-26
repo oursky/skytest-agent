@@ -25,10 +25,6 @@ interface TestCase {
     displayId?: string;
     status?: string;
     name: string;
-    url: string;
-    prompt: string;
-    steps: string | null;
-    browserConfig: string | null;
     updatedAt: string;
     testRuns: TestRun[];
 }
