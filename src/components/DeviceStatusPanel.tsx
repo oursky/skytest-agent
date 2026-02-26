@@ -349,6 +349,10 @@ export default function DeviceStatusPanel({ projectId }: DeviceStatusPanelProps)
                 continue;
             }
 
+            if (connected.adbState === 'offline' && !connected.emulatorProfileName) {
+                continue;
+            }
+
             const runtime = connectedRuntimeBySerial.get(connected.serial);
             if (runtime) {
                 usedRuntimeIds.add(runtime.id);
