@@ -3,11 +3,13 @@
 import Image from 'next/image';
 import { getStatusBadgeClass } from '@/utils/statusBadge';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { TestRun, TestEvent, TestCaseFile, TestData, isLogData, isScreenshotData } from '@/types';
+import { TestRun, TestEvent, TestCaseFile, TestData, BrowserConfig, TargetConfig, AndroidTargetConfig, isLogData, isScreenshotData } from '@/types';
 import { formatTime } from '@/utils/dateFormatter';
 import TimelineEvent from './result-viewer/TimelineEvent';
 import ResultStatus from './result-viewer/ResultStatus';
 import { useI18n } from '@/i18n';
+import { normalizeAndroidTargetConfig } from '@/lib/android-target-config';
+import { formatAndroidDeviceSelectorDisplay } from '@/lib/android-device-selector-display';
 
 interface ResultViewerMeta {
     runId?: string | null;
@@ -69,6 +71,52 @@ function maskEvent(event: TestEvent, secrets: string[]): TestEvent {
     }
 
     return event;
+}
+
+function isAndroidTargetConfig(config: BrowserConfig | TargetConfig): config is AndroidTargetConfig {
+    return 'type' in config && config.type === 'android';
+}
+
+function buildConfigSummaryLines(config?: TestData): string[] {
+    if (!config) {
+        return [];
+    }
+
+    const lines: string[] = [];
+    const targets = config.browserConfig ?? {};
+    const targetEntries = Object.entries(targets);
+
+    if (targetEntries.length > 0) {
+        lines.push('### Targets');
+        for (const [targetId, targetConfig] of targetEntries) {
+            if (isAndroidTargetConfig(targetConfig)) {
+                const normalized = normalizeAndroidTargetConfig(targetConfig);
+                const deviceDisplay = formatAndroidDeviceSelectorDisplay(normalized.deviceSelector);
+                const targetName = targetConfig.name || targetId;
+                lines.push(`- ${targetName} [${targetId}] Android`);
+                lines.push(`  Device: ${deviceDisplay.label}`);
+                lines.push(`  Device Detail: ${deviceDisplay.detail}`);
+                lines.push(`  Device Selector: ${deviceDisplay.rawValue}`);
+                if (targetConfig.appId) {
+                    lines.push(`  App ID: ${targetConfig.appId}`);
+                }
+                continue;
+            }
+
+            const browserConfig = targetConfig as BrowserConfig;
+            const targetName = browserConfig.name || targetId;
+            lines.push(`- ${targetName} [${targetId}] Browser`);
+            if (browserConfig.url) {
+                lines.push(`  URL: ${browserConfig.url}`);
+            }
+        }
+    } else if (config.url) {
+        lines.push('### Targets');
+        lines.push(`- Browser [main]`);
+        lines.push(`  URL: ${config.url}`);
+    }
+
+    return lines;
 }
 
 export default function ResultViewer({ result, meta, requestSecretValues }: ResultViewerProps) {
@@ -154,6 +202,11 @@ export default function ResultViewer({ result, meta, requestSecretValues }: Resu
         lines.push('');
         if (meta?.config) {
             lines.push('## Configuration');
+            const configSummaryLines = buildConfigSummaryLines(meta.config);
+            if (configSummaryLines.length > 0) {
+                lines.push(...configSummaryLines);
+                lines.push('');
+            }
             try {
                 const configJson = JSON.stringify(meta.config, null, 2);
                 lines.push('```json');

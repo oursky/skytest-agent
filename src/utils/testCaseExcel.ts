@@ -1,6 +1,7 @@
 import ExcelJS, { CellValue, Worksheet } from 'exceljs';
 import type { BrowserConfig, TargetConfig, ConfigType, TestStep } from '@/types';
 import { normalizeAndroidTargetConfig } from '@/lib/android-target-config';
+import { formatAndroidDeviceSelectorDisplay } from '@/lib/android-device-selector-display';
 
 type SupportedVariableType = Extract<ConfigType, 'URL' | 'APP_ID' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING' | 'FILE'>;
 const VARIABLE_TYPE_ORDER: SupportedVariableType[] = ['URL', 'APP_ID', 'VARIABLE', 'SECRET', 'FILE', 'RANDOM_STRING'];
@@ -177,15 +178,15 @@ function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
         ...targetEntries.map((entry) => {
             if ('type' in entry.config && entry.config.type === 'android') {
                 const normalizedAndroidTarget = normalizeAndroidTargetConfig(entry.config);
-                const deviceValue = normalizedAndroidTarget.deviceSelector.mode === 'connected-device'
-                    ? `serial:${normalizedAndroidTarget.deviceSelector.serial}`
-                    : normalizedAndroidTarget.deviceSelector.emulatorProfileName;
+                const deviceDisplay = formatAndroidDeviceSelectorDisplay(normalizedAndroidTarget.deviceSelector);
                 return {
                     Section: 'Entry Point',
                     Type: 'Android',
                     Name: entry.config.name || '',
                     Value: entry.config.appId || '',
-                    Device: deviceValue || '',
+                    Device: deviceDisplay.rawValue || '',
+                    'Device Display': deviceDisplay.label || '',
+                    'Device Detail': deviceDisplay.detail || '',
                     'Clear App Data': entry.config.clearAppState ? 'Yes' : 'No',
                     'Allow All Permissions': entry.config.allowAllPermissions ? 'Yes' : 'No',
                 };
