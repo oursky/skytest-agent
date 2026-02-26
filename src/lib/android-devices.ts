@@ -1,29 +1,12 @@
+import 'server-only';
 import { execFile } from 'node:child_process';
 import type { AvailableAndroidProfile } from '@/lib/android-profiles';
 import { listAvailableAndroidProfiles } from '@/lib/android-profiles';
 import { createLogger } from '@/lib/logger';
 import { resolveAndroidToolPath } from '@/lib/android-sdk';
+import type { AdbDeviceState, AndroidDeviceKind, ConnectedAndroidDeviceInfo } from '@/lib/android-device-display';
 
 const logger = createLogger('android-devices');
-
-export type AdbDeviceState = 'device' | 'offline' | 'unauthorized' | 'unknown';
-export type AndroidDeviceKind = 'emulator' | 'physical';
-
-export interface ConnectedAndroidDeviceInfo {
-    serial: string;
-    adbState: AdbDeviceState;
-    kind: AndroidDeviceKind;
-    manufacturer: string | null;
-    model: string | null;
-    androidVersion: string | null;
-    apiLevel: number | null;
-    emulatorProfileName: string | null;
-    adbProduct: string | null;
-    adbModel: string | null;
-    adbDevice: string | null;
-    transportId: string | null;
-    usb: string | null;
-}
 
 export interface AndroidDeviceInventory {
     connectedDevices: ConnectedAndroidDeviceInfo[];
@@ -206,15 +189,4 @@ export async function listAndroidDeviceInventory(): Promise<AndroidDeviceInvento
         connectedDevices,
         emulatorProfiles,
     };
-}
-
-export function formatAndroidDeviceDisplayName(device: Pick<ConnectedAndroidDeviceInfo, 'kind' | 'manufacturer' | 'model' | 'emulatorProfileName' | 'serial'>): string {
-    if (device.kind === 'emulator') {
-        return device.emulatorProfileName ?? device.model ?? device.serial;
-    }
-
-    const manufacturer = (device.manufacturer ?? '').trim();
-    const model = (device.model ?? '').trim();
-    const combined = [manufacturer, model].filter(Boolean).join(' ').trim();
-    return combined || device.serial;
 }
