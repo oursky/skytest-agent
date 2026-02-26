@@ -46,15 +46,14 @@ It is self-hosted, open source, and uses your own API key.
 ## Quick Start
 
 ```bash
-npm install
-npx playwright install
 cp .env.example .env.local
 # Edit .env.local with your credentials
-npx prisma db push
+npm install
 npm run dev
 ```
 
-Open http://localhost:3000 and sign in.
+Open http://localhost:3000 and sign in. <br>
+Enter your OpenRouter API key in settings and start testing!
 
 ## Hosted Version
 

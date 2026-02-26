@@ -21,7 +21,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "verify:baseline": "npm run lint && npx tsc --noEmit"
+    "verify": "npm run lint && npx tsc --noEmit",
+    "postinstall": "npx playwright install && npx prisma generate && npx prisma db push"
   },
   "dependencies": {
     "@authgear/web": "5.0.1",
