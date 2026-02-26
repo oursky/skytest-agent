@@ -255,7 +255,6 @@ export default function DeviceStatusPanel({ projectId }: DeviceStatusPanelProps)
                     {status && (
                         <span className="text-xs text-gray-400">
                             {status.devices.length} active
-                            {status.waitingRequests > 0 && ` · ${t('device.waiting', { n: status.waitingRequests })}`}
                         </span>
                     )}
                 </div>

@@ -42,24 +42,12 @@ export interface EmulatorPoolStatusItem {
 }
 
 export interface EmulatorPoolStatus {
-    maxEmulators: number;
     emulators: EmulatorPoolStatusItem[];
-    waitingRequests: number;
 }
 
 interface EmulatorAcquireProbeRequest {
     projectId: string;
     avdName: string;
-}
-
-interface WaitQueueEntry {
-    projectId: string;
-    avdName: string;
-    runId: string;
-    resolve: (handle: EmulatorHandle) => void;
-    reject: (error: Error) => void;
-    timeoutId: NodeJS.Timeout;
-    signal?: AbortSignal;
 }
 
 interface EmulatorInstance {
@@ -119,7 +107,6 @@ function execFileAsync(file: string, args: string[]): Promise<{ stdout: string; 
 export class EmulatorPool {
     private static instance: EmulatorPool;
     private emulators: Map<string, EmulatorInstance> = new Map();
-    private waitQueue: WaitQueueEntry[] = [];
     private usedPorts: Set<number> = new Set();
     private readonly adbPath: string;
     private readonly emulatorPath: string;
@@ -215,43 +202,12 @@ export class EmulatorPool {
             await this.stopInstance(idleWindowEmulator);
         }
 
-        const activeCount = Array.from(this.emulators.values()).filter((emulator) => emulator.state !== 'DEAD').length;
-        if (activeCount < appConfig.emulator.maxInstances) {
-            const handle = await this.bootWithRetries(projectId, avdName, signal, { headless: true });
-            const instance = this.emulators.get(handle.id);
-            if (!instance) {
-                throw new Error(`Emulator ${handle.id} disappeared after boot`);
-            }
-            return this.lockEmulator(instance, runId, projectId);
+        const handle = await this.bootWithRetries(projectId, avdName, signal, { headless: true });
+        const instance = this.emulators.get(handle.id);
+        if (!instance) {
+            throw new Error(`Emulator ${handle.id} disappeared after boot`);
         }
-
-        return new Promise<EmulatorHandle>((resolve, reject) => {
-            const timeoutId = setTimeout(() => {
-                const index = this.waitQueue.findIndex((entry) => entry.timeoutId === timeoutId);
-                if (index !== -1) {
-                    this.waitQueue.splice(index, 1);
-                }
-                reject(new Error(
-                    `No emulator available within ${appConfig.emulator.acquireTimeoutMs / 1000}s. ` +
-                    `All ${appConfig.emulator.maxInstances} emulators are in use.`
-                ));
-            }, appConfig.emulator.acquireTimeoutMs);
-
-            const entry: WaitQueueEntry = { projectId, avdName, runId, resolve, reject, timeoutId, signal };
-
-            if (signal) {
-                signal.addEventListener('abort', () => {
-                    const index = this.waitQueue.findIndex((candidate) => candidate === entry);
-                    if (index !== -1) {
-                        this.waitQueue.splice(index, 1);
-                        clearTimeout(timeoutId);
-                        reject(new Error('Acquisition cancelled'));
-                    }
-                }, { once: true });
-            }
-
-            this.waitQueue.push(entry);
-        });
+        return this.lockEmulator(instance, runId, projectId);
     }
 
     async canAcquireBatchImmediately(requests: ReadonlyArray<EmulatorAcquireProbeRequest>): Promise<boolean> {
@@ -263,7 +219,6 @@ export class EmulatorPool {
 
         const activeInstances = Array.from(this.emulators.values()).filter((instance) => instance.state !== 'DEAD');
         const reservedInstanceIds = new Set<string>();
-        let activeCount = activeInstances.length;
 
         const findMatchingIdle = (request: EmulatorAcquireProbeRequest, launchMode: EmulatorLaunchMode): EmulatorInstance | null => {
             for (const instance of activeInstances) {
@@ -297,11 +252,7 @@ export class EmulatorPool {
                 continue;
             }
 
-            if (activeCount >= appConfig.emulator.maxInstances) {
-                return false;
-            }
-
-            activeCount += 1;
+            // No fixed instance cap; capacity is now bounded by runtime resources/ports only.
         }
 
         return true;
@@ -354,7 +305,6 @@ export class EmulatorPool {
             .filter((instance) => instance.state !== 'DEAD');
 
         return {
-            maxEmulators: appConfig.emulator.maxInstances,
             emulators: emulators.map((instance) => ({
                 id: instance.id,
                 currentProjectId: instance.currentProjectId ?? undefined,
@@ -364,7 +314,6 @@ export class EmulatorPool {
                 uptimeMs: now - instance.startedAt,
                 memoryUsageMb: instance.memoryUsageMb,
             })),
-            waitingRequests: this.waitQueue.length,
         };
     }
 
@@ -441,7 +390,6 @@ export class EmulatorPool {
 
             logger.warn(`Emulator process exited unexpectedly for ${instance.id} (code=${String(code)}, signal=${String(signal)})`);
             this.transitionToDead(instance);
-            this.wakeNextWaiter(true);
         });
     }
 
@@ -588,7 +536,6 @@ export class EmulatorPool {
         await this.ensureProcessStopped(processHandle, killTarget);
 
         this.transitionToDead(instance);
-        this.wakeNextWaiter(true);
     }
 
     private clearInstanceTimers(instance: EmulatorInstance): void {
@@ -644,55 +591,6 @@ export class EmulatorPool {
         }, appConfig.emulator.healthCheckIntervalMs);
     }
 
-    private wakeNextWaiter(bootReplacementIfNeeded = false): void {
-        if (this.waitQueue.length === 0) {
-            return;
-        }
-
-        for (let index = 0; index < this.waitQueue.length; index++) {
-            const entry = this.waitQueue[index];
-            const idle = this.findIdleEmulator(entry.avdName, 'headless');
-            if (!idle) {
-                continue;
-            }
-
-            this.waitQueue.splice(index, 1);
-            clearTimeout(entry.timeoutId);
-            try {
-                entry.resolve(this.lockEmulator(idle, entry.runId, entry.projectId));
-            } catch (error) {
-                entry.reject(error instanceof Error ? error : new Error(String(error)));
-            }
-            return;
-        }
-
-        if (!bootReplacementIfNeeded) {
-            return;
-        }
-
-        const entry = this.waitQueue[0];
-        const activeCount = Array.from(this.emulators.values()).filter((emulator) => emulator.state !== 'DEAD').length;
-        if (activeCount >= appConfig.emulator.maxInstances) {
-            return;
-        }
-
-        this.waitQueue.shift();
-        clearTimeout(entry.timeoutId);
-
-        this.bootWithRetries(entry.projectId, entry.avdName, entry.signal, { headless: true })
-            .then((handle) => {
-                const instance = this.emulators.get(handle.id);
-                if (!instance) {
-                    entry.reject(new Error(`Replacement emulator ${handle.id} disappeared after boot`));
-                    return;
-                }
-                entry.resolve(this.lockEmulator(instance, entry.runId, entry.projectId));
-            })
-            .catch((error) => {
-                entry.reject(error instanceof Error ? error : new Error(String(error)));
-            });
-    }
-
     private async bootWithRetries(
         projectId: string,
         avdName: string,
@@ -728,11 +626,7 @@ export class EmulatorPool {
     private async allocatePort(): Promise<number | null> {
         const adbUsedPorts = await this.getAdbEmulatorPorts();
 
-        for (
-            let port = appConfig.emulator.basePort;
-            port < appConfig.emulator.basePort + appConfig.emulator.portRange;
-            port += 2
-        ) {
+        for (let port = appConfig.emulator.basePort; port <= 65534; port += 2) {
             if (this.usedPorts.has(port)) {
                 continue;
             }

@@ -152,12 +152,9 @@ export const config = {
     },
 
     emulator: {
-        maxInstances: parseInt(process.env.EMULATOR_MAX_INSTANCES || '2'),
-
         bootTimeoutMs: 120_000,
         bootMaxAttempts: 2,
         bootRetryDelayMs: 5_000,
-        acquireTimeoutMs: 180_000,
         idleTimeoutMs: 300_000,
         healthCheckIntervalMs: 60_000,
 
@@ -168,7 +165,6 @@ export const config = {
         },
 
         basePort: 5554,
-        portRange: 20,
         launchArgs: {
             shared: [
                 '-no-audio',

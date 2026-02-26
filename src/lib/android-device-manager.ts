@@ -42,9 +42,7 @@ export interface AndroidDevicePoolStatusItem {
 }
 
 export interface AndroidDevicePoolStatus {
-    maxEmulators: number;
     devices: AndroidDevicePoolStatusItem[];
-    waitingRequests: number;
 }
 
 export interface AndroidDeviceAcquireProbeRequest {
@@ -143,9 +141,7 @@ export class AndroidDeviceManager {
         }
 
         return {
-            maxEmulators: emulatorStatus.maxEmulators,
             devices,
-            waitingRequests: emulatorStatus.waitingRequests,
         };
     }
 

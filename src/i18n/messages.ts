@@ -353,7 +353,6 @@ export const MESSAGES: Record<Locale, Messages> = {
     'device.state.dead': 'Stopped',
     'device.actionFailed': 'Failed to update device state. Please try again.',
     'device.testRun': 'Test Run',
-    'device.waiting': '{n} waiting',
 
     // Feature flags
     'feature.android.disabled': 'Android testing is not enabled for your account. Contact an administrator to enable it.',
@@ -767,7 +766,6 @@ export const MESSAGES: Record<Locale, Messages> = {
     'device.state.dead': '已停止',
     'device.actionFailed': '更新裝置狀態失敗，請再試一次。',
     'device.testRun': '測試執行',
-    'device.waiting': '{n} 個等待中',
 
     // Feature flags
     'feature.android.disabled': '您的帳號尚未啟用 Android 測試功能，請聯繫管理員以啟用。',
@@ -1181,7 +1179,6 @@ export const MESSAGES: Record<Locale, Messages> = {
     'device.state.dead': '已停止',
     'device.actionFailed': '更新设备状态失败，请重试。',
     'device.testRun': '测试运行',
-    'device.waiting': '{n} 个等待中',
 
     // Feature flags
     'feature.android.disabled': '您的账号尚未启用 Android 测试功能，请联系管理员以启用。',
