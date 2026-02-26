@@ -490,15 +490,40 @@ export class EmulatorPool {
 
     private async cleanEmulator(instance: EmulatorInstance, packageName?: string): Promise<boolean> {
         try {
+            let cleanupFailed = false;
+
             if (packageName) {
-                await instance.adb.shell(`am force-stop ${packageName}`, { timeoutMs: 15_000, retries: 1 }).catch(() => {});
-                await instance.adb.shell(`pm clear ${packageName}`, { timeoutMs: 15_000, retries: 1 }).catch(() => {});
+                try {
+                    await instance.adb.shell(`am force-stop ${packageName}`, { timeoutMs: 15_000, retries: 1 });
+                } catch (error) {
+                    cleanupFailed = true;
+                    logger.warn(`Failed to force-stop app on emulator ${instance.id} during cleanup`, error);
+                }
+                try {
+                    await instance.adb.shell(`pm clear ${packageName}`, { timeoutMs: 15_000, retries: 1 });
+                } catch (error) {
+                    cleanupFailed = true;
+                    logger.warn(`Failed to clear app data on emulator ${instance.id} during cleanup`, error);
+                }
             }
-            await instance.adb.shell('input keyevent KEYCODE_HOME', { timeoutMs: 15_000, retries: 1 }).catch(() => {});
-            await instance.adb.shell('am kill-all', { timeoutMs: 15_000, retries: 1 }).catch(() => {});
+            try {
+                await instance.adb.shell('input keyevent KEYCODE_HOME', { timeoutMs: 15_000, retries: 1 });
+            } catch (error) {
+                cleanupFailed = true;
+                logger.warn(`Failed to send HOME keyevent on emulator ${instance.id} during cleanup`, error);
+            }
+            try {
+                await instance.adb.shell('am kill-all', { timeoutMs: 15_000, retries: 1 });
+            } catch (error) {
+                cleanupFailed = true;
+                logger.warn(`Failed to kill background apps on emulator ${instance.id} during cleanup`, error);
+            }
 
             const health = await instance.adb.healthCheck();
-            return health.healthy;
+            if (!health.healthy) {
+                logger.warn(`Emulator ${instance.id} failed health check during cleanup`, health);
+            }
+            return !cleanupFailed && health.healthy;
         } catch (error) {
             logger.warn(`Failed to clean emulator ${instance.id}`, error);
             return false;
