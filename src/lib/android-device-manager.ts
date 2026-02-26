@@ -229,13 +229,47 @@ export class AndroidDeviceManager {
         }
 
         instance.state = 'CLEANING';
+        let cleanupFailed = false;
 
         if (handle.packageName && handle.clearPackageDataOnRelease !== false) {
-            await instance.adb.shell(`am force-stop ${handle.packageName}`, { timeoutMs: 15_000, retries: 1 }).catch(() => {});
-            await instance.adb.shell(`pm clear ${handle.packageName}`, { timeoutMs: 15_000, retries: 1 }).catch(() => {});
+            try {
+                await instance.adb.shell(`am force-stop ${handle.packageName}`, { timeoutMs: 15_000, retries: 1 });
+            } catch (error) {
+                cleanupFailed = true;
+                logger.warn(`Failed to force-stop app on device "${instance.serial}" during release`, error);
+            }
+            try {
+                await instance.adb.shell(`pm clear ${handle.packageName}`, { timeoutMs: 15_000, retries: 1 });
+            } catch (error) {
+                cleanupFailed = true;
+                logger.warn(`Failed to clear app data on device "${instance.serial}" during release`, error);
+            }
         }
 
-        await instance.adb.shell('input keyevent KEYCODE_HOME', { timeoutMs: 15_000, retries: 1 }).catch(() => {});
+        try {
+            await instance.adb.shell('input keyevent KEYCODE_HOME', { timeoutMs: 15_000, retries: 1 });
+        } catch (error) {
+            cleanupFailed = true;
+            logger.warn(`Failed to send HOME keyevent on device "${instance.serial}" during release`, error);
+        }
+
+        if (!cleanupFailed) {
+            try {
+                const health = await instance.adb.healthCheck();
+                if (!health.healthy) {
+                    cleanupFailed = true;
+                    logger.warn(`Device "${instance.serial}" failed health check during release; discarding lease`, health);
+                }
+            } catch (error) {
+                cleanupFailed = true;
+                logger.warn(`Failed to health-check device "${instance.serial}" during release`, error);
+            }
+        }
+
+        if (cleanupFailed) {
+            this.discardPhysicalLease(instance);
+            return;
+        }
 
         instance.currentProjectId = null;
         instance.runId = null;
@@ -352,9 +386,18 @@ export class AndroidDeviceManager {
             throw new Error(`Android device "${trimmedSerial}" is not ready (state: ${connected.adbState})`);
         }
 
-        const existing = this.physicalLeases.get(trimmedSerial);
+        let existing = this.physicalLeases.get(trimmedSerial);
         if (existing?.state === 'ACQUIRED') {
             throw new Error(`Android device "${trimmedSerial}" is already in use`);
+        }
+
+        if (existing) {
+            const healthy = await this.isReusablePhysicalLeaseHealthy(existing);
+            if (!healthy) {
+                logger.warn(`Discarding stale physical device lease for "${trimmedSerial}" before acquisition`);
+                this.discardPhysicalLease(existing);
+                existing = undefined;
+            }
         }
 
         const instance = existing ?? await this.createPhysicalLeaseInstance(trimmedSerial, projectId);
@@ -430,6 +473,29 @@ export class AndroidDeviceManager {
             const message = error instanceof Error ? error.message : String(error);
             throw new Error(`Failed to attach Android runtime for device "${instance.serial}": ${message}`);
         }
+    }
+
+    private async isReusablePhysicalLeaseHealthy(instance: PhysicalLeaseInstance): Promise<boolean> {
+        if (instance.state !== 'IDLE') {
+            return false;
+        }
+
+        try {
+            const health = await instance.adb.healthCheck();
+            return health.healthy;
+        } catch {
+            return false;
+        }
+    }
+
+    private discardPhysicalLease(instance: PhysicalLeaseInstance): void {
+        instance.state = 'DEAD';
+        instance.currentProjectId = null;
+        instance.runId = null;
+        instance.acquiredAt = null;
+        instance.device = null;
+        instance.agent = null;
+        this.physicalLeases.delete(instance.serial);
     }
 }
 

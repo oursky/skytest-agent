@@ -23,6 +23,9 @@ type EventHandler = (event: TestEvent) => void;
 
 type FilePayloadWithPath = Record<string, unknown> & { path: string };
 
+const ANDROID_AGENT_LAUNCH_TIMEOUT_MS = 60_000;
+const ANDROID_AGENT_OPERATION_TIMEOUT_MS = 120_000;
+
 function validateTargetConfigs(targetConfigs: Record<string, BrowserConfig | TargetConfig>) {
     for (const [targetId, targetConfig] of Object.entries(targetConfigs)) {
         if ('type' in targetConfig && targetConfig.type === 'android') continue;
@@ -42,6 +45,74 @@ function isAndroidTarget(cfg: BrowserConfig | TargetConfig): cfg is AndroidTarge
 
 function sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isAbortError(error: unknown): boolean {
+    return error instanceof Error && error.message === 'Aborted';
+}
+
+async function withSignalAndTimeout<T>(
+    promise: Promise<T>,
+    options: {
+        signal?: AbortSignal;
+        timeoutMs: number;
+        timeoutMessage: string;
+    }
+): Promise<T> {
+    const { signal, timeoutMs, timeoutMessage } = options;
+
+    if (signal?.aborted) {
+        throw new Error('Aborted');
+    }
+
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let abortHandler: (() => void) | null = null;
+
+    try {
+        const racers: Promise<T>[] = [promise];
+
+        racers.push(new Promise<T>((_, reject) => {
+            timeoutId = setTimeout(() => {
+                reject(new Error(timeoutMessage));
+            }, timeoutMs);
+        }));
+
+        if (signal) {
+            racers.push(new Promise<T>((_, reject) => {
+                abortHandler = () => reject(new Error('Aborted'));
+                signal.addEventListener('abort', abortHandler, { once: true });
+            }));
+        }
+
+        return await Promise.race(racers);
+    } finally {
+        if (timeoutId) {
+            clearTimeout(timeoutId);
+        }
+        if (signal && abortHandler) {
+            signal.removeEventListener('abort', abortHandler);
+        }
+    }
+}
+
+async function runAndroidAgentOperation<T>(
+    operation: () => Promise<T>,
+    operationLabel: string,
+    signal?: AbortSignal,
+    timeoutMs = ANDROID_AGENT_OPERATION_TIMEOUT_MS
+): Promise<T> {
+    try {
+        return await withSignalAndTimeout(operation(), {
+            signal,
+            timeoutMs,
+            timeoutMessage: `Android ${operationLabel} timed out after ${Math.ceil(timeoutMs / 1000)}s. The device may have disconnected.`,
+        });
+    } catch (error) {
+        if (isAbortError(error)) {
+            throw error;
+        }
+        throw error;
+    }
 }
 
 async function isAndroidAppInForeground(device: { shell(command: string): Promise<string> }, appId: string): Promise<boolean> {
@@ -619,7 +690,12 @@ async function setupExecutionTargets(
 
             let launched = false;
             try {
-                await handle.agent.launch(androidConfig.appId);
+                await runAndroidAgentOperation(
+                    () => handle.agent!.launch(androidConfig.appId),
+                    'app launch',
+                    signal,
+                    ANDROID_AGENT_LAUNCH_TIMEOUT_MS
+                );
                 launched = true;
             } catch (error) {
                 log(`Agent launch failed for ${targetLabel}, falling back to launcher intent...`, 'info', targetId);
@@ -795,7 +871,11 @@ async function verifyQuotedStringsExist(
     expectedStrings: string[],
     log: ReturnType<typeof createLogger>,
     browserId?: string,
-    context: 'assertion' | 'action' = 'assertion'
+    context: 'assertion' | 'action' = 'assertion',
+    options?: {
+        isAndroidAgent?: boolean;
+        androidSignal?: AbortSignal;
+    }
 ): Promise<void> {
     const targetLabel = getBrowserNiceName(browserId || 'main');
 
@@ -804,7 +884,13 @@ async function verifyQuotedStringsExist(
 
         log(`[${targetLabel}] Checking for exact text: "${expected}"`, 'info', browserId);
 
-        const result = await agent.aiQuery(queryPrompt);
+        const result = options?.isAndroidAgent
+            ? await runAndroidAgentOperation(
+                () => agent.aiQuery(queryPrompt),
+                'query operation',
+                options.androidSignal
+            )
+            : await agent.aiQuery(queryPrompt);
         const actualText = String(result).trim();
 
         if (actualText === 'NOT_FOUND') {
@@ -1138,14 +1224,25 @@ async function executeSteps(
                 if (isVerification) {
                     if (quotedStrings.length > 0) {
                         try {
-                            await verifyQuotedStringsExist(agent, quotedStrings, log, effectiveTargetId, 'assertion');
+                            await verifyQuotedStringsExist(agent, quotedStrings, log, effectiveTargetId, 'assertion', {
+                                isAndroidAgent: isAndroid,
+                                androidSignal: signal,
+                            });
                         } catch (assertError: unknown) {
                             const errMsg = getErrorMessage(assertError);
                             throw new Error(`${errMsg}`);
                         }
                     } else {
                         try {
-                            await agent.aiAssert(stepAction);
+                            if (isAndroid) {
+                                await runAndroidAgentOperation(
+                                    () => (agent as AndroidAgent).aiAssert(stepAction),
+                                    'assertion',
+                                    signal
+                                );
+                            } else {
+                                await agent.aiAssert(stepAction);
+                            }
                         } catch (assertError: unknown) {
                             const errMsg = getErrorMessage(assertError);
                             throw new Error(`Assertion failed: ${step.action}\n${errMsg}`);
@@ -1154,7 +1251,10 @@ async function executeSteps(
                 } else {
                     if (quotedStrings.length > 0) {
                         try {
-                            await verifyQuotedStringsExist(agent, quotedStrings, log, effectiveTargetId, 'action');
+                            await verifyQuotedStringsExist(agent, quotedStrings, log, effectiveTargetId, 'action', {
+                                isAndroidAgent: isAndroid,
+                                androidSignal: signal,
+                            });
                         } catch (verifyError: unknown) {
                             const errMsg = getErrorMessage(verifyError);
                             throw new Error(`${errMsg}`);
@@ -1162,7 +1262,15 @@ async function executeSteps(
                     }
 
                     try {
-                        await agent.aiAct(stepAction);
+                        if (isAndroid) {
+                            await runAndroidAgentOperation(
+                                () => (agent as AndroidAgent).aiAct(stepAction),
+                                'action',
+                                signal
+                            );
+                        } else {
+                            await agent.aiAct(stepAction);
+                        }
                     } catch (actError: unknown) {
                         const errMsg = getErrorMessage(actError);
                         throw new Error(`Action failed: ${step.action}\n${errMsg}`);
