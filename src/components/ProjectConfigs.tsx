@@ -7,6 +7,7 @@ import type { ConfigItem, ConfigType } from '@/types';
 
 interface ProjectConfigsProps {
     projectId: string;
+    androidEnabled?: boolean;
 }
 
 const CONFIG_NAME_REGEX = /^[A-Z][A-Z0-9_]*$/;
@@ -31,7 +32,7 @@ interface FileUploadDraft {
     file: File | null;
 }
 
-export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
+export default function ProjectConfigs({ projectId, androidEnabled = false }: ProjectConfigsProps) {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
     const [configs, setConfigs] = useState<ConfigItem[]>([]);
@@ -258,7 +259,9 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                     <code className="block bg-white border border-gray-200 px-2 py-1.5 rounded text-gray-600 whitespace-pre-wrap">{t('configs.hint.codeExample')}</code>
                 </div>
             </div>
-            {TYPE_SECTIONS.map(({ type, titleKey }) => {
+            {TYPE_SECTIONS
+                .filter(({ type }) => androidEnabled || type !== 'APP_ID')
+                .map(({ type, titleKey }) => {
                 const items = configs.filter(c => c.type === type);
                 const isEditing = editState?.type === type && !editState.id;
                 const isFileUploadDraftActive = type === 'FILE' && fileUploadDraft !== null;

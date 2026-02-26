@@ -58,6 +58,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     const [searchInput, setSearchInput] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTab, setActiveTab] = useState<'test-cases' | 'configs' | 'android'>('test-cases');
+    const [androidEnabled, setAndroidEnabled] = useState(false);
     const [androidAvailable, setAndroidAvailable] = useState(false);
 
     const refreshAbortRef = useRef<AbortController | null>(null);
@@ -151,6 +152,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             const res = await fetch('/api/user/features', { headers });
             if (res.ok) {
                 const data = await res.json() as { androidEnabled: boolean; androidAvailable?: boolean };
+                setAndroidEnabled(data.androidEnabled);
                 setAndroidAvailable(data.androidAvailable ?? data.androidEnabled);
             }
         } catch {
@@ -611,7 +613,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 )}
 
                 {activeTab === 'configs' && (
-                    <ProjectConfigs projectId={id} />
+                    <ProjectConfigs projectId={id} androidEnabled={androidEnabled} />
                 )}
 
                 {activeTab === 'android' && androidAvailable && (
