@@ -20,6 +20,14 @@ interface BrowserEntry {
 }
 
 interface DeviceInventoryResponse {
+    devices: Array<{
+        id: string;
+        kind: 'emulator' | 'physical';
+        serial: string;
+        emulatorProfileName?: string;
+        state: 'STARTING' | 'BOOTING' | 'IDLE' | 'ACQUIRED' | 'CLEANING' | 'STOPPING' | 'DEAD';
+        runProjectId?: string;
+    }>;
     connectedDevices: Array<{
         serial: string;
         adbState: 'device' | 'offline' | 'unauthorized' | 'unknown';
@@ -43,9 +51,28 @@ interface AndroidDeviceOption {
     selector: AndroidDeviceSelector;
     label: string;
     detail: string;
+    statusKey: string;
+    statusColorClass: string;
     disabled?: boolean;
-    group: 'connected' | 'emulator-profile';
+    group: 'physical' | 'emulator';
 }
+
+const DEVICE_STATE_PRIORITY: Record<DeviceInventoryResponse['devices'][number]['state'], number> = {
+    ACQUIRED: 0,
+    CLEANING: 1,
+    IDLE: 2,
+    BOOTING: 3,
+    STARTING: 4,
+    STOPPING: 5,
+    DEAD: 6,
+};
+
+const ADB_STATE_PRIORITY: Record<DeviceInventoryResponse['connectedDevices'][number]['adbState'], number> = {
+    device: 0,
+    unauthorized: 1,
+    offline: 2,
+    unknown: 3,
+};
 
 function buildAndroidDeviceOptionLabel(option: DeviceInventoryResponse['connectedDevices'][number]): string {
     if (option.kind === 'emulator') {
@@ -54,12 +81,71 @@ function buildAndroidDeviceOptionLabel(option: DeviceInventoryResponse['connecte
     return [option.manufacturer, option.model].filter(Boolean).join(' ').trim() || option.serial;
 }
 
+function joinAndroidDeviceDetail(parts: Array<string | null | undefined>): string {
+    return parts.filter((part): part is string => Boolean(part && part.trim())).join(', ');
+}
+
+function buildAndroidVersionDetail(androidVersion: string | null | undefined, apiLevel: number | null | undefined): string {
+    return joinAndroidDeviceDetail([
+        androidVersion ? `Android ${androidVersion}` : null,
+        apiLevel !== null && apiLevel !== undefined ? `API ${apiLevel}` : null,
+    ]);
+}
+
 function buildAndroidDeviceOptionDetail(option: DeviceInventoryResponse['connectedDevices'][number]): string {
-    const versionBits: string[] = [];
-    if (option.androidVersion) versionBits.push(`Android ${option.androidVersion}`);
-    if (option.apiLevel !== null) versionBits.push(`API ${option.apiLevel}`);
-    const versionText = versionBits.join(', ');
-    return versionText ? `${option.serial} • ${versionText}` : option.serial;
+    return joinAndroidDeviceDetail([option.serial, buildAndroidVersionDetail(option.androidVersion, option.apiLevel)]) || option.serial;
+}
+
+function getInventoryOnlyStatusKey(option: DeviceInventoryResponse['connectedDevices'][number]): string {
+    if (option.adbState === 'device') return 'device.state.idle';
+    if (option.adbState === 'unauthorized') return 'device.adb.unauthorized';
+    if (option.adbState === 'offline') return 'device.adb.offline';
+    return 'device.adb.unknown';
+}
+
+function getInventoryOnlyStatusColorClass(option: DeviceInventoryResponse['connectedDevices'][number]): string {
+    if (option.adbState === 'device') return 'bg-green-100 text-green-700';
+    if (option.adbState === 'unauthorized') return 'bg-amber-100 text-amber-700';
+    return 'bg-gray-100 text-gray-600';
+}
+
+function normalizeDeviceName(name: string): string {
+    return name.trim().toLowerCase();
+}
+
+function isRuntimeInUseByCurrentProject(
+    runtime: DeviceInventoryResponse['devices'][number],
+    projectId?: string
+): boolean {
+    return runtime.state === 'ACQUIRED' && Boolean(projectId && runtime.runProjectId === projectId);
+}
+
+function getRuntimeStatusKey(
+    runtime: DeviceInventoryResponse['devices'][number],
+    projectId?: string
+): string {
+    if (runtime.state === 'ACQUIRED') {
+        return isRuntimeInUseByCurrentProject(runtime, projectId)
+            ? 'device.inUseCurrentProject'
+            : 'device.inUseOtherProject';
+    }
+
+    if (runtime.state === 'STARTING') return 'device.state.starting';
+    if (runtime.state === 'BOOTING') return 'device.state.booting';
+    if (runtime.state === 'IDLE') return 'device.state.idle';
+    if (runtime.state === 'CLEANING') return 'device.state.cleaning';
+    if (runtime.state === 'STOPPING') return 'device.state.stopping';
+    return 'device.state.dead';
+}
+
+function getRuntimeStatusColorClass(runtime: DeviceInventoryResponse['devices'][number]): string {
+    if (runtime.state === 'STARTING') return 'bg-blue-100 text-blue-700';
+    if (runtime.state === 'BOOTING') return 'bg-blue-100 text-blue-700';
+    if (runtime.state === 'IDLE') return 'bg-green-100 text-green-700';
+    if (runtime.state === 'ACQUIRED') return 'bg-amber-100 text-amber-700';
+    if (runtime.state === 'CLEANING') return 'bg-yellow-100 text-yellow-700';
+    if (runtime.state === 'STOPPING') return 'bg-red-100 text-red-700';
+    return 'bg-gray-100 text-gray-600';
 }
 
 function isAndroidConfig(config: BrowserConfig | TargetConfig): config is AndroidTargetConfig {
@@ -206,22 +292,126 @@ export default function ConfigurationsSection({
             const res = await fetch(`/api/devices?projectId=${encodeURIComponent(projectId)}`, { headers });
             if (res.ok) {
                 const payload = await res.json() as DeviceInventoryResponse;
-                const connectedOptions: AndroidDeviceOption[] = payload.connectedDevices.map((device) => ({
-                    id: `connected:${device.serial}`,
-                    selector: { mode: 'connected-device', serial: device.serial },
-                    label: buildAndroidDeviceOptionLabel(device),
-                    detail: buildAndroidDeviceOptionDetail(device),
-                    disabled: device.adbState !== 'device',
-                    group: 'connected',
-                }));
-                const emulatorProfileOptions: AndroidDeviceOption[] = payload.emulatorProfiles.map((profile) => ({
-                    id: `profile:${profile.name}`,
-                    selector: { mode: 'emulator-profile', emulatorProfileName: profile.name },
-                    label: profile.displayName || profile.name,
-                    detail: profile.apiLevel !== null ? `Emulator Profile • API ${profile.apiLevel}` : 'Emulator Profile',
-                    group: 'emulator-profile',
-                }));
-                setAndroidDeviceOptions([...connectedOptions, ...emulatorProfileOptions]);
+
+                const runtimeBySerial = new Map<string, DeviceInventoryResponse['devices'][number]>();
+                const runtimeByEmulatorProfile = new Map<string, DeviceInventoryResponse['devices'][number]>();
+                for (const runtime of payload.devices) {
+                    runtimeBySerial.set(runtime.serial, runtime);
+                    if (runtime.kind === 'emulator' && runtime.emulatorProfileName) {
+                        const key = normalizeDeviceName(runtime.emulatorProfileName);
+                        const existing = runtimeByEmulatorProfile.get(key);
+                        if (!existing || DEVICE_STATE_PRIORITY[runtime.state] < DEVICE_STATE_PRIORITY[existing.state]) {
+                            runtimeByEmulatorProfile.set(key, runtime);
+                        }
+                    }
+                }
+
+                const connectedPhysicalDevices = payload.connectedDevices.filter((device) => device.kind === 'physical');
+                const physicalOptions: AndroidDeviceOption[] = connectedPhysicalDevices.map((device) => {
+                    const runtime = runtimeBySerial.get(device.serial);
+                    return {
+                        id: `physical:${device.serial}`,
+                        selector: { mode: 'connected-device', serial: device.serial },
+                        label: buildAndroidDeviceOptionLabel(device),
+                        detail: buildAndroidDeviceOptionDetail(device),
+                        statusKey: runtime ? getRuntimeStatusKey(runtime, projectId) : getInventoryOnlyStatusKey(device),
+                        statusColorClass: runtime ? getRuntimeStatusColorClass(runtime) : getInventoryOnlyStatusColorClass(device),
+                        disabled: device.adbState !== 'device',
+                        group: 'physical',
+                    };
+                });
+
+                const connectedEmulatorsBySerial = new Map<string, DeviceInventoryResponse['connectedDevices'][number]>();
+                const connectedEmulatorsByProfile = new Map<string, DeviceInventoryResponse['connectedDevices'][number]>();
+                for (const connected of payload.connectedDevices) {
+                    if (connected.kind !== 'emulator') continue;
+                    connectedEmulatorsBySerial.set(connected.serial, connected);
+                    if (!connected.emulatorProfileName) continue;
+                    const key = normalizeDeviceName(connected.emulatorProfileName);
+                    const existing = connectedEmulatorsByProfile.get(key);
+                    if (!existing || ADB_STATE_PRIORITY[connected.adbState] < ADB_STATE_PRIORITY[existing.adbState]) {
+                        connectedEmulatorsByProfile.set(key, connected);
+                    }
+                }
+
+                const emulatorOptions: AndroidDeviceOption[] = [];
+                const usedConnectedEmulatorSerials = new Set<string>();
+                const usedRuntimeIds = new Set<string>();
+
+                for (const profile of payload.emulatorProfiles) {
+                    const profileKey = normalizeDeviceName(profile.name);
+                    const runtime = runtimeByEmulatorProfile.get(profileKey);
+                    if (runtime) {
+                        usedRuntimeIds.add(runtime.id);
+                    }
+
+                    const connected = runtime
+                        ? connectedEmulatorsBySerial.get(runtime.serial)
+                        : connectedEmulatorsByProfile.get(profileKey);
+                    if (connected) {
+                        usedConnectedEmulatorSerials.add(connected.serial);
+                    }
+
+                    emulatorOptions.push({
+                        id: `emulator-profile:${profile.name}`,
+                        selector: { mode: 'emulator-profile', emulatorProfileName: profile.name },
+                        label: profile.displayName || profile.name,
+                        detail: joinAndroidDeviceDetail([
+                            connected?.serial ?? runtime?.serial,
+                            buildAndroidVersionDetail(connected?.androidVersion, connected?.apiLevel ?? profile.apiLevel),
+                        ]) || (profile.apiLevel !== null ? `API ${profile.apiLevel}` : profile.name),
+                        statusKey: runtime
+                            ? getRuntimeStatusKey(runtime, projectId)
+                            : connected
+                                ? getInventoryOnlyStatusKey(connected)
+                                : 'device.notRunning',
+                        statusColorClass: runtime
+                            ? getRuntimeStatusColorClass(runtime)
+                            : connected
+                                ? getInventoryOnlyStatusColorClass(connected)
+                                : 'bg-gray-100 text-gray-600',
+                        group: 'emulator',
+                    });
+                }
+
+                for (const connected of payload.connectedDevices) {
+                    if (connected.kind !== 'emulator' || usedConnectedEmulatorSerials.has(connected.serial)) {
+                        continue;
+                    }
+                    const runtime = runtimeBySerial.get(connected.serial);
+                    if (runtime) {
+                        usedRuntimeIds.add(runtime.id);
+                    }
+                    emulatorOptions.push({
+                        id: `emulator-connected:${connected.serial}`,
+                        selector: { mode: 'connected-device', serial: connected.serial },
+                        label: buildAndroidDeviceOptionLabel(connected),
+                        detail: buildAndroidDeviceOptionDetail(connected),
+                        statusKey: runtime ? getRuntimeStatusKey(runtime, projectId) : getInventoryOnlyStatusKey(connected),
+                        statusColorClass: runtime ? getRuntimeStatusColorClass(runtime) : getInventoryOnlyStatusColorClass(connected),
+                        disabled: connected.adbState !== 'device',
+                        group: 'emulator',
+                    });
+                }
+
+                for (const runtime of payload.devices) {
+                    if (runtime.kind !== 'emulator' || usedRuntimeIds.has(runtime.id)) {
+                        continue;
+                    }
+                    emulatorOptions.push({
+                        id: `emulator-runtime:${runtime.id}`,
+                        selector: runtime.emulatorProfileName
+                            ? { mode: 'emulator-profile', emulatorProfileName: runtime.emulatorProfileName }
+                            : { mode: 'connected-device', serial: runtime.serial },
+                        label: runtime.emulatorProfileName || runtime.serial,
+                        detail: runtime.serial,
+                        statusKey: getRuntimeStatusKey(runtime, projectId),
+                        statusColorClass: getRuntimeStatusColorClass(runtime),
+                        group: 'emulator',
+                    });
+                }
+
+                setAndroidDeviceOptions([...physicalOptions, ...emulatorOptions]);
             }
         };
         void fetchDeviceInventory().catch(() => {});
@@ -871,6 +1061,8 @@ export default function ConfigurationsSection({
                             const selectedDeviceOption = androidDeviceOptions.find((option) =>
                                 isSameAndroidDeviceSelector(option.selector, normalizedAndroidConfig.deviceSelector)
                             );
+                            const physicalDeviceOptions = androidDeviceOptions.filter((option) => option.group === 'physical');
+                            const emulatorDeviceOptions = androidDeviceOptions.filter((option) => option.group === 'emulator');
                             return (
                                 <div key={browser.id} className="p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
                                     <div className="flex items-center justify-between">
@@ -919,17 +1111,17 @@ export default function ConfigurationsSection({
                                                     </svg>
                                                 </button>
                                                 {avdDropdownOpen === browser.id && !readOnly && (
-                                                    <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-20 py-1 min-w-full">
+                                                    <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-20 py-1 min-w-full max-h-80 overflow-y-auto">
                                                         {androidDeviceOptions.length === 0 ? (
                                                             <div className="px-3 py-2 text-xs text-gray-400">{t('configs.android.device.none')}</div>
                                                         ) : (
                                                             <>
-                                                                {androidDeviceOptions.filter((option) => option.group === 'connected').length > 0 && (
+                                                                {physicalDeviceOptions.length > 0 && (
                                                                     <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
                                                                         {t('device.section.connected')}
                                                                     </div>
                                                                 )}
-                                                                {androidDeviceOptions.filter((option) => option.group === 'connected').map((option) => (
+                                                                {physicalDeviceOptions.map((option) => (
                                                                     <button
                                                                         key={option.id}
                                                                         type="button"
@@ -941,16 +1133,23 @@ export default function ConfigurationsSection({
                                                                         disabled={option.disabled}
                                                                         className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 disabled:opacity-50 ${selectedDeviceOption && isSameAndroidDeviceSelector(selectedDeviceOption.selector, option.selector) ? 'bg-gray-50 font-medium' : 'text-gray-700'}`}
                                                                     >
-                                                                        <div className="truncate">{option.label}</div>
-                                                                        <div className="text-[10px] text-gray-400 truncate">{option.detail}</div>
+                                                                        <div className="flex items-center justify-between gap-2">
+                                                                            <div className="min-w-0">
+                                                                                <div className="truncate">{option.label}</div>
+                                                                                <div className="text-[10px] text-gray-400 truncate">{option.detail}</div>
+                                                                            </div>
+                                                                            <span className={`shrink-0 text-[10px] px-2 py-0.5 rounded-full font-medium ${option.statusColorClass}`}>
+                                                                                {t(option.statusKey)}
+                                                                            </span>
+                                                                        </div>
                                                                     </button>
                                                                 ))}
-                                                                {androidDeviceOptions.filter((option) => option.group === 'emulator-profile').length > 0 && (
+                                                                {emulatorDeviceOptions.length > 0 && (
                                                                     <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
                                                                         {t('device.section.profiles')}
                                                                     </div>
                                                                 )}
-                                                                {androidDeviceOptions.filter((option) => option.group === 'emulator-profile').map((option) => (
+                                                                {emulatorDeviceOptions.map((option) => (
                                                                     <button
                                                                         key={option.id}
                                                                         type="button"
@@ -958,10 +1157,18 @@ export default function ConfigurationsSection({
                                                                             updateTarget(index, { deviceSelector: option.selector });
                                                                             setAvdDropdownOpen(null);
                                                                         }}
-                                                                        className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 ${selectedDeviceOption && isSameAndroidDeviceSelector(selectedDeviceOption.selector, option.selector) ? 'bg-gray-50 font-medium' : 'text-gray-700'}`}
+                                                                        disabled={option.disabled}
+                                                                        className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 disabled:opacity-50 ${selectedDeviceOption && isSameAndroidDeviceSelector(selectedDeviceOption.selector, option.selector) ? 'bg-gray-50 font-medium' : 'text-gray-700'}`}
                                                                     >
-                                                                        <div className="truncate">{option.label}</div>
-                                                                        <div className="text-[10px] text-gray-400 truncate">{option.detail}</div>
+                                                                        <div className="flex items-center justify-between gap-2">
+                                                                            <div className="min-w-0">
+                                                                                <div className="truncate">{option.label}</div>
+                                                                                <div className="text-[10px] text-gray-400 truncate">{option.detail}</div>
+                                                                            </div>
+                                                                            <span className={`shrink-0 text-[10px] px-2 py-0.5 rounded-full font-medium ${option.statusColorClass}`}>
+                                                                                {t(option.statusKey)}
+                                                                            </span>
+                                                                        </div>
                                                                     </button>
                                                                 ))}
                                                             </>
