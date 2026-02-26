@@ -499,12 +499,6 @@ export class EmulatorPool {
                     cleanupFailed = true;
                     logger.warn(`Failed to force-stop app on emulator ${instance.id} during cleanup`, error);
                 }
-                try {
-                    await instance.adb.shell(`pm clear ${packageName}`, { timeoutMs: 15_000, retries: 1 });
-                } catch (error) {
-                    cleanupFailed = true;
-                    logger.warn(`Failed to clear app data on emulator ${instance.id} during cleanup`, error);
-                }
             }
             try {
                 await instance.adb.shell('input keyevent KEYCODE_HOME', { timeoutMs: 15_000, retries: 1 });

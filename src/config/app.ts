@@ -169,7 +169,6 @@ export const config = {
             shared: [
                 '-no-audio',
                 '-no-boot-anim',
-                '-no-snapshot-save',
                 '-gpu',
                 'swiftshader_indirect',
             ] as string[],

@@ -234,18 +234,12 @@ export class AndroidDeviceManager {
         instance.state = 'CLEANING';
         let cleanupFailed = false;
 
-        if (handle.packageName && handle.clearPackageDataOnRelease !== false) {
+        if (handle.packageName) {
             try {
                 await instance.adb.shell(`am force-stop ${handle.packageName}`, { timeoutMs: 15_000, retries: 1 });
             } catch (error) {
                 cleanupFailed = true;
                 logger.warn(`Failed to force-stop app on device "${instance.serial}" during release`, error);
-            }
-            try {
-                await instance.adb.shell(`pm clear ${handle.packageName}`, { timeoutMs: 15_000, retries: 1 });
-            } catch (error) {
-                cleanupFailed = true;
-                logger.warn(`Failed to clear app data on device "${instance.serial}" during release`, error);
             }
         }
 
