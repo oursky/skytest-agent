@@ -3,8 +3,9 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAuth } from '@/app/auth-provider';
 import { useI18n } from '@/i18n';
-import type { ConfigItem, ConfigType, BrowserConfig, TargetConfig, AndroidTargetConfig } from '@/types';
+import type { ConfigItem, ConfigType, BrowserConfig, TargetConfig, AndroidTargetConfig, AndroidDeviceSelector } from '@/types';
 import Link from 'next/link';
+import { normalizeAndroidTargetConfig } from '@/lib/android-target-config';
 
 const CONFIG_NAME_REGEX = /^[A-Z][A-Z0-9_]*$/;
 
@@ -18,15 +19,61 @@ interface BrowserEntry {
     config: BrowserConfig | TargetConfig;
 }
 
-interface AvdProfile {
+interface DeviceInventoryResponse {
+    connectedDevices: Array<{
+        serial: string;
+        adbState: 'device' | 'offline' | 'unauthorized' | 'unknown';
+        kind: 'emulator' | 'physical';
+        manufacturer: string | null;
+        model: string | null;
+        androidVersion: string | null;
+        apiLevel: number | null;
+        emulatorProfileName: string | null;
+    }>;
+    emulatorProfiles: Array<{
+        id: string;
+        name: string;
+        displayName: string;
+        apiLevel: number | null;
+    }>;
+}
+
+interface AndroidDeviceOption {
     id: string;
-    name: string;
-    displayName: string;
-    apiLevel: number | null;
+    selector: AndroidDeviceSelector;
+    label: string;
+    detail: string;
+    disabled?: boolean;
+    group: 'connected' | 'emulator-profile';
+}
+
+function buildAndroidDeviceOptionLabel(option: DeviceInventoryResponse['connectedDevices'][number]): string {
+    if (option.kind === 'emulator') {
+        return option.emulatorProfileName || option.model || option.serial;
+    }
+    return [option.manufacturer, option.model].filter(Boolean).join(' ').trim() || option.serial;
+}
+
+function buildAndroidDeviceOptionDetail(option: DeviceInventoryResponse['connectedDevices'][number]): string {
+    const versionBits: string[] = [];
+    if (option.androidVersion) versionBits.push(`Android ${option.androidVersion}`);
+    if (option.apiLevel !== null) versionBits.push(`API ${option.apiLevel}`);
+    const versionText = versionBits.join(', ');
+    return versionText ? `${option.serial} • ${versionText}` : option.serial;
 }
 
 function isAndroidConfig(config: BrowserConfig | TargetConfig): config is AndroidTargetConfig {
     return 'type' in config && config.type === 'android';
+}
+
+function isSameAndroidDeviceSelector(a: AndroidDeviceSelector, b: AndroidDeviceSelector): boolean {
+    if (a.mode !== b.mode) {
+        return false;
+    }
+    if (a.mode === 'connected-device') {
+        return b.mode === 'connected-device' && a.serial === b.serial;
+    }
+    return b.mode === 'emulator-profile' && a.emulatorProfileName === b.emulatorProfileName;
 }
 
 interface ConfigurationsSectionProps {
@@ -107,7 +154,7 @@ export default function ConfigurationsSection({
     const [randomStringDropdownOpen, setRandomStringDropdownOpen] = useState<string | null>(null);
     const [showSecretInEdit, setShowSecretInEdit] = useState(false);
     const [fileUploadDraft, setFileUploadDraft] = useState<FileUploadDraft | null>(null);
-    const [avdProfiles, setAvdProfiles] = useState<AvdProfile[]>([]);
+    const [androidDeviceOptions, setAndroidDeviceOptions] = useState<AndroidDeviceOption[]>([]);
     const [avdDropdownOpen, setAvdDropdownOpen] = useState<string | null>(null);
     const [appDropdownOpen, setAppDropdownOpen] = useState<string | null>(null);
     const addTypeRef = useRef<HTMLDivElement>(null);
@@ -153,15 +200,31 @@ export default function ConfigurationsSection({
 
     useEffect(() => {
         if (!projectId || !androidAvailable) return;
-        const fetchAvdProfiles = async () => {
+        const fetchDeviceInventory = async () => {
             const token = await getAccessToken();
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const avdRes = await fetch(`/api/projects/${projectId}/avd-profiles`, { headers });
-            if (avdRes.ok) {
-                setAvdProfiles(await avdRes.json() as AvdProfile[]);
+            const res = await fetch(`/api/devices?projectId=${encodeURIComponent(projectId)}`, { headers });
+            if (res.ok) {
+                const payload = await res.json() as DeviceInventoryResponse;
+                const connectedOptions: AndroidDeviceOption[] = payload.connectedDevices.map((device) => ({
+                    id: `connected:${device.serial}`,
+                    selector: { mode: 'connected-device', serial: device.serial },
+                    label: buildAndroidDeviceOptionLabel(device),
+                    detail: buildAndroidDeviceOptionDetail(device),
+                    disabled: device.adbState !== 'device',
+                    group: 'connected',
+                }));
+                const emulatorProfileOptions: AndroidDeviceOption[] = payload.emulatorProfiles.map((profile) => ({
+                    id: `profile:${profile.name}`,
+                    selector: { mode: 'emulator-profile', emulatorProfileName: profile.name },
+                    label: profile.displayName || profile.name,
+                    detail: profile.apiLevel !== null ? `Emulator Profile • API ${profile.apiLevel}` : 'Emulator Profile',
+                    group: 'emulator-profile',
+                }));
+                setAndroidDeviceOptions([...connectedOptions, ...emulatorProfileOptions]);
             }
         };
-        void fetchAvdProfiles().catch(() => {});
+        void fetchDeviceInventory().catch(() => {});
     }, [projectId, getAccessToken, androidAvailable]);
 
     const resolveTestCaseId = useCallback(async () => {
@@ -411,7 +474,7 @@ export default function ConfigurationsSection({
             config: {
                 type: 'android' as const,
                 name: '',
-                avdName: '',
+                deviceSelector: { mode: 'emulator-profile', emulatorProfileName: '' } as const,
                 appId: '',
                 clearAppState: true,
                 allowAllPermissions: true,
@@ -804,7 +867,10 @@ export default function ConfigurationsSection({
 
                         if (android) {
                             const cfg = browser.config as AndroidTargetConfig;
-                            const selectedAvd = avdProfiles.find((avd) => avd.name === cfg.avdName);
+                            const normalizedAndroidConfig = normalizeAndroidTargetConfig(cfg);
+                            const selectedDeviceOption = androidDeviceOptions.find((option) =>
+                                isSameAndroidDeviceSelector(option.selector, normalizedAndroidConfig.deviceSelector)
+                            );
                             return (
                                 <div key={browser.id} className="p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
                                     <div className="flex items-center justify-between">
@@ -831,7 +897,7 @@ export default function ConfigurationsSection({
                                             />
                                         </div>
                                         <div>
-                                            <label className="text-[10px] font-medium text-gray-500 uppercase">{t('configs.android.avd')}</label>
+                                            <label className="text-[10px] font-medium text-gray-500 uppercase">{t('configs.android.device')}</label>
                                             <div
                                                 className="relative mt-0.5"
                                                 ref={(el) => {
@@ -845,8 +911,8 @@ export default function ConfigurationsSection({
                                                     disabled={readOnly}
                                                     className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white text-left flex items-center justify-between gap-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:bg-gray-50"
                                                 >
-                                                    <span className={selectedAvd ? 'text-gray-800' : 'text-gray-400'}>
-                                                        {selectedAvd?.displayName || cfg.avdName || t('configs.android.avd.placeholder')}
+                                                    <span className={selectedDeviceOption ? 'text-gray-800' : 'text-gray-400'}>
+                                                        {selectedDeviceOption?.label || t('configs.android.device.placeholder')}
                                                     </span>
                                                     <svg className="w-3 h-3 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -854,22 +920,51 @@ export default function ConfigurationsSection({
                                                 </button>
                                                 {avdDropdownOpen === browser.id && !readOnly && (
                                                     <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-20 py-1 min-w-full">
-                                                        {avdProfiles.length === 0 ? (
-                                                            <div className="px-3 py-2 text-xs text-gray-400">{t('configs.android.avd.none')}</div>
+                                                        {androidDeviceOptions.length === 0 ? (
+                                                            <div className="px-3 py-2 text-xs text-gray-400">{t('configs.android.device.none')}</div>
                                                         ) : (
-                                                            avdProfiles.map((avd) => (
-                                                                <button
-                                                                    key={avd.id}
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        updateTarget(index, { avdName: avd.name });
-                                                                        setAvdDropdownOpen(null);
-                                                                    }}
-                                                                    className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 ${cfg.avdName === avd.name ? 'bg-gray-50 font-medium' : 'text-gray-700'}`}
-                                                                >
-                                                                    {avd.displayName}
-                                                                </button>
-                                                            ))
+                                                            <>
+                                                                {androidDeviceOptions.filter((option) => option.group === 'connected').length > 0 && (
+                                                                    <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                                                                        {t('device.section.connected')}
+                                                                    </div>
+                                                                )}
+                                                                {androidDeviceOptions.filter((option) => option.group === 'connected').map((option) => (
+                                                                    <button
+                                                                        key={option.id}
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            if (option.disabled) return;
+                                                                            updateTarget(index, { deviceSelector: option.selector });
+                                                                            setAvdDropdownOpen(null);
+                                                                        }}
+                                                                        disabled={option.disabled}
+                                                                        className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 disabled:opacity-50 ${selectedDeviceOption && isSameAndroidDeviceSelector(selectedDeviceOption.selector, option.selector) ? 'bg-gray-50 font-medium' : 'text-gray-700'}`}
+                                                                    >
+                                                                        <div className="truncate">{option.label}</div>
+                                                                        <div className="text-[10px] text-gray-400 truncate">{option.detail}</div>
+                                                                    </button>
+                                                                ))}
+                                                                {androidDeviceOptions.filter((option) => option.group === 'emulator-profile').length > 0 && (
+                                                                    <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                                                                        {t('device.section.profiles')}
+                                                                    </div>
+                                                                )}
+                                                                {androidDeviceOptions.filter((option) => option.group === 'emulator-profile').map((option) => (
+                                                                    <button
+                                                                        key={option.id}
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            updateTarget(index, { deviceSelector: option.selector });
+                                                                            setAvdDropdownOpen(null);
+                                                                        }}
+                                                                        className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 ${selectedDeviceOption && isSameAndroidDeviceSelector(selectedDeviceOption.selector, option.selector) ? 'bg-gray-50 font-medium' : 'text-gray-700'}`}
+                                                                    >
+                                                                        <div className="truncate">{option.label}</div>
+                                                                        <div className="text-[10px] text-gray-400 truncate">{option.detail}</div>
+                                                                    </button>
+                                                                ))}
+                                                            </>
                                                         )}
                                                     </div>
                                                 )}
@@ -1052,7 +1147,7 @@ export default function ConfigurationsSection({
                                 </svg>
                                 {t('configs.browser.addBrowser')}
                             </button>
-                            {androidAvailable && projectId && avdProfiles.length > 0 && (
+                            {androidAvailable && projectId && androidDeviceOptions.length > 0 && (
                                 <button
                                     type="button"
                                     onClick={handleAddAndroid}

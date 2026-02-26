@@ -10,7 +10,8 @@ import { createLogger as createServerLogger } from '@/lib/logger';
 import { withMidsceneApiKey } from '@/lib/midscene-env';
 import { validateTargetUrl } from './url-security';
 import { validateRuntimeRequestUrl } from './url-security-runtime';
-import { EmulatorPool, EmulatorHandle } from './emulator-pool';
+import { androidDeviceManager, type AndroidDeviceLease } from './android-device-manager';
+import { normalizeAndroidTargetConfig } from './android-target-config';
 import { Script, createContext } from 'node:vm';
 import path from 'node:path';
 
@@ -388,7 +389,7 @@ interface ExecutionTargets {
     contexts: Map<string, BrowserContext>;
     pages: Map<string, Page>;
     agents: Map<string, PlaywrightAgent | AndroidAgent>;
-    emulatorHandles: Map<string, EmulatorHandle>;
+    androidDeviceLeases: Map<string, AndroidDeviceLease>;
 }
 
 function createLogger(onEvent: EventHandler) {
@@ -520,7 +521,7 @@ async function setupExecutionTargets(
     const contexts = new Map<string, BrowserContext>();
     const pages = new Map<string, Page>();
     const agents = new Map<string, PlaywrightAgent | AndroidAgent>();
-    const emulatorHandles = new Map<string, EmulatorHandle>();
+    const androidDeviceLeases = new Map<string, AndroidDeviceLease>();
 
     const browserTargetIds = Object.keys(targetConfigs).filter(id => !isAndroidTarget(targetConfigs[id]));
     const androidTargetIds = Object.keys(targetConfigs).filter(id => isAndroidTarget(targetConfigs[id]));
@@ -530,30 +531,32 @@ async function setupExecutionTargets(
         for (const targetId of androidTargetIds) {
             if (signal?.aborted) throw new Error('Aborted');
 
-            const androidConfig = targetConfigs[targetId] as AndroidTargetConfig;
+            const androidConfig = normalizeAndroidTargetConfig(targetConfigs[targetId] as AndroidTargetConfig);
             const targetLabel = androidConfig.name || targetId;
 
-            log(`Acquiring emulator for ${targetLabel}...`, 'info', targetId);
+            log(`Acquiring device for ${targetLabel}...`, 'info', targetId);
 
             if (!projectId) {
                 throw new ConfigurationError('Project ID is required for Android targets.', 'android');
             }
 
-            if (!androidConfig.avdName) {
-                throw new ConfigurationError('Android target must include an emulator.', 'android');
+            if (
+                (androidConfig.deviceSelector.mode === 'emulator-profile' && !androidConfig.deviceSelector.emulatorProfileName)
+                || (androidConfig.deviceSelector.mode === 'connected-device' && !androidConfig.deviceSelector.serial)
+            ) {
+                throw new ConfigurationError('Android target must include a device.', 'android');
             }
 
             if (!androidConfig.appId) {
                 throw new ConfigurationError('Android target must include an app ID.', 'android');
             }
 
-            const pool = EmulatorPool.getInstance();
-            const handle = await pool.acquire(projectId, androidConfig.avdName, runId, signal);
+            const handle = await androidDeviceManager.acquire(projectId, androidConfig.deviceSelector, runId, signal);
             handle.packageName = androidConfig.appId;
             handle.clearPackageDataOnRelease = androidConfig.clearAppState;
-            emulatorHandles.set(targetId, handle);
+            androidDeviceLeases.set(targetId, handle);
 
-            log(`Emulator acquired: ${handle.id}`, 'info', targetId);
+            log(`Device acquired: ${handle.id}`, 'info', targetId);
 
             if (!handle.device) {
                 throw new ConfigurationError('Android device handle is not available.', 'android');
@@ -562,7 +565,7 @@ async function setupExecutionTargets(
             const packageInstalled = await isAndroidPackageInstalled(handle.device, androidConfig.appId);
             if (!packageInstalled) {
                 throw new ConfigurationError(
-                    `App ID "${androidConfig.appId}" is not installed on emulator "${handle.id}".`,
+                    `App ID "${androidConfig.appId}" is not installed on device "${handle.id}".`,
                     'android'
                 );
             }
@@ -572,7 +575,7 @@ async function setupExecutionTargets(
                 const cleared = await clearAndroidAppData(handle.device, androidConfig.appId);
                 if (!cleared) {
                     throw new ConfigurationError(
-                        `Failed to clear app data for "${androidConfig.appId}" on emulator "${handle.id}".`,
+                        `Failed to clear app data for "${androidConfig.appId}" on device "${handle.id}".`,
                         'android'
                     );
                 }
@@ -587,7 +590,7 @@ async function setupExecutionTargets(
 
             if (!handle.agent) {
                 throw new ConfigurationError(
-                    'Android agent not available. Install @midscene/android to enable Android emulator testing.',
+                    'Android agent not available. Install @midscene/android to enable Android device testing.',
                     'android'
                 );
             }
@@ -624,7 +627,7 @@ async function setupExecutionTargets(
                 if (!launchedByIntent) {
                     const message = error instanceof Error ? error.message : String(error);
                     throw new ConfigurationError(
-                        `Failed to launch "${androidConfig.appId}" on emulator "${handle.id}": ${message}`,
+                        `Failed to launch "${androidConfig.appId}" on device "${handle.id}": ${message}`,
                         'android'
                     );
                 }
@@ -636,13 +639,13 @@ async function setupExecutionTargets(
                     const fallbackLaunchSucceeded = await launchAndroidAppWithLauncherIntent(handle.device, androidConfig.appId);
                     if (!fallbackLaunchSucceeded || !(await waitForAndroidAppForeground(handle.device, androidConfig.appId, 10_000))) {
                         throw new ConfigurationError(
-                            `App "${androidConfig.appId}" did not reach foreground on emulator "${handle.id}".`,
+                            `App "${androidConfig.appId}" did not reach foreground on device "${handle.id}".`,
                             'android'
                         );
                     }
                 } else {
                     throw new ConfigurationError(
-                        `App "${androidConfig.appId}" did not reach foreground on emulator "${handle.id}".`,
+                        `App "${androidConfig.appId}" did not reach foreground on device "${handle.id}".`,
                         'android'
                     );
                 }
@@ -758,10 +761,10 @@ async function setupExecutionTargets(
             log('All browser instances ready', 'success');
         }
 
-        return { browser, contexts, pages, agents, emulatorHandles };
+        return { browser, contexts, pages, agents, androidDeviceLeases };
     } catch (error) {
         try {
-            await cleanupTargets({ browser, contexts, pages, agents, emulatorHandles });
+            await cleanupTargets({ browser, contexts, pages, agents, androidDeviceLeases });
         } catch (cleanupError) {
             serverLogger.warn('Failed to cleanup partially initialized targets', cleanupError);
         }
@@ -1169,7 +1172,7 @@ async function executeSteps(
                 if (!isAndroid && page) {
                     await captureScreenshot(page, `[${targetLabel}] Step ${i + 1} Complete`, onEvent, log, effectiveTargetId);
                 } else if (isAndroid) {
-                    const androidHandle = targets.emulatorHandles.get(effectiveTargetId);
+                    const androidHandle = targets.androidDeviceLeases.get(effectiveTargetId);
                     await captureAndroidScreenshot(
                         androidHandle?.device,
                         `[${targetLabel}] Step ${i + 1} Complete`,
@@ -1210,7 +1213,7 @@ async function captureFinalScreenshots(
     signal?: AbortSignal
 ): Promise<void> {
     const log = createLogger(onEvent);
-    const { pages, emulatorHandles } = targets;
+    const { pages, androidDeviceLeases } = targets;
 
     for (const [id, page] of pages) {
         if (signal?.aborted) break;
@@ -1220,7 +1223,7 @@ async function captureFinalScreenshots(
         }
     }
 
-    for (const [id, handle] of emulatorHandles) {
+    for (const [id, handle] of androidDeviceLeases) {
         if (signal?.aborted) break;
         await captureAndroidScreenshot(handle.device, `[${id}] Final State`, onEvent, log, id);
     }
@@ -1231,7 +1234,7 @@ async function captureErrorScreenshots(
     onEvent: EventHandler
 ): Promise<void> {
     const log = createLogger(onEvent);
-    const { pages, emulatorHandles } = targets;
+    const { pages, androidDeviceLeases } = targets;
 
     try {
         for (const [id, page] of pages) {
@@ -1239,7 +1242,7 @@ async function captureErrorScreenshots(
                 await captureScreenshot(page, `Error State [${id}]`, onEvent, log, id);
             }
         }
-        for (const [id, handle] of emulatorHandles) {
+        for (const [id, handle] of androidDeviceLeases) {
             await captureAndroidScreenshot(handle.device, `Error State [${id}]`, onEvent, log, id);
         }
     } catch (e) {
@@ -1254,12 +1257,11 @@ async function cleanupTargets(targets: ExecutionTargets): Promise<void> {
         serverLogger.warn('Error closing browser', e);
     }
 
-    const pool = EmulatorPool.getInstance();
-    for (const [targetId, handle] of targets.emulatorHandles) {
+    for (const [targetId, handle] of targets.androidDeviceLeases) {
         try {
-            await pool.release(handle);
+            await androidDeviceManager.release(handle);
         } catch (e) {
-            serverLogger.warn(`Failed to release emulator for ${targetId}`, e);
+            serverLogger.warn(`Failed to release device for ${targetId}`, e);
         }
     }
 }

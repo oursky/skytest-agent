@@ -6,7 +6,9 @@ import { getErrorMessage } from './errors';
 import { UsageService } from './usage';
 import { createLogger } from './logger';
 import { publishProjectEvent } from '@/lib/project-events';
-import { emulatorPool } from './emulator-pool';
+import { androidDeviceManager } from './android-device-manager';
+import { normalizeAndroidTargetConfig } from './android-target-config';
+import type { AndroidDeviceSelector } from '@/types';
 
 const logger = createLogger('queue');
 
@@ -48,7 +50,7 @@ export class TestQueue {
     private processNextRunning = false;
     private processNextRequested = false;
     private blockedQueueRetryTimer: ReturnType<typeof setTimeout> | null = null;
-    private pendingAndroidReservations: Map<string, Array<{ projectId: string; avdName: string }>> = new Map();
+    private pendingAndroidReservations: Map<string, Array<{ projectId: string; selector: AndroidDeviceSelector; resourceKey: string }>> = new Map();
 
     private constructor() { }
 
@@ -338,30 +340,43 @@ export class TestQueue {
         return count;
     }
 
-    private getAndroidAcquireProbeRequests(config: RunTestOptions['config']): Array<{ projectId: string; avdName: string }> {
+    private getAndroidAcquireProbeRequests(
+        config: RunTestOptions['config']
+    ): Array<{ projectId: string; selector: AndroidDeviceSelector; resourceKey: string }> {
         if (!config.projectId || !config.browserConfig) {
             return [];
         }
 
-        const requests: Array<{ projectId: string; avdName: string }> = [];
+        const requests: Array<{ projectId: string; selector: AndroidDeviceSelector; resourceKey: string }> = [];
         for (const target of Object.values(config.browserConfig)) {
             if (!('type' in target) || target.type !== 'android') {
                 continue;
             }
-            if (!target.avdName) {
+
+            const normalizedTarget = normalizeAndroidTargetConfig(target);
+            const selector = normalizedTarget.deviceSelector;
+            if (
+                (selector.mode === 'emulator-profile' && !selector.emulatorProfileName)
+                || (selector.mode === 'connected-device' && !selector.serial)
+            ) {
                 continue;
             }
+
+            const resourceKey = selector.mode === 'connected-device'
+                ? `connected-device:${selector.serial}`
+                : `emulator-profile:${selector.emulatorProfileName}`;
             requests.push({
                 projectId: config.projectId,
-                avdName: target.avdName
+                selector,
+                resourceKey,
             });
         }
 
         return requests;
     }
 
-    private getAllPendingAndroidReservations(): Array<{ projectId: string; avdName: string }> {
-        const reservations: Array<{ projectId: string; avdName: string }> = [];
+    private getAllPendingAndroidReservations(): Array<{ projectId: string; selector: AndroidDeviceSelector; resourceKey: string }> {
+        const reservations: Array<{ projectId: string; selector: AndroidDeviceSelector; resourceKey: string }> = [];
         for (const requests of this.pendingAndroidReservations.values()) {
             reservations.push(...requests);
         }
@@ -384,7 +399,12 @@ export class TestQueue {
         }
 
         const pendingReservations = this.getAllPendingAndroidReservations();
-        return emulatorPool.canAcquireBatchImmediately([...pendingReservations, ...androidRequests]);
+        return androidDeviceManager.canAcquireBatchImmediately(
+            [...pendingReservations, ...androidRequests].map((request) => ({
+                projectId: request.projectId,
+                selector: request.selector,
+            }))
+        );
     }
 
     private async findNextStartableJobIndex(): Promise<number> {

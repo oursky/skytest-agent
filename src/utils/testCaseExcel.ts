@@ -1,5 +1,6 @@
 import ExcelJS, { CellValue, Worksheet } from 'exceljs';
 import type { BrowserConfig, TargetConfig, ConfigType, TestStep } from '@/types';
+import { normalizeAndroidTargetConfig } from '@/lib/android-target-config';
 
 type SupportedVariableType = Extract<ConfigType, 'URL' | 'APP_ID' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING' | 'FILE'>;
 const VARIABLE_TYPE_ORDER: SupportedVariableType[] = ['URL', 'APP_ID', 'VARIABLE', 'SECRET', 'FILE', 'RANDOM_STRING'];
@@ -175,12 +176,16 @@ function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
         ...testCaseVariableRows,
         ...targetEntries.map((entry) => {
             if ('type' in entry.config && entry.config.type === 'android') {
+                const normalizedAndroidTarget = normalizeAndroidTargetConfig(entry.config);
+                const deviceValue = normalizedAndroidTarget.deviceSelector.mode === 'connected-device'
+                    ? `serial:${normalizedAndroidTarget.deviceSelector.serial}`
+                    : normalizedAndroidTarget.deviceSelector.emulatorProfileName;
                 return {
                     Section: 'Entry Point',
                     Type: 'Android',
                     Name: entry.config.name || '',
                     Value: entry.config.appId || '',
-                    Emulator: entry.config.avdName || '',
+                    Device: deviceValue || '',
                     'Clear App Data': entry.config.clearAppState ? 'Yes' : 'No',
                     'Allow All Permissions': entry.config.allowAllPermissions ? 'Yes' : 'No',
                 };
@@ -327,9 +332,12 @@ function parseConfigurationsRows(
             }
             if (type === 'android') {
                 const name = getRowValue(row, ['name', 'key']) || '';
-                const avdName = getRowValue(row, ['emulator', 'avd', 'avdname']) || '';
+                const rawDeviceValue = getRowValue(row, ['device', 'emulator', 'avd', 'avdname']) || '';
                 const appId = getRowValue(row, ['value']) || '';
-                if (appId || avdName || name) {
+                const deviceSelector = rawDeviceValue.toLowerCase().startsWith('serial:')
+                    ? { mode: 'connected-device' as const, serial: rawDeviceValue.slice('serial:'.length).trim() }
+                    : { mode: 'emulator-profile' as const, emulatorProfileName: rawDeviceValue };
+                if (appId || rawDeviceValue || name) {
                     const targetIndex = targetEntries.length;
                     const id = `android_${String.fromCharCode('a'.charCodeAt(0) + targetIndex)}`;
                     targetEntries.push({
@@ -337,7 +345,7 @@ function parseConfigurationsRows(
                         config: {
                             type: 'android',
                             name: name || undefined,
-                            avdName,
+                            deviceSelector,
                             appId,
                             clearAppState: parseBooleanCell(getRowValue(row, ['clearappdata', 'clear app data']), true),
                             allowAllPermissions: parseBooleanCell(getRowValue(row, ['allowallpermissions', 'allow all permissions']), true),
