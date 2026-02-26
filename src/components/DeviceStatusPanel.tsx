@@ -471,6 +471,7 @@ export default function DeviceStatusPanel({ projectId }: DeviceStatusPanelProps)
                             const emulator = row.runtime;
                             const connected = row.connected;
                             const bootProfileName = row.profileName;
+                            const showBootingAction = emulator?.state === 'BOOTING' && Boolean(bootProfileName);
                             const isBootingThisProfile = !emulator && Boolean(row.profileName && bootingProfiles.has(row.profileName));
                             const isStoppingConnectedEmulator = !emulator && Boolean(connected && stoppingDevices.has(connected.serial));
                             const badgeKey = emulator
@@ -513,18 +514,28 @@ export default function DeviceStatusPanel({ projectId }: DeviceStatusPanelProps)
                                                 {emulator.memoryUsageMb && (
                                                     <span className="text-xs text-gray-400">{emulator.memoryUsageMb}MB</span>
                                                 )}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => void handleStop({ deviceId: emulator.id })}
-                                                    disabled={
-                                                        stoppingDevices.has(emulator.id)
-                                                        || emulator.state === 'STOPPING'
-                                                        || (emulator.state === 'ACQUIRED' && !isDeviceInUseByCurrentProject(emulator, projectId))
-                                                    }
-                                                    className="text-xs px-2 py-1 text-red-600 border border-red-200 rounded hover:bg-red-50 disabled:opacity-50"
-                                                >
-                                                    {t('device.stop')}
-                                                </button>
+                                                {showBootingAction ? (
+                                                    <button
+                                                        type="button"
+                                                        disabled
+                                                        className="text-xs px-2 py-1 text-blue-700 border border-blue-200 rounded disabled:opacity-50"
+                                                    >
+                                                        {t('device.bootWindow')}
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => void handleStop({ deviceId: emulator.id })}
+                                                        disabled={
+                                                            stoppingDevices.has(emulator.id)
+                                                            || emulator.state === 'STOPPING'
+                                                            || (emulator.state === 'ACQUIRED' && !isDeviceInUseByCurrentProject(emulator, projectId))
+                                                        }
+                                                        className="text-xs px-2 py-1 text-red-600 border border-red-200 rounded hover:bg-red-50 disabled:opacity-50"
+                                                    >
+                                                        {t('device.stop')}
+                                                    </button>
+                                                )}
                                             </>
                                         )}
                                         {!emulator && row.canBoot && bootProfileName && (
