@@ -192,14 +192,16 @@ export class EmulatorPool {
 
         await this.reclaimStaleBootingInstances();
 
-        const idleEmulator = this.findIdleEmulator(avdName, 'headless');
-        if (idleEmulator) {
-            return this.lockEmulator(idleEmulator, runId, projectId);
-        }
-
-        const idleWindowEmulator = this.findIdleEmulator(avdName, 'window');
-        if (idleWindowEmulator) {
-            await this.stopInstance(idleWindowEmulator);
+        const idleMatchingEmulators = Array.from(this.emulators.values()).filter((instance) =>
+            instance.state === 'IDLE' && instance.avdName === avdName
+        );
+        if (idleMatchingEmulators.length > 0) {
+            logger.info(
+                `Recycling ${idleMatchingEmulators.length} idle emulator(s) for AVD ${avdName} before acquisition`
+            );
+            for (const idleEmulator of idleMatchingEmulators) {
+                await this.stopInstance(idleEmulator);
+            }
         }
 
         const handle = await this.bootWithRetries(projectId, avdName, signal, { headless: true });
