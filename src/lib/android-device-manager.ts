@@ -251,6 +251,19 @@ export class AndroidDeviceManager {
         await emulatorPool.stop(deviceId);
     }
 
+    async stopConnectedEmulator(serial: string): Promise<void> {
+        const trimmedSerial = serial.trim();
+        if (!trimmedSerial) {
+            throw new Error('Emulator serial is required');
+        }
+        if (!trimmedSerial.startsWith('emulator-')) {
+            throw new Error('Stopping connected physical devices is not supported');
+        }
+
+        const adb = new ReliableAdb(trimmedSerial, this.adbPath);
+        await adb.emulatorKill();
+    }
+
     async listInstalledPackages(deviceIdOrSerial: string): Promise<string[]> {
         const emulatorStatus = emulatorPool.getStatus().emulators.find((item) => item.id === deviceIdOrSerial);
         if (emulatorStatus) {

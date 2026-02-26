@@ -185,6 +185,14 @@ export class ReliableAdb {
         }
     }
 
+    async emulatorKill(timeoutMs = 5000): Promise<void> {
+        await withTimeout(
+            runExecFile(this.adbPath, ['-s', this.deviceId, 'emu', 'kill']),
+            timeoutMs,
+            'adb emu kill'
+        );
+    }
+
     private sleep(ms: number): Promise<void> {
         return new Promise(resolve => setTimeout(resolve, ms));
     }

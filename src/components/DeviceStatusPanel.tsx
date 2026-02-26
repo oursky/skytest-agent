@@ -175,24 +175,31 @@ export default function DeviceStatusPanel({ projectId }: DeviceStatusPanelProps)
         };
     }, [fetchStatus]);
 
-    const handleStop = async (deviceId: string) => {
+    const handleStop = async ({ deviceId, serial }: { deviceId?: string; serial?: string }) => {
+        const stopKey = deviceId ?? serial;
+        if (!stopKey) {
+            return;
+        }
+
         setActionError(null);
         setStoppingDevices((current) => {
             const next = new Set(current);
-            next.add(deviceId);
+            next.add(stopKey);
             return next;
         });
-        setStatus((current) => {
-            if (!current) return current;
-            return {
-                ...current,
-                devices: current.devices.map((device) =>
-                    device.id === deviceId
-                        ? { ...device, state: 'STOPPING' }
-                        : device
-                ),
-            };
-        });
+        if (deviceId) {
+            setStatus((current) => {
+                if (!current) return current;
+                return {
+                    ...current,
+                    devices: current.devices.map((device) =>
+                        device.id === deviceId
+                            ? { ...device, state: 'STOPPING' }
+                            : device
+                    ),
+                };
+            });
+        }
         try {
             const token = await getAccessToken();
             const headers: HeadersInit = {
@@ -202,7 +209,11 @@ export default function DeviceStatusPanel({ projectId }: DeviceStatusPanelProps)
             const response = await fetch('/api/devices', {
                 method: 'POST',
                 headers,
-                body: JSON.stringify({ action: 'stop', deviceId }),
+                body: JSON.stringify({
+                    action: 'stop',
+                    ...(deviceId ? { deviceId } : {}),
+                    ...(serial ? { serial } : {}),
+                }),
             });
             if (!response.ok) {
                 throw new Error('stop failed');
@@ -214,7 +225,7 @@ export default function DeviceStatusPanel({ projectId }: DeviceStatusPanelProps)
         } finally {
             setStoppingDevices((current) => {
                 const next = new Set(current);
-                next.delete(deviceId);
+                next.delete(stopKey);
                 return next;
             });
         }
@@ -458,23 +469,29 @@ export default function DeviceStatusPanel({ projectId }: DeviceStatusPanelProps)
                         )}
                         {emulatorRows.map((row) => {
                             const emulator = row.runtime;
+                            const connected = row.connected;
                             const bootProfileName = row.profileName;
                             const isBootingThisProfile = !emulator && Boolean(row.profileName && bootingProfiles.has(row.profileName));
+                            const isStoppingConnectedEmulator = !emulator && Boolean(connected && stoppingDevices.has(connected.serial));
                             const badgeKey = emulator
                                 ? emulator.state === 'ACQUIRED'
                                     ? (isDeviceInUseByCurrentProject(emulator, projectId)
                                         ? 'device.inUseCurrentProject'
                                         : 'device.inUseOtherProject')
                                     : DEVICE_STATE_LABEL_KEYS[emulator.state]
-                                : row.connected
-                                    ? (isBootingThisProfile ? 'device.state.booting' : getInventoryOnlyBadgeKey(row.connected))
+                                : isStoppingConnectedEmulator
+                                    ? 'device.state.stopping'
+                                : connected
+                                    ? (isBootingThisProfile ? 'device.state.booting' : getInventoryOnlyBadgeKey(connected))
                                     : isBootingThisProfile
                                         ? 'device.state.booting'
                                         : 'device.notRunning';
                             const badgeColor = emulator
                                 ? DEVICE_STATE_COLORS[emulator.state]
-                                : row.connected
-                                    ? getInventoryOnlyBadgeColor(row.connected)
+                                : isStoppingConnectedEmulator
+                                    ? DEVICE_STATE_COLORS.STOPPING
+                                : connected
+                                    ? getInventoryOnlyBadgeColor(connected)
                                     : isBootingThisProfile
                                         ? DEVICE_STATE_COLORS.BOOTING
                                         : 'bg-gray-100 text-gray-600';
@@ -498,7 +515,7 @@ export default function DeviceStatusPanel({ projectId }: DeviceStatusPanelProps)
                                                 )}
                                                 <button
                                                     type="button"
-                                                    onClick={() => void handleStop(emulator.id)}
+                                                    onClick={() => void handleStop({ deviceId: emulator.id })}
                                                     disabled={
                                                         stoppingDevices.has(emulator.id)
                                                         || emulator.state === 'STOPPING'
@@ -518,6 +535,16 @@ export default function DeviceStatusPanel({ projectId }: DeviceStatusPanelProps)
                                                 className="text-xs px-2 py-1 text-blue-700 border border-blue-200 rounded hover:bg-blue-50 disabled:opacity-50"
                                             >
                                                 {t('device.bootWindow')}
+                                            </button>
+                                        )}
+                                        {!emulator && connected?.adbState === 'device' && (
+                                            <button
+                                                type="button"
+                                                onClick={() => void handleStop({ serial: connected.serial })}
+                                                disabled={stoppingDevices.has(connected.serial)}
+                                                className="text-xs px-2 py-1 text-red-600 border border-red-200 rounded hover:bg-red-50 disabled:opacity-50"
+                                            >
+                                                {t('device.stop')}
                                             </button>
                                         )}
                                     </div>

@@ -131,38 +131,58 @@ export async function POST(request: Request) {
         const body = await request.json() as {
             action: string;
             deviceId?: string;
+            serial?: string;
             emulatorProfileName?: string;
         };
 
-        if (body.action === 'stop' && body.deviceId) {
+        if (body.action === 'stop' && (body.deviceId || body.serial)) {
+            const stopDeviceId = body.deviceId?.trim();
+            const stopSerial = body.serial?.trim();
             const status = androidDeviceManager.getStatus();
-            const device = status.devices.find((item) => item.id === body.deviceId);
-            if (!device) {
+            const managedDevice = stopDeviceId
+                ? status.devices.find((item) => item.id === stopDeviceId)
+                : (stopSerial ? status.devices.find((item) => item.serial === stopSerial) : undefined);
+
+            if (managedDevice) {
+                if (managedDevice.kind === 'physical') {
+                    return NextResponse.json({ error: 'Stopping connected physical devices is not supported' }, { status: 400 });
+                }
+
+                if (managedDevice.state === 'ACQUIRED' && managedDevice.runId) {
+                    const testRun = await prisma.testRun.findUnique({
+                        where: { id: managedDevice.runId },
+                        select: {
+                            testCase: {
+                                select: {
+                                    project: { select: { userId: true } }
+                                }
+                            }
+                        }
+                    });
+
+                    if (!testRun || testRun.testCase.project.userId !== userId) {
+                        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+                    }
+                }
+
+                await androidDeviceManager.stop(managedDevice.id);
+                return NextResponse.json({ success: true });
+            }
+
+            if (!stopSerial) {
                 return NextResponse.json({ error: 'Device not found' }, { status: 404 });
             }
 
-            if (device.kind === 'physical') {
-                return NextResponse.json({ error: 'Stopping connected physical devices is not supported' }, { status: 400 });
+            const { connectedDevices } = await listAndroidDeviceInventory();
+            const connected = connectedDevices.find((item) => item.serial === stopSerial);
+            if (!connected || connected.kind !== 'emulator') {
+                return NextResponse.json({ error: 'Device not found' }, { status: 404 });
+            }
+            if (connected.adbState !== 'device') {
+                return NextResponse.json({ error: `Emulator is not ready (state: ${connected.adbState})` }, { status: 409 });
             }
 
-            if (device.state === 'ACQUIRED' && device.runId) {
-                const testRun = await prisma.testRun.findUnique({
-                    where: { id: device.runId },
-                    select: {
-                        testCase: {
-                            select: {
-                                project: { select: { userId: true } }
-                            }
-                        }
-                    }
-                });
-
-                if (!testRun || testRun.testCase.project.userId !== userId) {
-                    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-                }
-            }
-
-            await androidDeviceManager.stop(body.deviceId);
+            await androidDeviceManager.stopConnectedEmulator(stopSerial);
             return NextResponse.json({ success: true });
         }
 
