@@ -53,6 +53,9 @@ export const config = {
             type: 'jpeg' as const,
             quality: 60,
         },
+        android: {
+            postLaunchStabilizationMs: 8_000,
+        },
         security: {
             allowedUrlProtocols: ['http:', 'https:'],
             blockedHostnames: ['localhost', '127.0.0.1', '0.0.0.0', '::1'],

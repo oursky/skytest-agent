@@ -115,6 +115,31 @@ async function runAndroidAgentOperation<T>(
     }
 }
 
+function shouldRetryAndroidActionAfterLoadWait(errorMessage: string): boolean {
+    return /splash screen|still on the splash|loading screen|still loading|not found on the current screen/i.test(errorMessage);
+}
+
+async function waitForAndroidUiReadyForAction(
+    agent: AndroidAgent,
+    stepAction: string,
+    log: ReturnType<typeof createLogger>,
+    targetLabel: string,
+    targetId: string,
+    signal?: AbortSignal
+): Promise<void> {
+    const timeoutMs = Math.max(15_000, config.test.android.postLaunchStabilizationMs * 3);
+    log(`[${targetLabel}] Waiting for app UI to finish loading before retrying...`, 'info', targetId);
+    await runAndroidAgentOperation(
+        () => agent.aiWaitFor(
+            `The app is no longer on a splash or loading screen and is ready for this action: ${stepAction}`,
+            { timeoutMs, checkIntervalMs: 1000 }
+        ),
+        'wait for UI readiness',
+        signal,
+        timeoutMs + 5_000
+    );
+}
+
 async function isAndroidAppInForeground(device: { shell(command: string): Promise<string> }, appId: string): Promise<boolean> {
     try {
         const activityDump = await device.shell('dumpsys activity activities');
@@ -728,6 +753,14 @@ async function setupExecutionTargets(
             }
 
             agents.set(targetId, handle.agent);
+            if (config.test.android.postLaunchStabilizationMs > 0) {
+                log(
+                    `Waiting ${config.test.android.postLaunchStabilizationMs}ms for ${targetLabel} to stabilize after launch...`,
+                    'info',
+                    targetId
+                );
+                await sleep(config.test.android.postLaunchStabilizationMs);
+            }
             await captureAndroidScreenshot(handle.device, `[${targetLabel}] Initial App Launch`, onEvent, log, targetId);
             log(`${targetLabel} ready`, 'success', targetId);
         }
@@ -1263,11 +1296,38 @@ async function executeSteps(
 
                     try {
                         if (isAndroid) {
-                            await runAndroidAgentOperation(
-                                () => (agent as AndroidAgent).aiAct(stepAction),
-                                'action',
-                                signal
-                            );
+                            const androidAgent = agent as AndroidAgent;
+                            try {
+                                await runAndroidAgentOperation(
+                                    () => androidAgent.aiAct(stepAction),
+                                    'action',
+                                    signal
+                                );
+                            } catch (androidActError: unknown) {
+                                const androidErrMsg = getErrorMessage(androidActError);
+                                if (i === 0 && shouldRetryAndroidActionAfterLoadWait(androidErrMsg)) {
+                                    log(
+                                        `[Step ${i + 1}] Android UI appears to still be loading. Waiting and retrying once...`,
+                                        'info',
+                                        effectiveTargetId
+                                    );
+                                    await waitForAndroidUiReadyForAction(
+                                        androidAgent,
+                                        stepAction,
+                                        log,
+                                        targetLabel,
+                                        effectiveTargetId,
+                                        signal
+                                    );
+                                    await runAndroidAgentOperation(
+                                        () => androidAgent.aiAct(stepAction),
+                                        'action',
+                                        signal
+                                    );
+                                } else {
+                                    throw androidActError;
+                                }
+                            }
                         } else {
                             await agent.aiAct(stepAction);
                         }
