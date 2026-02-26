@@ -43,8 +43,6 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
     const [testCase, setTestCase] = useState<TestCase | null>(null);
     const [projectId, setProjectId] = useState<string>("");
     const [projectName, setProjectName] = useState<string>("");
-    const [projectConfigs, setProjectConfigs] = useState<ConfigItem[]>([]);
-    const [testCaseConfigs, setTestCaseConfigs] = useState<ConfigItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
@@ -63,31 +61,15 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                 const data = await response.json();
                 setTestCase(data);
                 setProjectId(data.projectId);
-                const [projectResponse, projectConfigsResponse, testCaseConfigsResponse] = await Promise.all([
-                    fetch(`/api/projects/${data.projectId}`, { headers }),
-                    fetch(`/api/projects/${data.projectId}/configs`, { headers }),
-                    fetch(`/api/test-cases/${id}/configs`, { headers }),
-                ]);
+                const projectResponse = await fetch(`/api/projects/${data.projectId}`, { headers });
 
                 if (projectResponse.ok) {
                     const projectData = await projectResponse.json();
                     setProjectName(projectData.name);
                 }
-                if (projectConfigsResponse.ok) {
-                    setProjectConfigs(await projectConfigsResponse.json());
-                } else {
-                    setProjectConfigs([]);
-                }
-                if (testCaseConfigsResponse.ok) {
-                    setTestCaseConfigs(await testCaseConfigsResponse.json());
-                } else {
-                    setTestCaseConfigs([]);
-                }
             }
         } catch (error) {
             console.error("Failed to fetch test case", error);
-            setProjectConfigs([]);
-            setTestCaseConfigs([]);
         }
     }, [getAccessToken, id]);
 
@@ -207,7 +189,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
             const blob = await response.blob();
             const contentDisposition = response.headers.get('Content-Disposition') || '';
             const filenameMatch = contentDisposition.match(/filename=\"?([^\";]+)\"?/i);
-            const fallbackName = `${buildExcelBaseName(testCase?.displayId, testCase?.name)}.xlsx`;
+            const fallbackName = `${buildExcelBaseName(testData?.displayId || testCase?.displayId, testData?.name || testCase?.name)}.xlsx`;
             const filename = filenameMatch?.[1] || fallbackName;
 
             const url = URL.createObjectURL(blob);
@@ -239,44 +221,26 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                     resolvedConfigurations?: Array<{ name: string; type: string; value: string; filename?: string; source: string }>;
                 };
                 const data = {
-                    displayId: savedConfig.displayId ?? baseConfig?.displayId,
-                    name: savedConfig.name ?? baseConfig?.name,
-                    url: savedConfig.url ?? baseConfig?.url ?? '',
-                    prompt: savedConfig.prompt ?? baseConfig?.prompt ?? '',
-                    steps: savedConfig.steps ?? baseConfig?.steps,
-                    browserConfig: savedConfig.browserConfig ?? baseConfig?.browserConfig,
+                    displayId: savedConfig.displayId,
+                    name: savedConfig.name,
+                    url: savedConfig.url ?? '',
+                    prompt: savedConfig.prompt ?? '',
+                    steps: savedConfig.steps,
+                    browserConfig: savedConfig.browserConfig,
                 };
-                const projectFileNameByVariableName = new Map(
-                    projectConfigs
-                        .filter((config) => config.type === 'FILE')
-                        .map((config) => [config.name, config.filename || config.value])
-                );
-                const testCaseFileNameByVariableName = new Map(
-                    testCaseConfigs
-                        .filter((config) => config.type === 'FILE')
-                        .map((config) => [config.name, config.filename || config.value])
-                );
 
                 const projectSnapshotConfigs: ConfigItem[] = [];
                 const testCaseSnapshotConfigs: ConfigItem[] = [];
 
                 (savedConfig.resolvedConfigurations || []).forEach((config, index) => {
                     const source = config.source === 'project' ? 'project' : 'test-case';
-                    const resolvedFilename = config.type === 'FILE'
-                        ? (
-                            config.filename
-                            || (source === 'project'
-                                ? projectFileNameByVariableName.get(config.name)
-                                : testCaseFileNameByVariableName.get(config.name))
-                        )
-                        : undefined;
 
                     const snapshotConfig: ConfigItem = {
                         id: `snapshot-${index}`,
                         name: config.name,
                         type: config.type as ConfigItem['type'],
                         value: config.value,
-                        ...(resolvedFilename ? { filename: resolvedFilename } : {}),
+                        ...(config.filename ? { filename: config.filename } : {}),
                     };
 
                     if (source === 'project') {
@@ -308,7 +272,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
             <div className="max-w-7xl mx-auto">
                 <Breadcrumbs items={[
                     { label: projectName, href: projectId ? `/projects/${projectId}` : undefined },
-                    { label: testCase?.name || t('runDetail.breadcrumb.testCaseFallback'), href: `/test-cases/${id}/history` },
+                    { label: testData?.name || testCase?.name || t('runDetail.breadcrumb.testCaseFallback'), href: `/test-cases/${id}/history` },
                     { label: t('runDetail.breadcrumb.runPrefix', { time: formatDateTime(testRun.createdAt) }) }
                 ]} />
 
@@ -344,7 +308,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                                 testCaseId: id,
                                 projectId,
                                 projectName,
-                                testCaseName: testCase?.name || null,
+                                testCaseName: testData?.name || testCase?.name || null,
                                 config: testData,
                             }}
                         />

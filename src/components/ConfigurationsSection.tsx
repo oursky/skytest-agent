@@ -162,6 +162,12 @@ function isSameAndroidDeviceSelector(a: AndroidDeviceSelector, b: AndroidDeviceS
     return b.mode === 'emulator-profile' && a.emulatorProfileName === b.emulatorProfileName;
 }
 
+function getAndroidDeviceSelectorLabel(selector: AndroidDeviceSelector): string {
+    return selector.mode === 'connected-device'
+        ? selector.serial
+        : selector.emulatorProfileName;
+}
+
 interface ConfigurationsSectionProps {
     projectId?: string;
     projectConfigs: ConfigItem[];
@@ -285,7 +291,7 @@ export default function ConfigurationsSection({
     }, [addTypeOpen, urlDropdownOpen, randomStringDropdownOpen, avdDropdownOpen, appDropdownOpen]);
 
     useEffect(() => {
-        if (!projectId || !androidAvailable) return;
+        if (readOnly || !projectId || !androidAvailable) return;
         const fetchDeviceInventory = async () => {
             const token = await getAccessToken();
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
@@ -418,7 +424,7 @@ export default function ConfigurationsSection({
             }
         };
         void fetchDeviceInventory().catch(() => {});
-    }, [projectId, getAccessToken, androidAvailable]);
+    }, [projectId, getAccessToken, androidAvailable, readOnly]);
 
     const resolveTestCaseId = useCallback(async () => {
         if (testCaseId) {
@@ -723,7 +729,7 @@ export default function ConfigurationsSection({
             <div className="px-4 py-3">
                 <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('configs.section.projectVariables')}</span>
-                    {projectId && (
+                    {!readOnly && projectId && (
                         <Link
                             href={`/projects/${projectId}?tab=configs`}
                             className="text-xs text-primary hover:text-primary/80"
@@ -1066,6 +1072,7 @@ export default function ConfigurationsSection({
                             const selectedDeviceOption = androidDeviceOptions.find((option) =>
                                 isSameAndroidDeviceSelector(option.selector, normalizedAndroidConfig.deviceSelector)
                             );
+                            const selectedDeviceLabel = selectedDeviceOption?.label || getAndroidDeviceSelectorLabel(normalizedAndroidConfig.deviceSelector);
                             const physicalDeviceOptions = androidDeviceOptions.filter((option) => option.group === 'physical');
                             const emulatorDeviceOptions = androidDeviceOptions.filter((option) => option.group === 'emulator');
                             return (
@@ -1108,8 +1115,8 @@ export default function ConfigurationsSection({
                                                     disabled={readOnly}
                                                     className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white text-left flex items-center justify-between gap-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:bg-gray-50"
                                                 >
-                                                    <span className={selectedDeviceOption ? 'text-gray-800' : 'text-gray-400'}>
-                                                        {selectedDeviceOption?.label || t('configs.android.device.placeholder')}
+                                                    <span className={selectedDeviceLabel ? 'text-gray-800' : 'text-gray-400'}>
+                                                        {selectedDeviceLabel || t('configs.android.device.placeholder')}
                                                     </span>
                                                     <svg className="w-3 h-3 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
