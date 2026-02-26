@@ -145,6 +145,11 @@ export default function ResultViewer({ result, meta, requestSecretValues }: Resu
         );
     }, [meta?.config?.browserConfig]);
 
+    const hasAndroidTargets = useMemo(() => {
+        const cfg = meta?.config?.browserConfig ?? {};
+        return Object.values(cfg).some((target) => 'type' in target && target.type === 'android');
+    }, [meta?.config?.browserConfig]);
+
     useEffect(() => {
         if (!autoScroll) return;
         if (scrollContainerRef.current) {
@@ -373,7 +378,12 @@ export default function ResultViewer({ result, meta, requestSecretValues }: Resu
                                 </div>
                             )}
 
-                            <ResultStatus status={result.status} error={result.error} eventCount={events.length} />
+                            <ResultStatus
+                                status={result.status}
+                                error={result.error}
+                                eventCount={events.length}
+                                hasAndroidTargets={hasAndroidTargets}
+                            />
                         </>
                     )}
                 </div>

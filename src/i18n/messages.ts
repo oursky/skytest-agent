@@ -292,7 +292,9 @@ export const MESSAGES: Record<Locale, Messages> = {
 
     // ResultStatus
     'status.preparing': 'Setting up…',
-    'status.preparing.detail': 'Starting the Android emulator and preparing the app state. This may take a few minutes.',
+    'status.preparing.detail': 'Preparing the test environment. This may take a moment.',
+    'status.preparing.detailGeneric': 'Preparing the test environment. This may take a moment.',
+    'status.preparing.detailAndroid': 'Starting the Android emulator and preparing the app state. This may take a few minutes.',
     'results.pass.title': 'Test Passed',
     'results.pass.body': 'All test steps completed successfully without errors.',
     'results.cancelled.title': 'Test Cancelled',
@@ -705,7 +707,9 @@ export const MESSAGES: Record<Locale, Messages> = {
 
     // ResultStatus
     'status.preparing': '準備中…',
-    'status.preparing.detail': '正在啟動 Android 模擬器並準備應用程式狀態，這可能需要幾分鐘。',
+    'status.preparing.detail': '正在準備測試環境，這可能需要一點時間。',
+    'status.preparing.detailGeneric': '正在準備測試環境，這可能需要一點時間。',
+    'status.preparing.detailAndroid': '正在啟動 Android 模擬器並準備應用程式狀態，這可能需要幾分鐘。',
     'results.pass.title': '測試成功',
     'results.pass.body': '所有測試步驟已成功完成，未發生錯誤。',
     'results.cancelled.title': '測試已取消',
@@ -1118,7 +1122,9 @@ export const MESSAGES: Record<Locale, Messages> = {
 
     // ResultStatus
     'status.preparing': '准备中…',
-    'status.preparing.detail': '正在启动 Android 模拟器并准备应用状态，这可能需要几分钟。',
+    'status.preparing.detail': '正在准备测试环境，这可能需要一点时间。',
+    'status.preparing.detailGeneric': '正在准备测试环境，这可能需要一点时间。',
+    'status.preparing.detailAndroid': '正在启动 Android 模拟器并准备应用状态，这可能需要几分钟。',
     'results.pass.title': '测试通过',
     'results.pass.body': '所有测试步骤已成功完成，未发生错误。',
     'results.cancelled.title': '测试已取消',

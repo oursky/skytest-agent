@@ -6,9 +6,10 @@ interface ResultStatusProps {
     status: TestStatus;
     error?: string;
     eventCount: number;
+    hasAndroidTargets?: boolean;
 }
 
-export default function ResultStatus({ status, error, eventCount }: ResultStatusProps) {
+export default function ResultStatus({ status, error, eventCount, hasAndroidTargets = false }: ResultStatusProps) {
     const { t } = useI18n();
     const [copied, setCopied] = useState(false);
 
@@ -131,7 +132,9 @@ export default function ResultStatus({ status, error, eventCount }: ResultStatus
                     </div>
                     <div className="flex-1 space-y-1">
                         <h3 className="text-lg font-semibold text-cyan-900">{t('status.preparing')}</h3>
-                        <p className="text-sm text-cyan-700 leading-relaxed">{t('status.preparing.detail')}</p>
+                        <p className="text-sm text-cyan-700 leading-relaxed">
+                            {t(hasAndroidTargets ? 'status.preparing.detailAndroid' : 'status.preparing.detailGeneric')}
+                        </p>
                     </div>
                 </div>
             </div>
