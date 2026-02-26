@@ -54,8 +54,8 @@ export default function EmulatorStatusPanel({ projectId }: EmulatorStatusPanelPr
     const [status, setStatus] = useState<EmulatorStatusResponse | null>(null);
     const [forbidden, setForbidden] = useState(false);
     const [requestFailed, setRequestFailed] = useState(false);
-    const [stopping, setStopping] = useState<string | null>(null);
-    const [bootingProfile, setBootingProfile] = useState<string | null>(null);
+    const [stoppingEmulators, setStoppingEmulators] = useState<Set<string>>(new Set());
+    const [bootingProfiles, setBootingProfiles] = useState<Set<string>>(new Set());
     const [actionError, setActionError] = useState<string | null>(null);
     const pollRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -115,7 +115,11 @@ export default function EmulatorStatusPanel({ projectId }: EmulatorStatusPanelPr
 
     const handleStop = async (emulatorId: string) => {
         setActionError(null);
-        setStopping(emulatorId);
+        setStoppingEmulators((current) => {
+            const next = new Set(current);
+            next.add(emulatorId);
+            return next;
+        });
         setStatus((current) => {
             if (!current) return current;
             return {
@@ -146,13 +150,21 @@ export default function EmulatorStatusPanel({ projectId }: EmulatorStatusPanelPr
             setActionError(t('emulator.actionFailed'));
             await fetchStatus();
         } finally {
-            setStopping(null);
+            setStoppingEmulators((current) => {
+                const next = new Set(current);
+                next.delete(emulatorId);
+                return next;
+            });
         }
     };
 
     const handleBoot = async (avdName: string) => {
         setActionError(null);
-        setBootingProfile(avdName);
+        setBootingProfiles((current) => {
+            const next = new Set(current);
+            next.add(avdName);
+            return next;
+        });
         try {
             const token = await getAccessToken();
             const headers: HeadersInit = {
@@ -172,7 +184,11 @@ export default function EmulatorStatusPanel({ projectId }: EmulatorStatusPanelPr
             setActionError(t('emulator.actionFailed'));
             await fetchStatus();
         } finally {
-            setBootingProfile(null);
+            setBootingProfiles((current) => {
+                const next = new Set(current);
+                next.delete(avdName);
+                return next;
+            });
         }
     };
 
@@ -227,7 +243,7 @@ export default function EmulatorStatusPanel({ projectId }: EmulatorStatusPanelPr
                     <div className="divide-y divide-gray-100">
                         {status.avdProfiles.map((profile) => {
                             const emulator = runtimeByAvd.get(normalizeAvdName(profile.name));
-                            const isBootingThisProfile = !emulator && bootingProfile === profile.name;
+                            const isBootingThisProfile = !emulator && bootingProfiles.has(profile.name);
                             const displayState = emulator?.state ?? (isBootingThisProfile ? 'BOOTING' : null);
                             return (
                             <div key={profile.name} className="px-4 py-3">
@@ -259,7 +275,7 @@ export default function EmulatorStatusPanel({ projectId }: EmulatorStatusPanelPr
                                                     type="button"
                                                     onClick={() => void handleStop(emulator.id)}
                                                     disabled={
-                                                        stopping === emulator.id
+                                                        stoppingEmulators.has(emulator.id)
                                                         || emulator.state === 'STOPPING'
                                                         || (emulator.state === 'ACQUIRED' && !isEmulatorInUseByCurrentProject(emulator, projectId))
                                                     }
@@ -273,7 +289,7 @@ export default function EmulatorStatusPanel({ projectId }: EmulatorStatusPanelPr
                                             <button
                                                 type="button"
                                                 onClick={() => void handleBoot(profile.name)}
-                                                disabled={bootingProfile === profile.name}
+                                                disabled={bootingProfiles.has(profile.name)}
                                                 className="text-xs px-2 py-1 text-blue-700 border border-blue-200 rounded hover:bg-blue-50 disabled:opacity-50"
                                             >
                                                 {t('emulator.bootWindow')}
