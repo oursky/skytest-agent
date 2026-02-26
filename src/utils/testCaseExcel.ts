@@ -96,12 +96,21 @@ export async function parseTestCaseExcel(content: ArrayBuffer): Promise<ParseRes
     }
 
     const configurationsRows = readSheetRows(workbook, 'Configurations');
+    const browserRows = readSheetRows(workbook, 'Browsers');
+    const androidRows = readSheetRows(workbook, 'Android');
     const stepRows = readSheetRows(workbook, 'Test Steps');
     const parsedConfigurations = parseConfigurationsRows(configurationsRows, warnings);
+    const parsedBrowserTargets = parseBrowserTargetRows(browserRows, warnings);
+    const parsedAndroidTargets = parseAndroidTargetRows(androidRows, warnings);
+    const hasDedicatedTargetSheets = browserRows.length > 0 || androidRows.length > 0;
 
     let parsedTestCase = parsedConfigurations.testCase;
-    let targetEntries = parsedConfigurations.targetEntries;
-    let targetAliases = parsedConfigurations.targetAliases;
+    let targetEntries = hasDedicatedTargetSheets
+        ? [...parsedBrowserTargets.targetEntries, ...parsedAndroidTargets.targetEntries]
+        : parsedConfigurations.targetEntries;
+    let targetAliases = hasDedicatedTargetSheets
+        ? { ...parsedBrowserTargets.targetAliases, ...parsedAndroidTargets.targetAliases }
+        : parsedConfigurations.targetAliases;
     let projectVariables = parsedConfigurations.projectVariables;
     let testCaseVariables = parsedConfigurations.testCaseVariables;
     let files = parsedConfigurations.files;
@@ -138,10 +147,22 @@ export async function parseTestCaseExcel(content: ArrayBuffer): Promise<ParseRes
 function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
     const workbook = new ExcelJS.Workbook();
     const targetEntries = Object.entries(data.browserConfig || {}).map(([id, config]) => ({ id, config }));
+    let browserTargetIndex = 0;
+    let androidTargetIndex = 0;
+    const targetLabelById = new Map<string, string>(
+        targetEntries.map((entry) => {
+            const isAndroid = 'type' in entry.config && entry.config.type === 'android';
+            const label = formatTargetLabel(
+                isAndroid ? androidTargetIndex++ : browserTargetIndex++,
+                isAndroid ? 'android' : 'browser'
+            );
+            return [entry.id, label];
+        })
+    );
     const targetDisplayById = new Map(
         targetEntries.map((entry, index) => [
             entry.id,
-            entry.config.name || formatTargetLabel(index, 'type' in entry.config && entry.config.type === 'android' ? 'android' : 'browser')
+            entry.config.name || targetLabelById.get(entry.id) || formatTargetLabel(index, 'browser')
         ])
     );
 
@@ -175,33 +196,42 @@ function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
         { Section: 'Basic Info', Type: 'Test Case ID', Name: data.testCaseId || '', Value: '' },
         ...projectVariableRows,
         ...testCaseVariableRows,
-        ...targetEntries.map((entry) => {
-            if ('type' in entry.config && entry.config.type === 'android') {
-                const normalizedAndroidTarget = normalizeAndroidTargetConfig(entry.config);
-                const deviceDisplay = formatAndroidDeviceSelectorDisplay(normalizedAndroidTarget.deviceSelector);
-                return {
-                    Section: 'Entry Point',
-                    Type: 'Android',
-                    Name: entry.config.name || '',
-                    Value: entry.config.appId || '',
-                    Device: deviceDisplay.rawValue || '',
-                    'Device Display': deviceDisplay.label || '',
-                    'Device Detail': deviceDisplay.detail || '',
-                    'Clear App Data': entry.config.clearAppState ? 'Yes' : 'No',
-                    'Allow All Permissions': entry.config.allowAllPermissions ? 'Yes' : 'No',
-                };
-            }
-
-            return {
-                Section: 'Entry Point',
-                Type: 'Browser',
-                Name: entry.config.name || '',
-                Value: (entry.config as BrowserConfig).url || '',
-            };
-        }),
     ];
+    const browserTargetRows: Array<Record<string, string>> = targetEntries.flatMap((entry) => {
+        if ('type' in entry.config && entry.config.type === 'android') {
+            return [];
+        }
+        return [{
+            Target: targetLabelById.get(entry.id) || entry.id,
+            Name: entry.config.name || '',
+            URL: (entry.config as BrowserConfig).url || '',
+        }];
+    });
+    const androidTargetRows: Array<Record<string, string>> = targetEntries.flatMap((entry) => {
+        if (!('type' in entry.config && entry.config.type === 'android')) {
+            return [];
+        }
+        const normalizedAndroidTarget = normalizeAndroidTargetConfig(entry.config);
+        const deviceDisplay = formatAndroidDeviceSelectorDisplay(normalizedAndroidTarget.deviceSelector);
+        return [{
+            Target: targetLabelById.get(entry.id) || entry.id,
+            Name: entry.config.name || '',
+            Device: deviceDisplay.rawValue || '',
+            'APP ID': entry.config.appId || '',
+            'Clear App Data': entry.config.clearAppState ? 'Yes' : 'No',
+            'Allow Permissions': entry.config.allowAllPermissions ? 'Yes' : 'No',
+            'Device Details (separate by /)': [deviceDisplay.label, deviceDisplay.detail].filter(Boolean).join(' / '),
+        }];
+    });
 
-    appendRowsAsWorksheet(workbook, 'Configurations', configurationsRows);
+    appendRowsAsWorksheet(workbook, 'Configurations', configurationsRows, ['Section', 'Type', 'Name', 'Value']);
+    appendRowsAsWorksheet(workbook, 'Browsers', browserTargetRows, ['Target', 'Name', 'URL']);
+    appendRowsAsWorksheet(
+        workbook,
+        'Android',
+        androidTargetRows,
+        ['Target', 'Name', 'Device', 'APP ID', 'Clear App Data', 'Allow Permissions', 'Device Details (separate by /)']
+    );
     appendRowsAsWorksheet(workbook, 'Test Steps', stepRows);
 
     return workbook;
@@ -210,21 +240,23 @@ function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
 function appendRowsAsWorksheet(
     workbook: ExcelJS.Workbook,
     name: string,
-    rows: Array<Record<string, string | number>>
+    rows: Array<Record<string, string | number>>,
+    headersOverride?: string[]
 ) {
     const worksheet = workbook.addWorksheet(name);
-    if (rows.length === 0) {
-        return;
-    }
-
-    const headers: string[] = [];
-    const seen = new Set<string>();
-    for (const row of rows) {
-        for (const key of Object.keys(row)) {
-            if (seen.has(key)) continue;
-            seen.add(key);
-            headers.push(key);
+    const headers: string[] = headersOverride ? [...headersOverride] : [];
+    if (!headersOverride) {
+        const seen = new Set<string>();
+        for (const row of rows) {
+            for (const key of Object.keys(row)) {
+                if (seen.has(key)) continue;
+                seen.add(key);
+                headers.push(key);
+            }
         }
+    }
+    if (headers.length === 0) {
+        return;
     }
     worksheet.addRow(headers);
     for (const row of rows) {
@@ -315,7 +347,15 @@ function parseConfigurationsRows(
             return;
         }
 
-        if (section === 'entrypoint' || section === 'entrypoints' || section === 'browserentrypoint' || section === 'browserentrypoints' || section === 'browser') {
+        if (
+            section === 'entrypoint'
+            || section === 'entrypoints'
+            || section === 'browserentrypoint'
+            || section === 'browserentrypoints'
+            || section === 'browser'
+            || section === 'testingtarget'
+            || section === 'testingtargets'
+        ) {
             const type = normalizeHeader(getRowValue(row, ['type']) || '');
             if (type === 'browser') {
                 const name = getRowValue(row, ['name', 'key']) || '';
@@ -359,7 +399,6 @@ function parseConfigurationsRows(
                 }
                 return;
             }
-
             return;
         }
 
@@ -391,6 +430,146 @@ function parseConfigurationsRows(
         targetAliases,
         files,
     };
+}
+
+function parseBrowserTargetRows(
+    rows: Array<Record<string, unknown>>,
+    warnings: string[]
+): {
+    targetEntries: ExcelTargetEntry[];
+    targetAliases: Record<string, string>;
+} {
+    const targetEntries: ExcelTargetEntry[] = [];
+    const targetAliases: Record<string, string> = {};
+
+    rows.forEach((row, index) => {
+        const url = getRowValue(row, ['url', 'value']);
+        const name = getRowValue(row, ['name', 'key']) || '';
+        const rawTarget = getRowValue(row, ['target']);
+        if (!url) {
+            warnings.push(`Missing URL in Browsers row ${index + 1}`);
+            return;
+        }
+
+        const targetIndex = targetEntries.length;
+        const id = `browser_${String.fromCharCode('a'.charCodeAt(0) + targetIndex)}`;
+        targetEntries.push({ id, config: { name: name || undefined, url } });
+
+        addTargetAlias(targetAliases, formatTargetLabel(targetIndex, 'browser'), id);
+        addTargetAlias(targetAliases, rawTarget, id);
+        addTargetAlias(targetAliases, name, id);
+    });
+
+    return { targetEntries, targetAliases };
+}
+
+function parseAndroidTargetRows(
+    rows: Array<Record<string, unknown>>,
+    warnings: string[]
+): {
+    targetEntries: ExcelTargetEntry[];
+    targetAliases: Record<string, string>;
+} {
+    const targetEntries: ExcelTargetEntry[] = [];
+    const targetAliases: Record<string, string> = {};
+
+    rows.forEach((row, index) => {
+        const rawTarget = getRowValue(row, ['target']);
+        const name = getRowValue(row, ['name', 'key']) || '';
+        const rawDeviceValue = getRowValue(row, ['device', 'emulator', 'avd', 'avdname']) || '';
+        const rawDeviceDetails = getRowValue(row, ['device details (separate by /)', 'device details', 'device detail']);
+        const appId = getRowValue(row, ['app id', 'appid', 'value']) || '';
+
+        if (!rawTarget && !name && !rawDeviceValue && !rawDeviceDetails && !appId) {
+            return;
+        }
+
+        const targetIndex = targetEntries.length;
+        const id = `android_${String.fromCharCode('a'.charCodeAt(0) + targetIndex)}`;
+        targetEntries.push({
+            id,
+            config: {
+                type: 'android',
+                name: name || undefined,
+                deviceSelector: parseAndroidDeviceSelectorForSheet(rawDeviceValue, rawDeviceDetails),
+                appId,
+                clearAppState: parseBooleanCell(getRowValue(row, ['clearappdata', 'clear app data']), true),
+                allowAllPermissions: parseBooleanCell(getRowValue(row, ['allowpermissions', 'allow permissions', 'allowallpermissions', 'allow all permissions']), true),
+            }
+        });
+
+        addTargetAlias(targetAliases, formatTargetLabel(targetIndex, 'android'), id);
+        addTargetAlias(targetAliases, rawTarget, id);
+        addTargetAlias(targetAliases, name, id);
+    });
+
+    return { targetEntries, targetAliases };
+}
+
+function addTargetAlias(targetAliases: Record<string, string>, alias: string | undefined, targetId: string) {
+    if (!alias) return;
+    const normalized = normalizeHeader(alias);
+    if (!normalized) return;
+    targetAliases[normalized] = targetId;
+}
+
+function parseAndroidDeviceSelectorForSheet(rawDeviceValue?: string, rawDeviceDetails?: string) {
+    const detailHint = normalizeAndroidDeviceDetailHint(rawDeviceDetails);
+    if (rawDeviceValue) {
+        const trimmed = rawDeviceValue.trim();
+        if (trimmed.toLowerCase().startsWith('serial:')) {
+            return {
+                mode: 'connected-device' as const,
+                serial: trimmed.slice('serial:'.length).trim(),
+            };
+        }
+        if (detailHint === 'connected-device') {
+            return {
+                mode: 'connected-device' as const,
+                serial: trimmed,
+            };
+        }
+        return {
+            mode: 'emulator-profile' as const,
+            emulatorProfileName: trimmed,
+        };
+    }
+
+    const [deviceLabel = ''] = (rawDeviceDetails || '')
+        .split('/')
+        .map((part) => part.trim())
+        .filter((part) => part.length > 0);
+    if (deviceLabel) {
+        if (detailHint === 'connected-device') {
+            return {
+                mode: 'connected-device' as const,
+                serial: deviceLabel.replace(/^serial:/i, '').trim(),
+            };
+        }
+        if (deviceLabel.toLowerCase().startsWith('serial:')) {
+            return {
+                mode: 'connected-device' as const,
+                serial: deviceLabel.slice('serial:'.length).trim(),
+            };
+        }
+        return {
+            mode: 'emulator-profile' as const,
+            emulatorProfileName: deviceLabel,
+        };
+    }
+
+    return {
+        mode: 'emulator-profile' as const,
+        emulatorProfileName: '',
+    };
+}
+
+function normalizeAndroidDeviceDetailHint(value?: string): 'connected-device' | 'emulator-profile' | null {
+    if (!value) return null;
+    const normalized = normalizeHeader(value);
+    if (normalized.includes('connecteddevice')) return 'connected-device';
+    if (normalized.includes('emulatorprofile')) return 'emulator-profile';
+    return null;
 }
 
 function readSheetRows(workbook: ExcelJS.Workbook, expectedName: string): Array<Record<string, unknown>> {
