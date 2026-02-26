@@ -334,8 +334,8 @@ export const MESSAGES: Record<Locale, Messages> = {
     // Devices
     'device.panel.title': 'Device Pool',
     'device.panel.empty': 'No devices available.',
-    'device.section.connected': 'Connected Devices',
-    'device.section.profiles': 'Emulator Profiles',
+    'device.section.connected': 'Physical Devices',
+    'device.section.profiles': 'Emulators',
     'device.bootWindow': 'Boot (window)',
     'device.stop': 'Stop',
     'device.inUseCurrentProject': 'In Use (This Project)',
@@ -747,8 +747,8 @@ export const MESSAGES: Record<Locale, Messages> = {
     // Devices
     'device.panel.title': '裝置池',
     'device.panel.empty': '目前沒有可用裝置。',
-    'device.section.connected': '已連線裝置',
-    'device.section.profiles': '模擬器設定檔',
+    'device.section.connected': '實體裝置',
+    'device.section.profiles': '模擬器',
     'device.bootWindow': '啟動（有視窗）',
     'device.stop': '停止',
     'device.inUseCurrentProject': '使用中（此專案）',
@@ -1160,8 +1160,8 @@ export const MESSAGES: Record<Locale, Messages> = {
     // Devices
     'device.panel.title': '设备池',
     'device.panel.empty': '当前没有可用设备。',
-    'device.section.connected': '已连接设备',
-    'device.section.profiles': '模拟器配置',
+    'device.section.connected': '实体设备',
+    'device.section.profiles': '模拟器',
     'device.bootWindow': '启动（有窗口）',
     'device.stop': '停止',
     'device.inUseCurrentProject': '使用中（当前项目）',

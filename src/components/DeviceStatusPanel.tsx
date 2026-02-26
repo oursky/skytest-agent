@@ -30,6 +30,13 @@ const DEVICE_STATE_PRIORITY: Record<AndroidDevicePoolStatusItem['state'], number
     DEAD: 6,
 };
 
+const ADB_STATE_PRIORITY: Record<ConnectedAndroidDeviceInfo['adbState'], number> = {
+    device: 0,
+    unauthorized: 1,
+    offline: 2,
+    unknown: 3,
+};
+
 function normalizeName(name: string): string {
     return name.trim().toLowerCase();
 }
@@ -51,20 +58,38 @@ function buildConnectedDeviceTitle(device: ConnectedAndroidDeviceInfo): string {
     return formatAndroidDeviceDisplayName(device);
 }
 
-function buildDeviceDetail(device: ConnectedAndroidDeviceInfo): string {
-    const versionParts: string[] = [];
-    if (device.androidVersion) {
-        versionParts.push(`Android ${device.androidVersion}`);
-    }
-    if (device.apiLevel !== null) {
-        versionParts.push(`API ${device.apiLevel}`);
-    }
-
-    const versionLabel = versionParts.join(', ');
-    return versionLabel ? `${device.serial} • ${versionLabel}` : device.serial;
+function joinDeviceDetail(parts: Array<string | null | undefined>): string {
+    return parts.filter((part): part is string => Boolean(part && part.trim())).join(', ');
 }
 
-function getConnectedDeviceBadgeKey(
+function buildVersionDetail(androidVersion: string | null, apiLevel: number | null): string {
+    return joinDeviceDetail([
+        androidVersion ? `Android ${androidVersion}` : null,
+        apiLevel !== null ? `API ${apiLevel}` : null,
+    ]);
+}
+
+function buildConnectedDeviceDetail(device: ConnectedAndroidDeviceInfo): string {
+    return joinDeviceDetail([
+        device.serial,
+        buildVersionDetail(device.androidVersion, device.apiLevel),
+    ]) || device.serial;
+}
+
+function getInventoryOnlyBadgeKey(connected: ConnectedAndroidDeviceInfo): string {
+    if (connected.adbState === 'device') return 'device.state.idle';
+    if (connected.adbState === 'unauthorized') return 'device.adb.unauthorized';
+    if (connected.adbState === 'offline') return 'device.adb.offline';
+    return 'device.adb.unknown';
+}
+
+function getInventoryOnlyBadgeColor(connected: ConnectedAndroidDeviceInfo): string {
+    if (connected.adbState === 'device') return DEVICE_STATE_COLORS.IDLE;
+    if (connected.adbState === 'unauthorized') return 'bg-amber-100 text-amber-700';
+    return 'bg-gray-100 text-gray-600';
+}
+
+function getDeviceBadgeKey(
     connected: ConnectedAndroidDeviceInfo,
     runtime: AndroidDevicePoolStatusItem | undefined,
     projectId: string
@@ -78,10 +103,7 @@ function getConnectedDeviceBadgeKey(
         return DEVICE_STATE_LABEL_KEYS[runtime.state];
     }
 
-    if (connected.adbState === 'device') return 'device.connected';
-    if (connected.adbState === 'unauthorized') return 'device.adb.unauthorized';
-    if (connected.adbState === 'offline') return 'device.adb.offline';
-    return 'device.adb.unknown';
+    return getInventoryOnlyBadgeKey(connected);
 }
 
 interface DeviceStatusPanelProps {
@@ -234,6 +256,9 @@ export default function DeviceStatusPanel({ projectId }: DeviceStatusPanelProps)
 
     const connectedRuntimeBySerial = new Map<string, AndroidDevicePoolStatusItem>();
     const runtimeByEmulatorProfile = new Map<string, AndroidDevicePoolStatusItem>();
+    const connectedPhysicalDevices: ConnectedAndroidDeviceInfo[] = [];
+    const connectedEmulatorsBySerial = new Map<string, ConnectedAndroidDeviceInfo>();
+    const connectedEmulatorsByProfile = new Map<string, ConnectedAndroidDeviceInfo>();
     if (status) {
         for (const device of status.devices) {
             connectedRuntimeBySerial.set(device.serial, device);
@@ -245,7 +270,106 @@ export default function DeviceStatusPanel({ projectId }: DeviceStatusPanelProps)
                 }
             }
         }
+
+        for (const connected of status.connectedDevices) {
+            if (connected.kind === 'physical') {
+                connectedPhysicalDevices.push(connected);
+                continue;
+            }
+
+            connectedEmulatorsBySerial.set(connected.serial, connected);
+            if (!connected.emulatorProfileName) {
+                continue;
+            }
+
+            const normalizedProfileName = normalizeName(connected.emulatorProfileName);
+            const existing = connectedEmulatorsByProfile.get(normalizedProfileName);
+            if (!existing || ADB_STATE_PRIORITY[connected.adbState] < ADB_STATE_PRIORITY[existing.adbState]) {
+                connectedEmulatorsByProfile.set(normalizedProfileName, connected);
+            }
+        }
     }
+
+    const emulatorRows: Array<{
+        key: string;
+        title: string;
+        detail: string;
+        runtime?: AndroidDevicePoolStatusItem;
+        connected?: ConnectedAndroidDeviceInfo;
+        profileName?: string;
+        canBoot: boolean;
+    }> = [];
+
+    if (status) {
+        const usedConnectedEmulatorSerials = new Set<string>();
+        const usedRuntimeIds = new Set<string>();
+
+        for (const profile of status.emulatorProfiles) {
+            const runtime = runtimeByEmulatorProfile.get(normalizeName(profile.name));
+            if (runtime) {
+                usedRuntimeIds.add(runtime.id);
+            }
+
+            const connected = runtime
+                ? connectedEmulatorsBySerial.get(runtime.serial)
+                : connectedEmulatorsByProfile.get(normalizeName(profile.name));
+            if (connected) {
+                usedConnectedEmulatorSerials.add(connected.serial);
+            }
+
+            const detail = joinDeviceDetail([
+                connected?.serial ?? runtime?.serial,
+                buildVersionDetail(connected?.androidVersion ?? null, connected?.apiLevel ?? profile.apiLevel),
+            ]) || profile.name;
+
+            emulatorRows.push({
+                key: `profile:${profile.name}`,
+                title: profile.displayName || profile.name,
+                detail,
+                runtime,
+                connected,
+                profileName: profile.name,
+                canBoot: !runtime && !connected,
+            });
+        }
+
+        for (const connected of status.connectedDevices) {
+            if (connected.kind !== 'emulator' || usedConnectedEmulatorSerials.has(connected.serial)) {
+                continue;
+            }
+
+            const runtime = connectedRuntimeBySerial.get(connected.serial);
+            if (runtime) {
+                usedRuntimeIds.add(runtime.id);
+            }
+
+            emulatorRows.push({
+                key: `connected-emulator:${connected.serial}`,
+                title: buildConnectedDeviceTitle(connected),
+                detail: buildConnectedDeviceDetail(connected),
+                runtime,
+                connected,
+                canBoot: false,
+            });
+        }
+
+        for (const runtime of status.devices) {
+            if (runtime.kind !== 'emulator' || usedRuntimeIds.has(runtime.id)) {
+                continue;
+            }
+
+            emulatorRows.push({
+                key: `runtime-emulator:${runtime.id}`,
+                title: runtime.emulatorProfileName ?? runtime.id,
+                detail: runtime.serial,
+                runtime,
+                canBoot: false,
+            });
+        }
+    }
+
+    const showPhysicalSection = connectedPhysicalDevices.length > 0;
+    const showEmulatorSection = Boolean(status && emulatorRows.length > 0);
 
     return (
         <div className="space-y-3">
@@ -284,21 +408,17 @@ export default function DeviceStatusPanel({ projectId }: DeviceStatusPanelProps)
                     </div>
                 ) : (
                     <div className="divide-y divide-gray-100">
-                        {status.connectedDevices.length > 0 && (
+                        {showPhysicalSection && (
                             <div className="px-4 py-2 bg-gray-50 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
                                 {t('device.section.connected')}
                             </div>
                         )}
-                        {status.connectedDevices.map((connected) => {
+                        {connectedPhysicalDevices.map((connected) => {
                             const runtime = connectedRuntimeBySerial.get(connected.serial);
-                            const badgeKey = getConnectedDeviceBadgeKey(connected, runtime, projectId);
+                            const badgeKey = getDeviceBadgeKey(connected, runtime, projectId);
                             const badgeColor = runtime
                                 ? DEVICE_STATE_COLORS[runtime.state]
-                                : connected.adbState === 'device'
-                                    ? 'bg-green-100 text-green-700'
-                                    : connected.adbState === 'unauthorized'
-                                        ? 'bg-amber-100 text-amber-700'
-                                        : 'bg-gray-100 text-gray-600';
+                                : getInventoryOnlyBadgeColor(connected);
                             return (
                                 <div key={connected.serial} className="px-4 py-3">
                                     <div className="flex items-center justify-between gap-4">
@@ -307,27 +427,13 @@ export default function DeviceStatusPanel({ projectId }: DeviceStatusPanelProps)
                                                 {buildConnectedDeviceTitle(connected)}
                                             </div>
                                             <div className="text-xs text-gray-400 font-mono truncate">
-                                                {buildDeviceDetail(connected)}
+                                                {buildConnectedDeviceDetail(connected)}
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-3 shrink-0">
                                             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badgeColor}`}>
                                                 {t(badgeKey)}
                                             </span>
-                                            {runtime?.kind === 'emulator' && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => void handleStop(runtime.id)}
-                                                    disabled={
-                                                        stoppingDevices.has(runtime.id)
-                                                        || runtime.state === 'STOPPING'
-                                                        || (runtime.state === 'ACQUIRED' && !isDeviceInUseByCurrentProject(runtime, projectId))
-                                                    }
-                                                    className="text-xs px-2 py-1 text-red-600 border border-red-200 rounded hover:bg-red-50 disabled:opacity-50"
-                                                >
-                                                    {t('device.stop')}
-                                                </button>
-                                            )}
                                         </div>
                                     </div>
                                     {runtime?.state === 'ACQUIRED'
@@ -345,36 +451,45 @@ export default function DeviceStatusPanel({ projectId }: DeviceStatusPanelProps)
                                 </div>
                             );
                         })}
-                        {status.emulatorProfiles.length > 0 && (
+                        {showEmulatorSection && (
                             <div className="px-4 py-2 bg-gray-50 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
                                 {t('device.section.profiles')}
                             </div>
                         )}
-                        {status.emulatorProfiles.map((profile) => {
-                            const emulator = runtimeByEmulatorProfile.get(normalizeName(profile.name));
-                            const isBootingThisProfile = !emulator && bootingProfiles.has(profile.name);
-                            const displayState = emulator?.state ?? (isBootingThisProfile ? 'BOOTING' : null);
+                        {emulatorRows.map((row) => {
+                            const emulator = row.runtime;
+                            const bootProfileName = row.profileName;
+                            const isBootingThisProfile = !emulator && Boolean(row.profileName && bootingProfiles.has(row.profileName));
+                            const badgeKey = emulator
+                                ? emulator.state === 'ACQUIRED'
+                                    ? (isDeviceInUseByCurrentProject(emulator, projectId)
+                                        ? 'device.inUseCurrentProject'
+                                        : 'device.inUseOtherProject')
+                                    : DEVICE_STATE_LABEL_KEYS[emulator.state]
+                                : row.connected
+                                    ? (isBootingThisProfile ? 'device.state.booting' : getInventoryOnlyBadgeKey(row.connected))
+                                    : isBootingThisProfile
+                                        ? 'device.state.booting'
+                                        : 'device.notRunning';
+                            const badgeColor = emulator
+                                ? DEVICE_STATE_COLORS[emulator.state]
+                                : row.connected
+                                    ? getInventoryOnlyBadgeColor(row.connected)
+                                    : isBootingThisProfile
+                                        ? DEVICE_STATE_COLORS.BOOTING
+                                        : 'bg-gray-100 text-gray-600';
                             return (
-                            <div key={profile.name} className="px-4 py-3">
+                            <div key={row.key} className="px-4 py-3">
                                 <div className="flex items-center justify-between gap-4">
                                     <div className="flex items-center gap-3 min-w-0">
                                         <div className="min-w-0">
-                                            <div className="text-sm font-medium text-gray-900 truncate">{profile.displayName || profile.name}</div>
-                                            <div className="text-xs text-gray-400 font-mono">
-                                                {profile.apiLevel !== null ? `API ${profile.apiLevel}` : profile.name}
-                                                {emulator ? ` • ${emulator.id}` : ''}
-                                            </div>
+                                            <div className="text-sm font-medium text-gray-900 truncate">{row.title}</div>
+                                            <div className="text-xs text-gray-400 font-mono truncate">{row.detail}</div>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-3 shrink-0">
-                                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${displayState ? DEVICE_STATE_COLORS[displayState] : 'bg-gray-100 text-gray-600'}`}>
-                                            {displayState
-                                                ? displayState === 'ACQUIRED'
-                                                    ? t(emulator && isDeviceInUseByCurrentProject(emulator, projectId)
-                                                        ? 'device.inUseCurrentProject'
-                                                        : 'device.inUseOtherProject')
-                                                    : t(DEVICE_STATE_LABEL_KEYS[displayState])
-                                                : t('device.notRunning')}
+                                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badgeColor}`}>
+                                            {t(badgeKey)}
                                         </span>
                                         {emulator && (
                                             <>
@@ -395,11 +510,11 @@ export default function DeviceStatusPanel({ projectId }: DeviceStatusPanelProps)
                                                 </button>
                                             </>
                                         )}
-                                        {!emulator && (
+                                        {!emulator && row.canBoot && bootProfileName && (
                                             <button
                                                 type="button"
-                                                onClick={() => void handleBoot(profile.name)}
-                                                disabled={bootingProfiles.has(profile.name)}
+                                                onClick={() => void handleBoot(bootProfileName)}
+                                                disabled={bootingProfiles.has(bootProfileName)}
                                                 className="text-xs px-2 py-1 text-blue-700 border border-blue-200 rounded hover:bg-blue-50 disabled:opacity-50"
                                             >
                                                 {t('device.bootWindow')}
