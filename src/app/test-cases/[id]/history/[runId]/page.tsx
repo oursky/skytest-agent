@@ -118,7 +118,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                 const run = await response.json();
                 setTestRun(run);
             } else {
-                const historyResponse = await fetch(`/api/test-cases/${id}/history?limit=100`, { headers });
+                const historyResponse = await fetch(`/api/test-cases/${id}/history?limit=100&includePayload=1`, { headers });
                 if (historyResponse.ok) {
                     const result = await historyResponse.json();
                     const runs = result.data || result;
