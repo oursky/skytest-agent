@@ -73,7 +73,10 @@ interface MidsceneAndroidDevice {
 }
 
 interface MidsceneAndroidDeviceConstructor {
-    new (udid: string): MidsceneAndroidDevice;
+    new (
+        udid: string,
+        options?: { imeStrategy?: 'always-yadb' | 'yadb-for-non-ascii' }
+    ): MidsceneAndroidDevice;
 }
 
 interface MidsceneAndroidAgentConstructor {
@@ -456,7 +459,9 @@ export class AndroidDeviceManager {
     private async attachAndroidRuntime(instance: PhysicalLeaseInstance, projectId: string): Promise<void> {
         try {
             const runtimeModule = await import('@midscene/android') as unknown as MidsceneAndroidRuntimeModule;
-            const runtimeDevice = new runtimeModule.AndroidDevice(instance.serial);
+            const runtimeDevice = new runtimeModule.AndroidDevice(instance.serial, {
+                imeStrategy: 'always-yadb',
+            });
             await runtimeDevice.connect();
 
             instance.device = {
