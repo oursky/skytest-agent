@@ -349,7 +349,11 @@ export default function DeviceStatusPanel({ projectId }: DeviceStatusPanelProps)
                 continue;
             }
 
-            if (connected.adbState === 'offline' && !connected.emulatorProfileName) {
+            if (!connected.emulatorProfileName) {
+                continue;
+            }
+
+            if (connected.adbState === 'offline') {
                 continue;
             }
 

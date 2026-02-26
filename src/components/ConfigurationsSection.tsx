@@ -378,6 +378,9 @@ export default function ConfigurationsSection({
                     if (connected.kind !== 'emulator' || usedConnectedEmulatorSerials.has(connected.serial)) {
                         continue;
                     }
+                    if (!connected.emulatorProfileName) {
+                        continue;
+                    }
                     const runtime = runtimeBySerial.get(connected.serial);
                     if (runtime) {
                         usedRuntimeIds.add(runtime.id);
