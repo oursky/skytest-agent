@@ -100,6 +100,11 @@ export default function ProjectsPage() {
         }
     };
 
+    const closeEditModal = () => {
+        setEditModal({ isOpen: false, projectId: "", currentName: "" });
+        setEditName("");
+    };
+
     if (isAuthLoading || isLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
@@ -125,10 +130,7 @@ export default function ProjectsPage() {
 
             <Modal
                 isOpen={editModal.isOpen}
-                onClose={() => {
-                    setEditModal({ isOpen: false, projectId: "", currentName: "" });
-                    setEditName("");
-                }}
+                onClose={closeEditModal}
                 title={t('projects.editProject.title')}
                 onConfirm={handleEditProject}
                 confirmText={t('projects.editProject.save')}
@@ -141,6 +143,13 @@ export default function ProjectsPage() {
                         type="text"
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                e.preventDefault();
+                                void handleEditProject();
+                                closeEditModal();
+                            }
+                        }}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50"
                         placeholder={t('projects.enterProjectName')}
                         autoFocus
