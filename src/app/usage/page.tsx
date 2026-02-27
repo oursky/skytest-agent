@@ -67,6 +67,7 @@ export default function UsagePage() {
     const [newKeyName, setNewKeyName] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [generatedKey, setGeneratedKey] = useState<string | null>(null);
+    const [isGeneratedKeyCopied, setIsGeneratedKeyCopied] = useState(false);
     const [isRevokeModalOpen, setIsRevokeModalOpen] = useState(false);
     const [keyToRevoke, setKeyToRevoke] = useState<AgentApiKey | null>(null);
 
@@ -114,11 +115,24 @@ export default function UsagePage() {
             if (res.ok) {
                 const data = await res.json();
                 setGeneratedKey(data.key);
+                setIsGeneratedKeyCopied(false);
                 setNewKeyName('');
                 await fetchAgentKeys();
             }
         } finally {
             setIsGenerating(false);
+        }
+    };
+
+    const handleCopyGeneratedKey = async () => {
+        if (!generatedKey) return;
+
+        try {
+            await navigator.clipboard.writeText(generatedKey);
+            setIsGeneratedKeyCopied(true);
+            window.setTimeout(() => setIsGeneratedKeyCopied(false), 1500);
+        } catch (error) {
+            console.error('Failed to copy generated key', error);
         }
     };
 
@@ -337,21 +351,25 @@ export default function UsagePage() {
                     <p className="text-sm text-gray-500 mb-4">{t('usage.agentKeys.description')}</p>
 
                     {generatedKey && (
-                        <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <div className="relative mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <button
+                                onClick={() => { setGeneratedKey(null); setIsGeneratedKeyCopied(false); }}
+                                aria-label={t('common.hide')}
+                                className="absolute top-2 right-2 h-6 w-6 flex items-center justify-center text-sm text-yellow-700 hover:text-yellow-900"
+                            >
+                                X
+                            </button>
                             <p className="text-sm font-medium text-yellow-800 mb-1">{t('usage.agentKeys.created.title')}</p>
                             <p className="text-xs text-yellow-700 mb-2">{t('usage.agentKeys.created.warning')}</p>
                             <div className="flex items-center gap-2">
                                 <code className="flex-1 text-xs text-gray-800 bg-white border border-yellow-300 px-3 py-2 rounded break-all">{generatedKey}</code>
                                 <button
-                                    onClick={() => { navigator.clipboard.writeText(generatedKey); }}
+                                    onClick={handleCopyGeneratedKey}
                                     className="shrink-0 px-3 py-2 text-xs bg-yellow-600 text-white rounded hover:bg-yellow-700"
                                 >
-                                    {t('common.copy')}
+                                    {isGeneratedKeyCopied ? t('usage.agentKeys.created.copied') : t('common.copy')}
                                 </button>
                             </div>
-                            <button onClick={() => setGeneratedKey(null)} className="mt-2 text-xs text-yellow-700 hover:text-yellow-900 underline">
-                                {t('common.hide')}
-                            </button>
                         </div>
                     )}
 

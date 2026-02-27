@@ -178,7 +178,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'runDetail.breadcrumb.runPrefix': 'Run - {time}',
 
     // Usage page
-    'usage.apiKey.title': 'API Key',
+    'usage.apiKey.title': 'OpenRouter API Key',
     'usage.apiKey.descPrefix': 'Enter your OpenRouter API Key here. Visit',
     'usage.apiKey.descSuffix': 'to get a key.',
     'usage.apiKey.remove': 'Remove',
@@ -208,6 +208,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'usage.agentKeys.revokeConfirm.confirm': 'Revoke',
     'usage.agentKeys.created.title': 'API Key Created',
     'usage.agentKeys.created.warning': 'Copy this key now. It will not be shown again.',
+    'usage.agentKeys.created.copied': 'Copied',
     'usage.agentKeys.noKeys': 'No agent API keys yet.',
     'usage.history.title': 'Usage History',
     'usage.table.dateTime': 'Date Time',
@@ -618,7 +619,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'runDetail.breadcrumb.runPrefix': '執行 - {time}',
 
     // Usage page
-    'usage.apiKey.title': 'API Key',
+    'usage.apiKey.title': 'OpenRouter API Key',
     'usage.apiKey.descPrefix': '在此輸入你的 OpenRouter API Key。前往',
     'usage.apiKey.descSuffix': '取得 API Key。',
     'usage.apiKey.remove': '移除',
@@ -648,6 +649,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'usage.agentKeys.revokeConfirm.confirm': '撤銷',
     'usage.agentKeys.created.title': 'API Key 已建立',
     'usage.agentKeys.created.warning': '請立即複製此 Key，之後將不再顯示。',
+    'usage.agentKeys.created.copied': '已複製',
     'usage.agentKeys.noKeys': '尚無代理 API Key。',
     'usage.history.title': '使用量紀錄',
     'usage.table.dateTime': '日期時間',
@@ -1058,7 +1060,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'runDetail.breadcrumb.runPrefix': '运行 - {time}',
 
     // Usage page
-    'usage.apiKey.title': 'API Key',
+    'usage.apiKey.title': 'OpenRouter API Key',
     'usage.apiKey.descPrefix': '在此输入你的 OpenRouter API Key。访问',
     'usage.apiKey.descSuffix': '获取 API Key。',
     'usage.apiKey.remove': '移除',
@@ -1088,6 +1090,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'usage.agentKeys.revokeConfirm.confirm': '撤销',
     'usage.agentKeys.created.title': 'API Key 已创建',
     'usage.agentKeys.created.warning': '请立即复制此 Key，之后将不再显示。',
+    'usage.agentKeys.created.copied': '已复制',
     'usage.agentKeys.noKeys': '暂无代理 API Key。',
     'usage.history.title': '用量记录',
     'usage.table.dateTime': '日期时间',
