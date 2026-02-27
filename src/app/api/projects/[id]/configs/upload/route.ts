@@ -4,6 +4,7 @@ import { verifyAuth } from '@/lib/auth';
 import { validateAndSanitizeFile, getProjectConfigUploadPath } from '@/lib/file-security';
 import { validateConfigName, normalizeConfigName } from '@/lib/config-validation';
 import { createLogger } from '@/lib/logger';
+import { normalizeConfigGroup } from '@/lib/config-sort';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -37,6 +38,7 @@ export async function POST(
         const formData = await request.formData();
         const file = formData.get('file') as File | null;
         const name = formData.get('name') as string | null;
+        const group = formData.get('group') as string | null;
 
         if (!file) {
             return NextResponse.json({ error: 'No file provided' }, { status: 400 });
@@ -52,6 +54,7 @@ export async function POST(
         }
 
         const normalizedName = normalizeConfigName(name);
+        const normalizedGroup = normalizeConfigGroup(group);
 
         const validation = validateAndSanitizeFile(file.name, file.type, file.size);
         if (!validation.valid) {
@@ -72,6 +75,8 @@ export async function POST(
                 name: normalizedName,
                 type: 'FILE',
                 value: storedName,
+                masked: false,
+                group: normalizedGroup || null,
                 filename: validation.sanitizedFilename!,
                 mimeType: file.type,
                 size: file.size,

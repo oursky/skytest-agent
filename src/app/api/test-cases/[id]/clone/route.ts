@@ -165,6 +165,8 @@ export async function POST(
                         name: testCaseConfig.name,
                         type: testCaseConfig.type,
                         value: testCaseConfig.value,
+                        masked: testCaseConfig.masked,
+                        group: testCaseConfig.group,
                         filename: testCaseConfig.filename,
                         mimeType: testCaseConfig.mimeType,
                         size: testCaseConfig.size,

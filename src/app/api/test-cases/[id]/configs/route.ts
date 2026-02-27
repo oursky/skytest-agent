@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { verifyAuth } from '@/lib/auth';
 import { validateConfigName, validateConfigType, normalizeConfigName } from '@/lib/config-validation';
 import { createLogger } from '@/lib/logger';
+import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } from '@/lib/config-sort';
 
 const logger = createLogger('api:test-cases:configs');
 
@@ -16,7 +17,6 @@ export async function GET(
     }
 
     try {
-        const includeSecretValues = new URL(request.url).searchParams.get('includeSecretValues') === 'true';
         const { id } = await params;
 
         const testCase = await prisma.testCase.findUnique({
@@ -33,20 +33,17 @@ export async function GET(
         }
 
         const configs = await prisma.testCaseConfig.findMany({
-            where: { testCaseId: id },
+            where: {
+                testCaseId: id,
+                type: {
+                    in: ['URL', 'APP_ID', 'VARIABLE', 'RANDOM_STRING', 'FILE']
+                }
+            },
             orderBy: { createdAt: 'asc' }
         });
 
-        if (includeSecretValues) {
-            return NextResponse.json(configs);
-        }
-
-        const masked = configs.map(c => ({
-            ...c,
-            value: c.type === 'SECRET' ? '' : c.value
-        }));
-
-        return NextResponse.json(masked);
+        const sorted = [...configs].sort(compareByGroupThenName);
+        return NextResponse.json(sorted);
     } catch (error) {
         logger.error('Failed to fetch test case configs', error);
         return NextResponse.json({ error: 'Failed to fetch configs' }, { status: 500 });
@@ -78,8 +75,16 @@ export async function POST(
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const body = await request.json();
-        const { name: rawName, type, value } = body;
+        const body = await request.json() as {
+            name?: string;
+            type?: string;
+            value?: string;
+            masked?: boolean;
+            group?: string | null;
+        };
+        const rawName = body.name ?? '';
+        const type = body.type ?? '';
+        const { value, masked, group } = body;
 
         const nameError = validateConfigName(rawName);
         if (nameError) {
@@ -96,12 +101,18 @@ export async function POST(
             return NextResponse.json({ error: 'Value is required' }, { status: 400 });
         }
 
+        const normalizedGroup = normalizeConfigGroup(group);
+        const normalizedMasked = type === 'VARIABLE' ? masked === true : false;
+        const normalizedValue = typeof value === 'string' ? value : (value === undefined || value === null ? '' : String(value));
+
         const config = await prisma.testCaseConfig.create({
             data: {
                 testCaseId: id,
                 name,
                 type,
-                value: value || '',
+                value: normalizedValue,
+                masked: normalizedMasked,
+                group: isGroupableConfigType(type) ? (normalizedGroup || null) : null,
             }
         });
 

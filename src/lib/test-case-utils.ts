@@ -1,4 +1,5 @@
 import type { TestStep, BrowserConfig, TargetConfig } from '@/types';
+import { normalizeBrowserConfig } from '@/lib/browser-target';
 
 interface TestCaseWithJsonFields {
     steps?: string | null;
@@ -12,9 +13,21 @@ type ParsedTestCase<T extends TestCaseWithJsonFields> = Omit<T, 'steps' | 'brows
 
 export function parseTestCaseJson<T extends TestCaseWithJsonFields>(testCase: T): ParsedTestCase<T> {
     const { steps, browserConfig, ...rest } = testCase;
+    const parsedBrowserConfig = browserConfig ? JSON.parse(browserConfig) as Record<string, BrowserConfig | TargetConfig> : undefined;
+    const normalizedBrowserConfig = parsedBrowserConfig
+        ? Object.fromEntries(
+            Object.entries(parsedBrowserConfig).map(([targetId, targetConfig]) => {
+                if ('type' in targetConfig && targetConfig.type === 'android') {
+                    return [targetId, targetConfig];
+                }
+                return [targetId, normalizeBrowserConfig(targetConfig as BrowserConfig)];
+            })
+        )
+        : undefined;
+
     return {
         ...rest,
         steps: steps ? JSON.parse(steps) : undefined,
-        browserConfig: browserConfig ? JSON.parse(browserConfig) : undefined,
+        browserConfig: normalizedBrowserConfig,
     } as ParsedTestCase<T>;
 }

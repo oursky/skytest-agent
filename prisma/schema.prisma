@@ -116,8 +116,10 @@ model ProjectConfig {
   projectId String
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name      String
-  type      String   // URL | VARIABLE | SECRET | FILE
+  type      String   // URL | APP_ID | VARIABLE | RANDOM_STRING | FILE
   value     String
+  masked    Boolean  @default(false)
+  group     String?
   filename  String?
   mimeType  String?
   size      Int?
@@ -133,8 +135,10 @@ model TestCaseConfig {
   testCaseId String
   testCase   TestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
   name       String
-  type       String   // URL | VARIABLE | SECRET | FILE
+  type       String   // URL | APP_ID | VARIABLE | RANDOM_STRING | FILE
   value      String
+  masked     Boolean  @default(false)
+  group      String?
   filename   String?
   mimeType   String?
   size       Int?

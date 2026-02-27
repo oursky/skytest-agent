@@ -4,6 +4,8 @@ import { verifyAuth } from '@/lib/auth';
 import { validateConfigName, validateConfigType, normalizeConfigName } from '@/lib/config-validation';
 import { getTestCaseConfigUploadPath } from '@/lib/file-security';
 import { createLogger } from '@/lib/logger';
+import { isGroupableConfigType, normalizeConfigGroup } from '@/lib/config-sort';
+import type { ConfigType } from '@/types';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -38,8 +40,14 @@ export async function PUT(
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const body = await request.json();
-        const { name: rawName, type, value } = body;
+        const body = await request.json() as {
+            name?: string;
+            type?: string;
+            value?: string;
+            masked?: boolean;
+            group?: string | null;
+        };
+        const { name: rawName, type, value, masked, group } = body;
 
         if (rawName !== undefined) {
             const nameError = validateConfigName(rawName);
@@ -53,13 +61,25 @@ export async function PUT(
         }
 
         const name = rawName !== undefined ? normalizeConfigName(rawName) : undefined;
+        const nextType = (type ?? existing.type) as ConfigType;
+        const nextMasked = nextType === 'VARIABLE'
+            ? (masked !== undefined ? masked : existing.masked)
+            : false;
+        const rawNextGroup = group !== undefined ? group : existing.group;
+        const normalizedGroup = normalizeConfigGroup(rawNextGroup);
+        const nextGroup = isGroupableConfigType(nextType) ? (normalizedGroup || null) : null;
+        const normalizedValue = value !== undefined
+            ? (typeof value === 'string' ? value : String(value))
+            : undefined;
 
         const config = await prisma.testCaseConfig.update({
             where: { id: configId },
             data: {
                 ...(name !== undefined && { name }),
                 ...(type !== undefined && { type }),
-                ...(value !== undefined && { value }),
+                ...(normalizedValue !== undefined && { value: normalizedValue }),
+                masked: nextMasked,
+                group: nextGroup,
             }
         });
 

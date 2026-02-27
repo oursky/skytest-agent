@@ -73,40 +73,6 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
         }
     }, [getAccessToken, id]);
 
-    const fetchSecretValuesForCopyLogs = useCallback(async (): Promise<string[]> => {
-        if (!projectId && !id) {
-            return [];
-        }
-
-        try {
-            const token = await getAccessToken();
-            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const [projectResponse, testCaseResponse] = await Promise.all([
-                projectId ? fetch(`/api/projects/${projectId}/configs?includeSecretValues=true`, { headers }) : Promise.resolve(null),
-                fetch(`/api/test-cases/${id}/configs?includeSecretValues=true`, { headers }),
-            ]);
-
-            const collect = async (response: Response | null): Promise<string[]> => {
-                if (!response || !response.ok) {
-                    return [];
-                }
-                const configs = await response.json() as Array<{ type?: string; value?: string }>;
-                return configs
-                    .filter((config) => config.type === 'SECRET' && typeof config.value === 'string' && config.value.length > 0)
-                    .map((config) => config.value as string);
-            };
-
-            const [projectSecrets, testCaseSecrets] = await Promise.all([
-                collect(projectResponse),
-                collect(testCaseResponse),
-            ]);
-            return [...projectSecrets, ...testCaseSecrets];
-        } catch (error) {
-            console.error('Failed to fetch secret config values for copy logs', error);
-            return [];
-        }
-    }, [getAccessToken, id, projectId]);
-
     const fetchRunDetails = useCallback(async () => {
         try {
             const token = await getAccessToken();
@@ -231,8 +197,12 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 
                 const projectSnapshotConfigs: ConfigItem[] = [];
                 const testCaseSnapshotConfigs: ConfigItem[] = [];
+                const allowedConfigTypes = new Set<ConfigItem['type']>(['URL', 'APP_ID', 'VARIABLE', 'RANDOM_STRING', 'FILE']);
 
                 (savedConfig.resolvedConfigurations || []).forEach((config, index) => {
+                    if (!allowedConfigTypes.has(config.type as ConfigItem['type'])) {
+                        return;
+                    }
                     const source = config.source === 'project' ? 'project' : 'test-case';
 
                     const snapshotConfig: ConfigItem = {
@@ -240,6 +210,8 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                         name: config.name,
                         type: config.type as ConfigItem['type'],
                         value: config.value,
+                        masked: Boolean((config as { masked?: boolean }).masked),
+                        group: (config as { group?: string | null }).group || null,
                         ...(config.filename ? { filename: config.filename } : {}),
                     };
 
@@ -302,7 +274,6 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                     <div className="h-full min-h-[500px]">
                         <ResultViewer
                             result={{ status: testRun.status, events, error: testRun.error || undefined }}
-                            requestSecretValues={fetchSecretValuesForCopyLogs}
                             meta={{
                                 runId,
                                 testCaseId: id,

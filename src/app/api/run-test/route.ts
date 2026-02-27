@@ -30,14 +30,9 @@ function createConfigurationSnapshot(config: RunTestRequest, resolvedConfigurati
     const { testCaseId, ...sanitized } = config;
     void testCaseId;
 
-    const masked = resolvedConfigurations?.map(c => ({
-        ...c,
-        value: c.type === 'SECRET' ? '••••••' : c.value,
-    }));
-
     return {
         ...sanitized,
-        ...(masked && masked.length > 0 ? { resolvedConfigurations: masked } : {})
+        ...(resolvedConfigurations && resolvedConfigurations.length > 0 ? { resolvedConfigurations } : {})
     };
 }
 

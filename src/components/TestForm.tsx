@@ -6,6 +6,7 @@ import BuilderForm from './BuilderForm';
 import ConfigurationsSection from './ConfigurationsSection';
 import { useI18n } from '@/i18n';
 import { useAuth } from '@/app/auth-provider';
+import { normalizeBrowserConfig } from '@/lib/browser-target';
 
 interface TestData {
     url: string;
@@ -58,7 +59,7 @@ const SAMPLE_PASSWORD_VARIABLE_REF = `{{${SAMPLE_PASSWORD_CONFIG_NAME}}}`;
 const SAMPLE_CONFIGS_TO_ENSURE = [
     { name: SAMPLE_URL_CONFIG_NAME, type: 'URL', value: SAMPLE_URL_CONFIG_VALUE },
     { name: SAMPLE_USERNAME_CONFIG_NAME, type: 'VARIABLE', value: SAMPLE_USERNAME_CONFIG_VALUE },
-    { name: SAMPLE_PASSWORD_CONFIG_NAME, type: 'SECRET', value: SAMPLE_PASSWORD_CONFIG_VALUE },
+    { name: SAMPLE_PASSWORD_CONFIG_NAME, type: 'VARIABLE', value: SAMPLE_PASSWORD_CONFIG_VALUE, masked: true },
 ] as const;
 
 function createStepId(prefix: string): string {
@@ -72,15 +73,15 @@ function buildBrowsers(data?: TestData): BrowserEntry[] {
                 return { id, config: cfg };
             }
             const browserCfg = cfg as BrowserConfig;
-            return { id, config: { name: browserCfg.name || '', url: browserCfg.url || '' } };
+            return { id, config: normalizeBrowserConfig(browserCfg) };
         });
     }
 
     return [{
         id: 'browser_a',
-        config: {
+        config: normalizeBrowserConfig({
             url: data?.url || '',
-        }
+        })
     }];
 }
 
@@ -244,17 +245,17 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
         const sampleBrowsers: BrowserEntry[] = [
             {
                 id: 'browser_a',
-                config: {
+                config: normalizeBrowserConfig({
                     name: t('sample.multi.browserAName'),
                     url: SAMPLE_URL_CONFIG_VALUE,
-                }
+                })
             },
             {
                 id: 'browser_b',
-                config: {
+                config: normalizeBrowserConfig({
                     name: t('sample.multi.browserBName'),
                     url: SAMPLE_URL_CONFIG_VALUE,
-                }
+                })
             }
         ];
         const sampleSteps: TestStep[] = [

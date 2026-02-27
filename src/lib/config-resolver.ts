@@ -8,6 +8,8 @@ interface ResolvedConfigs {
     allConfigs: ResolvedConfig[];
 }
 
+const RESOLVABLE_CONFIG_TYPES: ConfigType[] = ['URL', 'APP_ID', 'VARIABLE', 'RANDOM_STRING', 'FILE'];
+
 function generateRandomStringValue(generationType: string): string {
     switch (generationType) {
         case 'TIMESTAMP_UNIX':
@@ -26,13 +28,23 @@ function generateRandomStringValue(generationType: string): string {
 
 export async function resolveConfigs(projectId: string, testCaseId?: string): Promise<ResolvedConfigs> {
     const projectConfigs = await prisma.projectConfig.findMany({
-        where: { projectId },
+        where: {
+            projectId,
+            type: {
+                in: RESOLVABLE_CONFIG_TYPES
+            }
+        },
         orderBy: { createdAt: 'asc' }
     });
 
     const testCaseConfigs = testCaseId
         ? await prisma.testCaseConfig.findMany({
-            where: { testCaseId },
+            where: {
+                testCaseId,
+                type: {
+                    in: RESOLVABLE_CONFIG_TYPES
+                }
+            },
             orderBy: { createdAt: 'asc' }
         })
         : [];
@@ -44,6 +56,8 @@ export async function resolveConfigs(projectId: string, testCaseId?: string): Pr
             name: pc.name,
             type: pc.type as ConfigType,
             value: pc.value,
+            masked: pc.masked,
+            group: pc.group,
             filename: pc.filename ?? undefined,
             source: 'project',
         });
@@ -54,6 +68,8 @@ export async function resolveConfigs(projectId: string, testCaseId?: string): Pr
             name: tc.name,
             type: tc.type as ConfigType,
             value: tc.value,
+            masked: tc.masked,
+            group: tc.group,
             filename: tc.filename ?? undefined,
             source: 'test-case',
         });

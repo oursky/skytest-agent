@@ -1,4 +1,5 @@
 import { TestStep, BrowserConfig } from '@/types';
+import { getDefaultBrowserViewport } from '@/lib/browser-target';
 
 export interface TestCaseData {
     name?: string;
@@ -32,6 +33,8 @@ export function exportToMarkdown(data: TestCaseData): string {
         for (const [id, config] of Object.entries(data.browserConfig)) {
             lines.push(`  - id: ${id}`);
             lines.push(`    url: ${escapeYamlString(config.url)}`);
+            lines.push(`    width: ${config.width}`);
+            lines.push(`    height: ${config.height}`);
         }
     } else {
         lines.push(`url: ${escapeYamlString(data.url)}`);
@@ -89,10 +92,15 @@ export function parseMarkdown(markdown: string): ParsedMarkdown {
     if (mode === 'multi-browser' && parsed.browsers) {
         // Multi-browser mode
         const browserConfig: Record<string, BrowserConfig> = {};
-        const browsers = parsed.browsers as Array<{ id: string; url?: string }>;
+        const browsers = parsed.browsers as Array<{ id: string; url?: string; width?: string; height?: string }>;
+        const defaults = getDefaultBrowserViewport();
         for (const browser of browsers) {
+            const width = Number.parseInt(browser.width || '', 10);
+            const height = Number.parseInt(browser.height || '', 10);
             browserConfig[browser.id] = {
                 url: browser.url || '',
+                width: Number.isFinite(width) && width > 0 ? width : defaults.width,
+                height: Number.isFinite(height) && height > 0 ? height : defaults.height,
             };
         }
         data.browserConfig = browserConfig;

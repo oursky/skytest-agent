@@ -3,6 +3,8 @@ export type TestStatus = 'IDLE' | 'RUNNING' | 'PASS' | 'FAIL' | 'CANCELLED' | 'Q
 export interface BrowserConfig {
     name?: string;
     url: string;
+    width: number;
+    height: number;
 }
 
 export type TargetType = 'browser' | 'android';
@@ -11,6 +13,8 @@ export interface BrowserTargetConfig {
     type: 'browser';
     name?: string;
     url: string;
+    width: number;
+    height: number;
 }
 
 export interface AndroidEmulatorProfileSelector {
@@ -94,7 +98,7 @@ export interface TestResult {
     actionCount?: number;
 }
 
-export type ConfigType = 'URL' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING' | 'FILE' | 'APP_ID';
+export type ConfigType = 'URL' | 'VARIABLE' | 'RANDOM_STRING' | 'FILE' | 'APP_ID';
 
 export type RandomStringGenerationType = 'TIMESTAMP_UNIX' | 'TIMESTAMP_DATETIME' | 'UUID';
 
@@ -103,6 +107,8 @@ export interface ConfigItem {
     name: string;
     type: ConfigType;
     value: string;
+    masked?: boolean;
+    group?: string | null;
     filename?: string;
     mimeType?: string;
     size?: number;
@@ -112,6 +118,8 @@ export interface ResolvedConfig {
     name: string;
     type: ConfigType;
     value: string;
+    masked?: boolean;
+    group?: string | null;
     filename?: string;
     source: 'project' | 'test-case';
 }

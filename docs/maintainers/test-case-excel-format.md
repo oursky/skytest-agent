@@ -33,6 +33,15 @@ The `Configurations` sheet is a row-based table with sections such as:
 - `Entry Point` (import fallback path; current exports use dedicated target sheets)
 - `File`
 
+Variable rows use these columns:
+
+- `Section`
+- `Type`
+- `Name`
+- `Value`
+- `Group` (for `Variable`, `Random String`, `File`)
+- `Masked` (`Y` when a `Variable` is masked)
+
 ### Entry Points (Configurations Fallback Import)
 
 - One row per entry point.
@@ -58,9 +67,10 @@ Notes:
 
 ## Browsers Sheet (Current Export)
 
-- Columns: `Target`, `Name`, `URL`
+- Columns: `Target`, `Name`, `URL`, `Width`, `Height`
 - `Target` labels are generated (for example `Browser A`, `Browser B`)
 - `Name` is optional display label
+- `Width` and `Height` define per-target browser viewport size
 
 ## Android Sheet (Current Export)
 
@@ -94,12 +104,16 @@ Import does:
 - import targets (browser + Android, including connected-device selectors)
 - import test steps
 - import test case variables (supported non-file types)
+  - `Masked` flag on `Variable` rows
+  - `Group` values for groupable variable types
+  - browser `Width` / `Height` values
 
 Import does not:
 
 - import project variables
 - import file variables
 - import attached files from export zip bundles (run-page import is Excel-only)
+- import legacy `Secret` variable type rows (unsupported)
 
 Warnings may still be produced during parsing for invalid/unsupported rows.
 

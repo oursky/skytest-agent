@@ -45,7 +45,7 @@ export async function GET(
         const projectVariables = await prisma.projectConfig.findMany({
             where: {
                 projectId: testCase.projectId,
-                type: { in: ['URL', 'APP_ID', 'VARIABLE', 'SECRET', 'RANDOM_STRING', 'FILE'] }
+                type: { in: ['URL', 'APP_ID', 'VARIABLE', 'RANDOM_STRING', 'FILE'] }
             },
             orderBy: { createdAt: 'asc' }
         });
@@ -53,15 +53,15 @@ export async function GET(
         const testCaseVariables = await prisma.testCaseConfig.findMany({
             where: {
                 testCaseId: testCase.id,
-                type: { in: ['URL', 'APP_ID', 'VARIABLE', 'SECRET', 'RANDOM_STRING', 'FILE'] }
+                type: { in: ['URL', 'APP_ID', 'VARIABLE', 'RANDOM_STRING', 'FILE'] }
             },
             orderBy: { createdAt: 'asc' }
         });
 
-        type ExportableType = 'URL' | 'APP_ID' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING' | 'FILE';
-        const validTypes = new Set<string>(['URL', 'APP_ID', 'VARIABLE', 'SECRET', 'RANDOM_STRING', 'FILE']);
+        type ExportableType = 'URL' | 'APP_ID' | 'VARIABLE' | 'RANDOM_STRING' | 'FILE';
+        const validTypes = new Set<string>(['URL', 'APP_ID', 'VARIABLE', 'RANDOM_STRING', 'FILE']);
 
-        const typedProjectVariables: Array<{ name: string; type: ExportableType; value: string }> = projectVariables.flatMap((variable) => {
+        const typedProjectVariables: Array<{ name: string; type: ExportableType; value: string; masked: boolean; group: string | null }> = projectVariables.flatMap((variable) => {
             if (!validTypes.has(variable.type)) {
                 return [];
             }
@@ -69,10 +69,12 @@ export async function GET(
                 name: variable.name,
                 type: variable.type as ExportableType,
                 value: variable.type === 'FILE' ? (variable.filename || variable.value) : variable.value,
+                masked: variable.masked,
+                group: variable.group,
             }];
         });
 
-        const typedTestCaseVariables: Array<{ name: string; type: ExportableType; value: string }> = testCaseVariables.flatMap((variable) => {
+        const typedTestCaseVariables: Array<{ name: string; type: ExportableType; value: string; masked: boolean; group: string | null }> = testCaseVariables.flatMap((variable) => {
             if (!validTypes.has(variable.type)) {
                 return [];
             }
@@ -80,6 +82,8 @@ export async function GET(
                 name: variable.name,
                 type: variable.type as ExportableType,
                 value: variable.type === 'FILE' ? (variable.filename || variable.value) : variable.value,
+                masked: variable.masked,
+                group: variable.group,
             }];
         });
 

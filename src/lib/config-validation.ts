@@ -1,6 +1,6 @@
 import type { ConfigType } from '@/types';
 
-const VALID_CONFIG_TYPES: ConfigType[] = ['URL', 'VARIABLE', 'SECRET', 'RANDOM_STRING', 'FILE', 'APP_ID'];
+const VALID_CONFIG_TYPES: ConfigType[] = ['URL', 'VARIABLE', 'RANDOM_STRING', 'FILE', 'APP_ID'];
 
 export function normalizeConfigName(name: string): string {
     return name.trim().toUpperCase();

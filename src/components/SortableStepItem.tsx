@@ -81,7 +81,7 @@ export default function SortableStepItem({ step, index, browsers, onRemove, onCh
     } as React.CSSProperties;
 
     const hideMonacoEditor = isAnyDragging && stepType === 'playwright-code';
-    const aiInsertableTypes: ConfigType[] = ['URL', 'VARIABLE', 'SECRET', 'RANDOM_STRING'];
+    const aiInsertableTypes: ConfigType[] = ['URL', 'VARIABLE', 'RANDOM_STRING'];
     const formatCodeConfigReference = (config: ConfigItem): string => {
         if (config.type === 'FILE') {
             return `testFiles[${JSON.stringify(config.name)}]`;
