@@ -39,6 +39,14 @@ interface ApiKeyState {
     maskedKey: string | null;
 }
 
+interface AgentApiKey {
+    id: string;
+    name: string;
+    prefix: string;
+    lastUsedAt: string | null;
+    createdAt: string;
+}
+
 export default function UsagePage() {
     const { isLoggedIn, isLoading: isAuthLoading, getAccessToken } = useAuth();
     const router = useRouter();
@@ -54,6 +62,13 @@ export default function UsagePage() {
     const [keyError, setKeyError] = useState<string | null>(null);
     const [keySuccess, setKeySuccess] = useState<string | null>(null);
     const [isDeleteApiKeyModalOpen, setIsDeleteApiKeyModalOpen] = useState(false);
+
+    const [agentKeys, setAgentKeys] = useState<AgentApiKey[]>([]);
+    const [newKeyName, setNewKeyName] = useState('');
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [generatedKey, setGeneratedKey] = useState<string | null>(null);
+    const [isRevokeModalOpen, setIsRevokeModalOpen] = useState(false);
+    const [keyToRevoke, setKeyToRevoke] = useState<AgentApiKey | null>(null);
 
     useEffect(() => {
         if (!isAuthLoading && !isLoggedIn) {
@@ -71,6 +86,53 @@ export default function UsagePage() {
             setApiKeyState(data);
         }
     }, [getAccessToken]);
+
+    const fetchAgentKeys = useCallback(async () => {
+        const token = await getAccessToken();
+        const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+        const res = await fetch('/api/user/api-keys', { headers });
+        if (res.ok) {
+            const data = await res.json();
+            setAgentKeys(data);
+        }
+    }, [getAccessToken]);
+
+    const handleGenerateAgentKey = async () => {
+        if (!newKeyName.trim()) return;
+        setIsGenerating(true);
+        try {
+            const token = await getAccessToken();
+            const headers: HeadersInit = {
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            };
+            const res = await fetch('/api/user/api-keys', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ name: newKeyName.trim() })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setGeneratedKey(data.key);
+                setNewKeyName('');
+                await fetchAgentKeys();
+            }
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    const handleRevokeAgentKey = async () => {
+        if (!keyToRevoke) return;
+        const token = await getAccessToken();
+        const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+        const res = await fetch(`/api/user/api-keys/${keyToRevoke.id}`, { method: 'DELETE', headers });
+        if (res.ok) {
+            setAgentKeys(prev => prev.filter(k => k.id !== keyToRevoke.id));
+        }
+        setIsRevokeModalOpen(false);
+        setKeyToRevoke(null);
+    };
 
     const fetchRecords = useCallback(async (page: number, limit: number) => {
         const token = await getAccessToken();
@@ -92,6 +154,7 @@ export default function UsagePage() {
             try {
                 await Promise.all([
                     fetchApiKeyStatus(),
+                    fetchAgentKeys(),
                     fetchRecords(1, 10)
                 ]);
             } catch (error) {
@@ -102,7 +165,7 @@ export default function UsagePage() {
         };
 
         fetchData();
-    }, [isLoggedIn, fetchApiKeyStatus, fetchRecords]);
+    }, [isLoggedIn, fetchApiKeyStatus, fetchAgentKeys, fetchRecords]);
 
     const handleSaveApiKey = async () => {
         setKeyError(null);
@@ -205,6 +268,18 @@ export default function UsagePage() {
                     {t('usage.apiKey.deleteConfirm.body')}
                 </p>
             </Modal>
+            <Modal
+                isOpen={isRevokeModalOpen}
+                onClose={() => { setIsRevokeModalOpen(false); setKeyToRevoke(null); }}
+                title={t('usage.agentKeys.revokeConfirm.title')}
+                onConfirm={handleRevokeAgentKey}
+                confirmText={t('usage.agentKeys.revokeConfirm.confirm')}
+                confirmVariant="danger"
+            >
+                <p className="text-sm text-gray-700">
+                    {t('usage.agentKeys.revokeConfirm.body', { name: keyToRevoke?.name ?? '' })}
+                </p>
+            </Modal>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
 
                 {/* API Key Section */}
@@ -254,6 +329,87 @@ export default function UsagePage() {
                     )}
                     {keyError && <p className="mt-2 text-sm text-red-600">{keyError}</p>}
                     {keySuccess && <p className="mt-2 text-sm text-green-600">{keySuccess}</p>}
+                </div>
+
+                {/* Agent API Keys Section */}
+                <h2 className="text-2xl font-bold text-gray-700 mb-4">{t('usage.agentKeys.title')}</h2>
+                <div className="mb-12">
+                    <p className="text-sm text-gray-500 mb-4">{t('usage.agentKeys.description')}</p>
+
+                    {generatedKey && (
+                        <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <p className="text-sm font-medium text-yellow-800 mb-1">{t('usage.agentKeys.created.title')}</p>
+                            <p className="text-xs text-yellow-700 mb-2">{t('usage.agentKeys.created.warning')}</p>
+                            <div className="flex items-center gap-2">
+                                <code className="flex-1 text-xs text-gray-800 bg-white border border-yellow-300 px-3 py-2 rounded break-all">{generatedKey}</code>
+                                <button
+                                    onClick={() => { navigator.clipboard.writeText(generatedKey); }}
+                                    className="shrink-0 px-3 py-2 text-xs bg-yellow-600 text-white rounded hover:bg-yellow-700"
+                                >
+                                    {t('common.copy')}
+                                </button>
+                            </div>
+                            <button onClick={() => setGeneratedKey(null)} className="mt-2 text-xs text-yellow-700 hover:text-yellow-900 underline">
+                                {t('common.hide')}
+                            </button>
+                        </div>
+                    )}
+
+                    <div className="flex items-center gap-3 mb-6">
+                        <input
+                            type="text"
+                            value={newKeyName}
+                            onChange={(e) => setNewKeyName(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleGenerateAgentKey(); }}
+                            placeholder={t('usage.agentKeys.name.placeholder')}
+                            className="w-72 px-3 py-2 text-sm bg-white border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                        <button
+                            onClick={handleGenerateAgentKey}
+                            disabled={isGenerating || !newKeyName.trim()}
+                            className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                        >
+                            {t('usage.agentKeys.generate')}
+                        </button>
+                    </div>
+
+                    {agentKeys.length === 0 ? (
+                        <p className="text-sm text-gray-500">{t('usage.agentKeys.noKeys')}</p>
+                    ) : (
+                        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('usage.agentKeys.name')}</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('usage.agentKeys.prefix')}</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('usage.agentKeys.lastUsed')}</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('usage.table.dateTime')}</th>
+                                        <th className="px-4 py-3" />
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {agentKeys.map((key) => (
+                                        <tr key={key.id} className="hover:bg-gray-50">
+                                            <td className="px-4 py-3 text-sm text-gray-700">{key.name}</td>
+                                            <td className="px-4 py-3 text-sm font-mono text-gray-500">{key.prefix}...</td>
+                                            <td className="px-4 py-3 text-sm text-gray-500">
+                                                {key.lastUsedAt ? formatDateTime(key.lastUsedAt) : t('usage.agentKeys.never')}
+                                            </td>
+                                            <td className="px-4 py-3 text-sm text-gray-500">{formatDateTime(key.createdAt)}</td>
+                                            <td className="px-4 py-3 text-right">
+                                                <button
+                                                    onClick={() => { setKeyToRevoke(key); setIsRevokeModalOpen(true); }}
+                                                    className="text-sm text-red-600 hover:text-red-800"
+                                                >
+                                                    {t('usage.agentKeys.revoke')}
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
                 </div>
 
                 {/* Usage History Section */}
