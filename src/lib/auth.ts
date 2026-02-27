@@ -12,7 +12,13 @@ export type AuthPayload = NonNullable<Awaited<ReturnType<typeof verifyAuth>>>;
 export async function resolveUserId(authPayload: AuthPayload): Promise<string | null> {
     const maybeUserId = (authPayload as { userId?: unknown }).userId;
     if (typeof maybeUserId === 'string' && maybeUserId.length > 0) {
-        return maybeUserId;
+        const user = await prisma.user.findUnique({
+            where: { id: maybeUserId },
+            select: { id: true, authId: true }
+        });
+        if (user && (authPayload.sub === user.authId || authPayload.sub === user.id)) {
+            return user.id;
+        }
     }
 
     const authId = authPayload.sub as string | undefined;

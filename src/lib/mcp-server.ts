@@ -1,14 +1,11 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import { createLogger } from '@/lib/logger';
 import { batchCreateTestCases } from '@/lib/batch-create';
 import { parseTestCaseJson, cleanStepsForStorage, normalizeTargetConfigMap } from '@/lib/test-case-utils';
 import { compareByGroupThenName } from '@/lib/config-sort';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { ServerRequest, ServerNotification } from '@modelcontextprotocol/sdk/types.js';
-
-const logger = createLogger('mcp');
 
 type Extra = RequestHandlerExtra<ServerRequest, ServerNotification>;
 
@@ -79,7 +76,7 @@ export function createMcpServer(): McpServer {
         const userId = getUserId(extra);
         if (!userId) return errorResult('Unauthorized');
         if (!await verifyProjectOwnership(projectId, userId)) return errorResult('Forbidden');
-        const take = Math.min(limit ?? 50, 100);
+        const take = Math.max(1, Math.min(limit ?? 50, 100));
         const where: Record<string, unknown> = { projectId };
         if (status) where.status = status;
         const testCases = await prisma.testCase.findMany({

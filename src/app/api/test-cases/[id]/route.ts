@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { parseTestCaseJson, cleanStepsForStorage, normalizeTargetConfigMap } from '@/lib/test-case-utils';
-import { TestStep, BrowserConfig, TargetConfig } from '@/types';
+import { BrowserConfig, TargetConfig } from '@/types';
 import { getUploadPath, getTestCaseConfigUploadPath } from '@/lib/file-security';
 import fs from 'fs/promises';
 

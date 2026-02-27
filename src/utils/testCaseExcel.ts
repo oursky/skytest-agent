@@ -109,16 +109,16 @@ export async function parseTestCaseExcel(content: ArrayBuffer): Promise<ParseRes
     const parsedAndroidTargets = parseAndroidTargetRows(androidRows, warnings);
     const hasDedicatedTargetSheets = browserRows.length > 0 || androidRows.length > 0;
 
-    let parsedTestCase = parsedConfigurations.testCase;
-    let targetEntries = hasDedicatedTargetSheets
+    const parsedTestCase = parsedConfigurations.testCase;
+    const targetEntries = hasDedicatedTargetSheets
         ? [...parsedBrowserTargets.targetEntries, ...parsedAndroidTargets.targetEntries]
         : parsedConfigurations.targetEntries;
-    let targetAliases = hasDedicatedTargetSheets
+    const targetAliases = hasDedicatedTargetSheets
         ? { ...parsedBrowserTargets.targetAliases, ...parsedAndroidTargets.targetAliases }
         : parsedConfigurations.targetAliases;
-    let projectVariables = parsedConfigurations.projectVariables;
-    let testCaseVariables = parsedConfigurations.testCaseVariables;
-    let files = parsedConfigurations.files;
+    const projectVariables = parsedConfigurations.projectVariables;
+    const testCaseVariables = parsedConfigurations.testCaseVariables;
+    const files = parsedConfigurations.files;
 
     const targetConfig: Record<string, BrowserConfig | TargetConfig> = {};
     targetEntries.forEach((entry) => {
@@ -509,10 +509,11 @@ function parseAndroidTargetRows(
     targetEntries: ExcelTargetEntry[];
     targetAliases: Record<string, string>;
 } {
+    void warnings;
     const targetEntries: ExcelTargetEntry[] = [];
     const targetAliases: Record<string, string> = {};
 
-    rows.forEach((row, index) => {
+    rows.forEach((row) => {
         const rawTarget = getRowValue(row, ['target']);
         const name = getRowValue(row, ['name', 'key']) || '';
         const rawDeviceValue = getRowValue(row, ['device', 'emulator', 'avd', 'avdname']) || '';
