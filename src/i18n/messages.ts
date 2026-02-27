@@ -222,11 +222,18 @@ export const MESSAGES: Record<Locale, Messages> = {
 
     // MCP page
     'mcp.connection.title': 'Connection details',
+    'mcp.connection.tab.apiKey': 'API Key',
+    'mcp.connection.tab.claudeDesktop': 'Claude Desktop',
     'mcp.connection.serverUrl': 'Server URL',
     'mcp.connection.apiKey.header': 'Header',
     'mcp.connection.protocol': 'Protocol',
     'mcp.connection.protocolValue': 'MCP Streamable HTTP',
     'mcp.connection.configExample': 'Example configuration',
+    'mcp.connection.claudeDesktop.summary': 'Claude Desktop connects through a local bridge process that forwards requests to your SkyTest MCP endpoint.',
+    'mcp.connection.claudeDesktop.step1': 'Open Claude Desktop settings and choose Developer > Edit Config.',
+    'mcp.connection.claudeDesktop.step2': 'Add the "skytest" server entry under "mcpServers" using the sample below.',
+    'mcp.connection.claudeDesktop.step3': 'Replace <AGENT_API_KEY> with your key, save the file, then restart Claude Desktop.',
+    'mcp.connection.claudeDesktop.configExample': 'Claude Desktop configuration',
 
     // TestForm
     'testForm.title': 'Test Instructions',
@@ -672,11 +679,18 @@ export const MESSAGES: Record<Locale, Messages> = {
 
     // MCP page
     'mcp.connection.title': '連線資訊',
+    'mcp.connection.tab.apiKey': 'API Key',
+    'mcp.connection.tab.claudeDesktop': 'Claude Desktop',
     'mcp.connection.serverUrl': '伺服器 URL',
     'mcp.connection.apiKey.header': 'Header',
     'mcp.connection.protocol': '協定',
     'mcp.connection.protocolValue': 'MCP Streamable HTTP',
     'mcp.connection.configExample': '設定範例',
+    'mcp.connection.claudeDesktop.summary': 'Claude Desktop 需透過本機橋接程序，將請求轉送到你的 SkyTest MCP 端點。',
+    'mcp.connection.claudeDesktop.step1': '在 Claude Desktop 開啟設定，選擇 Developer > Edit Config。',
+    'mcp.connection.claudeDesktop.step2': '在 "mcpServers" 下加入下方範例中的 "skytest" 伺服器設定。',
+    'mcp.connection.claudeDesktop.step3': '將 <AGENT_API_KEY> 換成你的金鑰，儲存後重新啟動 Claude Desktop。',
+    'mcp.connection.claudeDesktop.configExample': 'Claude Desktop 設定',
 
     // TestForm
     'testForm.title': '測試指示',
@@ -1122,11 +1136,18 @@ export const MESSAGES: Record<Locale, Messages> = {
 
     // MCP page
     'mcp.connection.title': '连接信息',
+    'mcp.connection.tab.apiKey': 'API Key',
+    'mcp.connection.tab.claudeDesktop': 'Claude Desktop',
     'mcp.connection.serverUrl': '服务器 URL',
     'mcp.connection.apiKey.header': 'Header',
     'mcp.connection.protocol': '协议',
     'mcp.connection.protocolValue': 'MCP Streamable HTTP',
     'mcp.connection.configExample': '配置示例',
+    'mcp.connection.claudeDesktop.summary': 'Claude Desktop 需要通过本地桥接进程，把请求转发到你的 SkyTest MCP 端点。',
+    'mcp.connection.claudeDesktop.step1': '在 Claude Desktop 打开设置，选择 Developer > Edit Config。',
+    'mcp.connection.claudeDesktop.step2': '在 "mcpServers" 下添加下方示例里的 "skytest" 服务配置。',
+    'mcp.connection.claudeDesktop.step3': '将 <AGENT_API_KEY> 替换为你的密钥，保存后重启 Claude Desktop。',
+    'mcp.connection.claudeDesktop.configExample': 'Claude Desktop 配置',
 
     // TestForm
     'testForm.title': '测试指令',
