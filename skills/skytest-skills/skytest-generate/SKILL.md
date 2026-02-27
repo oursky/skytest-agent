@@ -317,7 +317,7 @@ Before each MCP create call, confirm the payload includes:
 - one case only (`testCase`, never array/batch)
 - resolved target IDs used consistently in every step `target`
 - complete target definitions (browser/android) for all referenced targets
-- all required variables used by `{{...}}` in steps
+- all required variables used by `{{...}}` in steps, including masked ones (include them with `value: ""` and `masked: true` so SkyTest creates the slot)
 - step `type` set correctly for AI vs code steps
 - no `FILE` variable in create payload
 
