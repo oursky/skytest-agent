@@ -1,0 +1,256 @@
+---
+name: skytest-generate
+description: |
+  Generate test cases from feature descriptions, screenshots, or user flow documentation.
+  Creates draft test cases in a SkyTest project with complete steps, configs, and target
+  setup. Use when the user asks to generate tests, create test cases, or automate test
+  creation for a feature or user flow.
+allowed-tools:
+  - mcp__skytest_*
+  - AskUserQuestion
+  - Read
+  - WebFetch
+---
+
+# SkyTest Test Case Generator
+
+Generate comprehensive test cases from feature descriptions, screenshots, or user flow
+documentation. Creates DRAFT test cases in a SkyTest project with complete steps, configs,
+and browser/Android target setup.
+
+## When to Apply
+
+- User asks to "generate tests", "create test cases", or "write tests" for a feature
+- User provides a feature description, screenshots, or URL to analyze
+- User wants to automate test case creation for their web or Android application
+
+## Workflow
+
+### 1. Gather Context
+
+Ask the user for:
+- **Feature description**: What does the feature do? What are the key user flows?
+- **Target project**: Which SkyTest project to add test cases to?
+- **Platform**: Browser, Android, or both?
+- **Base URL / App ID**: The application entry point
+- **Screenshots or documentation** (optional): Any visual context
+
+Use `list_projects` MCP tool to show available projects. If no project exists, ask if
+you should create one.
+
+### 2. Understand the Product & User Flows
+
+This is the CRITICAL step before generating any test cases.
+
+First, understand the **product's business context**:
+- What industry/domain is this product in? (e-commerce, healthcare, fintech, SaaS, etc.)
+- Who are the target users?
+- What are the core business workflows?
+
+If the context is unclear, ask the user about the product's domain and purpose.
+
+Then, from the context provided (description, screenshots, URL, docs), identify and
+document the key user flows as a structured list:
+
+Example output:
+```
+I've identified these key user flows for the Login feature:
+
+**Flow 1: Email/Password Login**
+1. Navigate to /login
+2. Enter email address
+3. Enter password
+4. Click "Sign In"
+5. Redirected to dashboard
+
+**Flow 2: Social Login (Google)**
+1. Navigate to /login
+2. Click "Sign in with Google"
+3. Google OAuth popup appears
+4. After auth, redirected to dashboard
+
+**Flow 3: Password Reset**
+1. Navigate to /login
+2. Click "Forgot password?"
+3. Enter email
+4. Click "Send reset link"
+5. Confirmation message displayed
+```
+
+Present these flows to the user and ask for confirmation:
+- Are these flows correct?
+- Any missing flows?
+- Any flows to skip?
+- Any specific edge cases to cover?
+
+**Do NOT proceed to test case planning until the user explicitly confirms the flows**
+(e.g., "ok", "confirm", "yes"). If the user provides corrections, revise and re-present.
+Never auto-proceed — always wait for explicit confirmation at EVERY checkpoint.
+
+### 3. Plan Test Cases
+
+For each confirmed flow, plan test scenarios:
+- **Happy path**: The normal, expected flow
+- **Error cases**: Invalid input, missing fields, wrong credentials
+- **Edge cases**: Boundary conditions, special characters, long inputs
+- **State transitions**: What happens after success? Can user repeat the action?
+
+Present the test case plan to the user as a numbered list:
+```
+Based on the confirmed flows, I'll create these test cases:
+
+1. Login - Happy path (email/password)
+2. Login - Wrong password shows error
+3. Login - Empty email shows validation
+4. Login - Empty password shows validation
+5. Login - Google OAuth redirect
+6. Password Reset - Happy path
+7. Password Reset - Unknown email shows error
+```
+
+Ask: "Should I create these test cases? Any to add, remove, or modify?"
+
+**CRITICAL: Do NOT proceed until the user explicitly confirms** (e.g., "ok", "confirm",
+"yes", "looks good", "go ahead"). If the user provides feedback, revise and ask again.
+Never auto-proceed after presenting the plan.
+
+### 4. Generate Test Cases
+
+Only after receiving explicit user confirmation (like "ok", "confirm", "yes"), construct
+the test cases with proper structure.
+
+**Understand the Business Context First:**
+Before writing test data, understand the product's business domain. If testing an
+e-commerce site, use realistic product names, prices, and categories. If testing a
+healthcare app, use appropriate medical terminology. Ask about the product's domain if
+not obvious from the context.
+
+**Step Writing Rules** (Midscene best practices):
+- Use natural language, describe visible UI elements
+- Prefix verification steps with Verify/Assert/Check/Confirm/Ensure/Validate
+- Batch related sub-actions into single steps
+- Use `{{VARIABLE}}` for config references
+- Each step targets a specific browser/Android target ID
+
+**Realistic Test Data:**
+- Always use realistic, domain-appropriate test data — not "test123" or "lorem ipsum"
+- For email fields: use realistic emails like `john.smith@company.com` (not `test@test.com`)
+- For names: use common real names appropriate to the product's locale
+- For addresses, phone numbers, etc.: use realistic formats
+- For error testing: use realistic invalid inputs that real users might enter
+- The goal is to find bugs that occur in real-world scenarios
+
+**Static vs Dynamic Assertions:**
+- **Static UI elements** (menu tab names, page titles, table column headers, form field
+  labels, button text, navigation items) → assert exact text:
+  `Verify the page title is 'Account Settings'`
+  `Verify the table has columns 'Name', 'Email', 'Status', 'Actions'`
+- **Dynamic/temporary data** (user-generated content, timestamps, counts, search results,
+  notification messages with dynamic values) → use generic/pattern descriptions:
+  `Verify a success notification is displayed`
+  `Verify the order list shows at least one order`
+  `Verify the user profile section displays an email address`
+- When unsure if content is static or dynamic, prefer generic description
+
+**Config Rules:**
+- Names: `UPPER_SNAKE_CASE` only
+- Use `VARIABLE` type for credentials (with `masked: true` for passwords)
+- Use `URL` type for base URLs
+- Use `RANDOM_STRING` for unique test data (e.g., unique usernames per run)
+
+**Target Config:**
+- Browser: `{ type: "browser", url: "...", width: 1920, height: 1080 }`
+- Android: `{ type: "android", deviceSelector: {}, appId: "...", clearAppState: true, allowAllPermissions: true }`
+
+### 5. Create via MCP
+
+Call `create_test_cases` with the full batch. All cases are created as DRAFT.
+
+Use `get_project` first to check for existing project-level configs that can be reused
+(avoid duplicating variables that already exist at the project level).
+
+### 6. Report
+
+Summarize what was created:
+```
+Created 7 test cases as DRAFT in project "My App":
+
+1. LOGIN-001: Login - Happy path ✓
+2. LOGIN-002: Login - Wrong password ✓
+3. LOGIN-003: Login - Empty email ✓
+...
+
+Variables created per test case:
+- USERNAME (VARIABLE): testuser@example.com
+- PASSWORD (VARIABLE, masked): [set value in SkyTest UI]
+- BASE_URL (URL): https://myapp.com
+
+Next steps:
+- Review the drafts in SkyTest UI
+- Set masked variable values (passwords)
+- Run individual tests to validate the steps work
+```
+
+## Guidelines
+
+- Always understand flows FIRST, then generate test cases
+- **ALWAYS wait for explicit user confirmation** ("ok", "confirm", "yes", "go ahead")
+  before proceeding to the next step. Never auto-proceed. Two mandatory checkpoints:
+  1. After presenting identified user flows
+  2. After presenting the test case plan
+- **Understand the product's business context** — ask about the domain if not obvious.
+  Use domain-appropriate terminology and realistic data in all test cases.
+- **Realistic test data**: Use real-world-like values (real names, proper email formats,
+  domain-appropriate product names/prices). Never use "test123", "foo@bar.com", or
+  placeholder text. The goal is finding bugs that occur in production scenarios.
+- **Static vs dynamic assertions**: Assert exact text for static UI (menu names, column
+  headers, page titles, labels). Use generic descriptions for dynamic content (user data,
+  timestamps, counts, notification messages with variable values).
+- Prefer fewer, well-structured steps over many granular steps
+- Reuse existing project-level configs when possible
+- Set `masked: true` for any sensitive values (passwords, tokens, API keys)
+- Leave masked variable values empty — the user sets them in the UI
+- Use descriptive `displayId` values (e.g., "LOGIN-001", "CHECKOUT-003")
+- Default to browser targets unless user specifies Android
+- Default viewport: 1920×1080 for browser targets
+
+## Example: Complete Test Case
+
+```json
+{
+  "name": "Login - Happy Path",
+  "displayId": "LOGIN-001",
+  "browserConfig": {
+    "browser_a": {
+      "type": "browser",
+      "url": "https://myapp.com/login",
+      "width": 1920,
+      "height": 1080
+    }
+  },
+  "steps": [
+    {
+      "id": "step_1",
+      "target": "browser_a",
+      "action": "Fill in the email field with '{{LOGIN_EMAIL}}' and the password field with '{{LOGIN_PASSWORD}}'",
+      "type": "ai-action"
+    },
+    {
+      "id": "step_2",
+      "target": "browser_a",
+      "action": "Click the 'Sign In' button",
+      "type": "ai-action"
+    },
+    {
+      "id": "step_3",
+      "target": "browser_a",
+      "action": "Verify the page displays the Dashboard heading",
+      "type": "ai-action"
+    }
+  ],
+  "configs": [
+    { "name": "LOGIN_EMAIL", "type": "VARIABLE", "value": "john.smith@company.com" },
+    { "name": "LOGIN_PASSWORD", "type": "VARIABLE", "value": "", "masked": true }
+  ]
+}
+```
