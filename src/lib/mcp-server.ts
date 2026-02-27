@@ -1,11 +1,13 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import { batchCreateTestCases } from '@/lib/batch-create';
 import { parseTestCaseJson, cleanStepsForStorage, normalizeTargetConfigMap } from '@/lib/test-case-utils';
-import { compareByGroupThenName } from '@/lib/config-sort';
+import { compareByGroupThenName, isGroupableConfigType } from '@/lib/config-sort';
+import { validateConfigName, normalizeConfigName, validateConfigType } from '@/lib/config-validation';
+import { normalizeBrowserConfig } from '@/lib/browser-target';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { ServerRequest, ServerNotification } from '@modelcontextprotocol/sdk/types.js';
+import type { TestStep, BrowserConfig, TargetConfig, ConfigType, AndroidDeviceSelector } from '@/types';
 
 type Extra = RequestHandlerExtra<ServerRequest, ServerNotification>;
 
@@ -24,6 +26,55 @@ function errorResult(message: string) {
 async function verifyProjectOwnership(projectId: string, userId: string): Promise<boolean> {
     const project = await prisma.project.findUnique({ where: { id: projectId }, select: { userId: true } });
     return project?.userId === userId;
+}
+
+function buildTargetIdGenerator(existingIds: Set<string>, prefix: 'browser' | 'android') {
+    let index = 0;
+    return () => {
+        while (true) {
+            const suffix = index < 26 ? String.fromCharCode('a'.charCodeAt(0) + index) : String(index + 1);
+            const candidate = `${prefix}_${suffix}`;
+            index += 1;
+            if (!existingIds.has(candidate)) {
+                existingIds.add(candidate);
+                return candidate;
+            }
+        }
+    };
+}
+
+function resolveAndroidDeviceSelector(
+    device?: string,
+    selector?: {
+        mode: 'emulator-profile' | 'connected-device';
+        emulatorProfileName?: string;
+        serial?: string;
+    }
+): AndroidDeviceSelector | null {
+    if (selector) {
+        if (selector.mode === 'connected-device') {
+            const serial = selector.serial?.trim();
+            if (serial) {
+                return { mode: 'connected-device', serial };
+            }
+            return null;
+        }
+        const emulatorProfileName = selector.emulatorProfileName?.trim();
+        if (emulatorProfileName) {
+            return { mode: 'emulator-profile', emulatorProfileName };
+        }
+        return null;
+    }
+
+    const rawDevice = device?.trim();
+    if (!rawDevice) {
+        return null;
+    }
+    if (rawDevice.toLowerCase().startsWith('serial:')) {
+        const serial = rawDevice.slice('serial:'.length).trim();
+        return serial ? { mode: 'connected-device', serial } : null;
+    }
+    return { mode: 'emulator-profile', emulatorProfileName: rawDevice };
 }
 
 export function createMcpServer(): McpServer {
@@ -112,12 +163,13 @@ export function createMcpServer(): McpServer {
     });
 
     server.registerTool('create_test_cases', {
-        description: 'Batch create test cases as DRAFT in a project, with optional inline configs',
+        description: 'Create one test case with import-equivalent details (ID, targets, steps, variables). FILE uploads are not supported via MCP.',
         inputSchema: {
             projectId: z.string().describe('Project ID'),
-            testCases: z.array(z.object({
-                name: z.string().describe('Test case name'),
+            testCase: z.object({
+                name: z.string().optional().describe('Test case name'),
                 displayId: z.string().optional().describe('User-facing display ID'),
+                testCaseId: z.string().optional().describe('Alias of displayId (import format)'),
                 url: z.string().optional().describe('Base URL for browser target'),
                 prompt: z.string().optional().describe('AI prompt (alternative to steps)'),
                 steps: z.array(z.object({
@@ -127,21 +179,255 @@ export function createMcpServer(): McpServer {
                     type: z.enum(['ai-action', 'playwright-code']).optional().describe('Step type, default ai-action'),
                 })).optional().describe('Test steps'),
                 browserConfig: z.record(z.string(), z.unknown()).optional().describe('Browser/Android target configs keyed by target ID'),
+                browserTargets: z.array(z.object({
+                    id: z.string().optional().describe('Optional target ID'),
+                    name: z.string().optional().describe('Display name'),
+                    url: z.string().describe('Target URL'),
+                    width: z.number().optional().describe('Viewport width'),
+                    height: z.number().optional().describe('Viewport height'),
+                })).optional().describe('Import-style browser targets'),
+                androidTargets: z.array(z.object({
+                    id: z.string().optional().describe('Optional target ID'),
+                    name: z.string().optional().describe('Display name'),
+                    device: z.string().optional().describe('Device selector text (e.g. serial:emulator-5554 or profile name)'),
+                    deviceSelector: z.object({
+                        mode: z.enum(['emulator-profile', 'connected-device']),
+                        emulatorProfileName: z.string().optional(),
+                        serial: z.string().optional(),
+                    }).optional().describe('Structured android device selector'),
+                    appId: z.string().optional().describe('Android app ID'),
+                    clearAppState: z.boolean().optional().describe('Clear app data before run'),
+                    allowAllPermissions: z.boolean().optional().describe('Auto grant runtime permissions'),
+                })).optional().describe('Import-style android targets'),
                 configs: z.array(z.object({
+                    name: z.string().describe('Variable/config name (UPPER_SNAKE_CASE)'),
+                    type: z.string().describe('URL | VARIABLE | RANDOM_STRING | FILE | APP_ID'),
+                    value: z.string().optional().describe('Config value'),
+                    masked: z.boolean().optional().describe('Mask value in UI (VARIABLE type only)'),
+                    group: z.string().nullable().optional().describe('Group name for organization'),
+                })).optional().describe('Test case variables/configs'),
+                variables: z.array(z.object({
                     name: z.string().describe('Config name (UPPER_SNAKE_CASE)'),
                     type: z.string().describe('URL | VARIABLE | RANDOM_STRING | FILE | APP_ID'),
-                    value: z.string().describe('Config value'),
+                    value: z.string().optional().describe('Config value'),
                     masked: z.boolean().optional().describe('Mask value in UI (VARIABLE type only)'),
-                    group: z.string().optional().describe('Group name for organization'),
-                })).optional().describe('Test case configs'),
-            })).describe('Array of test cases to create'),
+                    group: z.string().nullable().optional().describe('Group name for organization'),
+                })).optional().describe('Alias of configs (import-style test case variables)'),
+                projectVariables: z.array(z.object({
+                    name: z.string().describe('Project variable/config name (UPPER_SNAKE_CASE)'),
+                    type: z.string().describe('URL | VARIABLE | RANDOM_STRING | FILE | APP_ID'),
+                    value: z.string().optional().describe('Config value'),
+                    masked: z.boolean().optional().describe('Mask value in UI (VARIABLE type only)'),
+                    group: z.string().nullable().optional().describe('Group name for organization'),
+                })).optional().describe('Optional project-level variables/configs to create'),
+            }).describe('Test case to create'),
         },
-    }, async ({ projectId, testCases }, extra) => {
+    }, async ({ projectId, testCase }, extra) => {
         const userId = getUserId(extra);
         if (!userId) return errorResult('Unauthorized');
         if (!await verifyProjectOwnership(projectId, userId)) return errorResult('Forbidden');
-        const result = await batchCreateTestCases(projectId, testCases as import('@/types').BatchTestCaseInput[], 'agent');
-        return textResult(result);
+
+        const name = testCase.name?.trim();
+        if (!name) {
+            return errorResult('Name is required');
+        }
+
+        const warnings: string[] = [];
+        const targetConfigMap: Record<string, BrowserConfig | TargetConfig> = {};
+
+        const hasBrowserConfig = !!testCase.browserConfig
+            && typeof testCase.browserConfig === 'object'
+            && !Array.isArray(testCase.browserConfig)
+            && Object.keys(testCase.browserConfig).length > 0;
+        if (hasBrowserConfig) {
+            Object.assign(
+                targetConfigMap,
+                normalizeTargetConfigMap(testCase.browserConfig as Record<string, BrowserConfig | TargetConfig>)
+            );
+        }
+
+        const targetIds = new Set(Object.keys(targetConfigMap));
+        const nextBrowserTargetId = buildTargetIdGenerator(targetIds, 'browser');
+        const nextAndroidTargetId = buildTargetIdGenerator(targetIds, 'android');
+
+        if (Array.isArray(testCase.browserTargets)) {
+            for (const target of testCase.browserTargets) {
+                const requestedId = target.id?.trim();
+                let targetId = requestedId;
+                if (targetId) {
+                    if (targetIds.has(targetId)) {
+                        warnings.push(`Browser target "${targetId}" already exists, generated a new target ID instead.`);
+                        targetId = nextBrowserTargetId();
+                    } else {
+                        targetIds.add(targetId);
+                    }
+                } else {
+                    targetId = nextBrowserTargetId();
+                }
+
+                targetConfigMap[targetId] = normalizeBrowserConfig({
+                    name: target.name?.trim() || undefined,
+                    url: target.url,
+                    width: target.width,
+                    height: target.height,
+                });
+            }
+        }
+
+        if (Array.isArray(testCase.androidTargets)) {
+            for (const target of testCase.androidTargets) {
+                const deviceSelector = resolveAndroidDeviceSelector(target.device, target.deviceSelector);
+                if (!deviceSelector) {
+                    warnings.push(`Android target "${target.name || target.id || 'unnamed'}" skipped: missing or invalid device selector.`);
+                    continue;
+                }
+
+                const requestedId = target.id?.trim();
+                let targetId = requestedId;
+                if (targetId) {
+                    if (targetIds.has(targetId)) {
+                        warnings.push(`Android target "${targetId}" already exists, generated a new target ID instead.`);
+                        targetId = nextAndroidTargetId();
+                    } else {
+                        targetIds.add(targetId);
+                    }
+                } else {
+                    targetId = nextAndroidTargetId();
+                }
+
+                targetConfigMap[targetId] = {
+                    type: 'android',
+                    name: target.name?.trim() || undefined,
+                    deviceSelector,
+                    appId: target.appId || '',
+                    clearAppState: target.clearAppState ?? true,
+                    allowAllPermissions: target.allowAllPermissions ?? true,
+                };
+            }
+        }
+
+        const hasSteps = Array.isArray(testCase.steps) && testCase.steps.length > 0;
+        const cleanedSteps = hasSteps ? cleanStepsForStorage(testCase.steps as TestStep[]) : undefined;
+        const hasTargetConfig = Object.keys(targetConfigMap).length > 0;
+        const normalizedBrowserConfig = hasTargetConfig ? normalizeTargetConfigMap(targetConfigMap) : undefined;
+        const displayId = testCase.displayId || testCase.testCaseId || undefined;
+
+        const firstBrowserTarget = normalizedBrowserConfig
+            ? Object.values(normalizedBrowserConfig).find((targetConfig) => !('type' in targetConfig && targetConfig.type === 'android')) as BrowserConfig | undefined
+            : undefined;
+        const normalizedUrl = testCase.url || firstBrowserTarget?.url || '';
+
+        const created = await prisma.testCase.create({
+            data: {
+                name,
+                url: normalizedUrl,
+                prompt: testCase.prompt,
+                steps: cleanedSteps ? JSON.stringify(cleanedSteps) : undefined,
+                browserConfig: normalizedBrowserConfig ? JSON.stringify(normalizedBrowserConfig) : undefined,
+                projectId,
+                displayId,
+                status: 'DRAFT',
+                source: 'agent',
+            },
+        });
+
+        let createdTestCaseVariableCount = 0;
+        let createdProjectVariableCount = 0;
+
+        const testCaseVariables = [...(testCase.configs || []), ...(testCase.variables || [])];
+        if (testCaseVariables.length > 0) {
+            for (const configInput of testCaseVariables) {
+                const nameError = validateConfigName(configInput.name);
+                if (nameError) {
+                    warnings.push(`Config "${configInput.name}": ${nameError}`);
+                    continue;
+                }
+                if (!validateConfigType(configInput.type)) {
+                    warnings.push(`Config "${configInput.name}": invalid type "${configInput.type}"`);
+                    continue;
+                }
+
+                const normalizedName = normalizeConfigName(configInput.name);
+                const configType = configInput.type as ConfigType;
+                if (configType === 'FILE') {
+                    warnings.push(`Config "${normalizedName}" skipped: FILE upload is not supported in MCP create_test_cases.`);
+                    continue;
+                }
+                const groupable = isGroupableConfigType(configType);
+
+                try {
+                    await prisma.testCaseConfig.create({
+                        data: {
+                            testCaseId: created.id,
+                            name: normalizedName,
+                            type: configType,
+                            value: configInput.value || '',
+                            masked: configType === 'VARIABLE' ? (configInput.masked ?? false) : false,
+                            group: groupable ? (configInput.group?.trim() || null) : null,
+                        }
+                    });
+                    createdTestCaseVariableCount += 1;
+                } catch (error: unknown) {
+                    if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'P2002') {
+                        warnings.push(`Config "${normalizedName}" already exists, skipped`);
+                    } else {
+                        warnings.push(`Config "${normalizedName}" creation failed`);
+                    }
+                }
+            }
+        }
+
+        if (Array.isArray(testCase.projectVariables) && testCase.projectVariables.length > 0) {
+            for (const configInput of testCase.projectVariables) {
+                const nameError = validateConfigName(configInput.name);
+                if (nameError) {
+                    warnings.push(`Project config "${configInput.name}": ${nameError}`);
+                    continue;
+                }
+                if (!validateConfigType(configInput.type)) {
+                    warnings.push(`Project config "${configInput.name}": invalid type "${configInput.type}"`);
+                    continue;
+                }
+
+                const normalizedName = normalizeConfigName(configInput.name);
+                const configType = configInput.type as ConfigType;
+                if (configType === 'FILE') {
+                    warnings.push(`Project config "${normalizedName}" skipped: FILE upload is not supported in MCP create_test_cases.`);
+                    continue;
+                }
+                const groupable = isGroupableConfigType(configType);
+
+                try {
+                    await prisma.projectConfig.create({
+                        data: {
+                            projectId,
+                            name: normalizedName,
+                            type: configType,
+                            value: configInput.value || '',
+                            masked: configType === 'VARIABLE' ? (configInput.masked ?? false) : false,
+                            group: groupable ? (configInput.group?.trim() || null) : null,
+                        }
+                    });
+                    createdProjectVariableCount += 1;
+                } catch (error: unknown) {
+                    if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'P2002') {
+                        warnings.push(`Project config "${normalizedName}" already exists, skipped`);
+                    } else {
+                        warnings.push(`Project config "${normalizedName}" creation failed`);
+                    }
+                }
+            }
+        }
+
+        return textResult({
+            id: created.id,
+            name: created.name,
+            displayId: created.displayId,
+            createdTargets: normalizedBrowserConfig ? Object.keys(normalizedBrowserConfig).length : 0,
+            createdTestCaseVariables: createdTestCaseVariableCount,
+            createdProjectVariables: createdProjectVariableCount,
+            warnings
+        });
     });
 
     server.registerTool('update_test_case', {
