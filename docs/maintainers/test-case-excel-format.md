@@ -85,8 +85,7 @@ Notes:
 - `Device` stores the canonical raw selector value:
   - emulator profile name for `emulator-profile`
   - `serial:<adb-serial>` for `connected-device`
-- `Device Details (separate by /)` is a display/helper field (for example `Pixel_7_API_34 / Emulator profile` or `<serial> / Connected device`)
-- Import can also infer connected-device mode from `Device Details` hints when `Device` omits the `serial:` prefix
+- `Device Details (separate by /)` is an **export-only / display-only** field (for example `Pixel_7_API_34 / Emulator profile` or `<serial> / Connected device`). It is not used during import.
 
 ## Test Steps Sheet
 

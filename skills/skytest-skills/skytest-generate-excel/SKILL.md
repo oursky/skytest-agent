@@ -305,9 +305,9 @@ Omit rows (keep header only) if no browser targets.
 
 #### Sheet 3: `Android`
 
-| Target | Name | Device | APP ID | Clear App Data | Allow Permissions | Device Details (separate by /) |
-|--------|------|--------|--------|----------------|-------------------|-------------------------------|
-| Android A | Main Device | Pixel_7_API_34 | com.example.app | Yes | Yes | Pixel_7_API_34 / Emulator profile |
+| Target | Name | Device | APP ID | Clear App Data | Allow Permissions |
+|--------|------|--------|--------|----------------|-------------------|
+| Android A | Main Device | Pixel_7_API_34 | com.example.app | Yes | Yes |
 
 Use `serial:<adb-serial>` in Device column for physical connected devices.
 Omit rows (keep header only) if no Android targets.
@@ -376,13 +376,11 @@ def generate_test_case(output_path, tc):
     # Android
     ws_a = wb.create_sheet("Android")
     add_header_row(ws_a, ["Target", "Name", "Device", "APP ID",
-                           "Clear App Data", "Allow Permissions",
-                           "Device Details (separate by /)"])
+                           "Clear App Data", "Allow Permissions"])
     for t in tc.get("androidTargets", []):
         ws_a.append([t["target"], t.get("name", ""), t["device"], t["appId"],
                       "Yes" if t.get("clearAppData", True) else "No",
-                      "Yes" if t.get("allowPermissions", True) else "No",
-                      t.get("deviceDetails", "")])
+                      "Yes" if t.get("allowPermissions", True) else "No"])
 
     # Test Steps
     ws_s = wb.create_sheet("Test Steps")

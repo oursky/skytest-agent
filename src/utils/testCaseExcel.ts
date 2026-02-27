@@ -517,10 +517,9 @@ function parseAndroidTargetRows(
         const rawTarget = getRowValue(row, ['target']);
         const name = getRowValue(row, ['name', 'key']) || '';
         const rawDeviceValue = getRowValue(row, ['device', 'emulator', 'avd', 'avdname']) || '';
-        const rawDeviceDetails = getRowValue(row, ['device details (separate by /)', 'device details', 'device detail']);
         const appId = getRowValue(row, ['app id', 'appid', 'value']) || '';
 
-        if (!rawTarget && !name && !rawDeviceValue && !rawDeviceDetails && !appId) {
+        if (!rawTarget && !name && !rawDeviceValue && !appId) {
             return;
         }
 
@@ -531,7 +530,7 @@ function parseAndroidTargetRows(
             config: {
                 type: 'android',
                 name: name || undefined,
-                deviceSelector: parseAndroidDeviceSelectorForSheet(rawDeviceValue, rawDeviceDetails),
+                deviceSelector: parseAndroidDeviceSelectorForSheet(rawDeviceValue),
                 appId,
                 clearAppState: parseBooleanCell(getRowValue(row, ['clearappdata', 'clear app data']), true),
                 allowAllPermissions: parseBooleanCell(getRowValue(row, ['allowpermissions', 'allow permissions', 'allowallpermissions', 'allow all permissions']), true),
@@ -553,8 +552,7 @@ function addTargetAlias(targetAliases: Record<string, string>, alias: string | u
     targetAliases[normalized] = targetId;
 }
 
-function parseAndroidDeviceSelectorForSheet(rawDeviceValue?: string, rawDeviceDetails?: string) {
-    const detailHint = normalizeAndroidDeviceDetailHint(rawDeviceDetails);
+function parseAndroidDeviceSelectorForSheet(rawDeviceValue?: string) {
     if (rawDeviceValue) {
         const trimmed = rawDeviceValue.trim();
         if (trimmed.toLowerCase().startsWith('serial:')) {
@@ -563,38 +561,9 @@ function parseAndroidDeviceSelectorForSheet(rawDeviceValue?: string, rawDeviceDe
                 serial: trimmed.slice('serial:'.length).trim(),
             };
         }
-        if (detailHint === 'connected-device') {
-            return {
-                mode: 'connected-device' as const,
-                serial: trimmed,
-            };
-        }
         return {
             mode: 'emulator-profile' as const,
             emulatorProfileName: trimmed,
-        };
-    }
-
-    const [deviceLabel = ''] = (rawDeviceDetails || '')
-        .split('/')
-        .map((part) => part.trim())
-        .filter((part) => part.length > 0);
-    if (deviceLabel) {
-        if (detailHint === 'connected-device') {
-            return {
-                mode: 'connected-device' as const,
-                serial: deviceLabel.replace(/^serial:/i, '').trim(),
-            };
-        }
-        if (deviceLabel.toLowerCase().startsWith('serial:')) {
-            return {
-                mode: 'connected-device' as const,
-                serial: deviceLabel.slice('serial:'.length).trim(),
-            };
-        }
-        return {
-            mode: 'emulator-profile' as const,
-            emulatorProfileName: deviceLabel,
         };
     }
 
@@ -602,14 +571,6 @@ function parseAndroidDeviceSelectorForSheet(rawDeviceValue?: string, rawDeviceDe
         mode: 'emulator-profile' as const,
         emulatorProfileName: '',
     };
-}
-
-function normalizeAndroidDeviceDetailHint(value?: string): 'connected-device' | 'emulator-profile' | null {
-    if (!value) return null;
-    const normalized = normalizeHeader(value);
-    if (normalized.includes('connecteddevice')) return 'connected-device';
-    if (normalized.includes('emulatorprofile')) return 'emulator-profile';
-    return null;
 }
 
 function readSheetRows(workbook: ExcelJS.Workbook, expectedNames: string | readonly string[]): Array<Record<string, unknown>> {
