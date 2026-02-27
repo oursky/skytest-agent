@@ -113,12 +113,12 @@ function RunPageContent() {
 
     const isSupportedVariableConfig = (
         config: ConfigItem
-    ): config is ConfigItem & { type: 'URL' | 'APP_ID' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING' | 'FILE' } => {
-        return config.type === 'URL' || config.type === 'APP_ID' || config.type === 'VARIABLE' || config.type === 'SECRET' || config.type === 'RANDOM_STRING' || config.type === 'FILE';
+    ): config is ConfigItem & { type: 'URL' | 'APP_ID' | 'VARIABLE' | 'RANDOM_STRING' | 'FILE' } => {
+        return config.type === 'URL' || config.type === 'APP_ID' || config.type === 'VARIABLE' || config.type === 'RANDOM_STRING' || config.type === 'FILE';
     };
 
     const importVariablesToTestCase = async (
-        variables: Array<{ name: string; type: 'URL' | 'APP_ID' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING'; value: string }>,
+        variables: Array<{ name: string; type: 'URL' | 'APP_ID' | 'VARIABLE' | 'RANDOM_STRING'; value: string; masked?: boolean; group?: string | null }>,
         sourceData: TestData
     ): Promise<string | null> => {
         if (variables.length === 0) {
@@ -213,23 +213,23 @@ function RunPageContent() {
                     return await response.json() as ConfigItem[];
                 };
 
-                const [projectConfigsWithSecrets, testCaseConfigsWithSecrets] = await Promise.all([
+                const [latestProjectConfigs, latestTestCaseConfigs] = await Promise.all([
                     exportProjectId
-                        ? fetchConfigs(`/api/projects/${exportProjectId}/configs?includeSecretValues=true`)
+                        ? fetchConfigs(`/api/projects/${exportProjectId}/configs`)
                         : Promise.resolve(null),
                     exportTestCaseId
-                        ? fetchConfigs(`/api/test-cases/${exportTestCaseId}/configs?includeSecretValues=true`)
+                        ? fetchConfigs(`/api/test-cases/${exportTestCaseId}/configs`)
                         : Promise.resolve(null),
                 ]);
 
-                if (projectConfigsWithSecrets) {
-                    exportProjectConfigs = projectConfigsWithSecrets;
+                if (latestProjectConfigs) {
+                    exportProjectConfigs = latestProjectConfigs;
                 }
-                if (testCaseConfigsWithSecrets) {
-                    exportTestCaseConfigs = testCaseConfigsWithSecrets;
+                if (latestTestCaseConfigs) {
+                    exportTestCaseConfigs = latestTestCaseConfigs;
                 }
             } catch (error) {
-                console.error('Failed to fetch secret config values for export', error);
+                console.error('Failed to fetch latest config values for export', error);
             }
         }
 
@@ -244,6 +244,8 @@ function RunPageContent() {
                     name: config.name,
                     type: config.type,
                     value: config.type === 'FILE' ? (config.filename || config.value) : config.value,
+                    masked: config.masked === true,
+                    group: config.group || null,
                 })),
             testCaseVariables: exportTestCaseConfigs
                 .filter(isSupportedVariableConfig)
@@ -251,6 +253,8 @@ function RunPageContent() {
                     name: config.name,
                     type: config.type,
                     value: config.type === 'FILE' ? (config.filename || config.value) : config.value,
+                    masked: config.masked === true,
+                    group: config.group || null,
                 })),
             files: testCaseFiles.map((file) => ({
                 filename: file.filename,
@@ -282,8 +286,8 @@ function RunPageContent() {
             setIsDirty(true);
 
             await importVariablesToTestCase(
-                data.testCaseVariables.filter((variable): variable is { name: string; type: 'URL' | 'APP_ID' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING'; value: string } => (
-                    variable.type === 'URL' || variable.type === 'APP_ID' || variable.type === 'VARIABLE' || variable.type === 'SECRET' || variable.type === 'RANDOM_STRING'
+                data.testCaseVariables.filter((variable): variable is { name: string; type: 'URL' | 'APP_ID' | 'VARIABLE' | 'RANDOM_STRING'; value: string; masked?: boolean; group?: string | null } => (
+                    variable.type === 'URL' || variable.type === 'APP_ID' || variable.type === 'VARIABLE' || variable.type === 'RANDOM_STRING'
                 )),
                 data.testData
             );
@@ -451,47 +455,6 @@ function RunPageContent() {
             setTestCaseConfigs([]);
         }
     }, [getAccessToken]);
-
-    const fetchSecretValuesForCopyLogs = useCallback(async (): Promise<string[]> => {
-        const effectiveProjectId = projectId || projectIdFromTestCase;
-        const effectiveTestCaseId = testCaseId || currentTestCaseId;
-        if (!effectiveProjectId && !effectiveTestCaseId) {
-            return [];
-        }
-
-        try {
-            const token = await getAccessToken();
-            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-
-            const [projectResponse, testCaseResponse] = await Promise.all([
-                effectiveProjectId
-                    ? fetch(`/api/projects/${effectiveProjectId}/configs?includeSecretValues=true`, { headers })
-                    : Promise.resolve(null),
-                effectiveTestCaseId
-                    ? fetch(`/api/test-cases/${effectiveTestCaseId}/configs?includeSecretValues=true`, { headers })
-                    : Promise.resolve(null),
-            ]);
-
-            const collect = async (response: Response | null): Promise<string[]> => {
-                if (!response || !response.ok) {
-                    return [];
-                }
-                const configs = await response.json() as Array<{ type?: string; value?: string }>;
-                return configs
-                    .filter((config) => config.type === 'SECRET' && typeof config.value === 'string' && config.value.length > 0)
-                    .map((config) => config.value as string);
-            };
-
-            const [projectSecrets, testCaseSecrets] = await Promise.all([
-                collect(projectResponse),
-                collect(testCaseResponse),
-            ]);
-            return [...projectSecrets, ...testCaseSecrets];
-        } catch (error) {
-            console.error('Failed to fetch secret config values for copy logs', error);
-            return [];
-        }
-    }, [currentTestCaseId, getAccessToken, projectId, projectIdFromTestCase, testCaseId]);
 
     useEffect(() => {
         const effectiveProjectId = projectId || projectIdFromTestCase;
@@ -1005,7 +968,6 @@ function RunPageContent() {
                 <div className="h-full">
                     <ResultViewer
                         result={result}
-                        requestSecretValues={fetchSecretValuesForCopyLogs}
                         meta={{
                             runId: currentRunId,
                             testCaseId: testCaseId || currentTestCaseId || refreshFilesRef.current,

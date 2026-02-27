@@ -12,6 +12,7 @@ import { validateTargetUrl } from './url-security';
 import { validateRuntimeRequestUrl } from './url-security-runtime';
 import { androidDeviceManager, type AndroidDeviceLease } from './android-device-manager';
 import { normalizeAndroidTargetConfig } from './android-target-config';
+import { normalizeBrowserConfig } from './browser-target';
 import { Script, createContext } from 'node:vm';
 import path from 'node:path';
 
@@ -573,12 +574,17 @@ function validateConfiguration(
 
     let targetConfigs: Record<string, BrowserConfig | TargetConfig> = {};
     if (hasBrowserConfig) {
-        targetConfigs = { ...browserConfig };
+        targetConfigs = Object.fromEntries(
+            Object.entries(browserConfig).map(([targetId, targetConfig]) => {
+                if ('type' in targetConfig && targetConfig.type === 'android') {
+                    return [targetId, targetConfig];
+                }
+                return [targetId, normalizeBrowserConfig(targetConfig as BrowserConfig)];
+            })
+        );
     } else if (url) {
         targetConfigs = {
-            main: {
-                url
-            }
+            main: normalizeBrowserConfig({ url })
         };
     } else {
         throw new ConfigurationError('Valid configuration (URL or BrowserConfig) is required');
@@ -777,13 +783,16 @@ async function setupExecutionTargets(
             for (const browserId of browserTargetIds) {
                 if (signal?.aborted) throw new Error('Aborted');
 
-                const browserConfig = targetConfigs[browserId] as BrowserConfig;
+                const browserConfig = normalizeBrowserConfig(targetConfigs[browserId] as BrowserConfig);
                 const targetLabel = getBrowserNiceName(browserId);
 
                 log(`Initializing ${targetLabel}...`, 'info', browserId);
 
                 const context = await browser.newContext({
-                    viewport: config.test.browser.viewport
+                    viewport: {
+                        width: browserConfig.width,
+                        height: browserConfig.height,
+                    }
                 });
 
                 const blockedRequestLogDedup = new Map<string, number>();

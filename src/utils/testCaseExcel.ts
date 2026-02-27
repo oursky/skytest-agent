@@ -2,9 +2,10 @@ import ExcelJS, { CellValue, Worksheet } from 'exceljs';
 import type { BrowserConfig, TargetConfig, ConfigType, TestStep } from '@/types';
 import { normalizeAndroidTargetConfig } from '@/lib/android-target-config';
 import { formatAndroidDeviceSelectorDisplay } from '@/lib/android-device-selector-display';
+import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } from '@/lib/config-sort';
+import { normalizeBrowserConfig } from '@/lib/browser-target';
 
-type SupportedVariableType = Extract<ConfigType, 'URL' | 'APP_ID' | 'VARIABLE' | 'SECRET' | 'RANDOM_STRING' | 'FILE'>;
-const VARIABLE_TYPE_ORDER: SupportedVariableType[] = ['URL', 'APP_ID', 'VARIABLE', 'SECRET', 'FILE', 'RANDOM_STRING'];
+type SupportedVariableType = Extract<ConfigType, 'URL' | 'APP_ID' | 'VARIABLE' | 'RANDOM_STRING' | 'FILE'>;
 const BROWSER_TARGET_SHEET_NAMES = ['Browser Targets', 'Browsers'] as const;
 const ANDROID_TARGET_SHEET_NAMES = ['Android Targets', 'Android'] as const;
 
@@ -12,6 +13,8 @@ interface ExcelProjectVariable {
     name: string;
     type: SupportedVariableType;
     value: string;
+    masked?: boolean;
+    group?: string | null;
 }
 
 interface ExcelFileEntry {
@@ -169,21 +172,25 @@ function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
     );
 
     const projectVariableRows = sortVariablesForExport(data.projectVariables || [])
-        .filter((item) => item.type === 'URL' || item.type === 'APP_ID' || item.type === 'VARIABLE' || item.type === 'SECRET' || item.type === 'RANDOM_STRING' || item.type === 'FILE')
+        .filter((item) => item.type === 'URL' || item.type === 'APP_ID' || item.type === 'VARIABLE' || item.type === 'RANDOM_STRING' || item.type === 'FILE')
         .map((item) => ({
             Section: 'Project Variable',
             Type: formatConfigTypeForSheet(item.type),
             Name: item.name,
             Value: item.type === 'RANDOM_STRING' ? formatRandomStringValueForSheet(item.value) : item.value,
+            Group: isGroupableConfigType(item.type) ? normalizeConfigGroup(item.group) : '',
+            Masked: item.masked ? 'Y' : '',
         }));
 
     const testCaseVariableRows = sortVariablesForExport(data.testCaseVariables || [])
-        .filter((item) => item.type === 'URL' || item.type === 'APP_ID' || item.type === 'VARIABLE' || item.type === 'SECRET' || item.type === 'RANDOM_STRING' || item.type === 'FILE')
+        .filter((item) => item.type === 'URL' || item.type === 'APP_ID' || item.type === 'VARIABLE' || item.type === 'RANDOM_STRING' || item.type === 'FILE')
         .map((item) => ({
             Section: 'Test Case Variable',
             Type: formatConfigTypeForSheet(item.type),
             Name: item.name,
             Value: item.type === 'RANDOM_STRING' ? formatRandomStringValueForSheet(item.value) : item.value,
+            Group: isGroupableConfigType(item.type) ? normalizeConfigGroup(item.group) : '',
+            Masked: item.masked ? 'Y' : '',
         }));
 
     const stepRows = (data.steps || []).map((step, index) => ({
@@ -203,10 +210,13 @@ function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
         if ('type' in entry.config && entry.config.type === 'android') {
             return [];
         }
+        const normalizedBrowserConfig = normalizeBrowserConfig(entry.config as BrowserConfig);
         return [{
             Target: targetLabelById.get(entry.id) || entry.id,
-            Name: entry.config.name || '',
-            URL: (entry.config as BrowserConfig).url || '',
+            Name: normalizedBrowserConfig.name || '',
+            URL: normalizedBrowserConfig.url || '',
+            Width: String(normalizedBrowserConfig.width),
+            Height: String(normalizedBrowserConfig.height),
         }];
     });
     const androidTargetRows: Array<Record<string, string>> = targetEntries.flatMap((entry) => {
@@ -226,9 +236,9 @@ function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
         }];
     });
 
-    appendRowsAsWorksheet(workbook, 'Configurations', configurationsRows, ['Section', 'Type', 'Name', 'Value']);
+    appendRowsAsWorksheet(workbook, 'Configurations', configurationsRows, ['Section', 'Type', 'Name', 'Value', 'Group', 'Masked']);
     if (browserTargetRows.length > 0) {
-        appendRowsAsWorksheet(workbook, 'Browser Targets', browserTargetRows, ['Target', 'Name', 'URL']);
+        appendRowsAsWorksheet(workbook, 'Browser Targets', browserTargetRows, ['Target', 'Name', 'URL', 'Width', 'Height']);
     }
     if (androidTargetRows.length > 0) {
         appendRowsAsWorksheet(
@@ -314,6 +324,8 @@ function parseConfigurationsRows(
             const rawName = getRowValue(row, ['name', 'key']);
             const value = getRowValue(row, ['value']);
             const type = normalizeConfigType(getRowValue(row, ['type', 'config type']));
+            const rawGroup = getRowValue(row, ['group']);
+            const masked = parseMaskedCell(getRowValue(row, ['masked']));
             if (!rawName) {
                 warnings.push(`Missing name in Configurations row ${index + 1}`);
                 return;
@@ -335,7 +347,13 @@ function parseConfigurationsRows(
                 const name = rawName.trim().toUpperCase();
                 const isProject = section === 'projectvariable' || section === 'projectvariables';
                 const destination = isProject ? projectVariables : testCaseVariables;
-                destination.push({ name, type, value: normalizedGenType });
+                destination.push({
+                    name,
+                    type,
+                    value: normalizedGenType,
+                    group: isGroupableConfigType(type) ? (normalizeConfigGroup(rawGroup) || null) : null,
+                    masked: false,
+                });
                 return;
             }
             if (!value) {
@@ -349,6 +367,8 @@ function parseConfigurationsRows(
                 name,
                 type,
                 value,
+                group: isGroupableConfigType(type) ? (normalizeConfigGroup(rawGroup) || null) : null,
+                masked: type === 'VARIABLE' ? masked : false,
             });
             return;
         }
@@ -369,7 +389,15 @@ function parseConfigurationsRows(
                 if (url) {
                     const targetIndex = targetEntries.length;
                     const id = `browser_${String.fromCharCode('a'.charCodeAt(0) + targetIndex)}`;
-                    targetEntries.push({ id, config: { name: name || undefined, url } });
+                    targetEntries.push({
+                        id,
+                        config: normalizeBrowserConfig({
+                            name: name || undefined,
+                            url,
+                            width: parseDimensionValue(getRowValue(row, ['width'])),
+                            height: parseDimensionValue(getRowValue(row, ['height'])),
+                        })
+                    });
                     targetAliases[normalizeHeader(formatTargetLabel(targetIndex, 'browser'))] = id;
                     if (name) {
                         targetAliases[normalizeHeader(name)] = id;
@@ -451,6 +479,8 @@ function parseBrowserTargetRows(
     rows.forEach((row, index) => {
         const url = getRowValue(row, ['url', 'value']);
         const name = getRowValue(row, ['name', 'key']) || '';
+        const width = parseDimensionValue(getRowValue(row, ['width']));
+        const height = parseDimensionValue(getRowValue(row, ['height']));
         const rawTarget = getRowValue(row, ['target']);
         if (!url) {
             warnings.push(`Missing URL in Browsers row ${index + 1}`);
@@ -459,7 +489,10 @@ function parseBrowserTargetRows(
 
         const targetIndex = targetEntries.length;
         const id = `browser_${String.fromCharCode('a'.charCodeAt(0) + targetIndex)}`;
-        targetEntries.push({ id, config: { name: name || undefined, url } });
+        targetEntries.push({
+            id,
+            config: normalizeBrowserConfig({ name: name || undefined, url, width, height })
+        });
 
         addTargetAlias(targetAliases, formatTargetLabel(targetIndex, 'browser'), id);
         addTargetAlias(targetAliases, rawTarget, id);
@@ -702,7 +735,7 @@ function normalizeStepType(value?: string): TestStep['type'] {
 function normalizeConfigType(value?: string): SupportedVariableType | null {
     if (!value) return null;
     const normalized = value.trim().toUpperCase().replace(/\s+/g, '_');
-    if (normalized === 'URL' || normalized === 'APP_ID' || normalized === 'VARIABLE' || normalized === 'SECRET' || normalized === 'FILE') {
+    if (normalized === 'URL' || normalized === 'APP_ID' || normalized === 'VARIABLE' || normalized === 'FILE') {
         return normalized;
     }
     if (normalized === 'APPID') return 'APP_ID';
@@ -734,17 +767,12 @@ function formatConfigTypeForSheet(value: SupportedVariableType): string {
     if (value === 'URL') return 'URL';
     if (value === 'APP_ID') return 'AppID';
     if (value === 'VARIABLE') return 'Variable';
-    if (value === 'SECRET') return 'Secret';
     if (value === 'RANDOM_STRING') return 'Random String';
     return 'File';
 }
 
 function sortVariablesForExport(items: ExcelProjectVariable[]): ExcelProjectVariable[] {
-    return [...items].sort((a, b) => {
-        const typeRankDiff = VARIABLE_TYPE_ORDER.indexOf(a.type) - VARIABLE_TYPE_ORDER.indexOf(b.type);
-        if (typeRankDiff !== 0) return typeRankDiff;
-        return a.name.localeCompare(b.name);
-    });
+    return [...items].sort(compareByGroupThenName);
 }
 
 function formatBrowserLabel(index: number): string {
@@ -769,6 +797,21 @@ function parseBooleanCell(value: string | undefined, defaultValue: boolean): boo
     if (['1', 'true', 'yes', 'y', 'on'].includes(normalized)) return true;
     if (['0', 'false', 'no', 'n', 'off'].includes(normalized)) return false;
     return defaultValue;
+}
+
+function parseMaskedCell(value: string | undefined): boolean {
+    if (!value) return false;
+    const normalized = value.trim().toLowerCase();
+    return normalized === 'y' || normalized === 'yes' || normalized === 'true' || normalized === '1';
+}
+
+function parseDimensionValue(value: string | undefined): number | undefined {
+    if (!value) return undefined;
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+        return undefined;
+    }
+    return parsed;
 }
 
 function getRowValue(row: Record<string, unknown>, candidates: string[]): string | undefined {

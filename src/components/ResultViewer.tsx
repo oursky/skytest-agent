@@ -3,13 +3,14 @@
 import Image from 'next/image';
 import { getStatusBadgeClass } from '@/utils/statusBadge';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { TestRun, TestEvent, TestCaseFile, TestData, BrowserConfig, TargetConfig, AndroidTargetConfig, isLogData, isScreenshotData } from '@/types';
+import { TestRun, TestEvent, TestCaseFile, TestData, BrowserConfig, TargetConfig, AndroidTargetConfig } from '@/types';
 import { formatTime } from '@/utils/dateFormatter';
 import TimelineEvent from './result-viewer/TimelineEvent';
 import ResultStatus from './result-viewer/ResultStatus';
 import { useI18n } from '@/i18n';
 import { normalizeAndroidTargetConfig } from '@/lib/android-target-config';
 import { formatAndroidDeviceSelectorDisplay } from '@/lib/android-device-selector-display';
+import { normalizeBrowserConfig } from '@/lib/browser-target';
 
 interface ResultViewerMeta {
     runId?: string | null;
@@ -19,58 +20,11 @@ interface ResultViewerMeta {
     testCaseName?: string | null;
     config?: TestData;
     files?: TestCaseFile[];
-    secretValues?: string[];
 }
 
 interface ResultViewerProps {
     result: Omit<TestRun, 'id' | 'testCaseId' | 'createdAt'> & { events: TestEvent[] };
     meta?: ResultViewerMeta;
-    requestSecretValues?: () => Promise<string[]>;
-}
-
-function collectSecrets(secretValues?: string[]): string[] {
-    if (!secretValues || secretValues.length === 0) {
-        return [];
-    }
-    return [...new Set(
-        secretValues
-            .map((value) => value.trim())
-            .filter((value) => value.length > 0 && value !== '••••••')
-    )];
-}
-
-function maskSensitiveText(text: string, secrets: string[]): string {
-    if (!secrets.length) return text;
-    return secrets.reduce((output, secret) => {
-        if (!secret) return output;
-        return output.split(secret).join('••••');
-    }, text);
-}
-
-function maskEvent(event: TestEvent, secrets: string[]): TestEvent {
-    if (!secrets.length) return event;
-
-    if (isLogData(event.data)) {
-        return {
-            ...event,
-            data: {
-                ...event.data,
-                message: maskSensitiveText(event.data.message, secrets)
-            }
-        };
-    }
-
-    if (isScreenshotData(event.data)) {
-        return {
-            ...event,
-            data: {
-                ...event.data,
-                label: maskSensitiveText(event.data.label || '', secrets)
-            }
-        };
-    }
-
-    return event;
 }
 
 function isAndroidTargetConfig(config: BrowserConfig | TargetConfig): config is AndroidTargetConfig {
@@ -103,12 +57,13 @@ function buildConfigSummaryLines(config?: TestData): string[] {
                 continue;
             }
 
-            const browserConfig = targetConfig as BrowserConfig;
+            const browserConfig = normalizeBrowserConfig(targetConfig as BrowserConfig);
             const targetName = browserConfig.name || targetId;
             lines.push(`- ${targetName} [${targetId}] Browser`);
             if (browserConfig.url) {
                 lines.push(`  URL: ${browserConfig.url}`);
             }
+            lines.push(`  Viewport: ${browserConfig.width} x ${browserConfig.height}`);
         }
     } else if (config.url) {
         lines.push('### Targets');
@@ -119,21 +74,14 @@ function buildConfigSummaryLines(config?: TestData): string[] {
     return lines;
 }
 
-export default function ResultViewer({ result, meta, requestSecretValues }: ResultViewerProps) {
+export default function ResultViewer({ result, meta }: ResultViewerProps) {
     const { t } = useI18n();
 
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const [autoScroll, setAutoScroll] = useState(true);
     const [lightboxImage, setLightboxImage] = useState<{ src: string; label: string } | null>(null);
     const [copied, setCopied] = useState(false);
-    const [loadedSecretValues, setLoadedSecretValues] = useState<string[] | null>(null);
-
-    const secrets = useMemo(
-        () => collectSecrets(loadedSecretValues ?? meta?.secretValues),
-        [loadedSecretValues, meta?.secretValues]
-    );
-
-    const events = useMemo(() => result.events.map((event) => maskEvent(event, secrets)), [result.events, secrets]);
+    const events = result.events;
 
     const targetTypeMap = useMemo<Record<string, 'browser' | 'android'>>(() => {
         const cfg = meta?.config?.browserConfig ?? {};
@@ -160,10 +108,6 @@ export default function ResultViewer({ result, meta, requestSecretValues }: Resu
         }
     }, [events.length, autoScroll]);
 
-    useEffect(() => {
-        setLoadedSecretValues(null);
-    }, [meta?.runId, meta?.testCaseId, meta?.projectId]);
-
     const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
         const container = e.currentTarget;
         const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
@@ -185,8 +129,7 @@ export default function ResultViewer({ result, meta, requestSecretValues }: Resu
         }
     };
 
-    const buildLogsText = (maskingSecrets: string[] = secrets): string => {
-        const maskedEvents = result.events.map((event) => maskEvent(event, maskingSecrets));
+    const buildLogsText = (): string => {
         const lines: string[] = [];
         lines.push(`# SkyTest Agent Run Report`);
         lines.push(`Generated: ${new Date().toISOString()}`);
@@ -203,7 +146,7 @@ export default function ResultViewer({ result, meta, requestSecretValues }: Resu
         if (meta?.projectName) lines.push(`Project Name: ${meta.projectName}`);
         lines.push(`Status: ${result.status}`);
         if (result.error) lines.push(`Error: ${result.error}`);
-        lines.push(`Events: ${maskedEvents.length}`);
+        lines.push(`Events: ${result.events.length}`);
         lines.push('');
         if (meta?.config) {
             lines.push('## Configuration');
@@ -215,7 +158,7 @@ export default function ResultViewer({ result, meta, requestSecretValues }: Resu
             try {
                 const configJson = JSON.stringify(meta.config, null, 2);
                 lines.push('```json');
-                lines.push(maskSensitiveText(configJson, maskingSecrets));
+                lines.push(configJson);
                 lines.push('```');
             } catch {
                 // ignore
@@ -230,7 +173,7 @@ export default function ResultViewer({ result, meta, requestSecretValues }: Resu
             lines.push('');
         }
         lines.push('## Events');
-        for (const ev of maskedEvents) {
+        for (const ev of result.events) {
             const t = formatTime(ev.timestamp);
             if (ev.type === 'log' && 'message' in ev.data) {
                 const level = ev.data.level?.toUpperCase() || 'INFO';
@@ -246,13 +189,7 @@ export default function ResultViewer({ result, meta, requestSecretValues }: Resu
 
     const handleCopyLogs = async () => {
         try {
-            let copySecrets = secrets;
-            if (copySecrets.length === 0 && requestSecretValues) {
-                const fetchedSecrets = collectSecrets(await requestSecretValues());
-                setLoadedSecretValues(fetchedSecrets);
-                copySecrets = fetchedSecrets;
-            }
-            await navigator.clipboard.writeText(buildLogsText(copySecrets));
+            await navigator.clipboard.writeText(buildLogsText());
             setCopied(true);
             window.setTimeout(() => setCopied(false), 1200);
         } catch {

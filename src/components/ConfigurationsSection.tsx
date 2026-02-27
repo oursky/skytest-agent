@@ -6,11 +6,13 @@ import { useI18n } from '@/i18n';
 import type { ConfigItem, ConfigType, BrowserConfig, TargetConfig, AndroidTargetConfig, AndroidDeviceSelector } from '@/types';
 import Link from 'next/link';
 import { normalizeAndroidTargetConfig } from '@/lib/android-target-config';
+import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } from '@/lib/config-sort';
+import { normalizeBrowserConfig, normalizeBrowserViewportDimensions } from '@/lib/browser-target';
 
 const CONFIG_NAME_REGEX = /^[A-Z][A-Z0-9_]*$/;
 
-const TYPE_ORDER: ConfigType[] = ['URL', 'APP_ID', 'VARIABLE', 'SECRET', 'FILE', 'RANDOM_STRING'];
-const ADDABLE_TEST_CASE_CONFIG_TYPES: ConfigType[] = ['URL', 'APP_ID', 'VARIABLE', 'SECRET', 'FILE', 'RANDOM_STRING'];
+const TYPE_ORDER: ConfigType[] = ['URL', 'APP_ID', 'VARIABLE', 'FILE', 'RANDOM_STRING'];
+const ADDABLE_TEST_CASE_CONFIG_TYPES: ConfigType[] = ['URL', 'APP_ID', 'VARIABLE', 'FILE', 'RANDOM_STRING'];
 
 const RANDOM_STRING_GENERATION_TYPES = ['TIMESTAMP_DATETIME', 'TIMESTAMP_UNIX', 'UUID'] as const;
 
@@ -186,19 +188,26 @@ interface EditState {
     name: string;
     value: string;
     type: ConfigType;
+    masked: boolean;
+    group: string;
 }
 
 interface FileUploadDraft {
     name: string;
+    group: string;
     file: File | null;
 }
 
 function sortConfigs(configs: ConfigItem[]): ConfigItem[] {
     return [...configs].sort((a, b) => {
+        const byGroup = compareByGroupThenName(a, b);
+        if (byGroup !== 0) {
+            return byGroup;
+        }
         const typeA = TYPE_ORDER.indexOf(a.type);
         const typeB = TYPE_ORDER.indexOf(b.type);
         if (typeA !== typeB) return typeA - typeB;
-        return a.name.localeCompare(b.name);
+        return 0;
     });
 }
 
@@ -215,9 +224,8 @@ function TypeSubHeader({ type, t }: { type: ConfigType; t: (key: string) => stri
     const key = type === 'URL' ? 'configs.title.urls'
         : type === 'APP_ID' ? 'configs.title.appIds'
         : type === 'VARIABLE' ? 'configs.title.variables'
-            : type === 'SECRET' ? 'configs.title.secrets'
-                : type === 'RANDOM_STRING' ? 'configs.title.randomStrings'
-                    : 'configs.title.files';
+            : type === 'RANDOM_STRING' ? 'configs.title.randomStrings'
+                : 'configs.title.files';
     return (
         <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider pt-2 first:pt-0">
             {t(key)}
@@ -244,7 +252,6 @@ export default function ConfigurationsSection({
     const [addTypeOpen, setAddTypeOpen] = useState(false);
     const [urlDropdownOpen, setUrlDropdownOpen] = useState<string | null>(null);
     const [randomStringDropdownOpen, setRandomStringDropdownOpen] = useState<string | null>(null);
-    const [showSecretInEdit, setShowSecretInEdit] = useState(false);
     const [fileUploadDraft, setFileUploadDraft] = useState<FileUploadDraft | null>(null);
     const [androidDeviceOptions, setAndroidDeviceOptions] = useState<AndroidDeviceOption[]>([]);
     const [avdDropdownOpen, setAvdDropdownOpen] = useState<string | null>(null);
@@ -455,6 +462,9 @@ export default function ConfigurationsSection({
             return;
         }
 
+        const normalizedGroup = isGroupableConfigType(editState.type) ? normalizeConfigGroup(editState.group) : '';
+        const normalizedMasked = editState.type === 'VARIABLE' ? editState.masked : false;
+
         try {
             const targetTestCaseId = await resolveTestCaseId();
             if (!targetTestCaseId) {
@@ -471,7 +481,13 @@ export default function ConfigurationsSection({
                 const res = await fetch(`/api/test-cases/${targetTestCaseId}/configs/${editState.id}`, {
                     method: 'PUT',
                     headers,
-                    body: JSON.stringify({ name: normalizedName, type: editState.type, value: editState.value }),
+                    body: JSON.stringify({
+                        name: normalizedName,
+                        type: editState.type,
+                        value: editState.value,
+                        masked: normalizedMasked,
+                        group: normalizedGroup || null,
+                    }),
                 });
                 if (!res.ok) {
                     const data = await res.json().catch(() => ({}));
@@ -482,7 +498,13 @@ export default function ConfigurationsSection({
                 const res = await fetch(`/api/test-cases/${targetTestCaseId}/configs`, {
                     method: 'POST',
                     headers,
-                    body: JSON.stringify({ name: normalizedName, type: editState.type, value: editState.value }),
+                    body: JSON.stringify({
+                        name: normalizedName,
+                        type: editState.type,
+                        value: editState.value,
+                        masked: normalizedMasked,
+                        group: normalizedGroup || null,
+                    }),
                 });
                 if (!res.ok) {
                     const data = await res.json().catch(() => ({}));
@@ -543,6 +565,7 @@ export default function ConfigurationsSection({
         const formData = new FormData();
         formData.append('file', draft.file);
         formData.append('name', normalizedName);
+        formData.append('group', normalizeConfigGroup(draft.group));
 
         try {
             const targetTestCaseId = await resolveTestCaseId();
@@ -635,36 +658,24 @@ export default function ConfigurationsSection({
         }
     }, [resolveTestCaseId, getAccessToken]);
 
-    const handleEdit = useCallback(async (config: ConfigItem) => {
+    const handleEdit = useCallback((config: ConfigItem) => {
         if (!testCaseId) return;
-        setShowSecretInEdit(false);
         setRandomStringDropdownOpen(null);
-        if (config.type === 'SECRET') {
-            try {
-                const token = await getAccessToken();
-                const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-                const res = await fetch(`/api/test-cases/${testCaseId}/configs?includeSecretValues=true`, { headers });
-                if (res.ok) {
-                    const configsWithSecrets = await res.json();
-                    const configWithSecret = configsWithSecrets.find((c: ConfigItem) => c.id === config.id);
-                    if (configWithSecret) {
-                        setEditState({ id: config.id, name: config.name, value: configWithSecret.value, type: config.type });
-                        setError(null);
-                        return;
-                    }
-                }
-            } catch (err) {
-                console.error('Failed to fetch secret value', err);
-            }
-        }
-        setEditState({ id: config.id, name: config.name, value: config.value, type: config.type });
+        setEditState({
+            id: config.id,
+            name: config.name,
+            value: config.value,
+            type: config.type,
+            masked: config.masked === true,
+            group: config.group || '',
+        });
         setError(null);
-    }, [testCaseId, getAccessToken]);
+    }, [testCaseId]);
 
     const handleAddBrowser = () => {
         const nextChar = String.fromCharCode('a'.charCodeAt(0) + browsers.length);
         const newId = `browser_${nextChar}`;
-        setBrowsers([...browsers, { id: newId, config: { url: '' } }]);
+        setBrowsers([...browsers, { id: newId, config: normalizeBrowserConfig({ url: '' }) }]);
     };
 
     const handleAddAndroid = () => {
@@ -692,9 +703,29 @@ export default function ConfigurationsSection({
 
     const updateTarget = (index: number, updates: Partial<BrowserConfig & AndroidTargetConfig>) => {
         const newBrowsers = [...browsers];
+        const currentTarget = newBrowsers[index].config;
+        if ('type' in currentTarget && currentTarget.type === 'android') {
+            newBrowsers[index] = {
+                ...newBrowsers[index],
+                config: { ...currentTarget, ...updates } as TargetConfig
+            };
+            setBrowsers(newBrowsers);
+            return;
+        }
+
+        const currentBrowser = normalizeBrowserConfig(currentTarget as BrowserConfig);
+        const mergedBrowser = { ...currentBrowser, ...updates };
+        const normalizedDimensions = normalizeBrowserViewportDimensions({
+            width: mergedBrowser.width,
+            height: mergedBrowser.height,
+        });
         newBrowsers[index] = {
             ...newBrowsers[index],
-            config: { ...newBrowsers[index].config, ...updates } as BrowserConfig | TargetConfig
+            config: {
+                ...mergedBrowser,
+                width: normalizedDimensions.width,
+                height: normalizedDimensions.height,
+            } as BrowserConfig
         };
         setBrowsers(newBrowsers);
     };
@@ -747,8 +778,14 @@ export default function ConfigurationsSection({
                             >
                                 <code className="font-mono text-gray-800 text-xs">{config.name}</code>
                                 <span className="text-gray-400 text-xs truncate">
-                                    {config.type === 'SECRET' ? '••••••' : config.type === 'FILE' ? (config.filename || config.value) : config.type === 'RANDOM_STRING' ? randomStringGenerationLabel(config.value, t) : config.value}
+                                    {config.masked ? '••••••' : config.type === 'FILE' ? (config.filename || config.value) : config.type === 'RANDOM_STRING' ? randomStringGenerationLabel(config.value, t) : config.value}
                                 </span>
+                                {config.group && (
+                                    <span className="text-[10px] text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded uppercase">{config.group}</span>
+                                )}
+                                {config.masked && (
+                                    <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded uppercase">{t('configs.masked')}</span>
+                                )}
                             </div>
                         ))}
                     </div>
@@ -784,15 +821,19 @@ export default function ConfigurationsSection({
                                             onClick={() => {
                                                 if (type === 'FILE') {
                                                     setEditState(null);
-                                                    setShowSecretInEdit(false);
-                                                    setFileUploadDraft({ name: '', file: null });
+                                                    setFileUploadDraft({ name: '', group: '', file: null });
                                                     setError(null);
                                                     setRandomStringDropdownOpen(null);
                                                 } else {
                                                     setFileUploadDraft(null);
-                                                    setEditState({ name: '', value: type === 'RANDOM_STRING' ? 'TIMESTAMP_DATETIME' : '', type });
+                                                    setEditState({
+                                                        name: '',
+                                                        value: type === 'RANDOM_STRING' ? 'TIMESTAMP_DATETIME' : '',
+                                                        type,
+                                                        masked: false,
+                                                        group: '',
+                                                    });
                                                     setError(null);
-                                                    setShowSecretInEdit(false);
                                                 }
                                                 setAddTypeOpen(false);
                                             }}
@@ -828,34 +869,14 @@ export default function ConfigurationsSection({
                                             {config.type === 'RANDOM_STRING' ? (
                                                 renderRandomStringDropdown(`existing-${config.id}`, editState.value)
                                             ) : (
-                                                <>
-                                                    <input
-                                                        type={config.type === 'SECRET' && !showSecretInEdit ? 'password' : 'text'}
-                                                        value={editState.value}
-                                                        onChange={(e) => setEditState({ ...editState, value: e.target.value })}
-                                                        onKeyDown={handleConfigEditorKeyDown}
-                                                        placeholder={config.type === 'URL' ? t('configs.url.placeholder') : config.type === 'SECRET' ? t('configs.secret.placeholder') : t('configs.value.placeholder')}
-                                                        className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary pr-7"
-                                                    />
-                                                    {config.type === 'SECRET' && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setShowSecretInEdit(!showSecretInEdit)}
-                                                            className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600"
-                                                        >
-                                                            {showSecretInEdit ? (
-                                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                                                                </svg>
-                                                            ) : (
-                                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                                                </svg>
-                                                            )}
-                                                        </button>
-                                                    )}
-                                                </>
+                                                <input
+                                                    type="text"
+                                                    value={editState.value}
+                                                    onChange={(e) => setEditState({ ...editState, value: e.target.value })}
+                                                    onKeyDown={handleConfigEditorKeyDown}
+                                                    placeholder={config.type === 'URL' ? t('configs.url.placeholder') : t('configs.value.placeholder')}
+                                                    className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                                                />
                                             )}
                                         </div>
                                         <button type="button" onClick={handleSave} className="px-2 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90">{t('common.save')}</button>
@@ -871,6 +892,32 @@ export default function ConfigurationsSection({
                                             {t('common.cancel')}
                                         </button>
                                     </div>
+                                    {(isGroupableConfigType(config.type) || config.type === 'VARIABLE') && (
+                                        <div className="mt-2 flex items-center gap-3">
+                                            {isGroupableConfigType(config.type) && (
+                                                <input
+                                                    type="text"
+                                                    value={editState.group}
+                                                    onChange={(e) => setEditState({ ...editState, group: e.target.value })}
+                                                    placeholder={t('configs.group.placeholder')}
+                                                    className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                                                />
+                                            )}
+                                            {config.type === 'VARIABLE' && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setEditState({ ...editState, masked: !editState.masked })}
+                                                    className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border ${editState.masked ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-gray-600 border-gray-200'}`}
+                                                    title={t('configs.masked')}
+                                                >
+                                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m0 4h.01m-7.938-4A9.969 9.969 0 012 12C3.273 7.943 7.064 5 11.542 5c4.477 0 8.268 2.943 9.541 7a9.97 9.97 0 01-2.404 4.146M9 10a3 3 0 116 0v2a3 3 0 11-6 0v-2z" />
+                                                    </svg>
+                                                    <span>{t('configs.masked')}</span>
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
                                     {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
                                 </div>
                             );
@@ -912,8 +959,14 @@ export default function ConfigurationsSection({
                             <div key={config.id} className="flex items-center gap-2 px-2 py-1.5 rounded text-sm group hover:bg-gray-50">
                                 <code className="font-mono text-gray-800 text-xs">{config.name}</code>
                                 <span className="text-gray-400 text-xs truncate">
-                                    {config.type === 'SECRET' ? '••••••' : config.type === 'RANDOM_STRING' ? randomStringGenerationLabel(config.value, t) : config.value}
+                                    {config.masked ? '••••••' : config.type === 'RANDOM_STRING' ? randomStringGenerationLabel(config.value, t) : config.value}
                                 </span>
+                                {config.group && (
+                                    <span className="text-[10px] text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded uppercase">{config.group}</span>
+                                )}
+                                {config.masked && (
+                                    <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded uppercase">{t('configs.masked')}</span>
+                                )}
                                 {overridesProject && (
                                     <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">{t('configs.override')}</span>
                                 )}
@@ -959,34 +1012,14 @@ export default function ConfigurationsSection({
                                     {editState.type === 'RANDOM_STRING' ? (
                                         renderRandomStringDropdown('new-random-string', editState.value)
                                     ) : (
-                                        <>
-                                            <input
-                                                type={editState.type === 'SECRET' && !showSecretInEdit ? 'password' : 'text'}
-                                                value={editState.value}
-                                                onChange={(e) => setEditState({ ...editState, value: e.target.value })}
-                                                onKeyDown={handleConfigEditorKeyDown}
-                                                placeholder={editState.type === 'URL' ? t('configs.url.placeholder') : editState.type === 'SECRET' ? t('configs.secret.placeholder') : t('configs.value.placeholder')}
-                                                className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary pr-7"
-                                            />
-                                            {editState.type === 'SECRET' && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setShowSecretInEdit(!showSecretInEdit)}
-                                                    className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600"
-                                                >
-                                                    {showSecretInEdit ? (
-                                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                                                        </svg>
-                                                    ) : (
-                                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                                        </svg>
-                                                    )}
-                                                </button>
-                                            )}
-                                        </>
+                                        <input
+                                            type="text"
+                                            value={editState.value}
+                                            onChange={(e) => setEditState({ ...editState, value: e.target.value })}
+                                            onKeyDown={handleConfigEditorKeyDown}
+                                            placeholder={editState.type === 'URL' ? t('configs.url.placeholder') : t('configs.value.placeholder')}
+                                            className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                                        />
                                     )}
                                 </div>
                                 <button type="button" onClick={handleSave} className="px-2 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90">{t('common.save')}</button>
@@ -1002,6 +1035,32 @@ export default function ConfigurationsSection({
                                     {t('common.cancel')}
                                 </button>
                             </div>
+                            {(isGroupableConfigType(editState.type) || editState.type === 'VARIABLE') && (
+                                <div className="mt-2 flex items-center gap-3">
+                                    {isGroupableConfigType(editState.type) && (
+                                        <input
+                                            type="text"
+                                            value={editState.group}
+                                            onChange={(e) => setEditState({ ...editState, group: e.target.value })}
+                                            placeholder={t('configs.group.placeholder')}
+                                            className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                                        />
+                                    )}
+                                    {editState.type === 'VARIABLE' && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setEditState({ ...editState, masked: !editState.masked })}
+                                            className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border ${editState.masked ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-gray-600 border-gray-200'}`}
+                                            title={t('configs.masked')}
+                                        >
+                                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m0 4h.01m-7.938-4A9.969 9.969 0 012 12C3.273 7.943 7.064 5 11.542 5c4.477 0 8.268 2.943 9.541 7a9.97 9.97 0 01-2.404 4.146M9 10a3 3 0 116 0v2a3 3 0 11-6 0v-2z" />
+                                            </svg>
+                                            <span>{t('configs.masked')}</span>
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                             {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
                         </div>
                     )}
@@ -1041,6 +1100,15 @@ export default function ConfigurationsSection({
                                 >
                                     {t('common.cancel')}
                                 </button>
+                            </div>
+                            <div className="mt-2">
+                                <input
+                                    type="text"
+                                    value={fileUploadDraft.group}
+                                    onChange={(e) => setFileUploadDraft({ ...fileUploadDraft, group: e.target.value })}
+                                    placeholder={t('configs.group.placeholder')}
+                                    className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                                />
                             </div>
                             {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
                         </div>
@@ -1272,7 +1340,7 @@ export default function ConfigurationsSection({
                             );
                         }
 
-                        const cfg = browser.config as BrowserConfig;
+                        const cfg = normalizeBrowserConfig(browser.config as BrowserConfig);
                         return (
                             <div key={browser.id} className="p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
                                 <div className="flex items-center justify-between">
@@ -1347,6 +1415,40 @@ export default function ConfigurationsSection({
                                                     )}
                                                 </div>
                                             )}
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="text-[10px] font-medium text-gray-500 uppercase">{t('configs.browser.width')}</label>
+                                            <input
+                                                type="number"
+                                                min={1}
+                                                value={cfg.width}
+                                                onChange={(e) => {
+                                                    const width = Number.parseInt(e.target.value, 10);
+                                                    if (Number.isFinite(width) && width > 0) {
+                                                        updateTarget(index, { width });
+                                                    }
+                                                }}
+                                                className="w-full mt-0.5 px-2 py-1.5 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                                                disabled={readOnly}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-medium text-gray-500 uppercase">{t('configs.browser.height')}</label>
+                                            <input
+                                                type="number"
+                                                min={1}
+                                                value={cfg.height}
+                                                onChange={(e) => {
+                                                    const height = Number.parseInt(e.target.value, 10);
+                                                    if (Number.isFinite(height) && height > 0) {
+                                                        updateTarget(index, { height });
+                                                    }
+                                                }}
+                                                className="w-full mt-0.5 px-2 py-1.5 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                                                disabled={readOnly}
+                                            />
                                         </div>
                                     </div>
                                 </div>

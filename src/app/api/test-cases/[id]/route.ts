@@ -3,8 +3,9 @@ import { prisma } from '@/lib/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { parseTestCaseJson } from '@/lib/test-case-utils';
-import { TestStep } from '@/types';
+import { TestStep, BrowserConfig, TargetConfig } from '@/types';
 import { getUploadPath, getTestCaseConfigUploadPath } from '@/lib/file-security';
+import { normalizeBrowserConfig } from '@/lib/browser-target';
 import fs from 'fs/promises';
 
 const logger = createLogger('api:test-cases:id');
@@ -16,6 +17,19 @@ function cleanStepsForStorage(steps: TestStep[]): TestStep[] {
         void codeAction;
         return cleanedStep;
     });
+}
+
+function normalizeTargetConfigMap(
+    browserConfig: Record<string, BrowserConfig | TargetConfig>
+): Record<string, BrowserConfig | TargetConfig> {
+    return Object.fromEntries(
+        Object.entries(browserConfig).map(([targetId, targetConfig]) => {
+            if ('type' in targetConfig && targetConfig.type === 'android') {
+                return [targetId, targetConfig];
+            }
+            return [targetId, normalizeBrowserConfig(targetConfig as BrowserConfig)];
+        })
+    );
 }
 
 export async function GET(
@@ -104,13 +118,16 @@ export async function PUT(
         const hasSteps = steps && Array.isArray(steps) && steps.length > 0;
         const hasBrowserConfig = browserConfig && Object.keys(browserConfig).length > 0;
         const cleanedSteps = hasSteps ? cleanStepsForStorage(steps) : undefined;
+        const normalizedBrowserConfig = hasBrowserConfig
+            ? normalizeTargetConfigMap(browserConfig as Record<string, BrowserConfig | TargetConfig>)
+            : undefined;
 
         const updateData: Record<string, unknown> = {
             name,
             url,
             prompt,
             steps: cleanedSteps ? JSON.stringify(cleanedSteps) : undefined,
-            browserConfig: hasBrowserConfig ? JSON.stringify(browserConfig) : undefined,
+            browserConfig: normalizedBrowserConfig ? JSON.stringify(normalizedBrowserConfig) : undefined,
         };
 
         if (displayId !== undefined) {

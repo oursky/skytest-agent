@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useI18n } from '@/i18n';
 import type { ConfigItem, ConfigType, TestCaseFile } from '@/types';
+import { compareByGroupThenName, normalizeConfigGroup } from '@/lib/config-sort';
 
 interface InsertVariableDropdownProps {
     projectConfigs: ConfigItem[];
@@ -13,6 +14,50 @@ interface InsertVariableDropdownProps {
     testFiles?: TestCaseFile[];
     formatTestFileRef?: (file: TestCaseFile) => string;
     onInsertTestFile?: (file: TestCaseFile) => void;
+}
+
+interface ConfigGroup {
+    key: string;
+    label: string;
+    configs: ConfigItem[];
+}
+
+function getPreviewValue(config: ConfigItem): string {
+    const rawValue = config.type === 'FILE' ? (config.filename || config.value) : config.value;
+    if (config.masked) {
+        return '••••••';
+    }
+    if (rawValue.length <= 32) {
+        return rawValue;
+    }
+    return `${rawValue.slice(0, 32)}…`;
+}
+
+function groupConfigs(configs: ConfigItem[]): ConfigGroup[] {
+    const sorted = [...configs].sort(compareByGroupThenName);
+    const grouped = new Map<string, ConfigItem[]>();
+
+    for (const config of sorted) {
+        const normalizedGroup = normalizeConfigGroup(config.group);
+        const key = normalizedGroup || '__ungrouped__';
+        const current = grouped.get(key) || [];
+        current.push(config);
+        grouped.set(key, current);
+    }
+
+    const ungrouped = grouped.get('__ungrouped__') || [];
+    const groupedKeys = [...grouped.keys()]
+        .filter((key) => key !== '__ungrouped__')
+        .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+
+    const result: ConfigGroup[] = [];
+    if (ungrouped.length > 0) {
+        result.push({ key: '__ungrouped__', label: '', configs: ungrouped });
+    }
+    for (const key of groupedKeys) {
+        result.push({ key, label: key, configs: grouped.get(key) || [] });
+    }
+    return result;
 }
 
 export default function InsertVariableDropdown({
@@ -33,8 +78,8 @@ export default function InsertVariableDropdown({
 
     useEffect(() => {
         if (!isOpen) return;
-        const handleClickOutside = (e: MouseEvent) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
                 setIsOpen(false);
             }
         };
@@ -60,41 +105,76 @@ export default function InsertVariableDropdown({
     }, [isOpen]);
 
     const filteredProjectConfigs = allowedTypes
-        ? projectConfigs.filter(config => allowedTypes.includes(config.type))
+        ? projectConfigs.filter((config) => allowedTypes.includes(config.type))
         : projectConfigs;
     const filteredTestCaseConfigs = allowedTypes
-        ? testCaseConfigs.filter(config => allowedTypes.includes(config.type))
+        ? testCaseConfigs.filter((config) => allowedTypes.includes(config.type))
         : testCaseConfigs;
     const availableTestFiles = testFiles || [];
 
-    const allConfigs = [...filteredProjectConfigs, ...filteredTestCaseConfigs];
-    if (allConfigs.length === 0 && availableTestFiles.length === 0) return null;
+    if (filteredProjectConfigs.length === 0 && filteredTestCaseConfigs.length === 0 && availableTestFiles.length === 0) {
+        return null;
+    }
 
-    const overriddenNames = new Set(filteredTestCaseConfigs.map(c => c.name));
+    const overriddenNames = new Set(filteredTestCaseConfigs.map((config) => config.name));
 
     const buildConfigReference = (config: ConfigItem): string => {
         if (formatRef) {
             return formatRef(config);
         }
-        return config.type === 'FILE'
-            ? `{{file:${config.filename || config.name}}}`
-            : `{{${config.name}}}`;
+        if (config.type === 'FILE') {
+            return `{{file:${config.filename || config.name}}}`;
+        }
+        return `{{${config.name}}}`;
     };
 
-    const handleSelect = (config: ConfigItem) => {
-        const ref = buildConfigReference(config);
-        onInsert(ref);
+    const handleSelectConfig = (config: ConfigItem) => {
+        onInsert(buildConfigReference(config));
         setIsOpen(false);
     };
 
     const handleSelectTestFile = (file: TestCaseFile) => {
-        const ref = formatTestFileRef
-            ? formatTestFileRef(file)
-            : `{{file:${file.filename}}}`;
-        onInsert(ref);
+        const reference = formatTestFileRef ? formatTestFileRef(file) : `{{file:${file.filename}}}`;
+        onInsert(reference);
         onInsertTestFile?.(file);
         setIsOpen(false);
     };
+
+    const renderConfigGroups = (groups: ConfigGroup[], source: 'project' | 'test-case') => {
+        return groups.map((group) => (
+            <div key={`${source}-${group.key}`}>
+                {group.label && (
+                    <div className="px-3 py-1 text-[10px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-50 border-y border-gray-100">
+                        {group.label}
+                    </div>
+                )}
+                {group.configs.map((config) => (
+                    <button
+                        key={`${source}-${config.id}`}
+                        type="button"
+                        onClick={() => handleSelectConfig(config)}
+                        className={`w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 flex items-center justify-between gap-3 ${source === 'project' && overriddenNames.has(config.name) ? 'opacity-50 line-through' : ''}`}
+                    >
+                        <div className="min-w-0 flex-1">
+                            <code className="block font-mono text-xs text-gray-700 truncate">{config.name}</code>
+                            <span className="block text-[10px] text-gray-400 truncate">{getPreviewValue(config)}</span>
+                        </div>
+                        <div className="shrink-0 flex items-center gap-1">
+                            {config.masked && (
+                                <span className="text-[10px] font-semibold uppercase text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
+                                    {t('configs.masked')}
+                                </span>
+                            )}
+                            <span className="text-[10px] font-semibold uppercase text-gray-400">{config.type}</span>
+                        </div>
+                    </button>
+                ))}
+            </div>
+        ));
+    };
+
+    const groupedProjectConfigs = groupConfigs(filteredProjectConfigs);
+    const groupedTestCaseConfigs = groupConfigs(filteredTestCaseConfigs);
 
     return (
         <div className="relative inline-block" ref={dropdownRef}>
@@ -112,54 +192,32 @@ export default function InsertVariableDropdown({
             {isOpen && (
                 <div
                     ref={menuRef}
-                    className={`absolute top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-[70] py-1 w-[min(20rem,calc(100vw-2rem))] max-h-[min(300px,50vh)] overflow-y-auto ${menuAlignment === 'right' ? 'right-0' : 'left-0'}`}
+                    className={`absolute top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-[70] py-1 w-[min(22rem,calc(100vw-2rem))] h-72 overflow-y-auto ${menuAlignment === 'right' ? 'right-0' : 'left-0'}`}
                 >
                     {filteredProjectConfigs.length > 0 && (
                         <>
                             <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
                                 {t('configs.section.projectVariables')}
                             </div>
-                            {filteredProjectConfigs.map(config => (
-                                <button
-                                    key={`p-${config.id}`}
-                                    type="button"
-                                    onClick={() => handleSelect(config)}
-                                    className={`w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 flex items-center justify-between gap-3 ${overriddenNames.has(config.name) ? 'opacity-50 line-through' : ''}`}
-                                >
-                                    <code className="font-mono text-xs text-gray-700">{config.name}</code>
-                                    <span className="text-[10px] font-semibold uppercase text-gray-400">{config.type}</span>
-                                </button>
-                            ))}
+                            {renderConfigGroups(groupedProjectConfigs, 'project')}
                         </>
                     )}
+
                     {filteredTestCaseConfigs.length > 0 && (
                         <>
-                            <div
-                                className={`px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider ${filteredProjectConfigs.length > 0 ? 'border-t border-gray-100 mt-1' : ''}`}
-                            >
+                            <div className={`px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider ${filteredProjectConfigs.length > 0 ? 'border-t border-gray-100 mt-1' : ''}`}>
                                 {t('configs.section.testCaseVariables')}
                             </div>
-                            {filteredTestCaseConfigs.map(config => (
-                                <button
-                                    key={`tc-${config.id}`}
-                                    type="button"
-                                    onClick={() => handleSelect(config)}
-                                    className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 flex items-center justify-between gap-3"
-                                >
-                                    <code className="font-mono text-xs text-gray-700">{config.name}</code>
-                                    <span className="text-[10px] font-semibold uppercase text-gray-400">{config.type}</span>
-                                </button>
-                            ))}
+                            {renderConfigGroups(groupedTestCaseConfigs, 'test-case')}
                         </>
                     )}
+
                     {availableTestFiles.length > 0 && (
                         <>
-                            <div
-                                className={`px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider ${(filteredProjectConfigs.length > 0 || filteredTestCaseConfigs.length > 0) ? 'border-t border-gray-100 mt-1' : ''}`}
-                            >
+                            <div className={`px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider ${(filteredProjectConfigs.length > 0 || filteredTestCaseConfigs.length > 0) ? 'border-t border-gray-100 mt-1' : ''}`}>
                                 {t('configs.title.files')}
                             </div>
-                            {availableTestFiles.map(file => (
+                            {availableTestFiles.map((file) => (
                                 <button
                                     key={`f-${file.id}`}
                                     type="button"

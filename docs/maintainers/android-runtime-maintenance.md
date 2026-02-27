@@ -118,13 +118,7 @@ Capacity-freeing events that now wake waiters:
 - If the process does not exit after `SIGTERM`, a `SIGKILL` attempt is made before final cleanup.
 - Connected physical devices are not stopped by app APIs; only emulator stop flows perform process termination.
 
-## Copy Log Secret Masking
+## Copy Log Behavior
 
-- The "Copy Log" action masks secret values.
-- Secret values are fetched lazily on copy (not preloaded in page state anymore).
-- Masking uses current project/test case secret values at copy time.
-
-Known limitation:
-
-- If secret values were rotated after the run, older secret values that appear in historical logs may not be masked.
-- Fully solving this requires masking at event-write time (or another server-side historical redaction strategy).
+- The "Copy Log" action copies the raw run report and events without backend redaction.
+- `masked` variables are only masked in frontend config displays.
