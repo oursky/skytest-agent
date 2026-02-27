@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyAuth } from '@/lib/auth';
+import { verifyAuth, resolveUserId } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 import { encrypt, decrypt, maskApiKey } from '@/lib/crypto';
 
@@ -10,16 +10,17 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
     const authPayload = await verifyAuth(request);
-    if (!authPayload || !authPayload.sub) {
+    if (!authPayload) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const userId = authPayload.sub as string;
 
     try {
-        const user = await prisma.user.findUnique({
-            where: { authId: userId },
-            select: { openRouterKey: true }
-        });
+        const resolvedUserId = await resolveUserId(authPayload);
+        const user = resolvedUserId
+            ? await prisma.user.findUnique({ where: { id: resolvedUserId }, select: { openRouterKey: true } })
+            : authPayload.sub
+                ? await prisma.user.findUnique({ where: { authId: authPayload.sub as string }, select: { openRouterKey: true } })
+                : null;
 
         if (!user) {
             return NextResponse.json({ hasKey: false, maskedKey: null });
@@ -42,10 +43,9 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
     const authPayload = await verifyAuth(request);
-    if (!authPayload || !authPayload.sub) {
+    if (!authPayload) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const userId = authPayload.sub as string;
 
     try {
         const { apiKey } = await request.json();
@@ -59,16 +59,22 @@ export async function POST(request: Request) {
         }
 
         const encryptedKey = encrypt(apiKey);
+        const resolvedUserId = await resolveUserId(authPayload);
 
-        await prisma.user.upsert({
-            where: { authId: userId },
-            update: { openRouterKey: encryptedKey },
-            create: {
-                id: userId,
-                authId: userId,
-                openRouterKey: encryptedKey
-            }
-        });
+        if (resolvedUserId) {
+            await prisma.user.update({ where: { id: resolvedUserId }, data: { openRouterKey: encryptedKey } });
+        } else {
+            const authId = authPayload.sub as string;
+            await prisma.user.upsert({
+                where: { authId },
+                update: { openRouterKey: encryptedKey },
+                create: {
+                    id: authId,
+                    authId,
+                    openRouterKey: encryptedKey
+                }
+            });
+        }
 
         return NextResponse.json({
             success: true,
@@ -82,16 +88,20 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
     const authPayload = await verifyAuth(request);
-    if (!authPayload || !authPayload.sub) {
+    if (!authPayload) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const userId = authPayload.sub as string;
 
     try {
-        await prisma.user.update({
-            where: { authId: userId },
-            data: { openRouterKey: null }
-        });
+        const resolvedUserId = await resolveUserId(authPayload);
+        if (resolvedUserId) {
+            await prisma.user.update({ where: { id: resolvedUserId }, data: { openRouterKey: null } });
+        } else {
+            await prisma.user.update({
+                where: { authId: authPayload.sub as string },
+                data: { openRouterKey: null }
+            });
+        }
 
         return NextResponse.json({ success: true });
     } catch (error) {
