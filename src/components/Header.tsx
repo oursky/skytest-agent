@@ -224,6 +224,13 @@ export default function Header() {
                                             {t('header.apiKeyUsage')}
                                         </button>
 
+                                        <button
+                                            onClick={() => router.push('/mcp')}
+                                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                        >
+                                            {t('header.connectMcp')}
+                                        </button>
+
                                         <div className="border-t border-gray-50 mt-1 pt-1">
                                             <button
                                                 onClick={handleLogout}
