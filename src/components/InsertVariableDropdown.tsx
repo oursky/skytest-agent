@@ -158,10 +158,10 @@ export default function InsertVariableDropdown({
     };
 
     const renderConfigGroups = (groups: ConfigGroup[]) => {
-        return groups.map((group) => (
+        return groups.map((group, index) => (
             <div key={group.key}>
                 {group.label && (
-                    <div className="px-3 py-1 text-[10px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-50 border-y border-gray-100">
+                    <div className={`px-3 py-1 text-[10px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-50 border-gray-100 ${index === 0 && !hasUngroupedItems ? 'border-b' : 'border-y'}`}>
                         {group.label}
                     </div>
                 )}
@@ -190,6 +190,8 @@ export default function InsertVariableDropdown({
         ...filteredTestCaseConfigs.map((config) => ({ ...config, source: 'test-case' as const })),
     ];
     const groupedConfigs = groupConfigs(mergedConfigs);
+    const hasUngroupedItems = groupedConfigs.length > 0 && groupedConfigs[0].key === '__ungrouped__';
+    const menuVerticalPaddingClass = !hasUngroupedItems && groupedConfigs.length > 0 ? 'pt-0 pb-1' : 'py-1';
 
     return (
         <div className="relative inline-block" ref={dropdownRef}>
@@ -207,7 +209,7 @@ export default function InsertVariableDropdown({
             {isOpen && (
                 <div
                     ref={menuRef}
-                    className={`absolute top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-[70] py-1 w-[min(22rem,calc(100vw-2rem))] max-h-72 overflow-y-auto ${menuAlignment === 'right' ? 'right-0' : 'left-0'}`}
+                    className={`absolute top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-[70] ${menuVerticalPaddingClass} w-[min(22rem,calc(100vw-2rem))] max-h-72 overflow-y-auto ${menuAlignment === 'right' ? 'right-0' : 'left-0'}`}
                 >
                     {mergedConfigs.length > 0 && <>{renderConfigGroups(groupedConfigs)}</>}
 
