@@ -124,37 +124,41 @@ Present these flows to the user and ask for confirmation:
 (e.g., "ok", "confirm", "yes"). If the user provides corrections, revise and re-present.
 Never auto-proceed — always wait for explicit confirmation at EVERY checkpoint.
 
-### 3. Plan Test Cases
+### 3. Design Test Cases as Professional QA
 
-For each confirmed flow, plan test scenarios:
-- **Happy path**: The normal, expected flow
-- **Error cases**: Invalid input, missing fields, wrong credentials
-- **Edge cases**: Boundary conditions, special characters, long inputs
-- **State transitions**: What happens after success? Can user repeat the action?
+This is still the second major phase after flow study confirmation.
 
-Present the test case plan to the user as a numbered list:
-```
-Based on the confirmed flows, I'll create these test cases:
+Design functional test cases from the confirmed end-to-end flows:
+- Happy path coverage
+- High-risk negative paths
+- Input validation and boundary cases
+- State transition checks
+- Business-critical guardrails
 
-1. Login - Happy path (email/password)
-2. Login - Wrong password shows error
-3. Login - Empty email shows validation
-4. Login - Empty password shows validation
-5. Login - Google OAuth redirect
-6. Password Reset - Happy path
-7. Password Reset - Unknown email shows error
-```
+Before writing each case, map it to a specific confirmed flow step sequence (starting
+from entry URL or Android app ID, then login, then feature flow). Do not design cases
+based on assumptions outside the confirmed flow.
 
-Ask: "Should I create these test cases? Any to add, remove, or modify?"
+Do NOT present all cases as one big batch for approval.
 
-**CRITICAL: Do NOT proceed until the user explicitly confirms** (e.g., "ok", "confirm",
-"yes", "looks good", "go ahead"). If the user provides feedback, revise and ask again.
-Never auto-proceed after presenting the plan.
+### 4. Review and Create One Test Case at a Time
 
-### 4. Generate Test Cases
+For each candidate test case, follow this loop:
 
-Only after receiving explicit user confirmation (like "ok", "confirm", "yes"), construct
-the test cases with proper structure.
+1. Draft exactly ONE test case (title, scope, steps, assertions, configs, targets).
+2. Present only that one test case to the user for review.
+3. Ask for explicit decision: confirm/create, clarify/modify, or skip.
+4. If user confirms, create only that single case via MCP.
+5. If user asks to modify, revise and re-present the same case.
+6. If user skips, do not create it; move to the next case.
+
+**Creation rule:** never create in batch when running this skill.  
+Call `create_test_cases` with an array containing exactly one test case each time.
+
+Use `get_project` before creation to reuse existing project-level configs and avoid
+duplicates.
+
+### 5. Case Writing Standards
 
 **Understand the Business Context First:**
 Before writing test data, understand the product's business domain. If testing an
@@ -199,42 +203,26 @@ not obvious from the context.
 - Browser: `{ type: "browser", url: "...", width: 1920, height: 1080 }`
 - Android: `{ type: "android", deviceSelector: {}, appId: "...", clearAppState: true, allowAllPermissions: true }`
 
-### 5. Create via MCP
+### 6. Final Report
 
-Call `create_test_cases` with the full batch. All cases are created as DRAFT.
-
-Use `get_project` first to check for existing project-level configs that can be reused
-(avoid duplicating variables that already exist at the project level).
-
-### 6. Report
-
-Summarize what was created:
-```
-Created 7 test cases as DRAFT in project "My App":
-
-1. LOGIN-001: Login - Happy path ✓
-2. LOGIN-002: Login - Wrong password ✓
-3. LOGIN-003: Login - Empty email ✓
-...
-
-Variables created per test case:
-- USERNAME (VARIABLE): testuser@example.com
-- PASSWORD (VARIABLE, masked): [set value in SkyTest UI]
-- BASE_URL (URL): https://myapp.com
-
-Next steps:
-- Review the drafts in SkyTest UI
-- Set masked variable values (passwords)
-- Run individual tests to validate the steps work
-```
+After iterating through all cases one-by-one, summarize:
+- Created cases (confirmed and created)
+- Skipped cases
+- Cases needing more clarification
+- Recommended next test priorities
 
 ## Guidelines
 
-- Always understand flows FIRST, then generate test cases
+- Always understand flows FIRST, then design and create test cases.
+- Treat this as a 2-step workflow:
+  1. Study and confirm the end-to-end user flow(s) step-by-step (entry URL/App ID -> login -> key flow steps)
+  2. Design and create test cases one-by-one with user confirmation before each creation
 - **ALWAYS wait for explicit user confirmation** ("ok", "confirm", "yes", "go ahead")
-  before proceeding to the next step. Never auto-proceed. Two mandatory checkpoints:
-  1. After presenting identified user flows
-  2. After presenting the test case plan
+  before proceeding. Never auto-proceed. Mandatory checkpoints:
+  1. After presenting identified end-to-end user flows
+  2. Before creating each individual test case
+- Never present all test cases as a full approval batch.
+- Never create multiple test cases in one MCP create call while using this skill.
 - **Understand authentication before anything else** — know the login mechanism, entry
   point, roles, and test credentials before studying any feature flow.
 - **Never guess a step** — if any step in a flow is unclear (unknown UI, dialog behavior,

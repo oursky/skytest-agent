@@ -136,12 +136,12 @@ from screenshots, not DOM/selectors.
 
 ## Workflow
 
-1. Understand the feature/user flows from context
-2. Confirm understanding with the user
-3. Plan test cases (happy path, error cases, edge cases)
-4. Call `get_project` to check existing project-level configs (avoid duplicating variables)
-5. Create as DRAFT via `create_test_cases` tool
-6. Report what was created with next steps
+1. Study and confirm end-to-end user flows step-by-step (entry URL/App ID -> login -> key flow steps)
+2. Design professional QA functional test cases from confirmed flows
+3. Present one test case only and ask user to confirm/clarify/skip
+4. If confirmed, create exactly that one case as DRAFT via `create_test_cases` (single-item array)
+5. Repeat step 3-4 for the next test case (never batch review/create)
+6. Report created, skipped, and pending-clarification cases
 
 ## Complete Test Case Example
 

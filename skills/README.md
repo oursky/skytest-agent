@@ -8,7 +8,7 @@ Skills for anyone using SkyTest Agent to generate and manage test cases.
 
 | Skill | Command | Description |
 |-------|---------|-------------|
-| [skytest-generate](./skytest-generate/SKILL.md) | `/skytest-generate` | Generate test cases from feature descriptions with flow understanding |
+| [skytest-generate](./skytest-generate/SKILL.md) | `/skytest-generate` | Confirm end-to-end flows step-by-step, then review and create test cases one-by-one (no batch create) |
 
 ### Installation
 
