@@ -3,8 +3,10 @@ name: skytest-generate
 description: |
   Generate test cases from feature descriptions, screenshots, or user flow documentation.
   Creates draft test cases in a SkyTest project with complete steps, configs, and target
-  setup. Use when the user asks to generate tests, create test cases, or automate test
-  creation for a feature or user flow.
+  setup. Uses MCP create_test_cases single-create mode with import-equivalent fields
+  (test case ID, targets, variables, AI/code steps). File upload is excluded. Use when
+  the user asks to generate tests, create test cases, or automate test creation for a
+  feature or user flow.
 allowed-tools:
   - mcp__skytest_*
   - AskUserQuestion
@@ -153,7 +155,19 @@ For each candidate test case, follow this loop:
 6. If user skips, do not create it; move to the next case.
 
 **Creation rule:** never create in batch when running this skill.  
-Call `create_test_cases` with an array containing exactly one test case each time.
+Call `create_test_cases` with a single `testCase` object each time:
+`{ projectId, testCase: { ...all case details... } }`.
+
+**All-details creation rule:** each confirmed case must include all creatable import details:
+- `name`
+- `displayId` or `testCaseId`
+- targets (`browserConfig` map and/or `browserTargets` / `androidTargets`)
+- `steps` with explicit `type` (`ai-action` or `playwright-code`)
+- test-case variables via `configs` or `variables`
+
+**File constraint:** do not send `FILE` variables through MCP create. MCP cannot upload file
+content for users. If file variables are required, create the case first, then tell the user
+to upload files in SkyTest UI/API and bind them afterward.
 
 Use `get_project` before creation to reuse existing project-level configs and avoid
 duplicates.
@@ -198,6 +212,8 @@ not obvious from the context.
 - Use `VARIABLE` type for credentials (with `masked: true` for passwords)
 - Use `URL` type for base URLs
 - Use `RANDOM_STRING` for unique test data (e.g., unique usernames per run)
+- Use `configs` or `variables` for test-case variables (both are accepted by MCP create tool)
+- Do not send `FILE` variables in create payload; handle file upload separately after creation
 
 **Target Config:**
 - Browser: `{ type: "browser", url: "...", width: 1920, height: 1080 }`
@@ -223,6 +239,8 @@ After iterating through all cases one-by-one, summarize:
   2. Before creating each individual test case
 - Never present all test cases as a full approval batch.
 - Never create multiple test cases in one MCP create call while using this skill.
+- Always call MCP create tool with single payload shape:
+  `create_test_cases({ projectId, testCase: { ... } })`
 - **Understand authentication before anything else** — know the login mechanism, entry
   point, roles, and test credentials before studying any feature flow.
 - **Never guess a step** — if any step in a flow is unclear (unknown UI, dialog behavior,
@@ -252,39 +270,55 @@ After iterating through all cases one-by-one, summarize:
 
 ```json
 {
-  "name": "Login - Happy Path",
-  "displayId": "LOGIN-001",
-  "browserConfig": {
-    "browser_a": {
-      "type": "browser",
-      "url": "https://myapp.com/login",
-      "width": 1920,
-      "height": 1080
-    }
-  },
-  "steps": [
-    {
-      "id": "step_1",
-      "target": "browser_a",
-      "action": "Fill in the email field with '{{LOGIN_EMAIL}}' and the password field with '{{LOGIN_PASSWORD}}'",
-      "type": "ai-action"
-    },
-    {
-      "id": "step_2",
-      "target": "browser_a",
-      "action": "Click the 'Sign In' button",
-      "type": "ai-action"
-    },
-    {
-      "id": "step_3",
-      "target": "browser_a",
-      "action": "Verify the page displays the Dashboard heading",
-      "type": "ai-action"
-    }
-  ],
-  "configs": [
-    { "name": "LOGIN_EMAIL", "type": "VARIABLE", "value": "john.smith@company.com" },
-    { "name": "LOGIN_PASSWORD", "type": "VARIABLE", "value": "", "masked": true }
-  ]
+  "projectId": "proj_123",
+  "testCase": {
+    "name": "Login - Happy Path",
+    "testCaseId": "LOGIN-001",
+    "browserTargets": [
+      {
+        "id": "browser_a",
+        "name": "Primary Browser",
+        "url": "https://myapp.com/login",
+        "width": 1920,
+        "height": 1080
+      }
+    ],
+    "steps": [
+      {
+        "id": "step_1",
+        "target": "browser_a",
+        "action": "Fill in the email field with '{{LOGIN_EMAIL}}' and the password field with '{{LOGIN_PASSWORD}}'",
+        "type": "ai-action"
+      },
+      {
+        "id": "step_2",
+        "target": "browser_a",
+        "action": "Click the 'Sign In' button",
+        "type": "ai-action"
+      },
+      {
+        "id": "step_3",
+        "target": "browser_a",
+        "action": "Verify the page displays the Dashboard heading",
+        "type": "ai-action"
+      }
+    ],
+    "variables": [
+      { "name": "LOGIN_EMAIL", "type": "VARIABLE", "value": "john.smith@company.com" },
+      { "name": "LOGIN_PASSWORD", "type": "VARIABLE", "value": "", "masked": true }
+    ]
+  }
 }
 ```
+
+### Create Call Checklist
+
+Before each MCP create call, confirm the payload includes:
+- one case only (`testCase`, never array/batch)
+- resolved target IDs used consistently in every step `target`
+- complete target definitions (browser/android) for all referenced targets
+- all required variables used by `{{...}}` in steps
+- step `type` set correctly for AI vs code steps
+- no `FILE` variable in create payload
+
+If any item is missing, fix before calling MCP.

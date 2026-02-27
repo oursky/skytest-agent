@@ -163,7 +163,7 @@ export function createMcpServer(): McpServer {
     });
 
     server.registerTool('create_test_cases', {
-        description: 'Create one test case with import-equivalent details (ID, targets, steps, variables). FILE uploads are not supported via MCP.',
+        description: 'Create one test case with import-equivalent details (ID, targets, steps, test-case variables). FILE uploads are not supported via MCP.',
         inputSchema: {
             projectId: z.string().describe('Project ID'),
             testCase: z.object({
@@ -213,13 +213,6 @@ export function createMcpServer(): McpServer {
                     masked: z.boolean().optional().describe('Mask value in UI (VARIABLE type only)'),
                     group: z.string().nullable().optional().describe('Group name for organization'),
                 })).optional().describe('Alias of configs (import-style test case variables)'),
-                projectVariables: z.array(z.object({
-                    name: z.string().describe('Project variable/config name (UPPER_SNAKE_CASE)'),
-                    type: z.string().describe('URL | VARIABLE | RANDOM_STRING | FILE | APP_ID'),
-                    value: z.string().optional().describe('Config value'),
-                    masked: z.boolean().optional().describe('Mask value in UI (VARIABLE type only)'),
-                    group: z.string().nullable().optional().describe('Group name for organization'),
-                })).optional().describe('Optional project-level variables/configs to create'),
             }).describe('Test case to create'),
         },
     }, async ({ projectId, testCase }, extra) => {
@@ -332,7 +325,6 @@ export function createMcpServer(): McpServer {
         });
 
         let createdTestCaseVariableCount = 0;
-        let createdProjectVariableCount = 0;
 
         const testCaseVariables = [...(testCase.configs || []), ...(testCase.variables || [])];
         if (testCaseVariables.length > 0) {
@@ -377,55 +369,12 @@ export function createMcpServer(): McpServer {
             }
         }
 
-        if (Array.isArray(testCase.projectVariables) && testCase.projectVariables.length > 0) {
-            for (const configInput of testCase.projectVariables) {
-                const nameError = validateConfigName(configInput.name);
-                if (nameError) {
-                    warnings.push(`Project config "${configInput.name}": ${nameError}`);
-                    continue;
-                }
-                if (!validateConfigType(configInput.type)) {
-                    warnings.push(`Project config "${configInput.name}": invalid type "${configInput.type}"`);
-                    continue;
-                }
-
-                const normalizedName = normalizeConfigName(configInput.name);
-                const configType = configInput.type as ConfigType;
-                if (configType === 'FILE') {
-                    warnings.push(`Project config "${normalizedName}" skipped: FILE upload is not supported in MCP create_test_cases.`);
-                    continue;
-                }
-                const groupable = isGroupableConfigType(configType);
-
-                try {
-                    await prisma.projectConfig.create({
-                        data: {
-                            projectId,
-                            name: normalizedName,
-                            type: configType,
-                            value: configInput.value || '',
-                            masked: configType === 'VARIABLE' ? (configInput.masked ?? false) : false,
-                            group: groupable ? (configInput.group?.trim() || null) : null,
-                        }
-                    });
-                    createdProjectVariableCount += 1;
-                } catch (error: unknown) {
-                    if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'P2002') {
-                        warnings.push(`Project config "${normalizedName}" already exists, skipped`);
-                    } else {
-                        warnings.push(`Project config "${normalizedName}" creation failed`);
-                    }
-                }
-            }
-        }
-
         return textResult({
             id: created.id,
             name: created.name,
             displayId: created.displayId,
             createdTargets: normalizedBrowserConfig ? Object.keys(normalizedBrowserConfig).length : 0,
             createdTestCaseVariables: createdTestCaseVariableCount,
-            createdProjectVariables: createdProjectVariableCount,
             warnings
         });
     });
