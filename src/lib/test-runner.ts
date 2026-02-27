@@ -905,15 +905,13 @@ function extractQuotedStrings(instruction: string): string[] {
 }
 
 /**
- * Verifies that all quoted strings in an instruction exist exactly on the page.
- * Used for both assertions and pre-action validation.
+ * Verifies that all quoted strings in an assertion instruction exist exactly on the page.
  */
 async function verifyQuotedStringsExist(
     agent: PlaywrightAgent | AndroidAgent,
     expectedStrings: string[],
     log: ReturnType<typeof createLogger>,
     browserId?: string,
-    context: 'assertion' | 'action' = 'assertion',
     options?: {
         isAndroidAgent?: boolean;
         androidSignal?: AbortSignal;
@@ -936,14 +934,12 @@ async function verifyQuotedStringsExist(
         const actualText = String(result).trim();
 
         if (actualText === 'NOT_FOUND') {
-            const errorType = context === 'assertion' ? 'Assertion failed' : 'Action cannot proceed';
-            throw new Error(`${errorType}: Expected text "${expected}" was not found on the page.`);
+            throw new Error(`Assertion failed: Expected text "${expected}" was not found on the page.`);
         }
 
         if (actualText !== expected) {
-            const errorType = context === 'assertion' ? 'Assertion failed' : 'Action cannot proceed';
             throw new Error(
-                `${errorType}: Expected exact text "${expected}" but found "${actualText}". ` +
+                `Assertion failed: Expected exact text "${expected}" but found "${actualText}". ` +
                 `These are not the same - the test requires an exact match.`
             );
         }
@@ -1266,7 +1262,7 @@ async function executeSteps(
                 if (isVerification) {
                     if (quotedStrings.length > 0) {
                         try {
-                            await verifyQuotedStringsExist(agent, quotedStrings, log, effectiveTargetId, 'assertion', {
+                            await verifyQuotedStringsExist(agent, quotedStrings, log, effectiveTargetId, {
                                 isAndroidAgent: isAndroid,
                                 androidSignal: signal,
                             });
@@ -1291,18 +1287,6 @@ async function executeSteps(
                         }
                     }
                 } else {
-                    if (quotedStrings.length > 0) {
-                        try {
-                            await verifyQuotedStringsExist(agent, quotedStrings, log, effectiveTargetId, 'action', {
-                                isAndroidAgent: isAndroid,
-                                androidSignal: signal,
-                            });
-                        } catch (verifyError: unknown) {
-                            const errMsg = getErrorMessage(verifyError);
-                            throw new Error(`${errMsg}`);
-                        }
-                    }
-
                     try {
                         if (isAndroid) {
                             const androidAgent = agent as AndroidAgent;
