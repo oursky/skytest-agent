@@ -249,7 +249,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'mcp.connection.skillInstall.step2Suffix': ' to ~/.agents/skills and link each skill into ~/.claude/skills.',
     'mcp.connection.skillInstall.step3': 'Restart your client after installation.',
     'mcp.connection.skillInstall.commandLabel': 'Install command',
-    'mcp.connection.skillInstall.prompt': 'Install the SkyTest skills from this repository path: {link}. Please install all skills inside that folder and make them available for use in this environment.',
+    'mcp.connection.skillInstall.prompt': 'Install all SkyTest skils from this repository path: {link}',
 
     // TestForm
     'testForm.title': 'Test Instructions',

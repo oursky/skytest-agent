@@ -28,10 +28,10 @@ Skills for contributors working on the SkyTest Agent codebase.
 
 | Skill | Command | Description |
 |-------|---------|-------------|
-| [commit](./commit/SKILL.md) | `/commit` | Plan logical commit units from staged changes, suggest titles, commit after approval |
-| [review](./review/SKILL.md) | `/review` | Two-pass code review (spec compliance then code quality) |
-| [plan](./plan/SKILL.md) | `/plan` | Align on intent and create step-by-step implementation plans |
-| [debug](./debug/SKILL.md) | `/debug` | Structured debugging: reproduce, trace root cause, minimal fix |
+| [commit](./development-skills/commit/SKILL.md) | `/commit` | Plan logical commit units from staged changes, suggest titles, commit after approval |
+| [review](./development-skills/review/SKILL.md) | `/review` | Two-pass code review (spec compliance then code quality) |
+| [plan](./development-skills/plan/SKILL.md) | `/plan` | Align on intent and create step-by-step implementation plans |
+| [debug](./development-skills/debug/SKILL.md) | `/debug` | Structured debugging: reproduce, trace root cause, minimal fix |
 
 ### Installation
 
