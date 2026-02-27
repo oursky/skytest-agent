@@ -401,14 +401,14 @@ export default function ProjectConfigs({ projectId, androidEnabled = false }: Pr
                                             <div key={item.id} className="p-4 bg-white space-y-2">
                                                 {type === 'VARIABLE' ? (
                                                     <>
-                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                        <div className="flex flex-wrap md:flex-nowrap items-center gap-2">
                                                             <input
                                                                 type="text"
                                                                 value={editState.name}
                                                                 onChange={(event) => setEditState({ ...editState, name: event.target.value })}
                                                                 onKeyDown={handleConfigEditorKeyDown}
                                                                 placeholder={t('configs.name.placeholder.enter')}
-                                                                className="h-9 w-full px-3 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                                                                className="h-9 w-full md:w-56 px-3 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                                                             />
                                                             <GroupSelectInput
                                                                 value={editState.group}
@@ -416,10 +416,9 @@ export default function ProjectConfigs({ projectId, androidEnabled = false }: Pr
                                                                 options={groupOptions}
                                                                 onRemoveOption={handleRemoveGroup}
                                                                 placeholder={t('configs.group.select')}
+                                                                containerClassName="relative w-full md:w-56"
                                                                 inputClassName="h-9"
                                                             />
-                                                        </div>
-                                                        <div className="flex flex-wrap items-center gap-2">
                                                             <input
                                                                 type={editState.masked ? 'password' : 'text'}
                                                                 value={editState.value}
@@ -431,7 +430,7 @@ export default function ProjectConfigs({ projectId, androidEnabled = false }: Pr
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setEditState({ ...editState, masked: !editState.masked })}
-                                                                className={`inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border ${editState.masked ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-gray-600 border-gray-200'}`}
+                                                                className={`inline-flex h-9 w-9 items-center justify-center rounded-md border ${editState.masked ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-gray-600 border-gray-200'}`}
                                                                 title={t('configs.masked')}
                                                                 aria-label={t('configs.masked')}
                                                             >
@@ -520,16 +519,16 @@ export default function ProjectConfigs({ projectId, androidEnabled = false }: Pr
 
                                 {isAddingForType && editState && (
                                     <div className="p-4 bg-white space-y-2">
-                                        {type === 'VARIABLE' ? (
-                                            <>
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                {type === 'VARIABLE' ? (
+                                                    <>
+                                                <div className="flex flex-wrap md:flex-nowrap items-center gap-2">
                                                     <input
                                                         type="text"
                                                         value={editState.name}
                                                         onChange={(event) => setEditState({ ...editState, name: event.target.value })}
                                                         onKeyDown={handleConfigEditorKeyDown}
                                                         placeholder={t('configs.name.placeholder.enter')}
-                                                        className="h-9 w-full px-3 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                                                        className="h-9 w-full md:w-56 px-3 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                                                         autoFocus
                                                     />
                                                     <GroupSelectInput
@@ -538,10 +537,9 @@ export default function ProjectConfigs({ projectId, androidEnabled = false }: Pr
                                                         options={groupOptions}
                                                         onRemoveOption={handleRemoveGroup}
                                                         placeholder={t('configs.group.select')}
+                                                        containerClassName="relative w-full md:w-56"
                                                         inputClassName="h-9"
                                                     />
-                                                </div>
-                                                <div className="flex flex-wrap items-center gap-2">
                                                     <input
                                                         type={editState.masked ? 'password' : 'text'}
                                                         value={editState.value}
@@ -553,7 +551,7 @@ export default function ProjectConfigs({ projectId, androidEnabled = false }: Pr
                                                     <button
                                                         type="button"
                                                         onClick={() => setEditState({ ...editState, masked: !editState.masked })}
-                                                        className={`inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border ${editState.masked ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-gray-600 border-gray-200'}`}
+                                                        className={`inline-flex h-9 w-9 items-center justify-center rounded-md border ${editState.masked ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-gray-600 border-gray-200'}`}
                                                         title={t('configs.masked')}
                                                         aria-label={t('configs.masked')}
                                                     >
