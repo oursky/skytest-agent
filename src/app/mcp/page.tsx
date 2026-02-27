@@ -27,7 +27,8 @@ export default function McpPage() {
     const [generatedKey, setGeneratedKey] = useState<string | null>(null);
     const [isGeneratedKeyCopied, setIsGeneratedKeyCopied] = useState(false);
     const [isConfigCopied, setIsConfigCopied] = useState(false);
-    const [activeConnectionTab, setActiveConnectionTab] = useState<'apiKey' | 'claudeDesktop'>('apiKey');
+    const [isInstallCommandCopied, setIsInstallCommandCopied] = useState(false);
+    const [activeConnectionTab, setActiveConnectionTab] = useState<'codingAgent' | 'claudeDesktop'>('codingAgent');
     const [isRevokeModalOpen, setIsRevokeModalOpen] = useState(false);
     const [keyToRevoke, setKeyToRevoke] = useState<AgentApiKey | null>(null);
     const [mcpEndpoint, setMcpEndpoint] = useState('/api/mcp');
@@ -127,7 +128,17 @@ export default function McpPage() {
         }
     };
 
-    const apiKeyConfigExample = useMemo(() => `{
+    const handleCopyInstallCommand = async () => {
+        try {
+            await navigator.clipboard.writeText(skillInstallCommand);
+            setIsInstallCommandCopied(true);
+            window.setTimeout(() => setIsInstallCommandCopied(false), 1500);
+        } catch (error) {
+            console.error('Failed to copy install command', error);
+        }
+    };
+
+    const codingAgentConfigExample = useMemo(() => `{
   "mcpServers": {
     "skytest": {
       "transport": "streamable-http",
@@ -160,7 +171,11 @@ export default function McpPage() {
   }
 }`, [mcpEndpoint]);
 
-    const activeConfigExample = activeConnectionTab === 'apiKey' ? apiKeyConfigExample : claudeDesktopConfigExample;
+    const skillInstallCommand = useMemo(() => `mkdir -p ~/.agents/skills/skytest-skills ~/.claude/skills
+cp -r skills/skytest-skills/. ~/.agents/skills/skytest-skills/
+find ~/.agents/skills/skytest-skills -type f -name SKILL.md -exec dirname {} \\; | while read -r d; do ln -sfn "$d" ~/.claude/skills/$(basename "$d"); done`, []);
+
+    const activeConfigExample = activeConnectionTab === 'codingAgent' ? codingAgentConfigExample : claudeDesktopConfigExample;
 
     if (isAuthLoading || isLoading) {
         return <div className="min-h-screen flex items-center justify-center text-gray-500">{t('common.loading')}</div>;
@@ -272,13 +287,13 @@ export default function McpPage() {
                         <nav className="flex gap-6 -mb-px">
                             <button
                                 type="button"
-                                onClick={() => { setActiveConnectionTab('apiKey'); setIsConfigCopied(false); }}
-                                className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeConnectionTab === 'apiKey'
+                                onClick={() => { setActiveConnectionTab('codingAgent'); setIsConfigCopied(false); }}
+                                className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeConnectionTab === 'codingAgent'
                                     ? 'border-primary text-primary'
                                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                 }`}
                             >
-                                {t('mcp.connection.tab.apiKey')}
+                                {t('mcp.connection.tab.codingAgent')}
                             </button>
                             <button
                                 type="button"
@@ -293,22 +308,14 @@ export default function McpPage() {
                         </nav>
                     </div>
 
-                    {activeConnectionTab === 'apiKey' ? (
-                        <div className="space-y-4">
-                            <dl className="space-y-3">
-                                <div>
-                                    <dt className="text-xs font-semibold text-gray-500">{t('mcp.connection.serverUrl')}</dt>
-                                    <dd className="text-sm text-gray-700 font-mono break-all">{mcpEndpoint}</dd>
-                                </div>
-                                <div>
-                                    <dt className="text-xs font-semibold text-gray-500">{t('mcp.connection.apiKey.header')}</dt>
-                                    <dd className="text-sm text-gray-700 font-mono break-all">Authorization: Bearer &lt;AGENT_API_KEY&gt;</dd>
-                                </div>
-                                <div>
-                                    <dt className="text-xs font-semibold text-gray-500">{t('mcp.connection.protocol')}</dt>
-                                    <dd className="text-sm text-gray-700">{t('mcp.connection.protocolValue')}</dd>
-                                </div>
-                            </dl>
+                    {activeConnectionTab === 'codingAgent' ? (
+                        <div className="space-y-3">
+                            <p className="text-sm text-gray-600">{t('mcp.connection.codingAgent.summary')}</p>
+                            <ol className="list-decimal list-inside space-y-1 text-sm text-gray-700">
+                                <li>{t('mcp.connection.codingAgent.step1')}</li>
+                                <li>{t('mcp.connection.codingAgent.step2')}</li>
+                                <li>{t('mcp.connection.codingAgent.step3')}</li>
+                            </ol>
                         </div>
                     ) : (
                         <div className="space-y-3">
@@ -322,8 +329,8 @@ export default function McpPage() {
                     )}
 
                     <p className="text-sm text-gray-500 mt-5 mb-2">
-                        {activeConnectionTab === 'apiKey'
-                            ? t('mcp.connection.configExample')
+                        {activeConnectionTab === 'codingAgent'
+                            ? t('mcp.connection.codingAgent.configExample')
                             : t('mcp.connection.claudeDesktop.configExample')}
                     </p>
                     <div className="relative">
@@ -346,6 +353,51 @@ export default function McpPage() {
                         </button>
                         <pre className="bg-gray-50 text-gray-800 text-xs rounded border border-gray-200 p-3 overflow-x-auto">
                             <code>{activeConfigExample}</code>
+                        </pre>
+                    </div>
+
+                </div>
+
+                <div className="mt-6 bg-white rounded-lg border border-gray-200 p-5 space-y-3">
+                    <h2 className="text-lg font-semibold text-gray-800 mb-4">{t('mcp.connection.skillInstall.title')}</h2>
+                    <p className="text-sm text-gray-600">{t('mcp.connection.skillInstall.summary')}</p>
+                    <ol className="list-decimal list-inside space-y-1 text-sm text-gray-700">
+                        <li>{t('mcp.connection.skillInstall.step1')}</li>
+                        <li>
+                            {t('mcp.connection.skillInstall.step2Prefix')}
+                            <a
+                                href="https://github.com/oursky/skytest-agent/tree/main/skills/skytest-skills"
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-primary hover:underline"
+                            >
+                                {t('mcp.connection.skillInstall.step2LinkText')}
+                            </a>
+                            {t('mcp.connection.skillInstall.step2Suffix')}
+                        </li>
+                        <li>{t('mcp.connection.skillInstall.step3')}</li>
+                    </ol>
+                    <p className="text-sm text-gray-500 mt-5 mb-2">{t('mcp.connection.skillInstall.commandLabel')}</p>
+                    <div className="relative">
+                        <button
+                            onClick={handleCopyInstallCommand}
+                            aria-label={isInstallCommandCopied ? t('usage.agentKeys.created.copied') : t('common.copy')}
+                            title={isInstallCommandCopied ? t('usage.agentKeys.created.copied') : t('common.copy')}
+                            className="absolute top-2 right-2 z-10 h-7 w-7 flex items-center justify-center text-gray-600 bg-white border border-gray-300 rounded hover:bg-gray-100"
+                        >
+                            {isInstallCommandCopied ? (
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                            ) : (
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                    <rect x="9" y="9" width="10" height="10" rx="2" strokeWidth="2" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 15H6a2 2 0 01-2-2V6a2 2 0 012-2h7a2 2 0 012 2v1" />
+                                </svg>
+                            )}
+                        </button>
+                        <pre className="bg-gray-50 text-gray-800 text-xs rounded border border-gray-200 p-3 overflow-x-auto">
+                            <code>{skillInstallCommand}</code>
                         </pre>
                     </div>
                 </div>
