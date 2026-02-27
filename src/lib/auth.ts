@@ -1,6 +1,7 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { prisma } from '@/lib/prisma';
 import { createLogger } from '@/lib/logger';
+import { hashApiKey, isApiKeyFormat } from '@/lib/api-key';
 
 const logger = createLogger('auth');
 
@@ -11,7 +12,13 @@ export type AuthPayload = NonNullable<Awaited<ReturnType<typeof verifyAuth>>>;
 export async function resolveUserId(authPayload: AuthPayload): Promise<string | null> {
     const maybeUserId = (authPayload as { userId?: unknown }).userId;
     if (typeof maybeUserId === 'string' && maybeUserId.length > 0) {
-        return maybeUserId;
+        const user = await prisma.user.findUnique({
+            where: { id: maybeUserId },
+            select: { id: true, authId: true }
+        });
+        if (user && (authPayload.sub === user.authId || authPayload.sub === user.id)) {
+            return user.id;
+        }
     }
 
     const authId = authPayload.sub as string | undefined;
@@ -45,6 +52,28 @@ export async function verifyAuth(request: Request) {
     if (!finalToken) {
         logger.debug('verifyAuth: no token found');
         return null;
+    }
+
+    if (isApiKeyFormat(finalToken)) {
+        try {
+            const hash = hashApiKey(finalToken);
+            const apiKey = await prisma.apiKey.findUnique({
+                where: { hash },
+                select: { userId: true, id: true }
+            });
+            if (!apiKey) {
+                logger.debug('verifyAuth: API key not found');
+                return null;
+            }
+            prisma.apiKey.update({
+                where: { id: apiKey.id },
+                data: { lastUsedAt: new Date() }
+            }).catch(() => {});
+            return { sub: apiKey.userId, userId: apiKey.userId } as { sub: string; userId: string };
+        } catch (error) {
+            logger.error('verifyAuth: API key verification failed', error);
+            return null;
+        }
     }
 
     try {

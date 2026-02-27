@@ -173,17 +173,27 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
         if (!fallbackTargetId) return;
 
         const validTargetIds = new Set(browsers.map((browser) => browser.id));
-        setSteps((currentSteps) => {
-            let changed = false;
-            const nextSteps = currentSteps.map((step) => {
-                if (validTargetIds.has(step.target)) {
-                    return step;
-                }
-                changed = true;
-                return { ...step, target: fallbackTargetId };
+        let cancelled = false;
+
+        queueMicrotask(() => {
+            if (cancelled) return;
+
+            setSteps((currentSteps) => {
+                let changed = false;
+                const nextSteps = currentSteps.map((step) => {
+                    if (validTargetIds.has(step.target)) {
+                        return step;
+                    }
+                    changed = true;
+                    return { ...step, target: fallbackTargetId };
+                });
+                return changed ? nextSteps : currentSteps;
             });
-            return changed ? nextSteps : currentSteps;
         });
+
+        return () => {
+            cancelled = true;
+        };
     }, [browsers]);
 
     const ensureSampleConfigs = async (targetTestCaseId?: string) => {

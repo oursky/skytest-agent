@@ -63,7 +63,7 @@ function runExecFile(file: string, args: string[]): Promise<{ stdout: string; st
     });
 }
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
     return Promise.race([
         promise,
         new Promise<never>((_, reject) =>
@@ -98,8 +98,7 @@ export class ReliableAdb {
             try {
                 const { stdout } = await withTimeout(
                     runExecFile(this.adbPath, ['-s', this.deviceId, 'shell', command]),
-                    timeoutMs,
-                    `adb shell ${command}`
+                    timeoutMs
                 );
                 return stdout.trim();
             } catch (error) {
@@ -145,8 +144,7 @@ export class ReliableAdb {
         try {
             const { stdout } = await withTimeout(
                 runExecFile(this.adbPath, ['-s', this.deviceId, 'shell', 'echo', 'ping']),
-                5000,
-                'adb echo ping'
+                5000
             );
             details.adbResponsive = stdout.trim() === 'ping';
             details.deviceOnline = details.adbResponsive;
@@ -188,8 +186,7 @@ export class ReliableAdb {
     async emulatorKill(timeoutMs = 5000): Promise<void> {
         await withTimeout(
             runExecFile(this.adbPath, ['-s', this.deviceId, 'emu', 'kill']),
-            timeoutMs,
-            'adb emu kill'
+            timeoutMs
         );
     }
 

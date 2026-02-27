@@ -301,7 +301,8 @@ export class EmulatorPool {
         await this.stopInstance(instance);
     }
 
-    getStatus(_projectIds?: ReadonlySet<string>): EmulatorPoolStatus {
+    getStatus(projectIds?: ReadonlySet<string>): EmulatorPoolStatus {
+        void projectIds;
         const now = Date.now();
         const emulators = Array.from(this.emulators.values())
             .filter((instance) => instance.state !== 'DEAD');

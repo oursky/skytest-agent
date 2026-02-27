@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { queue } from '@/lib/queue';
 import { prisma } from '@/lib/prisma';
-import { verifyAuth } from '@/lib/auth';
+import { verifyAuth, resolveUserId } from '@/lib/auth';
 import { decrypt } from '@/lib/crypto';
 import { validateTargetUrl } from '@/lib/url-security';
 import { createLogger } from '@/lib/logger';
@@ -135,10 +135,9 @@ async function validateAndroidTargets(
 
 export async function POST(request: Request) {
     const authPayload = await verifyAuth(request);
-    if (!authPayload || !authPayload.sub) {
+    if (!authPayload) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const authId = authPayload.sub as string;
 
     const contentLengthHeader = request.headers.get('content-length');
     if (contentLengthHeader) {
@@ -188,10 +187,12 @@ export async function POST(request: Request) {
             );
         }
 
-        const user = await prisma.user.findUnique({
-            where: { authId },
-            select: { id: true, openRouterKey: true, androidEnabled: true }
-        });
+        const resolvedUserId = await resolveUserId(authPayload);
+        const user = resolvedUserId
+            ? await prisma.user.findUnique({ where: { id: resolvedUserId }, select: { id: true, openRouterKey: true, androidEnabled: true } })
+            : authPayload.sub
+                ? await prisma.user.findUnique({ where: { authId: authPayload.sub as string }, select: { id: true, openRouterKey: true, androidEnabled: true } })
+                : null;
 
         if (!user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

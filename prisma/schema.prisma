@@ -16,6 +16,7 @@ model User {
   updatedAt       DateTime  @updatedAt
   projects        Project[]
   usageRecords    UsageRecord[]
+  apiKeys         ApiKey[]
 }
 
 model UsageRecord {
@@ -56,6 +57,7 @@ model TestCase {
   prompt    String?
   steps     String?
   browserConfig String?
+  source    String?
   testRuns  TestRun[]
   files     TestCaseFile[]
   configs   TestCaseConfig[]
@@ -128,6 +130,19 @@ model ProjectConfig {
 
   @@unique([projectId, name])
   @@index([projectId])
+}
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  prefix     String
+  hash       String    @unique
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
 }
 
 model TestCaseConfig {
