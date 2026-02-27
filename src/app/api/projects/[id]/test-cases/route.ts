@@ -2,20 +2,12 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
+import { cleanStepsForStorage } from '@/lib/test-case-utils';
 import { TestStep } from '@/types';
 
 const logger = createLogger('api:projects:test-cases');
 
 export const dynamic = 'force-dynamic';
-
-function cleanStepsForStorage(steps: TestStep[]): TestStep[] {
-    return steps.map((step) => {
-        const { aiAction, codeAction, ...cleanedStep } = step;
-        void aiAction;
-        void codeAction;
-        return cleanedStep;
-    });
-}
 
 export async function GET(
     request: Request,

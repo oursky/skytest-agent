@@ -20,6 +20,9 @@ export const config = {
             TEST_RUNS: '/api/test-runs',
             RUN_TEST: '/api/run-test',
         },
+        batch: {
+            maxTestCasesPerBatch: 50,
+        },
     },
 
     queue: {

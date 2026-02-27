@@ -2,35 +2,12 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
-import { parseTestCaseJson } from '@/lib/test-case-utils';
+import { parseTestCaseJson, cleanStepsForStorage, normalizeTargetConfigMap } from '@/lib/test-case-utils';
 import { TestStep, BrowserConfig, TargetConfig } from '@/types';
 import { getUploadPath, getTestCaseConfigUploadPath } from '@/lib/file-security';
-import { normalizeBrowserConfig } from '@/lib/browser-target';
 import fs from 'fs/promises';
 
 const logger = createLogger('api:test-cases:id');
-
-function cleanStepsForStorage(steps: TestStep[]): TestStep[] {
-    return steps.map((step) => {
-        const { aiAction, codeAction, ...cleanedStep } = step;
-        void aiAction;
-        void codeAction;
-        return cleanedStep;
-    });
-}
-
-function normalizeTargetConfigMap(
-    browserConfig: Record<string, BrowserConfig | TargetConfig>
-): Record<string, BrowserConfig | TargetConfig> {
-    return Object.fromEntries(
-        Object.entries(browserConfig).map(([targetId, targetConfig]) => {
-            if ('type' in targetConfig && targetConfig.type === 'android') {
-                return [targetId, targetConfig];
-            }
-            return [targetId, normalizeBrowserConfig(targetConfig as BrowserConfig)];
-        })
-    );
-}
 
 export async function GET(
     request: Request,
