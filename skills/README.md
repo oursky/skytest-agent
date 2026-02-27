@@ -8,7 +8,8 @@ Skills for anyone using SkyTest Agent to generate and manage test cases.
 
 | Skill | Command | Description |
 |-------|---------|-------------|
-| [skytest-generate](./skytest-skills/skytest-generate/SKILL.md) | `/skytest-generate` | Confirm end-to-end flows step-by-step, then review and create test cases one-by-one (no batch create) |
+| [skytest-create-test-case](./skytest-skills/skytest-create-test-case/SKILL.md) | `/skytest-create-test-case` | Confirm end-to-end flows step-by-step, then review and create test cases one-by-one (no batch create) |
+| [skytest-create-import-excel](./skytest-skills/skytest-create-import-excel/SKILL.md) | `/skytest-create-import-excel` | Generate import-ready Excel workbooks from confirmed test cases without MCP |
 
 ### Installation
 

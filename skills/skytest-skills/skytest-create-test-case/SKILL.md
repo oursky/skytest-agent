@@ -1,31 +1,30 @@
 ---
-name: skytest-generate-excel
+name: skytest-create-test-case
 description: |
-  Generate test cases from feature descriptions, screenshots, or user flow documentation
-  and export them as Excel workbooks ready to import into SkyTest. Does not require MCP
-  or a connected SkyTest instance. Studies user flows as a professional QA engineer,
-  designs test cases one at a time with user confirmation, then generates one Excel
-  workbook per confirmed test case using the SkyTest import format. Use when the user
-  asks to generate tests or create test cases as Excel files, or when MCP is unavailable.
+  Generate test cases from feature descriptions, screenshots, or user flow documentation.
+  Creates draft test cases in a SkyTest project with complete steps, configs, and target
+  setup. Uses MCP create_test_cases single-create mode with import-equivalent fields
+  (test case ID, targets, variables, AI/code steps). File upload is excluded. Use when
+  the user asks to generate tests, create test cases, or automate test creation for a
+  feature or user flow.
 allowed-tools:
+  - mcp__skytest_*
   - AskUserQuestion
   - Read
   - WebFetch
-  - Bash
-  - Write
 ---
 
-# SkyTest Test Case Excel Generator
+# SkyTest Test Case Generator
 
 Generate comprehensive test cases from feature descriptions, screenshots, or user flow
-documentation. Outputs one Excel workbook per confirmed test case, ready to import into
-SkyTest via the run page or project import UI. No MCP connection required.
+documentation. Creates DRAFT test cases in a SkyTest project with complete steps, configs,
+and browser/Android target setup.
 
 ## When to Apply
 
-- User asks to "generate tests as Excel", "import tests", "export test cases", or "create importable tests"
-- User wants to generate test cases but does not have MCP / SkyTest connected
+- User asks to "generate tests", "create test cases", or "write tests" for a feature
 - User provides a feature description, screenshots, or URL to analyze
+- User wants to automate test case creation for their web or Android application
 
 ## Workflow
 
@@ -33,16 +32,19 @@ SkyTest via the run page or project import UI. No MCP connection required.
 
 Ask the user for:
 - **Feature description**: What does the feature do? What are the key user flows?
+- **Target project**: Which SkyTest project to add test cases to?
 - **Platform**: Browser, Android, or both?
-- **Output directory**: Where to save the generated Excel files (default: current directory)
 - **Screenshots or documentation** (optional): Any visual context
+
+Use `list_projects` MCP tool to show available projects. If no project exists, ask if
+you should create one.
 
 **Required identifiers — do not proceed without these:**
 - Any flow on a **web browser** requires the **base URL** (e.g., `https://myapp.com`)
 - Any flow on a **mobile/Android app** requires the **Android app ID** (e.g., `com.example.app`)
 
-If the platform is known but the required identifier is missing, ask for it before moving
-to Step 2.
+If the platform is known but the required identifier is missing, ask for it before
+moving to Step 2. These values are mandatory inputs for target configuration.
 
 ### 2. Understand the Product & User Flows
 
@@ -69,20 +71,24 @@ Before studying any feature flow, **always** understand how the system is authen
 - What credentials will be used for testing?
 
 Ask the user to provide test credentials (username/password or equivalent). These will
-become `Variable` configs (with `Masked: Y` for passwords) shared across all test cases.
+become `VARIABLE` configs (with `masked: true` for passwords) shared across all test cases.
 
 Do NOT assume login works a certain way. If you cannot see the full login flow from the
-context provided, ask the user to walk you through it.
+context provided, ask the user to walk you through it or connect a browser agent (see 2c).
 
-#### 2c. Explore the App If Needed
+#### 2c. Explore the App Live If Needed
 
 Attempt to derive every step of every flow from the context the user has provided
 (screenshots, description, URL, docs). For each step, ask yourself:
 **"Do I know exactly what the user sees and does here?"**
 
 If the answer is NO for ANY step — the UI is not shown, the outcome is unknown, a dialog
-or redirect behavior is unclear — do NOT guess. Ask the user targeted questions to fill
-the gap before proceeding.
+or redirect behavior is unclear — do NOT guess. Instead:
+
+1. Ask the user to connect a browser agent to the running app so you can explore it live,
+   navigating through the actual UI to observe each step firsthand.
+2. If a browser agent is not available, ask the user targeted questions to fill the gap
+   before proceeding.
 
 Every flow must be derivable end-to-end with full confidence before you present it.
 **A flow with any unclear step is not ready to present.**
@@ -176,20 +182,42 @@ Every test case must be fully self-contained:
 If setup steps are needed (e.g., creating test data), include them as initial steps
 within the test case, or document the prerequisite for the user to prepare beforehand.
 
-### 4. Review One Test Case at a Time
+### 4. Review and Create One Test Case at a Time
 
 For each candidate test case, follow this loop:
 
 1. Draft exactly ONE test case (title, priority, steps, assertions, configs, targets).
 2. Present only that one test case to the user for review.
-3. Ask for explicit decision: confirm, modify, or skip.
-4. If user confirms, add it to the confirmed list.
+3. Ask for explicit decision: confirm/create, clarify/modify, or skip.
+4. If user confirms, create only that single case via MCP.
 5. If user asks to modify, revise and re-present the same case.
-6. If user skips, do not add it; move to the next case.
+6. If user skips, do not create it; move to the next case.
 
-**Never present all test cases as a full approval batch.**
+**Creation rule:** never create in batch when running this skill.
+Call `create_test_cases` with a single `testCase` object each time:
+`{ projectId, testCase: { ...all case details... } }`.
 
-Keep a running list of confirmed test cases in memory as you iterate through them.
+**All-details creation rule:** each confirmed case must include:
+- `name`
+- `displayId` or `testCaseId`
+- targets (`browserConfig` map and/or `browserTargets` / `androidTargets`)
+- `steps` with explicit `type` (`ai-action` or `playwright-code`)
+- test-case variables via `configs` or `variables`
+
+**File constraint:** do not send `FILE` variables through MCP create. MCP cannot upload file
+content for users. If file variables are required, create the case first, then tell the user
+to upload files in SkyTest UI/API and bind them afterward.
+
+Use `get_project` before creation to reuse existing project-level configs and avoid
+duplicates.
+
+**Project variable reuse (server-enforced):** when you submit a test-case variable whose
+`type` and `value` exactly match an existing project-level config, the server will skip
+creating the test-case variable and return a warning naming the matching project variable.
+This means the test case will resolve that value from the project config at runtime — no
+action is required on your part. When you see such a warning in the MCP response, inform
+the user which project variable is being reused and confirm the step reference
+(`{{VAR_NAME}}`) still resolves correctly at the project level.
 
 ### 5. Case Writing Standards
 
@@ -252,225 +280,111 @@ type (typos in emails, too-short passwords, pasting text into number fields).
 #### Config Rules
 
 - Names: `UPPER_SNAKE_CASE` only
-- Use `Variable` type for credentials (with `Masked: Y` for passwords)
+- Use `VARIABLE` type for credentials (with `masked: true` for passwords)
 - Use `URL` type for base URLs
-- Use `Random String` for unique test data (e.g., unique usernames per run)
-- Do NOT include `File` variables (import cannot upload file content)
+- Use `RANDOM_STRING` for unique test data (e.g., unique usernames per run)
+- Use `configs` or `variables` for test-case variables (both are accepted by MCP create tool)
+- Do not send `FILE` variables in create payload; handle file upload separately after creation
 
 #### Target Config
 
-- Browser: Target label `Browser A`, URL, Width: 1920, Height: 1080
-- Android: Target label `Android A`, Device (emulator profile name or `serial:<adb>`),
-  APP ID, Clear App Data: Yes, Allow Permissions: Yes
+- Browser: `{ type: "browser", url: "...", width: 1920, height: 1080 }`
+- Android: `{ type: "android", deviceSelector: {}, appId: "...", clearAppState: true, allowAllPermissions: true }`
 
-### 6. Generate Excel Workbooks
+### 6. Final Report
 
-After all test cases have been reviewed, generate one Excel workbook per confirmed case.
-
-**Before generating**, verify each case has:
-- A name and a displayId (e.g., `LOGIN-001`)
-- At least one target (browser or Android)
-- All steps with target references that match defined targets
-- All `{{VAR_NAME}}` placeholders backed by a variable row
-- No FILE variables in the payload
-
-**Excel format — one workbook per test case with four sheets:**
-
-#### Sheet 1: `Configurations`
-
-| Section | Type | Name | Value | Group | Masked |
-|---------|------|------|-------|-------|--------|
-| Basic Info | Test Case Name | [test case name] | | | |
-| Basic Info | Test Case ID | [displayId] | | | |
-| Test Case Variable | URL | BASE_URL | https://... | | |
-| Test Case Variable | Variable | LOGIN_EMAIL | john@example.com | | |
-| Test Case Variable | Variable | LOGIN_PASSWORD | | | Y |
-| Test Case Variable | Random String | UNIQUE_USERNAME | UUID | | |
-
-Variable `Type` values accepted by import:
-- `URL` — for URL variables
-- `Variable` — for plain string/credential variables (use `Masked: Y` for secrets)
-- `Random String` — for generated values; `Value` must be one of:
-  `UUID`, `Timestamp (Unix)`, `Timestamp (Datetime)`
-- Do NOT include `File` rows
-
-#### Sheet 2: `Browsers`
-
-| Target | Name | URL | Width | Height |
-|--------|------|-----|-------|--------|
-| Browser A | Primary Browser | https://myapp.com/login | 1920 | 1080 |
-
-Only include rows for browser targets used in this test case.
-Omit rows (keep header only) if no browser targets.
-
-#### Sheet 3: `Android`
-
-| Target | Name | Device | APP ID | Clear App Data | Allow Permissions |
-|--------|------|--------|--------|----------------|-------------------|
-| Android A | Main Device | Pixel_7_API_34 | com.example.app | Yes | Yes |
-
-Use `serial:<adb-serial>` in Device column for physical connected devices.
-Omit rows (keep header only) if no Android targets.
-
-#### Sheet 4: `Test Steps`
-
-| Step No | Browser | Type | Action |
-|---------|---------|------|--------|
-| 1 | Browser A | AI | Navigate to the login page at {{BASE_URL}}/login |
-| 2 | Browser A | AI | Fill in the 'Email address' field with '{{LOGIN_EMAIL}}' and the 'Password' field with '{{LOGIN_PASSWORD}}' |
-| 3 | Browser A | AI | Click the 'Sign In' button |
-| 4 | Browser A | AI | Verify the page displays the 'Dashboard' heading and the user's email '{{LOGIN_EMAIL}}' appears in the top navigation bar |
-
-Notes:
-- `Browser` column is used for ALL target types (both browser and Android) — this is
-  the required column name regardless of platform
-- `Type` must be `AI` for ai-action steps or `Code` for playwright-code steps
-- `Step No` is a sequential integer starting from 1
-
-**Generation method:**
-
-Use Python with `openpyxl` to generate the Excel file. First check if openpyxl is
-available; if not, install it:
-
-```bash
-python3 -c "import openpyxl" 2>/dev/null || pip3 install openpyxl
-```
-
-Write a Python script to `_skytest_excel_gen.py` in the output directory, run it, then
-delete it. Name each output file as `[displayId]-[safe-name].xlsx`, for example
-`LOGIN-001-login-happy-path.xlsx`.
-
-**Python generation script template:**
-
-```python
-import openpyxl
-from openpyxl.styles import Font
-from openpyxl import Workbook
-
-def add_header_row(ws, headers):
-    ws.append(headers)
-    for cell in ws[ws.max_row]:
-        cell.font = Font(bold=True)
-
-def generate_test_case(output_path, tc):
-    wb = Workbook()
-
-    # Configurations
-    ws = wb.active
-    ws.title = "Configurations"
-    add_header_row(ws, ["Section", "Type", "Name", "Value", "Group", "Masked"])
-    ws.append(["Basic Info", "Test Case Name", tc["name"], "", "", ""])
-    ws.append(["Basic Info", "Test Case ID", tc["displayId"], "", "", ""])
-    for v in tc.get("variables", []):
-        ws.append(["Test Case Variable", v["type"], v["name"],
-                    v.get("value", ""), v.get("group", ""),
-                    "Y" if v.get("masked") else ""])
-
-    # Browsers
-    ws_b = wb.create_sheet("Browsers")
-    add_header_row(ws_b, ["Target", "Name", "URL", "Width", "Height"])
-    for t in tc.get("browserTargets", []):
-        ws_b.append([t["target"], t.get("name", ""), t["url"],
-                      t.get("width", 1920), t.get("height", 1080)])
-
-    # Android
-    ws_a = wb.create_sheet("Android")
-    add_header_row(ws_a, ["Target", "Name", "Device", "APP ID",
-                           "Clear App Data", "Allow Permissions"])
-    for t in tc.get("androidTargets", []):
-        ws_a.append([t["target"], t.get("name", ""), t["device"], t["appId"],
-                      "Yes" if t.get("clearAppData", True) else "No",
-                      "Yes" if t.get("allowPermissions", True) else "No"])
-
-    # Test Steps
-    ws_s = wb.create_sheet("Test Steps")
-    add_header_row(ws_s, ["Step No", "Browser", "Type", "Action"])
-    for i, s in enumerate(tc.get("steps", []), start=1):
-        ws_s.append([i, s["target"], s.get("stepType", "AI"), s["action"]])
-
-    wb.save(output_path)
-    print(f"Generated: {output_path}")
-
-# --- Populate from confirmed test cases ---
-TEST_CASES = []
-
-for tc in TEST_CASES:
-    safe = tc["name"].lower().replace(" ", "-").replace("/", "-")
-    generate_test_case(f"{tc['displayId']}-{safe}.xlsx", tc)
-```
-
-Populate `TEST_CASES` with all confirmed test cases, write the script, run it, then
-remove the script. Report each generated filename to the user.
-
-### 7. Final Report
-
-After generating all workbooks, summarize:
-- Generated files and their paths, grouped by priority (P0/P1/P2/P3)
+After iterating through all cases one-by-one, summarize:
+- Created cases by priority level (P0/P1/P2/P3)
 - Skipped cases and reasons
-- Variables that need values filled in post-import (masked passwords, etc.)
+- Cases needing more clarification
 - Gaps in coverage — flows or risk areas not yet covered
-- Instructions for importing into SkyTest:
-  > Open SkyTest → your project → Import (or the run page) → upload each `.xlsx` file
+- Recommended next test priorities
 
 ## Guidelines
 
 - Always understand flows FIRST, then design and create test cases.
-- **ALWAYS wait for explicit user confirmation** before proceeding. Mandatory checkpoints:
+- Treat this as a 2-step workflow:
+  1. Study and confirm the end-to-end user flow(s) step-by-step
+  2. Design and create test cases one-by-one with user confirmation before each creation
+- **ALWAYS wait for explicit user confirmation** ("ok", "confirm", "yes", "go ahead")
+  before proceeding. Never auto-proceed. Mandatory checkpoints:
   1. After presenting identified end-to-end user flows
-  2. Before adding each individual test case to the confirmed list
+  2. Before creating each individual test case
 - **Design P0 cases first** — always start with the highest business-risk flows
 - **Every test case must be independent** — runnable in isolation, no implicit state
   dependencies on other cases
 - Never present all test cases as a full approval batch.
+- Never create multiple test cases in one MCP create call while using this skill.
+- Always call MCP create tool with single payload shape:
+  `create_test_cases({ projectId, testCase: { ... } })`
 - **Understand authentication before anything else** — know the login mechanism, entry
   point, roles, and test credentials before studying any feature flow.
-- **Never guess a step** — if any step in a flow is unclear, ask the user.
-- **Verify consequences, not just appearance** — assert that actions had their intended
-  effect (item appears in list, data saved correctly), not just that a toast or animation
-  played.
-- Prefer fewer, well-structured steps over many granular steps.
-- Set `Masked: Y` for any sensitive values (passwords, tokens, API keys).
-- Use descriptive `displayId` values (e.g., "LOGIN-001", "CHECKOUT-003").
-- Default to browser targets unless user specifies Android.
-- Default viewport: 1920×1080 for browser targets.
-- Do NOT include FILE variables — inform the user to upload files via SkyTest UI after import.
+- **Never guess a step** — if any step in a flow is unclear (unknown UI, dialog behavior,
+  redirect target, error message text), do not fill it in. Either ask the user to connect
+  a browser agent for live exploration, or ask the user a direct question to fill the gap.
+- **Request live browser exploration when needed** — if provided screenshots or
+  descriptions are insufficient to derive the complete end-to-end flow, ask the user to
+  connect a browser agent. Do not proceed with partial understanding.
+- Reuse existing project-level configs when possible
+- Set `masked: true` for any sensitive values (passwords, tokens, API keys)
+- Use descriptive `displayId` values (e.g., "LOGIN-001", "CHECKOUT-003")
+- Default to browser targets unless user specifies Android
+- Default viewport: 1920×1080 for browser targets
 
-## Example: Complete Test Case Data Structure (for generation script)
+## Example: Complete Test Case
 
-```python
+```json
 {
+  "projectId": "proj_123",
+  "testCase": {
     "name": "Login - Happy Path",
-    "displayId": "LOGIN-001",
+    "testCaseId": "LOGIN-001",
     "browserTargets": [
-        {
-            "target": "Browser A",
-            "name": "Primary Browser",
-            "url": "https://myapp.com/login",
-            "width": 1920,
-            "height": 1080
-        }
-    ],
-    "androidTargets": [],
-    "variables": [
-        { "type": "Variable", "name": "LOGIN_EMAIL", "value": "john.smith@company.com" },
-        { "type": "Variable", "name": "LOGIN_PASSWORD", "value": "", "masked": True }
+      {
+        "id": "browser_a",
+        "name": "Primary Browser",
+        "url": "https://myapp.com/login",
+        "width": 1920,
+        "height": 1080
+      }
     ],
     "steps": [
-        {
-            "target": "Browser A",
-            "stepType": "AI",
-            "action": "Fill in the 'Email address' field with '{{LOGIN_EMAIL}}' and the 'Password' field with '{{LOGIN_PASSWORD}}'"
-        },
-        {
-            "target": "Browser A",
-            "stepType": "AI",
-            "action": "Click the 'Sign In' button"
-        },
-        {
-            "target": "Browser A",
-            "stepType": "AI",
-            "action": "Verify the page displays the 'Dashboard' heading and the user's email '{{LOGIN_EMAIL}}' appears in the top navigation bar"
-        }
+      {
+        "id": "step_1",
+        "target": "browser_a",
+        "action": "Fill in the 'Email address' field with '{{LOGIN_EMAIL}}' and the 'Password' field with '{{LOGIN_PASSWORD}}'",
+        "type": "ai-action"
+      },
+      {
+        "id": "step_2",
+        "target": "browser_a",
+        "action": "Click the 'Sign In' button",
+        "type": "ai-action"
+      },
+      {
+        "id": "step_3",
+        "target": "browser_a",
+        "action": "Verify the page displays the 'Dashboard' heading and the user's email '{{LOGIN_EMAIL}}' appears in the top navigation bar",
+        "type": "ai-action"
+      }
+    ],
+    "variables": [
+      { "name": "LOGIN_EMAIL", "type": "VARIABLE", "value": "john.smith@company.com" },
+      { "name": "LOGIN_PASSWORD", "type": "VARIABLE", "value": "", "masked": true }
     ]
+  }
 }
 ```
+
+### Create Call Checklist
+
+Before each MCP create call, confirm the payload includes:
+- one case only (`testCase`, never array/batch)
+- resolved target IDs used consistently in every step `target`
+- complete target definitions (browser/android) for all referenced targets
+- all required variables used by `{{...}}` in steps, including masked ones (include them with `value: ""` and `masked: true` so SkyTest creates the slot)
+- if the server skips a variable due to a matching project config, verify the `{{VAR_NAME}}` reference resolves at the project level and inform the user
+- step `type` set correctly for AI vs code steps
+- no `FILE` variable in create payload
+
+If any item is missing, fix before calling MCP.
