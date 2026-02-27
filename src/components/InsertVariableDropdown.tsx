@@ -19,8 +19,19 @@ interface InsertVariableDropdownProps {
 interface ConfigGroup {
     key: string;
     label: string;
-    configs: ConfigItem[];
+    configs: DropdownConfigItem[];
 }
+
+interface DropdownConfigItem extends ConfigItem {
+    source: 'project' | 'test-case';
+}
+
+const TYPE_SHORT_LABEL: Record<Exclude<ConfigType, 'APP_ID'>, string> = {
+    VARIABLE: 'VAR',
+    FILE: 'FIL',
+    RANDOM_STRING: 'STR',
+    URL: 'URL',
+};
 
 function getPreviewValue(config: ConfigItem): string {
     const rawValue = config.type === 'FILE' ? (config.filename || config.value) : config.value;
@@ -33,9 +44,9 @@ function getPreviewValue(config: ConfigItem): string {
     return `${rawValue.slice(0, 32)}…`;
 }
 
-function groupConfigs(configs: ConfigItem[]): ConfigGroup[] {
+function groupConfigs(configs: DropdownConfigItem[]): ConfigGroup[] {
     const sorted = [...configs].sort(compareByGroupThenName);
-    const grouped = new Map<string, ConfigItem[]>();
+    const grouped = new Map<string, DropdownConfigItem[]>();
 
     for (const config of sorted) {
         const normalizedGroup = normalizeConfigGroup(config.group);
@@ -104,13 +115,19 @@ export default function InsertVariableDropdown({
         };
     }, [isOpen]);
 
-    const filteredProjectConfigs = allowedTypes
-        ? projectConfigs.filter((config) => allowedTypes.includes(config.type))
-        : projectConfigs;
-    const filteredTestCaseConfigs = allowedTypes
-        ? testCaseConfigs.filter((config) => allowedTypes.includes(config.type))
-        : testCaseConfigs;
-    const availableTestFiles = testFiles || [];
+    const canIncludeType = (configType: ConfigType): boolean => {
+        if (configType === 'APP_ID') {
+            return false;
+        }
+        if (!allowedTypes) {
+            return true;
+        }
+        return allowedTypes.includes(configType);
+    };
+
+    const filteredProjectConfigs = projectConfigs.filter((config) => canIncludeType(config.type));
+    const filteredTestCaseConfigs = testCaseConfigs.filter((config) => canIncludeType(config.type));
+    const availableTestFiles = canIncludeType('FILE') ? (testFiles || []) : [];
 
     if (filteredProjectConfigs.length === 0 && filteredTestCaseConfigs.length === 0 && availableTestFiles.length === 0) {
         return null;
@@ -140,9 +157,9 @@ export default function InsertVariableDropdown({
         setIsOpen(false);
     };
 
-    const renderConfigGroups = (groups: ConfigGroup[], source: 'project' | 'test-case') => {
+    const renderConfigGroups = (groups: ConfigGroup[]) => {
         return groups.map((group) => (
-            <div key={`${source}-${group.key}`}>
+            <div key={group.key}>
                 {group.label && (
                     <div className="px-3 py-1 text-[10px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-50 border-y border-gray-100">
                         {group.label}
@@ -150,31 +167,29 @@ export default function InsertVariableDropdown({
                 )}
                 {group.configs.map((config) => (
                     <button
-                        key={`${source}-${config.id}`}
+                        key={`${config.source}-${config.id}`}
                         type="button"
                         onClick={() => handleSelectConfig(config)}
-                        className={`w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 flex items-center justify-between gap-3 ${source === 'project' && overriddenNames.has(config.name) ? 'opacity-50 line-through' : ''}`}
+                        className={`w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 flex items-center justify-between gap-3 ${config.source === 'project' && overriddenNames.has(config.name) ? 'opacity-50 line-through' : ''}`}
                     >
                         <div className="min-w-0 flex-1">
                             <code className="block font-mono text-xs text-gray-700 truncate">{config.name}</code>
                             <span className="block text-[10px] text-gray-400 truncate">{getPreviewValue(config)}</span>
                         </div>
-                        <div className="shrink-0 flex items-center gap-1">
-                            {config.masked && (
-                                <span className="text-[10px] font-semibold uppercase text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
-                                    {t('configs.masked')}
-                                </span>
-                            )}
-                            <span className="text-[10px] font-semibold uppercase text-gray-400">{config.type}</span>
-                        </div>
+                        <span className="text-[10px] font-semibold uppercase text-gray-400">
+                            {config.type === 'APP_ID' ? 'VAR' : TYPE_SHORT_LABEL[config.type]}
+                        </span>
                     </button>
                 ))}
             </div>
         ));
     };
 
-    const groupedProjectConfigs = groupConfigs(filteredProjectConfigs);
-    const groupedTestCaseConfigs = groupConfigs(filteredTestCaseConfigs);
+    const mergedConfigs: DropdownConfigItem[] = [
+        ...filteredProjectConfigs.map((config) => ({ ...config, source: 'project' as const })),
+        ...filteredTestCaseConfigs.map((config) => ({ ...config, source: 'test-case' as const })),
+    ];
+    const groupedConfigs = groupConfigs(mergedConfigs);
 
     return (
         <div className="relative inline-block" ref={dropdownRef}>
@@ -192,31 +207,12 @@ export default function InsertVariableDropdown({
             {isOpen && (
                 <div
                     ref={menuRef}
-                    className={`absolute top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-[70] py-1 w-[min(22rem,calc(100vw-2rem))] h-72 overflow-y-auto ${menuAlignment === 'right' ? 'right-0' : 'left-0'}`}
+                    className={`absolute top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-[70] py-1 w-[min(22rem,calc(100vw-2rem))] max-h-72 overflow-y-auto ${menuAlignment === 'right' ? 'right-0' : 'left-0'}`}
                 >
-                    {filteredProjectConfigs.length > 0 && (
-                        <>
-                            <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
-                                {t('configs.section.projectVariables')}
-                            </div>
-                            {renderConfigGroups(groupedProjectConfigs, 'project')}
-                        </>
-                    )}
-
-                    {filteredTestCaseConfigs.length > 0 && (
-                        <>
-                            <div className={`px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider ${filteredProjectConfigs.length > 0 ? 'border-t border-gray-100 mt-1' : ''}`}>
-                                {t('configs.section.testCaseVariables')}
-                            </div>
-                            {renderConfigGroups(groupedTestCaseConfigs, 'test-case')}
-                        </>
-                    )}
+                    {mergedConfigs.length > 0 && <>{renderConfigGroups(groupedConfigs)}</>}
 
                     {availableTestFiles.length > 0 && (
                         <>
-                            <div className={`px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider ${(filteredProjectConfigs.length > 0 || filteredTestCaseConfigs.length > 0) ? 'border-t border-gray-100 mt-1' : ''}`}>
-                                {t('configs.title.files')}
-                            </div>
                             {availableTestFiles.map((file) => (
                                 <button
                                     key={`f-${file.id}`}
@@ -225,7 +221,7 @@ export default function InsertVariableDropdown({
                                     className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 flex items-center justify-between gap-3"
                                 >
                                     <code className="font-mono text-xs text-gray-700 truncate">{file.filename}</code>
-                                    <span className="text-[10px] font-semibold uppercase text-gray-400">{t('configs.type.file')}</span>
+                                    <span className="text-[10px] font-semibold uppercase text-gray-400">FIL</span>
                                 </button>
                             ))}
                         </>
