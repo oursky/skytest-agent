@@ -163,7 +163,7 @@ export function createMcpServer(): McpServer {
     });
 
     server.registerTool('create_test_cases', {
-        description: 'Create one test case with import-equivalent details (ID, targets, steps, test-case variables). FILE uploads are not supported via MCP.',
+        description: 'Create exactly one test case per call with import-equivalent details (ID, targets, steps, test-case variables). FILE uploads are not supported via MCP.',
         inputSchema: {
             projectId: z.string().describe('Project ID'),
             testCase: z.object({
