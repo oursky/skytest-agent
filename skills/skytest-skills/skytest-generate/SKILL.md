@@ -172,6 +172,14 @@ to upload files in SkyTest UI/API and bind them afterward.
 Use `get_project` before creation to reuse existing project-level configs and avoid
 duplicates.
 
+**Project variable reuse (server-enforced):** when you submit a test-case variable whose
+`type` and `value` exactly match an existing project-level config, the server will skip
+creating the test-case variable and return a warning naming the matching project variable.
+This means the test case will resolve that value from the project config at runtime — no
+action is required on your part. When you see such a warning in the MCP response, inform
+the user which project variable is being reused and confirm the step reference
+(`{{VAR_NAME}}`) still resolves correctly at the project level.
+
 ### 5. Case Writing Standards
 
 **Understand the Business Context First:**
@@ -261,7 +269,6 @@ After iterating through all cases one-by-one, summarize:
 - Prefer fewer, well-structured steps over many granular steps
 - Reuse existing project-level configs when possible
 - Set `masked: true` for any sensitive values (passwords, tokens, API keys)
-- Leave masked variable values empty — the user sets them in the UI
 - Use descriptive `displayId` values (e.g., "LOGIN-001", "CHECKOUT-003")
 - Default to browser targets unless user specifies Android
 - Default viewport: 1920×1080 for browser targets
@@ -318,6 +325,7 @@ Before each MCP create call, confirm the payload includes:
 - resolved target IDs used consistently in every step `target`
 - complete target definitions (browser/android) for all referenced targets
 - all required variables used by `{{...}}` in steps, including masked ones (include them with `value: ""` and `masked: true` so SkyTest creates the slot)
+- if the server skips a variable due to a matching project config, verify the `{{VAR_NAME}}` reference resolves at the project level and inform the user
 - step `type` set correctly for AI vs code steps
 - no `FILE` variable in create payload
 

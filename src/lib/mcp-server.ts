@@ -328,6 +328,8 @@ export function createMcpServer(): McpServer {
 
         const testCaseVariables = [...(testCase.configs || []), ...(testCase.variables || [])];
         if (testCaseVariables.length > 0) {
+            const projectConfigs = await prisma.projectConfig.findMany({ where: { projectId } });
+
             for (const configInput of testCaseVariables) {
                 const nameError = validateConfigName(configInput.name);
                 if (nameError) {
@@ -345,6 +347,15 @@ export function createMcpServer(): McpServer {
                     warnings.push(`Config "${normalizedName}" skipped: FILE upload is not supported in MCP create_test_cases.`);
                     continue;
                 }
+
+                const matchingProjectConfig = projectConfigs.find(
+                    pc => pc.value === (configInput.value || '') && pc.type === configType
+                );
+                if (matchingProjectConfig) {
+                    warnings.push(`Config "${normalizedName}" skipped: project variable "${matchingProjectConfig.name}" already has the same value — use it instead`);
+                    continue;
+                }
+
                 const groupable = isGroupableConfigType(configType);
 
                 try {
