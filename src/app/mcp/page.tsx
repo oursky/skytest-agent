@@ -118,7 +118,7 @@ export default function McpPage() {
 
     const handleCopyConfigExample = async () => {
         try {
-            await navigator.clipboard.writeText(configExample);
+            await navigator.clipboard.writeText(apiKeyConfigExample);
             setIsConfigCopied(true);
             window.setTimeout(() => setIsConfigCopied(false), 1500);
         } catch (error) {
@@ -126,7 +126,7 @@ export default function McpPage() {
         }
     };
 
-    const configExample = useMemo(() => `{
+    const apiKeyConfigExample = useMemo(() => `{
   "mcpServers": {
     "skytest": {
       "transport": "streamable-http",
@@ -244,22 +244,24 @@ export default function McpPage() {
 
                 <div className="bg-white rounded-lg border border-gray-200 p-5">
                     <h2 className="text-lg font-semibold text-gray-800 mb-4">{t('mcp.connection.title')}</h2>
-                    <dl className="space-y-3">
-                        <div>
-                            <dt className="text-xs font-semibold uppercase text-gray-500">{t('mcp.connection.endpoint')}</dt>
-                            <dd className="text-sm text-gray-700 font-mono break-all">{mcpEndpoint}</dd>
-                        </div>
-                        <div>
-                            <dt className="text-xs font-semibold uppercase text-gray-500">{t('mcp.connection.protocol')}</dt>
-                            <dd className="text-sm text-gray-700">{t('mcp.connection.protocolValue')}</dd>
-                        </div>
-                        <div>
-                            <dt className="text-xs font-semibold uppercase text-gray-500">{t('mcp.connection.auth')}</dt>
-                            <dd className="text-sm text-gray-700">{t('mcp.connection.authValue')}</dd>
-                        </div>
-                    </dl>
+                    <div className="space-y-4">
+                        <dl className="space-y-3">
+                            <div>
+                                <dt className="text-xs font-semibold text-gray-500">{t('mcp.connection.serverUrl')}</dt>
+                                <dd className="text-sm text-gray-700 font-mono break-all">{mcpEndpoint}</dd>
+                            </div>
+                            <div>
+                                <dt className="text-xs font-semibold text-gray-500">{t('mcp.connection.apiKey.header')}</dt>
+                                <dd className="text-sm text-gray-700 font-mono break-all">Authorization: Bearer &lt;AGENT_API_KEY&gt;</dd>
+                            </div>
+                            <div>
+                                <dt className="text-xs font-semibold text-gray-500">{t('mcp.connection.protocol')}</dt>
+                                <dd className="text-sm text-gray-700">{t('mcp.connection.protocolValue')}</dd>
+                            </div>
+                        </dl>
+                    </div>
 
-                    <p className="text-sm text-gray-500 mt-4 mb-2">{t('mcp.connection.configExample')}</p>
+                    <p className="text-sm text-gray-500 mt-5 mb-2">{t('mcp.connection.configExample')}</p>
                     <div className="relative">
                         <button
                             onClick={handleCopyConfigExample}
@@ -279,7 +281,7 @@ export default function McpPage() {
                             )}
                         </button>
                         <pre className="bg-gray-50 text-gray-800 text-xs rounded border border-gray-200 p-3 overflow-x-auto">
-                            <code>{configExample}</code>
+                            <code>{apiKeyConfigExample}</code>
                         </pre>
                     </div>
                 </div>
