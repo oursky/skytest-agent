@@ -32,49 +32,86 @@ Ask the user for:
 - **Feature description**: What does the feature do? What are the key user flows?
 - **Target project**: Which SkyTest project to add test cases to?
 - **Platform**: Browser, Android, or both?
-- **Base URL / App ID**: The application entry point
 - **Screenshots or documentation** (optional): Any visual context
 
 Use `list_projects` MCP tool to show available projects. If no project exists, ask if
 you should create one.
 
+**Required identifiers — do not proceed without these:**
+- Any flow on a **web browser** requires the **base URL** (e.g., `https://myapp.com`)
+- Any flow on a **mobile/Android app** requires the **Android app ID** (e.g., `com.example.app`)
+
+If the platform is known but the required identifier is missing, ask for it before
+moving to Step 2. These values are mandatory inputs for target configuration.
+
 ### 2. Understand the Product & User Flows
 
-This is the CRITICAL step before generating any test cases.
+This is the CRITICAL step before generating any test cases. The goal is to produce a
+complete, step-by-step walkthrough of every flow — with zero gaps or assumptions.
 
-First, understand the **product's business context**:
+#### 2a. Understand the Business Context
+
+Before exploring any feature, establish:
 - What industry/domain is this product in? (e-commerce, healthcare, fintech, SaaS, etc.)
 - Who are the target users?
 - What are the core business workflows?
 
-If the context is unclear, ask the user about the product's domain and purpose.
+If not obvious from the context provided, ask the user.
 
-Then, from the context provided (description, screenshots, URL, docs), identify and
-document the key user flows as a structured list:
+#### 2b. Understand Authentication First
+
+Before studying any feature flow, **always** understand how the system is authenticated:
+- How does a user log in? (username/password form, SSO, API key, magic link, etc.)
+- What is the login URL or entry point?
+- Are there multiple user roles with different access? Which role is needed for this feature?
+- What credentials will be used for testing?
+
+Ask the user to provide test credentials (username/password or equivalent). These will
+become `VARIABLE` configs (with `masked: true` for passwords) shared across all test cases.
+
+Do NOT assume login works a certain way. If you cannot see the full login flow from the
+context provided, ask the user to walk you through it or connect a browser agent (see 2c).
+
+#### 2c. Explore the App Live If Needed
+
+Attempt to derive every step of every flow from the context the user has provided
+(screenshots, description, URL, docs). For each step, ask yourself:
+**"Do I know exactly what the user sees and does here?"**
+
+If the answer is NO for ANY step — the UI is not shown, the outcome is unknown, a dialog
+or redirect behavior is unclear — do NOT guess. Instead:
+
+1. Ask the user to connect a browser agent to the running app so you can explore it live,
+   navigating through the actual UI to observe each step firsthand.
+2. If a browser agent is not available, ask the user targeted questions to fill the gap
+   before proceeding.
+
+Every flow must be derivable end-to-end with full confidence before you present it.
+**A flow with any unclear step is not ready to present.**
+
+#### 2d. Document and Present the Flows
+
+Once you have enough information to describe every flow completely, present them as a
+structured step-by-step list. Each step must describe exactly what the user does and
+what they see — specific button labels, field names, dialog titles, page transitions.
 
 Example output:
 ```
 I've identified these key user flows for the Login feature:
 
 **Flow 1: Email/Password Login**
-1. Navigate to /login
-2. Enter email address
-3. Enter password
-4. Click "Sign In"
-5. Redirected to dashboard
+1. Navigate to /login — page shows email and password fields and a "Sign In" button
+2. Enter email in the "Email address" field
+3. Enter password in the "Password" field
+4. Click the "Sign In" button
+5. Redirected to /dashboard — page shows the "Welcome back" heading
 
-**Flow 2: Social Login (Google)**
+**Flow 2: Forgot Password**
 1. Navigate to /login
-2. Click "Sign in with Google"
-3. Google OAuth popup appears
-4. After auth, redirected to dashboard
-
-**Flow 3: Password Reset**
-1. Navigate to /login
-2. Click "Forgot password?"
-3. Enter email
-4. Click "Send reset link"
-5. Confirmation message displayed
+2. Click "Forgot your password?" link below the Sign In button
+3. Redirected to /forgot-password — page shows a single email input field
+4. Enter email and click "Send reset link"
+5. Page shows confirmation: "Check your inbox for a reset link"
 ```
 
 Present these flows to the user and ask for confirmation:
@@ -198,6 +235,15 @@ Next steps:
   before proceeding to the next step. Never auto-proceed. Two mandatory checkpoints:
   1. After presenting identified user flows
   2. After presenting the test case plan
+- **Understand authentication before anything else** — know the login mechanism, entry
+  point, roles, and test credentials before studying any feature flow.
+- **Never guess a step** — if any step in a flow is unclear (unknown UI, dialog behavior,
+  redirect target, error message text), do not fill it in. Either ask the user to connect
+  a browser agent for live exploration, or ask the user a direct question to fill the gap.
+  A flow is only ready to present when every step is fully known.
+- **Request live browser exploration when needed** — if provided screenshots or
+  descriptions are insufficient to derive the complete end-to-end flow, ask the user to
+  connect a browser agent. Do not proceed with partial understanding.
 - **Understand the product's business context** — ask about the domain if not obvious.
   Use domain-appropriate terminology and realistic data in all test cases.
 - **Realistic test data**: Use real-world-like values (real names, proper email formats,
