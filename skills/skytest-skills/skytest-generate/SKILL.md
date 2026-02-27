@@ -57,8 +57,10 @@ Before exploring any feature, establish:
 - What industry/domain is this product in? (e-commerce, healthcare, fintech, SaaS, etc.)
 - Who are the target users?
 - What are the core business workflows?
+- Which flows directly affect revenue, security, or compliance?
 
-If not obvious from the context provided, ask the user.
+If not obvious from the context provided, ask the user. You will use this understanding
+to prioritize test cases by business risk in Step 3.
 
 #### 2b. Understand Authentication First
 
@@ -126,39 +128,76 @@ Present these flows to the user and ask for confirmation:
 (e.g., "ok", "confirm", "yes"). If the user provides corrections, revise and re-present.
 Never auto-proceed — always wait for explicit confirmation at EVERY checkpoint.
 
-### 3. Design Test Cases as Professional QA
+### 3. Design Test Cases with Risk-Based Prioritization
 
-This is still the second major phase after flow study confirmation.
+Design test cases like a QA engineer who understands business impact. Not all bugs are
+equal — a payment processing failure costs the company revenue; a misaligned icon does not.
 
-Design functional test cases from the confirmed end-to-end flows:
-- Happy path coverage
-- High-risk negative paths
-- Input validation and boundary cases
-- State transition checks
-- Business-critical guardrails
+#### 3a. Classify Flows by Business Risk
 
-Before writing each case, map it to a specific confirmed flow step sequence (starting
-from entry URL or Android app ID, then login, then feature flow). Do not design cases
-based on assumptions outside the confirmed flow.
+Before designing individual test cases, classify each confirmed flow:
+
+- **P0 — Revenue / Security / Compliance**: Payments, authentication, authorization,
+  personal data handling, regulatory flows. Failure = direct business loss, security
+  breach, or legal exposure.
+- **P1 — Core User Journeys**: Primary workflows users rely on daily. Failure = users
+  cannot accomplish their goal, likely to churn or escalate to support.
+- **P2 — Error Handling & Edge Cases**: Input validation, error recovery, boundary
+  conditions, secondary features. Failure = degraded experience but workarounds exist.
+- **P3 — Polish & Rare Scenarios**: Unusual input combinations, cosmetic consistency,
+  rare device/browser configurations.
+
+Present the prioritized classification to the user. Design and create test cases
+starting from P0 downward.
+
+#### 3b. Apply Structured Test Design
+
+For each flow, design cases using these techniques — not just "happy path + negative":
+
+- **Happy path**: The standard successful flow as confirmed in Step 2.
+- **Input validation**: For each user-facing field, test invalid input (wrong format),
+  empty input, boundary-length input, and special characters. Group related fields into
+  one case where they share validation behavior.
+- **Business rule enforcement**: Test constraints the system must enforce. Examples:
+  cannot checkout with empty cart, cannot transfer more than account balance, required
+  fields block submission, duplicate entries are rejected.
+- **State transitions**: Back button mid-flow, page refresh, double-click submit,
+  navigating away then returning, session expiry during a multi-step flow.
+- **Error recovery**: After triggering an error, the user corrects their input and
+  completes the flow successfully — without restarting.
+- **Authorization boundaries**: If multiple roles exist, verify users cannot access or
+  modify resources beyond their role. (Only if roles were identified in Step 2b.)
 
 Do NOT present all cases as one big batch for approval.
+
+#### 3c. Ensure Test Independence
+
+Every test case must be fully self-contained:
+- Starts from the entry point (URL or app launch)
+- Includes its own authentication steps if login is required
+- Does not depend on another test case having run first
+- Clearly notes any preconditions that require manual data setup (e.g., "an existing
+  order must be present to test cancellation")
+
+If setup steps are needed (e.g., creating test data), include them as initial steps
+within the test case, or document the prerequisite for the user to prepare beforehand.
 
 ### 4. Review and Create One Test Case at a Time
 
 For each candidate test case, follow this loop:
 
-1. Draft exactly ONE test case (title, scope, steps, assertions, configs, targets).
+1. Draft exactly ONE test case (title, priority, steps, assertions, configs, targets).
 2. Present only that one test case to the user for review.
 3. Ask for explicit decision: confirm/create, clarify/modify, or skip.
 4. If user confirms, create only that single case via MCP.
 5. If user asks to modify, revise and re-present the same case.
 6. If user skips, do not create it; move to the next case.
 
-**Creation rule:** never create in batch when running this skill.  
+**Creation rule:** never create in batch when running this skill.
 Call `create_test_cases` with a single `testCase` object each time:
 `{ projectId, testCase: { ...all case details... } }`.
 
-**All-details creation rule:** each confirmed case must include all creatable import details:
+**All-details creation rule:** each confirmed case must include:
 - `name`
 - `displayId` or `testCaseId`
 - targets (`browserConfig` map and/or `browserTargets` / `androidTargets`)
@@ -182,40 +221,64 @@ the user which project variable is being reused and confirm the step reference
 
 ### 5. Case Writing Standards
 
-**Understand the Business Context First:**
-Before writing test data, understand the product's business domain. If testing an
-e-commerce site, use realistic product names, prices, and categories. If testing a
-healthcare app, use appropriate medical terminology. Ask about the product's domain if
-not obvious from the context.
+#### Step Writing Rules (Midscene best practices)
 
-**Step Writing Rules** (Midscene best practices):
-- Use natural language, describe visible UI elements
+- Use natural language describing visible UI elements by their labels
+- Batch related sub-actions into single steps (fill multiple form fields in one step)
 - Prefix verification steps with Verify/Assert/Check/Confirm/Ensure/Validate
-- Batch related sub-actions into single steps
-- Use `{{VARIABLE}}` for config references
+- Use `{{VARIABLE}}` for all configurable values (credentials, URLs, varying test data)
 - Each step targets a specific browser/Android target ID
 
-**Realistic Test Data:**
-- Always use realistic, domain-appropriate test data — not "test123" or "lorem ipsum"
-- For email fields: use realistic emails like `john.smith@company.com` (not `test@test.com`)
-- For names: use common real names appropriate to the product's locale
-- For addresses, phone numbers, etc.: use realistic formats
-- For error testing: use realistic invalid inputs that real users might enter
-- The goal is to find bugs that occur in real-world scenarios
+**Anti-patterns — never do these:**
+- Vague assertions: "Verify the page looks correct" → specify what should be visible
+- Assuming invisible state: "Wait for the API to respond" → instead: "Verify the loading
+  indicator disappears and the results table is displayed"
+- Over-granular steps: separate steps for each form field → combine into one fill step
+- Hardcoded values that should be variables: writing `john@test.com` directly in step
+  text → use `{{LOGIN_EMAIL}}`
+
+#### Assertion Depth
+
+Go beyond surface-level checks. A senior QA verifies *consequences*, not just appearance:
+
+- **After a create action**: Verify the new item appears in the relevant list or table,
+  not just that a success toast appeared
+- **After a delete action**: Verify the item is gone from the list, not just that a
+  confirmation dialog was dismissed
+- **After a form submit**: Verify the submitted data is reflected on the detail/view page,
+  not just that the form closed
+- **After login**: Verify user identity is displayed (name or email in the header),
+  not just that the URL changed
+- **After an error**: Verify the specific error message text and that the user's
+  previously entered data is preserved (not cleared)
 
 **Static vs Dynamic Assertions:**
-- **Static UI elements** (menu tab names, page titles, table column headers, form field
-  labels, button text, navigation items) → assert exact text:
+- **Static UI** (menu names, page titles, column headers, form labels, button text) →
+  assert exact text:
   `Verify the page title is 'Account Settings'`
   `Verify the table has columns 'Name', 'Email', 'Status', 'Actions'`
-- **Dynamic/temporary data** (user-generated content, timestamps, counts, search results,
-  notification messages with dynamic values) → use generic/pattern descriptions:
+- **Dynamic content** (user-generated data, timestamps, counts, notifications with
+  variable values) → assert presence or pattern:
   `Verify a success notification is displayed`
   `Verify the order list shows at least one order`
-  `Verify the user profile section displays an email address`
 - When unsure if content is static or dynamic, prefer generic description
 
-**Config Rules:**
+#### Realistic Test Data
+
+Choose test data appropriate to the product's business domain:
+- **E-commerce**: realistic product names, prices, shipping addresses, card formats
+- **Healthcare**: appropriate patient IDs, appointment types, medical terminology
+- **Fintech**: realistic account numbers, transaction amounts, currency formats
+- **SaaS/B2B**: realistic workspace names, team member roles, organization structures
+
+Never use "test123", "foo@bar.com", "Lorem ipsum", or obvious placeholders.
+The goal is to trigger bugs that occur under real production usage patterns.
+
+For error-path testing, use *realistic* invalid inputs — the kind real users actually
+type (typos in emails, too-short passwords, pasting text into number fields).
+
+#### Config Rules
+
 - Names: `UPPER_SNAKE_CASE` only
 - Use `VARIABLE` type for credentials (with `masked: true` for passwords)
 - Use `URL` type for base URLs
@@ -223,28 +286,33 @@ not obvious from the context.
 - Use `configs` or `variables` for test-case variables (both are accepted by MCP create tool)
 - Do not send `FILE` variables in create payload; handle file upload separately after creation
 
-**Target Config:**
+#### Target Config
+
 - Browser: `{ type: "browser", url: "...", width: 1920, height: 1080 }`
 - Android: `{ type: "android", deviceSelector: {}, appId: "...", clearAppState: true, allowAllPermissions: true }`
 
 ### 6. Final Report
 
 After iterating through all cases one-by-one, summarize:
-- Created cases (confirmed and created)
-- Skipped cases
+- Created cases by priority level (P0/P1/P2/P3)
+- Skipped cases and reasons
 - Cases needing more clarification
+- Gaps in coverage — flows or risk areas not yet covered
 - Recommended next test priorities
 
 ## Guidelines
 
 - Always understand flows FIRST, then design and create test cases.
 - Treat this as a 2-step workflow:
-  1. Study and confirm the end-to-end user flow(s) step-by-step (entry URL/App ID -> login -> key flow steps)
+  1. Study and confirm the end-to-end user flow(s) step-by-step
   2. Design and create test cases one-by-one with user confirmation before each creation
 - **ALWAYS wait for explicit user confirmation** ("ok", "confirm", "yes", "go ahead")
   before proceeding. Never auto-proceed. Mandatory checkpoints:
   1. After presenting identified end-to-end user flows
   2. Before creating each individual test case
+- **Design P0 cases first** — always start with the highest business-risk flows
+- **Every test case must be independent** — runnable in isolation, no implicit state
+  dependencies on other cases
 - Never present all test cases as a full approval batch.
 - Never create multiple test cases in one MCP create call while using this skill.
 - Always call MCP create tool with single payload shape:
@@ -254,19 +322,9 @@ After iterating through all cases one-by-one, summarize:
 - **Never guess a step** — if any step in a flow is unclear (unknown UI, dialog behavior,
   redirect target, error message text), do not fill it in. Either ask the user to connect
   a browser agent for live exploration, or ask the user a direct question to fill the gap.
-  A flow is only ready to present when every step is fully known.
 - **Request live browser exploration when needed** — if provided screenshots or
   descriptions are insufficient to derive the complete end-to-end flow, ask the user to
   connect a browser agent. Do not proceed with partial understanding.
-- **Understand the product's business context** — ask about the domain if not obvious.
-  Use domain-appropriate terminology and realistic data in all test cases.
-- **Realistic test data**: Use real-world-like values (real names, proper email formats,
-  domain-appropriate product names/prices). Never use "test123", "foo@bar.com", or
-  placeholder text. The goal is finding bugs that occur in production scenarios.
-- **Static vs dynamic assertions**: Assert exact text for static UI (menu names, column
-  headers, page titles, labels). Use generic descriptions for dynamic content (user data,
-  timestamps, counts, notification messages with variable values).
-- Prefer fewer, well-structured steps over many granular steps
 - Reuse existing project-level configs when possible
 - Set `masked: true` for any sensitive values (passwords, tokens, API keys)
 - Use descriptive `displayId` values (e.g., "LOGIN-001", "CHECKOUT-003")
@@ -294,7 +352,7 @@ After iterating through all cases one-by-one, summarize:
       {
         "id": "step_1",
         "target": "browser_a",
-        "action": "Fill in the email field with '{{LOGIN_EMAIL}}' and the password field with '{{LOGIN_PASSWORD}}'",
+        "action": "Fill in the 'Email address' field with '{{LOGIN_EMAIL}}' and the 'Password' field with '{{LOGIN_PASSWORD}}'",
         "type": "ai-action"
       },
       {
@@ -306,7 +364,7 @@ After iterating through all cases one-by-one, summarize:
       {
         "id": "step_3",
         "target": "browser_a",
-        "action": "Verify the page displays the Dashboard heading",
+        "action": "Verify the page displays the 'Dashboard' heading and the user's email '{{LOGIN_EMAIL}}' appears in the top navigation bar",
         "type": "ai-action"
       }
     ],

@@ -55,8 +55,10 @@ Before exploring any feature, establish:
 - What industry/domain is this product in? (e-commerce, healthcare, fintech, SaaS, etc.)
 - Who are the target users?
 - What are the core business workflows?
+- Which flows directly affect revenue, security, or compliance?
 
-If not obvious from the context provided, ask the user.
+If not obvious from the context provided, ask the user. You will use this understanding
+to prioritize test cases by business risk in Step 3.
 
 #### 2b. Understand Authentication First
 
@@ -67,20 +69,20 @@ Before studying any feature flow, **always** understand how the system is authen
 - What credentials will be used for testing?
 
 Ask the user to provide test credentials (username/password or equivalent). These will
-become `VARIABLE` configs (with `masked: true` for passwords) shared across all test cases.
+become `Variable` configs (with `Masked: Y` for passwords) shared across all test cases.
 
 Do NOT assume login works a certain way. If you cannot see the full login flow from the
 context provided, ask the user to walk you through it.
 
-#### 2c. Explore the App Live If Needed
+#### 2c. Explore the App If Needed
 
 Attempt to derive every step of every flow from the context the user has provided
 (screenshots, description, URL, docs). For each step, ask yourself:
 **"Do I know exactly what the user sees and does here?"**
 
 If the answer is NO for ANY step — the UI is not shown, the outcome is unknown, a dialog
-or redirect behavior is unclear — do NOT guess. Instead ask the user targeted questions
-to fill the gap before proceeding.
+or redirect behavior is unclear — do NOT guess. Ask the user targeted questions to fill
+the gap before proceeding.
 
 Every flow must be derivable end-to-end with full confidence before you present it.
 **A flow with any unclear step is not ready to present.**
@@ -120,28 +122,67 @@ Present these flows to the user and ask for confirmation:
 (e.g., "ok", "confirm", "yes"). If the user provides corrections, revise and re-present.
 Never auto-proceed — always wait for explicit confirmation at EVERY checkpoint.
 
-### 3. Design Test Cases as Professional QA
+### 3. Design Test Cases with Risk-Based Prioritization
 
-Design functional test cases from the confirmed end-to-end flows:
-- Happy path coverage
-- High-risk negative paths
-- Input validation and boundary cases
-- State transition checks
-- Business-critical guardrails
+Design test cases like a QA engineer who understands business impact. Not all bugs are
+equal — a payment processing failure costs the company revenue; a misaligned icon does not.
 
-Before writing each case, map it to a specific confirmed flow step sequence (starting
-from entry URL or Android app ID, then login, then feature flow). Do not design cases
-based on assumptions outside the confirmed flow.
+#### 3a. Classify Flows by Business Risk
+
+Before designing individual test cases, classify each confirmed flow:
+
+- **P0 — Revenue / Security / Compliance**: Payments, authentication, authorization,
+  personal data handling, regulatory flows. Failure = direct business loss, security
+  breach, or legal exposure.
+- **P1 — Core User Journeys**: Primary workflows users rely on daily. Failure = users
+  cannot accomplish their goal, likely to churn or escalate to support.
+- **P2 — Error Handling & Edge Cases**: Input validation, error recovery, boundary
+  conditions, secondary features. Failure = degraded experience but workarounds exist.
+- **P3 — Polish & Rare Scenarios**: Unusual input combinations, cosmetic consistency,
+  rare device/browser configurations.
+
+Present the prioritized classification to the user. Design and create test cases
+starting from P0 downward.
+
+#### 3b. Apply Structured Test Design
+
+For each flow, design cases using these techniques — not just "happy path + negative":
+
+- **Happy path**: The standard successful flow as confirmed in Step 2.
+- **Input validation**: For each user-facing field, test invalid input (wrong format),
+  empty input, boundary-length input, and special characters. Group related fields into
+  one case where they share validation behavior.
+- **Business rule enforcement**: Test constraints the system must enforce. Examples:
+  cannot checkout with empty cart, cannot transfer more than account balance, required
+  fields block submission, duplicate entries are rejected.
+- **State transitions**: Back button mid-flow, page refresh, double-click submit,
+  navigating away then returning, session expiry during a multi-step flow.
+- **Error recovery**: After triggering an error, the user corrects their input and
+  completes the flow successfully — without restarting.
+- **Authorization boundaries**: If multiple roles exist, verify users cannot access or
+  modify resources beyond their role. (Only if roles were identified in Step 2b.)
 
 Do NOT present all cases as one big batch for approval.
+
+#### 3c. Ensure Test Independence
+
+Every test case must be fully self-contained:
+- Starts from the entry point (URL or app launch)
+- Includes its own authentication steps if login is required
+- Does not depend on another test case having run first
+- Clearly notes any preconditions that require manual data setup (e.g., "an existing
+  order must be present to test cancellation")
+
+If setup steps are needed (e.g., creating test data), include them as initial steps
+within the test case, or document the prerequisite for the user to prepare beforehand.
 
 ### 4. Review One Test Case at a Time
 
 For each candidate test case, follow this loop:
 
-1. Draft exactly ONE test case (title, scope, steps, assertions, configs, targets).
+1. Draft exactly ONE test case (title, priority, steps, assertions, configs, targets).
 2. Present only that one test case to the user for review.
-3. Ask for explicit decision: confirm/create, clarify/modify, or skip.
+3. Ask for explicit decision: confirm, modify, or skip.
 4. If user confirms, add it to the confirmed list.
 5. If user asks to modify, revise and re-present the same case.
 6. If user skips, do not add it; move to the next case.
@@ -152,34 +193,72 @@ Keep a running list of confirmed test cases in memory as you iterate through the
 
 ### 5. Case Writing Standards
 
-**Step Writing Rules** (Midscene best practices):
-- Use natural language, describe visible UI elements
+#### Step Writing Rules (Midscene best practices)
+
+- Use natural language describing visible UI elements by their labels
+- Batch related sub-actions into single steps (fill multiple form fields in one step)
 - Prefix verification steps with Verify/Assert/Check/Confirm/Ensure/Validate
-- Batch related sub-actions into single steps
-- Use `{{VARIABLE}}` for config references
+- Use `{{VARIABLE}}` for all configurable values (credentials, URLs, varying test data)
 - Each step targets a specific browser/Android target ID
 
-**Realistic Test Data:**
-- Always use realistic, domain-appropriate test data — not "test123" or "lorem ipsum"
-- For email fields: use realistic emails like `john.smith@company.com`
-- For names: use common real names appropriate to the product's locale
-- For error testing: use realistic invalid inputs that real users might enter
+**Anti-patterns — never do these:**
+- Vague assertions: "Verify the page looks correct" → specify what should be visible
+- Assuming invisible state: "Wait for the API to respond" → instead: "Verify the loading
+  indicator disappears and the results table is displayed"
+- Over-granular steps: separate steps for each form field → combine into one fill step
+- Hardcoded values that should be variables: writing `john@test.com` directly in step
+  text → use `{{LOGIN_EMAIL}}`
+
+#### Assertion Depth
+
+Go beyond surface-level checks. A senior QA verifies *consequences*, not just appearance:
+
+- **After a create action**: Verify the new item appears in the relevant list or table,
+  not just that a success toast appeared
+- **After a delete action**: Verify the item is gone from the list, not just that a
+  confirmation dialog was dismissed
+- **After a form submit**: Verify the submitted data is reflected on the detail/view page,
+  not just that the form closed
+- **After login**: Verify user identity is displayed (name or email in the header),
+  not just that the URL changed
+- **After an error**: Verify the specific error message text and that the user's
+  previously entered data is preserved (not cleared)
 
 **Static vs Dynamic Assertions:**
-- **Static UI elements** (menu tab names, page titles, column headers, button text) →
-  assert exact text: `Verify the page title is 'Account Settings'`
-- **Dynamic/temporary data** (user-generated content, timestamps, counts, notifications
-  with variable values) → use generic descriptions:
+- **Static UI** (menu names, page titles, column headers, form labels, button text) →
+  assert exact text:
+  `Verify the page title is 'Account Settings'`
+  `Verify the table has columns 'Name', 'Email', 'Status', 'Actions'`
+- **Dynamic content** (user-generated data, timestamps, counts, notifications with
+  variable values) → assert presence or pattern:
   `Verify a success notification is displayed`
+  `Verify the order list shows at least one order`
+- When unsure if content is static or dynamic, prefer generic description
 
-**Config Rules:**
+#### Realistic Test Data
+
+Choose test data appropriate to the product's business domain:
+- **E-commerce**: realistic product names, prices, shipping addresses, card formats
+- **Healthcare**: appropriate patient IDs, appointment types, medical terminology
+- **Fintech**: realistic account numbers, transaction amounts, currency formats
+- **SaaS/B2B**: realistic workspace names, team member roles, organization structures
+
+Never use "test123", "foo@bar.com", "Lorem ipsum", or obvious placeholders.
+The goal is to trigger bugs that occur under real production usage patterns.
+
+For error-path testing, use *realistic* invalid inputs — the kind real users actually
+type (typos in emails, too-short passwords, pasting text into number fields).
+
+#### Config Rules
+
 - Names: `UPPER_SNAKE_CASE` only
 - Use `Variable` type for credentials (with `Masked: Y` for passwords)
 - Use `URL` type for base URLs
 - Use `Random String` for unique test data (e.g., unique usernames per run)
 - Do NOT include `File` variables (import cannot upload file content)
 
-**Target Config:**
+#### Target Config
+
 - Browser: Target label `Browser A`, URL, Width: 1920, Height: 1080
 - Android: Target label `Android A`, Device (emulator profile name or `serial:<adb>`),
   APP ID, Clear App Data: Yes, Allow Permissions: Yes
@@ -220,10 +299,9 @@ Variable `Type` values accepted by import:
 | Target | Name | URL | Width | Height |
 |--------|------|-----|-------|--------|
 | Browser A | Primary Browser | https://myapp.com/login | 1920 | 1080 |
-| Browser B | Secondary Browser | https://myapp.com | 1920 | 1080 |
 
 Only include rows for browser targets used in this test case.
-Omit sheet entirely (or leave empty after header) if no browser targets.
+Omit rows (keep header only) if no browser targets.
 
 #### Sheet 3: `Android`
 
@@ -232,20 +310,20 @@ Omit sheet entirely (or leave empty after header) if no browser targets.
 | Android A | Main Device | Pixel_7_API_34 | com.example.app | Yes | Yes | Pixel_7_API_34 / Emulator profile |
 
 Use `serial:<adb-serial>` in Device column for physical connected devices.
-Omit sheet entirely (or leave empty after header) if no Android targets.
+Omit rows (keep header only) if no Android targets.
 
 #### Sheet 4: `Test Steps`
 
 | Step No | Browser | Type | Action |
 |---------|---------|------|--------|
 | 1 | Browser A | AI | Navigate to the login page at {{BASE_URL}}/login |
-| 2 | Browser A | AI | Fill in the email field with '{{LOGIN_EMAIL}}' and the password field with '{{LOGIN_PASSWORD}}' |
+| 2 | Browser A | AI | Fill in the 'Email address' field with '{{LOGIN_EMAIL}}' and the 'Password' field with '{{LOGIN_PASSWORD}}' |
 | 3 | Browser A | AI | Click the 'Sign In' button |
-| 4 | Browser A | AI | Verify the page displays the Dashboard heading |
+| 4 | Browser A | AI | Verify the page displays the 'Dashboard' heading and the user's email '{{LOGIN_EMAIL}}' appears in the top navigation bar |
 
 Notes:
-- `Browser` column is used for ALL target types (both browser and Android) — this is the
-  required column name regardless of platform
+- `Browser` column is used for ALL target types (both browser and Android) — this is
+  the required column name regardless of platform
 - `Type` must be `AI` for ai-action steps or `Code` for playwright-code steps
 - `Step No` is a sequential integer starting from 1
 
@@ -266,87 +344,61 @@ delete it. Name each output file as `[displayId]-[safe-name].xlsx`, for example
 
 ```python
 import openpyxl
-from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.styles import Font
 from openpyxl import Workbook
 
 def add_header_row(ws, headers):
-    row = [headers]
     ws.append(headers)
-    # Bold the header row
     for cell in ws[ws.max_row]:
         cell.font = Font(bold=True)
 
-def generate_test_case(output_path, test_case):
+def generate_test_case(output_path, tc):
     wb = Workbook()
 
-    # --- Configurations sheet ---
-    ws_config = wb.active
-    ws_config.title = "Configurations"
-    add_header_row(ws_config, ["Section", "Type", "Name", "Value", "Group", "Masked"])
-    ws_config.append(["Basic Info", "Test Case Name", test_case["name"], "", "", ""])
-    ws_config.append(["Basic Info", "Test Case ID", test_case["displayId"], "", "", ""])
-    for var in test_case.get("variables", []):
-        ws_config.append([
-            "Test Case Variable",
-            var["type"],       # URL | Variable | Random String
-            var["name"],
-            var.get("value", ""),
-            var.get("group", ""),
-            "Y" if var.get("masked") else ""
-        ])
+    # Configurations
+    ws = wb.active
+    ws.title = "Configurations"
+    add_header_row(ws, ["Section", "Type", "Name", "Value", "Group", "Masked"])
+    ws.append(["Basic Info", "Test Case Name", tc["name"], "", "", ""])
+    ws.append(["Basic Info", "Test Case ID", tc["displayId"], "", "", ""])
+    for v in tc.get("variables", []):
+        ws.append(["Test Case Variable", v["type"], v["name"],
+                    v.get("value", ""), v.get("group", ""),
+                    "Y" if v.get("masked") else ""])
 
-    # --- Browsers sheet ---
-    ws_browsers = wb.create_sheet("Browsers")
-    add_header_row(ws_browsers, ["Target", "Name", "URL", "Width", "Height"])
-    for t in test_case.get("browserTargets", []):
-        ws_browsers.append([
-            t["target"],
-            t.get("name", ""),
-            t["url"],
-            t.get("width", 1920),
-            t.get("height", 1080)
-        ])
+    # Browsers
+    ws_b = wb.create_sheet("Browsers")
+    add_header_row(ws_b, ["Target", "Name", "URL", "Width", "Height"])
+    for t in tc.get("browserTargets", []):
+        ws_b.append([t["target"], t.get("name", ""), t["url"],
+                      t.get("width", 1920), t.get("height", 1080)])
 
-    # --- Android sheet ---
-    ws_android = wb.create_sheet("Android")
-    add_header_row(ws_android, [
-        "Target", "Name", "Device", "APP ID",
-        "Clear App Data", "Allow Permissions",
-        "Device Details (separate by /)"
-    ])
-    for t in test_case.get("androidTargets", []):
-        ws_android.append([
-            t["target"],
-            t.get("name", ""),
-            t["device"],
-            t["appId"],
-            "Yes" if t.get("clearAppData", True) else "No",
-            "Yes" if t.get("allowPermissions", True) else "No",
-            t.get("deviceDetails", "")
-        ])
+    # Android
+    ws_a = wb.create_sheet("Android")
+    add_header_row(ws_a, ["Target", "Name", "Device", "APP ID",
+                           "Clear App Data", "Allow Permissions",
+                           "Device Details (separate by /)"])
+    for t in tc.get("androidTargets", []):
+        ws_a.append([t["target"], t.get("name", ""), t["device"], t["appId"],
+                      "Yes" if t.get("clearAppData", True) else "No",
+                      "Yes" if t.get("allowPermissions", True) else "No",
+                      t.get("deviceDetails", "")])
 
-    # --- Test Steps sheet ---
-    ws_steps = wb.create_sheet("Test Steps")
-    add_header_row(ws_steps, ["Step No", "Browser", "Type", "Action"])
-    for i, step in enumerate(test_case.get("steps", []), start=1):
-        ws_steps.append([
-            i,
-            step["target"],        # target label e.g. "Browser A"
-            step.get("stepType", "AI"),  # AI or Code
-            step["action"]
-        ])
+    # Test Steps
+    ws_s = wb.create_sheet("Test Steps")
+    add_header_row(ws_s, ["Step No", "Browser", "Type", "Action"])
+    for i, s in enumerate(tc.get("steps", []), start=1):
+        ws_s.append([i, s["target"], s.get("stepType", "AI"), s["action"]])
 
     wb.save(output_path)
     print(f"Generated: {output_path}")
 
-# --- TEST CASES ---
-# (AI: populate this list from confirmed test cases)
-TEST_CASES = []  # filled in by AI per confirmed cases
+# --- Populate from confirmed test cases ---
+TEST_CASES = []
 
 for tc in TEST_CASES:
-    safe_name = tc["name"].lower().replace(" ", "-").replace("/", "-")
-    filename = f"{tc['displayId']}-{safe_name}.xlsx"
-    generate_test_case(filename, tc)
+    safe = tc["name"].lower().replace(" ", "-").replace("/", "-")
+    generate_test_case(f"{tc['displayId']}-{safe}.xlsx", tc)
 ```
 
 Populate `TEST_CASES` with all confirmed test cases, write the script, run it, then
@@ -355,9 +407,10 @@ remove the script. Report each generated filename to the user.
 ### 7. Final Report
 
 After generating all workbooks, summarize:
-- Generated files and their paths
-- Test cases created vs skipped
-- Any variables that need values filled in (masked passwords, etc.)
+- Generated files and their paths, grouped by priority (P0/P1/P2/P3)
+- Skipped cases and reasons
+- Variables that need values filled in post-import (masked passwords, etc.)
+- Gaps in coverage — flows or risk areas not yet covered
 - Instructions for importing into SkyTest:
   > Open SkyTest → your project → Import (or the run page) → upload each `.xlsx` file
 
@@ -367,15 +420,16 @@ After generating all workbooks, summarize:
 - **ALWAYS wait for explicit user confirmation** before proceeding. Mandatory checkpoints:
   1. After presenting identified end-to-end user flows
   2. Before adding each individual test case to the confirmed list
+- **Design P0 cases first** — always start with the highest business-risk flows
+- **Every test case must be independent** — runnable in isolation, no implicit state
+  dependencies on other cases
 - Never present all test cases as a full approval batch.
 - **Understand authentication before anything else** — know the login mechanism, entry
   point, roles, and test credentials before studying any feature flow.
 - **Never guess a step** — if any step in a flow is unclear, ask the user.
-- **Understand the product's business context** — use domain-appropriate terminology
-  and realistic data in all test cases.
-- **Realistic test data**: Use real-world-like values. Never use "test123" or placeholders.
-- **Static vs dynamic assertions**: Assert exact text for static UI; use generic
-  descriptions for dynamic content.
+- **Verify consequences, not just appearance** — assert that actions had their intended
+  effect (item appears in list, data saved correctly), not just that a toast or animation
+  played.
 - Prefer fewer, well-structured steps over many granular steps.
 - Set `Masked: Y` for any sensitive values (passwords, tokens, API keys).
 - Use descriptive `displayId` values (e.g., "LOGIN-001", "CHECKOUT-003").
@@ -407,7 +461,7 @@ After generating all workbooks, summarize:
         {
             "target": "Browser A",
             "stepType": "AI",
-            "action": "Fill in the email field with '{{LOGIN_EMAIL}}' and the password field with '{{LOGIN_PASSWORD}}'"
+            "action": "Fill in the 'Email address' field with '{{LOGIN_EMAIL}}' and the 'Password' field with '{{LOGIN_PASSWORD}}'"
         },
         {
             "target": "Browser A",
@@ -417,7 +471,7 @@ After generating all workbooks, summarize:
         {
             "target": "Browser A",
             "stepType": "AI",
-            "action": "Verify the page displays the Dashboard heading"
+            "action": "Verify the page displays the 'Dashboard' heading and the user's email '{{LOGIN_EMAIL}}' appears in the top navigation bar"
         }
     ]
 }
