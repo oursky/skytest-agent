@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/app/auth-provider';
 import { useI18n } from '@/i18n';
 import type { ConfigItem, ConfigType } from '@/types';
 import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } from '@/lib/config-sort';
+import GroupSelectInput from './GroupSelectInput';
 
 interface ProjectConfigsProps {
     projectId: string;
@@ -58,6 +59,26 @@ function buildConfigDisplayValue(config: ConfigItem): string {
     return config.value;
 }
 
+function MaskedIcon({ masked }: { masked: boolean }) {
+    if (masked) {
+        return (
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3l18 18" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.477 10.477a3 3 0 004.243 4.243" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6.228 6.228A9.956 9.956 0 002.458 12c1.274 4.057 5.065 7 9.542 7 1.531 0 2.974-.344 4.263-.959" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.878 5.083A9.964 9.964 0 0112 5c4.478 0 8.268 2.943 9.542 7a9.97 9.97 0 01-2.334 4.294" />
+            </svg>
+        );
+    }
+
+    return (
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15a3 3 0 100-6 3 3 0 000 6z" />
+        </svg>
+    );
+}
+
 export default function ProjectConfigs({ projectId, androidEnabled = false }: ProjectConfigsProps) {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
@@ -86,6 +107,57 @@ export default function ProjectConfigs({ projectId, androidEnabled = false }: Pr
     useEffect(() => {
         void fetchConfigs();
     }, [fetchConfigs]);
+
+    const groupOptions = useMemo(() => {
+        const groups = new Set<string>();
+        for (const config of configs) {
+            if (!isGroupInputEnabled(config.type)) continue;
+            const group = normalizeConfigGroup(config.group);
+            if (group) {
+                groups.add(group);
+            }
+        }
+        return [...groups].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    }, [configs]);
+
+    const handleRemoveGroup = useCallback(async (group: string) => {
+        const normalizedGroup = normalizeConfigGroup(group);
+        if (!normalizedGroup) return;
+
+        try {
+            const token = await getAccessToken();
+            const headers: HeadersInit = {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            };
+            const response = await fetch(`/api/projects/${projectId}/configs/groups`, {
+                method: 'DELETE',
+                headers,
+                body: JSON.stringify({ group: normalizedGroup }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to remove group');
+            }
+
+            setEditState((prev) => {
+                if (!prev) return prev;
+                return normalizeConfigGroup(prev.group) === normalizedGroup
+                    ? { ...prev, group: '' }
+                    : prev;
+            });
+            setFileUploadDraft((prev) => {
+                if (!prev) return prev;
+                return normalizeConfigGroup(prev.group) === normalizedGroup
+                    ? { ...prev, group: '' }
+                    : prev;
+            });
+            await fetchConfigs();
+        } catch (removeError) {
+            console.error('Failed to remove group', removeError);
+            setError(t('configs.error.removeGroupFailed'));
+        }
+    }, [fetchConfigs, getAccessToken, projectId, t]);
 
     const handleSave = async () => {
         if (!editState) return;
@@ -347,27 +419,30 @@ export default function ProjectConfigs({ projectId, androidEnabled = false }: Pr
                                                     <button type="button" onClick={handleSave} className="px-3 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary/90">{t('common.save')}</button>
                                                     <button type="button" onClick={() => { setEditState(null); setError(null); }} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700">{t('common.cancel')}</button>
                                                 </div>
-                                                {isGroupInputEnabled(type) && (
-                                                    <input
-                                                        type="text"
-                                                        value={editState.group}
-                                                        onChange={(event) => setEditState({ ...editState, group: event.target.value })}
-                                                        placeholder={t('configs.group.placeholder')}
-                                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                                                    />
-                                                )}
-                                                {isMaskableConfig(type) && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setEditState({ ...editState, masked: !editState.masked })}
-                                                        className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border ${editState.masked ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-gray-600 border-gray-200'}`}
-                                                        title={t('configs.masked')}
-                                                    >
-                                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m0 4h.01m-7.938-4A9.969 9.969 0 012 12C3.273 7.943 7.064 5 11.542 5c4.477 0 8.268 2.943 9.541 7a9.97 9.97 0 01-2.404 4.146M9 10a3 3 0 116 0v2a3 3 0 11-6 0v-2z" />
-                                                        </svg>
-                                                        <span>{t('configs.masked')}</span>
-                                                    </button>
+                                                {(isGroupInputEnabled(type) || isMaskableConfig(type)) && (
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        {isGroupInputEnabled(type) && (
+                                                            <GroupSelectInput
+                                                                value={editState.group}
+                                                                onChange={(group) => setEditState({ ...editState, group })}
+                                                                options={groupOptions}
+                                                                onRemoveOption={handleRemoveGroup}
+                                                                placeholder={t('configs.group.placeholder')}
+                                                                inputClassName="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                                                            />
+                                                        )}
+                                                        {isMaskableConfig(type) && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setEditState({ ...editState, masked: !editState.masked })}
+                                                                className={`inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border ${editState.masked ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-gray-600 border-gray-200'}`}
+                                                                title={t('configs.masked')}
+                                                            >
+                                                                <MaskedIcon masked={editState.masked} />
+                                                                <span>{t('configs.masked')}</span>
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 )}
                                                 {error && <p className="text-xs text-red-500">{error}</p>}
                                             </div>
@@ -440,27 +515,30 @@ export default function ProjectConfigs({ projectId, androidEnabled = false }: Pr
                                             <button type="button" onClick={handleSave} className="px-3 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary/90">{t('common.save')}</button>
                                             <button type="button" onClick={() => { setEditState(null); setError(null); }} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700">{t('common.cancel')}</button>
                                         </div>
-                                        {isGroupInputEnabled(type) && (
-                                            <input
-                                                type="text"
-                                                value={editState.group}
-                                                onChange={(event) => setEditState({ ...editState, group: event.target.value })}
-                                                placeholder={t('configs.group.placeholder')}
-                                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                                            />
-                                        )}
-                                        {isMaskableConfig(type) && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setEditState({ ...editState, masked: !editState.masked })}
-                                                className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border ${editState.masked ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-gray-600 border-gray-200'}`}
-                                                title={t('configs.masked')}
-                                            >
-                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m0 4h.01m-7.938-4A9.969 9.969 0 012 12C3.273 7.943 7.064 5 11.542 5c4.477 0 8.268 2.943 9.541 7a9.97 9.97 0 01-2.404 4.146M9 10a3 3 0 116 0v2a3 3 0 11-6 0v-2z" />
-                                                </svg>
-                                                <span>{t('configs.masked')}</span>
-                                            </button>
+                                        {(isGroupInputEnabled(type) || isMaskableConfig(type)) && (
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                {isGroupInputEnabled(type) && (
+                                                    <GroupSelectInput
+                                                        value={editState.group}
+                                                        onChange={(group) => setEditState({ ...editState, group })}
+                                                        options={groupOptions}
+                                                        onRemoveOption={handleRemoveGroup}
+                                                        placeholder={t('configs.group.placeholder')}
+                                                        inputClassName="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                                                    />
+                                                )}
+                                                {isMaskableConfig(type) && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setEditState({ ...editState, masked: !editState.masked })}
+                                                        className={`inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border ${editState.masked ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-gray-600 border-gray-200'}`}
+                                                        title={t('configs.masked')}
+                                                    >
+                                                        <MaskedIcon masked={editState.masked} />
+                                                        <span>{t('configs.masked')}</span>
+                                                    </button>
+                                                )}
+                                            </div>
                                         )}
                                         {error && <p className="text-xs text-red-500">{error}</p>}
                                     </div>
@@ -493,12 +571,14 @@ export default function ProjectConfigs({ projectId, androidEnabled = false }: Pr
                                                 {t('common.cancel')}
                                             </button>
                                         </div>
-                                        <input
-                                            type="text"
+                                        <GroupSelectInput
                                             value={fileUploadDraft.group}
-                                            onChange={(event) => setFileUploadDraft({ ...fileUploadDraft, group: event.target.value })}
+                                            onChange={(group) => setFileUploadDraft({ ...fileUploadDraft, group })}
+                                            options={groupOptions}
+                                            onRemoveOption={handleRemoveGroup}
                                             placeholder={t('configs.group.placeholder')}
-                                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                                            containerClassName="relative w-full"
+                                            inputClassName="w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                                         />
                                         {error && <p className="text-xs text-red-500">{error}</p>}
                                     </div>

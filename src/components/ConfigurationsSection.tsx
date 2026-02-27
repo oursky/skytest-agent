@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useAuth } from '@/app/auth-provider';
 import { useI18n } from '@/i18n';
 import type { ConfigItem, ConfigType, BrowserConfig, TargetConfig, AndroidTargetConfig, AndroidDeviceSelector } from '@/types';
@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { normalizeAndroidTargetConfig } from '@/lib/android-target-config';
 import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } from '@/lib/config-sort';
 import { normalizeBrowserConfig, normalizeBrowserViewportDimensions } from '@/lib/browser-target';
+import GroupSelectInput from './GroupSelectInput';
 
 const CONFIG_NAME_REGEX = /^[A-Z][A-Z0-9_]*$/;
 
@@ -233,6 +234,26 @@ function TypeSubHeader({ type, t }: { type: ConfigType; t: (key: string) => stri
     );
 }
 
+function MaskedIcon({ masked }: { masked: boolean }) {
+    if (masked) {
+        return (
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3l18 18" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.477 10.477a3 3 0 004.243 4.243" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6.228 6.228A9.956 9.956 0 002.458 12c1.274 4.057 5.065 7 9.542 7 1.531 0 2.974-.344 4.263-.959" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.878 5.083A9.964 9.964 0 0112 5c4.478 0 8.268 2.943 9.542 7a9.97 9.97 0 01-2.334 4.294" />
+            </svg>
+        );
+    }
+
+    return (
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15a3 3 0 100-6 3 3 0 000 6z" />
+        </svg>
+    );
+}
+
 export default function ConfigurationsSection({
     projectId,
     projectConfigs,
@@ -261,6 +282,18 @@ export default function ConfigurationsSection({
     const randomStringDropdownRefs = useRef<Map<string, HTMLDivElement>>(new Map());
     const avdDropdownRefs = useRef<Map<string, HTMLDivElement>>(new Map());
     const appDropdownRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+    const testCaseGroupOptions = useMemo(() => {
+        const groups = new Set<string>();
+        for (const config of testCaseConfigs) {
+            if (!isGroupableConfigType(config.type)) continue;
+            const group = normalizeConfigGroup(config.group);
+            if (group) {
+                groups.add(group);
+            }
+        }
+        return [...groups].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    }, [testCaseConfigs]);
 
     useEffect(() => {
         if (!addTypeOpen && !urlDropdownOpen && !randomStringDropdownOpen && !avdDropdownOpen && !appDropdownOpen) return;
@@ -537,6 +570,46 @@ export default function ConfigurationsSection({
             console.error('Failed to delete config', err);
         }
     }, [resolveTestCaseId, getAccessToken, onTestCaseConfigsChange]);
+
+    const handleRemoveGroup = useCallback(async (group: string) => {
+        const normalizedGroup = normalizeConfigGroup(group);
+        if (!normalizedGroup) return;
+
+        try {
+            const targetTestCaseId = await resolveTestCaseId();
+            if (!targetTestCaseId) return;
+            const token = await getAccessToken();
+            const headers: HeadersInit = {
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            };
+            const response = await fetch(`/api/test-cases/${targetTestCaseId}/configs/groups`, {
+                method: 'DELETE',
+                headers,
+                body: JSON.stringify({ group: normalizedGroup }),
+            });
+            if (!response.ok) {
+                throw new Error('Failed to remove group');
+            }
+
+            setEditState((prev) => {
+                if (!prev) return prev;
+                return normalizeConfigGroup(prev.group) === normalizedGroup
+                    ? { ...prev, group: '' }
+                    : prev;
+            });
+            setFileUploadDraft((prev) => {
+                if (!prev) return prev;
+                return normalizeConfigGroup(prev.group) === normalizedGroup
+                    ? { ...prev, group: '' }
+                    : prev;
+            });
+            onTestCaseConfigsChange(targetTestCaseId);
+        } catch (removeError) {
+            console.error('Failed to remove group', removeError);
+            setError(t('configs.error.removeGroupFailed'));
+        }
+    }, [resolveTestCaseId, getAccessToken, onTestCaseConfigsChange, t]);
 
     const handleFileUploadSave = useCallback(async (draft: FileUploadDraft | null = fileUploadDraft) => {
         if (!draft) return;
@@ -895,24 +968,23 @@ export default function ConfigurationsSection({
                                     {(isGroupableConfigType(config.type) || config.type === 'VARIABLE') && (
                                         <div className="mt-2 flex items-center gap-3">
                                             {isGroupableConfigType(config.type) && (
-                                                <input
-                                                    type="text"
+                                                <GroupSelectInput
                                                     value={editState.group}
-                                                    onChange={(e) => setEditState({ ...editState, group: e.target.value })}
+                                                    onChange={(group) => setEditState({ ...editState, group })}
+                                                    options={testCaseGroupOptions}
+                                                    onRemoveOption={handleRemoveGroup}
                                                     placeholder={t('configs.group.placeholder')}
-                                                    className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                                                    inputClassName="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
                                                 />
                                             )}
                                             {config.type === 'VARIABLE' && (
                                                 <button
                                                     type="button"
                                                     onClick={() => setEditState({ ...editState, masked: !editState.masked })}
-                                                    className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border ${editState.masked ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-gray-600 border-gray-200'}`}
+                                                    className={`inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border ${editState.masked ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-gray-600 border-gray-200'}`}
                                                     title={t('configs.masked')}
                                                 >
-                                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m0 4h.01m-7.938-4A9.969 9.969 0 012 12C3.273 7.943 7.064 5 11.542 5c4.477 0 8.268 2.943 9.541 7a9.97 9.97 0 01-2.404 4.146M9 10a3 3 0 116 0v2a3 3 0 11-6 0v-2z" />
-                                                    </svg>
+                                                    <MaskedIcon masked={editState.masked} />
                                                     <span>{t('configs.masked')}</span>
                                                 </button>
                                             )}
@@ -1038,24 +1110,23 @@ export default function ConfigurationsSection({
                             {(isGroupableConfigType(editState.type) || editState.type === 'VARIABLE') && (
                                 <div className="mt-2 flex items-center gap-3">
                                     {isGroupableConfigType(editState.type) && (
-                                        <input
-                                            type="text"
+                                        <GroupSelectInput
                                             value={editState.group}
-                                            onChange={(e) => setEditState({ ...editState, group: e.target.value })}
+                                            onChange={(group) => setEditState({ ...editState, group })}
+                                            options={testCaseGroupOptions}
+                                            onRemoveOption={handleRemoveGroup}
                                             placeholder={t('configs.group.placeholder')}
-                                            className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                                            inputClassName="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
                                         />
                                     )}
                                     {editState.type === 'VARIABLE' && (
                                         <button
                                             type="button"
                                             onClick={() => setEditState({ ...editState, masked: !editState.masked })}
-                                            className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border ${editState.masked ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-gray-600 border-gray-200'}`}
+                                            className={`inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border ${editState.masked ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-gray-600 border-gray-200'}`}
                                             title={t('configs.masked')}
                                         >
-                                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m0 4h.01m-7.938-4A9.969 9.969 0 012 12C3.273 7.943 7.064 5 11.542 5c4.477 0 8.268 2.943 9.541 7a9.97 9.97 0 01-2.404 4.146M9 10a3 3 0 116 0v2a3 3 0 11-6 0v-2z" />
-                                            </svg>
+                                            <MaskedIcon masked={editState.masked} />
                                             <span>{t('configs.masked')}</span>
                                         </button>
                                     )}
@@ -1102,12 +1173,14 @@ export default function ConfigurationsSection({
                                 </button>
                             </div>
                             <div className="mt-2">
-                                <input
-                                    type="text"
+                                <GroupSelectInput
                                     value={fileUploadDraft.group}
-                                    onChange={(e) => setFileUploadDraft({ ...fileUploadDraft, group: e.target.value })}
+                                    onChange={(group) => setFileUploadDraft({ ...fileUploadDraft, group })}
+                                    options={testCaseGroupOptions}
+                                    onRemoveOption={handleRemoveGroup}
                                     placeholder={t('configs.group.placeholder')}
-                                    className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                                    containerClassName="relative w-full"
+                                    inputClassName="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-primary"
                                 />
                             </div>
                             {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
