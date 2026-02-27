@@ -241,7 +241,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'mcp.connection.codingAgent.configExample': 'MCP configuration',
     'mcp.connection.claudeDesktop.configExample': 'Claude Desktop configuration',
     'mcp.connection.skillInstall.title': 'Install SkyTest Skills',
-    'mcp.connection.skillInstall.summary': 'Run this once from the SkyTest repository root to install the SkyTest skills bundle.',
+    'mcp.connection.skillInstall.summary': 'Copy this prompt and send it to your agent:',
     'mcp.connection.skillInstall.step1': 'Create local skill directories.',
     'mcp.connection.skillInstall.step2': 'Copy skytest-skills to ~/.agents/skills and link each skill into ~/.claude/skills.',
     'mcp.connection.skillInstall.step2Prefix': 'Copy ',
@@ -249,6 +249,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'mcp.connection.skillInstall.step2Suffix': ' to ~/.agents/skills and link each skill into ~/.claude/skills.',
     'mcp.connection.skillInstall.step3': 'Restart your client after installation.',
     'mcp.connection.skillInstall.commandLabel': 'Install command',
+    'mcp.connection.skillInstall.prompt': 'Install the SkyTest skills from this repository path: {link}. Please install all skills inside that folder and make them available for use in this environment.',
 
     // TestForm
     'testForm.title': 'Test Instructions',
@@ -713,7 +714,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'mcp.connection.codingAgent.configExample': 'MCP 設定',
     'mcp.connection.claudeDesktop.configExample': 'Claude Desktop 設定',
     'mcp.connection.skillInstall.title': '安裝 SkyTest Skills',
-    'mcp.connection.skillInstall.summary': '在 SkyTest 專案根目錄執行一次即可安裝 SkyTest skills 套件。',
+    'mcp.connection.skillInstall.summary': '複製此提示，並傳給你的代理：',
     'mcp.connection.skillInstall.step1': '建立本機 skill 目錄。',
     'mcp.connection.skillInstall.step2': '將 skytest-skills 複製到 ~/.agents/skills，並把其中每個 skill 連結到 ~/.claude/skills。',
     'mcp.connection.skillInstall.step2Prefix': '將 ',
@@ -721,6 +722,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'mcp.connection.skillInstall.step2Suffix': ' 複製到 ~/.agents/skills，並把其中每個 skill 連結到 ~/.claude/skills。',
     'mcp.connection.skillInstall.step3': '安裝後重新啟動你的客戶端。',
     'mcp.connection.skillInstall.commandLabel': '安裝指令',
+    'mcp.connection.skillInstall.prompt': '請從此儲存庫路徑安裝 SkyTest skills：{link}。請安裝該資料夾中的所有 skills，並讓它們可在此環境使用。',
 
     // TestForm
     'testForm.title': '測試指示',
@@ -1185,7 +1187,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'mcp.connection.codingAgent.configExample': 'MCP 配置',
     'mcp.connection.claudeDesktop.configExample': 'Claude Desktop 配置',
     'mcp.connection.skillInstall.title': '安装 SkyTest Skills',
-    'mcp.connection.skillInstall.summary': '在 SkyTest 仓库根目录执行一次即可安装 SkyTest skills 套件。',
+    'mcp.connection.skillInstall.summary': '复制此提示，并发送给你的代理：',
     'mcp.connection.skillInstall.step1': '创建本地 skill 目录。',
     'mcp.connection.skillInstall.step2': '将 skytest-skills 复制到 ~/.agents/skills，并将其中每个 skill 链接到 ~/.claude/skills。',
     'mcp.connection.skillInstall.step2Prefix': '将 ',
@@ -1193,6 +1195,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'mcp.connection.skillInstall.step2Suffix': ' 复制到 ~/.agents/skills，并将其中每个 skill 链接到 ~/.claude/skills。',
     'mcp.connection.skillInstall.step3': '安装后重启你的客户端。',
     'mcp.connection.skillInstall.commandLabel': '安装命令',
+    'mcp.connection.skillInstall.prompt': '请从这个仓库路径安装 SkyTest skills：{link}。请安装该文件夹中的所有 skills，并让它们可在此环境中使用。',
 
     // TestForm
     'testForm.title': '测试指令',

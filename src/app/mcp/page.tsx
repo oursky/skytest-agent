@@ -15,6 +15,8 @@ interface AgentApiKey {
     createdAt: string;
 }
 
+const SKYTEST_SKILLS_REPO_URL = 'https://github.com/oursky/skytest-agent/tree/main/skills/skytest-skills';
+
 export default function McpPage() {
     const { isLoggedIn, isLoading: isAuthLoading, getAccessToken } = useAuth();
     const router = useRouter();
@@ -128,13 +130,15 @@ export default function McpPage() {
         }
     };
 
-    const handleCopyInstallCommand = async () => {
+    const skillInstallPrompt = t('mcp.connection.skillInstall.prompt', { link: SKYTEST_SKILLS_REPO_URL });
+
+    const handleCopyInstallPrompt = async () => {
         try {
-            await navigator.clipboard.writeText(skillInstallCommand);
+            await navigator.clipboard.writeText(skillInstallPrompt);
             setIsInstallCommandCopied(true);
             window.setTimeout(() => setIsInstallCommandCopied(false), 1500);
         } catch (error) {
-            console.error('Failed to copy install command', error);
+            console.error('Failed to copy install prompt', error);
         }
     };
 
@@ -170,10 +174,6 @@ export default function McpPage() {
     }
   }
 }`, [mcpEndpoint]);
-
-    const skillInstallCommand = useMemo(() => `mkdir -p ~/.agents/skills/skytest-skills ~/.claude/skills
-cp -r skills/skytest-skills/. ~/.agents/skills/skytest-skills/
-find ~/.agents/skills/skytest-skills -type f -name SKILL.md -exec dirname {} \\; | while read -r d; do ln -sfn "$d" ~/.claude/skills/$(basename "$d"); done`, []);
 
     const activeConfigExample = activeConnectionTab === 'codingAgent' ? codingAgentConfigExample : claudeDesktopConfigExample;
 
@@ -361,26 +361,9 @@ find ~/.agents/skills/skytest-skills -type f -name SKILL.md -exec dirname {} \\;
                 <div className="mt-6 bg-white rounded-lg border border-gray-200 p-5 space-y-3">
                     <h2 className="text-lg font-semibold text-gray-800 mb-4">{t('mcp.connection.skillInstall.title')}</h2>
                     <p className="text-sm text-gray-600">{t('mcp.connection.skillInstall.summary')}</p>
-                    <ol className="list-decimal list-inside space-y-1 text-sm text-gray-700">
-                        <li>{t('mcp.connection.skillInstall.step1')}</li>
-                        <li>
-                            {t('mcp.connection.skillInstall.step2Prefix')}
-                            <a
-                                href="https://github.com/oursky/skytest-agent/tree/main/skills/skytest-skills"
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-primary hover:underline"
-                            >
-                                {t('mcp.connection.skillInstall.step2LinkText')}
-                            </a>
-                            {t('mcp.connection.skillInstall.step2Suffix')}
-                        </li>
-                        <li>{t('mcp.connection.skillInstall.step3')}</li>
-                    </ol>
-                    <p className="text-sm text-gray-500 mt-5 mb-2">{t('mcp.connection.skillInstall.commandLabel')}</p>
                     <div className="relative">
                         <button
-                            onClick={handleCopyInstallCommand}
+                            onClick={handleCopyInstallPrompt}
                             aria-label={isInstallCommandCopied ? t('usage.agentKeys.created.copied') : t('common.copy')}
                             title={isInstallCommandCopied ? t('usage.agentKeys.created.copied') : t('common.copy')}
                             className="absolute top-2 right-2 z-10 h-7 w-7 flex items-center justify-center text-gray-600 bg-white border border-gray-300 rounded hover:bg-gray-100"
@@ -396,8 +379,8 @@ find ~/.agents/skills/skytest-skills -type f -name SKILL.md -exec dirname {} \\;
                                 </svg>
                             )}
                         </button>
-                        <pre className="bg-gray-50 text-gray-800 text-xs rounded border border-gray-200 p-3 overflow-x-auto">
-                            <code>{skillInstallCommand}</code>
+                        <pre className="bg-gray-50 text-gray-800 text-xs rounded border border-gray-200 p-3 whitespace-pre-wrap break-words">
+                            <code>{skillInstallPrompt}</code>
                         </pre>
                     </div>
                 </div>
