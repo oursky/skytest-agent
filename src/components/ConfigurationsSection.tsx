@@ -817,7 +817,7 @@ export default function ConfigurationsSection({
         const elements: React.ReactNode[] = [];
         for (const config of configs) {
             if (config.type !== lastType) {
-                elements.push(<TypeSubHeader key={`header-${config.type}`} type={config.type} t={t} />);
+                elements.push(<TypeSubHeader key={`header-${config.type}-${config.id}`} type={config.type} t={t} />);
                 lastType = config.type;
             }
             elements.push(renderItem(config, config.type));
