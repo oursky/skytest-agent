@@ -45,19 +45,6 @@ export default function GroupSelectInput({
         }
     }, [open]);
 
-    useEffect(() => {
-        if (!open) return;
-
-        const handlePointerDown = (event: MouseEvent) => {
-            if (!rootRef.current?.contains(event.target as Node)) {
-                setOpen(false);
-            }
-        };
-
-        document.addEventListener('mousedown', handlePointerDown);
-        return () => document.removeEventListener('mousedown', handlePointerDown);
-    }, [open]);
-
     const sortedOptions = useMemo(
         () => [...options].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })),
         [options]
@@ -78,6 +65,23 @@ export default function GroupSelectInput({
         setOpen(false);
         setQuery('');
     };
+
+    useEffect(() => {
+        if (!open) return;
+
+        const handlePointerDown = (event: MouseEvent) => {
+            if (!rootRef.current?.contains(event.target as Node)) {
+                if (canCreate) {
+                    handleSelect(normalizedQuery);
+                    return;
+                }
+                setOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handlePointerDown);
+        return () => document.removeEventListener('mousedown', handlePointerDown);
+    }, [canCreate, normalizedQuery, open]);
 
     const handleConfirmRemove = async () => {
         if (!onRemoveOption || !pendingRemoveGroup) return;
@@ -141,6 +145,9 @@ export default function GroupSelectInput({
                                         event.stopPropagation();
                                         handleSelect(normalizedQuery);
                                     }
+                                }
+                                if (event.key === 'Tab' && canCreate) {
+                                    handleSelect(normalizedQuery);
                                 }
                             }}
                             placeholder={selectedGroup ? '' : placeholder}
