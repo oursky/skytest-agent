@@ -62,6 +62,13 @@ function joinDeviceDetail(parts: Array<string | null | undefined>): string {
     return parts.filter((part): part is string => Boolean(part && part.trim())).join(', ');
 }
 
+function formatCountdown(remainingMs: number): string {
+    const totalSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
 function buildVersionDetail(androidVersion: string | null, apiLevel: number | null): string {
     return joinDeviceDetail([
         androidVersion ? `Android ${androidVersion}` : null,
@@ -119,7 +126,13 @@ export default function DeviceStatusPanel({ projectId }: DeviceStatusPanelProps)
     const [stoppingDevices, setStoppingDevices] = useState<Set<string>>(new Set());
     const [bootingProfiles, setBootingProfiles] = useState<Set<string>>(new Set());
     const [actionError, setActionError] = useState<string | null>(null);
+    const [nowMs, setNowMs] = useState<number>(() => Date.now());
     const pollRef = useRef<NodeJS.Timeout | null>(null);
+
+    useEffect(() => {
+        const interval = setInterval(() => setNowMs(Date.now()), 1000);
+        return () => clearInterval(interval);
+    }, []);
 
     const fetchStatus = useCallback(async () => {
         if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
@@ -504,6 +517,9 @@ export default function DeviceStatusPanel({ projectId }: DeviceStatusPanelProps)
                                     : isBootingThisProfile
                                         ? DEVICE_STATE_COLORS.BOOTING
                                         : 'bg-gray-100 text-gray-600';
+                            const idleCountdown = emulator?.state === 'IDLE' && typeof emulator.idleDeadlineAt === 'number'
+                                ? formatCountdown(emulator.idleDeadlineAt - nowMs)
+                                : null;
                             return (
                             <div key={row.key} className="px-4 py-3">
                                 <div className="flex items-center justify-between gap-4">
@@ -517,6 +533,9 @@ export default function DeviceStatusPanel({ projectId }: DeviceStatusPanelProps)
                                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badgeColor}`}>
                                             {t(badgeKey)}
                                         </span>
+                                        {idleCountdown && (
+                                            <span className="text-xs text-gray-500 font-mono">{idleCountdown}</span>
+                                        )}
                                         {emulator && (
                                             <>
                                                 {emulator.memoryUsageMb && (

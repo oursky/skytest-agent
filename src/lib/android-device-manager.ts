@@ -39,6 +39,7 @@ export interface AndroidDevicePoolStatusItem {
     runTestCaseDisplayId?: string;
     uptimeMs: number;
     memoryUsageMb?: number;
+    idleDeadlineAt?: number;
 }
 
 export interface AndroidDevicePoolStatus {
@@ -321,6 +322,7 @@ export class AndroidDeviceManager {
             runTestCaseDisplayId: item.runTestCaseDisplayId,
             uptimeMs: item.uptimeMs,
             memoryUsageMb: item.memoryUsageMb,
+            idleDeadlineAt: item.idleDeadlineAt,
         };
     }
 

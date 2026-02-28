@@ -158,6 +158,7 @@ export const config = {
         bootMaxAttempts: 2,
         bootRetryDelayMs: 5_000,
         idleTimeoutMs: 300_000,
+        windowIdleTimeoutMs: 600_000,
         healthCheckIntervalMs: 60_000,
 
         adb: {

@@ -39,6 +39,7 @@ export interface EmulatorPoolStatusItem {
     runTestCaseDisplayId?: string;
     uptimeMs: number;
     memoryUsageMb?: number;
+    idleDeadlineAt?: number;
 }
 
 export interface EmulatorPoolStatus {
@@ -65,6 +66,7 @@ interface EmulatorInstance {
     startedAt: number;
     acquiredAt: number | null;
     idleTimer: NodeJS.Timeout | null;
+    idleDeadlineAt: number | null;
     healthCheckTimer: NodeJS.Timeout | null;
     forceReclaimTimer: NodeJS.Timeout | null;
     memoryUsageMb: number | undefined;
@@ -153,6 +155,7 @@ export class EmulatorPool {
             startedAt: Date.now(),
             acquiredAt: null,
             idleTimer: null,
+            idleDeadlineAt: null,
             healthCheckTimer: null,
             forceReclaimTimer: null,
             memoryUsageMb: undefined,
@@ -316,6 +319,7 @@ export class EmulatorPool {
                 runId: instance.runId ?? undefined,
                 uptimeMs: now - instance.startedAt,
                 memoryUsageMb: instance.memoryUsageMb,
+                idleDeadlineAt: instance.state === 'IDLE' ? (instance.idleDeadlineAt ?? undefined) : undefined,
             })),
         };
     }
@@ -433,6 +437,7 @@ export class EmulatorPool {
             clearTimeout(instance.idleTimer);
             instance.idleTimer = null;
         }
+        instance.idleDeadlineAt = null;
         if (instance.healthCheckTimer) {
             clearTimeout(instance.healthCheckTimer);
             instance.healthCheckTimer = null;
@@ -565,6 +570,7 @@ export class EmulatorPool {
             clearTimeout(instance.idleTimer);
             instance.idleTimer = null;
         }
+        instance.idleDeadlineAt = null;
         if (instance.healthCheckTimer) {
             clearTimeout(instance.healthCheckTimer);
             instance.healthCheckTimer = null;
@@ -580,12 +586,20 @@ export class EmulatorPool {
             clearTimeout(instance.idleTimer);
         }
 
+        const idleTimeoutMs = this.getIdleTimeoutMs(instance.launchMode);
+        instance.idleDeadlineAt = Date.now() + idleTimeoutMs;
         instance.idleTimer = setTimeout(async () => {
             if (instance.state === 'IDLE') {
-                logger.info(`Emulator ${instance.id} stopped after ${appConfig.emulator.idleTimeoutMs}ms idle`);
+                logger.info(`Emulator ${instance.id} stopped after ${idleTimeoutMs}ms idle`);
                 await this.stopInstance(instance);
             }
-        }, appConfig.emulator.idleTimeoutMs);
+        }, idleTimeoutMs);
+    }
+
+    private getIdleTimeoutMs(launchMode: EmulatorLaunchMode): number {
+        return launchMode === 'window'
+            ? appConfig.emulator.windowIdleTimeoutMs
+            : appConfig.emulator.idleTimeoutMs;
     }
 
     private scheduleHealthCheck(instance: EmulatorInstance): void {
