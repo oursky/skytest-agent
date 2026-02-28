@@ -296,6 +296,25 @@ export class AndroidDeviceManager {
         await adb.emulatorKill();
     }
 
+    async stopIdleEmulatorsForProfiles(profileNames: ReadonlySet<string>): Promise<void> {
+        if (profileNames.size === 0) {
+            return;
+        }
+
+        const status = emulatorPool.getStatus();
+        const stopCandidates = status.emulators.filter((emulator) =>
+            emulator.state === 'IDLE' && profileNames.has(emulator.avdName)
+        );
+
+        for (const emulator of stopCandidates) {
+            try {
+                await emulatorPool.stop(emulator.id);
+            } catch (error) {
+                logger.warn(`Failed to stop idle emulator "${emulator.id}" for profile "${emulator.avdName}"`, error);
+            }
+        }
+    }
+
     async listInstalledPackages(deviceIdOrSerial: string): Promise<string[]> {
         const emulatorStatus = emulatorPool.getStatus().emulators.find((item) => item.id === deviceIdOrSerial);
         if (emulatorStatus) {

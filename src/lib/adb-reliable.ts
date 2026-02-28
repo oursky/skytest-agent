@@ -42,6 +42,7 @@ function classifyAdbError(error: unknown): AdbErrorType {
 
     if (msg.includes('device offline')) return 'DEVICE_OFFLINE';
     if (msg.includes('unauthorized')) return 'DEVICE_UNAUTHORIZED';
+    if (msg.includes("can't find service") || msg.includes('cannot find service')) return 'CONNECTION_RESET';
     if (msg.includes('connection reset') || msg.includes('econnreset') || msg.includes('broken pipe')) return 'CONNECTION_RESET';
     if (msg.includes('device not found') || msg.includes('no devices/emulators found') || msg.includes('no such device')) return 'DEVICE_NOT_FOUND';
     if (msg.includes('install_failed') || msg.includes('insufficient storage') || msg.includes('failure [')) return 'INSTALL_FAILED';

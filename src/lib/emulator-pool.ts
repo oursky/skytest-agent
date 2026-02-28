@@ -194,6 +194,7 @@ export class EmulatorPool {
         if (signal?.aborted) throw new Error('Acquisition cancelled');
 
         await this.reclaimStaleBootingInstances();
+        await this.stopOrphanedAdbEmulators();
 
         const idleMatchingEmulators = Array.from(this.emulators.values()).filter((instance) =>
             instance.state === 'IDLE' && instance.avdName === avdName
@@ -695,6 +696,36 @@ export class EmulatorPool {
         }
 
         return ports;
+    }
+
+    private async listConnectedAdbEmulatorSerials(): Promise<string[]> {
+        try {
+            const { stdout } = await execFileAsync(this.adbPath, ['devices']);
+            const lines = stdout.split('\n').map((line) => line.trim()).filter((line) => line.length > 0);
+            return lines
+                .filter((line) => !line.startsWith('List of devices attached'))
+                .map((line) => line.split(/\s+/)[0])
+                .filter((serial) => serial.startsWith('emulator-'));
+        } catch (error) {
+            logger.warn('Failed to list ADB emulator serials', error);
+            return [];
+        }
+    }
+
+    private async stopOrphanedAdbEmulators(): Promise<void> {
+        const managedSerials = new Set(Array.from(this.emulators.values()).map((instance) => instance.serial));
+        const connectedSerials = await this.listConnectedAdbEmulatorSerials();
+
+        for (const serial of connectedSerials) {
+            if (managedSerials.has(serial)) {
+                continue;
+            }
+
+            logger.warn(`Stopping orphaned ADB emulator ${serial} before acquisition`);
+            await execFileAsync(this.adbPath, ['-s', serial, 'emu', 'kill']).catch((error) => {
+                logger.warn(`Failed to stop orphaned ADB emulator ${serial}`, error);
+            });
+        }
     }
 
     private async ensureAdbServer(): Promise<void> {

@@ -1,10 +1,13 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
+import { queue } from '@/lib/queue';
 import { parseTestCaseJson, cleanStepsForStorage, normalizeTargetConfigMap } from '@/lib/test-case-utils';
 import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } from '@/lib/config-sort';
 import { validateConfigName, normalizeConfigName, validateConfigType } from '@/lib/config-validation';
 import { normalizeBrowserConfig } from '@/lib/browser-target';
+import { listAndroidDeviceInventory, type AndroidDeviceInventory } from '@/lib/android-devices';
+import { ACTIVE_RUN_STATUSES } from '@/utils/statusHelpers';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { ServerRequest, ServerNotification } from '@modelcontextprotocol/sdk/types.js';
 import type { TestStep, BrowserConfig, TargetConfig, ConfigType, AndroidDeviceSelector } from '@/types';
@@ -19,8 +22,11 @@ function textResult(data: unknown) {
     return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
 }
 
-function errorResult(message: string) {
-    return { content: [{ type: 'text' as const, text: JSON.stringify({ error: message }) }], isError: true as const };
+function errorResult(message: string, details?: unknown) {
+    const payload = details === undefined
+        ? { error: message }
+        : { error: message, details };
+    return { content: [{ type: 'text' as const, text: JSON.stringify(payload) }], isError: true as const };
 }
 
 async function verifyProjectOwnership(projectId: string, userId: string): Promise<boolean> {
@@ -43,25 +49,142 @@ function buildTargetIdGenerator(existingIds: Set<string>, prefix: 'browser' | 'a
     };
 }
 
+interface AndroidDeviceSelectorInput {
+    mode: 'emulator-profile' | 'connected-device';
+    emulatorProfileName?: string;
+    serial?: string;
+}
+
+function normalizeDeviceLookupValue(value: string): string {
+    return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+function buildConnectedDeviceLabel(device: AndroidDeviceInventory['connectedDevices'][number]): string {
+    if (device.kind === 'emulator') {
+        return device.emulatorProfileName || device.model || device.serial;
+    }
+    return [device.manufacturer, device.model].filter(Boolean).join(' ').trim() || device.serial;
+}
+
+function getUniqueProfileName(matches: ReadonlyArray<AndroidDeviceInventory['emulatorProfiles'][number]>): string | null {
+    const profileNames = Array.from(new Set(matches.map((profile) => profile.name)));
+    return profileNames.length === 1 ? profileNames[0] : null;
+}
+
+function resolveEmulatorProfileName(rawDevice: string, inventory: AndroidDeviceInventory): string | null {
+    const trimmed = rawDevice.trim();
+    if (!trimmed) {
+        return null;
+    }
+
+    const lower = trimmed.toLowerCase();
+    const normalized = normalizeDeviceLookupValue(trimmed);
+
+    const exactByName = inventory.emulatorProfiles.find((profile) => profile.name === trimmed);
+    if (exactByName) {
+        return exactByName.name;
+    }
+
+    const exactByNameIgnoreCase = getUniqueProfileName(
+        inventory.emulatorProfiles.filter((profile) => profile.name.toLowerCase() === lower)
+    );
+    if (exactByNameIgnoreCase) {
+        return exactByNameIgnoreCase;
+    }
+
+    const exactByDisplayName = getUniqueProfileName(
+        inventory.emulatorProfiles.filter((profile) => profile.displayName.toLowerCase() === lower)
+    );
+    if (exactByDisplayName) {
+        return exactByDisplayName;
+    }
+
+    const normalizedMatch = getUniqueProfileName(
+        inventory.emulatorProfiles.filter((profile) =>
+            normalizeDeviceLookupValue(profile.name) === normalized
+            || normalizeDeviceLookupValue(profile.displayName) === normalized
+        )
+    );
+    if (normalizedMatch) {
+        return normalizedMatch;
+    }
+
+    const prefixMatch = getUniqueProfileName(
+        inventory.emulatorProfiles.filter((profile) =>
+            profile.name.toLowerCase().startsWith(lower)
+            || profile.displayName.toLowerCase().startsWith(lower)
+        )
+    );
+    if (prefixMatch) {
+        return prefixMatch;
+    }
+
+    return null;
+}
+
+function resolveConnectedSerial(rawSerial: string, inventory: AndroidDeviceInventory): string | null {
+    const serialLookup = rawSerial.trim().toLowerCase();
+    if (!serialLookup) {
+        return null;
+    }
+    const matched = inventory.connectedDevices.find((device) => device.serial.toLowerCase() === serialLookup);
+    return matched?.serial ?? null;
+}
+
+function resolveConnectedDeviceByAlias(rawDevice: string, inventory: AndroidDeviceInventory): string | null {
+    const trimmed = rawDevice.trim();
+    if (!trimmed) {
+        return null;
+    }
+
+    const lower = trimmed.toLowerCase();
+    const normalized = normalizeDeviceLookupValue(trimmed);
+
+    const exactLabelMatches = inventory.connectedDevices.filter(
+        (device) => buildConnectedDeviceLabel(device).toLowerCase() === lower
+    );
+    const exactLabelSerials = Array.from(new Set(exactLabelMatches.map((device) => device.serial)));
+    if (exactLabelSerials.length === 1) {
+        return exactLabelSerials[0];
+    }
+
+    const normalizedMatches = inventory.connectedDevices.filter(
+        (device) => normalizeDeviceLookupValue(buildConnectedDeviceLabel(device)) === normalized
+    );
+    const normalizedSerials = Array.from(new Set(normalizedMatches.map((device) => device.serial)));
+    if (normalizedSerials.length === 1) {
+        return normalizedSerials[0];
+    }
+
+    const prefixMatches = inventory.connectedDevices.filter(
+        (device) => buildConnectedDeviceLabel(device).toLowerCase().startsWith(lower)
+    );
+    const prefixSerials = Array.from(new Set(prefixMatches.map((device) => device.serial)));
+    if (prefixSerials.length === 1) {
+        return prefixSerials[0];
+    }
+
+    return null;
+}
+
 function resolveAndroidDeviceSelector(
     device?: string,
-    selector?: {
-        mode: 'emulator-profile' | 'connected-device';
-        emulatorProfileName?: string;
-        serial?: string;
-    }
+    selector?: AndroidDeviceSelectorInput,
+    inventory?: AndroidDeviceInventory
 ): AndroidDeviceSelector | null {
     if (selector) {
         if (selector.mode === 'connected-device') {
             const serial = selector.serial?.trim();
             if (serial) {
-                return { mode: 'connected-device', serial };
+                const resolvedSerial = inventory ? resolveConnectedSerial(serial, inventory) : null;
+                return { mode: 'connected-device', serial: resolvedSerial ?? serial };
             }
             return null;
         }
         const emulatorProfileName = selector.emulatorProfileName?.trim();
         if (emulatorProfileName) {
-            return { mode: 'emulator-profile', emulatorProfileName };
+            const resolvedProfileName = inventory ? resolveEmulatorProfileName(emulatorProfileName, inventory) : null;
+            return { mode: 'emulator-profile', emulatorProfileName: resolvedProfileName ?? emulatorProfileName };
         }
         return null;
     }
@@ -74,6 +197,24 @@ function resolveAndroidDeviceSelector(
         const serial = rawDevice.slice('serial:'.length).trim();
         return serial ? { mode: 'connected-device', serial } : null;
     }
+
+    if (inventory) {
+        const resolvedSerial = resolveConnectedSerial(rawDevice, inventory);
+        if (resolvedSerial) {
+            return { mode: 'connected-device', serial: resolvedSerial };
+        }
+
+        const resolvedProfileName = resolveEmulatorProfileName(rawDevice, inventory);
+        if (resolvedProfileName) {
+            return { mode: 'emulator-profile', emulatorProfileName: resolvedProfileName };
+        }
+
+        const aliasSerial = resolveConnectedDeviceByAlias(rawDevice, inventory);
+        if (aliasSerial) {
+            return { mode: 'connected-device', serial: aliasSerial };
+        }
+    }
+
     return { mode: 'emulator-profile', emulatorProfileName: rawDevice };
 }
 
@@ -189,7 +330,7 @@ export function createMcpServer(): McpServer {
                 androidTargets: z.array(z.object({
                     id: z.string().optional().describe('Optional target ID'),
                     name: z.string().optional().describe('Display name'),
-                    device: z.string().optional().describe('Device selector text (e.g. serial:emulator-5554 or profile name)'),
+                    device: z.string().optional().describe('Device selector text (e.g. serial:emulator-5554, profile name, or display name such as "Pixel 8")'),
                     deviceSelector: z.object({
                         mode: z.enum(['emulator-profile', 'connected-device']),
                         emulatorProfileName: z.string().optional(),
@@ -242,6 +383,9 @@ export function createMcpServer(): McpServer {
         const targetIds = new Set(Object.keys(targetConfigMap));
         const nextBrowserTargetId = buildTargetIdGenerator(targetIds, 'browser');
         const nextAndroidTargetId = buildTargetIdGenerator(targetIds, 'android');
+        const androidInventory = Array.isArray(testCase.androidTargets) && testCase.androidTargets.length > 0
+            ? await listAndroidDeviceInventory()
+            : null;
 
         if (Array.isArray(testCase.browserTargets)) {
             for (const target of testCase.browserTargets) {
@@ -269,7 +413,11 @@ export function createMcpServer(): McpServer {
 
         if (Array.isArray(testCase.androidTargets)) {
             for (const target of testCase.androidTargets) {
-                const deviceSelector = resolveAndroidDeviceSelector(target.device, target.deviceSelector);
+                const deviceSelector = resolveAndroidDeviceSelector(
+                    target.device,
+                    target.deviceSelector,
+                    androidInventory ?? undefined
+                );
                 if (!deviceSelector) {
                     warnings.push(`Android target "${target.name || target.id || 'unnamed'}" skipped: missing or invalid device selector.`);
                     continue;
@@ -402,8 +550,11 @@ export function createMcpServer(): McpServer {
                 type: z.enum(['ai-action', 'playwright-code']).optional(),
             })).optional(),
             browserConfig: z.record(z.string(), z.unknown()).optional(),
+            activeRunResolution: z.enum(['cancel_and_save', 'do_not_save']).optional().describe(
+                'Required when the test case has active runs. cancel_and_save: cancel queued/running runs and save as DRAFT. do_not_save: keep active runs and skip saving.'
+            ),
         },
-    }, async ({ testCaseId, ...updates }, extra) => {
+    }, async ({ testCaseId, activeRunResolution, ...updates }, extra) => {
         const userId = getUserId(extra);
         if (!userId) return errorResult('Unauthorized');
         const tc = await prisma.testCase.findUnique({
@@ -412,6 +563,44 @@ export function createMcpServer(): McpServer {
         });
         if (!tc) return errorResult('Not found');
         if (tc.project.userId !== userId) return errorResult('Forbidden');
+
+        const activeRuns = await prisma.testRun.findMany({
+            where: {
+                testCaseId,
+                status: { in: [...ACTIVE_RUN_STATUSES] }
+            },
+            orderBy: { createdAt: 'asc' },
+            select: { id: true, status: true, createdAt: true }
+        });
+
+        if (activeRuns.length > 0) {
+            if (!activeRunResolution) {
+                return errorResult(
+                    'Test case has queued/running runs. Confirm whether to cancel them before saving to DRAFT.',
+                    {
+                        code: 'ACTIVE_RUN_CONFIRMATION_REQUIRED',
+                        testCaseId,
+                        activeRuns,
+                        options: ['cancel_and_save', 'do_not_save'],
+                    }
+                );
+            }
+
+            if (activeRunResolution === 'do_not_save') {
+                return textResult({
+                    id: tc.id,
+                    name: tc.name,
+                    status: tc.status,
+                    saved: false,
+                    skippedReason: 'User chose to keep queued/running runs',
+                    activeRuns
+                });
+            }
+
+            for (const run of activeRuns) {
+                await queue.cancel(run.id, 'Cancelled to allow MCP test case update');
+            }
+        }
 
         const updateData: Record<string, unknown> = {};
         if (updates.name !== undefined) updateData.name = updates.name;
@@ -428,7 +617,12 @@ export function createMcpServer(): McpServer {
         updateData.status = 'DRAFT';
 
         const updated = await prisma.testCase.update({ where: { id: testCaseId }, data: updateData });
-        return textResult({ id: updated.id, name: updated.name, status: updated.status });
+        return textResult({
+            id: updated.id,
+            name: updated.name,
+            status: updated.status,
+            cancelledRuns: activeRuns.map((run) => run.id)
+        });
     });
 
     server.registerTool('delete_test_case', {

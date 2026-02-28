@@ -13,6 +13,8 @@ import { validateRuntimeRequestUrl } from './url-security-runtime';
 import { androidDeviceManager, type AndroidDeviceLease } from './android-device-manager';
 import { normalizeAndroidTargetConfig } from './android-target-config';
 import { normalizeBrowserConfig } from './browser-target';
+import { ReliableAdb } from './adb-reliable';
+import { resolveAndroidToolPath } from './android-sdk';
 import { Script, createContext } from 'node:vm';
 import path from 'node:path';
 
@@ -26,6 +28,9 @@ type FilePayloadWithPath = Record<string, unknown> & { path: string };
 
 const ANDROID_AGENT_LAUNCH_TIMEOUT_MS = 60_000;
 const ANDROID_AGENT_OPERATION_TIMEOUT_MS = 120_000;
+const ANDROID_ADB_RECOVERY_TIMEOUT_MS = 20_000;
+const ANDROID_ADB_RECOVERY_ATTEMPTS = 2;
+const androidAdbPath = resolveAndroidToolPath('adb');
 
 function validateTargetConfigs(targetConfigs: Record<string, BrowserConfig | TargetConfig>) {
     for (const [targetId, targetConfig] of Object.entries(targetConfigs)) {
@@ -120,6 +125,72 @@ function shouldRetryAndroidActionAfterLoadWait(errorMessage: string): boolean {
     return /splash screen|still on the splash|loading screen|still loading|not found on the current screen/i.test(errorMessage);
 }
 
+function isRecoverableAndroidAdbConnectionError(errorMessage: string): boolean {
+    return /device offline|device not found|no devices\/emulators found|connection reset|broken pipe|transport is closing|closed|cannot access system service|can't find service|cannot find service/i.test(errorMessage);
+}
+
+async function recoverAndroidDeviceConnection(
+    handle: AndroidDeviceLease,
+    targetLabel: string,
+    log: ReturnType<typeof createLogger>,
+    targetId: string,
+    appId: string | undefined,
+    signal?: AbortSignal
+): Promise<boolean> {
+    const adb = new ReliableAdb(handle.serial, androidAdbPath);
+
+    for (let attempt = 1; attempt <= ANDROID_ADB_RECOVERY_ATTEMPTS; attempt += 1) {
+        if (signal?.aborted) {
+            throw new Error('Aborted');
+        }
+
+        log(
+            `[${targetLabel}] Device connection dropped (ADB offline). Attempting recovery ${attempt}/${ANDROID_ADB_RECOVERY_ATTEMPTS}...`,
+            'info',
+            targetId
+        );
+
+        const reconnected = await withSignalAndTimeout(adb.reconnect(), {
+            signal,
+            timeoutMs: ANDROID_ADB_RECOVERY_TIMEOUT_MS,
+            timeoutMessage: `ADB reconnect timed out for ${handle.serial}`,
+        }).catch(() => false);
+
+        if (!reconnected) {
+            await sleep(1000);
+            continue;
+        }
+
+        const device = handle.device;
+        if (!device) {
+            return true;
+        }
+
+        await wakeAndUnlockAndroidDevice(device).catch(() => {});
+
+        if (appId) {
+            await forceStopAndroidApp(device, appId).catch(() => {});
+            await launchAndroidAppWithLauncherIntent(device, appId).catch(() => false);
+            await waitForAndroidAppForeground(device, appId, 10_000).catch(() => false);
+        }
+
+        try {
+            await device.shell('echo skytest-adb-check');
+            log(`[${targetLabel}] Device connection recovered.`, 'info', targetId);
+            return true;
+        } catch (error) {
+            log(
+                `[${targetLabel}] Recovery validation failed: ${getErrorMessage(error)}`,
+                'error',
+                targetId
+            );
+            await sleep(1000);
+        }
+    }
+
+    return false;
+}
+
 async function waitForAndroidUiReadyForAction(
     agent: AndroidAgent,
     stepAction: string,
@@ -186,8 +257,11 @@ async function isAndroidPackageInstalled(device: AndroidDevice, appId: string): 
         .some((line) => line.trim() === `package:${appId}`);
 }
 
-async function clearAndroidAppData(device: AndroidDevice, appId: string): Promise<boolean> {
+async function forceStopAndroidApp(device: AndroidDevice, appId: string): Promise<void> {
     await device.shell(`am force-stop ${appId}`);
+}
+
+async function clearAndroidAppData(device: AndroidDevice, appId: string): Promise<boolean> {
     const clearOutput = await device.shell(`pm clear ${appId}`);
     return clearOutput.toLowerCase().includes('success');
 }
@@ -664,7 +738,9 @@ async function setupExecutionTargets(
                 throw new ConfigurationError('Android device handle is not available.', 'android');
             }
 
-            const packageInstalled = await isAndroidPackageInstalled(handle.device, androidConfig.appId);
+            const androidDevice = handle.device;
+
+            const packageInstalled = await isAndroidPackageInstalled(androidDevice, androidConfig.appId);
             if (!packageInstalled) {
                 throw new ConfigurationError(
                     `App ID "${androidConfig.appId}" is not installed on device "${handle.id}".`,
@@ -672,9 +748,69 @@ async function setupExecutionTargets(
                 );
             }
 
+            const forceStopBeforeLaunch = async (
+                reason: string,
+                options?: { required?: boolean }
+            ): Promise<boolean> => {
+                const required = options?.required ?? true;
+                try {
+                    await forceStopAndroidApp(androidDevice, androidConfig.appId);
+                    return true;
+                } catch (error) {
+                    const message = getErrorMessage(error);
+                    if (isRecoverableAndroidAdbConnectionError(message)) {
+                        const recovered = await recoverAndroidDeviceConnection(
+                            handle,
+                            targetLabel,
+                            log,
+                            targetId,
+                            androidConfig.appId,
+                            signal
+                        );
+
+                        if (recovered) {
+                            try {
+                                await forceStopAndroidApp(androidDevice, androidConfig.appId);
+                                return true;
+                            } catch (retryError) {
+                                const retryMessage = getErrorMessage(retryError);
+                                if (required) {
+                                    throw new ConfigurationError(
+                                        `Failed to force-stop "${androidConfig.appId}" on device "${handle.id}" ${reason}: ${retryMessage}`,
+                                        'android'
+                                    );
+                                }
+                                log(
+                                    `Failed to force-stop "${androidConfig.appId}" on device "${handle.id}" ${reason}: ${retryMessage}. Continuing without force-stop.`,
+                                    'info',
+                                    targetId
+                                );
+                                return false;
+                            }
+                        }
+                    }
+
+                    if (!required) {
+                        log(
+                            `Failed to force-stop "${androidConfig.appId}" on device "${handle.id}" ${reason}: ${message}. Continuing without force-stop.`,
+                            'info',
+                            targetId
+                        );
+                        return false;
+                    }
+                    throw new ConfigurationError(
+                        `Failed to force-stop "${androidConfig.appId}" on device "${handle.id}" ${reason}: ${message}`,
+                        'android'
+                    );
+                }
+            };
+
+            log(`Force-stopping app for ${targetLabel} before launch...`, 'info', targetId);
+            await forceStopBeforeLaunch('before launch');
+
             if (androidConfig.clearAppState) {
                 log(`Clearing app data for ${targetLabel}...`, 'info', targetId);
-                const cleared = await clearAndroidAppData(handle.device, androidConfig.appId);
+                const cleared = await clearAndroidAppData(androidDevice, androidConfig.appId);
                 if (!cleared) {
                     throw new ConfigurationError(
                         `Failed to clear app data for "${androidConfig.appId}" on device "${handle.id}".`,
@@ -687,7 +823,7 @@ async function setupExecutionTargets(
 
             if (androidConfig.allowAllPermissions) {
                 log(`Auto-granting app permissions for ${targetLabel}...`, 'info', targetId);
-                await grantAndroidAppPermissions(handle.device, androidConfig.appId, log, targetId);
+                await grantAndroidAppPermissions(androidDevice, androidConfig.appId, log, targetId);
             }
 
             if (!handle.agent) {
@@ -714,10 +850,10 @@ async function setupExecutionTargets(
                     serverLogger.debug('AI action counted', { count: actionCounter.count });
                 }
                 log(`[${targetLabel}] 🤖 ${tip}`, 'info', targetId);
-                await captureAndroidScreenshot(handle.device, `[${targetLabel}] ${tip}`, onEvent, log, targetId);
+                await captureAndroidScreenshot(androidDevice, `[${targetLabel}] ${tip}`, onEvent, log, targetId);
             };
 
-            await wakeAndUnlockAndroidDevice(handle.device);
+            await wakeAndUnlockAndroidDevice(androidDevice);
 
             let launched = false;
             try {
@@ -730,7 +866,8 @@ async function setupExecutionTargets(
                 launched = true;
             } catch (error) {
                 log(`Agent launch failed for ${targetLabel}, falling back to launcher intent...`, 'info', targetId);
-                const launchedByIntent = await launchAndroidAppWithLauncherIntent(handle.device, androidConfig.appId);
+                await forceStopBeforeLaunch('before fallback launch', { required: false });
+                const launchedByIntent = await launchAndroidAppWithLauncherIntent(androidDevice, androidConfig.appId);
                 if (!launchedByIntent) {
                     const message = error instanceof Error ? error.message : String(error);
                     throw new ConfigurationError(
@@ -740,11 +877,12 @@ async function setupExecutionTargets(
                 }
             }
 
-            const foregroundReady = await waitForAndroidAppForeground(handle.device, androidConfig.appId, 20_000);
+            const foregroundReady = await waitForAndroidAppForeground(androidDevice, androidConfig.appId, 20_000);
             if (!foregroundReady) {
                 if (launched) {
-                    const fallbackLaunchSucceeded = await launchAndroidAppWithLauncherIntent(handle.device, androidConfig.appId);
-                    if (!fallbackLaunchSucceeded || !(await waitForAndroidAppForeground(handle.device, androidConfig.appId, 10_000))) {
+                    await forceStopBeforeLaunch('before fallback relaunch', { required: false });
+                    const fallbackLaunchSucceeded = await launchAndroidAppWithLauncherIntent(androidDevice, androidConfig.appId);
+                    if (!fallbackLaunchSucceeded || !(await waitForAndroidAppForeground(androidDevice, androidConfig.appId, 10_000))) {
                         throw new ConfigurationError(
                             `App "${androidConfig.appId}" did not reach foreground on device "${handle.id}".`,
                             'android'
@@ -767,7 +905,31 @@ async function setupExecutionTargets(
                 );
                 await sleep(config.test.android.postLaunchStabilizationMs);
             }
-            await captureAndroidScreenshot(handle.device, `[${targetLabel}] Initial App Launch`, onEvent, log, targetId);
+
+            try {
+                await androidDevice.shell('echo skytest-ready');
+            } catch (error) {
+                const readyCheckError = getErrorMessage(error);
+                if (!isRecoverableAndroidAdbConnectionError(readyCheckError)) {
+                    throw error;
+                }
+
+                const recovered = await recoverAndroidDeviceConnection(
+                    handle,
+                    targetLabel,
+                    log,
+                    targetId,
+                    androidConfig.appId,
+                    signal
+                );
+                if (!recovered) {
+                    throw new ConfigurationError(
+                        `Device "${handle.id}" went offline after launch and could not recover.`,
+                        'android'
+                    );
+                }
+            }
+            await captureAndroidScreenshot(androidDevice, `[${targetLabel}] Initial App Launch`, onEvent, log, targetId);
             log(`${targetLabel} ready`, 'success', targetId);
         }
 
@@ -1196,6 +1358,8 @@ async function executeSteps(
         const stepType = step.type || 'ai-action';
         const targetConfig = targetConfigs[effectiveTargetId];
         const isAndroid = targetConfig ? isAndroidTarget(targetConfig) : false;
+        const androidConfig = isAndroid ? (targetConfig as AndroidTargetConfig) : null;
+        const androidHandle = isAndroid ? targets.androidDeviceLeases.get(effectiveTargetId) : undefined;
 
         const agent = agents.get(effectiveTargetId);
         const page = pages.get(effectiveTargetId);
@@ -1267,8 +1431,39 @@ async function executeSteps(
                                 androidSignal: signal,
                             });
                         } catch (assertError: unknown) {
-                            const errMsg = getErrorMessage(assertError);
-                            throw new Error(`${errMsg}`);
+                            const assertErrorMessage = getErrorMessage(assertError);
+                            let recoveredAndRetried = false;
+                            if (
+                                isAndroid
+                                && androidConfig
+                                && androidHandle
+                                && isRecoverableAndroidAdbConnectionError(assertErrorMessage)
+                            ) {
+                                const recovered = await recoverAndroidDeviceConnection(
+                                    androidHandle,
+                                    targetLabel,
+                                    log,
+                                    effectiveTargetId,
+                                    androidConfig.appId,
+                                    signal
+                                );
+                                if (recovered) {
+                                    log(
+                                        `[Step ${i + 1}] Retrying verification after Android connection recovery...`,
+                                        'info',
+                                        effectiveTargetId
+                                    );
+                                    await verifyQuotedStringsExist(agent, quotedStrings, log, effectiveTargetId, {
+                                        isAndroidAgent: true,
+                                        androidSignal: signal,
+                                    });
+                                    recoveredAndRetried = true;
+                                }
+                            }
+                            if (!recoveredAndRetried) {
+                                const errMsg = getErrorMessage(assertError);
+                                throw new Error(`${errMsg}`);
+                            }
                         }
                     } else {
                         try {
@@ -1282,8 +1477,40 @@ async function executeSteps(
                                 await agent.aiAssert(stepAction);
                             }
                         } catch (assertError: unknown) {
-                            const errMsg = getErrorMessage(assertError);
-                            throw new Error(`Assertion failed: ${step.action}\n${errMsg}`);
+                            const assertErrorMessage = getErrorMessage(assertError);
+                            let recoveredAndRetried = false;
+                            if (
+                                isAndroid
+                                && androidConfig
+                                && androidHandle
+                                && isRecoverableAndroidAdbConnectionError(assertErrorMessage)
+                            ) {
+                                const recovered = await recoverAndroidDeviceConnection(
+                                    androidHandle,
+                                    targetLabel,
+                                    log,
+                                    effectiveTargetId,
+                                    androidConfig.appId,
+                                    signal
+                                );
+                                if (recovered) {
+                                    log(
+                                        `[Step ${i + 1}] Retrying assertion after Android connection recovery...`,
+                                        'info',
+                                        effectiveTargetId
+                                    );
+                                    await runAndroidAgentOperation(
+                                        () => (agent as AndroidAgent).aiAssert(stepAction),
+                                        'assertion',
+                                        signal
+                                    );
+                                    recoveredAndRetried = true;
+                                }
+                            }
+                            if (!recoveredAndRetried) {
+                                const errMsg = getErrorMessage(assertError);
+                                throw new Error(`Assertion failed: ${step.action}\n${errMsg}`);
+                            }
                         }
                     }
                 } else {
@@ -1298,7 +1525,38 @@ async function executeSteps(
                                 );
                             } catch (androidActError: unknown) {
                                 const androidErrMsg = getErrorMessage(androidActError);
-                                if (i === 0 && shouldRetryAndroidActionAfterLoadWait(androidErrMsg)) {
+                                let recoveredAndRetried = false;
+                                if (
+                                    androidConfig
+                                    && androidHandle
+                                    && isRecoverableAndroidAdbConnectionError(androidErrMsg)
+                                ) {
+                                    const recovered = await recoverAndroidDeviceConnection(
+                                        androidHandle,
+                                        targetLabel,
+                                        log,
+                                        effectiveTargetId,
+                                        androidConfig.appId,
+                                        signal
+                                    );
+                                    if (recovered) {
+                                        log(
+                                            `[Step ${i + 1}] Retrying action after Android connection recovery...`,
+                                            'info',
+                                            effectiveTargetId
+                                        );
+                                        await runAndroidAgentOperation(
+                                            () => androidAgent.aiAct(stepAction),
+                                            'action',
+                                            signal
+                                        );
+                                        recoveredAndRetried = true;
+                                    }
+                                }
+
+                                if (recoveredAndRetried) {
+                                    // Recovery succeeded and retry completed.
+                                } else if (i === 0 && shouldRetryAndroidActionAfterLoadWait(androidErrMsg)) {
                                     log(
                                         `[Step ${i + 1}] Android UI appears to still be loading. Waiting and retrying once...`,
                                         'info',
@@ -1497,7 +1755,9 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
 
         try {
             const hasAndroid = Object.values(targetConfigs).some(tc => 'type' in tc && tc.type === 'android');
+            if (runSignal.aborted) throw new Error('Aborted');
             if (hasAndroid && onPreparing) await onPreparing();
+            if (runSignal.aborted) throw new Error('Aborted');
 
             executionTargets = await setupExecutionTargets(targetConfigs, onEvent, runId, projectId, runSignal, actionCounter);
 
@@ -1508,6 +1768,7 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
                 });
             }
 
+            if (runSignal.aborted) throw new Error('Aborted');
             if (onRunning) await onRunning();
 
             log('Executing test...', 'info');

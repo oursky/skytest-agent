@@ -49,6 +49,7 @@ export class TestQueue {
     private processNextRequested = false;
     private blockedQueueRetryTimer: ReturnType<typeof setTimeout> | null = null;
     private pendingAndroidReservations: Map<string, Array<{ projectId: string; selector: AndroidDeviceSelector; resourceKey: string }>> = new Map();
+    private cancellationRequested: Set<string> = new Set();
 
     private constructor() { }
 
@@ -89,6 +90,7 @@ export class TestQueue {
     public async add(runId: string, config: RunTestOptions['config']) {
         const controller = new AbortController();
         const job: Job = { runId, config, controller };
+        this.cancellationRequested.delete(runId);
 
         this.queue.push(job);
 
@@ -202,8 +204,11 @@ export class TestQueue {
     }
 
     public async cancel(runId: string, errorMessage?: string) {
+        this.cancellationRequested.add(runId);
+
         if (this.running.has(runId)) {
             const job = this.running.get(runId)!;
+            let cleanupCompleted = false;
 
             job.controller.abort();
 
@@ -211,16 +216,12 @@ export class TestQueue {
             if (cleanup) {
                 try {
                     await cleanup();
+                    cleanupCompleted = true;
                 } catch (e) {
                     logger.error(`Failed to cleanup ${runId}`, e);
                 }
                 this.cleanupFns.delete(runId);
             }
-
-            this.running.delete(runId);
-            this.activeStatuses.delete(runId);
-            this.clearPendingAndroidReservation(runId);
-            this.triggerProcessNext();
 
             const logBuffer = this.logs.get(runId) || [];
             try {
@@ -235,6 +236,17 @@ export class TestQueue {
                 logger.error(`Failed to mark ${runId} as cancelled`, e);
             }
 
+            const cancelledEmulatorProfiles = this.getEmulatorProfileNames(job.config);
+            if (cancelledEmulatorProfiles.size > 0) {
+                await androidDeviceManager.stopIdleEmulatorsForProfiles(cancelledEmulatorProfiles);
+            }
+
+            if (cleanupCompleted) {
+                this.clearStartedJobState(runId);
+                this.triggerProcessNext();
+            }
+
+            return;
         } else {
             const index = this.queue.findIndex(j => j.runId === runId);
             if (index !== -1) {
@@ -253,6 +265,8 @@ export class TestQueue {
 
                 this.logs.delete(runId);
                 this.persistedIndexes.delete(runId);
+                this.cancellationRequested.delete(runId);
+                this.triggerProcessNext();
             } else {
                 try {
                     const run = await prisma.testRun.findUnique({
@@ -275,6 +289,7 @@ export class TestQueue {
                     logger.error(`Failed to cleanup orphaned run ${runId}`, error);
                 }
                 this.persistedIndexes.delete(runId);
+                this.cancellationRequested.delete(runId);
             }
         }
     }
@@ -356,6 +371,32 @@ export class TestQueue {
         this.pendingAndroidReservations.delete(runId);
     }
 
+    private clearStartedJobState(runId: string): void {
+        this.running.delete(runId);
+        this.activeStatuses.delete(runId);
+        this.clearPendingAndroidReservation(runId);
+    }
+
+    private getEmulatorProfileNames(config: RunTestOptions['config']): Set<string> {
+        const profileNames = new Set<string>();
+        if (!config.browserConfig) {
+            return profileNames;
+        }
+
+        for (const target of Object.values(config.browserConfig)) {
+            if (!('type' in target) || target.type !== 'android') {
+                continue;
+            }
+            const normalizedTarget = normalizeAndroidTargetConfig(target);
+            const selector = normalizedTarget.deviceSelector;
+            if (selector.mode === 'emulator-profile' && selector.emulatorProfileName) {
+                profileNames.add(selector.emulatorProfileName);
+            }
+        }
+
+        return profileNames;
+    }
+
     private async canStartJobNow(job: Job): Promise<boolean> {
         const perProjectActive = this.getActiveRunCountForProject(job.config.projectId);
         if (perProjectActive >= appConfig.queue.maxConcurrentPerProject) {
@@ -376,15 +417,14 @@ export class TestQueue {
         );
     }
 
-    private async findNextStartableJobIndex(): Promise<number> {
-        for (let index = 0; index < this.queue.length; index += 1) {
-            const job = this.queue[index];
+    private async findNextStartableJobRunId(): Promise<string | null> {
+        for (const job of this.queue) {
             if (await this.canStartJobNow(job)) {
-                return index;
+                return job.runId;
             }
         }
 
-        return -1;
+        return null;
     }
 
     private scheduleBlockedQueueRetry(): void {
@@ -415,19 +455,43 @@ export class TestQueue {
             this.pendingAndroidReservations.set(job.runId, androidRequests);
         }
 
+        if (job.controller.signal.aborted || this.cancellationRequested.has(job.runId)) {
+            this.clearStartedJobState(job.runId);
+            this.cancellationRequested.delete(job.runId);
+            this.triggerProcessNext();
+            return;
+        }
+
+        let shouldExecute = true;
+
         try {
-            await prisma.testRun.update({
-                where: { id: job.runId },
+            const updateResult = await prisma.testRun.updateMany({
+                where: {
+                    id: job.runId,
+                    status: { not: 'CANCELLED' }
+                },
                 data: {
                     status: startStatus,
                     startedAt: new Date()
                 }
             });
 
-            await this.updateTestCaseStatus(job.config.testCaseId, startStatus);
-            this.publishRunStatus(job.config.projectId, job.config.testCaseId, job.runId, startStatus);
+            if (updateResult.count === 0 || job.controller.signal.aborted || this.cancellationRequested.has(job.runId)) {
+                shouldExecute = false;
+            }
+            if (shouldExecute) {
+                await this.updateTestCaseStatus(job.config.testCaseId, startStatus);
+                this.publishRunStatus(job.config.projectId, job.config.testCaseId, job.runId, startStatus);
+            }
         } catch (error) {
             logger.error(`Failed to mark job ${job.runId} as ${startStatus}`, error);
+        }
+
+        if (!shouldExecute) {
+            this.clearStartedJobState(job.runId);
+            this.cancellationRequested.delete(job.runId);
+            this.triggerProcessNext();
+            return;
         }
 
         void this.executeJob(job).catch((error) => {
@@ -450,14 +514,23 @@ export class TestQueue {
                 let startedAny = false;
 
                 while (this.running.size < this.concurrency) {
-                    const nextIndex = await this.findNextStartableJobIndex();
-                    if (nextIndex === -1) {
+                    const nextRunId = await this.findNextStartableJobRunId();
+                    if (!nextRunId) {
                         break;
+                    }
+
+                    const nextIndex = this.queue.findIndex((queuedJob) => queuedJob.runId === nextRunId);
+                    if (nextIndex === -1) {
+                        continue;
                     }
 
                     const [job] = this.queue.splice(nextIndex, 1);
                     if (!job) {
                         break;
+                    }
+
+                    if (this.cancellationRequested.has(job.runId)) {
+                        continue;
                     }
 
                     this.clearBlockedQueueRetry();
@@ -546,12 +619,18 @@ export class TestQueue {
                     this.registerCleanup(runId, cleanup);
                 },
                 onPreparing: async () => {
+                    if (controller.signal.aborted || this.cancellationRequested.has(runId) || !this.running.has(runId)) {
+                        return;
+                    }
                     if (this.activeStatuses.get(runId) === 'PREPARING') {
                         return;
                     }
                     await this.syncActiveRunStatus(runId, config, 'PREPARING');
                 },
                 onRunning: async () => {
+                    if (controller.signal.aborted || this.cancellationRequested.has(runId) || !this.running.has(runId)) {
+                        return;
+                    }
                     if (this.activeStatuses.get(runId) === 'RUNNING') {
                         return;
                     }
@@ -617,6 +696,7 @@ export class TestQueue {
             this.running.delete(runId);
             this.activeStatuses.delete(runId);
             this.clearPendingAndroidReservation(runId);
+            this.cancellationRequested.delete(runId);
             this.cleanupFns.delete(runId);
             this.persistedIndexes.delete(runId);
             const pendingTimer = this.persistTimers.get(runId);
