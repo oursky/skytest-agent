@@ -1,9 +1,30 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyAuth, resolveUserId } from '@/lib/auth';
+import { verifyAuth, resolveUserId, type AuthPayload } from '@/lib/auth';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('api:projects');
+
+async function resolveOrCreateUserId(authPayload: AuthPayload): Promise<string | null> {
+    const resolvedUserId = await resolveUserId(authPayload);
+    if (resolvedUserId) {
+        return resolvedUserId;
+    }
+
+    const authId = authPayload.sub as string | undefined;
+    if (!authId) {
+        return null;
+    }
+
+    const user = await prisma.user.upsert({
+        where: { authId },
+        update: {},
+        create: { authId },
+        select: { id: true }
+    });
+
+    return user.id;
+}
 
 export async function GET(request: Request) {
     const authPayload = await verifyAuth(request);
@@ -11,7 +32,7 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const userId = await resolveUserId(authPayload);
+    const userId = await resolveOrCreateUserId(authPayload);
 
     if (!userId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -74,37 +95,15 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Valid project name is required' }, { status: 400 });
         }
 
-        const resolvedUserId = await resolveUserId(authPayload);
-
-        if (resolvedUserId) {
-            const project = await prisma.project.create({
-                data: {
-                    name: name.trim(),
-                    userId: resolvedUserId,
-                },
-            });
-            return NextResponse.json(project);
-        }
-
-        const authId = authPayload.sub as string | undefined;
-        if (!authId) {
+        const userId = await resolveOrCreateUserId(authPayload);
+        if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        let user = await prisma.user.findUnique({
-            where: { authId },
-        });
-
-        if (!user) {
-            user = await prisma.user.create({
-                data: { authId },
-            });
         }
 
         const project = await prisma.project.create({
             data: {
                 name: name.trim(),
-                userId: user.id,
+                userId,
             },
         });
 

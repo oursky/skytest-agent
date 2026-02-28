@@ -45,8 +45,6 @@ export class TestQueue {
     private logs: Map<string, TestEvent[]> = new Map();
     private persistTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
     private persistedIndexes: Map<string, number> = new Map();
-    private androidFeatureEnforcementTimer: ReturnType<typeof setInterval> | null = null;
-    private androidFeatureEnforcementRunning = false;
     private processNextRunning = false;
     private processNextRequested = false;
     private blockedQueueRetryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -79,8 +77,6 @@ export class TestQueue {
         } catch (e) {
             logger.error('Failed to cleanup stale runs on startup', e);
         }
-
-        this.startAndroidFeatureEnforcementLoop();
     }
 
     public static getInstance(): TestQueue {
@@ -295,33 +291,6 @@ export class TestQueue {
         return null;
     }
 
-    public async cancelActiveAndroidRunsForUser(userId: string, errorMessage = 'Android testing is no longer enabled for your account'): Promise<number> {
-        const activeRuns = await prisma.testRun.findMany({
-            where: {
-                status: { in: [...ACTIVE_RUN_STATUSES] },
-                testCase: {
-                    project: {
-                        userId
-                    }
-                }
-            },
-            select: {
-                id: true,
-                configurationSnapshot: true,
-            }
-        });
-
-        const androidRunIds = activeRuns
-            .filter((run) => this.hasAndroidTargetsInSnapshot(run.configurationSnapshot))
-            .map((run) => run.id);
-
-        for (const runId of androidRunIds) {
-            await this.cancel(runId, errorMessage);
-        }
-
-        return androidRunIds.length;
-    }
-
     private getStartStatus(): 'PREPARING' {
         return 'PREPARING';
     }
@@ -435,92 +404,6 @@ export class TestQueue {
         }
         clearTimeout(this.blockedQueueRetryTimer);
         this.blockedQueueRetryTimer = null;
-    }
-
-    private hasAndroidTargetsInSnapshot(configurationSnapshot: string | null): boolean {
-        if (!configurationSnapshot) {
-            return false;
-        }
-
-        try {
-            const parsed = JSON.parse(configurationSnapshot) as unknown;
-            if (!parsed || typeof parsed !== 'object' || !('browserConfig' in parsed)) {
-                return false;
-            }
-
-            const browserConfig = (parsed as { browserConfig?: unknown }).browserConfig;
-            if (!browserConfig || typeof browserConfig !== 'object') {
-                return false;
-            }
-
-            return Object.values(browserConfig as Record<string, unknown>).some((target) => {
-                if (!target || typeof target !== 'object') {
-                    return false;
-                }
-                const targetRecord = target as { type?: unknown };
-                return targetRecord.type === 'android';
-            });
-        } catch {
-            return false;
-        }
-    }
-
-    private startAndroidFeatureEnforcementLoop(): void {
-        if (this.androidFeatureEnforcementTimer) {
-            return;
-        }
-
-        const runSweep = () => {
-            void this.enforceAndroidFeatureFlags().catch((error) => {
-                logger.error('Failed to enforce Android feature flags for active runs', error);
-            });
-        };
-
-        runSweep();
-        this.androidFeatureEnforcementTimer = setInterval(runSweep, appConfig.queue.androidFeatureEnforcementIntervalMs);
-    }
-
-    private async enforceAndroidFeatureFlags(): Promise<void> {
-        if (this.androidFeatureEnforcementRunning) {
-            return;
-        }
-        this.androidFeatureEnforcementRunning = true;
-
-        try {
-            const activeRuns = await prisma.testRun.findMany({
-                where: {
-                    status: { in: [...ACTIVE_RUN_STATUSES] }
-                },
-                select: {
-                    id: true,
-                    configurationSnapshot: true,
-                    testCase: {
-                        select: {
-                            project: {
-                                select: {
-                                    user: {
-                                        select: {
-                                            androidEnabled: true
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-
-            const runsToCancel = activeRuns.filter((run) =>
-                !run.testCase.project.user.androidEnabled
-                && this.hasAndroidTargetsInSnapshot(run.configurationSnapshot)
-            );
-
-            for (const run of runsToCancel) {
-                await this.cancel(run.id, 'Android testing is no longer enabled for your account');
-            }
-        } finally {
-            this.androidFeatureEnforcementRunning = false;
-        }
     }
 
     private async startJob(job: Job): Promise<void> {

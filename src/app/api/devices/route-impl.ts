@@ -4,18 +4,11 @@ import { verifyAuth, resolveUserId } from '@/lib/auth';
 import { androidDeviceManager } from '@/lib/android-device-manager';
 import { listAndroidDeviceInventory } from '@/lib/android-devices';
 import { createLogger } from '@/lib/logger';
-import { getAndroidAccessStatusForUser, type AndroidAccessStatus } from '@/lib/user-features';
+import { getAndroidAccessStatus } from '@/lib/user-features';
 
 const logger = createLogger('api:devices');
 
 export const dynamic = 'force-dynamic';
-
-function getAndroidAccessError(status: Exclude<AndroidAccessStatus, 'enabled'>) {
-    if (status === 'runtime-unavailable') {
-        return { error: 'Android testing is not available on this server', status: 503 as const };
-    }
-    return { error: 'Android testing is not enabled for your account', status: 403 as const };
-}
 
 async function ensureProjectOwnership(projectId: string, userId: string): Promise<boolean> {
     const project = await prisma.project.findFirst({
@@ -44,10 +37,8 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const androidAccessStatus = await getAndroidAccessStatusForUser(userId);
-    if (androidAccessStatus !== 'enabled') {
-        const error = getAndroidAccessError(androidAccessStatus);
-        return NextResponse.json({ error: error.error }, { status: error.status });
+    if (getAndroidAccessStatus() !== 'enabled') {
+        return NextResponse.json({ error: 'Android testing is not available on this server' }, { status: 503 });
     }
 
     try {
@@ -121,10 +112,8 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const androidAccessStatus = await getAndroidAccessStatusForUser(userId);
-    if (androidAccessStatus !== 'enabled') {
-        const error = getAndroidAccessError(androidAccessStatus);
-        return NextResponse.json({ error: error.error }, { status: error.status });
+    if (getAndroidAccessStatus() !== 'enabled') {
+        return NextResponse.json({ error: 'Android testing is not available on this server' }, { status: 503 });
     }
 
     try {

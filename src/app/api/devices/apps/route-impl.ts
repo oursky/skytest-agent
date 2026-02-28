@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/auth';
 import { androidDeviceManager } from '@/lib/android-device-manager';
 import { createLogger } from '@/lib/logger';
-import { getAndroidAccessStatusForUser } from '@/lib/user-features';
+import { getAndroidAccessStatus } from '@/lib/user-features';
 
 const logger = createLogger('api:devices:apps');
 
@@ -20,15 +20,10 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const androidAccessStatus = await getAndroidAccessStatusForUser(userId);
-    if (androidAccessStatus !== 'enabled') {
+    if (getAndroidAccessStatus() !== 'enabled') {
         return NextResponse.json(
-            {
-                error: androidAccessStatus === 'runtime-unavailable'
-                    ? 'Android testing is not available on this server'
-                    : 'Android testing is not enabled for your account'
-            },
-            { status: androidAccessStatus === 'runtime-unavailable' ? 503 : 403 }
+            { error: 'Android testing is not available on this server' },
+            { status: 503 }
         );
     }
 
