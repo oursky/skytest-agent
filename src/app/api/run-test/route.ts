@@ -189,9 +189,9 @@ export async function POST(request: Request) {
 
         const resolvedUserId = await resolveUserId(authPayload);
         const user = resolvedUserId
-            ? await prisma.user.findUnique({ where: { id: resolvedUserId }, select: { id: true, openRouterKey: true, androidEnabled: true } })
+            ? await prisma.user.findUnique({ where: { id: resolvedUserId }, select: { id: true, openRouterKey: true } })
             : authPayload.sub
-                ? await prisma.user.findUnique({ where: { authId: authPayload.sub as string }, select: { id: true, openRouterKey: true, androidEnabled: true } })
+                ? await prisma.user.findUnique({ where: { authId: authPayload.sub as string }, select: { id: true, openRouterKey: true } })
                 : null;
 
         if (!user) {
@@ -209,14 +209,6 @@ export async function POST(request: Request) {
         const requestHasAndroidTargets = hasAndroidTargets(browserConfig);
 
         if (requestHasAndroidTargets) {
-            if (!user.androidEnabled) {
-                await queue.cancelActiveAndroidRunsForUser(userId);
-                return NextResponse.json(
-                    { error: 'Android testing is not enabled for your account' },
-                    { status: 403 }
-                );
-            }
-
             if (!isAndroidAdbAvailable()) {
                 return NextResponse.json(
                     { error: 'Android testing is not available on this server' },

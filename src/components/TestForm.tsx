@@ -37,7 +37,6 @@ interface TestFormProps {
     testCaseFiles?: TestCaseFile[];
     onTestCaseConfigsChange?: (id?: string) => void;
     onEnsureTestCase?: (data: TestData) => Promise<string | null>;
-    androidAvailable?: boolean;
 }
 
 interface BrowserEntry {
@@ -120,7 +119,7 @@ function buildSteps(data: TestData | undefined, browserId: string, validBrowserI
         }));
 }
 
-export default function TestForm({ onSubmit, isLoading, initialData, showNameInput, readOnly, onExport, onImport, testCaseId, onSaveDraft, onDiscard, isSaving, displayId, onDisplayIdChange, projectId, projectConfigs, testCaseConfigs, testCaseFiles, onTestCaseConfigsChange, onEnsureTestCase, androidAvailable = true }: TestFormProps) {
+export default function TestForm({ onSubmit, isLoading, initialData, showNameInput, readOnly, onExport, onImport, testCaseId, onSaveDraft, onDiscard, isSaving, displayId, onDisplayIdChange, projectId, projectConfigs, testCaseConfigs, testCaseFiles, onTestCaseConfigsChange, onEnsureTestCase }: TestFormProps) {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
     const [activeTab, setActiveTab] = useState<TestFormTab>('configurations');
@@ -468,7 +467,6 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                             readOnly={readOnly}
                             browsers={browsers}
                             setBrowsers={setBrowsers}
-                            androidAvailable={androidAvailable}
                         />
                     </div>
                 ) : (

@@ -12,12 +12,9 @@ Related docs:
 
 ## Runtime Capability Gating (Important)
 
-- Android support is now gated by two conditions:
-  - per-user feature flag (`androidEnabled`)
-  - server runtime capability (Android tooling available on the host)
-- Effective Android availability is `androidEnabled && androidRuntimeAvailable`.
+- Android support is gated solely by server runtime capability (Android tooling available on the host).
 - Non-Android servers are supported: the app should still boot and serve browser-only features.
-- Android UI/API surfaces should be hidden or rejected when the server runtime is not Android-capable (do not rely on the user flag alone).
+- Android UI/API surfaces should be hidden or rejected when the server runtime is not Android-capable.
 
 ## Deployment Model (Important)
 
@@ -43,7 +40,7 @@ Implications:
 
 Security behavior:
 
-- `/api/devices` requires auth + Android access (`androidEnabled && androidRuntimeAvailable`).
+- `/api/devices` requires auth + Android runtime availability.
 - `/api/devices` returns:
   - runtime device status for the current host/process (used by the project device panel)
   - host inventory (`connectedDevices`, `emulatorProfiles`) for device selection/UI display

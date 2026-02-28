@@ -181,7 +181,6 @@ interface ConfigurationsSectionProps {
     readOnly?: boolean;
     browsers: BrowserEntry[];
     setBrowsers: (browsers: BrowserEntry[]) => void;
-    androidAvailable?: boolean;
 }
 
 interface EditState {
@@ -264,7 +263,6 @@ export default function ConfigurationsSection({
     readOnly,
     browsers,
     setBrowsers,
-    androidAvailable = true,
 }: ConfigurationsSectionProps) {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
@@ -331,7 +329,7 @@ export default function ConfigurationsSection({
     }, [addTypeOpen, urlDropdownOpen, randomStringDropdownOpen, avdDropdownOpen, appDropdownOpen]);
 
     useEffect(() => {
-        if (readOnly || !projectId || !androidAvailable) return;
+        if (readOnly || !projectId) return;
         const fetchDeviceInventory = async () => {
             const token = await getAccessToken();
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
@@ -464,7 +462,7 @@ export default function ConfigurationsSection({
             }
         };
         void fetchDeviceInventory().catch(() => {});
-    }, [projectId, getAccessToken, androidAvailable, readOnly]);
+    }, [projectId, getAccessToken, readOnly]);
 
     const resolveTestCaseId = useCallback(async () => {
         if (testCaseId) {
@@ -1622,7 +1620,7 @@ export default function ConfigurationsSection({
                                 </svg>
                                 {t('configs.browser.addBrowser')}
                             </button>
-                            {androidAvailable && projectId && androidDeviceOptions.length > 0 && (
+                            {projectId && androidDeviceOptions.length > 0 && (
                                 <button
                                     type="button"
                                     onClick={handleAddAndroid}

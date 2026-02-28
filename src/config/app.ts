@@ -27,7 +27,6 @@ export const config = {
         maxConcurrentPerProject: 2,
         pollInterval: 500,
         sseConnectionTtlMs: 5 * 60 * 1000,
-        androidFeatureEnforcementIntervalMs: 15_000,
         logRetentionMs: 10000,
         maxEventsPerRun: 2000,
         maxScreenshotsPerRun: 300,

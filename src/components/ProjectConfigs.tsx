@@ -9,7 +9,6 @@ import GroupSelectInput from './GroupSelectInput';
 
 interface ProjectConfigsProps {
     projectId: string;
-    androidEnabled?: boolean;
 }
 
 const CONFIG_NAME_REGEX = /^[A-Z][A-Z0-9_]*$/;
@@ -79,7 +78,7 @@ function MaskedIcon({ masked }: { masked: boolean }) {
     );
 }
 
-export default function ProjectConfigs({ projectId, androidEnabled = false }: ProjectConfigsProps) {
+export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
     const [configs, setConfigs] = useState<ConfigItem[]>([]);
@@ -366,7 +365,6 @@ export default function ProjectConfigs({ projectId, androidEnabled = false }: Pr
             </div>
 
             {TYPE_SECTIONS
-                .filter(({ type }) => androidEnabled || type !== 'APP_ID')
                 .map(({ type, titleKey }) => {
                     const items = normalizeConfigTypeItems(configs.filter((config) => config.type === type));
                     const isAddingForType = editState?.type === type && !editState.id;
