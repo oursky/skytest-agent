@@ -30,7 +30,6 @@ export default function McpPage() {
     const [isGeneratedKeyCopied, setIsGeneratedKeyCopied] = useState(false);
     const [isConfigCopied, setIsConfigCopied] = useState(false);
     const [isInstallCommandCopied, setIsInstallCommandCopied] = useState(false);
-    const [activeConnectionTab, setActiveConnectionTab] = useState<'codingAgent' | 'claudeDesktop'>('codingAgent');
     const [isRevokeModalOpen, setIsRevokeModalOpen] = useState(false);
     const [keyToRevoke, setKeyToRevoke] = useState<AgentApiKey | null>(null);
     const [mcpEndpoint, setMcpEndpoint] = useState('/api/mcp');
@@ -122,7 +121,7 @@ export default function McpPage() {
 
     const handleCopyConfigExample = async () => {
         try {
-            await navigator.clipboard.writeText(activeConfigExample);
+            await navigator.clipboard.writeText(configExample);
             setIsConfigCopied(true);
             window.setTimeout(() => setIsConfigCopied(false), 1500);
         } catch (error) {
@@ -142,19 +141,7 @@ export default function McpPage() {
         }
     };
 
-    const codingAgentConfigExample = useMemo(() => `{
-  "mcpServers": {
-    "skytest": {
-      "transport": "streamable-http",
-      "url": "${mcpEndpoint}",
-      "headers": {
-        "Authorization": "Bearer <AGENT_API_KEY>"
-      }
-    }
-  }
-}`, [mcpEndpoint]);
-
-    const claudeDesktopConfigExample = useMemo(() => `{
+    const configExample = useMemo(() => `{
   "mcpServers": {
     "skytest": {
       "command": "npx",
@@ -174,8 +161,6 @@ export default function McpPage() {
     }
   }
 }`, [mcpEndpoint]);
-
-    const activeConfigExample = activeConnectionTab === 'codingAgent' ? codingAgentConfigExample : claudeDesktopConfigExample;
 
     if (isAuthLoading || isLoading) {
         return <div className="min-h-screen flex items-center justify-center text-gray-500">{t('common.loading')}</div>;
@@ -283,56 +268,17 @@ export default function McpPage() {
 
                 <div className="bg-white rounded-lg border border-gray-200 p-5">
                     <h2 className="text-lg font-semibold text-gray-800 mb-4">{t('mcp.connection.title')}</h2>
-                    <div className="border-b border-gray-200 mb-4">
-                        <nav className="flex gap-6 -mb-px">
-                            <button
-                                type="button"
-                                onClick={() => { setActiveConnectionTab('codingAgent'); setIsConfigCopied(false); }}
-                                className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeConnectionTab === 'codingAgent'
-                                    ? 'border-primary text-primary'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                }`}
-                            >
-                                {t('mcp.connection.tab.codingAgent')}
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => { setActiveConnectionTab('claudeDesktop'); setIsConfigCopied(false); }}
-                                className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeConnectionTab === 'claudeDesktop'
-                                    ? 'border-primary text-primary'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                }`}
-                            >
-                                {t('mcp.connection.tab.claudeDesktop')}
-                            </button>
-                        </nav>
+
+                    <div className="space-y-3 mb-5">
+                        <p className="text-sm text-gray-600">{t('mcp.connection.aiAgent.summary')}</p>
+                        <ol className="list-decimal list-inside space-y-1 text-sm text-gray-700">
+                            <li>{t('mcp.connection.aiAgent.step1')}</li>
+                            <li>{t('mcp.connection.aiAgent.step2')}</li>
+                            <li>{t('mcp.connection.aiAgent.step3')}</li>
+                        </ol>
                     </div>
 
-                    {activeConnectionTab === 'codingAgent' ? (
-                        <div className="space-y-3">
-                            <p className="text-sm text-gray-600">{t('mcp.connection.codingAgent.summary')}</p>
-                            <ol className="list-decimal list-inside space-y-1 text-sm text-gray-700">
-                                <li>{t('mcp.connection.codingAgent.step1')}</li>
-                                <li>{t('mcp.connection.codingAgent.step2')}</li>
-                                <li>{t('mcp.connection.codingAgent.step3')}</li>
-                            </ol>
-                        </div>
-                    ) : (
-                        <div className="space-y-3">
-                            <p className="text-sm text-gray-600">{t('mcp.connection.claudeDesktop.summary')}</p>
-                            <ol className="list-decimal list-inside space-y-1 text-sm text-gray-700">
-                                <li>{t('mcp.connection.claudeDesktop.step1')}</li>
-                                <li>{t('mcp.connection.claudeDesktop.step2')}</li>
-                                <li>{t('mcp.connection.claudeDesktop.step3')}</li>
-                            </ol>
-                        </div>
-                    )}
-
-                    <p className="text-sm text-gray-500 mt-5 mb-2">
-                        {activeConnectionTab === 'codingAgent'
-                            ? t('mcp.connection.codingAgent.configExample')
-                            : t('mcp.connection.claudeDesktop.configExample')}
-                    </p>
+                    <p className="text-sm text-gray-500 mb-2">{t('mcp.connection.aiAgent.configExample')}</p>
                     <div className="relative">
                         <button
                             onClick={handleCopyConfigExample}
@@ -352,7 +298,7 @@ export default function McpPage() {
                             )}
                         </button>
                         <pre className="bg-gray-50 text-gray-800 text-xs rounded border border-gray-200 p-3 overflow-x-auto">
-                            <code>{activeConfigExample}</code>
+                            <code>{configExample}</code>
                         </pre>
                     </div>
 
