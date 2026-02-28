@@ -1,4 +1,5 @@
 import type { ConfigType } from '@/types';
+import { normalizeConfigName } from '@/lib/config-validation';
 
 export interface GroupSortableConfig {
     name: string;
@@ -12,7 +13,7 @@ export function isGroupableConfigType(type: ConfigType): boolean {
 }
 
 export function normalizeConfigGroup(group?: string | null): string {
-    return (group || '').trim();
+    return normalizeConfigName(group || '');
 }
 
 export function compareByGroupThenName<T extends GroupSortableConfig>(a: T, b: T): number {

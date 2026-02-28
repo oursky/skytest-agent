@@ -8,9 +8,8 @@ import Link from 'next/link';
 import { normalizeAndroidTargetConfig } from '@/lib/android-target-config';
 import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } from '@/lib/config-sort';
 import { normalizeBrowserConfig, normalizeBrowserViewportDimensions } from '@/lib/browser-target';
+import { normalizeConfigName } from '@/lib/config-validation';
 import GroupSelectInput from './GroupSelectInput';
-
-const CONFIG_NAME_REGEX = /^[A-Z][A-Z0-9_]*$/;
 
 const TYPE_ORDER: ConfigType[] = ['URL', 'APP_ID', 'VARIABLE', 'FILE', 'RANDOM_STRING'];
 const ADDABLE_TEST_CASE_CONFIG_TYPES: ConfigType[] = ['URL', 'APP_ID', 'VARIABLE', 'RANDOM_STRING', 'FILE'];
@@ -478,14 +477,10 @@ export default function ConfigurationsSection({
         if (!editState) return;
         setError(null);
 
-        const normalizedName = editState.name.trim().toUpperCase();
+        const normalizedName = normalizeConfigName(editState.name);
 
         if (!normalizedName) {
             setError(t('configs.error.nameRequired'));
-            return;
-        }
-        if (!CONFIG_NAME_REGEX.test(normalizedName)) {
-            setError(t('configs.error.invalidName'));
             return;
         }
         if (editState.type !== 'FILE' && editState.type !== 'RANDOM_STRING' && !editState.value.trim()) {
@@ -613,13 +608,9 @@ export default function ConfigurationsSection({
         if (!draft) return;
         setError(null);
 
-        const normalizedName = draft.name.trim().toUpperCase();
+        const normalizedName = normalizeConfigName(draft.name);
         if (!normalizedName) {
             setError(t('configs.error.nameRequired'));
-            return;
-        }
-        if (!CONFIG_NAME_REGEX.test(normalizedName)) {
-            setError(t('configs.error.invalidName'));
             return;
         }
         if (!draft.file) {
@@ -927,14 +918,6 @@ export default function ConfigurationsSection({
                                     {config.type === 'VARIABLE' ? (
                                         <>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                                <input
-                                                    type="text"
-                                                    value={editState.name}
-                                                    onChange={(e) => setEditState({ ...editState, name: e.target.value })}
-                                                    onKeyDown={handleConfigEditorKeyDown}
-                                                    placeholder={t('configs.name.placeholder.enter')}
-                                                    className="h-8 w-full px-2 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
-                                                />
                                                 <GroupSelectInput
                                                     value={editState.group}
                                                     onChange={(group) => setEditState({ ...editState, group })}
@@ -942,6 +925,14 @@ export default function ConfigurationsSection({
                                                     onRemoveOption={handleRemoveGroup}
                                                     placeholder={t('configs.group.select')}
                                                     inputClassName="h-8"
+                                                />
+                                                <input
+                                                    type="text"
+                                                    value={editState.name}
+                                                    onChange={(e) => setEditState({ ...editState, name: e.target.value })}
+                                                    onKeyDown={handleConfigEditorKeyDown}
+                                                    placeholder={t('configs.name.placeholder.enter')}
+                                                    className="h-8 w-full px-2 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
                                                 />
                                             </div>
                                             <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -1108,6 +1099,14 @@ export default function ConfigurationsSection({
                             {editState.type === 'VARIABLE' ? (
                                 <>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                        <GroupSelectInput
+                                            value={editState.group}
+                                            onChange={(group) => setEditState({ ...editState, group })}
+                                            options={testCaseGroupOptions}
+                                            onRemoveOption={handleRemoveGroup}
+                                            placeholder={t('configs.group.select')}
+                                            inputClassName="h-8"
+                                        />
                                         <input
                                             type="text"
                                             value={editState.name}
@@ -1116,14 +1115,6 @@ export default function ConfigurationsSection({
                                             placeholder={t('configs.name.placeholder.enter')}
                                             className="h-8 w-full px-2 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
                                             autoFocus
-                                        />
-                                        <GroupSelectInput
-                                            value={editState.group}
-                                            onChange={(group) => setEditState({ ...editState, group })}
-                                            options={testCaseGroupOptions}
-                                            onRemoveOption={handleRemoveGroup}
-                                            placeholder={t('configs.group.select')}
-                                            inputClassName="h-8"
                                         />
                                     </div>
                                     <div className="mt-2 flex flex-wrap items-center gap-2">

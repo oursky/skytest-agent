@@ -37,16 +37,32 @@ export async function DELETE(
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const result = await prisma.projectConfig.updateMany({
+        const groupableConfigs = await prisma.projectConfig.findMany({
             where: {
                 projectId: id,
                 type: { in: GROUPABLE_CONFIG_TYPES },
-                group: normalizedGroup,
+                group: { not: null },
             },
-            data: {
-                group: null,
+            select: {
+                id: true,
+                group: true,
             }
         });
+
+        const matchingConfigIds = groupableConfigs
+            .filter((config) => normalizeConfigGroup(config.group) === normalizedGroup)
+            .map((config) => config.id);
+
+        const result = matchingConfigIds.length > 0
+            ? await prisma.projectConfig.updateMany({
+                where: {
+                    id: { in: matchingConfigIds },
+                },
+                data: {
+                    group: null,
+                }
+            })
+            : { count: 0 };
 
         return NextResponse.json({ success: true, updated: result.count });
     } catch (error) {

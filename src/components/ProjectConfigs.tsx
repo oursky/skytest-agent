@@ -5,13 +5,12 @@ import { useAuth } from '@/app/auth-provider';
 import { useI18n } from '@/i18n';
 import type { ConfigItem, ConfigType } from '@/types';
 import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } from '@/lib/config-sort';
+import { normalizeConfigName } from '@/lib/config-validation';
 import GroupSelectInput from './GroupSelectInput';
 
 interface ProjectConfigsProps {
     projectId: string;
 }
-
-const CONFIG_NAME_REGEX = /^[A-Z][A-Z0-9_]*$/;
 
 const TYPE_SECTIONS: { type: ConfigType; titleKey: string }[] = [
     { type: 'URL', titleKey: 'configs.title.urls' },
@@ -162,13 +161,9 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
         if (!editState) return;
         setError(null);
 
-        const normalizedName = editState.name.trim().toUpperCase();
+        const normalizedName = normalizeConfigName(editState.name);
         if (!normalizedName) {
             setError(t('configs.error.nameRequired'));
-            return;
-        }
-        if (!CONFIG_NAME_REGEX.test(normalizedName)) {
-            setError(t('configs.error.invalidName'));
             return;
         }
         if (editState.type !== 'FILE' && !editState.value.trim()) {
@@ -259,13 +254,9 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
         if (!draft) return;
         setError(null);
 
-        const normalizedName = draft.name.trim().toUpperCase();
+        const normalizedName = normalizeConfigName(draft.name);
         if (!normalizedName) {
             setError(t('configs.error.nameRequired'));
-            return;
-        }
-        if (!CONFIG_NAME_REGEX.test(normalizedName)) {
-            setError(t('configs.error.invalidName'));
             return;
         }
         if (!draft.file) {
@@ -400,14 +391,6 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                                 {type === 'VARIABLE' ? (
                                                     <>
                                                         <div className="flex flex-wrap md:flex-nowrap items-center gap-2">
-                                                            <input
-                                                                type="text"
-                                                                value={editState.name}
-                                                                onChange={(event) => setEditState({ ...editState, name: event.target.value })}
-                                                                onKeyDown={handleConfigEditorKeyDown}
-                                                                placeholder={t('configs.name.placeholder.enter')}
-                                                                className="h-9 w-full md:w-56 px-3 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                                                            />
                                                             <GroupSelectInput
                                                                 value={editState.group}
                                                                 onChange={(group) => setEditState({ ...editState, group })}
@@ -415,7 +398,15 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                                                 onRemoveOption={handleRemoveGroup}
                                                                 placeholder={t('configs.group.select')}
                                                                 containerClassName="relative w-full md:w-56"
-                                                                inputClassName="h-9"
+                                                                inputClassName="h-9 text-sm"
+                                                            />
+                                                            <input
+                                                                type="text"
+                                                                value={editState.name}
+                                                                onChange={(event) => setEditState({ ...editState, name: event.target.value })}
+                                                                onKeyDown={handleConfigEditorKeyDown}
+                                                                placeholder={t('configs.name.placeholder.enter')}
+                                                                className="h-9 w-full md:w-56 px-3 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                                                             />
                                                             <input
                                                                 type={editState.masked ? 'password' : 'text'}
@@ -520,6 +511,15 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                                 {type === 'VARIABLE' ? (
                                                     <>
                                                 <div className="flex flex-wrap md:flex-nowrap items-center gap-2">
+                                                    <GroupSelectInput
+                                                        value={editState.group}
+                                                        onChange={(group) => setEditState({ ...editState, group })}
+                                                        options={groupOptions}
+                                                        onRemoveOption={handleRemoveGroup}
+                                                        placeholder={t('configs.group.select')}
+                                                        containerClassName="relative w-full md:w-56"
+                                                        inputClassName="h-9 text-sm"
+                                                    />
                                                     <input
                                                         type="text"
                                                         value={editState.name}
@@ -528,15 +528,6 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                                         placeholder={t('configs.name.placeholder.enter')}
                                                         className="h-9 w-full md:w-56 px-3 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                                                         autoFocus
-                                                    />
-                                                    <GroupSelectInput
-                                                        value={editState.group}
-                                                        onChange={(group) => setEditState({ ...editState, group })}
-                                                        options={groupOptions}
-                                                        onRemoveOption={handleRemoveGroup}
-                                                        placeholder={t('configs.group.select')}
-                                                        containerClassName="relative w-full md:w-56"
-                                                        inputClassName="h-9"
                                                     />
                                                     <input
                                                         type={editState.masked ? 'password' : 'text'}

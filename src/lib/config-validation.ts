@@ -3,7 +3,27 @@ import type { ConfigType } from '@/types';
 const VALID_CONFIG_TYPES: ConfigType[] = ['URL', 'VARIABLE', 'RANDOM_STRING', 'FILE', 'APP_ID'];
 
 export function normalizeConfigName(name: string): string {
-    return name.trim().toUpperCase();
+    const trimmed = name.trim();
+    if (!trimmed) {
+        return '';
+    }
+
+    const withSeparatedWords = trimmed
+        .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+        .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2');
+    const snakeCaseName = withSeparatedWords
+        .replace(/[^a-zA-Z0-9]+/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .toUpperCase();
+
+    if (!snakeCaseName) {
+        return 'VAR';
+    }
+
+    return /^[A-Z]/.test(snakeCaseName)
+        ? snakeCaseName
+        : `VAR_${snakeCaseName}`;
 }
 
 export function validateConfigName(name: string): string | null {

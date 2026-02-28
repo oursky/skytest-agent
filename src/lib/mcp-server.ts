@@ -2,7 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { parseTestCaseJson, cleanStepsForStorage, normalizeTargetConfigMap } from '@/lib/test-case-utils';
-import { compareByGroupThenName, isGroupableConfigType } from '@/lib/config-sort';
+import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } from '@/lib/config-sort';
 import { validateConfigName, normalizeConfigName, validateConfigType } from '@/lib/config-validation';
 import { normalizeBrowserConfig } from '@/lib/browser-target';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
@@ -366,7 +366,7 @@ export function createMcpServer(): McpServer {
                             type: configType,
                             value: configInput.value || '',
                             masked: configType === 'VARIABLE' ? (configInput.masked ?? false) : false,
-                            group: groupable ? (configInput.group?.trim() || null) : null,
+                            group: groupable ? (normalizeConfigGroup(configInput.group) || null) : null,
                         }
                     });
                     createdTestCaseVariableCount += 1;

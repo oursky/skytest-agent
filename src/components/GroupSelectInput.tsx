@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useI18n } from '@/i18n';
+import { normalizeConfigGroup } from '@/lib/config-sort';
 
 interface GroupSelectInputProps {
     value: string;
@@ -15,7 +16,7 @@ interface GroupSelectInputProps {
 }
 
 function normalize(value: string): string {
-    return value.trim();
+    return normalizeConfigGroup(value);
 }
 
 export default function GroupSelectInput({
@@ -112,7 +113,7 @@ export default function GroupSelectInput({
                 >
                     <div className="flex h-full items-center gap-1.5">
                         {selectedGroup && (
-                            <span className="inline-flex max-w-full items-center rounded-md bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-700">
+                            <span className="inline-flex max-w-full items-center rounded-md bg-gray-100 px-2 py-0.5 text-inherit font-medium text-gray-700">
                                 <span className="truncate">{selectedGroup}</span>
                             </span>
                         )}
@@ -143,7 +144,7 @@ export default function GroupSelectInput({
                                 }
                             }}
                             placeholder={selectedGroup ? '' : placeholder}
-                            className="min-w-[84px] flex-1 bg-transparent text-xs text-gray-700 placeholder:text-gray-400 focus:outline-none"
+                            className="min-w-[84px] flex-1 bg-transparent text-inherit text-gray-700 placeholder:text-gray-400 focus:outline-none"
                         />
                     </div>
                 </div>
