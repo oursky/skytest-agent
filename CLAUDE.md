@@ -56,6 +56,7 @@ src/
 - `docs/maintainers/coding-agent-maintenance-guide.md` - Maintainer/coding-agent runtime invariants and footguns
 - `docs/maintainers/android-runtime-maintenance.md` - Android runtime behavior, isolation model, and hosting constraints
 - `docs/maintainers/test-case-excel-format.md` - Current import/export format contract (no backward compatibility)
+- `docs/maintainers/mcp-server-tooling.md` - MCP tool contracts for all registered tools (CRUD, stop-all, query)
 
 If you are changing operator-facing Android behavior, also read:
 - `docs/operators/mac-android-emulator-guide.md`

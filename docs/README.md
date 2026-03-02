@@ -22,6 +22,8 @@ Core app features can run without Android SDK/emulator tooling. Android operator
   - Android device runtime behavior, isolation model, and operational constraints
 - [`docs/maintainers/test-case-excel-format.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/test-case-excel-format.md)
   - current import/export Excel format contract and compatibility policy
+- [`docs/maintainers/mcp-server-tooling.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/mcp-server-tooling.md)
+  - MCP tool contracts for all registered tools (CRUD, stop-all, query)
 
 ## Design Notes / Plans
 

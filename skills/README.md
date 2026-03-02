@@ -1,25 +1,29 @@
 # Skills
 
-This project includes reusable AI coding skills for Claude Code and compatible agents.
+This project includes reusable skills for SkyTest workflows and codebase maintenance.
 
 ## For SkyTest Users
 
-Skills for anyone using SkyTest Agent to generate and manage test cases.
+SkyTest generation/maintenance skill for MCP-capable agents.
 
 | Skill | Command | Description |
 |-------|---------|-------------|
-| [skytest-create-test-case](./skytest-skills/skytest-create-test-case/SKILL.md) | `/skytest-create-test-case` | Confirm end-to-end flows step-by-step, then review and create test cases one-by-one (no batch create) |
-| [skytest-create-import-excel](./skytest-skills/skytest-create-import-excel/SKILL.md) | `/skytest-create-import-excel` | Generate import-ready Excel workbooks from confirmed test cases without MCP |
+| [skytest-generate](./skytest-skills/skytest-generate/SKILL.md) | `/skytest-generate` | Generate and maintain test cases from feature descriptions, screenshots, or user flows via MCP |
 
 ### Installation
 
+Copy the skill folder to your local skills directory for your agent client.
+
 ```bash
-mkdir -p ~/.agents/skills/skytest-skills ~/.claude/skills
+mkdir -p ~/.agents/skills/skytest-skills
 cp -r skills/skytest-skills/. ~/.agents/skills/skytest-skills/
-find ~/.agents/skills/skytest-skills -type f -name SKILL.md -exec dirname {} \; | while read -r d; do
-  ln -sfn "$d" ~/.claude/skills/$(basename "$d")
-done
 ```
+
+Common client-specific linking examples:
+
+- Claude Code / Claude Desktop: link to `~/.claude/skills/`
+- Codex: link/copy to `~/.codex/skills/`
+- Antigravity: use its configured skills directory
 
 ---
 
@@ -39,7 +43,7 @@ Skills for contributors working on the SkyTest Agent codebase.
 ```bash
 mkdir -p ~/.agents/skills ~/.claude/skills
 for s in commit review plan debug; do
-  cp -r skills/$s ~/.agents/skills/$s
+  cp -r skills/development-skills/$s ~/.agents/skills/$s
   ln -sf ~/.agents/skills/$s ~/.claude/skills/$s
 done
 ```
