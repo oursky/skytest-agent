@@ -6,11 +6,12 @@ import { parseTestCaseJson, cleanStepsForStorage, normalizeTargetConfigMap } fro
 import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } from '@/lib/config-sort';
 import { validateConfigName, normalizeConfigName, validateConfigType } from '@/lib/config-validation';
 import { normalizeBrowserConfig } from '@/lib/browser-target';
-import { listAndroidDeviceInventory, type AndroidDeviceInventory } from '@/lib/android-devices';
+import { listAndroidDeviceInventory } from '@/lib/android-devices';
+import { resolveAndroidDeviceSelector, type AndroidDeviceSelectorInput } from '@/lib/mcp/android-selector';
 import { ACTIVE_RUN_STATUSES } from '@/utils/statusHelpers';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { ServerRequest, ServerNotification } from '@modelcontextprotocol/sdk/types.js';
-import type { TestStep, BrowserConfig, TargetConfig, ConfigType, AndroidDeviceSelector } from '@/types';
+import type { TestStep, BrowserConfig, TargetConfig, ConfigType } from '@/types';
 
 type Extra = RequestHandlerExtra<ServerRequest, ServerNotification>;
 
@@ -47,12 +48,6 @@ function buildTargetIdGenerator(existingIds: Set<string>, prefix: 'browser' | 'a
             }
         }
     };
-}
-
-interface AndroidDeviceSelectorInput {
-    mode: 'emulator-profile' | 'connected-device';
-    emulatorProfileName?: string;
-    serial?: string;
 }
 
 const mcpStepSchema = z.object({
@@ -103,169 +98,6 @@ const mcpCreateTestCaseSchema = z.object({
 });
 
 type McpCreateTestCaseInput = z.infer<typeof mcpCreateTestCaseSchema>;
-
-function normalizeDeviceLookupValue(value: string): string {
-    return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
-}
-
-function buildConnectedDeviceLabel(device: AndroidDeviceInventory['connectedDevices'][number]): string {
-    if (device.kind === 'emulator') {
-        return device.emulatorProfileName || device.model || device.serial;
-    }
-    return [device.manufacturer, device.model].filter(Boolean).join(' ').trim() || device.serial;
-}
-
-function getUniqueProfileName(matches: ReadonlyArray<AndroidDeviceInventory['emulatorProfiles'][number]>): string | null {
-    const profileNames = Array.from(new Set(matches.map((profile) => profile.name)));
-    return profileNames.length === 1 ? profileNames[0] : null;
-}
-
-function resolveEmulatorProfileName(rawDevice: string, inventory: AndroidDeviceInventory): string | null {
-    const trimmed = rawDevice.trim();
-    if (!trimmed) {
-        return null;
-    }
-
-    const lower = trimmed.toLowerCase();
-    const normalized = normalizeDeviceLookupValue(trimmed);
-
-    const exactByName = inventory.emulatorProfiles.find((profile) => profile.name === trimmed);
-    if (exactByName) {
-        return exactByName.name;
-    }
-
-    const exactByNameIgnoreCase = getUniqueProfileName(
-        inventory.emulatorProfiles.filter((profile) => profile.name.toLowerCase() === lower)
-    );
-    if (exactByNameIgnoreCase) {
-        return exactByNameIgnoreCase;
-    }
-
-    const exactByDisplayName = getUniqueProfileName(
-        inventory.emulatorProfiles.filter((profile) => profile.displayName.toLowerCase() === lower)
-    );
-    if (exactByDisplayName) {
-        return exactByDisplayName;
-    }
-
-    const normalizedMatch = getUniqueProfileName(
-        inventory.emulatorProfiles.filter((profile) =>
-            normalizeDeviceLookupValue(profile.name) === normalized
-            || normalizeDeviceLookupValue(profile.displayName) === normalized
-        )
-    );
-    if (normalizedMatch) {
-        return normalizedMatch;
-    }
-
-    const prefixMatch = getUniqueProfileName(
-        inventory.emulatorProfiles.filter((profile) =>
-            profile.name.toLowerCase().startsWith(lower)
-            || profile.displayName.toLowerCase().startsWith(lower)
-        )
-    );
-    if (prefixMatch) {
-        return prefixMatch;
-    }
-
-    return null;
-}
-
-function resolveConnectedSerial(rawSerial: string, inventory: AndroidDeviceInventory): string | null {
-    const serialLookup = rawSerial.trim().toLowerCase();
-    if (!serialLookup) {
-        return null;
-    }
-    const matched = inventory.connectedDevices.find((device) => device.serial.toLowerCase() === serialLookup);
-    return matched?.serial ?? null;
-}
-
-function resolveConnectedDeviceByAlias(rawDevice: string, inventory: AndroidDeviceInventory): string | null {
-    const trimmed = rawDevice.trim();
-    if (!trimmed) {
-        return null;
-    }
-
-    const lower = trimmed.toLowerCase();
-    const normalized = normalizeDeviceLookupValue(trimmed);
-
-    const exactLabelMatches = inventory.connectedDevices.filter(
-        (device) => buildConnectedDeviceLabel(device).toLowerCase() === lower
-    );
-    const exactLabelSerials = Array.from(new Set(exactLabelMatches.map((device) => device.serial)));
-    if (exactLabelSerials.length === 1) {
-        return exactLabelSerials[0];
-    }
-
-    const normalizedMatches = inventory.connectedDevices.filter(
-        (device) => normalizeDeviceLookupValue(buildConnectedDeviceLabel(device)) === normalized
-    );
-    const normalizedSerials = Array.from(new Set(normalizedMatches.map((device) => device.serial)));
-    if (normalizedSerials.length === 1) {
-        return normalizedSerials[0];
-    }
-
-    const prefixMatches = inventory.connectedDevices.filter(
-        (device) => buildConnectedDeviceLabel(device).toLowerCase().startsWith(lower)
-    );
-    const prefixSerials = Array.from(new Set(prefixMatches.map((device) => device.serial)));
-    if (prefixSerials.length === 1) {
-        return prefixSerials[0];
-    }
-
-    return null;
-}
-
-function resolveAndroidDeviceSelector(
-    device?: string,
-    selector?: AndroidDeviceSelectorInput,
-    inventory?: AndroidDeviceInventory
-): AndroidDeviceSelector | null {
-    if (selector) {
-        if (selector.mode === 'connected-device') {
-            const serial = selector.serial?.trim();
-            if (serial) {
-                const resolvedSerial = inventory ? resolveConnectedSerial(serial, inventory) : null;
-                return { mode: 'connected-device', serial: resolvedSerial ?? serial };
-            }
-            return null;
-        }
-        const emulatorProfileName = selector.emulatorProfileName?.trim();
-        if (emulatorProfileName) {
-            const resolvedProfileName = inventory ? resolveEmulatorProfileName(emulatorProfileName, inventory) : null;
-            return { mode: 'emulator-profile', emulatorProfileName: resolvedProfileName ?? emulatorProfileName };
-        }
-        return null;
-    }
-
-    const rawDevice = device?.trim();
-    if (!rawDevice) {
-        return null;
-    }
-    if (rawDevice.toLowerCase().startsWith('serial:')) {
-        const serial = rawDevice.slice('serial:'.length).trim();
-        return serial ? { mode: 'connected-device', serial } : null;
-    }
-
-    if (inventory) {
-        const resolvedSerial = resolveConnectedSerial(rawDevice, inventory);
-        if (resolvedSerial) {
-            return { mode: 'connected-device', serial: resolvedSerial };
-        }
-
-        const resolvedProfileName = resolveEmulatorProfileName(rawDevice, inventory);
-        if (resolvedProfileName) {
-            return { mode: 'emulator-profile', emulatorProfileName: resolvedProfileName };
-        }
-
-        const aliasSerial = resolveConnectedDeviceByAlias(rawDevice, inventory);
-        if (aliasSerial) {
-            return { mode: 'connected-device', serial: aliasSerial };
-        }
-    }
-
-    return { mode: 'emulator-profile', emulatorProfileName: rawDevice };
-}
 
 export function createMcpServer(): McpServer {
     const server = new McpServer(
@@ -477,93 +309,97 @@ export function createMcpServer(): McpServer {
             : undefined;
         const normalizedUrl = testCase.url || firstBrowserTarget?.url || '';
 
-        const created = await prisma.testCase.create({
-            data: {
-                name,
-                url: normalizedUrl,
-                prompt: testCase.prompt,
-                steps: cleanedSteps ? JSON.stringify(cleanedSteps) : undefined,
-                browserConfig: normalizedBrowserConfig ? JSON.stringify(normalizedBrowserConfig) : undefined,
-                projectId,
-                displayId,
-                status: 'DRAFT',
-                source: 'agent',
-            },
-        });
+        const createResult = await prisma.$transaction(async (tx) => {
+            const created = await tx.testCase.create({
+                data: {
+                    name,
+                    url: normalizedUrl,
+                    prompt: testCase.prompt,
+                    steps: cleanedSteps ? JSON.stringify(cleanedSteps) : undefined,
+                    browserConfig: normalizedBrowserConfig ? JSON.stringify(normalizedBrowserConfig) : undefined,
+                    projectId,
+                    displayId,
+                    status: 'DRAFT',
+                    source: 'agent',
+                },
+            });
 
-        let createdTestCaseVariableCount = 0;
+            let createdTestCaseVariableCount = 0;
 
-        const testCaseVariables = [...(testCase.configs || []), ...(testCase.variables || [])];
-        if (testCaseVariables.length > 0) {
-            const projectConfigs = await prisma.projectConfig.findMany({ where: { projectId } });
+            const testCaseVariables = [...(testCase.configs || []), ...(testCase.variables || [])];
+            if (testCaseVariables.length > 0) {
+                const projectConfigs = await tx.projectConfig.findMany({ where: { projectId } });
 
-            for (const configInput of testCaseVariables) {
-                const nameError = validateConfigName(configInput.name);
-                if (nameError) {
-                    warnings.push(`Config "${configInput.name}": ${nameError}`);
-                    continue;
-                }
-                if (!validateConfigType(configInput.type)) {
-                    warnings.push(`Config "${configInput.name}": invalid type "${configInput.type}"`);
-                    continue;
-                }
+                for (const configInput of testCaseVariables) {
+                    const nameError = validateConfigName(configInput.name);
+                    if (nameError) {
+                        warnings.push(`Config "${configInput.name}": ${nameError}`);
+                        continue;
+                    }
+                    if (!validateConfigType(configInput.type)) {
+                        warnings.push(`Config "${configInput.name}": invalid type "${configInput.type}"`);
+                        continue;
+                    }
 
-                const normalizedName = normalizeConfigName(configInput.name);
-                const configType = configInput.type as ConfigType;
-                const configValue = configInput.value ?? '';
-                if (configType === 'FILE') {
-                    warnings.push(`Config "${normalizedName}" skipped: FILE upload is not supported in MCP create_test_case.`);
-                    continue;
-                }
+                    const normalizedName = normalizeConfigName(configInput.name);
+                    const configType = configInput.type as ConfigType;
+                    const configValue = configInput.value ?? '';
+                    if (configType === 'FILE') {
+                        warnings.push(`Config "${normalizedName}" skipped: FILE upload is not supported in MCP create_test_case.`);
+                        continue;
+                    }
 
-                const projectConfigWithSameName = projectConfigs.find(
-                    (pc) => normalizeConfigName(pc.name) === normalizedName && pc.type === configType
-                );
-                if (configValue.length === 0 && projectConfigWithSameName) {
-                    warnings.push(
-                        `Config "${normalizedName}" skipped: empty test-case value would override project config "${projectConfigWithSameName.name}".`
+                    const projectConfigWithSameName = projectConfigs.find(
+                        (pc) => normalizeConfigName(pc.name) === normalizedName && pc.type === configType
                     );
-                    continue;
-                }
+                    if (configValue.length === 0 && projectConfigWithSameName) {
+                        warnings.push(
+                            `Config "${normalizedName}" skipped: empty test-case value would override project config "${projectConfigWithSameName.name}".`
+                        );
+                        continue;
+                    }
 
-                const matchingProjectConfig = projectConfigs.find(
-                    pc => pc.value === configValue && pc.type === configType
-                );
-                if (matchingProjectConfig) {
-                    warnings.push(`Config "${normalizedName}" skipped: project variable "${matchingProjectConfig.name}" already has the same value — use it instead`);
-                    continue;
-                }
+                    const matchingProjectConfig = projectConfigs.find(
+                        pc => pc.value === configValue && pc.type === configType
+                    );
+                    if (matchingProjectConfig) {
+                        warnings.push(`Config "${normalizedName}" skipped: project variable "${matchingProjectConfig.name}" already has the same value — use it instead`);
+                        continue;
+                    }
 
-                const groupable = isGroupableConfigType(configType);
+                    const groupable = isGroupableConfigType(configType);
 
-                try {
-                    await prisma.testCaseConfig.create({
-                        data: {
-                            testCaseId: created.id,
-                            name: normalizedName,
-                            type: configType,
-                            value: configValue,
-                            masked: configType === 'VARIABLE' ? (configInput.masked ?? false) : false,
-                            group: groupable ? (normalizeConfigGroup(configInput.group) || null) : null,
+                    try {
+                        await tx.testCaseConfig.create({
+                            data: {
+                                testCaseId: created.id,
+                                name: normalizedName,
+                                type: configType,
+                                value: configValue,
+                                masked: configType === 'VARIABLE' ? (configInput.masked ?? false) : false,
+                                group: groupable ? (normalizeConfigGroup(configInput.group) || null) : null,
+                            }
+                        });
+                        createdTestCaseVariableCount += 1;
+                    } catch (error: unknown) {
+                        if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'P2002') {
+                            warnings.push(`Config "${normalizedName}" already exists, skipped`);
+                        } else {
+                            warnings.push(`Config "${normalizedName}" creation failed`);
                         }
-                    });
-                    createdTestCaseVariableCount += 1;
-                } catch (error: unknown) {
-                    if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'P2002') {
-                        warnings.push(`Config "${normalizedName}" already exists, skipped`);
-                    } else {
-                        warnings.push(`Config "${normalizedName}" creation failed`);
                     }
                 }
             }
-        }
+
+            return { created, createdTestCaseVariableCount };
+        });
 
         return textResult({
-            id: created.id,
-            name: created.name,
-            displayId: created.displayId,
+            id: createResult.created.id,
+            name: createResult.created.name,
+            displayId: createResult.created.displayId,
             createdTargets: normalizedBrowserConfig ? Object.keys(normalizedBrowserConfig).length : 0,
-            createdTestCaseVariables: createdTestCaseVariableCount,
+            createdTestCaseVariables: createResult.createdTestCaseVariableCount,
             warnings
         });
     };
@@ -699,112 +535,119 @@ export function createMcpServer(): McpServer {
         const warnings: string[] = [];
         const upsertConfigInputs = [...(configs ?? []), ...(variables ?? [])];
         const removeConfigInputs = [...(removeConfigNames ?? []), ...(removeVariableNames ?? [])];
-        let removedConfigs = 0;
-        let createdConfigs = 0;
-        let updatedConfigs = 0;
+        const updateResult = await prisma.$transaction(async (tx) => {
+            let removedConfigs = 0;
+            let createdConfigs = 0;
+            let updatedConfigs = 0;
 
-        const updated = await prisma.testCase.update({ where: { id: testCaseId }, data: updateData });
+            const updated = await tx.testCase.update({ where: { id: testCaseId }, data: updateData });
 
-        if (upsertConfigInputs.length > 0 || removeConfigInputs.length > 0) {
-            const existingConfigs = await prisma.testCaseConfig.findMany({
-                where: { testCaseId },
-                orderBy: { createdAt: 'asc' }
-            });
-            const existingByName = new Map<string, (typeof existingConfigs)[number]>();
-            for (const config of existingConfigs) {
-                existingByName.set(normalizeConfigName(config.name), config);
-            }
-
-            const normalizedRemoveNames = new Set<string>();
-            for (const rawName of removeConfigInputs) {
-                const nameError = validateConfigName(rawName);
-                if (nameError) {
-                    warnings.push(`Remove config "${rawName}": ${nameError}`);
-                    continue;
-                }
-                normalizedRemoveNames.add(normalizeConfigName(rawName));
-            }
-
-            for (const normalizedName of normalizedRemoveNames) {
-                const existingConfig = existingByName.get(normalizedName);
-                if (!existingConfig) {
-                    warnings.push(`Config "${normalizedName}" not found, skipped removal`);
-                    continue;
-                }
-                if (existingConfig.type === 'FILE') {
-                    warnings.push(`Config "${normalizedName}" skipped removal: FILE config removal is not supported via MCP update_test_case.`);
-                    continue;
+            if (upsertConfigInputs.length > 0 || removeConfigInputs.length > 0) {
+                const existingConfigs = await tx.testCaseConfig.findMany({
+                    where: { testCaseId },
+                    orderBy: { createdAt: 'asc' }
+                });
+                const existingByName = new Map<string, (typeof existingConfigs)[number]>();
+                for (const config of existingConfigs) {
+                    existingByName.set(normalizeConfigName(config.name), config);
                 }
 
-                await prisma.testCaseConfig.delete({ where: { id: existingConfig.id } });
-                existingByName.delete(normalizedName);
-                removedConfigs += 1;
-            }
-
-            for (const configInput of upsertConfigInputs) {
-                const nameError = validateConfigName(configInput.name);
-                if (nameError) {
-                    warnings.push(`Config "${configInput.name}": ${nameError}`);
-                    continue;
-                }
-                if (!validateConfigType(configInput.type)) {
-                    warnings.push(`Config "${configInput.name}": invalid type "${configInput.type}"`);
-                    continue;
-                }
-
-                const normalizedName = normalizeConfigName(configInput.name);
-                const configType = configInput.type as ConfigType;
-                const configValue = configInput.value ?? '';
-                if (configType === 'FILE') {
-                    warnings.push(`Config "${normalizedName}" skipped: FILE upload is not supported in MCP update_test_case.`);
-                    continue;
-                }
-
-                const groupable = isGroupableConfigType(configType);
-                const data = {
-                    name: normalizedName,
-                    type: configType,
-                    value: configValue,
-                    masked: configType === 'VARIABLE' ? (configInput.masked ?? false) : false,
-                    group: groupable ? (normalizeConfigGroup(configInput.group) || null) : null,
-                };
-
-                const existingConfig = existingByName.get(normalizedName);
-                if (existingConfig) {
-                    if (existingConfig.type === 'FILE') {
-                        warnings.push(`Config "${normalizedName}" skipped update: FILE config updates are not supported via MCP update_test_case.`);
+                const normalizedRemoveNames = new Set<string>();
+                for (const rawName of removeConfigInputs) {
+                    const nameError = validateConfigName(rawName);
+                    if (nameError) {
+                        warnings.push(`Remove config "${rawName}": ${nameError}`);
                         continue;
                     }
-                    const saved = await prisma.testCaseConfig.update({
-                        where: { id: existingConfig.id },
-                        data
-                    });
-                    existingByName.set(normalizedName, saved);
-                    updatedConfigs += 1;
-                } else {
-                    const createdConfig = await prisma.testCaseConfig.create({
-                        data: {
-                            ...data,
-                            testCaseId,
+                    normalizedRemoveNames.add(normalizeConfigName(rawName));
+                }
+
+                for (const normalizedName of normalizedRemoveNames) {
+                    const existingConfig = existingByName.get(normalizedName);
+                    if (!existingConfig) {
+                        warnings.push(`Config "${normalizedName}" not found, skipped removal`);
+                        continue;
+                    }
+                    if (existingConfig.type === 'FILE') {
+                        warnings.push(`Config "${normalizedName}" skipped removal: FILE config removal is not supported via MCP update_test_case.`);
+                        continue;
+                    }
+
+                    await tx.testCaseConfig.delete({ where: { id: existingConfig.id } });
+                    existingByName.delete(normalizedName);
+                    removedConfigs += 1;
+                }
+
+                for (const configInput of upsertConfigInputs) {
+                    const nameError = validateConfigName(configInput.name);
+                    if (nameError) {
+                        warnings.push(`Config "${configInput.name}": ${nameError}`);
+                        continue;
+                    }
+                    if (!validateConfigType(configInput.type)) {
+                        warnings.push(`Config "${configInput.name}": invalid type "${configInput.type}"`);
+                        continue;
+                    }
+
+                    const normalizedName = normalizeConfigName(configInput.name);
+                    const configType = configInput.type as ConfigType;
+                    const configValue = configInput.value ?? '';
+                    if (configType === 'FILE') {
+                        warnings.push(`Config "${normalizedName}" skipped: FILE upload is not supported in MCP update_test_case.`);
+                        continue;
+                    }
+
+                    const groupable = isGroupableConfigType(configType);
+                    const data = {
+                        name: normalizedName,
+                        type: configType,
+                        value: configValue,
+                        masked: configType === 'VARIABLE' ? (configInput.masked ?? false) : false,
+                        group: groupable ? (normalizeConfigGroup(configInput.group) || null) : null,
+                    };
+
+                    const existingConfig = existingByName.get(normalizedName);
+                    if (existingConfig) {
+                        if (existingConfig.type === 'FILE') {
+                            warnings.push(`Config "${normalizedName}" skipped update: FILE config updates are not supported via MCP update_test_case.`);
+                            continue;
                         }
-                    });
-                    existingByName.set(normalizedName, createdConfig);
-                    createdConfigs += 1;
+                        const saved = await tx.testCaseConfig.update({
+                            where: { id: existingConfig.id },
+                            data
+                        });
+                        existingByName.set(normalizedName, saved);
+                        updatedConfigs += 1;
+                    } else {
+                        const createdConfig = await tx.testCaseConfig.create({
+                            data: {
+                                ...data,
+                                testCaseId,
+                            }
+                        });
+                        existingByName.set(normalizedName, createdConfig);
+                        createdConfigs += 1;
+                    }
                 }
             }
-        }
+
+            return {
+                updated,
+                configChanges: {
+                    created: createdConfigs,
+                    updated: updatedConfigs,
+                    removed: removedConfigs,
+                }
+            };
+        });
 
         return textResult({
-            id: updated.id,
-            name: updated.name,
-            status: updated.status,
+            id: updateResult.updated.id,
+            name: updateResult.updated.name,
+            status: updateResult.updated.status,
             changedFields,
             cancelledRuns: activeRuns.map((run) => run.id),
-            configChanges: {
-                created: createdConfigs,
-                updated: updatedConfigs,
-                removed: removedConfigs,
-            },
+            configChanges: updateResult.configChanges,
             warnings,
         });
     });
