@@ -18,11 +18,11 @@ export function downloadBlob(blob: Blob, filename: string): void {
 
 export function extractFileName(headerValue: string | null, fallbackName: string): string {
     if (!headerValue) return fallbackName;
-    const utf8Match = headerValue.match(/filename\\*=UTF-8''([^;]+)/i);
+    const utf8Match = headerValue.match(/filename\*=UTF-8''([^;]+)/i);
     if (utf8Match?.[1]) {
         return decodeURIComponent(utf8Match[1]);
     }
-    const quotedMatch = headerValue.match(/filename=\"([^\"]+)\"/i);
+    const quotedMatch = headerValue.match(/filename="([^"]+)"/i);
     if (quotedMatch?.[1]) {
         return quotedMatch[1];
     }
