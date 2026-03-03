@@ -3,7 +3,7 @@
 import { compareByGroupThenName } from '@/lib/config/sort';
 import { useI18n } from '@/i18n';
 import type { ConfigItem, ConfigType } from '@/types';
-import GroupSelectInput from '@/components/ui/GroupSelectInput';
+import GroupSelectInput from '@/components/features/configurations/shared/GroupSelectInput';
 import ConfigHints from '@/components/features/configurations/shared/ConfigHints';
 import ConfigInlineEditor from './ConfigInlineEditor';
 import { useProjectConfigs } from './useProjectConfigs';
