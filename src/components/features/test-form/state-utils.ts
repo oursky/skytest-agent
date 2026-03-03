@@ -1,6 +1,6 @@
 import type { BrowserConfig, TargetConfig, TestStep } from '@/types';
 import { normalizeBrowserConfig } from '@/lib/config/browser-target';
-import type { BrowserEntry } from '@/components/features/configurations/sections/types';
+import type { BrowserEntry } from '@/components/features/configurations/model/types';
 import type { TestData } from './types';
 
 export function createStepId(prefix: string): string {

@@ -14,7 +14,7 @@ import {
     getRuntimeStatusKey,
     joinAndroidDeviceDetail,
     normalizeDeviceName,
-} from './device-utils';
+} from '../model/device-utils';
 
 interface UseAndroidDeviceOptionsParams {
     projectId?: string;

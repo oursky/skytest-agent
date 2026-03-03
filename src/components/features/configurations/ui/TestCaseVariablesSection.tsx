@@ -3,8 +3,8 @@ import { useI18n } from '@/i18n';
 import type { ConfigItem, ConfigType } from '@/types';
 import { getConfigTypeTitleKey } from '@/components/features/configurations/shared/config-utils';
 import GroupSelectInput from '@/components/features/configurations/shared/GroupSelectInput';
-import { ADDABLE_TEST_CASE_CONFIG_TYPES, RANDOM_STRING_GENERATION_TYPES, randomStringGenerationLabel, sortConfigs } from './config-helpers';
-import type { EditState, FileUploadDraft } from './config-types';
+import { ADDABLE_TEST_CASE_CONFIG_TYPES, RANDOM_STRING_GENERATION_TYPES, randomStringGenerationLabel, sortConfigs } from '../model/config-helpers';
+import type { EditState, FileUploadDraft } from '../model/config-types';
 import TestCaseConfigInlineEditor from './TestCaseConfigInlineEditor';
 
 interface TestCaseVariablesSectionProps {

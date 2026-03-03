@@ -7,11 +7,11 @@ import type { ConfigItem, BrowserConfig, TargetConfig, AndroidTargetConfig } fro
 import { isGroupableConfigType, normalizeConfigGroup } from '@/lib/config/sort';
 import { normalizeBrowserConfig, normalizeBrowserViewportDimensions } from '@/lib/config/browser-target';
 import { normalizeConfigName } from '@/lib/config/validation';
-import TargetConfigurationsPanel from './sections/TargetConfigurationsPanel';
-import ConfigurationVariablesPanel from './sections/ConfigurationVariablesPanel';
-import type { BrowserEntry } from './sections/types';
-import { useAndroidDeviceOptions } from './sections/useAndroidDeviceOptions';
-import type { EditState, FileUploadDraft } from './sections/config-types';
+import TargetConfigurationsPanel from './ui/TargetConfigurationsPanel';
+import ConfigurationVariablesPanel from './ui/ConfigurationVariablesPanel';
+import type { BrowserEntry } from './model/types';
+import { useAndroidDeviceOptions } from './hooks/useAndroidDeviceOptions';
+import type { EditState, FileUploadDraft } from './model/config-types';
 import {
     buildAuthHeaders,
     buildConfigDownloadEndpoint,

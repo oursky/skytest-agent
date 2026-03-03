@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { useI18n } from '@/i18n';
 import type { ConfigItem, ConfigType } from '@/types';
 import { getConfigTypeTitleKey } from '@/components/features/configurations/shared/config-utils';
-import { randomStringGenerationLabel, sortConfigs } from './config-helpers';
+import { randomStringGenerationLabel, sortConfigs } from '../model/config-helpers';
 
 interface ProjectVariablesSummaryProps {
     projectId?: string;

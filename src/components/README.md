@@ -10,8 +10,11 @@
 
 Each folder under `features/` owns one feature end-to-end.
 
-- `*.tsx`: UI components for that feature.
-- `*.ts`: non-UI logic (`types`, `hooks`, helpers, mapping/state utilities).
+- Prefer explicit internal folders:
+  - `ui/`: feature UI components (`*.tsx`).
+  - `model/`: feature types/helpers/state mapping (`*.ts`).
+  - `hooks/`: feature hooks (`use*.ts`).
+  - `shared/`: domain-shared pieces reused across related features.
 
 When a non-UI file is used by multiple features, move it to `src/lib/`.
 

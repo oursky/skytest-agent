@@ -7,8 +7,8 @@ import {
     AndroidDeviceOption,
     getAndroidDeviceSelectorLabel,
     isSameAndroidDeviceSelector,
-} from './device-utils';
-import type { BrowserEntry } from './types';
+} from '../model/device-utils';
+import type { BrowserEntry } from '../model/types';
 
 interface TargetConfigurationsPanelProps {
     readOnly?: boolean;

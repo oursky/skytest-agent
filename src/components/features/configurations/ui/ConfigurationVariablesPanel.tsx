@@ -1,6 +1,6 @@
 import type { KeyboardEvent, MutableRefObject } from 'react';
 import type { ConfigItem } from '@/types';
-import type { EditState, FileUploadDraft } from './config-types';
+import type { EditState, FileUploadDraft } from '../model/config-types';
 import ProjectVariablesSummary from './ProjectVariablesSummary';
 import TestCaseVariablesSection from './TestCaseVariablesSection';
 
