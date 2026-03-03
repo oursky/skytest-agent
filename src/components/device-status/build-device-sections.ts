@@ -7,19 +7,8 @@ import {
     joinAndroidDeviceDetail,
     normalizeDeviceName,
 } from '@/components/configurations-section/device-utils';
-import { formatAndroidDeviceDisplayName } from '@/lib/android/device-display';
 import type { DeviceStatusResponse, EmulatorRow } from './types';
-
-function buildConnectedDeviceTitle(device: ConnectedAndroidDeviceInfo): string {
-    return formatAndroidDeviceDisplayName(device);
-}
-
-function buildConnectedDeviceDetail(device: ConnectedAndroidDeviceInfo): string {
-    return joinAndroidDeviceDetail([
-        device.serial,
-        buildAndroidVersionDetail(device.androidVersion, device.apiLevel),
-    ]) || device.serial;
-}
+import { buildConnectedDeviceDetail, buildConnectedDeviceTitle } from './connected-device-presentation';
 
 export interface DeviceSections {
     connectedRuntimeBySerial: Map<string, AndroidDevicePoolStatusItem>;
