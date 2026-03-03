@@ -141,7 +141,6 @@ export const config = {
         allowedMimeTypes: [
             'application/pdf',
             'text/plain',
-            'text/markdown',
             'text/csv',
             'application/json',
             'application/xml',
@@ -158,7 +157,7 @@ export const config = {
             'application/vnd.openxmlformats-officedocument.presentationml.presentation',
         ] as string[],
         allowedExtensions: [
-            '.pdf', '.txt', '.md', '.csv', '.json', '.xml',
+            '.pdf', '.txt', '.csv', '.json', '.xml',
             '.jpg', '.jpeg', '.png', '.gif', '.webp',
             '.zip',
             '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
