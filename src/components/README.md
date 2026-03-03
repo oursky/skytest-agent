@@ -34,6 +34,6 @@ When a non-UI file is used by multiple features, move it to `src/lib/`.
 - Put `Header`, `Breadcrumbs`, and shell-specific blocks in `layout/`.
 - Do not place new feature files at `src/components` root.
 - Keep imports explicit by folder role:
-  - Feature entry points from `@/components/features/<feature>/...`
-  - Shared components from `@/components/shared/...`
-  - Layout from `@/components/layout/...`
+  - Prefer feature barrels: `@/components/features/<feature>`
+  - Prefer shared/layout barrels: `@/components/shared`, `@/components/layout`
+  - Use deep imports only for feature-internal wiring (`ui/model/hooks` internals)

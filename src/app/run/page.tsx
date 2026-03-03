@@ -3,9 +3,9 @@
 import { useState, useEffect, Suspense, useRef, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth } from "../auth-provider";
-import TestForm from "@/components/features/test-form/ui/TestForm";
-import ResultViewer from "@/components/features/result-viewer/ui/ResultViewer";
-import Breadcrumbs from "@/components/layout/Breadcrumbs";
+import { TestForm } from "@/components/features/test-form";
+import { ResultViewer } from "@/components/features/result-viewer";
+import { Breadcrumbs } from "@/components/layout";
 import { TestStep, BrowserConfig, TargetConfig, TestEvent, TestCaseFile, ConfigItem } from "@/types";
 import { exportToExcelArrayBuffer, parseTestCaseExcel } from "@/utils/testCaseExcel";
 import { useI18n } from "@/i18n";
