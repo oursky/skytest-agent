@@ -12,6 +12,16 @@ import { normalizeConfigName } from '@/lib/config/validation';
 import GroupSelectInput from './GroupSelectInput';
 import MaskedIcon from './config-shared/MaskedIcon';
 import {
+    buildAuthHeaders,
+    buildConfigDownloadEndpoint,
+    buildConfigGroupEndpoint,
+    buildConfigItemEndpoint,
+    buildConfigsEndpoint,
+    buildConfigUploadEndpoint,
+    collectConfigGroupOptions,
+    getConfigTypeTitleKey,
+} from './config-shared/config-utils';
+import {
     ADB_STATE_PRIORITY,
     AndroidDeviceOption,
     buildAndroidDeviceOptionDetail,
@@ -93,14 +103,9 @@ function randomStringGenerationLabel(value: string, t: (key: string) => string):
 }
 
 function TypeSubHeader({ type, t }: { type: ConfigType; t: (key: string) => string }) {
-    const key = type === 'URL' ? 'configs.title.urls'
-        : type === 'APP_ID' ? 'configs.title.appIds'
-        : type === 'VARIABLE' ? 'configs.title.variables'
-            : type === 'RANDOM_STRING' ? 'configs.title.randomStrings'
-                : 'configs.title.files';
     return (
         <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider pt-2 first:pt-0">
-            {t(key)}
+            {t(getConfigTypeTitleKey(type))}
         </div>
     );
 }
@@ -150,15 +155,7 @@ export default function ConfigurationsSection({
     const appDropdownRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
     const testCaseGroupOptions = useMemo(() => {
-        const groups = new Set<string>();
-        for (const config of testCaseConfigs) {
-            if (!isGroupableConfigType(config.type)) continue;
-            const group = normalizeConfigGroup(config.group);
-            if (group) {
-                groups.add(group);
-            }
-        }
-        return [...groups].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+        return collectConfigGroupOptions(testCaseConfigs);
     }, [testCaseConfigs]);
 
     useEffect(() => {
@@ -200,8 +197,10 @@ export default function ConfigurationsSection({
         if (readOnly || !projectId) return;
         const fetchDeviceInventory = async () => {
             const token = await getAccessToken();
-            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const res = await fetch(`/api/devices?projectId=${encodeURIComponent(projectId)}`, { headers });
+            const res = await fetch(
+                `/api/devices?projectId=${encodeURIComponent(projectId)}`,
+                { headers: buildAuthHeaders(token) }
+            );
             if (res.ok) {
                 const payload = await res.json() as DeviceInventoryResponse;
 
@@ -367,15 +366,11 @@ export default function ConfigurationsSection({
                 return;
             }
             const token = await getAccessToken();
-            const headers: HeadersInit = {
-                'Content-Type': 'application/json',
-                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-            };
 
             if (editState.id) {
-                const res = await fetch(`/api/test-cases/${targetTestCaseId}/configs/${editState.id}`, {
+                const res = await fetch(buildConfigItemEndpoint({ kind: 'test-case', id: targetTestCaseId }, editState.id), {
                     method: 'PUT',
-                    headers,
+                    headers: buildAuthHeaders(token, true),
                     body: JSON.stringify({
                         name: normalizedName,
                         type: editState.type,
@@ -390,9 +385,9 @@ export default function ConfigurationsSection({
                     return;
                 }
             } else {
-                const res = await fetch(`/api/test-cases/${targetTestCaseId}/configs`, {
+                const res = await fetch(buildConfigsEndpoint({ kind: 'test-case', id: targetTestCaseId }), {
                     method: 'POST',
-                    headers,
+                    headers: buildAuthHeaders(token, true),
                     body: JSON.stringify({
                         name: normalizedName,
                         type: editState.type,
@@ -422,10 +417,9 @@ export default function ConfigurationsSection({
             const targetTestCaseId = await resolveTestCaseId();
             if (!targetTestCaseId) return;
             const token = await getAccessToken();
-            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            await fetch(`/api/test-cases/${targetTestCaseId}/configs/${configId}`, {
+            await fetch(buildConfigItemEndpoint({ kind: 'test-case', id: targetTestCaseId }, configId), {
                 method: 'DELETE',
-                headers,
+                headers: buildAuthHeaders(token),
             });
             onTestCaseConfigsChange(targetTestCaseId);
         } catch (err) {
@@ -441,13 +435,9 @@ export default function ConfigurationsSection({
             const targetTestCaseId = await resolveTestCaseId();
             if (!targetTestCaseId) return;
             const token = await getAccessToken();
-            const headers: HeadersInit = {
-                'Content-Type': 'application/json',
-                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-            };
-            const response = await fetch(`/api/test-cases/${targetTestCaseId}/configs/groups`, {
+            const response = await fetch(buildConfigGroupEndpoint({ kind: 'test-case', id: targetTestCaseId }), {
                 method: 'DELETE',
-                headers,
+                headers: buildAuthHeaders(token, true),
                 body: JSON.stringify({ group: normalizedGroup }),
             });
             if (!response.ok) {
@@ -502,10 +492,9 @@ export default function ConfigurationsSection({
             const targetTestCaseId = await resolveTestCaseId();
             if (!targetTestCaseId) return;
             const token = await getAccessToken();
-            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const res = await fetch(`/api/test-cases/${targetTestCaseId}/configs/upload`, {
+            const res = await fetch(buildConfigUploadEndpoint({ kind: 'test-case', id: targetTestCaseId }), {
                 method: 'POST',
-                headers,
+                headers: buildAuthHeaders(token),
                 body: formData,
             });
             if (!res.ok) {
@@ -574,8 +563,10 @@ export default function ConfigurationsSection({
             const targetTestCaseId = await resolveTestCaseId();
             if (!targetTestCaseId) return;
             const token = await getAccessToken();
-            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const res = await fetch(`/api/test-cases/${targetTestCaseId}/configs/${config.id}/download`, { headers });
+            const res = await fetch(
+                buildConfigDownloadEndpoint({ kind: 'test-case', id: targetTestCaseId }, config.id),
+                { headers: buildAuthHeaders(token) }
+            );
             if (!res.ok) return;
             const blob = await res.blob();
             const url = URL.createObjectURL(blob);

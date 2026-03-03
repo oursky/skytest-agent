@@ -9,18 +9,23 @@ import { normalizeConfigName } from '@/lib/config/validation';
 import GroupSelectInput from './GroupSelectInput';
 import MaskedIcon from './config-shared/MaskedIcon';
 import ConfigHints from './config-shared/ConfigHints';
+import {
+    buildAuthHeaders,
+    buildConfigDisplayValue,
+    buildConfigDownloadEndpoint,
+    buildConfigGroupEndpoint,
+    buildConfigItemEndpoint,
+    buildConfigsEndpoint,
+    buildConfigUploadEndpoint,
+    collectConfigGroupOptions,
+    getConfigTypeTitleKey,
+} from './config-shared/config-utils';
 
 interface ProjectConfigsProps {
     projectId: string;
 }
 
-const TYPE_SECTIONS: { type: ConfigType; titleKey: string }[] = [
-    { type: 'URL', titleKey: 'configs.title.urls' },
-    { type: 'APP_ID', titleKey: 'configs.title.appIds' },
-    { type: 'VARIABLE', titleKey: 'configs.title.variables' },
-    { type: 'RANDOM_STRING', titleKey: 'configs.title.randomStrings' },
-    { type: 'FILE', titleKey: 'configs.title.files' },
-];
+const TYPE_SECTIONS: ConfigType[] = ['URL', 'APP_ID', 'VARIABLE', 'RANDOM_STRING', 'FILE'];
 
 interface EditState {
     id?: string;
@@ -49,16 +54,6 @@ function isGroupInputEnabled(type: ConfigType): boolean {
     return isGroupableConfigType(type);
 }
 
-function buildConfigDisplayValue(config: ConfigItem): string {
-    if (config.type === 'FILE') {
-        return config.filename || config.value;
-    }
-    if (config.masked) {
-        return '••••••';
-    }
-    return config.value;
-}
-
 export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
@@ -71,8 +66,10 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
     const fetchConfigs = useCallback(async () => {
         try {
             const token = await getAccessToken();
-            const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
-            const response = await fetch(`/api/projects/${projectId}/configs`, { headers });
+            const response = await fetch(
+                buildConfigsEndpoint({ kind: 'project', id: projectId }),
+                { headers: buildAuthHeaders(token) }
+            );
             if (!response.ok) {
                 return;
             }
@@ -89,15 +86,7 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
     }, [fetchConfigs]);
 
     const groupOptions = useMemo(() => {
-        const groups = new Set<string>();
-        for (const config of configs) {
-            if (!isGroupInputEnabled(config.type)) continue;
-            const group = normalizeConfigGroup(config.group);
-            if (group) {
-                groups.add(group);
-            }
-        }
-        return [...groups].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+        return collectConfigGroupOptions(configs);
     }, [configs]);
 
     const handleRemoveGroup = useCallback(async (group: string) => {
@@ -106,13 +95,9 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
 
         try {
             const token = await getAccessToken();
-            const headers: HeadersInit = {
-                'Content-Type': 'application/json',
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            };
-            const response = await fetch(`/api/projects/${projectId}/configs/groups`, {
+            const response = await fetch(buildConfigGroupEndpoint({ kind: 'project', id: projectId }), {
                 method: 'DELETE',
-                headers,
+                headers: buildAuthHeaders(token, true),
                 body: JSON.stringify({ group: normalizedGroup }),
             });
 
@@ -169,18 +154,13 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
 
         try {
             const token = await getAccessToken();
-            const headers: HeadersInit = {
-                'Content-Type': 'application/json',
-                ...(token ? { Authorization: `Bearer ${token}` } : {})
-            };
-
             const response = await fetch(
                 editState.id
-                    ? `/api/projects/${projectId}/configs/${editState.id}`
-                    : `/api/projects/${projectId}/configs`,
+                    ? buildConfigItemEndpoint({ kind: 'project', id: projectId }, editState.id)
+                    : buildConfigsEndpoint({ kind: 'project', id: projectId }),
                 {
                     method: editState.id ? 'PUT' : 'POST',
-                    headers,
+                    headers: buildAuthHeaders(token, true),
                     body: JSON.stringify(payload),
                 }
             );
@@ -202,10 +182,9 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
     const handleDelete = async (configId: string) => {
         try {
             const token = await getAccessToken();
-            const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
-            await fetch(`/api/projects/${projectId}/configs/${configId}`, {
+            await fetch(buildConfigItemEndpoint({ kind: 'project', id: projectId }, configId), {
                 method: 'DELETE',
-                headers,
+                headers: buildAuthHeaders(token),
             });
             await fetchConfigs();
         } catch (deleteError) {
@@ -216,8 +195,10 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
     const handleDownload = async (config: ConfigItem) => {
         try {
             const token = await getAccessToken();
-            const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
-            const response = await fetch(`/api/projects/${projectId}/configs/${config.id}/download`, { headers });
+            const response = await fetch(
+                buildConfigDownloadEndpoint({ kind: 'project', id: projectId }, config.id),
+                { headers: buildAuthHeaders(token) }
+            );
             if (!response.ok) return;
 
             const blob = await response.blob();
@@ -259,10 +240,9 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
 
         try {
             const token = await getAccessToken();
-            const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
-            const response = await fetch(`/api/projects/${projectId}/configs/upload`, {
+            const response = await fetch(buildConfigUploadEndpoint({ kind: 'project', id: projectId }), {
                 method: 'POST',
-                headers,
+                headers: buildAuthHeaders(token),
                 body: formData,
             });
             if (!response.ok) {
@@ -328,7 +308,7 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
             <ConfigHints />
 
             {TYPE_SECTIONS
-                .map(({ type, titleKey }) => {
+                .map((type) => {
                     const items = normalizeConfigTypeItems(configs.filter((config) => config.type === type));
                     const isAddingForType = editState?.type === type && !editState.id;
                     const isAddingFileForType = type === 'FILE' && fileUploadDraft !== null;
@@ -337,7 +317,7 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                         <div key={type} className="bg-white rounded-lg shadow-sm border border-gray-200">
                             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                                 <div className="flex items-center gap-2">
-                                    <h3 className="text-sm font-semibold text-gray-700">{t(titleKey)}</h3>
+                                    <h3 className="text-sm font-semibold text-gray-700">{t(getConfigTypeTitleKey(type))}</h3>
                                     {items.length > 0 && (
                                         <span className="text-xs text-gray-400">({items.length})</span>
                                     )}

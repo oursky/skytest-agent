@@ -5,6 +5,7 @@ import { TestStep, BrowserConfig, TargetConfig, ConfigItem, TestCaseFile } from 
 import BuilderForm from './BuilderForm';
 import ConfigurationsSection from './ConfigurationsSection';
 import ConfigHints from './config-shared/ConfigHints';
+import { buildAuthHeaders, buildConfigsEndpoint } from './config-shared/config-utils';
 import { useI18n } from '@/i18n';
 import { useAuth } from '@/app/auth-provider';
 import { normalizeBrowserConfig } from '@/lib/config/browser-target';
@@ -206,14 +207,11 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
             if (configsToCreate.length === 0) return;
 
             const token = await getAccessToken();
-            const headers: HeadersInit = {
-                'Content-Type': 'application/json',
-                ...(token ? { Authorization: `Bearer ${token}` } : {})
-            };
+            const headers = buildAuthHeaders(token, true);
             if (targetTestCaseId) {
                 let hasCreatedTestCaseConfig = false;
                 for (const cfg of configsToCreate) {
-                    const response = await fetch(`/api/test-cases/${targetTestCaseId}/configs`, {
+                    const response = await fetch(buildConfigsEndpoint({ kind: 'test-case', id: targetTestCaseId }), {
                         method: 'POST',
                         headers,
                         body: JSON.stringify(cfg)
@@ -232,7 +230,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
 
             if (projectId) {
                 for (const cfg of configsToCreate) {
-                    const response = await fetch(`/api/projects/${projectId}/configs`, {
+                    const response = await fetch(buildConfigsEndpoint({ kind: 'project', id: projectId }), {
                         method: 'POST',
                         headers,
                         body: JSON.stringify(cfg)
