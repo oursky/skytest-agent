@@ -18,7 +18,7 @@ Related docs:
 
 ## Deployment Model (Important)
 
-- `src/lib/queue.ts`, `src/lib/android-device-manager.ts`, and `src/lib/emulator-pool.ts` are in-process singletons.
+- `src/lib/runtime/queue.ts`, `src/lib/android/device-manager.ts`, and `src/lib/android/emulator-pool.ts` are in-process singletons.
 - Queue state, device ownership, and emulator wait queues live only in memory.
 - This runtime is currently intended for a single long-lived app process.
 

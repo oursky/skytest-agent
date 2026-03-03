@@ -4,7 +4,7 @@ This document defines current SkyTest MCP tool behavior for maintainers.
 
 ## Source of Truth
 
-- MCP server implementation: `src/lib/mcp-server.ts`
+- MCP server implementation: `src/lib/mcp/server.ts`
 - HTTP transport endpoint: `src/app/api/mcp/route.ts`
 
 ## Tool Contracts

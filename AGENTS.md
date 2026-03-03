@@ -3,12 +3,16 @@
 ## Project Map
 ```
 src/
-├── lib/                    # Core singletons - backend logic lives here
-│   ├── queue.ts            # Job queue (singleton) - test scheduling
-│   ├── test-runner.ts      # Playwright/Midscene execution engine
-│   ├── prisma.ts           # Database client (singleton)
-│   ├── auth.ts             # Authentication helpers
-│   └── usage.ts            # API usage tracking
+├── lib/                    # Backend domain modules + singletons
+│   ├── runtime/            # Run lifecycle and execution
+│   │   ├── queue.ts        # Job queue (singleton) - test scheduling
+│   │   ├── test-runner.ts  # Playwright/Midscene execution engine
+│   │   └── usage.ts        # API usage tracking
+│   ├── android/            # Android devices/emulators runtime
+│   ├── core/               # Shared core modules (prisma/logger/errors)
+│   ├── security/           # Authentication + security helpers
+│   ├── config/             # Config parsing/validation/sorting
+│   └── mcp/                # MCP server/tooling
 │
 ├── app/                    # Next.js App Router
 │   ├── api/                # REST API endpoints
@@ -20,11 +24,29 @@ src/
 │   ├── test-cases/[id]/    # Test case history views
 │   └── run/                # Main test runner page
 │
-├── components/             # React components
-│   ├── BuilderForm.tsx     # Test case editor
-│   ├── TestForm.tsx        # Test configuration form
-│   ├── ResultViewer.tsx    # Test result display
-│   └── FileList.tsx        # File management UI
+├── components/             # React components (feature-first)
+│   ├── features/
+│   │   ├── test-form/      # Builder + step editing
+│   │   │   ├── ui/
+│   │   │   ├── model/
+│   │   │   └── hooks/
+│   │   ├── configurations/ # Target/test config composition
+│   │   │   ├── ui/
+│   │   │   ├── model/
+│   │   │   └── hooks/
+│   │   ├── result-viewer/  # Run timeline + status
+│   │   │   └── ui/
+│   │   ├── project-configs/# Project-level config management
+│   │   │   ├── ui/
+│   │   │   ├── model/
+│   │   │   └── hooks/
+│   │   ├── files/          # File upload/list widgets
+│   │   │   └── ui/
+│   │   └── device-status/  # Android device status presentation
+│   │       ├── ui/
+│   │       └── model/
+│   ├── shared/             # Cross-feature reusable UI
+│   └── layout/             # Page-level layout primitives
 │
 ├── types/                  # TypeScript interfaces
 │   └── index.ts            # All type exports
@@ -36,14 +58,14 @@ src/
 
 | Task | Start Here | Related Files |
 |------|------------|---------------|
-| Fix test execution | `src/lib/test-runner.ts` | `src/lib/queue.ts` |
-| Fix queue/scheduling | `src/lib/queue.ts` | `src/lib/test-runner.ts` |
-| Fix SSE/real-time updates | `src/app/api/test-runs/[id]/events/route.ts` | `src/components/ResultViewer.tsx` |
+| Fix test execution | `src/lib/runtime/test-runner.ts` | `src/lib/runtime/queue.ts` |
+| Fix queue/scheduling | `src/lib/runtime/queue.ts` | `src/lib/runtime/test-runner.ts` |
+| Fix SSE/real-time updates | `src/app/api/test-runs/[id]/events/route.ts` | `src/components/features/result-viewer/ui/ResultViewer.tsx` |
 | Fix test case CRUD | `src/app/api/test-cases/` | `src/types/test.ts` |
-| Fix project CRUD | `src/app/api/projects/` | `src/lib/prisma.ts` |
-| Fix authentication | `src/lib/auth.ts` | `src/app/api/` |
+| Fix project CRUD | `src/app/api/projects/` | `src/lib/core/prisma.ts` |
+| Fix authentication | `src/lib/security/auth.ts` | `src/app/api/` |
 | Fix UI components | `src/components/` | component-specific |
-| Add new API endpoint | `src/app/api/` | `src/types/`, `src/lib/prisma.ts` |
+| Add new API endpoint | `src/app/api/` | `src/types/`, `src/lib/core/prisma.ts` |
 | Change DB schema | `prisma/schema.prisma` | `src/types/` |
 
 ## Tech Stack
@@ -53,7 +75,7 @@ src/
 
 ## Rules
 1. **No `any`** - All types in `src/types/index.ts`
-2. **Singletons only** - Use `lib/prisma.ts` and `lib/queue.ts`, never create new instances
+2. **Singletons only** - Use `src/lib/core/prisma.ts` and `src/lib/runtime/queue.ts`, never create new instances
 3. **No hardcoding** - Use `src/config/app.ts`
 4. **Minimal diffs** - Change only what's necessary
 5. **Match existing style** - No reformatting unrelated code
@@ -85,8 +107,8 @@ src/
 ### API Endpoint with Auth + Ownership
 ```typescript
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { verifyAuth } from '@/lib/auth';
+import { prisma } from '@/lib/core/prisma';
+import { verifyAuth } from '@/lib/security/auth';
 
 export async function GET(
     request: Request,
@@ -178,8 +200,10 @@ return NextResponse.json({
 |------|----------|
 | API endpoint | `src/app/api/<resource>/route.ts` |
 | Page | `src/app/<path>/page.tsx` |
-| Component | `src/components/<Name>.tsx` |
-| Shared logic | `src/lib/<module>.ts` |
+| Feature component | `src/components/features/<feature>/ui/<Name>.tsx` |
+| Feature hooks/model | `src/components/features/<feature>/{hooks,model}/<module>.ts` |
+| Shared/Layout component | `src/components/{shared,layout}/<Name>.tsx` |
+| Shared logic | `src/lib/<domain>/<module>.ts` |
 | Types | `src/types/<category>.ts` + re-export in `index.ts` |
 | Config | `src/config/app.ts` |
 | i18n messages | `src/i18n/messages.ts` (all three locales: en, zh-Hant, zh-Hans) |

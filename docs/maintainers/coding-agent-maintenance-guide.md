@@ -12,7 +12,7 @@ It complements `AGENTS.md` with project-specific runtime invariants that are eas
 
 ## High-Risk Runtime Areas
 
-### 1. Test Queue (`src/lib/queue.ts`)
+### 1. Test Queue (`src/lib/runtime/queue.ts`)
 
 Responsibilities:
 
@@ -28,7 +28,7 @@ Key invariants:
 - cancellation should not be overwritten by late job completion
 - cleanup may be triggered from both queue cancellation and test-runner teardown, so cleanup paths must be idempotent
 
-### 2. Test Runner (`src/lib/test-runner.ts`)
+### 2. Test Runner (`src/lib/runtime/test-runner.ts`)
 
 Responsibilities:
 
@@ -44,7 +44,7 @@ Key invariants:
 - Android `clearAppData` semantics must remain consistent between pre-launch and release cleanup
 - cleanup must remain safe if called more than once
 
-### 3. Android Device Manager (`src/lib/android-device-manager.ts`)
+### 3. Android Device Manager (`src/lib/android/device-manager.ts`)
 
 Responsibilities:
 
@@ -59,7 +59,7 @@ Key invariants:
 - emulator and physical-device cleanup paths must remain idempotent
 - status visibility/ownership fields used by `/api/devices` must stay consistent with auth checks
 
-### 4. Emulator Pool (`src/lib/emulator-pool.ts`)
+### 4. Emulator Pool (`src/lib/android/emulator-pool.ts`)
 
 Responsibilities:
 
