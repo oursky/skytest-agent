@@ -49,6 +49,16 @@ function isAndroidTarget(cfg: BrowserConfig | TargetConfig): cfg is AndroidTarge
     return 'type' in cfg && cfg.type === 'android';
 }
 
+function isValidAndroidPackageName(appId: string): boolean {
+    return /^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$/.test(appId);
+}
+
+function assertValidAndroidPackageName(appId: string, targetLabel: string): void {
+    if (!isValidAndroidPackageName(appId)) {
+        throw new ConfigurationError(`Android target "${targetLabel}" has invalid app ID "${appId}"`, 'android');
+    }
+}
+
 function sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -157,7 +167,7 @@ async function recoverAndroidDeviceConnection(
         }).catch(() => false);
 
         if (!reconnected) {
-            await sleep(1000);
+            await sleep(config.test.android.recoveryRetryDelayMs);
             continue;
         }
 
@@ -171,7 +181,7 @@ async function recoverAndroidDeviceConnection(
         if (appId) {
             await forceStopAndroidApp(device, appId).catch(() => {});
             await launchAndroidAppWithLauncherIntent(device, appId).catch(() => false);
-            await waitForAndroidAppForeground(device, appId, 10_000).catch(() => false);
+            await waitForAndroidAppForeground(device, appId, config.test.android.recoveryForegroundTimeoutMs).catch(() => false);
         }
 
         try {
@@ -184,7 +194,7 @@ async function recoverAndroidDeviceConnection(
                 'error',
                 targetId
             );
-            await sleep(1000);
+            await sleep(config.test.android.recoveryRetryDelayMs);
         }
     }
 
@@ -204,7 +214,7 @@ async function waitForAndroidUiReadyForAction(
     await runAndroidAgentOperation(
         () => agent.aiWaitFor(
             `The app is no longer on a splash or loading screen and is ready for this action: ${stepAction}`,
-            { timeoutMs, checkIntervalMs: 1000 }
+            { timeoutMs, checkIntervalMs: config.test.android.uiReadyCheckIntervalMs }
         ),
         'wait for UI readiness',
         signal,
@@ -232,7 +242,7 @@ async function waitForAndroidAppForeground(
         if (await isAndroidAppInForeground(device, appId)) {
             return true;
         }
-        await sleep(500);
+        await sleep(config.test.android.wakeUnlockStabilizationMs);
     }
     return false;
 }
@@ -723,12 +733,14 @@ async function setupExecutionTargets(
                 throw new ConfigurationError('Android target must include a device.', 'android');
             }
 
-            if (!androidConfig.appId) {
+            const appId = androidConfig.appId.trim();
+            if (!appId) {
                 throw new ConfigurationError('Android target must include an app ID.', 'android');
             }
+            assertValidAndroidPackageName(appId, targetLabel);
 
             const handle = await androidDeviceManager.acquire(projectId, androidConfig.deviceSelector, runId, signal);
-            handle.packageName = androidConfig.appId;
+            handle.packageName = appId;
             handle.clearPackageDataOnRelease = androidConfig.clearAppState;
             androidDeviceLeases.set(targetId, handle);
 
@@ -740,10 +752,10 @@ async function setupExecutionTargets(
 
             const androidDevice = handle.device;
 
-            const packageInstalled = await isAndroidPackageInstalled(androidDevice, androidConfig.appId);
+            const packageInstalled = await isAndroidPackageInstalled(androidDevice, appId);
             if (!packageInstalled) {
                 throw new ConfigurationError(
-                    `App ID "${androidConfig.appId}" is not installed on device "${handle.id}".`,
+                    `App ID "${appId}" is not installed on device "${handle.id}".`,
                     'android'
                 );
             }
@@ -754,7 +766,7 @@ async function setupExecutionTargets(
             ): Promise<boolean> => {
                 const required = options?.required ?? true;
                 try {
-                    await forceStopAndroidApp(androidDevice, androidConfig.appId);
+                    await forceStopAndroidApp(androidDevice, appId);
                     return true;
                 } catch (error) {
                     const message = getErrorMessage(error);
@@ -764,24 +776,24 @@ async function setupExecutionTargets(
                             targetLabel,
                             log,
                             targetId,
-                            androidConfig.appId,
+                            appId,
                             signal
                         );
 
                         if (recovered) {
                             try {
-                                await forceStopAndroidApp(androidDevice, androidConfig.appId);
+                                await forceStopAndroidApp(androidDevice, appId);
                                 return true;
                             } catch (retryError) {
                                 const retryMessage = getErrorMessage(retryError);
                                 if (required) {
                                     throw new ConfigurationError(
-                                        `Failed to force-stop "${androidConfig.appId}" on device "${handle.id}" ${reason}: ${retryMessage}`,
+                                        `Failed to force-stop "${appId}" on device "${handle.id}" ${reason}: ${retryMessage}`,
                                         'android'
                                     );
                                 }
                                 log(
-                                    `Failed to force-stop "${androidConfig.appId}" on device "${handle.id}" ${reason}: ${retryMessage}. Continuing without force-stop.`,
+                                    `Failed to force-stop "${appId}" on device "${handle.id}" ${reason}: ${retryMessage}. Continuing without force-stop.`,
                                     'info',
                                     targetId
                                 );
@@ -792,14 +804,14 @@ async function setupExecutionTargets(
 
                     if (!required) {
                         log(
-                            `Failed to force-stop "${androidConfig.appId}" on device "${handle.id}" ${reason}: ${message}. Continuing without force-stop.`,
+                            `Failed to force-stop "${appId}" on device "${handle.id}" ${reason}: ${message}. Continuing without force-stop.`,
                             'info',
                             targetId
                         );
                         return false;
                     }
                     throw new ConfigurationError(
-                        `Failed to force-stop "${androidConfig.appId}" on device "${handle.id}" ${reason}: ${message}`,
+                        `Failed to force-stop "${appId}" on device "${handle.id}" ${reason}: ${message}`,
                         'android'
                     );
                 }
@@ -810,10 +822,10 @@ async function setupExecutionTargets(
 
             if (androidConfig.clearAppState) {
                 log(`Clearing app data for ${targetLabel}...`, 'info', targetId);
-                const cleared = await clearAndroidAppData(androidDevice, androidConfig.appId);
+                const cleared = await clearAndroidAppData(androidDevice, appId);
                 if (!cleared) {
                     throw new ConfigurationError(
-                        `Failed to clear app data for "${androidConfig.appId}" on device "${handle.id}".`,
+                        `Failed to clear app data for "${appId}" on device "${handle.id}".`,
                         'android'
                     );
                 }
@@ -823,7 +835,7 @@ async function setupExecutionTargets(
 
             if (androidConfig.allowAllPermissions) {
                 log(`Auto-granting app permissions for ${targetLabel}...`, 'info', targetId);
-                await grantAndroidAppPermissions(androidDevice, androidConfig.appId, log, targetId);
+                await grantAndroidAppPermissions(androidDevice, appId, log, targetId);
             }
 
             if (!handle.agent) {
@@ -858,7 +870,7 @@ async function setupExecutionTargets(
             let launched = false;
             try {
                 await runAndroidAgentOperation(
-                    () => handle.agent!.launch(androidConfig.appId),
+                    () => handle.agent!.launch(appId),
                     'app launch',
                     signal,
                     ANDROID_AGENT_LAUNCH_TIMEOUT_MS
@@ -867,30 +879,34 @@ async function setupExecutionTargets(
             } catch (error) {
                 log(`Agent launch failed for ${targetLabel}, falling back to launcher intent...`, 'info', targetId);
                 await forceStopBeforeLaunch('before fallback launch', { required: false });
-                const launchedByIntent = await launchAndroidAppWithLauncherIntent(androidDevice, androidConfig.appId);
+                const launchedByIntent = await launchAndroidAppWithLauncherIntent(androidDevice, appId);
                 if (!launchedByIntent) {
                     const message = error instanceof Error ? error.message : String(error);
                     throw new ConfigurationError(
-                        `Failed to launch "${androidConfig.appId}" on device "${handle.id}": ${message}`,
+                        `Failed to launch "${appId}" on device "${handle.id}": ${message}`,
                         'android'
                     );
                 }
             }
 
-            const foregroundReady = await waitForAndroidAppForeground(androidDevice, androidConfig.appId, 20_000);
+            const foregroundReady = await waitForAndroidAppForeground(
+                androidDevice,
+                appId,
+                config.test.android.launchForegroundTimeoutMs
+            );
             if (!foregroundReady) {
                 if (launched) {
                     await forceStopBeforeLaunch('before fallback relaunch', { required: false });
-                    const fallbackLaunchSucceeded = await launchAndroidAppWithLauncherIntent(androidDevice, androidConfig.appId);
-                    if (!fallbackLaunchSucceeded || !(await waitForAndroidAppForeground(androidDevice, androidConfig.appId, 10_000))) {
+                    const fallbackLaunchSucceeded = await launchAndroidAppWithLauncherIntent(androidDevice, appId);
+                    if (!fallbackLaunchSucceeded || !(await waitForAndroidAppForeground(androidDevice, appId, config.test.android.recoveryForegroundTimeoutMs))) {
                         throw new ConfigurationError(
-                            `App "${androidConfig.appId}" did not reach foreground on device "${handle.id}".`,
+                            `App "${appId}" did not reach foreground on device "${handle.id}".`,
                             'android'
                         );
                     }
                 } else {
                     throw new ConfigurationError(
-                        `App "${androidConfig.appId}" did not reach foreground on device "${handle.id}".`,
+                        `App "${appId}" did not reach foreground on device "${handle.id}".`,
                         'android'
                     );
                 }
@@ -915,13 +931,13 @@ async function setupExecutionTargets(
                 }
 
                 const recovered = await recoverAndroidDeviceConnection(
-                    handle,
-                    targetLabel,
-                    log,
-                    targetId,
-                    androidConfig.appId,
-                    signal
-                );
+                        handle,
+                        targetLabel,
+                        log,
+                        targetId,
+                        appId,
+                        signal
+                    );
                 if (!recovered) {
                     throw new ConfigurationError(
                         `Device "${handle.id}" went offline after launch and could not recover.`,
@@ -1110,42 +1126,6 @@ async function verifyQuotedStringsExist(
     }
 }
 
-function parseCodeIntoStatements(code: string): string[] {
-    const statements: string[] = [];
-    const lines = code.split('\n');
-    let currentStatement = '';
-
-    for (const line of lines) {
-        const trimmed = line.trim();
-
-        if (!trimmed || trimmed.startsWith('//')) {
-            continue;
-        }
-
-        if (currentStatement) {
-            currentStatement += '\n' + line;
-        } else {
-            currentStatement = line;
-        }
-
-        const openParens = (currentStatement.match(/\(/g) || []).length;
-        const closeParens = (currentStatement.match(/\)/g) || []).length;
-        const isComplete = openParens === closeParens &&
-            (trimmed.endsWith(';') || trimmed.endsWith(')'));
-
-        if (isComplete) {
-            statements.push(currentStatement.trim());
-            currentStatement = '';
-        }
-    }
-
-    if (currentStatement.trim()) {
-        statements.push(currentStatement.trim());
-    }
-
-    return statements;
-}
-
 interface PlaywrightCodeStepContext {
     allowedFilePaths: ReadonlySet<string>;
     allowedTestCaseDir?: string;
@@ -1167,6 +1147,11 @@ async function executePlaywrightCode(
     const syncTimeoutMs = config.test.playwrightCode.syncTimeoutMs;
     const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
     const targetLabel = getBrowserNiceName(browserId || 'main');
+    const trimmedCode = code.trim();
+    if (!trimmedCode) {
+        log(`[Step ${stepIndex + 1}] No executable statements found`, 'info', browserId);
+        return;
+    }
 
     try {
         new AsyncFunction('page', code);
@@ -1180,13 +1165,6 @@ async function executePlaywrightCode(
     }
 
     validatePlaywrightCode(code, stepIndex);
-
-    const statements = parseCodeIntoStatements(code);
-
-    if (statements.length === 0) {
-        log(`[Step ${stepIndex + 1}] No executable statements found`, 'info', browserId);
-        return;
-    }
 
     const safePage = createSafePage(page, stepIndex, code, {
         allowedFilePaths: stepContext?.allowedFilePaths ?? new Set<string>(),
@@ -1251,57 +1229,45 @@ async function executePlaywrightCode(
         { codeGeneration: { strings: false, wasm: false } }
     );
 
-    log(`[Step ${stepIndex + 1}] Executing ${statements.length} statement(s)...`, 'info', browserId);
+    log(`[Step ${stepIndex + 1}] Executing Playwright code block...`, 'info', browserId);
 
     const timeoutSeconds = Math.ceil(timeoutMs / 1000);
+    let timerHandle: TimeoutHandle | null = null;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+        timerHandle = setTimeoutWrapped(
+            () => reject(new Error(`Playwright code execution timed out (${timeoutSeconds}s)`)),
+            timeoutMs
+        );
+    });
 
     try {
-        for (let i = 0; i < statements.length; i++) {
-            const statement = statements[i];
-            const statementPreview = statement.length > 80 ? statement.substring(0, 80) + '...' : statement;
-
-            log(`[Step ${stepIndex + 1}.${i + 1}] ${statementPreview}`, 'info', browserId);
-
-            let timerHandle: TimeoutHandle | null = null;
-            const timeoutPromise = new Promise<never>((_, reject) => {
-                timerHandle = setTimeoutWrapped(
-                    () => reject(new Error(`Statement execution timed out (${timeoutSeconds}s): ${statementPreview}`)),
-                    timeoutMs
-                );
-            });
-
-            try {
-                const script = new Script(`(async () => { ${statement} })()`);
-                const result = script.runInContext(context, { timeout: syncTimeoutMs }) as Promise<unknown>;
-                await Promise.race([result, timeoutPromise]);
-            } catch (error) {
-                const errorMessage = getErrorMessage(error);
-                log(
-                    `[Step ${stepIndex + 1}.${i + 1}] Playwright code error in "${statementPreview}": ${errorMessage}`,
-                    'error',
-                    browserId
-                );
-                throw new PlaywrightCodeError(
-                    `Playwright code execution failed at step ${stepIndex + 1}.${i + 1}: ${errorMessage}`,
-                    stepIndex,
-                    statement,
-                    error instanceof Error ? error : undefined
-                );
-            } finally {
-                if (timerHandle) {
-                    clearTimeoutWrapped(timerHandle);
-                }
-            }
-
-            await captureScreenshot(
-                page,
-                `[${targetLabel}] Step ${stepIndex + 1}.${i + 1}: ${statementPreview}`,
-                onEvent,
-                log,
-                browserId
-            );
-        }
+        const script = new Script(`(async () => { ${trimmedCode} })()`);
+        const result = script.runInContext(context, { timeout: syncTimeoutMs }) as Promise<unknown>;
+        await Promise.race([result, timeoutPromise]);
+        await captureScreenshot(
+            page,
+            `[${targetLabel}] Step ${stepIndex + 1}: Playwright code complete`,
+            onEvent,
+            log,
+            browserId
+        );
+    } catch (error) {
+        const errorMessage = getErrorMessage(error);
+        log(
+            `[Step ${stepIndex + 1}] Playwright code error: ${errorMessage}`,
+            'error',
+            browserId
+        );
+        throw new PlaywrightCodeError(
+            `Playwright code execution failed at step ${stepIndex + 1}: ${errorMessage}`,
+            stepIndex,
+            trimmedCode,
+            error instanceof Error ? error : undefined
+        );
     } finally {
+        if (timerHandle) {
+            clearTimeoutWrapped(timerHandle);
+        }
         cleanupTimers();
     }
 }
@@ -1411,9 +1377,14 @@ async function executeSteps(
                 if (!isAndroid && page) {
                     const urlBefore = page.url();
                     await Promise.race([
-                        page.waitForURL(url => url.toString() !== urlBefore, { timeout: 3000 })
-                            .then(() => page.waitForLoadState('domcontentloaded', { timeout: 10000 })),
-                        new Promise(resolve => setTimeout(resolve, 3000))
+                        page.waitForURL(
+                            url => url.toString() !== urlBefore,
+                            { timeout: config.test.browser.navigation.urlChangeTimeoutMs }
+                        ).then(() => page.waitForLoadState(
+                            'domcontentloaded',
+                            { timeout: config.test.browser.navigation.domContentLoadedTimeoutMs }
+                        )),
+                        new Promise(resolve => setTimeout(resolve, config.test.browser.navigation.settleDelayMs))
                     ]).catch(() => { });
                 }
 

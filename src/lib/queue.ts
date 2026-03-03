@@ -45,6 +45,7 @@ export class TestQueue {
     private logs: Map<string, TestEvent[]> = new Map();
     private persistTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
     private persistedIndexes: Map<string, number> = new Map();
+    private cancellationForceReleaseTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
     private processNextRunning = false;
     private processNextRequested = false;
     private blockedQueueRetryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -208,12 +209,14 @@ export class TestQueue {
 
         if (this.running.has(runId)) {
             const job = this.running.get(runId)!;
+            let cleanupAttempted = false;
             let cleanupCompleted = false;
 
             job.controller.abort();
 
             const cleanup = this.cleanupFns.get(runId);
             if (cleanup) {
+                cleanupAttempted = true;
                 try {
                     await cleanup();
                     cleanupCompleted = true;
@@ -241,9 +244,11 @@ export class TestQueue {
                 await androidDeviceManager.stopIdleEmulatorsForProfiles(cancelledEmulatorProfiles);
             }
 
-            if (cleanupCompleted) {
+            if (!cleanupAttempted || cleanupCompleted) {
                 this.clearStartedJobState(runId);
                 this.triggerProcessNext();
+            } else {
+                this.scheduleForceReleaseAfterCancellation(runId);
             }
 
             return;
@@ -375,6 +380,29 @@ export class TestQueue {
         this.running.delete(runId);
         this.activeStatuses.delete(runId);
         this.clearPendingAndroidReservation(runId);
+        const forceReleaseTimer = this.cancellationForceReleaseTimers.get(runId);
+        if (forceReleaseTimer) {
+            clearTimeout(forceReleaseTimer);
+            this.cancellationForceReleaseTimers.delete(runId);
+        }
+    }
+
+    private scheduleForceReleaseAfterCancellation(runId: string): void {
+        if (this.cancellationForceReleaseTimers.has(runId)) {
+            return;
+        }
+
+        const timer = setTimeout(() => {
+            this.cancellationForceReleaseTimers.delete(runId);
+            if (!this.cancellationRequested.has(runId) || !this.running.has(runId)) {
+                return;
+            }
+            logger.warn(`Force-releasing cancelled run ${runId} after cleanup timeout`);
+            this.clearStartedJobState(runId);
+            this.triggerProcessNext();
+        }, appConfig.queue.cancelForceReleaseMs);
+
+        this.cancellationForceReleaseTimers.set(runId, timer);
     }
 
     private getEmulatorProfileNames(config: RunTestOptions['config']): Set<string> {
@@ -584,7 +612,7 @@ export class TestQueue {
             } catch (error) {
                 logger.warn(`Failed to persist live events for ${runId}`, error);
             }
-        }, 1000);
+        }, appConfig.queue.persistFlushMs);
 
         this.persistTimers.set(runId, timer);
     }
@@ -699,6 +727,11 @@ export class TestQueue {
             this.cancellationRequested.delete(runId);
             this.cleanupFns.delete(runId);
             this.persistedIndexes.delete(runId);
+            const forceReleaseTimer = this.cancellationForceReleaseTimers.get(runId);
+            if (forceReleaseTimer) {
+                clearTimeout(forceReleaseTimer);
+                this.cancellationForceReleaseTimers.delete(runId);
+            }
             const pendingTimer = this.persistTimers.get(runId);
             if (pendingTimer) {
                 clearTimeout(pendingTimer);

@@ -11,6 +11,18 @@ type ParsedTestCase<T extends TestCaseWithJsonFields> = Omit<T, 'steps' | 'brows
     browserConfig?: Record<string, BrowserConfig | TargetConfig>;
 };
 
+function safeParseJson<T>(value: string | null | undefined): T | undefined {
+    if (!value) {
+        return undefined;
+    }
+
+    try {
+        return JSON.parse(value) as T;
+    } catch {
+        return undefined;
+    }
+}
+
 export function cleanStepsForStorage(steps: TestStep[]): TestStep[] {
     return steps.map((step) => {
         const { aiAction, codeAction, ...cleanedStep } = step;
@@ -35,7 +47,7 @@ export function normalizeTargetConfigMap(
 
 export function parseTestCaseJson<T extends TestCaseWithJsonFields>(testCase: T): ParsedTestCase<T> {
     const { steps, browserConfig, ...rest } = testCase;
-    const parsedBrowserConfig = browserConfig ? JSON.parse(browserConfig) as Record<string, BrowserConfig | TargetConfig> : undefined;
+    const parsedBrowserConfig = safeParseJson<Record<string, BrowserConfig | TargetConfig>>(browserConfig);
     const normalizedBrowserConfig = parsedBrowserConfig
         ? Object.fromEntries(
             Object.entries(parsedBrowserConfig).map(([targetId, targetConfig]) => {
@@ -49,7 +61,7 @@ export function parseTestCaseJson<T extends TestCaseWithJsonFields>(testCase: T)
 
     return {
         ...rest,
-        steps: steps ? JSON.parse(steps) : undefined,
+        steps: safeParseJson<TestStep[]>(steps),
         browserConfig: normalizedBrowserConfig,
     } as ParsedTestCase<T>;
 }

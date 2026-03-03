@@ -196,16 +196,16 @@ export class EmulatorPool {
         await this.reclaimStaleBootingInstances();
         await this.stopOrphanedAdbEmulators();
 
-        const idleMatchingEmulators = Array.from(this.emulators.values()).filter((instance) =>
-            instance.state === 'IDLE' && instance.avdName === avdName
-        );
-        if (idleMatchingEmulators.length > 0) {
-            logger.info(
-                `Recycling ${idleMatchingEmulators.length} idle emulator(s) for AVD ${avdName} before acquisition`
-            );
-            for (const idleEmulator of idleMatchingEmulators) {
-                await this.stopInstance(idleEmulator);
+        const reusableIdleEmulator = this.findIdleEmulator(avdName, 'headless')
+            ?? this.findIdleEmulator(avdName, 'window');
+        if (reusableIdleEmulator) {
+            logger.info(`Attempting to reuse idle emulator ${reusableIdleEmulator.id} for AVD ${avdName}`);
+            const health = await reusableIdleEmulator.adb.healthCheck().catch(() => null);
+            if (health?.healthy) {
+                return this.lockEmulator(reusableIdleEmulator, runId, projectId);
             }
+            logger.warn(`Idle emulator ${reusableIdleEmulator.id} is unhealthy, stopping before replacement`, health);
+            await this.stopInstance(reusableIdleEmulator);
         }
 
         const handle = await this.bootWithRetries(projectId, avdName, signal, { headless: true });
@@ -294,7 +294,10 @@ export class EmulatorPool {
             return;
         }
 
-        await this.stopInstance(instance);
+        instance.state = 'IDLE';
+        this.scheduleIdleTimeout(instance);
+        this.scheduleHealthCheck(instance);
+        logger.info(`Emulator ${instance.id} returned to IDLE`);
     }
 
     async stop(emulatorId: string): Promise<void> {
