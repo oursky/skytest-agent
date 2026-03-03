@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { TestStep, BrowserConfig, TargetConfig, ConfigItem, TestCaseFile } from '@/types';
 import BuilderForm from './BuilderForm';
 import ConfigurationsSection from './ConfigurationsSection';
+import ConfigHints from './config-shared/ConfigHints';
 import { useI18n } from '@/i18n';
 import { useAuth } from '@/app/auth-provider';
 import { normalizeBrowserConfig } from '@/lib/config/browser-target';
@@ -472,17 +473,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                 ) : (
                     <div className="space-y-4">
                         {!readOnly && (
-                            <div className="border border-gray-200 rounded-lg bg-gray-50 p-4 space-y-3">
-                                <p className="text-xs text-gray-600 leading-snug">{t('configs.hint.intro')}</p>
-                                <div>
-                                    <p className="text-xs font-medium text-gray-700">{t('configs.hint.aiStep')}</p>
-                                    <code className="block mt-1 bg-white border border-gray-200 px-2 py-1.5 rounded text-[11px] text-gray-600 whitespace-pre-wrap">{t('configs.hint.aiExample')}</code>
-                                </div>
-                                <div>
-                                    <p className="text-xs font-medium text-gray-700">{t('configs.hint.codeStep')}</p>
-                                    <code className="block mt-1 bg-white border border-gray-200 px-2 py-1.5 rounded text-[11px] text-gray-600 whitespace-pre-wrap">{t('configs.hint.codeExample')}</code>
-                                </div>
-                            </div>
+                            <ConfigHints compact />
                         )}
 
                         <BuilderForm
