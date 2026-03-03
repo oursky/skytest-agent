@@ -876,6 +876,26 @@ function extractQuotedStrings(instruction: string): string[] {
     return matches;
 }
 
+function shouldUseQuotedStringShortcut(instruction: string, quotedStrings: string[]): boolean {
+    if (quotedStrings.length === 0) {
+        return false;
+    }
+
+    const normalized = instruction.trim().replace(/\s+/g, ' ');
+
+    const simplePresencePatterns = [
+        /^(verify|assert|check|confirm|ensure|validate)\s+(that\s+)?["'][^"']+["']\s+(is\s+)?(visible|shown|displayed|present|on the page|exists?)\.?$/i,
+        /^(verify|assert|check|confirm|ensure|validate)\s+(that\s+)?text\s+["'][^"']+["']\s+(is\s+)?(visible|shown|displayed|present|on the page|exists?)\.?$/i,
+        /^(verify|assert|check|confirm|ensure|validate)\s+(that\s+)?["'][^"']+["']\s*(appears?)\.?$/i
+    ];
+
+    return simplePresencePatterns.some((pattern) => pattern.test(normalized));
+}
+
+function formatAssertionFailureMessage(stepAction: string, reason: string): string {
+    return `Verification failed.\nStep: ${stepAction}\nReason: ${reason}`;
+}
+
 /**
  * Verifies that all quoted strings in an assertion instruction exist exactly on the page.
  */
@@ -892,7 +912,7 @@ async function verifyQuotedStringsExist(
     const targetLabel = getBrowserNiceName(browserId || 'main');
 
     for (const expected of expectedStrings) {
-        const queryPrompt = `Look at the current page and find any text that might match or relate to "${expected}". Return the EXACT text as it appears on the page, or return "NOT_FOUND" if no similar text exists. Do not interpret or modify the text - return it exactly as shown.`;
+        const queryPrompt = `Does the exact text "${expected}" appear on the current page? Respond with ONLY "YES" or "NO".`;
 
         log(`[${targetLabel}] Checking for exact text: "${expected}"`, 'info', browserId);
 
@@ -903,16 +923,17 @@ async function verifyQuotedStringsExist(
                 options.androidSignal
             )
             : await agent.aiQuery(queryPrompt);
-        const actualText = String(result).trim();
+        const actualText = String(result).trim().toUpperCase();
 
-        if (actualText === 'NOT_FOUND') {
-            throw new Error(`Assertion failed: Expected text "${expected}" was not found on the page.`);
+        if (actualText === 'NO') {
+            throw new Error(
+                `Expected to find exact text "${expected}" on the page, but it was not found.`
+            );
         }
 
-        if (actualText !== expected) {
+        if (actualText !== 'YES') {
             throw new Error(
-                `Assertion failed: Expected exact text "${expected}" but found "${actualText}". ` +
-                `These are not the same - the test requires an exact match.`
+                `Could not confidently verify text "${expected}" due to an unclear page analysis result.`
             );
         }
 
@@ -1187,9 +1208,10 @@ async function executeSteps(
                 const isVerification = !isMultiLineInstruction
                     && /^(verify|assert|check|confirm|ensure|validate)/i.test(normalizedStepAction);
                 const quotedStrings = extractQuotedStrings(stepAction);
+                const useQuotedStringShortcut = shouldUseQuotedStringShortcut(stepAction, quotedStrings);
 
                 if (isVerification) {
-                    if (quotedStrings.length > 0) {
+                    if (useQuotedStringShortcut) {
                         try {
                             await verifyQuotedStringsExist(agent, quotedStrings, log, effectiveTargetId, {
                                 isAndroidAgent: isAndroid,
@@ -1227,7 +1249,7 @@ async function executeSteps(
                             }
                             if (!recoveredAndRetried) {
                                 const errMsg = getErrorMessage(assertError);
-                                throw new Error(`${errMsg}`);
+                                throw new Error(formatAssertionFailureMessage(step.action, errMsg));
                             }
                         }
                     } else {
@@ -1274,7 +1296,7 @@ async function executeSteps(
                             }
                             if (!recoveredAndRetried) {
                                 const errMsg = getErrorMessage(assertError);
-                                throw new Error(`Assertion failed: ${step.action}\n${errMsg}`);
+                                throw new Error(formatAssertionFailureMessage(step.action, errMsg));
                             }
                         }
                     }
