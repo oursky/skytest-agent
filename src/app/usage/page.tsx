@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { formatDateTime } from '@/utils/dateFormatter';
 import { useI18n } from '@/i18n';
-import Modal from '@/components/ui/Modal';
+import Modal from '@/components/shared/Modal';
 
 interface TestRunInfo {
     id: string;

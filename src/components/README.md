@@ -4,7 +4,8 @@
 
 - `features/`: feature-specific components and logic.
 - `layout/`: app shell and page-level layout blocks.
-- `ui/`: reusable presentational primitives with no feature ownership.
+- `shared/`: reusable cross-feature components that are not tied to one feature.
+- `ui/`: generic UI inputs/primitives that are still app-specific.
 
 ## Feature folder contract
 
@@ -26,10 +27,11 @@ When a non-UI file is used by multiple features, move it to `src/lib/`.
 
 ## Placement rules
 
-- Put `Modal`, `Pagination`, and similar primitives in `ui/`.
+- Put cross-feature components like `Modal` and `Pagination` in `shared/`.
 - Put `Header`, `Breadcrumbs`, and shell-specific blocks in `layout/`.
 - Do not place new feature files at `src/components` root.
 - Keep imports explicit by folder role:
   - Feature entry points from `@/components/features/<feature>/...`
-  - Shared UI from `@/components/ui/...`
+  - Shared components from `@/components/shared/...`
+  - UI primitives from `@/components/ui/...`
   - Layout from `@/components/layout/...`

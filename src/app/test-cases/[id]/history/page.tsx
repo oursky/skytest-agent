@@ -4,12 +4,12 @@ import { useState, useEffect, use, useRef, useCallback } from "react";
 import { useAuth } from "../../../auth-provider";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import Modal from "@/components/ui/Modal";
+import Modal from "@/components/shared/Modal";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import { formatDateTime } from "@/utils/dateFormatter";
 import { useI18n } from "@/i18n";
 import { getStatusBadgeClass } from '@/utils/statusBadge';
-import Pagination from '@/components/ui/Pagination';
+import Pagination from '@/components/shared/Pagination';
 
 interface TestRun {
     id: string;

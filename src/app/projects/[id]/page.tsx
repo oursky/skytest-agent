@@ -4,13 +4,13 @@ import { useState, useEffect, use, useCallback, useRef } from "react";
 import { useAuth } from "../../auth-provider";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import Modal from "@/components/ui/Modal";
+import Modal from "@/components/shared/Modal";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import { formatDateTimeCompact } from "@/utils/dateFormatter";
 import { useI18n } from "@/i18n";
 import { getStatusBadgeClass } from '@/utils/statusBadge';
 import { isActiveRunStatus } from '@/utils/statusHelpers';
-import Pagination from '@/components/ui/Pagination';
+import Pagination from '@/components/shared/Pagination';
 import ProjectConfigs from '@/components/features/project-configs/ProjectConfigs';
 import AndroidSetup from '@/components/features/device-status/AndroidSetup';
 
