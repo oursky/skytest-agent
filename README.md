@@ -29,8 +29,10 @@ It is self-hosted, open source, and uses your own API key.
 - **Visual evidence** - Every run captures screenshots and logs so you see what happened, not just pass/fail.
 - **Multi-session flows** - Coordinate across browser roles (e.g., "Browser A" sends a message, "Browser B" receives it) for multi-user scenarios.
 - **Custom Playwright code** - Mix AI-driven steps with your own Playwright scripts when you need precise control.
+- **Android Support** — Run cross-platform tests on web and Android apps with a single test suite.
+- **MCP & Agent SKill** — Use MCP to let AI coding agents generate test cases from your specs.
 - **Parallel execution** - Run tests concurrently for faster feedback.
-- **Project management** - Organize test cases by project with a built-in web UI.
+- **Project management** - Organize test cases and configurations by project with a built-in web UI.
 - **Bring Your Own Key** - Use your own OpenRouter API key. You pay only your LLM costs.
 
 **Example test case:**
@@ -76,7 +78,7 @@ Users provide their own [OpenRouter](https://openrouter.ai/) API keys via the ap
 - **Database errors**: `rm -f dev.db && npx prisma db push`
 - **View database**: `npx prisma studio`
 - **Auth redirect issues**: Check Authgear redirect URI matches your domain
-- **Android devices**: See [macOS Android Emulator Guide](https://github.com/oursky/skytest-agent/blob/main/docs/operators/mac-android-emulator-guide.md)
+- **Android devices (Local macOS Only)**: See [macOS Android Emulator Guide](https://github.com/oursky/skytest-agent/blob/main/docs/operators/mac-android-emulator-guide.md)
 
 ## Community & Contributing
 
