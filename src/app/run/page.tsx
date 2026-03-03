@@ -10,6 +10,14 @@ import { TestStep, BrowserConfig, TargetConfig, TestEvent, TestCaseFile, ConfigI
 import { exportToExcelArrayBuffer, parseTestCaseExcel } from "@/utils/testCaseExcel";
 import { useI18n } from "@/i18n";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
+import {
+    buildEventKey,
+    buildExcelBaseName,
+    downloadBlob,
+    extractFileName,
+    isExcelFilename,
+    isSupportedVariableConfig,
+} from "./utils";
 
 interface TestData {
     url: string;
@@ -24,11 +32,6 @@ interface TestResult {
     status: 'IDLE' | 'RUNNING' | 'PASS' | 'FAIL' | 'CANCELLED' | 'QUEUED' | 'PREPARING';
     events: TestEvent[];
     error?: string;
-}
-
-function buildEventKey(event: TestEvent): string {
-    const browserId = event.browserId || '';
-    return `${event.type}|${event.timestamp}|${browserId}|${JSON.stringify(event.data)}`;
 }
 
 function RunPageContent() {
@@ -66,55 +69,6 @@ function RunPageContent() {
     const [testCaseConfigs, setTestCaseConfigs] = useState<ConfigItem[]>([]);
     const refreshFilesRef = useRef<string | null>(null);
     useUnsavedChanges(isDirty, t('run.unsavedChangesWarning'));
-
-    const downloadBlob = (blob: Blob, filename: string) => {
-        const objectUrl = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = objectUrl;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(objectUrl);
-    };
-
-    const extractFileName = (headerValue: string | null, fallbackName: string): string => {
-        if (!headerValue) return fallbackName;
-        const utf8Match = headerValue.match(/filename\*=UTF-8''([^;]+)/i);
-        if (utf8Match?.[1]) {
-            return decodeURIComponent(utf8Match[1]);
-        }
-        const quotedMatch = headerValue.match(/filename="([^"]+)"/i);
-        if (quotedMatch?.[1]) {
-            return quotedMatch[1];
-        }
-        const plainMatch = headerValue.match(/filename=([^;]+)/i);
-        if (plainMatch?.[1]) {
-            return plainMatch[1].trim();
-        }
-        return fallbackName;
-    };
-
-    const buildExcelBaseName = (testCaseIdentifier?: string, testCaseName?: string): string => {
-        const sanitize = (value: string) => value.replace(/[^a-zA-Z0-9._-]/g, '_');
-        const safeId = sanitize((testCaseIdentifier || '').trim());
-        const safeName = sanitize((testCaseName || '').trim());
-        if (safeId && safeName) return `${safeId}_${safeName}`;
-        if (safeName) return safeName;
-        if (safeId) return safeId;
-        return 'test_case';
-    };
-
-    const isExcelFilename = (filename: string): boolean => {
-        const normalized = filename.toLowerCase();
-        return normalized.endsWith('.xlsx');
-    };
-
-    const isSupportedVariableConfig = (
-        config: ConfigItem
-    ): config is ConfigItem & { type: 'URL' | 'APP_ID' | 'VARIABLE' | 'RANDOM_STRING' | 'FILE' } => {
-        return config.type === 'URL' || config.type === 'APP_ID' || config.type === 'VARIABLE' || config.type === 'RANDOM_STRING' || config.type === 'FILE';
-    };
 
     const importVariablesToTestCase = async (
         variables: Array<{ name: string; type: 'URL' | 'APP_ID' | 'VARIABLE' | 'RANDOM_STRING'; value: string; masked?: boolean; group?: string | null }>,
