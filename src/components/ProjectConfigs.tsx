@@ -7,8 +7,9 @@ import type { ConfigItem, ConfigType } from '@/types';
 import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } from '@/lib/config/sort';
 import { normalizeConfigName } from '@/lib/config/validation';
 import GroupSelectInput from './GroupSelectInput';
-import MaskedIcon from './config-shared/MaskedIcon';
 import ConfigHints from './config-shared/ConfigHints';
+import ConfigInlineEditor from './project-configs/ConfigInlineEditor';
+import type { ProjectConfigEditState, ProjectConfigFileUploadDraft } from './project-configs/types';
 import {
     buildAuthHeaders,
     buildConfigDisplayValue,
@@ -27,21 +28,6 @@ interface ProjectConfigsProps {
 
 const TYPE_SECTIONS: ConfigType[] = ['URL', 'APP_ID', 'VARIABLE', 'RANDOM_STRING', 'FILE'];
 
-interface EditState {
-    id?: string;
-    name: string;
-    value: string;
-    type: ConfigType;
-    masked: boolean;
-    group: string;
-}
-
-interface FileUploadDraft {
-    name: string;
-    group: string;
-    file: File | null;
-}
-
 function normalizeConfigTypeItems(items: ConfigItem[]): ConfigItem[] {
     return [...items].sort(compareByGroupThenName);
 }
@@ -59,9 +45,9 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
     const { t } = useI18n();
     const [configs, setConfigs] = useState<ConfigItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [editState, setEditState] = useState<EditState | null>(null);
+    const [editState, setEditState] = useState<ProjectConfigEditState | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [fileUploadDraft, setFileUploadDraft] = useState<FileUploadDraft | null>(null);
+    const [fileUploadDraft, setFileUploadDraft] = useState<ProjectConfigFileUploadDraft | null>(null);
 
     const fetchConfigs = useCallback(async () => {
         try {
@@ -213,7 +199,7 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
         }
     };
 
-    const handleFileUploadSave = async (draft: FileUploadDraft | null = fileUploadDraft) => {
+    const handleFileUploadSave = async (draft: ProjectConfigFileUploadDraft | null = fileUploadDraft) => {
         if (!draft) return;
         setError(null);
 
@@ -339,84 +325,19 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                     const isEditingThis = editState?.id === item.id;
                                     if (isEditingThis && editState) {
                                         return (
-                                            <div key={item.id} className="p-4 bg-white space-y-2">
-                                                {type === 'VARIABLE' ? (
-                                                    <>
-                                                        <div className="flex flex-wrap md:flex-nowrap items-center gap-2">
-                                                            <GroupSelectInput
-                                                                value={editState.group}
-                                                                onChange={(group) => setEditState({ ...editState, group })}
-                                                                options={groupOptions}
-                                                                onRemoveOption={handleRemoveGroup}
-                                                                placeholder={t('configs.group.select')}
-                                                                containerClassName="relative w-full md:w-56"
-                                                                inputClassName="h-9 text-sm"
-                                                            />
-                                                            <input
-                                                                type="text"
-                                                                value={editState.name}
-                                                                onChange={(event) => setEditState({ ...editState, name: event.target.value })}
-                                                                onKeyDown={handleConfigEditorKeyDown}
-                                                                placeholder={t('configs.name.placeholder.enter')}
-                                                                className="h-9 w-full md:w-56 px-3 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                                                            />
-                                                            <input
-                                                                type={editState.masked ? 'password' : 'text'}
-                                                                value={editState.value}
-                                                                onChange={(event) => setEditState({ ...editState, value: event.target.value })}
-                                                                onKeyDown={handleConfigEditorKeyDown}
-                                                                placeholder={t('configs.value.placeholder')}
-                                                                className="h-9 min-w-[220px] flex-1 px-3 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                                                            />
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setEditState({ ...editState, masked: !editState.masked })}
-                                                                className={`inline-flex h-9 w-9 items-center justify-center rounded-md border ${editState.masked ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-gray-600 border-gray-200'}`}
-                                                                title={t('configs.masked')}
-                                                                aria-label={t('configs.masked')}
-                                                            >
-                                                                <MaskedIcon masked={editState.masked} />
-                                                            </button>
-                                                            <button type="button" onClick={handleSave} className="px-3 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary/90">{t('common.save')}</button>
-                                                            <button type="button" onClick={() => { setEditState(null); setError(null); }} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700">{t('common.cancel')}</button>
-                                                        </div>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <div className="flex gap-3 items-start">
-                                                            <input
-                                                                type="text"
-                                                                value={editState.name}
-                                                                onChange={(event) => setEditState({ ...editState, name: event.target.value })}
-                                                                onKeyDown={handleConfigEditorKeyDown}
-                                                                placeholder={t('configs.name.placeholder.enter')}
-                                                                className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                                                            />
-                                                            <input
-                                                                type="text"
-                                                                value={editState.value}
-                                                                onChange={(event) => setEditState({ ...editState, value: event.target.value })}
-                                                                onKeyDown={handleConfigEditorKeyDown}
-                                                                placeholder={type === 'URL' ? t('configs.url.placeholder') : t('configs.value.placeholder')}
-                                                                className="flex-[2] px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                                                            />
-                                                            <button type="button" onClick={handleSave} className="px-3 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary/90">{t('common.save')}</button>
-                                                            <button type="button" onClick={() => { setEditState(null); setError(null); }} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700">{t('common.cancel')}</button>
-                                                        </div>
-                                                        {isGroupInputEnabled(type) && (
-                                                            <GroupSelectInput
-                                                                value={editState.group}
-                                                                onChange={(group) => setEditState({ ...editState, group })}
-                                                                options={groupOptions}
-                                                                onRemoveOption={handleRemoveGroup}
-                                                                placeholder={t('configs.group.select')}
-                                                                inputClassName="h-9"
-                                                            />
-                                                        )}
-                                                    </>
-                                                )}
-                                                {error && <p className="text-xs text-red-500">{error}</p>}
-                                            </div>
+                                            <ConfigInlineEditor
+                                                key={item.id}
+                                                type={type}
+                                                editState={editState}
+                                                groupOptions={groupOptions}
+                                                error={error}
+                                                rowAlign="items-start"
+                                                onKeyDown={handleConfigEditorKeyDown}
+                                                onSave={handleSave}
+                                                onCancel={() => { setEditState(null); setError(null); }}
+                                                onRemoveGroup={handleRemoveGroup}
+                                                onChange={setEditState}
+                                            />
                                         );
                                     }
 
@@ -459,86 +380,19 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                 })}
 
                                 {isAddingForType && editState && (
-                                    <div className="p-4 bg-white space-y-2">
-                                                {type === 'VARIABLE' ? (
-                                                    <>
-                                                <div className="flex flex-wrap md:flex-nowrap items-center gap-2">
-                                                    <GroupSelectInput
-                                                        value={editState.group}
-                                                        onChange={(group) => setEditState({ ...editState, group })}
-                                                        options={groupOptions}
-                                                        onRemoveOption={handleRemoveGroup}
-                                                        placeholder={t('configs.group.select')}
-                                                        containerClassName="relative w-full md:w-56"
-                                                        inputClassName="h-9 text-sm"
-                                                    />
-                                                    <input
-                                                        type="text"
-                                                        value={editState.name}
-                                                        onChange={(event) => setEditState({ ...editState, name: event.target.value })}
-                                                        onKeyDown={handleConfigEditorKeyDown}
-                                                        placeholder={t('configs.name.placeholder.enter')}
-                                                        className="h-9 w-full md:w-56 px-3 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                                                        autoFocus
-                                                    />
-                                                    <input
-                                                        type={editState.masked ? 'password' : 'text'}
-                                                        value={editState.value}
-                                                        onChange={(event) => setEditState({ ...editState, value: event.target.value })}
-                                                        onKeyDown={handleConfigEditorKeyDown}
-                                                        placeholder={t('configs.value.placeholder')}
-                                                        className="h-9 min-w-[220px] flex-1 px-3 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                                                    />
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setEditState({ ...editState, masked: !editState.masked })}
-                                                        className={`inline-flex h-9 w-9 items-center justify-center rounded-md border ${editState.masked ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-gray-600 border-gray-200'}`}
-                                                        title={t('configs.masked')}
-                                                        aria-label={t('configs.masked')}
-                                                    >
-                                                        <MaskedIcon masked={editState.masked} />
-                                                    </button>
-                                                    <button type="button" onClick={handleSave} className="px-3 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary/90">{t('common.save')}</button>
-                                                    <button type="button" onClick={() => { setEditState(null); setError(null); }} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700">{t('common.cancel')}</button>
-                                                </div>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <div className="flex gap-3 items-center">
-                                                    <input
-                                                        type="text"
-                                                        value={editState.name}
-                                                        onChange={(event) => setEditState({ ...editState, name: event.target.value })}
-                                                        onKeyDown={handleConfigEditorKeyDown}
-                                                        placeholder={t('configs.name.placeholder.enter')}
-                                                        className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                                                        autoFocus
-                                                    />
-                                                    <input
-                                                        type="text"
-                                                        value={editState.value}
-                                                        onChange={(event) => setEditState({ ...editState, value: event.target.value })}
-                                                        onKeyDown={handleConfigEditorKeyDown}
-                                                        placeholder={type === 'URL' ? t('configs.url.placeholder') : t('configs.value.placeholder')}
-                                                        className="flex-[2] px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                                                    />
-                                                    <button type="button" onClick={handleSave} className="px-3 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary/90">{t('common.save')}</button>
-                                                    <button type="button" onClick={() => { setEditState(null); setError(null); }} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700">{t('common.cancel')}</button>
-                                                </div>
-                                                {isGroupInputEnabled(type) && (
-                                                    <GroupSelectInput
-                                                        value={editState.group}
-                                                        onChange={(group) => setEditState({ ...editState, group })}
-                                                        options={groupOptions}
-                                                        onRemoveOption={handleRemoveGroup}
-                                                        placeholder={t('configs.group.select')}
-                                                        inputClassName="h-9"
-                                                    />
-                                                )}
-                                            </>
-                                        )}
-                                        {error && <p className="text-xs text-red-500">{error}</p>}
-                                    </div>
+                                    <ConfigInlineEditor
+                                        type={type}
+                                        editState={editState}
+                                        groupOptions={groupOptions}
+                                        error={error}
+                                        autoFocus
+                                        rowAlign="items-center"
+                                        onKeyDown={handleConfigEditorKeyDown}
+                                        onSave={handleSave}
+                                        onCancel={() => { setEditState(null); setError(null); }}
+                                        onRemoveGroup={handleRemoveGroup}
+                                        onChange={setEditState}
+                                    />
                                 )}
 
                                 {isAddingFileForType && fileUploadDraft && (
