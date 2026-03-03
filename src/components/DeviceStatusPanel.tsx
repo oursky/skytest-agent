@@ -1,33 +1,22 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import Link from 'next/link';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuth } from '@/app/auth-provider';
 import { useI18n } from '@/i18n';
-import type { AndroidDevicePoolStatus, AndroidDevicePoolStatusItem } from '@/lib/android/device-manager';
+import type { AndroidDevicePoolStatusItem } from '@/lib/android/device-manager';
 import type { ConnectedAndroidDeviceInfo } from '@/lib/android/device-display';
 import { formatAndroidDeviceDisplayName } from '@/lib/android/device-display';
 import { DEVICE_STATE_COLORS } from '@/utils/deviceStateColors';
+import { buildAuthHeaders } from './config-shared/config-utils';
+import type { DeviceStatusResponse } from './device-status/types';
+import { buildDeviceSections } from './device-status/build-device-sections';
+import DeviceRunLink from './device-status/DeviceRunLink';
 import {
-    ADB_STATE_PRIORITY,
-    DEVICE_STATE_PRIORITY,
     buildAndroidVersionDetail,
     getInventoryOnlyStatusColorClass,
     getInventoryOnlyStatusKey,
     joinAndroidDeviceDetail,
-    normalizeDeviceName,
 } from './configurations-section/device-utils';
-
-interface DeviceStatusResponse extends AndroidDevicePoolStatus {
-    connectedDevices: ConnectedAndroidDeviceInfo[];
-    emulatorProfiles: Array<{
-        id: string;
-        name: string;
-        displayName: string;
-        apiLevel: number | null;
-        screenSize: string | null;
-    }>;
-}
 
 function isDeviceInUseByCurrentProject(device: AndroidDevicePoolStatusItem, projectId: string): boolean {
     return device.state === 'ACQUIRED' && device.runProjectId === projectId;
@@ -46,10 +35,6 @@ function buildConnectedDeviceTitle(device: ConnectedAndroidDeviceInfo): string {
     return formatAndroidDeviceDisplayName(device);
 }
 
-function joinDeviceDetail(parts: Array<string | null | undefined>): string {
-    return joinAndroidDeviceDetail(parts);
-}
-
 function formatCountdown(remainingMs: number): string {
     const totalSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
     const minutes = Math.floor(totalSeconds / 60);
@@ -57,14 +42,10 @@ function formatCountdown(remainingMs: number): string {
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
-function buildVersionDetail(androidVersion: string | null, apiLevel: number | null): string {
-    return buildAndroidVersionDetail(androidVersion, apiLevel);
-}
-
 function buildConnectedDeviceDetail(device: ConnectedAndroidDeviceInfo): string {
-    return joinDeviceDetail([
+    return joinAndroidDeviceDetail([
         device.serial,
-        buildVersionDetail(device.androidVersion, device.apiLevel),
+        buildAndroidVersionDetail(device.androidVersion, device.apiLevel),
     ]) || device.serial;
 }
 
@@ -118,8 +99,10 @@ export default function DeviceStatusPanel({ projectId }: DeviceStatusPanelProps)
         if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
         try {
             const token = await getAccessToken();
-            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const res = await fetch(`/api/devices?projectId=${encodeURIComponent(projectId)}`, { headers });
+            const res = await fetch(
+                `/api/devices?projectId=${encodeURIComponent(projectId)}`,
+                { headers: buildAuthHeaders(token) }
+            );
             if (res.status === 403) {
                 setForbidden(true);
                 setRequestFailed(false);
@@ -195,13 +178,9 @@ export default function DeviceStatusPanel({ projectId }: DeviceStatusPanelProps)
         }
         try {
             const token = await getAccessToken();
-            const headers: HeadersInit = {
-                'Content-Type': 'application/json',
-                ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-            };
             const response = await fetch('/api/devices', {
                 method: 'POST',
-                headers,
+                headers: buildAuthHeaders(token, true),
                 body: JSON.stringify({
                     action: 'stop',
                     ...(deviceId ? { deviceId } : {}),
@@ -233,13 +212,9 @@ export default function DeviceStatusPanel({ projectId }: DeviceStatusPanelProps)
         });
         try {
             const token = await getAccessToken();
-            const headers: HeadersInit = {
-                'Content-Type': 'application/json',
-                ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-            };
             const response = await fetch('/api/devices', {
                 method: 'POST',
-                headers,
+                headers: buildAuthHeaders(token, true),
                 body: JSON.stringify({ action: 'boot', emulatorProfileName }),
             });
             if (!response.ok) {
@@ -258,130 +233,13 @@ export default function DeviceStatusPanel({ projectId }: DeviceStatusPanelProps)
         }
     };
 
-    const connectedRuntimeBySerial = new Map<string, AndroidDevicePoolStatusItem>();
-    const runtimeByEmulatorProfile = new Map<string, AndroidDevicePoolStatusItem>();
-    const connectedPhysicalDevices: ConnectedAndroidDeviceInfo[] = [];
-    const connectedEmulatorsBySerial = new Map<string, ConnectedAndroidDeviceInfo>();
-    const connectedEmulatorsByProfile = new Map<string, ConnectedAndroidDeviceInfo>();
-    if (status) {
-        for (const device of status.devices) {
-            connectedRuntimeBySerial.set(device.serial, device);
-            if (device.kind === 'emulator' && device.emulatorProfileName) {
-                const normalizedProfileName = normalizeDeviceName(device.emulatorProfileName);
-                const existing = runtimeByEmulatorProfile.get(normalizedProfileName);
-                if (!existing || DEVICE_STATE_PRIORITY[device.state] < DEVICE_STATE_PRIORITY[existing.state]) {
-                    runtimeByEmulatorProfile.set(normalizedProfileName, device);
-                }
-            }
-        }
-
-        for (const connected of status.connectedDevices) {
-            if (connected.kind === 'physical') {
-                connectedPhysicalDevices.push(connected);
-                continue;
-            }
-
-            connectedEmulatorsBySerial.set(connected.serial, connected);
-            if (!connected.emulatorProfileName) {
-                continue;
-            }
-
-            const normalizedProfileName = normalizeDeviceName(connected.emulatorProfileName);
-            const existing = connectedEmulatorsByProfile.get(normalizedProfileName);
-            if (!existing || ADB_STATE_PRIORITY[connected.adbState] < ADB_STATE_PRIORITY[existing.adbState]) {
-                connectedEmulatorsByProfile.set(normalizedProfileName, connected);
-            }
-        }
-    }
-
-    const emulatorRows: Array<{
-        key: string;
-        title: string;
-        detail: string;
-        runtime?: AndroidDevicePoolStatusItem;
-        connected?: ConnectedAndroidDeviceInfo;
-        profileName?: string;
-        canBoot: boolean;
-    }> = [];
-
-    if (status) {
-        const usedConnectedEmulatorSerials = new Set<string>();
-        const usedRuntimeIds = new Set<string>();
-
-        for (const profile of status.emulatorProfiles) {
-            const runtime = runtimeByEmulatorProfile.get(normalizeDeviceName(profile.name));
-            if (runtime) {
-                usedRuntimeIds.add(runtime.id);
-            }
-
-            const connected = runtime
-                ? connectedEmulatorsBySerial.get(runtime.serial)
-                : connectedEmulatorsByProfile.get(normalizeDeviceName(profile.name));
-            if (connected) {
-                usedConnectedEmulatorSerials.add(connected.serial);
-            }
-
-            const detail = joinDeviceDetail([
-                connected?.serial ?? runtime?.serial,
-                buildVersionDetail(connected?.androidVersion ?? null, connected?.apiLevel ?? profile.apiLevel),
-            ]) || profile.name;
-
-            emulatorRows.push({
-                key: `profile:${profile.name}`,
-                title: profile.displayName || profile.name,
-                detail,
-                runtime,
-                connected,
-                profileName: profile.name,
-                canBoot: !runtime && !connected,
-            });
-        }
-
-        for (const connected of status.connectedDevices) {
-            if (connected.kind !== 'emulator' || usedConnectedEmulatorSerials.has(connected.serial)) {
-                continue;
-            }
-
-            if (!connected.emulatorProfileName) {
-                continue;
-            }
-
-            if (connected.adbState === 'offline') {
-                continue;
-            }
-
-            const runtime = connectedRuntimeBySerial.get(connected.serial);
-            if (runtime) {
-                usedRuntimeIds.add(runtime.id);
-            }
-
-            emulatorRows.push({
-                key: `connected-emulator:${connected.serial}`,
-                title: buildConnectedDeviceTitle(connected),
-                detail: buildConnectedDeviceDetail(connected),
-                runtime,
-                connected,
-                canBoot: false,
-            });
-        }
-
-        for (const runtime of status.devices) {
-            if (runtime.kind !== 'emulator' || usedRuntimeIds.has(runtime.id)) {
-                continue;
-            }
-
-            emulatorRows.push({
-                key: `runtime-emulator:${runtime.id}`,
-                title: runtime.emulatorProfileName ?? runtime.id,
-                detail: runtime.serial,
-                runtime,
-                canBoot: false,
-            });
-        }
-    }
-
-    const showPhysicalSection = connectedPhysicalDevices.length > 0;
-    const showEmulatorSection = Boolean(status && emulatorRows.length > 0);
+    const {
+        connectedRuntimeBySerial,
+        connectedPhysicalDevices,
+        emulatorRows,
+        showPhysicalSection,
+        showEmulatorSection,
+    } = useMemo(() => buildDeviceSections(status), [status]);
 
     return (
         <div className="space-y-3">
@@ -451,14 +309,13 @@ export default function DeviceStatusPanel({ projectId }: DeviceStatusPanelProps)
                                     {runtime?.state === 'ACQUIRED'
                                         && runtime.runTestCaseId
                                         && isDeviceInUseByCurrentProject(runtime, projectId) && (
-                                        <div className="mt-1.5 ml-0.5">
-                                            <Link
-                                                href={`/test-cases/${runtime.runTestCaseId}/history/${runtime.runId}`}
-                                                className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
-                                            >
-                                                → {runtime.runTestCaseDisplayId ?? t('device.testRun')} &ldquo;{runtime.runTestCaseName}&rdquo;
-                                            </Link>
-                                        </div>
+                                        <DeviceRunLink
+                                            runTestCaseId={runtime.runTestCaseId}
+                                            runId={runtime.runId}
+                                            runTestCaseDisplayId={runtime.runTestCaseDisplayId}
+                                            runTestCaseName={runtime.runTestCaseName}
+                                            fallbackLabel={t('device.testRun')}
+                                        />
                                     )}
                                 </div>
                             );
@@ -570,14 +427,13 @@ export default function DeviceStatusPanel({ projectId }: DeviceStatusPanelProps)
                                 {emulator?.state === 'ACQUIRED'
                                     && emulator.runTestCaseId
                                     && isDeviceInUseByCurrentProject(emulator, projectId) && (
-                                    <div className="mt-1.5 ml-0.5">
-                                        <Link
-                                            href={`/test-cases/${emulator.runTestCaseId}/history/${emulator.runId}`}
-                                            className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
-                                        >
-                                            → {emulator.runTestCaseDisplayId ?? t('device.testRun')} &ldquo;{emulator.runTestCaseName}&rdquo;
-                                        </Link>
-                                    </div>
+                                    <DeviceRunLink
+                                        runTestCaseId={emulator.runTestCaseId}
+                                        runId={emulator.runId}
+                                        runTestCaseDisplayId={emulator.runTestCaseDisplayId}
+                                        runTestCaseName={emulator.runTestCaseName}
+                                        fallbackLabel={t('device.testRun')}
+                                    />
                                 )}
                             </div>
                         )})}
