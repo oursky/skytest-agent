@@ -1,7 +1,7 @@
 import type { EmulatorRow } from './types';
 import { DEVICE_STATE_COLORS } from '@/utils/deviceStateColors';
 import { useI18n } from '@/i18n';
-import { getInventoryOnlyStatusColorClass, getInventoryOnlyStatusKey } from '@/components/configurations-section/device-utils';
+import { getInventoryOnlyStatusColorClass, getInventoryOnlyStatusKey } from '@/components/features/configurations/sections/device-utils';
 import DeviceRunLink from './DeviceRunLink';
 import { DEVICE_STATE_LABEL_KEYS, formatCountdown, isDeviceInUseByCurrentProject } from './state-utils';
 

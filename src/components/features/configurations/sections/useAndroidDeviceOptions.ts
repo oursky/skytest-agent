@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { buildAuthHeaders } from '@/components/config-shared/config-utils';
+import { buildAuthHeaders } from '@/components/features/configurations/shared/config-utils';
 import {
     ADB_STATE_PRIORITY,
     AndroidDeviceOption,

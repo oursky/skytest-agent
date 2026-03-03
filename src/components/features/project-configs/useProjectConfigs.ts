@@ -13,7 +13,7 @@ import {
     buildConfigsEndpoint,
     buildConfigUploadEndpoint,
     collectConfigGroupOptions,
-} from '@/components/config-shared/config-utils';
+} from '@/components/features/configurations/shared/config-utils';
 
 function isMaskableConfig(type: ConfigType): boolean {
     return type === 'VARIABLE';

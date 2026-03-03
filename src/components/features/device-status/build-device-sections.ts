@@ -6,7 +6,7 @@ import {
     buildAndroidVersionDetail,
     joinAndroidDeviceDetail,
     normalizeDeviceName,
-} from '@/components/configurations-section/device-utils';
+} from '@/components/features/configurations/sections/device-utils';
 import type { DeviceStatusResponse, EmulatorRow } from './types';
 import { buildConnectedDeviceDetail, buildConnectedDeviceTitle } from './connected-device-presentation';
 

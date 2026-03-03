@@ -1,6 +1,6 @@
 import type { ConnectedAndroidDeviceInfo } from '@/lib/android/device-display';
 import { formatAndroidDeviceDisplayName } from '@/lib/android/device-display';
-import { buildAndroidVersionDetail, joinAndroidDeviceDetail } from '@/components/configurations-section/device-utils';
+import { buildAndroidVersionDetail, joinAndroidDeviceDetail } from '@/components/features/configurations/sections/device-utils';
 
 export function buildConnectedDeviceTitle(device: ConnectedAndroidDeviceInfo): string {
     return formatAndroidDeviceDisplayName(device);

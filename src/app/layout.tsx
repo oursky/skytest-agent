@@ -4,7 +4,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 
 import { AuthProvider } from "./auth-provider";
-import Header from "@/components/Header";
+import Header from "@/components/layout/Header";
 import { I18nProvider } from "@/i18n";
 import { LOCALE_META, type Locale } from "@/i18n/messages";
 

@@ -1,7 +1,7 @@
 import type { AndroidDevicePoolStatusItem } from '@/lib/android/device-manager';
 import type { ConnectedAndroidDeviceInfo } from '@/lib/android/device-display';
 import { DEVICE_STATE_COLORS } from '@/utils/deviceStateColors';
-import { getInventoryOnlyStatusColorClass, getInventoryOnlyStatusKey } from '@/components/configurations-section/device-utils';
+import { getInventoryOnlyStatusColorClass, getInventoryOnlyStatusKey } from '@/components/features/configurations/sections/device-utils';
 
 export const DEVICE_STATE_LABEL_KEYS: Record<Exclude<AndroidDevicePoolStatusItem['state'], 'ACQUIRED'>, string> = {
     STARTING: 'device.state.starting',

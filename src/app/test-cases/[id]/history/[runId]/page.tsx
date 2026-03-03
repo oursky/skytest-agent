@@ -3,9 +3,9 @@
 import { useState, useEffect, use, useCallback } from "react";
 import { useAuth } from "../../../../auth-provider";
 import { useRouter } from "next/navigation";
-import ResultViewer from "@/components/ResultViewer";
-import TestForm from "@/components/TestForm";
-import Breadcrumbs from "@/components/Breadcrumbs";
+import ResultViewer from "@/components/features/result-viewer/ResultViewer";
+import TestForm from "@/components/features/test-form/TestForm";
+import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import { formatDateTime } from "@/utils/dateFormatter";
 import { useI18n } from "@/i18n";
 import { parseStoredEvents } from "@/lib/runtime/test-events";

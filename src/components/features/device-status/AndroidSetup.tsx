@@ -1,6 +1,6 @@
 'use client';
 
-import DeviceStatusPanel from '@/components/DeviceStatusPanel';
+import DeviceStatusPanel from '@/components/features/device-status/DeviceStatusPanel';
 
 interface AndroidSetupProps {
     projectId: string;

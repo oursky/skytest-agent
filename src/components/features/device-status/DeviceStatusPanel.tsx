@@ -3,11 +3,11 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuth } from '@/app/auth-provider';
 import { useI18n } from '@/i18n';
-import { buildAuthHeaders } from './config-shared/config-utils';
-import type { DeviceStatusResponse } from './device-status/types';
-import { buildDeviceSections } from './device-status/build-device-sections';
-import PhysicalDeviceRow from './device-status/PhysicalDeviceRow';
-import EmulatorProfileRow from './device-status/EmulatorProfileRow';
+import { buildAuthHeaders } from '@/components/features/configurations/shared/config-utils';
+import type { DeviceStatusResponse } from './types';
+import { buildDeviceSections } from './build-device-sections';
+import PhysicalDeviceRow from './PhysicalDeviceRow';
+import EmulatorProfileRow from './EmulatorProfileRow';
 
 interface DeviceStatusPanelProps {
     projectId: string;
