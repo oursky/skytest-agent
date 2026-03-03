@@ -4,7 +4,7 @@ import { useI18n } from '@/i18n';
 import type { ConfigItem, ConfigType } from '@/types';
 import { isGroupableConfigType, normalizeConfigGroup } from '@/lib/config/sort';
 import { normalizeConfigName } from '@/lib/config/validation';
-import type { ProjectConfigEditState, ProjectConfigFileUploadDraft } from './types';
+import type { ProjectConfigEditState, ProjectConfigFileUploadDraft } from '../model/types';
 import {
     buildAuthHeaders,
     buildConfigDownloadEndpoint,

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { TestStep } from '@/types';
 import type { BrowserEntry } from '@/components/features/configurations/model/types';
-import type { TestData } from './types';
-import { buildBrowsers, buildSteps, createStepId } from './state-utils';
+import type { TestData } from '../model/types';
+import { buildBrowsers, buildSteps, createStepId } from '../model/state-utils';
 
 interface UseTestFormStateParams {
     initialData?: TestData;

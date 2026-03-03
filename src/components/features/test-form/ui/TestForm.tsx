@@ -7,9 +7,9 @@ import ConfigurationsSection from '@/components/features/configurations/Configur
 import ConfigHints from '@/components/features/configurations/ui/ConfigHints';
 import { buildAuthHeaders, buildConfigsEndpoint } from '@/components/features/configurations/model/config-utils';
 import type { BrowserEntry } from '@/components/features/configurations/model/types';
-import type { TestData } from './types';
-import { useTestFormState } from './useTestFormState';
-import { buildCurrentData as buildTestData, createStepId, hasMissingRequiredEntryPointFields } from './state-utils';
+import type { TestData } from '../model/types';
+import { useTestFormState } from '../hooks/useTestFormState';
+import { buildCurrentData as buildTestData, createStepId, hasMissingRequiredEntryPointFields } from '../model/state-utils';
 import { useI18n } from '@/i18n';
 import { useAuth } from '@/app/auth-provider';
 import { normalizeBrowserConfig } from '@/lib/config/browser-target';

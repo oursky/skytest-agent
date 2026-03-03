@@ -2,8 +2,8 @@ import type { AndroidDevicePoolStatusItem } from '@/lib/android/device-manager';
 import type { ConnectedAndroidDeviceInfo } from '@/lib/android/device-display';
 import { useI18n } from '@/i18n';
 import DeviceRunLink from './DeviceRunLink';
-import { buildConnectedDeviceDetail, buildConnectedDeviceTitle } from './connected-device-presentation';
-import { getConnectedDeviceBadge, isDeviceInUseByCurrentProject } from './state-utils';
+import { buildConnectedDeviceDetail, buildConnectedDeviceTitle } from '../model/connected-device-presentation';
+import { getConnectedDeviceBadge, isDeviceInUseByCurrentProject } from '../model/state-utils';
 
 interface PhysicalDeviceRowProps {
     connected: ConnectedAndroidDeviceInfo;

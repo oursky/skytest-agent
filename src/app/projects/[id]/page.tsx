@@ -11,8 +11,8 @@ import { useI18n } from "@/i18n";
 import { getStatusBadgeClass } from '@/utils/statusBadge';
 import { isActiveRunStatus } from '@/utils/statusHelpers';
 import Pagination from '@/components/shared/Pagination';
-import ProjectConfigs from '@/components/features/project-configs/ProjectConfigs';
-import AndroidSetup from '@/components/features/device-status/AndroidSetup';
+import ProjectConfigs from '@/components/features/project-configs/ui/ProjectConfigs';
+import AndroidSetup from '@/components/features/device-status/ui/AndroidSetup';
 
 interface TestRun {
     id: string;

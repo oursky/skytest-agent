@@ -3,8 +3,8 @@
 import { useState, useEffect, Suspense, useRef, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth } from "../auth-provider";
-import TestForm from "@/components/features/test-form/TestForm";
-import ResultViewer from "@/components/features/result-viewer/ResultViewer";
+import TestForm from "@/components/features/test-form/ui/TestForm";
+import ResultViewer from "@/components/features/result-viewer/ui/ResultViewer";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import { TestStep, BrowserConfig, TargetConfig, TestEvent, TestCaseFile, ConfigItem } from "@/types";
 import { exportToExcelArrayBuffer, parseTestCaseExcel } from "@/utils/testCaseExcel";

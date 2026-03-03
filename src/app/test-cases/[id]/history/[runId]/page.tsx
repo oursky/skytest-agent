@@ -3,8 +3,8 @@
 import { useState, useEffect, use, useCallback } from "react";
 import { useAuth } from "../../../../auth-provider";
 import { useRouter } from "next/navigation";
-import ResultViewer from "@/components/features/result-viewer/ResultViewer";
-import TestForm from "@/components/features/test-form/TestForm";
+import ResultViewer from "@/components/features/result-viewer/ui/ResultViewer";
+import TestForm from "@/components/features/test-form/ui/TestForm";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import { formatDateTime } from "@/utils/dateFormatter";
 import { useI18n } from "@/i18n";

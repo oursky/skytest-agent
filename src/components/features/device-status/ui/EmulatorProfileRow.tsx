@@ -1,9 +1,9 @@
-import type { EmulatorRow } from './types';
+import type { EmulatorRow } from '../model/types';
 import { DEVICE_STATE_COLORS } from '@/utils/deviceStateColors';
 import { useI18n } from '@/i18n';
 import { getInventoryOnlyStatusColorClass, getInventoryOnlyStatusKey } from '@/components/features/configurations/model/device-utils';
 import DeviceRunLink from './DeviceRunLink';
-import { DEVICE_STATE_LABEL_KEYS, formatCountdown, isDeviceInUseByCurrentProject } from './state-utils';
+import { DEVICE_STATE_LABEL_KEYS, formatCountdown, isDeviceInUseByCurrentProject } from '../model/state-utils';
 
 interface EmulatorProfileRowProps {
     row: EmulatorRow;

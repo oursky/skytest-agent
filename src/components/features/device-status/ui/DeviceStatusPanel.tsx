@@ -4,8 +4,8 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuth } from '@/app/auth-provider';
 import { useI18n } from '@/i18n';
 import { buildAuthHeaders } from '@/components/features/configurations/model/config-utils';
-import type { DeviceStatusResponse } from './types';
-import { buildDeviceSections } from './build-device-sections';
+import type { DeviceStatusResponse } from '../model/types';
+import { buildDeviceSections } from '../model/build-device-sections';
 import PhysicalDeviceRow from './PhysicalDeviceRow';
 import EmulatorProfileRow from './EmulatorProfileRow';
 

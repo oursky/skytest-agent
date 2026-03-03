@@ -4,7 +4,7 @@ import { isGroupableConfigType } from '@/lib/config/sort';
 import { useI18n } from '@/i18n';
 import GroupSelectInput from '@/components/features/configurations/ui/GroupSelectInput';
 import MaskedIcon from '@/components/features/configurations/ui/MaskedIcon';
-import type { ProjectConfigEditState } from './types';
+import type { ProjectConfigEditState } from '../model/types';
 
 interface ConfigInlineEditorProps {
     type: ConfigType;

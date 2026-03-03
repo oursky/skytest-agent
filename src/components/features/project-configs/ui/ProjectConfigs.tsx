@@ -6,7 +6,7 @@ import type { ConfigItem, ConfigType } from '@/types';
 import GroupSelectInput from '@/components/features/configurations/ui/GroupSelectInput';
 import ConfigHints from '@/components/features/configurations/ui/ConfigHints';
 import ConfigInlineEditor from './ConfigInlineEditor';
-import { useProjectConfigs } from './useProjectConfigs';
+import { useProjectConfigs } from '../hooks/useProjectConfigs';
 import {
     buildConfigDisplayValue,
     getConfigTypeTitleKey,
