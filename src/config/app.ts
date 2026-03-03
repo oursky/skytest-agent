@@ -1,3 +1,8 @@
+const maxConcurrentTestRunsPerUserValue = Number.parseInt(process.env.MAX_CONCURRENT_TEST_RUNS_PER_USER ?? '', 10);
+const maxConcurrentTestRunsPerUser = Number.isFinite(maxConcurrentTestRunsPerUserValue) && maxConcurrentTestRunsPerUserValue > 0
+    ? maxConcurrentTestRunsPerUserValue
+    : 5;
+
 export const config = {
     app: {
         name: 'SkyTest Agent',
@@ -23,8 +28,8 @@ export const config = {
     },
 
     queue: {
-        concurrency: 1,
-        maxConcurrentPerProject: 1,
+        concurrency: maxConcurrentTestRunsPerUser,
+        maxConcurrentPerUser: maxConcurrentTestRunsPerUser,
         pollInterval: 500,
         persistFlushMs: 1000,
         cancelForceReleaseMs: 5000,

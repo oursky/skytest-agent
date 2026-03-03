@@ -318,14 +318,14 @@ export class TestQueue {
         return 'PREPARING';
     }
 
-    private getActiveRunCountForProject(projectId: string | undefined): number {
-        if (!projectId) {
+    private getActiveRunCountForUser(userId: string | undefined): number {
+        if (!userId) {
             return 0;
         }
 
         let count = 0;
         for (const job of this.running.values()) {
-            if (job.config.projectId === projectId) {
+            if (job.config.userId === userId) {
                 count += 1;
             }
         }
@@ -374,8 +374,8 @@ export class TestQueue {
     }
 
     private async canStartJobNow(job: Job): Promise<boolean> {
-        const perProjectActive = this.getActiveRunCountForProject(job.config.projectId);
-        if (perProjectActive >= appConfig.queue.maxConcurrentPerProject) {
+        const perUserActive = this.getActiveRunCountForUser(job.config.userId);
+        if (perUserActive >= appConfig.queue.maxConcurrentPerUser) {
             return false;
         }
 
