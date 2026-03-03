@@ -3,14 +3,14 @@
 import { compareByGroupThenName } from '@/lib/config/sort';
 import { useI18n } from '@/i18n';
 import type { ConfigItem, ConfigType } from '@/types';
-import GroupSelectInput from '@/components/features/configurations/shared/GroupSelectInput';
-import ConfigHints from '@/components/features/configurations/shared/ConfigHints';
+import GroupSelectInput from '@/components/features/configurations/ui/GroupSelectInput';
+import ConfigHints from '@/components/features/configurations/ui/ConfigHints';
 import ConfigInlineEditor from './ConfigInlineEditor';
 import { useProjectConfigs } from './useProjectConfigs';
 import {
     buildConfigDisplayValue,
     getConfigTypeTitleKey,
-} from '@/components/features/configurations/shared/config-utils';
+} from '@/components/features/configurations/model/config-utils';
 
 interface ProjectConfigsProps {
     projectId: string;

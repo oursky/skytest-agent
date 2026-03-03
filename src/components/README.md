@@ -14,7 +14,7 @@ Each folder under `features/` owns one feature end-to-end.
   - `ui/`: feature UI components (`*.tsx`).
   - `model/`: feature types/helpers/state mapping (`*.ts`).
   - `hooks/`: feature hooks (`use*.ts`).
-  - `shared/`: domain-shared pieces reused across related features.
+  - `shared/`: optional, only when a feature truly needs an internal shared layer.
 
 When a non-UI file is used by multiple features, move it to `src/lib/`.
 
@@ -30,7 +30,7 @@ When a non-UI file is used by multiple features, move it to `src/lib/`.
 ## Placement rules
 
 - Put cross-feature components like `Modal` and `Pagination` in `shared/`.
-- Put config-domain shared inputs like `GroupSelectInput` in `features/configurations/shared/`.
+- Put configuration-domain components in `features/configurations/ui/` or `features/configurations/model/`.
 - Put `Header`, `Breadcrumbs`, and shell-specific blocks in `layout/`.
 - Do not place new feature files at `src/components` root.
 - Keep imports explicit by folder role:

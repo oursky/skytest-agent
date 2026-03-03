@@ -20,7 +20,7 @@ import {
     buildConfigsEndpoint,
     buildConfigUploadEndpoint,
     collectConfigGroupOptions,
-} from './shared/config-utils';
+} from './model/config-utils';
 
 interface ConfigurationsSectionProps {
     projectId?: string;

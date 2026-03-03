@@ -2,8 +2,8 @@ import type { KeyboardEvent } from 'react';
 import type { ConfigType } from '@/types';
 import { isGroupableConfigType } from '@/lib/config/sort';
 import { useI18n } from '@/i18n';
-import GroupSelectInput from '@/components/features/configurations/shared/GroupSelectInput';
-import MaskedIcon from '@/components/features/configurations/shared/MaskedIcon';
+import GroupSelectInput from '@/components/features/configurations/ui/GroupSelectInput';
+import MaskedIcon from '@/components/features/configurations/ui/MaskedIcon';
 import type { ProjectConfigEditState } from './types';
 
 interface ConfigInlineEditorProps {
