@@ -1,23 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { TestStep, BrowserConfig, TargetConfig, ConfigItem, TestCaseFile } from '@/types';
 import BuilderForm from './BuilderForm';
 import ConfigurationsSection from './ConfigurationsSection';
 import ConfigHints from './config-shared/ConfigHints';
 import { buildAuthHeaders, buildConfigsEndpoint } from './config-shared/config-utils';
+import type { BrowserEntry } from './configurations-section/types';
+import type { TestData } from './test-form/types';
+import { useTestFormState } from './test-form/useTestFormState';
+import { buildCurrentData as buildTestData, createStepId, hasMissingRequiredEntryPointFields } from './test-form/state-utils';
 import { useI18n } from '@/i18n';
 import { useAuth } from '@/app/auth-provider';
 import { normalizeBrowserConfig } from '@/lib/config/browser-target';
-
-interface TestData {
-    url: string;
-    prompt: string;
-    name?: string;
-    displayId?: string;
-    steps?: TestStep[];
-    browserConfig?: Record<string, BrowserConfig | TargetConfig>;
-}
 
 interface TestFormProps {
     onSubmit: (data: TestData) => void;
@@ -41,11 +36,6 @@ interface TestFormProps {
     onEnsureTestCase?: (data: TestData) => Promise<string | null>;
 }
 
-interface BrowserEntry {
-    id: string;
-    config: BrowserConfig | TargetConfig;
-}
-
 type TestFormTab = 'configurations' | 'test-steps';
 
 const SAMPLE_URL_CONFIG_NAME = 'SAUCEDEMO_URL';
@@ -63,139 +53,18 @@ const SAMPLE_CONFIGS_TO_ENSURE = [
     { name: SAMPLE_PASSWORD_CONFIG_NAME, type: 'VARIABLE', value: SAMPLE_PASSWORD_CONFIG_VALUE, masked: true },
 ] as const;
 
-function createStepId(prefix: string): string {
-    return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function buildBrowsers(data?: TestData): BrowserEntry[] {
-    if (data?.browserConfig && Object.keys(data.browserConfig).length > 0) {
-        return Object.entries(data.browserConfig).map(([id, cfg]) => {
-            if ('type' in cfg && cfg.type === 'android') {
-                return { id, config: cfg };
-            }
-            const browserCfg = cfg as BrowserConfig;
-            return { id, config: normalizeBrowserConfig(browserCfg) };
-        });
-    }
-
-    return [{
-        id: 'browser_a',
-        config: normalizeBrowserConfig({
-            url: data?.url || '',
-        })
-    }];
-}
-
-function hasMissingRequiredEntryPointFields(browsers: BrowserEntry[]): boolean {
-    return browsers.some(({ config }) => {
-        if ('type' in config && config.type === 'android') {
-            return !config.appId?.trim();
-        }
-
-        return !config.url?.trim();
-    });
-}
-
-function buildSteps(data: TestData | undefined, browserId: string, validBrowserIds: Set<string>): TestStep[] {
-    if (data?.steps && data.steps.length > 0) {
-        return data.steps.map((step) => ({
-            ...step,
-            target: validBrowserIds.has(step.target) ? step.target : browserId,
-            type: step.type || 'ai-action'
-        }));
-    }
-
-    if (!data?.prompt) {
-        return [];
-    }
-
-    return data.prompt
-        .split('\n')
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0)
-        .map((action, index) => ({
-            id: createStepId(`prompt-${index}`),
-            target: browserId,
-            action,
-            type: 'ai-action' as const
-        }));
-}
-
 export default function TestForm({ onSubmit, isLoading, initialData, showNameInput, readOnly, onExport, onImport, testCaseId, onSaveDraft, onDiscard, isSaving, displayId, onDisplayIdChange, projectId, projectConfigs, testCaseConfigs, testCaseFiles, onTestCaseConfigsChange, onEnsureTestCase }: TestFormProps) {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
     const [activeTab, setActiveTab] = useState<TestFormTab>('configurations');
-    const [name, setName] = useState(() => initialData?.name || '');
-    const [browsers, setBrowsers] = useState<BrowserEntry[]>(() => buildBrowsers(initialData));
-    const [steps, setSteps] = useState<TestStep[]>(() => {
-        const initialBrowsers = buildBrowsers(initialData);
-        const defaultBrowserId = initialBrowsers[0]?.id || 'browser_a';
-        return buildSteps(initialData, defaultBrowserId, new Set(initialBrowsers.map((browser) => browser.id)));
-    });
-
-    useEffect(() => {
-        if (!initialData) return;
-
-        const nextBrowsers = buildBrowsers(initialData);
-        const defaultBrowserId = nextBrowsers[0]?.id || 'browser_a';
-        const validBrowserIds = new Set(nextBrowsers.map((browser) => browser.id));
-
-        let cancelled = false;
-        queueMicrotask(() => {
-            if (cancelled) return;
-            setName(initialData.name || '');
-            setBrowsers(nextBrowsers);
-            setSteps(buildSteps(initialData, defaultBrowserId, validBrowserIds));
-        });
-
-        return () => {
-            cancelled = true;
-        };
-    }, [initialData]);
-
-    useEffect(() => {
-        if (steps.length !== 0) return;
-
-        queueMicrotask(() => {
-            setSteps((current) => {
-                if (current.length !== 0) return current;
-                return [{
-                    id: createStepId('step'),
-                    target: browsers[0]?.id || 'browser_a',
-                    action: '',
-                    type: 'ai-action'
-                }];
-            });
-        });
-    }, [steps.length, browsers]);
-
-    useEffect(() => {
-        const fallbackTargetId = browsers[0]?.id;
-        if (!fallbackTargetId) return;
-
-        const validTargetIds = new Set(browsers.map((browser) => browser.id));
-        let cancelled = false;
-
-        queueMicrotask(() => {
-            if (cancelled) return;
-
-            setSteps((currentSteps) => {
-                let changed = false;
-                const nextSteps = currentSteps.map((step) => {
-                    if (validTargetIds.has(step.target)) {
-                        return step;
-                    }
-                    changed = true;
-                    return { ...step, target: fallbackTargetId };
-                });
-                return changed ? nextSteps : currentSteps;
-            });
-        });
-
-        return () => {
-            cancelled = true;
-        };
-    }, [browsers]);
+    const {
+        name,
+        setName,
+        browsers,
+        setBrowsers,
+        steps,
+        setSteps,
+    } = useTestFormState({ initialData });
 
     const ensureSampleConfigs = async (targetTestCaseId?: string) => {
         try {
@@ -310,26 +179,13 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
         setActiveTab('test-steps');
     };
 
-    const buildCurrentData = (): TestData => {
-        const browserConfigMap: Record<string, BrowserConfig | TargetConfig> = {};
-        browsers.forEach((browser) => {
-            browserConfigMap[browser.id] = browser.config;
-        });
-
-        const firstConfig = browsers[0]?.config;
-        const firstUrl = firstConfig && !('type' in firstConfig && firstConfig.type === 'android')
-            ? (firstConfig as BrowserConfig).url || ''
-            : '';
-
-        return {
-            name: showNameInput ? name : undefined,
-            displayId: displayId || undefined,
-            url: firstUrl,
-            prompt: '',
-            steps,
-            browserConfig: browserConfigMap
-        };
-    };
+    const getCurrentData = (): TestData => buildTestData(
+        browsers,
+        steps,
+        showNameInput,
+        name,
+        displayId
+    );
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -337,7 +193,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
             setActiveTab('configurations');
             return;
         }
-        onSubmit(buildCurrentData());
+        onSubmit(getCurrentData());
     };
 
     const runDisabled = isLoading || hasMissingRequiredEntryPointFields(browsers);
@@ -365,7 +221,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                             {onExport && (
                                 <button
                                     type="button"
-                                    onClick={() => onExport(buildCurrentData())}
+                                    onClick={() => onExport(getCurrentData())}
                                     className="px-3 py-1.5 bg-white text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-1.5 text-sm"
                                     title={t('testForm.exportTitle')}
                                 >
@@ -462,7 +318,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                             testCaseConfigs={testCaseConfigs || []}
                             testCaseId={testCaseId}
                             onTestCaseConfigsChange={(updatedTestCaseId) => onTestCaseConfigsChange?.(updatedTestCaseId || testCaseId)}
-                            onEnsureTestCaseId={onEnsureTestCase ? () => onEnsureTestCase(buildCurrentData()) : undefined}
+                            onEnsureTestCaseId={onEnsureTestCase ? () => onEnsureTestCase(getCurrentData()) : undefined}
                             readOnly={readOnly}
                             browsers={browsers}
                             setBrowsers={setBrowsers}
@@ -504,7 +360,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        const data = buildCurrentData();
+                                        const data = getCurrentData();
                                         onSaveDraft(data);
                                     }}
                                     disabled={isSaving || !name.trim()}
