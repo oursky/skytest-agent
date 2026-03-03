@@ -8,6 +8,15 @@ import type { AndroidDevicePoolStatus, AndroidDevicePoolStatusItem } from '@/lib
 import type { ConnectedAndroidDeviceInfo } from '@/lib/android/device-display';
 import { formatAndroidDeviceDisplayName } from '@/lib/android/device-display';
 import { DEVICE_STATE_COLORS } from '@/utils/deviceStateColors';
+import {
+    ADB_STATE_PRIORITY,
+    DEVICE_STATE_PRIORITY,
+    buildAndroidVersionDetail,
+    getInventoryOnlyStatusColorClass,
+    getInventoryOnlyStatusKey,
+    joinAndroidDeviceDetail,
+    normalizeDeviceName,
+} from './configurations-section/device-utils';
 
 interface DeviceStatusResponse extends AndroidDevicePoolStatus {
     connectedDevices: ConnectedAndroidDeviceInfo[];
@@ -18,27 +27,6 @@ interface DeviceStatusResponse extends AndroidDevicePoolStatus {
         apiLevel: number | null;
         screenSize: string | null;
     }>;
-}
-
-const DEVICE_STATE_PRIORITY: Record<AndroidDevicePoolStatusItem['state'], number> = {
-    ACQUIRED: 0,
-    CLEANING: 1,
-    IDLE: 2,
-    BOOTING: 3,
-    STARTING: 4,
-    STOPPING: 5,
-    DEAD: 6,
-};
-
-const ADB_STATE_PRIORITY: Record<ConnectedAndroidDeviceInfo['adbState'], number> = {
-    device: 0,
-    unauthorized: 1,
-    offline: 2,
-    unknown: 3,
-};
-
-function normalizeName(name: string): string {
-    return name.trim().toLowerCase();
 }
 
 function isDeviceInUseByCurrentProject(device: AndroidDevicePoolStatusItem, projectId: string): boolean {
@@ -59,7 +47,7 @@ function buildConnectedDeviceTitle(device: ConnectedAndroidDeviceInfo): string {
 }
 
 function joinDeviceDetail(parts: Array<string | null | undefined>): string {
-    return parts.filter((part): part is string => Boolean(part && part.trim())).join(', ');
+    return joinAndroidDeviceDetail(parts);
 }
 
 function formatCountdown(remainingMs: number): string {
@@ -70,10 +58,7 @@ function formatCountdown(remainingMs: number): string {
 }
 
 function buildVersionDetail(androidVersion: string | null, apiLevel: number | null): string {
-    return joinDeviceDetail([
-        androidVersion ? `Android ${androidVersion}` : null,
-        apiLevel !== null ? `API ${apiLevel}` : null,
-    ]);
+    return buildAndroidVersionDetail(androidVersion, apiLevel);
 }
 
 function buildConnectedDeviceDetail(device: ConnectedAndroidDeviceInfo): string {
@@ -84,16 +69,11 @@ function buildConnectedDeviceDetail(device: ConnectedAndroidDeviceInfo): string 
 }
 
 function getInventoryOnlyBadgeKey(connected: ConnectedAndroidDeviceInfo): string {
-    if (connected.adbState === 'device') return 'device.state.idle';
-    if (connected.adbState === 'unauthorized') return 'device.adb.unauthorized';
-    if (connected.adbState === 'offline') return 'device.adb.offline';
-    return 'device.adb.unknown';
+    return getInventoryOnlyStatusKey(connected);
 }
 
 function getInventoryOnlyBadgeColor(connected: ConnectedAndroidDeviceInfo): string {
-    if (connected.adbState === 'device') return DEVICE_STATE_COLORS.IDLE;
-    if (connected.adbState === 'unauthorized') return 'bg-amber-100 text-amber-700';
-    return 'bg-gray-100 text-gray-600';
+    return getInventoryOnlyStatusColorClass(connected);
 }
 
 function getDeviceBadgeKey(
@@ -287,7 +267,7 @@ export default function DeviceStatusPanel({ projectId }: DeviceStatusPanelProps)
         for (const device of status.devices) {
             connectedRuntimeBySerial.set(device.serial, device);
             if (device.kind === 'emulator' && device.emulatorProfileName) {
-                const normalizedProfileName = normalizeName(device.emulatorProfileName);
+                const normalizedProfileName = normalizeDeviceName(device.emulatorProfileName);
                 const existing = runtimeByEmulatorProfile.get(normalizedProfileName);
                 if (!existing || DEVICE_STATE_PRIORITY[device.state] < DEVICE_STATE_PRIORITY[existing.state]) {
                     runtimeByEmulatorProfile.set(normalizedProfileName, device);
@@ -306,7 +286,7 @@ export default function DeviceStatusPanel({ projectId }: DeviceStatusPanelProps)
                 continue;
             }
 
-            const normalizedProfileName = normalizeName(connected.emulatorProfileName);
+            const normalizedProfileName = normalizeDeviceName(connected.emulatorProfileName);
             const existing = connectedEmulatorsByProfile.get(normalizedProfileName);
             if (!existing || ADB_STATE_PRIORITY[connected.adbState] < ADB_STATE_PRIORITY[existing.adbState]) {
                 connectedEmulatorsByProfile.set(normalizedProfileName, connected);
@@ -329,14 +309,14 @@ export default function DeviceStatusPanel({ projectId }: DeviceStatusPanelProps)
         const usedRuntimeIds = new Set<string>();
 
         for (const profile of status.emulatorProfiles) {
-            const runtime = runtimeByEmulatorProfile.get(normalizeName(profile.name));
+            const runtime = runtimeByEmulatorProfile.get(normalizeDeviceName(profile.name));
             if (runtime) {
                 usedRuntimeIds.add(runtime.id);
             }
 
             const connected = runtime
                 ? connectedEmulatorsBySerial.get(runtime.serial)
-                : connectedEmulatorsByProfile.get(normalizeName(profile.name));
+                : connectedEmulatorsByProfile.get(normalizeDeviceName(profile.name));
             if (connected) {
                 usedConnectedEmulatorSerials.add(connected.serial);
             }
