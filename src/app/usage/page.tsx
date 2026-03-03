@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from '../auth-provider';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { formatDateTime } from '@/utils/dateFormatter';
 import { useI18n } from '@/i18n';
 import { Modal } from '@/components/shared';
+import { PAGE_SIZE_OPTIONS, parsePageSize } from '@/utils/pagination';
 
 interface TestRunInfo {
     id: string;
@@ -42,10 +43,13 @@ interface ApiKeyState {
 export default function UsagePage() {
     const { isLoggedIn, isLoading: isAuthLoading, getAccessToken } = useAuth();
     const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+    const pageSize = parsePageSize(searchParams.get('limit'));
     const { t } = useI18n();
 
     const [records, setRecords] = useState<UsageRecord[]>([]);
-    const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 10, total: 0, totalPages: 0 });
+    const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: pageSize, total: 0, totalPages: 0 });
     const [isLoading, setIsLoading] = useState(true);
 
     const [apiKeyState, setApiKeyState] = useState<ApiKeyState>({ hasKey: false, maskedKey: null });
@@ -54,6 +58,7 @@ export default function UsagePage() {
     const [keyError, setKeyError] = useState<string | null>(null);
     const [keySuccess, setKeySuccess] = useState<string | null>(null);
     const [isDeleteApiKeyModalOpen, setIsDeleteApiKeyModalOpen] = useState(false);
+    const hasLoadedInitialDataRef = useRef(false);
 
     useEffect(() => {
         if (!isAuthLoading && !isLoggedIn) {
@@ -86,23 +91,38 @@ export default function UsagePage() {
     }, [getAccessToken]);
 
     useEffect(() => {
+        if (!isLoggedIn) {
+            hasLoadedInitialDataRef.current = false;
+            return;
+        }
+
         const fetchData = async () => {
-            if (!isLoggedIn) return;
-            setIsLoading(true);
+            const isInitialLoad = !hasLoadedInitialDataRef.current;
+            if (isInitialLoad) {
+                setIsLoading(true);
+            }
+
             try {
-                await Promise.all([
-                    fetchApiKeyStatus(),
-                    fetchRecords(1, 10)
-                ]);
+                if (isInitialLoad) {
+                    await Promise.all([
+                        fetchApiKeyStatus(),
+                        fetchRecords(1, pageSize)
+                    ]);
+                    hasLoadedInitialDataRef.current = true;
+                } else {
+                    await fetchRecords(1, pageSize);
+                }
             } catch (error) {
                 console.error("Failed to fetch data", error);
             } finally {
-                setIsLoading(false);
+                if (isInitialLoad) {
+                    setIsLoading(false);
+                }
             }
         };
 
         fetchData();
-    }, [isLoggedIn, fetchApiKeyStatus, fetchRecords]);
+    }, [isLoggedIn, fetchApiKeyStatus, fetchRecords, pageSize]);
 
     const handleSaveApiKey = async () => {
         setKeyError(null);
@@ -177,7 +197,10 @@ export default function UsagePage() {
     };
 
     const handleLimitChange = (newLimit: number) => {
-        fetchRecords(1, newLimit);
+        const params = new URLSearchParams(searchParams.toString());
+        params.set('limit', String(newLimit));
+        const query = params.toString();
+        router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
     };
 
     const getTestRunLink = (record: UsageRecord): string | null => {
@@ -331,9 +354,11 @@ export default function UsagePage() {
                                 onChange={(e) => handleLimitChange(Number(e.target.value))}
                                 className="px-2 py-1 text-sm text-gray-500 border border-gray-300 rounded focus:outline-none"
                             >
-                                <option value={10}>10</option>
-                                <option value={20}>20</option>
-                                <option value={50}>50</option>
+                                {PAGE_SIZE_OPTIONS.map((size) => (
+                                    <option key={size} value={size}>
+                                        {size}
+                                    </option>
+                                ))}
                             </select>
                         </div>
                     </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useI18n } from "@/i18n";
+import { PAGE_SIZE_OPTIONS } from "@/utils/pagination";
 
 interface PaginationProps {
     page: number;
@@ -10,8 +11,6 @@ interface PaginationProps {
     onPageChange: (page: number) => void;
     onLimitChange: (limit: number) => void;
 }
-
-const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
 export default function Pagination({
     page,

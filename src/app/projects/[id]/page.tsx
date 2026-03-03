@@ -10,6 +10,7 @@ import { formatDateTimeCompact } from "@/utils/dateFormatter";
 import { useI18n } from "@/i18n";
 import { getStatusBadgeClass } from '@/utils/statusBadge';
 import { isActiveRunStatus } from '@/utils/statusHelpers';
+import { parsePageSize } from '@/utils/pagination';
 import { ProjectConfigs } from '@/components/features/project-configs';
 import { AndroidSetup } from '@/components/features/device-status';
 
@@ -44,6 +45,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
+    const pageSize = parsePageSize(searchParams.get('limit'));
     const { t } = useI18n();
 
     const [project, setProject] = useState<Project | null>(null);
@@ -53,7 +55,6 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     const [sortColumn, setSortColumn] = useState<'id' | 'name' | 'status' | 'updated'>('updated');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
     const [currentPage, setCurrentPage] = useState(1);
-    const [pageSize, setPageSize] = useState(10);
     const [searchInput, setSearchInput] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTab, setActiveTab] = useState<'test-cases' | 'configs' | 'android'>('test-cases');
@@ -405,8 +406,11 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     };
 
     const handlePageSizeChange = (size: number) => {
-        setPageSize(size);
         setCurrentPage(1);
+        const params = new URLSearchParams(searchParams.toString());
+        params.set('limit', String(size));
+        const query = params.toString();
+        router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
     };
 
     const handleExportAll = () => {

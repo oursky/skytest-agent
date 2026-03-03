@@ -3,12 +3,13 @@
 import { useState, useEffect, use, useRef, useCallback } from "react";
 import { useAuth } from "../../../auth-provider";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Modal, Pagination } from "@/components/shared";
 import { Breadcrumbs } from "@/components/layout";
 import { formatDateTime } from "@/utils/dateFormatter";
 import { useI18n } from "@/i18n";
 import { getStatusBadgeClass } from '@/utils/statusBadge';
+import { parsePageSize } from '@/utils/pagination';
 
 interface TestRun {
     id: string;
@@ -22,6 +23,9 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
     const { id } = use(params);
     const { isLoggedIn, isLoading: isAuthLoading, getAccessToken } = useAuth();
     const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+    const pageSize = parsePageSize(searchParams.get('limit'));
     const { t } = useI18n();
 
     const [testRuns, setTestRuns] = useState<TestRun[]>([]);
@@ -31,7 +35,6 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
     const [isLoading, setIsLoading] = useState(true);
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; runId: string; status?: string }>({ isOpen: false, runId: "", status: "" });
     const [currentPage, setCurrentPage] = useState(1);
-    const [pageSize, setPageSize] = useState(10);
 
     const eventSourceRef = useRef<EventSource | null>(null);
 
@@ -235,8 +238,11 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
     };
 
     const handlePageSizeChange = (size: number) => {
-        setPageSize(size);
         setCurrentPage(1);
+        const params = new URLSearchParams(searchParams.toString());
+        params.set('limit', String(size));
+        const query = params.toString();
+        router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
     };
 
     if (isAuthLoading || isLoading) {
