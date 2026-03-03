@@ -7,8 +7,11 @@ import { UsageService } from '@/lib/runtime/usage';
 import { createLogger } from '@/lib/core/logger';
 import { publishProjectEvent } from '@/lib/runtime/project-events';
 import { androidDeviceManager } from '@/lib/android/device-manager';
-import { normalizeAndroidTargetConfig } from '@/lib/android/target-config';
-import type { AndroidDeviceSelector } from '@/types';
+import {
+    getAndroidAcquireProbeRequests,
+    getEmulatorProfileNames,
+    type AndroidAcquireProbeRequest,
+} from '@/lib/runtime/android-reservations';
 
 const logger = createLogger('queue');
 
@@ -49,7 +52,7 @@ export class TestQueue {
     private processNextRunning = false;
     private processNextRequested = false;
     private blockedQueueRetryTimer: ReturnType<typeof setTimeout> | null = null;
-    private pendingAndroidReservations: Map<string, Array<{ projectId: string; selector: AndroidDeviceSelector; resourceKey: string }>> = new Map();
+    private pendingAndroidReservations: Map<string, AndroidAcquireProbeRequest[]> = new Map();
     private cancellationRequested: Set<string> = new Set();
 
     private constructor() { }
@@ -239,7 +242,7 @@ export class TestQueue {
                 logger.error(`Failed to mark ${runId} as cancelled`, e);
             }
 
-            const cancelledEmulatorProfiles = this.getEmulatorProfileNames(job.config);
+            const cancelledEmulatorProfiles = getEmulatorProfileNames(job.config);
             if (cancelledEmulatorProfiles.size > 0) {
                 await androidDeviceManager.stopIdleEmulatorsForProfiles(cancelledEmulatorProfiles);
             }
@@ -329,43 +332,8 @@ export class TestQueue {
         return count;
     }
 
-    private getAndroidAcquireProbeRequests(
-        config: RunTestOptions['config']
-    ): Array<{ projectId: string; selector: AndroidDeviceSelector; resourceKey: string }> {
-        if (!config.projectId || !config.browserConfig) {
-            return [];
-        }
-
-        const requests: Array<{ projectId: string; selector: AndroidDeviceSelector; resourceKey: string }> = [];
-        for (const target of Object.values(config.browserConfig)) {
-            if (!('type' in target) || target.type !== 'android') {
-                continue;
-            }
-
-            const normalizedTarget = normalizeAndroidTargetConfig(target);
-            const selector = normalizedTarget.deviceSelector;
-            if (
-                (selector.mode === 'emulator-profile' && !selector.emulatorProfileName)
-                || (selector.mode === 'connected-device' && !selector.serial)
-            ) {
-                continue;
-            }
-
-            const resourceKey = selector.mode === 'connected-device'
-                ? `connected-device:${selector.serial}`
-                : `emulator-profile:${selector.emulatorProfileName}`;
-            requests.push({
-                projectId: config.projectId,
-                selector,
-                resourceKey,
-            });
-        }
-
-        return requests;
-    }
-
-    private getAllPendingAndroidReservations(): Array<{ projectId: string; selector: AndroidDeviceSelector; resourceKey: string }> {
-        const reservations: Array<{ projectId: string; selector: AndroidDeviceSelector; resourceKey: string }> = [];
+    private getAllPendingAndroidReservations(): AndroidAcquireProbeRequest[] {
+        const reservations: AndroidAcquireProbeRequest[] = [];
         for (const requests of this.pendingAndroidReservations.values()) {
             reservations.push(...requests);
         }
@@ -405,33 +373,13 @@ export class TestQueue {
         this.cancellationForceReleaseTimers.set(runId, timer);
     }
 
-    private getEmulatorProfileNames(config: RunTestOptions['config']): Set<string> {
-        const profileNames = new Set<string>();
-        if (!config.browserConfig) {
-            return profileNames;
-        }
-
-        for (const target of Object.values(config.browserConfig)) {
-            if (!('type' in target) || target.type !== 'android') {
-                continue;
-            }
-            const normalizedTarget = normalizeAndroidTargetConfig(target);
-            const selector = normalizedTarget.deviceSelector;
-            if (selector.mode === 'emulator-profile' && selector.emulatorProfileName) {
-                profileNames.add(selector.emulatorProfileName);
-            }
-        }
-
-        return profileNames;
-    }
-
     private async canStartJobNow(job: Job): Promise<boolean> {
         const perProjectActive = this.getActiveRunCountForProject(job.config.projectId);
         if (perProjectActive >= appConfig.queue.maxConcurrentPerProject) {
             return false;
         }
 
-        const androidRequests = this.getAndroidAcquireProbeRequests(job.config);
+        const androidRequests = getAndroidAcquireProbeRequests(job.config);
         if (androidRequests.length === 0) {
             return true;
         }
@@ -478,7 +426,7 @@ export class TestQueue {
         this.running.set(job.runId, job);
         const startStatus = this.getStartStatus();
         this.activeStatuses.set(job.runId, startStatus);
-        const androidRequests = this.getAndroidAcquireProbeRequests(job.config);
+        const androidRequests = getAndroidAcquireProbeRequests(job.config);
         if (androidRequests.length > 0) {
             this.pendingAndroidReservations.set(job.runId, androidRequests);
         }
