@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../auth-provider';
-import Modal from '@/components/Modal';
+import { Modal } from '@/components/shared';
 import { useI18n } from '@/i18n';
 import { formatDateTime } from '@/utils/dateFormatter';
 

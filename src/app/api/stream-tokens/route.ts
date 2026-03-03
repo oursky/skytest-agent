@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { verifyAuth, resolveUserId } from '@/lib/auth';
-import { createLogger } from '@/lib/logger';
-import { issueStreamToken, StreamScope } from '@/lib/stream-token';
+import { prisma } from '@/lib/core/prisma';
+import { verifyAuth, resolveUserId } from '@/lib/security/auth';
+import { createLogger } from '@/lib/core/logger';
+import { issueStreamToken, StreamScope } from '@/lib/security/stream-token';
 
 const logger = createLogger('api:stream-tokens');
 

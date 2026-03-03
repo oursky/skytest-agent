@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { verifyAuth } from '@/lib/auth';
-import { createLogger } from '@/lib/logger';
-import { getProjectConfigUploadPath, getTestCaseConfigUploadPath, getUploadPath } from '@/lib/file-security';
+import { prisma } from '@/lib/core/prisma';
+import { verifyAuth } from '@/lib/security/auth';
+import { createLogger } from '@/lib/core/logger';
+import { getProjectConfigUploadPath, getTestCaseConfigUploadPath, getUploadPath } from '@/lib/security/file-security';
 import fs from 'fs/promises';
 
 const logger = createLogger('api:projects:id');

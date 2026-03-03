@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { verifyAuth, resolveUserId } from '@/lib/auth';
-import { createLogger } from '@/lib/logger';
-import { encrypt, decrypt, maskApiKey } from '@/lib/crypto';
+import { prisma } from '@/lib/core/prisma';
+import { verifyAuth, resolveUserId } from '@/lib/security/auth';
+import { createLogger } from '@/lib/core/logger';
+import { encrypt, decrypt, maskApiKey } from '@/lib/security/crypto';
 
 const logger = createLogger('api:user:api-key');
 

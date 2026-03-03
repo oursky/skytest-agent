@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { verifyAuth, resolveUserId } from '@/lib/auth';
-import { androidDeviceManager } from '@/lib/android-device-manager';
-import { createLogger } from '@/lib/logger';
-import { getAndroidAccessStatus } from '@/lib/user-features';
+import { prisma } from '@/lib/core/prisma';
+import { verifyAuth, resolveUserId } from '@/lib/security/auth';
+import { androidDeviceManager } from '@/lib/android/device-manager';
+import { createLogger } from '@/lib/core/logger';
+import { getAndroidAccessStatus } from '@/lib/android/user-features';
 
 const logger = createLogger('api:devices:apps');
 

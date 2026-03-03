@@ -1,4 +1,4 @@
-import type { AndroidDevicePoolStatusItem } from '@/lib/android-device-manager';
+import type { AndroidDevicePoolStatusItem } from '@/lib/android/device-manager';
 
 type DeviceState = AndroidDevicePoolStatusItem['state'];
 

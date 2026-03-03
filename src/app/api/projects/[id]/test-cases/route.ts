@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { verifyAuth, resolveUserId } from '@/lib/auth';
-import { createLogger } from '@/lib/logger';
-import { cleanStepsForStorage } from '@/lib/test-case-utils';
+import { prisma } from '@/lib/core/prisma';
+import { verifyAuth, resolveUserId } from '@/lib/security/auth';
+import { createLogger } from '@/lib/core/logger';
+import { cleanStepsForStorage } from '@/lib/runtime/test-case-utils';
 import { TestStep } from '@/types';
 
 const logger = createLogger('api:projects:test-cases');

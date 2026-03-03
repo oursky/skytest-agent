@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { queue } from '@/lib/queue';
-import { verifyAuth } from '@/lib/auth';
-import { createLogger } from '@/lib/logger';
+import { prisma } from '@/lib/core/prisma';
+import { queue } from '@/lib/runtime/queue';
+import { verifyAuth } from '@/lib/security/auth';
+import { createLogger } from '@/lib/core/logger';
 
 const logger = createLogger('api:test-runs:cancel');
 

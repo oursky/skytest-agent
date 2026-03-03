@@ -1,15 +1,15 @@
 import { NextResponse } from 'next/server';
-import { queue } from '@/lib/queue';
-import { prisma } from '@/lib/prisma';
-import { verifyAuth, resolveUserId } from '@/lib/auth';
-import { decrypt } from '@/lib/crypto';
-import { validateTargetUrl } from '@/lib/url-security';
-import { createLogger } from '@/lib/logger';
-import { resolveConfigs } from '@/lib/config-resolver';
+import { queue } from '@/lib/runtime/queue';
+import { prisma } from '@/lib/core/prisma';
+import { verifyAuth, resolveUserId } from '@/lib/security/auth';
+import { decrypt } from '@/lib/security/crypto';
+import { validateTargetUrl } from '@/lib/security/url-security';
+import { createLogger } from '@/lib/core/logger';
+import { resolveConfigs } from '@/lib/config/resolver';
 import { config as appConfig } from '@/config/app';
-import { listAndroidDeviceInventory } from '@/lib/android-devices';
-import { isAndroidAdbAvailable, isAndroidEmulatorAvailable } from '@/lib/android-sdk';
-import { normalizeAndroidTargetConfig } from '@/lib/android-target-config';
+import { listAndroidDeviceInventory } from '@/lib/android/devices';
+import { isAndroidAdbAvailable, isAndroidEmulatorAvailable } from '@/lib/android/sdk';
+import { normalizeAndroidTargetConfig } from '@/lib/android/target-config';
 import type { BrowserConfig, TargetConfig, AndroidTargetConfig, ResolvedConfig, TestStep } from '@/types';
 
 const logger = createLogger('api:run-test');

@@ -4,15 +4,14 @@ import { useState, useEffect, use, useCallback, useRef } from "react";
 import { useAuth } from "../../auth-provider";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import Modal from "@/components/Modal";
-import Breadcrumbs from "@/components/Breadcrumbs";
+import { Modal, Pagination } from "@/components/shared";
+import { Breadcrumbs } from "@/components/layout";
 import { formatDateTimeCompact } from "@/utils/dateFormatter";
 import { useI18n } from "@/i18n";
 import { getStatusBadgeClass } from '@/utils/statusBadge';
 import { isActiveRunStatus } from '@/utils/statusHelpers';
-import Pagination from '@/components/Pagination';
-import ProjectConfigs from '@/components/ProjectConfigs';
-import AndroidSetup from '@/components/AndroidSetup';
+import { ProjectConfigs } from '@/components/features/project-configs';
+import { AndroidSetup } from '@/components/features/device-status';
 
 interface TestRun {
     id: string;

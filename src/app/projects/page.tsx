@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../auth-provider";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import Modal from "@/components/Modal";
+import { Modal } from "@/components/shared";
 import { formatDateTime } from "@/utils/dateFormatter";
 import { useProjects } from "@/hooks/useProjects";
 import { useI18n } from "@/i18n";

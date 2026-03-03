@@ -26,6 +26,8 @@ export const config = {
         concurrency: 1,
         maxConcurrentPerProject: 1,
         pollInterval: 500,
+        persistFlushMs: 1000,
+        cancelForceReleaseMs: 5000,
         sseConnectionTtlMs: 5 * 60 * 1000,
         logRetentionMs: 10000,
         maxEventsPerRun: 2000,
@@ -40,6 +42,11 @@ export const config = {
                 height: 800,
             },
             timeout: 30000,
+            navigation: {
+                urlChangeTimeoutMs: 3000,
+                domContentLoadedTimeoutMs: 10000,
+                settleDelayMs: 3000,
+            },
             args: [
                 '--no-default-browser-check',
                 '--no-first-run',
@@ -54,6 +61,11 @@ export const config = {
         },
         android: {
             postLaunchStabilizationMs: 8_000,
+            recoveryRetryDelayMs: 1_000,
+            recoveryForegroundTimeoutMs: 10_000,
+            launchForegroundTimeoutMs: 20_000,
+            uiReadyCheckIntervalMs: 1_000,
+            wakeUnlockStabilizationMs: 500,
         },
         security: {
             allowedUrlProtocols: ['http:', 'https:'],

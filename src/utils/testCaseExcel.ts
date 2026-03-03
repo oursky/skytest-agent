@@ -1,9 +1,19 @@
 import ExcelJS, { CellValue, Worksheet } from 'exceljs';
 import type { BrowserConfig, TargetConfig, ConfigType, TestStep } from '@/types';
-import { normalizeAndroidTargetConfig } from '@/lib/android-target-config';
-import { formatAndroidDeviceSelectorDisplay } from '@/lib/android-device-selector-display';
-import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } from '@/lib/config-sort';
-import { normalizeBrowserConfig } from '@/lib/browser-target';
+import { normalizeAndroidTargetConfig } from '@/lib/android/target-config';
+import { formatAndroidDeviceSelectorDisplay } from '@/lib/android/device-selector-display';
+import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } from '@/lib/config/sort';
+import { normalizeBrowserConfig } from '@/lib/config/browser-target';
+import {
+    formatTargetLabel,
+    getRowMultilineValue,
+    getRowValue,
+    normalizeLineBreaks,
+    normalizeHeader,
+    parseBooleanCell,
+    parseDimensionValue,
+    parseMaskedCell,
+} from './testCaseExcel-helpers';
 
 type SupportedVariableType = Extract<ConfigType, 'URL' | 'APP_ID' | 'VARIABLE' | 'RANDOM_STRING' | 'FILE'>;
 const BROWSER_TARGET_SHEET_NAMES = ['Browser Targets', 'Browsers'] as const;
@@ -735,88 +745,4 @@ function formatConfigTypeForSheet(value: SupportedVariableType): string {
 
 function sortVariablesForExport(items: ExcelProjectVariable[]): ExcelProjectVariable[] {
     return [...items].sort(compareByGroupThenName);
-}
-
-function formatBrowserLabel(index: number): string {
-    return `Browser ${String.fromCharCode('A'.charCodeAt(0) + index)}`;
-}
-
-function formatAndroidLabel(index: number): string {
-    return `Android ${String.fromCharCode('A'.charCodeAt(0) + index)}`;
-}
-
-function formatTargetLabel(index: number, type: 'browser' | 'android'): string {
-    return type === 'android' ? formatAndroidLabel(index) : formatBrowserLabel(index);
-}
-
-function normalizeHeader(value: string): string {
-    return value.toLowerCase().replace(/[^a-z0-9]/g, '');
-}
-
-function parseBooleanCell(value: string | undefined, defaultValue: boolean): boolean {
-    if (!value) return defaultValue;
-    const normalized = value.trim().toLowerCase();
-    if (['1', 'true', 'yes', 'y', 'on'].includes(normalized)) return true;
-    if (['0', 'false', 'no', 'n', 'off'].includes(normalized)) return false;
-    return defaultValue;
-}
-
-function parseMaskedCell(value: string | undefined): boolean {
-    if (!value) return false;
-    const normalized = value.trim().toLowerCase();
-    return normalized === 'y' || normalized === 'yes' || normalized === 'true' || normalized === '1';
-}
-
-function parseDimensionValue(value: string | undefined): number | undefined {
-    if (!value) return undefined;
-    const parsed = Number.parseInt(value, 10);
-    if (!Number.isFinite(parsed) || parsed <= 0) {
-        return undefined;
-    }
-    return parsed;
-}
-
-function getRowValue(row: Record<string, unknown>, candidates: string[]): string | undefined {
-    const normalizedCandidates = new Set(candidates.map(normalizeHeader));
-    for (const [key, value] of Object.entries(row)) {
-        if (!normalizedCandidates.has(normalizeHeader(key))) {
-            continue;
-        }
-        const normalizedValue = normalizeCellValue(value);
-        if (normalizedValue !== undefined) {
-            return normalizedValue;
-        }
-    }
-    return undefined;
-}
-
-function normalizeCellValue(value: unknown): string | undefined {
-    if (typeof value === 'string') {
-        const trimmed = value.trim();
-        return trimmed.length > 0 ? trimmed : undefined;
-    }
-    if (typeof value === 'number' || typeof value === 'boolean') {
-        return String(value);
-    }
-    return undefined;
-}
-
-function getRowMultilineValue(row: Record<string, unknown>, candidates: string[]): string | undefined {
-    const normalizedCandidates = new Set(candidates.map(normalizeHeader));
-    for (const [key, value] of Object.entries(row)) {
-        if (!normalizedCandidates.has(normalizeHeader(key))) {
-            continue;
-        }
-        if (typeof value === 'string') {
-            return normalizeLineBreaks(value);
-        }
-        if (typeof value === 'number' || typeof value === 'boolean') {
-            return String(value);
-        }
-    }
-    return undefined;
-}
-
-function normalizeLineBreaks(value: string): string {
-    return value.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 }

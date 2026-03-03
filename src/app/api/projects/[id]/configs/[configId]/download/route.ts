@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { verifyAuth } from '@/lib/auth';
-import { getProjectConfigUploadPath } from '@/lib/file-security';
-import { createLogger } from '@/lib/logger';
-import { buildContentDisposition } from '@/lib/http-headers';
+import { prisma } from '@/lib/core/prisma';
+import { verifyAuth } from '@/lib/security/auth';
+import { getProjectConfigUploadPath } from '@/lib/security/file-security';
+import { createLogger } from '@/lib/core/logger';
+import { buildContentDisposition } from '@/lib/security/http-headers';
 import fs from 'fs/promises';
 import path from 'path';
 

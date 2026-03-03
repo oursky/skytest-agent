@@ -1,8 +1,8 @@
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
-import { createMcpServer } from '@/lib/mcp-server';
-import { verifyAuth, resolveUserId } from '@/lib/auth';
-import { isApiKeyFormat } from '@/lib/api-key';
-import { createLogger } from '@/lib/logger';
+import { createMcpServer } from '@/lib/mcp/server';
+import { verifyAuth, resolveUserId } from '@/lib/security/auth';
+import { isApiKeyFormat } from '@/lib/security/api-key';
+import { createLogger } from '@/lib/core/logger';
 
 const logger = createLogger('api:mcp');
 

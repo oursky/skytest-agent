@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { verifyAuth, resolveUserId } from '@/lib/auth';
-import { getFilePath } from '@/lib/file-security';
-import { createLogger } from '@/lib/logger';
-import { verifyStreamToken } from '@/lib/stream-token';
-import { buildContentDisposition } from '@/lib/http-headers';
+import { prisma } from '@/lib/core/prisma';
+import { verifyAuth, resolveUserId } from '@/lib/security/auth';
+import { getFilePath } from '@/lib/security/file-security';
+import { createLogger } from '@/lib/core/logger';
+import { verifyStreamToken } from '@/lib/security/stream-token';
+import { buildContentDisposition } from '@/lib/security/http-headers';
 import fs from 'fs/promises';
 
 const logger = createLogger('api:test-cases:file');

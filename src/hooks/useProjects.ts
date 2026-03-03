@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Project } from '@/types';
-import { API_ENDPOINTS } from '@/lib/constants';
+import { API_ENDPOINTS } from '@/lib/core/constants';
 
 export function useProjects(userId: string, getAccessToken?: () => Promise<string | null>) {
     const [projects, setProjects] = useState<Project[]>([]);

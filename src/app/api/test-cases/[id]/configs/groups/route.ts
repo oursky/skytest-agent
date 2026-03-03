@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { verifyAuth } from '@/lib/auth';
-import { GROUPABLE_CONFIG_TYPES, normalizeConfigGroup } from '@/lib/config-sort';
-import { createLogger } from '@/lib/logger';
+import { prisma } from '@/lib/core/prisma';
+import { verifyAuth } from '@/lib/security/auth';
+import { GROUPABLE_CONFIG_TYPES, normalizeConfigGroup } from '@/lib/config/sort';
+import { createLogger } from '@/lib/core/logger';
 
 const logger = createLogger('api:test-cases:config-groups');
 
