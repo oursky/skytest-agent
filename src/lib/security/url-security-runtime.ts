@@ -1,5 +1,5 @@
 import { config } from '@/config/app';
-import { isBlockedIpAddress, UrlValidationResult, validateTargetUrl } from '@/lib/url-security';
+import { isBlockedIpAddress, UrlValidationResult, validateTargetUrl } from '@/lib/security/url-security';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 

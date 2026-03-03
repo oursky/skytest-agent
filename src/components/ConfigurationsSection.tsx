@@ -5,10 +5,10 @@ import { useAuth } from '@/app/auth-provider';
 import { useI18n } from '@/i18n';
 import type { ConfigItem, ConfigType, BrowserConfig, TargetConfig, AndroidTargetConfig } from '@/types';
 import Link from 'next/link';
-import { normalizeAndroidTargetConfig } from '@/lib/android-target-config';
-import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } from '@/lib/config-sort';
-import { normalizeBrowserConfig, normalizeBrowserViewportDimensions } from '@/lib/browser-target';
-import { normalizeConfigName } from '@/lib/config-validation';
+import { normalizeAndroidTargetConfig } from '@/lib/android/target-config';
+import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } from '@/lib/config/sort';
+import { normalizeBrowserConfig, normalizeBrowserViewportDimensions } from '@/lib/config/browser-target';
+import { normalizeConfigName } from '@/lib/config/validation';
 import GroupSelectInput from './GroupSelectInput';
 import {
     ADB_STATE_PRIORITY,

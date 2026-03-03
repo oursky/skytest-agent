@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { queue } from '@/lib/queue';
-import { prisma } from '@/lib/prisma';
-import { verifyAuth, resolveUserId } from '@/lib/auth';
-import { createLogger } from '@/lib/logger';
-import { verifyStreamToken } from '@/lib/stream-token';
+import { queue } from '@/lib/runtime/queue';
+import { prisma } from '@/lib/core/prisma';
+import { verifyAuth, resolveUserId } from '@/lib/security/auth';
+import { createLogger } from '@/lib/core/logger';
+import { verifyStreamToken } from '@/lib/security/stream-token';
 import { config as appConfig } from '@/config/app';
-import { parseStoredEvents } from '@/lib/test-events';
+import { parseStoredEvents } from '@/lib/runtime/test-events';
 
 export const dynamic = 'force-dynamic';
 

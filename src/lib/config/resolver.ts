@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/lib/core/prisma';
 import type { ResolvedConfig, ConfigType } from '@/types';
 
 interface ResolvedConfigs {

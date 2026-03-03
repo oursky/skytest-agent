@@ -2,8 +2,8 @@ import { execFile } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createLogger } from '@/lib/logger';
-import { getAndroidSdkSetupHint, resolveAndroidToolPath } from '@/lib/android-sdk';
+import { createLogger } from '@/lib/core/logger';
+import { getAndroidSdkSetupHint, resolveAndroidToolPath } from '@/lib/android/sdk';
 
 export interface AvailableAndroidProfile {
     id: string;

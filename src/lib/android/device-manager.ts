@@ -1,8 +1,8 @@
-import { createLogger } from '@/lib/logger';
-import { emulatorPool, type EmulatorHandle, type EmulatorPoolStatusItem, type EmulatorState } from '@/lib/emulator-pool';
-import { ReliableAdb } from '@/lib/adb-reliable';
-import { resolveAndroidToolPath } from '@/lib/android-sdk';
-import { listConnectedAndroidDevices } from '@/lib/android-devices';
+import { createLogger } from '@/lib/core/logger';
+import { emulatorPool, type EmulatorHandle, type EmulatorPoolStatusItem, type EmulatorState } from '@/lib/android/emulator-pool';
+import { ReliableAdb } from '@/lib/android/adb-reliable';
+import { resolveAndroidToolPath } from '@/lib/android/sdk';
+import { listConnectedAndroidDevices } from '@/lib/android/devices';
 import type { AndroidAgent, AndroidDevice, AndroidDeviceSelector } from '@/types';
 
 const logger = createLogger('android-device-manager');

@@ -1,5 +1,5 @@
 import type { TestStep, BrowserConfig, TargetConfig } from '@/types';
-import { normalizeBrowserConfig } from '@/lib/browser-target';
+import { normalizeBrowserConfig } from '@/lib/config/browser-target';
 
 interface TestCaseWithJsonFields {
     steps?: string | null;

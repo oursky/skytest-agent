@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { verifyAuth } from '@/lib/auth';
-import { validateAndSanitizeFile, getUploadPath } from '@/lib/file-security';
-import { createLogger } from '@/lib/logger';
+import { prisma } from '@/lib/core/prisma';
+import { verifyAuth } from '@/lib/security/auth';
+import { validateAndSanitizeFile, getUploadPath } from '@/lib/security/file-security';
+import { createLogger } from '@/lib/core/logger';
 import { config } from '@/config/app';
 import fs from 'fs/promises';
 import path from 'path';

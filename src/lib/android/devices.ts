@@ -1,10 +1,10 @@
 import 'server-only';
 import { execFile } from 'node:child_process';
-import type { AvailableAndroidProfile } from '@/lib/android-profiles';
-import { listAvailableAndroidProfiles } from '@/lib/android-profiles';
-import { createLogger } from '@/lib/logger';
-import { resolveAndroidToolPath } from '@/lib/android-sdk';
-import type { AdbDeviceState, AndroidDeviceKind, ConnectedAndroidDeviceInfo } from '@/lib/android-device-display';
+import type { AvailableAndroidProfile } from '@/lib/android/profiles';
+import { listAvailableAndroidProfiles } from '@/lib/android/profiles';
+import { createLogger } from '@/lib/core/logger';
+import { resolveAndroidToolPath } from '@/lib/android/sdk';
+import type { AdbDeviceState, AndroidDeviceKind, ConnectedAndroidDeviceInfo } from '@/lib/android/device-display';
 
 const logger = createLogger('android-devices');
 

@@ -1,4 +1,4 @@
-import { isAndroidRuntimeAvailable } from '@/lib/android-sdk';
+import { isAndroidRuntimeAvailable } from '@/lib/android/sdk';
 
 export interface UserFeatures {
     androidRuntimeAvailable: boolean;

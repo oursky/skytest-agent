@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { config } from '@/config/app';
-import { createLogger } from '@/lib/logger';
+import { createLogger } from '@/lib/core/logger';
 
 const logger = createLogger('adb-reliable');
 

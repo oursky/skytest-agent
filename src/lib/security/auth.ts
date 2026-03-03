@@ -1,7 +1,7 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose';
-import { prisma } from '@/lib/prisma';
-import { createLogger } from '@/lib/logger';
-import { hashApiKey, isApiKeyFormat } from '@/lib/api-key';
+import { prisma } from '@/lib/core/prisma';
+import { createLogger } from '@/lib/core/logger';
+import { hashApiKey, isApiKeyFormat } from '@/lib/security/api-key';
 
 const logger = createLogger('auth');
 

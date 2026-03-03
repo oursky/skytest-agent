@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { verifyAuth, resolveUserId } from '@/lib/auth';
-import { createLogger } from '@/lib/logger';
-import { parseTestCaseJson, cleanStepsForStorage, normalizeTargetConfigMap } from '@/lib/test-case-utils';
+import { prisma } from '@/lib/core/prisma';
+import { verifyAuth, resolveUserId } from '@/lib/security/auth';
+import { createLogger } from '@/lib/core/logger';
+import { parseTestCaseJson, cleanStepsForStorage, normalizeTargetConfigMap } from '@/lib/runtime/test-case-utils';
 import { BrowserConfig, TargetConfig } from '@/types';
-import { getUploadPath, getTestCaseConfigUploadPath } from '@/lib/file-security';
+import { getUploadPath, getTestCaseConfigUploadPath } from '@/lib/security/file-security';
 import fs from 'fs/promises';
 
 const logger = createLogger('api:test-cases:id');

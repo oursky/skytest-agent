@@ -8,7 +8,7 @@ import TestForm from "@/components/TestForm";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import { formatDateTime } from "@/utils/dateFormatter";
 import { useI18n } from "@/i18n";
-import { parseStoredEvents } from "@/lib/test-events";
+import { parseStoredEvents } from "@/lib/runtime/test-events";
 
 import { TestStep, BrowserConfig, TargetConfig, ConfigItem } from "@/types";
 

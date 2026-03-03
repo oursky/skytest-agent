@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { verifyAuth } from '@/lib/auth';
-import { validateConfigName, validateConfigType, normalizeConfigName } from '@/lib/config-validation';
-import { createLogger } from '@/lib/logger';
-import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } from '@/lib/config-sort';
+import { prisma } from '@/lib/core/prisma';
+import { verifyAuth } from '@/lib/security/auth';
+import { validateConfigName, validateConfigType, normalizeConfigName } from '@/lib/config/validation';
+import { createLogger } from '@/lib/core/logger';
+import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } from '@/lib/config/sort';
 
 const logger = createLogger('api:projects:configs');
 

@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useI18n } from '@/i18n';
 import type { ConfigItem, ConfigType, TestCaseFile } from '@/types';
-import { compareByGroupThenName, normalizeConfigGroup } from '@/lib/config-sort';
+import { compareByGroupThenName, normalizeConfigGroup } from '@/lib/config/sort';
 
 interface InsertVariableDropdownProps {
     projectConfigs: ConfigItem[];

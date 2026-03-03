@@ -1,8 +1,8 @@
 import { ChildProcess, execFile, spawn } from 'node:child_process';
 import { config as appConfig } from '@/config/app';
-import { createLogger } from '@/lib/logger';
-import { ReliableAdb } from '@/lib/adb-reliable';
-import { resolveAndroidToolPath } from '@/lib/android-sdk';
+import { createLogger } from '@/lib/core/logger';
+import { ReliableAdb } from '@/lib/android/adb-reliable';
+import { resolveAndroidToolPath } from '@/lib/android/sdk';
 import type { AndroidDevice, AndroidAgent } from '@/types/android';
 
 const logger = createLogger('emulator-pool');

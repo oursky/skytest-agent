@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { verifyAuth } from '@/lib/auth';
-import { getUserFeatures } from '@/lib/user-features';
+import { verifyAuth } from '@/lib/security/auth';
+import { getUserFeatures } from '@/lib/android/user-features';
 
 export const dynamic = 'force-dynamic';
 

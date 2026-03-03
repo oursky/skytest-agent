@@ -4,8 +4,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/app/auth-provider';
 import { useI18n } from '@/i18n';
 import type { ConfigItem, ConfigType } from '@/types';
-import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } from '@/lib/config-sort';
-import { normalizeConfigName } from '@/lib/config-validation';
+import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } from '@/lib/config/sort';
+import { normalizeConfigName } from '@/lib/config/validation';
 import GroupSelectInput from './GroupSelectInput';
 
 interface ProjectConfigsProps {

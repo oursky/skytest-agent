@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { verifyAuth } from '@/lib/auth';
-import { getFilePath, getProjectConfigUploadPath, getTestCaseConfigUploadPath } from '@/lib/file-security';
-import { createLogger } from '@/lib/logger';
-import { parseTestCaseJson } from '@/lib/test-case-utils';
-import { buildContentDisposition } from '@/lib/http-headers';
+import { prisma } from '@/lib/core/prisma';
+import { verifyAuth } from '@/lib/security/auth';
+import { getFilePath, getProjectConfigUploadPath, getTestCaseConfigUploadPath } from '@/lib/security/file-security';
+import { createLogger } from '@/lib/core/logger';
+import { parseTestCaseJson } from '@/lib/runtime/test-case-utils';
+import { buildContentDisposition } from '@/lib/security/http-headers';
 import { exportToExcelBuffer } from '@/utils/testCaseExcel';
 import archiver from 'archiver';
 import fs from 'fs/promises';

@@ -1,9 +1,9 @@
 import ExcelJS, { CellValue, Worksheet } from 'exceljs';
 import type { BrowserConfig, TargetConfig, ConfigType, TestStep } from '@/types';
-import { normalizeAndroidTargetConfig } from '@/lib/android-target-config';
-import { formatAndroidDeviceSelectorDisplay } from '@/lib/android-device-selector-display';
-import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } from '@/lib/config-sort';
-import { normalizeBrowserConfig } from '@/lib/browser-target';
+import { normalizeAndroidTargetConfig } from '@/lib/android/target-config';
+import { formatAndroidDeviceSelectorDisplay } from '@/lib/android/device-selector-display';
+import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } from '@/lib/config/sort';
+import { normalizeBrowserConfig } from '@/lib/config/browser-target';
 import {
     formatTargetLabel,
     getRowMultilineValue,

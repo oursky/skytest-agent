@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { verifyAuth, resolveUserId } from '@/lib/auth';
-import { createLogger } from '@/lib/logger';
-import { subscribeProjectEvents } from '@/lib/project-events';
-import { verifyStreamToken } from '@/lib/stream-token';
+import { prisma } from '@/lib/core/prisma';
+import { verifyAuth, resolveUserId } from '@/lib/security/auth';
+import { createLogger } from '@/lib/core/logger';
+import { subscribeProjectEvents } from '@/lib/runtime/project-events';
+import { verifyStreamToken } from '@/lib/security/stream-token';
 import { config as appConfig } from '@/config/app';
 
 export const dynamic = 'force-dynamic';

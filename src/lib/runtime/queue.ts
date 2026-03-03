@@ -1,13 +1,13 @@
-import { prisma } from '@/lib/prisma';
-import { runTest } from '@/lib/test-runner';
+import { prisma } from '@/lib/core/prisma';
+import { runTest } from '@/lib/runtime/test-runner';
 import { TestEvent, RunTestOptions } from '@/types';
 import { config as appConfig } from '@/config/app';
-import { getErrorMessage } from '@/lib/errors';
-import { UsageService } from '@/lib/usage';
-import { createLogger } from '@/lib/logger';
-import { publishProjectEvent } from '@/lib/project-events';
-import { androidDeviceManager } from '@/lib/android-device-manager';
-import { normalizeAndroidTargetConfig } from '@/lib/android-target-config';
+import { getErrorMessage } from '@/lib/core/errors';
+import { UsageService } from '@/lib/runtime/usage';
+import { createLogger } from '@/lib/core/logger';
+import { publishProjectEvent } from '@/lib/runtime/project-events';
+import { androidDeviceManager } from '@/lib/android/device-manager';
+import { normalizeAndroidTargetConfig } from '@/lib/android/target-config';
 import type { AndroidDeviceSelector } from '@/types';
 
 const logger = createLogger('queue');

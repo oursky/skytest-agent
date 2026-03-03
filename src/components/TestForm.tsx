@@ -6,7 +6,7 @@ import BuilderForm from './BuilderForm';
 import ConfigurationsSection from './ConfigurationsSection';
 import { useI18n } from '@/i18n';
 import { useAuth } from '@/app/auth-provider';
-import { normalizeBrowserConfig } from '@/lib/browser-target';
+import { normalizeBrowserConfig } from '@/lib/config/browser-target';
 
 interface TestData {
     url: string;

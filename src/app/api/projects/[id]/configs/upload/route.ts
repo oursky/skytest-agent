@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { verifyAuth } from '@/lib/auth';
-import { validateAndSanitizeFile, getProjectConfigUploadPath } from '@/lib/file-security';
-import { validateConfigName, normalizeConfigName } from '@/lib/config-validation';
-import { createLogger } from '@/lib/logger';
-import { normalizeConfigGroup } from '@/lib/config-sort';
+import { prisma } from '@/lib/core/prisma';
+import { verifyAuth } from '@/lib/security/auth';
+import { validateAndSanitizeFile, getProjectConfigUploadPath } from '@/lib/security/file-security';
+import { validateConfigName, normalizeConfigName } from '@/lib/config/validation';
+import { createLogger } from '@/lib/core/logger';
+import { normalizeConfigGroup } from '@/lib/config/sort';
 import fs from 'fs/promises';
 import path from 'path';
 

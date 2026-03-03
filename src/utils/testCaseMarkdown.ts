@@ -1,5 +1,5 @@
 import { TestStep, BrowserConfig } from '@/types';
-import { getDefaultBrowserViewport } from '@/lib/browser-target';
+import { getDefaultBrowserViewport } from '@/lib/config/browser-target';
 
 export interface TestCaseData {
     name?: string;

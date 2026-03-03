@@ -1,5 +1,5 @@
 import type { AndroidDeviceSelector } from '@/types';
-import type { AndroidDeviceInventory } from '@/lib/android-devices';
+import type { AndroidDeviceInventory } from '@/lib/android/devices';
 
 export interface AndroidDeviceSelectorInput {
     mode: 'emulator-profile' | 'connected-device';

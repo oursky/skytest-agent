@@ -4,9 +4,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/app/auth-provider';
 import { useI18n } from '@/i18n';
-import type { AndroidDevicePoolStatus, AndroidDevicePoolStatusItem } from '@/lib/android-device-manager';
-import type { ConnectedAndroidDeviceInfo } from '@/lib/android-device-display';
-import { formatAndroidDeviceDisplayName } from '@/lib/android-device-display';
+import type { AndroidDevicePoolStatus, AndroidDevicePoolStatusItem } from '@/lib/android/device-manager';
+import type { ConnectedAndroidDeviceInfo } from '@/lib/android/device-display';
+import { formatAndroidDeviceDisplayName } from '@/lib/android/device-display';
 import { DEVICE_STATE_COLORS } from '@/utils/deviceStateColors';
 
 interface DeviceStatusResponse extends AndroidDevicePoolStatus {

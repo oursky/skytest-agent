@@ -1,5 +1,5 @@
 import type { AndroidDeviceSelector } from '@/types';
-import { normalizeAndroidDeviceSelector } from '@/lib/android-target-config';
+import { normalizeAndroidDeviceSelector } from '@/lib/android/target-config';
 
 export interface AndroidDeviceSelectorDisplay {
     label: string;

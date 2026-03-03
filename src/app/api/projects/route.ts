@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { verifyAuth, resolveUserId, type AuthPayload } from '@/lib/auth';
-import { createLogger } from '@/lib/logger';
+import { prisma } from '@/lib/core/prisma';
+import { verifyAuth, resolveUserId, type AuthPayload } from '@/lib/security/auth';
+import { createLogger } from '@/lib/core/logger';
 
 const logger = createLogger('api:projects');
 

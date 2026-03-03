@@ -8,9 +8,9 @@ import { formatTime } from '@/utils/dateFormatter';
 import TimelineEvent from './result-viewer/TimelineEvent';
 import ResultStatus from './result-viewer/ResultStatus';
 import { useI18n } from '@/i18n';
-import { normalizeAndroidTargetConfig } from '@/lib/android-target-config';
-import { formatAndroidDeviceSelectorDisplay } from '@/lib/android-device-selector-display';
-import { normalizeBrowserConfig } from '@/lib/browser-target';
+import { normalizeAndroidTargetConfig } from '@/lib/android/target-config';
+import { formatAndroidDeviceSelectorDisplay } from '@/lib/android/device-selector-display';
+import { normalizeBrowserConfig } from '@/lib/config/browser-target';
 
 interface ResultViewerMeta {
     runId?: string | null;
