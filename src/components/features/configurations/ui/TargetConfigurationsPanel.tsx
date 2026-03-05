@@ -227,7 +227,7 @@ export default function TargetConfigurationsPanel({
                                                                 </svg>
                                                             </button>
                                                             {appDropdownOpen === browser.id && (
-                                                                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-20 py-1 min-w-[220px]">
+                                                                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-20 py-1 w-80 max-w-[calc(100vw-2rem)]">
                                                                     {appIdConfigs.map((appConfig) => (
                                                                         <button
                                                                             key={appConfig.id}
@@ -236,10 +236,12 @@ export default function TargetConfigurationsPanel({
                                                                                 onUpdateTarget(index, { appId: appConfig.value });
                                                                                 setAppDropdownOpen(null);
                                                                             }}
-                                                                            className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50"
+                                                                            className="w-full px-3 py-1.5 text-xs hover:bg-gray-50"
                                                                         >
-                                                                            <span className="font-mono font-medium text-gray-700">{appConfig.name}</span>
-                                                                            <span className="text-gray-400 ml-2 truncate">{appConfig.value}</span>
+                                                                            <div className="flex items-center gap-2 min-w-0">
+                                                                                <span className="font-mono font-medium text-gray-700 shrink-0 max-w-[45%] truncate">{appConfig.name}</span>
+                                                                                <span className="text-gray-400 min-w-0 flex-1 truncate">{appConfig.value}</span>
+                                                                            </div>
                                                                         </button>
                                                                     ))}
                                                                 </div>
@@ -335,7 +337,7 @@ export default function TargetConfigurationsPanel({
                                                             </svg>
                                                         </button>
                                                         {urlDropdownOpen === browser.id && (
-                                                            <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-20 py-1 min-w-[200px]">
+                                                            <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-20 py-1 w-80 max-w-[calc(100vw-2rem)]">
                                                                 {urlConfigs.map((uc) => (
                                                                     <button
                                                                         key={uc.id}
@@ -344,10 +346,12 @@ export default function TargetConfigurationsPanel({
                                                                             onUpdateTarget(index, { url: uc.value });
                                                                             setUrlDropdownOpen(null);
                                                                         }}
-                                                                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50"
+                                                                        className="w-full px-3 py-1.5 text-xs hover:bg-gray-50"
                                                                     >
-                                                                        <span className="font-mono font-medium text-gray-700">{uc.name}</span>
-                                                                        <span className="text-gray-400 ml-2 truncate">{uc.value}</span>
+                                                                        <div className="flex items-center gap-2 min-w-0">
+                                                                            <span className="font-mono font-medium text-gray-700 shrink-0 max-w-[45%] truncate">{uc.name}</span>
+                                                                            <span className="text-gray-400 min-w-0 flex-1 truncate">{uc.value}</span>
+                                                                        </div>
                                                                     </button>
                                                                 ))}
                                                             </div>
