@@ -7,7 +7,7 @@ import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } f
 import { validateConfigName, normalizeConfigName, validateConfigType } from '@/lib/config/validation';
 import { normalizeBrowserConfig } from '@/lib/config/browser-target';
 import { listAndroidDeviceInventory } from '@/lib/android/devices';
-import { resolveAndroidDeviceSelector, type AndroidDeviceSelectorInput } from '@/lib/mcp/android-selector';
+import { resolveAndroidDeviceSelector } from '@/lib/mcp/android-selector';
 import { ACTIVE_RUN_STATUSES } from '@/utils/statusHelpers';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { ServerRequest, ServerNotification } from '@modelcontextprotocol/sdk/types.js';

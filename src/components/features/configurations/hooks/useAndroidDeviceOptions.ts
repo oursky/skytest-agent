@@ -31,7 +31,6 @@ export function useAndroidDeviceOptions({
 
     useEffect(() => {
         if (readOnly || !projectId) {
-            setAndroidDeviceOptions([]);
             return;
         }
 
@@ -173,6 +172,10 @@ export function useAndroidDeviceOptions({
 
         void fetchDeviceInventory().catch(() => {});
     }, [projectId, getAccessToken, readOnly]);
+
+    if (readOnly || !projectId) {
+        return [];
+    }
 
     return androidDeviceOptions;
 }

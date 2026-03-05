@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useI18n } from '@/i18n';
 import { normalizeConfigGroup } from '@/lib/config/sort';
 
@@ -60,11 +60,11 @@ export default function GroupSelectInput({
     const canCreate = normalizedQuery.length > 0
         && !sortedOptions.some((option) => option.localeCompare(normalizedQuery, undefined, { sensitivity: 'base' }) === 0);
 
-    const handleSelect = (nextValue: string) => {
+    const handleSelect = useCallback((nextValue: string) => {
         onChange(nextValue);
         setOpen(false);
         setQuery('');
-    };
+    }, [onChange]);
 
     useEffect(() => {
         if (!open) return;
@@ -81,7 +81,7 @@ export default function GroupSelectInput({
 
         document.addEventListener('mousedown', handlePointerDown);
         return () => document.removeEventListener('mousedown', handlePointerDown);
-    }, [canCreate, normalizedQuery, open]);
+    }, [canCreate, handleSelect, normalizedQuery, open]);
 
     const handleConfirmRemove = async () => {
         if (!onRemoveOption || !pendingRemoveGroup) return;
