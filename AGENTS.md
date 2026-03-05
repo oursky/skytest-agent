@@ -89,7 +89,7 @@ src/
 - For multi-step work, write a plan in `docs/plans/YYYY-MM-DD-<slug>.md`.
 - Prefer test-first for new behavior; reproduce and trace root causes before fixes.
 - Self-review spec compliance first, then code quality; verify before completion claims.
-- Run `npx tsc --noEmit` to verify TypeScript compilation before committing.
+- Run `npm run verify` before committing (lint, TypeScript compile, and dependency audit).
 
 ## Code Style
 **Code as Documentation**: Write self-explanatory code. Avoid comments unless absolutely necessary.
@@ -99,6 +99,9 @@ src/
 
 ## Commands
 - `npm run dev` - Start dev server
+- `npm run lint` - Run ESLint and TypeScript compile checks
+- `npm run audit` - Audit lockfile dependencies for moderate/high/critical vulnerabilities
+- `npm run verify` - Run lint and audit checks
 - `npx prisma studio` - Open DB GUI
 - `npx prisma db push` - Apply schema changes
 
