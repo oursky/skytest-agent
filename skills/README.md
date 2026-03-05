@@ -10,13 +10,26 @@ SkyTest generation/maintenance skill for MCP-capable agents.
 |-------|---------|-------------|
 | [skytest-generate](./skytest-skills/skytest-generate/SKILL.md) | `/skytest-generate` | Generate and maintain test cases from feature descriptions, screenshots, or user flows via MCP |
 
+## For Linear Integration
+
+Skills for creating and managing Linear bug reports, and converting them into SkyTest regression tests.
+
+| Skill | Command | Description |
+|-------|---------|-------------|
+| [linear-bug-report](./linear-skills/linear-bug-report/SKILL.md) | `/linear-bug-report` | Create structured bug reports in Linear from screenshots and brief descriptions |
+| [linear-bug-revise](./linear-skills/linear-bug-revise/SKILL.md) | `/linear-bug-revise` | Revise an existing Linear bug report to follow the team's standard format |
+| [linear-bug-to-skytest](./linear-skills/linear-bug-to-skytest/SKILL.md) | `/linear-bug-to-skytest` | Convert a Linear bug report into SkyTest regression test cases |
+
 ### Installation
 
-Copy the skill folder to your local skills directory for your agent client.
+Copy the skill folders to your local skills directory for your agent client.
 
 ```bash
 mkdir -p ~/.agents/skills/skytest-skills
 cp -r skills/skytest-skills/. ~/.agents/skills/skytest-skills/
+
+mkdir -p ~/.agents/skills/linear-skills
+cp -r skills/linear-skills/. ~/.agents/skills/linear-skills/
 ```
 
 Common client-specific linking examples:

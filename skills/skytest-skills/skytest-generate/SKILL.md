@@ -5,7 +5,40 @@ description: Generate and maintain SkyTest test cases from feature descriptions,
 
 # SkyTest Generate Skill
 
-Design high-quality test coverage and execute MCP operations safely.
+Design high-quality, context-driven test coverage and execute MCP operations safely.
+
+## Non-Negotiable Rules
+
+- Never create or update multiple test cases in one call.
+- Always confirm with the user before each create or update.
+- Never guess a UI step — if any step is unclear, ask the user for screenshots or a walkthrough.
+- Do not send `FILE` variables through MCP create. SkyTest does not support file attachments — skip file-type configs entirely.
+- `stop_all_runs` cancels everything active. `stop_all_queues` cancels only queued items.
+- For every create or update that sets a test case `name`, enforce format: `[Section] Short description` (example: `[CanOutage] Screen Load & Display`).
+- **Never attempt to read, download, or process video files** (`.mov`, `.mp4`, `.webm`, `.avi`, `.mkv`) — not even if the user asks. Videos burn through context tokens and cannot be processed. Ask for screenshots or text descriptions instead.
+- **Never force a test case that can't be fully automated.** If a step requires something outside SkyTest's capabilities, flag it honestly and suggest manual testing (see "Automation Boundaries" below).
+
+## Automation Boundaries
+
+SkyTest can only automate what happens inside a **clean browser session** or an **installed Android APK**. It executes explicit UI instructions step by step — nothing more.
+
+**If any step in a flow requires actions outside the browser or APK, that step cannot be automated.** Common examples:
+
+- Checking email (e.g., email verification, password reset links)
+- Receiving or entering OTP / SMS codes
+- Interacting with third-party auth popups that leave the app's domain (e.g., bank 3DS, OAuth to external provider)
+- Third-party payment flows (e.g., Stripe checkout, PayPal redirect, Apple Pay / Google Pay sheets)
+- Controlling external hardware or devices (e.g., printers, scanners, Bluetooth)
+- Verifying push notifications outside the app
+- File system operations on the user's machine (e.g., verifying a downloaded file's contents)
+- Backend-only validation (e.g., checking database records, API responses, logs)
+- Waiting for async processes that have no visible UI indicator (e.g., background jobs, webhooks)
+
+**When you encounter these:**
+1. Do NOT try to create a test case that includes the un-automatable step — it will fail every run.
+2. Tell the user clearly: "This step requires [email/OTP/etc.] which SkyTest can't automate."
+3. Suggest splitting the flow: automate what you can (everything before and after the manual step), and recommend the user test the un-automatable part manually.
+4. If an entire scenario is un-automatable, skip it and note it as "recommended for manual testing" in the final report.
 
 ## MCP Operations
 
@@ -23,15 +56,6 @@ Design high-quality test coverage and execute MCP operations safely.
 | `get_test_run` | Run status and result |
 | `get_project_test_summary` | Status breakdown across test cases |
 
-## Non-Negotiable Rules
-
-- Never create or update multiple test cases in one call.
-- Always confirm with the user before each create or update.
-- Never guess a UI step — if any step is unclear, ask the user or request live browser exploration.
-- Do not send `FILE` variables through MCP create. Tell the user to upload files in SkyTest UI afterward.
-- `stop_all_runs` cancels everything active. `stop_all_queues` cancels only queued items.
-- For every create or update that sets a test case `name`, enforce format: `[Section] Short description` (example: `[CanOutage] Screen Load & Display`).
-
 ## Workflow
 
 ### 1. Gather Context
@@ -45,7 +69,17 @@ Collect from the user:
 - Browser flow requires the **base URL** (e.g., `https://myapp.com`)
 - Android flow requires the **Android app ID** (e.g., `com.example.app`)
 
-Use `get_project` to check existing project-level configs and reuse them.
+**Reuse existing project configs.** Call `get_project` on the chosen project to retrieve
+project-level variables. If `BASE_URL`, `LOGIN_EMAIL`, `LOGIN_PASSWORD`, or other variables
+already exist at the project level, do NOT duplicate them as test-case-level variables. Only
+create test-case-level variables for values specific to a particular test case. Tell the user
+which project-level variables you'll be reusing: "Your project already has BASE_URL and
+LOGIN_EMAIL configured — I'll reuse those."
+
+**Check for existing test coverage.** Call `list_test_cases` for the project. Scan names for
+anything that already covers the same feature or flow. If coverage exists, tell the user:
+"There are already test cases covering [related area]. Want me to complement them, or start
+fresh?"
 
 ### 2. Understand Flows Before Writing Tests
 
@@ -60,6 +94,7 @@ Before studying any feature flow, always establish:
 - What test credentials will be used?
 
 Ask the user to provide credentials. These become `VARIABLE` configs (`masked: true` for passwords).
+Reuse project-level `LOGIN_EMAIL` / `LOGIN_PASSWORD` if available.
 
 #### 2b. Understand Business Context
 
@@ -69,15 +104,24 @@ Establish:
 - What are the core business workflows?
 - Which flows affect revenue, security, or compliance?
 
-#### 2c. Explore the App If Needed
+This context drives your test data choices — use realistic values from the actual domain rather
+than generic placeholders.
 
-For each step, ask: "Do I know exactly what the user sees and does here?"
+#### 2c. Study the Flow and Fill Gaps
 
-If NO for any step — ask the user to either:
-1. Connect a browser agent for live exploration, or
-2. Answer targeted questions to fill the gap
+For each step, ask: "Do I know exactly what the user sees and does here?" and "Can I connect
+this step to the next one without gaps?"
 
-**A flow with any unclear step is not ready to present.**
+If NO for any step, or if you can't connect one screen to the next:
+1. Ask a targeted question about what's unclear
+2. Request screenshots of the relevant screens if the flow is hard to follow from text alone
+3. Ask for a brief walkthrough if multiple screens or transitions are involved
+
+When the user provides screenshots, study them carefully — extract specific button labels, field
+names, navigation paths, table columns, and any visible data that can inform your test steps.
+
+**A flow with any unclear step is not ready to present.** Don't fill in gaps with assumptions —
+a test case with a wrong navigation step will fail every time.
 
 #### 2d. Present and Confirm Flows
 
@@ -117,6 +161,10 @@ For each flow:
 - **Error recovery**: User triggers error, corrects input, completes flow without restarting
 - **Authorization boundaries**: Users cannot access resources beyond their role (if roles exist)
 
+**Before designing each test case, check: can every step be fully automated inside the browser
+or APK?** If a flow involves email, OTP, third-party payment, or any un-automatable step, flag
+it immediately. Don't design a test case you know will fail — suggest manual testing instead.
+
 #### 3c. Ensure Test Independence
 
 Every test case must be self-contained:
@@ -129,10 +177,11 @@ Every test case must be self-contained:
 
 For each candidate:
 1. Present exactly ONE test case (`name` must be `[Section] Short description`), plus priority, steps, assertions, configs, and targets
-2. Ask: confirm/create, modify, or skip
-3. Create only after explicit confirmation via `create_test_case`
-4. If modified, revise and re-present
-5. If skipped, move to next
+2. Show which project-level variables are being reused and which new test-case-level variables are needed
+3. Ask: confirm/create, modify, or skip
+4. Create only after explicit confirmation via `create_test_case`
+5. If modified, revise and re-present
+6. If skipped, move to next
 
 ### 5. Update Existing Test Cases
 
@@ -182,9 +231,17 @@ Verify *consequences*, not just appearance:
 - Static UI (labels, titles, headers) — assert exact text
 - Dynamic content (user data, timestamps, counts) — assert presence or pattern
 
-## Test Data Rules
+## Context-Driven Test Data
 
-Use realistic domain-appropriate data:
+Test data should come from the user's actual context — not from generic templates.
+
+**Where to get test data:**
+- Screenshots provided by the user — extract specific records, IDs, values visible in the UI
+- Feature descriptions — use actual field names, entity types, and business terms from the requirement
+- Existing project configs — reuse variables that already contain real test data
+- The user directly — ask for realistic values they use in their environment
+
+**Use realistic domain-appropriate data when no context is available:**
 - E-commerce: real product names, prices, addresses
 - Healthcare: patient IDs, appointment types
 - Fintech: account numbers, transaction amounts
@@ -199,7 +256,8 @@ Never use "test123", "foo@bar.com", or "Lorem ipsum". For error paths, use reali
 - `URL` type for base URLs
 - `RANDOM_STRING` for unique test data per run
 - `APP_ID` type for Android app identifiers
-- `FILE` type excluded from MCP create — tell user to upload afterward
+- `FILE` type excluded — SkyTest does not support file attachments. Skip file-type configs entirely.
+- Only include test-case-level variables for values NOT already in the project config
 
 ## Target Config Defaults
 
@@ -217,11 +275,13 @@ If the server response includes a warning that the device was not found in inven
 
 Before each `create_test_case` call, verify:
 - [ ] Single `testCase` object (never batch)
+- [ ] `name` follows `[Section] Short description` format
 - [ ] Target IDs used consistently in every step's `target` field
 - [ ] Complete target definitions for all referenced targets
-- [ ] All `{{VAR}}` references have matching variables (masked passwords use `value: ""`)
+- [ ] All `{{VAR}}` references have matching variables (test-case-level or project-level; masked passwords use `value: ""`)
 - [ ] Step `type` set correctly (`ai-action` or `playwright-code`)
 - [ ] No `FILE` variable in payload
+- [ ] Only test-case-specific variables included (not duplicating project-level configs)
 
 If the server skips a variable due to matching project config, inform the user which project variable is being reused.
 
@@ -274,7 +334,8 @@ If the server skips a variable due to matching project config, inform the user w
 
 After iterating through all cases, summarize:
 - Created cases by priority (P0/P1/P2/P3)
+- Reused project variables
 - Updated cases and fields changed
-- Skipped cases and reasons
+- Skipped cases and reasons (including any flagged for manual testing due to automation boundaries)
 - Stop/delete actions executed
 - Coverage gaps and recommended next tests
