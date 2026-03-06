@@ -6,7 +6,8 @@ import { verifyStreamToken } from '@/lib/security/stream-token';
 import { config as appConfig } from '@/config/app';
 import { isTestRunProjectMember } from '@/lib/security/permissions';
 import { subscribeRunUpdates } from '@/lib/runners/event-bus';
-import type { TestEvent, LogLevel } from '@/types';
+import { objectStore } from '@/lib/storage/object-store';
+import { isScreenshotData, type TestEvent, type LogLevel } from '@/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,8 +44,38 @@ function isUiTestEvent(payload: unknown): payload is TestEvent {
     return typeof candidate.timestamp === 'number' && typeof candidate.data === 'object' && candidate.data !== null;
 }
 
-function mapRunEventToUiEvent(row: RunEventRow): TestEvent {
+function resolveArtifactFilename(artifactKey: string): string {
+    const segments = artifactKey.split('/').filter(Boolean);
+    return segments[segments.length - 1] || 'artifact.bin';
+}
+
+async function mapRunEventToUiEvent(row: RunEventRow): Promise<TestEvent> {
     if (isUiTestEvent(row.payload)) {
+        if (
+            row.payload.type === 'screenshot'
+            && row.artifactKey
+            && isScreenshotData(row.payload.data)
+            && row.payload.data.src.startsWith('artifact:')
+        ) {
+            try {
+                const signedUrl = await objectStore.getSignedDownloadUrl({
+                    key: row.artifactKey,
+                    filename: resolveArtifactFilename(row.artifactKey),
+                    inline: true,
+                });
+
+                return {
+                    ...row.payload,
+                    data: {
+                        ...row.payload.data,
+                        src: signedUrl,
+                    },
+                };
+            } catch (error) {
+                logger.warn('Failed to resolve signed artifact URL', error);
+            }
+        }
+
         return row.payload;
     }
 
@@ -205,7 +236,7 @@ export async function GET(
 
                     const events = await fetchRunEventsAfter(runId, lastSequence);
                     for (const row of events) {
-                        safeEnqueue(mapRunEventToUiEvent(row));
+                        safeEnqueue(await mapRunEventToUiEvent(row));
                         lastSequence = row.sequence;
                     }
 

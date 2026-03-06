@@ -16,6 +16,8 @@ import {
     pairingExchangeResponseSchema,
     registerRunnerRequestSchema,
     registerRunnerResponseSchema,
+    uploadArtifactRequestSchema,
+    uploadArtifactResponseSchema,
     type RunnerEventInput,
     type RunnerTransportMetadata,
 } from '@skytest/runner-protocol';
@@ -24,7 +26,7 @@ import { runTest } from '../../src/lib/runtime/test-runner';
 import { androidDeviceManager } from '../../src/lib/android/device-manager';
 import { formatAndroidDeviceDisplayName, type ConnectedAndroidDeviceInfo } from '../../src/lib/android/device-display';
 import { listAndroidDeviceInventory } from '../../src/lib/android/devices';
-import type { BrowserConfig, TargetConfig, TestCaseFile, TestStep } from '../../src/types';
+import { isScreenshotData, type BrowserConfig, type TargetConfig, type TestCaseFile, type TestEvent, type TestStep } from '../../src/types';
 import { loadStoredRunnerCredential, saveRunnerCredential, type StoredRunnerCredential } from './credential-store';
 
 const logger = createLogger('runner:macos');
@@ -68,6 +70,12 @@ interface JobDetailsPayload {
     testCaseId: string;
     projectId: string;
     config: JobDetailsConfig;
+}
+
+interface ParsedImageDataUrl {
+    mimeType: string;
+    extension: string;
+    contentBase64: string;
 }
 
 class RunnerHttpError extends Error {
@@ -327,6 +335,57 @@ async function postRunEvents(runId: string, events: RunnerEventInput[]) {
     ingestEventsResponseSchema.parse(response);
 }
 
+function parseImageDataUrl(value: string): ParsedImageDataUrl | null {
+    const match = /^data:([^;]+);base64,(.+)$/i.exec(value.trim());
+    if (!match) {
+        return null;
+    }
+
+    const mimeType = match[1].toLowerCase();
+    const contentBase64 = match[2].replace(/\s+/g, '');
+    if (!contentBase64) {
+        return null;
+    }
+
+    const extension = mimeType === 'image/jpeg'
+        ? 'jpg'
+        : mimeType === 'image/png'
+            ? 'png'
+            : mimeType === 'image/webp'
+                ? 'webp'
+                : mimeType === 'image/gif'
+                    ? 'gif'
+                    : 'bin';
+
+    return {
+        mimeType,
+        extension,
+        contentBase64,
+    };
+}
+
+function toSafeScreenshotFilename(label: string, extension: string): string {
+    const normalized = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const base = normalized.length > 0 ? normalized.slice(0, 80) : 'screenshot';
+    return `${base}-${Date.now()}.${extension}`;
+}
+
+async function uploadRunArtifact(runId: string, input: {
+    filename: string;
+    mimeType: string;
+    contentBase64: string;
+}) {
+    const payload = uploadArtifactRequestSchema.parse({
+        protocolVersion: RUNNER_PROTOCOL_CURRENT_VERSION,
+        runnerVersion,
+        filename: input.filename,
+        mimeType: input.mimeType,
+        contentBase64: input.contentBase64,
+    });
+    const response = await postRunnerApi(`/api/runners/v1/jobs/${runId}/artifacts`, payload);
+    return uploadArtifactResponseSchema.parse(response);
+}
+
 async function markRunComplete(runId: string, result?: string) {
     const payload = completeRunRequestSchema.parse({
         protocolVersion: RUNNER_PROTOCOL_CURRENT_VERSION,
@@ -351,6 +410,7 @@ async function markRunFailed(runId: string, error: string, result?: string) {
 async function executeClaimedRun(runId: string) {
     const details = await loadJobDetails(runId);
     const queuedEvents: RunnerEventInput[] = [];
+    const pendingArtifactUploads = new Set<Promise<void>>();
     let flushingEvents = false;
 
     const flushEvents = async () => {
@@ -374,6 +434,64 @@ async function executeClaimedRun(runId: string) {
         void flushEvents();
     };
 
+    const handleTestEvent = (event: TestEvent) => {
+        const screenshotData = event.type === 'screenshot' && isScreenshotData(event.data)
+            ? event.data
+            : null;
+        if (screenshotData) {
+            const uploadTask = (async () => {
+                const parsed = parseImageDataUrl(screenshotData.src);
+                if (!parsed) {
+                    queueEvent({
+                        kind: 'SCREENSHOT',
+                        message: screenshotData.label,
+                        payload: event,
+                    });
+                    return;
+                }
+
+                try {
+                    const artifact = await uploadRunArtifact(runId, {
+                        filename: toSafeScreenshotFilename(screenshotData.label, parsed.extension),
+                        mimeType: parsed.mimeType,
+                        contentBase64: parsed.contentBase64,
+                    });
+                    queueEvent({
+                        kind: 'SCREENSHOT',
+                        message: screenshotData.label,
+                        artifactKey: artifact.artifactKey,
+                        payload: {
+                            ...event,
+                            data: {
+                                ...screenshotData,
+                                src: `artifact:${artifact.artifactKey}`,
+                            },
+                        },
+                    });
+                } catch (error) {
+                    logger.warn('Failed to upload screenshot artifact', error);
+                    queueEvent({
+                        kind: 'SCREENSHOT',
+                        message: screenshotData.label,
+                        payload: event,
+                    });
+                }
+            })();
+
+            pendingArtifactUploads.add(uploadTask);
+            uploadTask.finally(() => {
+                pendingArtifactUploads.delete(uploadTask);
+            }).catch(() => {});
+            return;
+        }
+
+        queueEvent({
+            kind: event.type.toUpperCase(),
+            message: event.type === 'log' && 'message' in event.data ? event.data.message : undefined,
+            payload: event,
+        });
+    };
+
     try {
         const result = await runTest({
             runId,
@@ -390,11 +508,7 @@ async function executeClaimedRun(runId: string) {
                 resolvedFiles: details.config.resolvedFiles,
             },
             onEvent(event) {
-                queueEvent({
-                    kind: event.type.toUpperCase(),
-                    message: event.type === 'log' && 'message' in event.data ? event.data.message : undefined,
-                    payload: event,
-                });
+                handleTestEvent(event);
             },
             async onPreparing() {
                 queueEvent({
@@ -410,6 +524,7 @@ async function executeClaimedRun(runId: string) {
             },
         });
 
+        await Promise.allSettled(Array.from(pendingArtifactUploads));
         await flushEvents();
 
         const resultSummary = JSON.stringify(result);
@@ -420,6 +535,7 @@ async function executeClaimedRun(runId: string) {
 
         await markRunFailed(runId, result.error ?? 'Run failed', resultSummary);
     } catch (error) {
+        await Promise.allSettled(Array.from(pendingArtifactUploads));
         await flushEvents();
         const message = error instanceof Error ? error.message : String(error);
         await markRunFailed(runId, message);
