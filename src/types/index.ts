@@ -6,6 +6,8 @@ export * from './api-key';
 export type {
     CompatibilityMetadata,
     CreatePairingTokenResponse,
+    DeviceSyncRequest,
+    DeviceSyncResponse,
     HeartbeatRunnerRequest,
     HeartbeatRunnerResponse,
     PairingExchangeRequest,
