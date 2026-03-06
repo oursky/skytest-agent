@@ -80,6 +80,23 @@ export const MESSAGES: Record<Locale, Messages> = {
 
     // Auth
     'auth.finishing': 'Finishing authentication...',
+    'invite.badge': 'Project invite',
+    'invite.title': 'Join project',
+    'invite.subtitle': 'Review the invite details before responding.',
+    'invite.organization': 'Organization',
+    'invite.project': 'Project',
+    'invite.role': 'Role',
+    'invite.email': 'Invited email',
+    'invite.loginRequired': 'Sign in with the invited email address to respond to this invite.',
+    'invite.login': 'Sign in to continue',
+    'invite.accept': 'Accept invite',
+    'invite.decline': 'Decline invite',
+    'invite.success.accepted': 'Invite accepted.',
+    'invite.success.declined': 'Invite declined.',
+    'invite.error.load': 'Failed to load invite.',
+    'invite.error.action': 'Failed to process invite.',
+    'invite.emailMismatch': 'You are signed in as a different account. Use {email} to accept this invite.',
+    'invite.statusMessage': 'This invite is already {status}.',
 
     // Projects page
     'projects.title': 'Projects',
@@ -538,6 +555,23 @@ export const MESSAGES: Record<Locale, Messages> = {
 
     // Auth
     'auth.finishing': '正在完成驗證…',
+    'invite.badge': '專案邀請',
+    'invite.title': '加入專案',
+    'invite.subtitle': '回應邀請前，先確認邀請內容。',
+    'invite.organization': '組織',
+    'invite.project': '專案',
+    'invite.role': '角色',
+    'invite.email': '受邀 Email',
+    'invite.loginRequired': '請使用受邀 Email 登入後再回應此邀請。',
+    'invite.login': '登入以繼續',
+    'invite.accept': '接受邀請',
+    'invite.decline': '拒絕邀請',
+    'invite.success.accepted': '已接受邀請。',
+    'invite.success.declined': '已拒絕邀請。',
+    'invite.error.load': '載入邀請失敗。',
+    'invite.error.action': '處理邀請失敗。',
+    'invite.emailMismatch': '你目前登入的是其他帳號。請使用 {email} 接受此邀請。',
+    'invite.statusMessage': '這個邀請目前狀態為 {status}。',
 
     // Projects page
     'projects.title': '專案',
@@ -996,6 +1030,23 @@ export const MESSAGES: Record<Locale, Messages> = {
 
     // Auth
     'auth.finishing': '正在完成认证…',
+    'invite.badge': '项目邀请',
+    'invite.title': '加入项目',
+    'invite.subtitle': '响应邀请前，请先确认邀请内容。',
+    'invite.organization': '组织',
+    'invite.project': '项目',
+    'invite.role': '角色',
+    'invite.email': '受邀邮箱',
+    'invite.loginRequired': '请使用受邀邮箱登录后再响应此邀请。',
+    'invite.login': '登录以继续',
+    'invite.accept': '接受邀请',
+    'invite.decline': '拒绝邀请',
+    'invite.success.accepted': '邀请已接受。',
+    'invite.success.declined': '邀请已拒绝。',
+    'invite.error.load': '加载邀请失败。',
+    'invite.error.action': '处理邀请失败。',
+    'invite.emailMismatch': '你当前登录的是其他账号。请使用 {email} 接受此邀请。',
+    'invite.statusMessage': '这个邀请当前状态为 {status}。',
 
     // Projects page
     'projects.title': '项目',

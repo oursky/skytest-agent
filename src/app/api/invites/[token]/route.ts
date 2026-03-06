@@ -1,0 +1,226 @@
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/core/prisma';
+import { verifyAuth, resolveUserId } from '@/lib/security/auth';
+import { createLogger } from '@/lib/core/logger';
+import { hashInviteToken } from '@/lib/security/invite-token';
+
+const logger = createLogger('api:invites:token');
+
+function getPayloadEmail(authPayload: Record<string, unknown>): string | null {
+    const email = authPayload.email;
+    return typeof email === 'string' && email.length > 0 ? email.toLowerCase() : null;
+}
+
+async function resolveOrUpdateUser(
+    authPayload: Record<string, unknown> & { sub?: string }
+): Promise<{ id: string; email: string | null } | null> {
+    const userId = await resolveUserId(authPayload);
+    const authId = typeof authPayload.sub === 'string' ? authPayload.sub : null;
+    const payloadEmail = getPayloadEmail(authPayload);
+
+    if (userId) {
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { id: true, email: true }
+        });
+        if (!user) {
+            return null;
+        }
+        if (payloadEmail && user.email !== payloadEmail) {
+            await prisma.user.update({
+                where: { id: userId },
+                data: { email: payloadEmail }
+            });
+            return { id: user.id, email: payloadEmail };
+        }
+        return user;
+    }
+
+    if (!authId) {
+        return null;
+    }
+
+    return prisma.user.upsert({
+        where: { authId },
+        update: { email: payloadEmail ?? undefined },
+        create: {
+            authId,
+            email: payloadEmail,
+        },
+        select: {
+            id: true,
+            email: true,
+        }
+    });
+}
+
+function deriveInviteStatus(invite: { status: string; expiresAt: Date }): string {
+    if (invite.status === 'PENDING' && invite.expiresAt.getTime() < Date.now()) {
+        return 'EXPIRED';
+    }
+    return invite.status;
+}
+
+async function findInvite(rawToken: string) {
+    return prisma.projectInvite.findUnique({
+        where: { tokenHash: hashInviteToken(rawToken) },
+        include: {
+            project: {
+                select: {
+                    id: true,
+                    name: true,
+                    organization: {
+                        select: {
+                            id: true,
+                            name: true,
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+export async function GET(
+    _request: Request,
+    { params }: { params: Promise<{ token: string }> }
+) {
+    try {
+        const { token } = await params;
+        const invite = await findInvite(token);
+
+        if (!invite) {
+            return NextResponse.json({ error: 'Invite not found' }, { status: 404 });
+        }
+
+        return NextResponse.json({
+            id: invite.id,
+            email: invite.email,
+            role: invite.role,
+            status: deriveInviteStatus(invite),
+            expiresAt: invite.expiresAt,
+            project: invite.project,
+        });
+    } catch (error) {
+        logger.error('Failed to fetch invite', error);
+        return NextResponse.json({ error: 'Failed to fetch invite' }, { status: 500 });
+    }
+}
+
+export async function POST(
+    request: Request,
+    { params }: { params: Promise<{ token: string }> }
+) {
+    const authPayload = await verifyAuth(request);
+    if (!authPayload) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    try {
+        const { token } = await params;
+        const { action } = await request.json() as { action?: string };
+
+        if (action !== 'accept' && action !== 'decline') {
+            return NextResponse.json({ error: 'Valid invite action is required' }, { status: 400 });
+        }
+
+        const user = await resolveOrUpdateUser(authPayload as Record<string, unknown> & { sub?: string });
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const invite = await findInvite(token);
+        if (!invite) {
+            return NextResponse.json({ error: 'Invite not found' }, { status: 404 });
+        }
+
+        const derivedStatus = deriveInviteStatus(invite);
+        if (derivedStatus !== 'PENDING') {
+            if (derivedStatus === 'EXPIRED' && invite.status !== 'EXPIRED') {
+                await prisma.projectInvite.update({
+                    where: { id: invite.id },
+                    data: { status: 'EXPIRED' }
+                });
+            }
+            return NextResponse.json({ error: `Invite is ${derivedStatus.toLowerCase()}` }, { status: 400 });
+        }
+
+        if (!user.email || user.email.toLowerCase() !== invite.email.toLowerCase()) {
+            return NextResponse.json(
+                { error: 'Signed-in account email does not match this invite' },
+                { status: 403 }
+            );
+        }
+
+        if (action === 'decline') {
+            await prisma.projectInvite.update({
+                where: { id: invite.id },
+                data: {
+                    status: 'DECLINED',
+                    declinedAt: new Date(),
+                }
+            });
+
+            return NextResponse.json({ success: true, status: 'DECLINED' });
+        }
+
+        await prisma.$transaction(async (tx) => {
+            const orgMembership = await tx.organizationMembership.findUnique({
+                where: {
+                    organizationId_userId: {
+                        organizationId: invite.project.organization.id,
+                        userId: user.id,
+                    }
+                },
+                select: { id: true }
+            });
+
+            if (!orgMembership) {
+                await tx.organizationMembership.create({
+                    data: {
+                        organizationId: invite.project.organization.id,
+                        userId: user.id,
+                        role: 'MEMBER',
+                    }
+                });
+            }
+
+            const projectMembership = await tx.projectMembership.findUnique({
+                where: {
+                    projectId_userId: {
+                        projectId: invite.project.id,
+                        userId: user.id,
+                    }
+                },
+                select: { id: true }
+            });
+
+            if (!projectMembership) {
+                await tx.projectMembership.create({
+                    data: {
+                        projectId: invite.project.id,
+                        userId: user.id,
+                        role: invite.role,
+                    }
+                });
+            }
+
+            await tx.projectInvite.update({
+                where: { id: invite.id },
+                data: {
+                    status: 'ACCEPTED',
+                    acceptedAt: new Date(),
+                }
+            });
+        });
+
+        return NextResponse.json({
+            success: true,
+            status: 'ACCEPTED',
+            projectId: invite.project.id,
+        });
+    } catch (error) {
+        logger.error('Failed to process invite', error);
+        return NextResponse.json({ error: 'Failed to process invite' }, { status: 500 });
+    }
+}

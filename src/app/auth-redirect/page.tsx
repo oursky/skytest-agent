@@ -34,9 +34,18 @@ export default function AuthRedirect() {
 
                 await authgear.finishAuthentication();
                 await refreshUser();
-                router.push("/");
+                const redirectTo = typeof window !== 'undefined'
+                    ? window.sessionStorage.getItem('skytest.postLoginRedirect')
+                    : null;
+                if (typeof window !== 'undefined') {
+                    window.sessionStorage.removeItem('skytest.postLoginRedirect');
+                }
+                router.push(redirectTo || "/");
             } catch (error) {
                 console.error("Authentication failed", error);
+                if (typeof window !== 'undefined') {
+                    window.sessionStorage.removeItem('skytest.postLoginRedirect');
+                }
                 router.push("/");
             }
         };
