@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/app/auth-provider';
-import { CustomSelect, Modal } from '@/components/shared';
+import { Modal } from '@/components/shared';
 import { useI18n } from '@/i18n';
 import { formatDateTimeCompact } from '@/utils/dateFormatter';
 
@@ -32,13 +32,6 @@ export default function TeamMembers({ teamId, teamRole }: TeamMembersProps) {
     const [memberToRemove, setMemberToRemove] = useState<Member | null>(null);
 
     const canManage = teamRole === 'OWNER' || teamRole === 'ADMIN';
-    const roleOptions = useMemo(
-        () => [
-            { value: 'MEMBER' as const, label: t('team.members.roles.member') },
-            { value: 'ADMIN' as const, label: t('team.members.roles.admin') },
-        ],
-        [t]
-    );
 
     const loadData = useCallback(async () => {
         try {
@@ -64,32 +57,6 @@ export default function TeamMembers({ teamId, teamRole }: TeamMembersProps) {
     useEffect(() => {
         void loadData();
     }, [loadData]);
-
-    const updateMemberRole = async (memberId: string, role: 'ADMIN' | 'MEMBER') => {
-        try {
-            const token = await getAccessToken();
-            const response = await fetch(`/api/teams/${teamId}/members/${memberId}`, {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                },
-                body: JSON.stringify({ role }),
-            });
-
-            const data = await response.json().catch(() => ({ error: t('team.members.error.role') }));
-            if (!response.ok) {
-                setError(data.error || t('team.members.error.role'));
-                return;
-            }
-
-            setMembers((current) => current.map((member) => member.id === memberId ? data as Member : member));
-            setSuccess(t('team.members.success.role'));
-            setError(null);
-        } catch {
-            setError(t('team.members.error.role'));
-        }
-    };
 
     const addMember = async () => {
         if (!memberEmail.trim()) {
@@ -241,20 +208,9 @@ export default function TeamMembers({ teamId, teamRole }: TeamMembersProps) {
                                             </div>
                                         </td>
                                         <td className="px-4 py-3 align-top">
-                                            {canManage && member.role !== 'OWNER' ? (
-                                                <CustomSelect
-                                                    value={member.role}
-                                                    options={roleOptions}
-                                                    onChange={(role) => void updateMemberRole(member.id, role)}
-                                                    ariaLabel={t('team.members.role')}
-                                                    buttonClassName="min-w-28 px-2 py-1 shadow-none"
-                                                    menuClassName="min-w-28"
-                                                />
-                                            ) : (
-                                                <span className="text-sm text-gray-500">
-                                                    {t(`team.members.roles.${member.role.toLowerCase()}`)}
-                                                </span>
-                                            )}
+                                            <span className="text-sm text-gray-500">
+                                                {t(`team.members.roles.${member.role.toLowerCase()}`)}
+                                            </span>
                                         </td>
                                         <td className="px-4 py-3 align-top text-sm text-gray-500">
                                             {formatDateTimeCompact(member.updatedAt)}

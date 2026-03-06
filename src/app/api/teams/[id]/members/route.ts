@@ -5,7 +5,7 @@ import { createLogger } from '@/lib/core/logger';
 import { canManageTeamMembers, isTeamMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:teams:members');
-const MANAGEABLE_ROLES = new Set(['ADMIN', 'MEMBER']);
+const DEFAULT_MEMBER_ROLE = 'MEMBER' as const;
 
 function normalizeEmail(email: string): string {
     return email.trim().toLowerCase();
@@ -91,16 +91,11 @@ export async function POST(
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const body = await request.json() as { email?: string; role?: string };
+        const body = await request.json() as { email?: string };
         const email = typeof body.email === 'string' ? normalizeEmail(body.email) : '';
-        const role = typeof body.role === 'string' ? body.role.trim() : 'MEMBER';
 
         if (!email) {
             return NextResponse.json({ error: 'Email is required' }, { status: 400 });
-        }
-
-        if (!MANAGEABLE_ROLES.has(role)) {
-            return NextResponse.json({ error: 'Valid team role is required' }, { status: 400 });
         }
 
         const existingUser = await prisma.user.findFirst({
@@ -127,7 +122,7 @@ export async function POST(
             data: {
                 teamId: id,
                 email,
-                role: role as 'ADMIN' | 'MEMBER',
+                role: DEFAULT_MEMBER_ROLE,
                 ...(existingUser ? { userId: existingUser.id } : {}),
             },
             select: {

@@ -23,6 +23,7 @@ const {
     canManageProject,
     canCreateProject,
     canDeleteTeam,
+    getTeamAccess,
 } = await import('@/lib/security/permissions');
 
 describe('team permissions', () => {
@@ -64,5 +65,37 @@ describe('team permissions', () => {
         teamMembershipFindUnique.mockResolvedValueOnce({ role: 'MEMBER' });
 
         await expect(canManageProject('user-1', 'project-1')).resolves.toBe(false);
+    });
+
+    it('returns centralized owner capabilities', async () => {
+        teamMembershipFindUnique.mockResolvedValueOnce({ role: 'OWNER' });
+
+        await expect(getTeamAccess('user-1', 'org-1')).resolves.toEqual({
+            teamId: 'org-1',
+            role: 'OWNER',
+            isMember: true,
+            canManageProjects: true,
+            canManageMembers: true,
+            canManageApiKey: true,
+            canRenameTeam: true,
+            canDeleteTeam: true,
+            canTransferOwnership: true,
+        });
+    });
+
+    it('returns no capabilities for non-members', async () => {
+        teamMembershipFindUnique.mockResolvedValueOnce(null);
+
+        await expect(getTeamAccess('user-1', 'org-1')).resolves.toEqual({
+            teamId: 'org-1',
+            role: null,
+            isMember: false,
+            canManageProjects: false,
+            canManageMembers: false,
+            canManageApiKey: false,
+            canRenameTeam: false,
+            canDeleteTeam: false,
+            canTransferOwnership: false,
+        });
     });
 });
