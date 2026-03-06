@@ -5,8 +5,7 @@ import { parseTestCaseJson, cleanStepsForStorage, normalizeTargetConfigMap } fro
 import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } from '@/lib/config/sort';
 import { validateConfigName, normalizeConfigName, validateConfigType } from '@/lib/config/validation';
 import { normalizeBrowserConfig } from '@/lib/config/browser-target';
-import { listAndroidDeviceInventory } from '@/lib/android/devices';
-import { resolveAndroidDeviceSelector } from '@/lib/mcp/android-selector';
+import { resolveAndroidDeviceSelector, type AndroidDeviceSelectorInventory } from '@/lib/mcp/android-selector';
 import { ACTIVE_RUN_STATUSES } from '@/utils/statusHelpers';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { ServerRequest, ServerNotification } from '@modelcontextprotocol/sdk/types.js';
@@ -64,6 +63,83 @@ async function cancelRunDurably(runId: string, errorMessage: string): Promise<bo
     });
 
     return true;
+}
+
+function readMetadataString(metadata: unknown, field: string): string | undefined {
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+        return undefined;
+    }
+
+    const value = (metadata as Record<string, unknown>)[field];
+    if (typeof value !== 'string') {
+        return undefined;
+    }
+
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+}
+
+async function listRunnerAndroidInventory(projectId: string): Promise<AndroidDeviceSelectorInventory | null> {
+    const project = await prisma.project.findUnique({
+        where: { id: projectId },
+        select: { teamId: true },
+    });
+    if (!project) {
+        return null;
+    }
+
+    const devices = await prisma.runnerDevice.findMany({
+        where: {
+            platform: 'ANDROID',
+            state: 'ONLINE',
+            runner: {
+                teamId: project.teamId,
+                status: 'ONLINE',
+            },
+        },
+        select: {
+            deviceId: true,
+            name: true,
+            metadata: true,
+        },
+    });
+
+    const connectedDevicesBySerial = new Map<string, AndroidDeviceSelectorInventory['connectedDevices'][number]>();
+    const emulatorProfilesByName = new Map<string, AndroidDeviceSelectorInventory['emulatorProfiles'][number]>();
+
+    for (const device of devices) {
+        const serial = device.deviceId.trim();
+        if (!serial) {
+            continue;
+        }
+
+        const metadata = device.metadata;
+        const kind = readMetadataString(metadata, 'kind') === 'emulator' ? 'emulator' : 'physical';
+        const manufacturer = readMetadataString(metadata, 'manufacturer');
+        const model = readMetadataString(metadata, 'model') ?? device.name;
+        const emulatorProfileName = readMetadataString(metadata, 'emulatorProfileName');
+        const emulatorProfileDisplayName = readMetadataString(metadata, 'emulatorProfileDisplayName') ?? emulatorProfileName;
+
+        connectedDevicesBySerial.set(serial, {
+            serial,
+            kind,
+            manufacturer,
+            model,
+            emulatorProfileName,
+        });
+
+        if (kind === 'emulator' && emulatorProfileName) {
+            emulatorProfilesByName.set(emulatorProfileName, {
+                name: emulatorProfileName,
+                displayName: emulatorProfileDisplayName ?? emulatorProfileName,
+            });
+        }
+    }
+
+    return {
+        connectedDevices: Array.from(connectedDevicesBySerial.values()),
+        emulatorProfiles: Array.from(emulatorProfilesByName.values()),
+    };
 }
 
 function buildTargetIdGenerator(existingIds: Set<string>, prefix: 'browser' | 'android') {
@@ -245,7 +321,7 @@ export function createMcpServer(): McpServer {
         const nextBrowserTargetId = buildTargetIdGenerator(targetIds, 'browser');
         const nextAndroidTargetId = buildTargetIdGenerator(targetIds, 'android');
         const androidInventory = Array.isArray(testCase.androidTargets) && testCase.androidTargets.length > 0
-            ? await listAndroidDeviceInventory()
+            ? await listRunnerAndroidInventory(projectId)
             : null;
 
         if (Array.isArray(testCase.browserTargets)) {

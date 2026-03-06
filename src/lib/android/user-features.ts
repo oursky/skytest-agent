@@ -1,28 +1,21 @@
-import { isAndroidRuntimeAvailable } from '@/lib/android/sdk';
-
 export interface UserFeatures {
     androidRuntimeAvailable: boolean;
     androidAvailable: boolean;
 }
 
 export function getUserFeatures(): UserFeatures {
-    const androidRuntimeAvailable = isAndroidRuntimeAvailable();
-
     return {
-        androidRuntimeAvailable,
-        androidAvailable: androidRuntimeAvailable,
+        androidRuntimeAvailable: true,
+        androidAvailable: true,
     };
 }
 
-export type AndroidAccessStatus = 'enabled' | 'runtime-unavailable';
+export type AndroidAccessStatus = 'enabled';
 
 export function getAndroidAccessStatus(): AndroidAccessStatus {
-    if (!isAndroidRuntimeAvailable()) {
-        return 'runtime-unavailable';
-    }
     return 'enabled';
 }
 
 export function isAndroidAvailable(): boolean {
-    return isAndroidRuntimeAvailable();
+    return true;
 }

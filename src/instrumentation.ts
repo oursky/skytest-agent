@@ -1,6 +1,3 @@
 export async function register() {
-    if (process.env.NEXT_RUNTIME === 'nodejs') {
-        const { androidDeviceManager } = await import('@/lib/android/device-manager');
-        await androidDeviceManager.initialize();
-    }
+    // Phase 3: API process is control-plane only. No host-local runner bootstrap here.
 }
