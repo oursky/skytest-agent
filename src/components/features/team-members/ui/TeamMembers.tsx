@@ -256,6 +256,11 @@ export default function TeamMembers({ teamId, teamRole, onMembersChanged }: Team
                                         <td className="px-4 py-3 align-middle">
                                             <div className="font-medium text-gray-900">
                                                 {member.email || t('team.members.unknownEmail')}
+                                                {member.userId === null && (
+                                                    <span className="ml-1 font-normal text-gray-500">
+                                                        {t('team.members.pendingSuffix')}
+                                                    </span>
+                                                )}
                                             </div>
                                         </td>
                                         <td className="px-4 py-3 align-middle">
