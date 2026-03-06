@@ -38,6 +38,8 @@ export async function PATCH(
             select: {
                 id: true,
                 teamId: true,
+                userId: true,
+                email: true,
                 role: true,
                 createdAt: true,
                 updatedAt: true,
@@ -63,6 +65,8 @@ export async function PATCH(
             data: { role: role as 'ADMIN' | 'MEMBER' },
             select: {
                 id: true,
+                userId: true,
+                email: true,
                 role: true,
                 createdAt: true,
                 updatedAt: true,
@@ -77,8 +81,8 @@ export async function PATCH(
 
         return NextResponse.json({
             id: updated.id,
-            userId: updated.user.id,
-            email: updated.user.email,
+            userId: updated.userId,
+            email: updated.email ?? updated.user?.email ?? null,
             role: updated.role,
             createdAt: updated.createdAt,
             updatedAt: updated.updatedAt,

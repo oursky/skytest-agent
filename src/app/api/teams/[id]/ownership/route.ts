@@ -60,7 +60,7 @@ export async function POST(
             return NextResponse.json({ error: 'Only the current owner can transfer ownership' }, { status: 403 });
         }
 
-        if (!nextOwnerMembership) {
+        if (!nextOwnerMembership || !nextOwnerMembership.user) {
             return NextResponse.json({ error: 'Team member not found' }, { status: 404 });
         }
 

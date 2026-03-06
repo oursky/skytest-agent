@@ -21,16 +21,16 @@ enum TeamInviteStatus {
 }
 
 model User {
-  id                       String                   @id @default(cuid())
-  authId                   String                   @unique
-  email                    String?
-  createdAt                DateTime                 @default(now())
-  updatedAt                DateTime                 @updatedAt
-  createdProjects          Project[]                @relation("ProjectCreator")
-  actorUsageRecords        UsageRecord[]            @relation("UsageRecordActor")
-  apiKeys                  ApiKey[]
-  teamMemberships  TeamMembership[]
-  sentTeamInvites  TeamInvite[]     @relation("TeamInviteSender")
+  id                String          @id @default(cuid())
+  authId            String          @unique
+  email             String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  createdProjects   Project[]       @relation("ProjectCreator")
+  actorUsageRecords UsageRecord[]   @relation("UsageRecordActor")
+  apiKeys           ApiKey[]
+  teamMemberships   TeamMembership[]
+  sentTeamInvites   TeamInvite[]    @relation("TeamInviteSender")
 }
 
 model UsageRecord {
@@ -66,36 +66,39 @@ model Team {
 }
 
 model TeamMembership {
-  id             String           @id @default(cuid())
-  teamId String
-  team   Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  userId         String
-  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role           TeamRole
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  id        String    @id @default(cuid())
+  teamId    String
+  team      Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email     String?
+  role      TeamRole
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   @@unique([teamId, userId])
   @@index([userId, teamId])
   @@index([teamId, role])
+  @@index([teamId, email])
+  @@index([email])
 }
 
 model TeamInvite {
-  id              String                   @id @default(cuid())
-  teamId  String
-  team    Team             @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  id              String           @id @default(cuid())
+  teamId          String
+  team            Team             @relation(fields: [teamId], references: [id], onDelete: Cascade)
   email           String
   role            TeamRole
   status          TeamInviteStatus @default(PENDING)
-  tokenHash       String                   @unique
+  tokenHash       String           @unique
   expiresAt       DateTime
   invitedByUserId String
-  invitedByUser   User                     @relation("TeamInviteSender", fields: [invitedByUserId], references: [id], onDelete: Cascade)
+  invitedByUser   User             @relation("TeamInviteSender", fields: [invitedByUserId], references: [id], onDelete: Cascade)
   acceptedAt      DateTime?
   declinedAt      DateTime?
   canceledAt      DateTime?
-  createdAt       DateTime                 @default(now())
-  updatedAt       DateTime                 @updatedAt
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
   @@index([teamId, status])
   @@index([email, status])

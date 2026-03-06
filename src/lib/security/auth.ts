@@ -9,21 +9,120 @@ let jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
 
 export type AuthPayload = NonNullable<Awaited<ReturnType<typeof verifyAuth>>>;
 
-export async function resolveUserId(authPayload: AuthPayload): Promise<string | null> {
-    const maybeUserId = (authPayload as { userId?: unknown }).userId;
-    if (typeof maybeUserId === 'string' && maybeUserId.length > 0) {
-        const user = await prisma.user.findUnique({
-            where: { id: maybeUserId },
-            select: { id: true, authId: true }
+function getPayloadEmail(authPayload: Record<string, unknown>): string | null {
+    const email = authPayload.email;
+    if (typeof email !== 'string') {
+        return null;
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    return normalizedEmail.length > 0 ? normalizedEmail : null;
+}
+
+async function syncMembershipEmails(userId: string, email: string) {
+    const pendingMemberships = await prisma.teamMembership.findMany({
+        where: {
+            email,
+            userId: null,
+        },
+        select: {
+            id: true,
+            teamId: true,
+        }
+    });
+
+    for (const membership of pendingMemberships) {
+        const existingMembership = await prisma.teamMembership.findFirst({
+            where: {
+                teamId: membership.teamId,
+                userId,
+            },
+            select: { id: true }
         });
-        if (user && (authPayload.sub === user.authId || authPayload.sub === user.id)) {
-            return user.id;
+
+        if (existingMembership) {
+            await prisma.teamMembership.delete({ where: { id: membership.id } });
+            continue;
+        }
+
+        try {
+            await prisma.teamMembership.update({
+                where: { id: membership.id },
+                data: {
+                    userId,
+                    email,
+                }
+            });
+        } catch (error) {
+            if (!isUniqueConstraintError(error)) {
+                throw error;
+            }
         }
     }
 
-    const authId = authPayload.sub as string | undefined;
-    if (!authId) return null;
-    const user = await prisma.user.findUnique({ where: { authId }, select: { id: true } });
+    await prisma.teamMembership.updateMany({
+        where: { userId },
+        data: { email }
+    });
+}
+
+async function syncUser(authPayload: AuthPayload): Promise<{ id: string; email: string | null } | null> {
+    const authSubject = typeof authPayload.sub === 'string' ? authPayload.sub : null;
+    const payloadEmail = getPayloadEmail(authPayload as Record<string, unknown>);
+    const maybeUserId = (authPayload as { userId?: unknown }).userId;
+
+    if (typeof maybeUserId === 'string' && maybeUserId.length > 0) {
+        const user = await prisma.user.findUnique({
+            where: { id: maybeUserId },
+            select: { id: true, authId: true, email: true }
+        });
+
+        if (user && (authSubject === user.authId || authSubject === user.id)) {
+            const syncedUser = payloadEmail && authSubject === user.authId && user.email !== payloadEmail
+                ? await prisma.user.update({
+                    where: { id: user.id },
+                    data: { email: payloadEmail },
+                    select: { id: true, email: true }
+                })
+                : { id: user.id, email: user.email };
+
+            if (payloadEmail) {
+                await syncMembershipEmails(syncedUser.id, payloadEmail);
+                return { id: syncedUser.id, email: payloadEmail };
+            }
+
+            return syncedUser;
+        }
+
+        if (authSubject === maybeUserId) {
+            return null;
+        }
+    }
+
+    if (!authSubject) {
+        return null;
+    }
+
+    const user = await prisma.user.upsert({
+        where: { authId: authSubject },
+        update: payloadEmail ? { email: payloadEmail } : {},
+        create: {
+            authId: authSubject,
+            email: payloadEmail,
+        },
+        select: { id: true, email: true }
+    });
+
+    if (payloadEmail) {
+        await syncMembershipEmails(user.id, payloadEmail);
+        return { id: user.id, email: payloadEmail };
+    }
+
+    return user;
+}
+
+export async function resolveUserId(authPayload: AuthPayload): Promise<string | null> {
+    const user = await syncUser(authPayload);
     return user?.id ?? null;
 }
 
@@ -32,33 +131,7 @@ function isUniqueConstraintError(error: unknown): error is { code: string } {
 }
 
 export async function resolveOrCreateUserId(authPayload: AuthPayload): Promise<string | null> {
-    const existingUserId = await resolveUserId(authPayload);
-    if (existingUserId) {
-        return existingUserId;
-    }
-
-    const authId = authPayload.sub as string | undefined;
-    if (!authId) {
-        return null;
-    }
-
-    try {
-        const user = await prisma.user.create({
-            data: { authId },
-            select: { id: true }
-        });
-        return user.id;
-    } catch (error) {
-        if (!isUniqueConstraintError(error)) {
-            throw error;
-        }
-
-        const user = await prisma.user.findUnique({
-            where: { authId },
-            select: { id: true }
-        });
-        return user?.id ?? null;
-    }
+    return resolveUserId(authPayload);
 }
 
 function getJwks() {

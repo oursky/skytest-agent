@@ -22,7 +22,7 @@ interface TeamDetails {
 
 interface TeamMemberOption {
     id: string;
-    userId: string;
+    userId: string | null;
     email: string | null;
     role: 'OWNER' | 'ADMIN' | 'MEMBER';
 }
@@ -57,9 +57,9 @@ export default function TeamsPage() {
     }, [selectedTeam, teams]);
 
     const ownerOptions = ownerCandidates
-        .filter((member) => member.role !== 'OWNER')
+        .filter((member) => member.role !== 'OWNER' && member.userId)
         .map((member) => ({
-            value: member.userId,
+            value: member.userId as string,
             label: member.email || t('team.members.unknownEmail'),
         }));
 
@@ -82,7 +82,9 @@ export default function TeamsPage() {
         setRenameValue(details.name);
         setIsEditingSettings(false);
         setOwnerCandidates(membersData.members);
-        setTransferUserId(membersData.members.find((member) => member.role !== 'OWNER')?.userId ?? '');
+        setTransferUserId(
+            membersData.members.find((member) => member.role !== 'OWNER' && member.userId)?.userId ?? ''
+        );
     }, [getAccessToken]);
 
     useEffect(() => {

@@ -45,7 +45,6 @@ export async function GET(
                     select: {
                         memberships: true,
                         projects: true,
-                        invites: true,
                     }
                 }
             }

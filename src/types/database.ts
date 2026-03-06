@@ -13,8 +13,6 @@ export interface Project {
 
 export type TeamRole = 'OWNER' | 'ADMIN' | 'MEMBER';
 
-export type TeamInviteStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'CANCELED' | 'EXPIRED';
-
 export interface Team {
     id: string;
     name: string;
@@ -27,23 +25,9 @@ export interface Team {
 export interface TeamMembership {
     id: string;
     teamId: string;
-    userId: string;
+    userId: string | null;
+    email: string | null;
     role: TeamRole;
-    createdAt: string;
-    updatedAt: string;
-}
-
-export interface TeamInvite {
-    id: string;
-    teamId: string;
-    email: string;
-    role: TeamRole;
-    status: TeamInviteStatus;
-    expiresAt: string;
-    invitedByUserId: string;
-    acceptedAt: string | null;
-    declinedAt: string | null;
-    canceledAt: string | null;
     createdAt: string;
     updatedAt: string;
 }
