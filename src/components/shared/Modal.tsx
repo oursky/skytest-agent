@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useI18n } from '@/i18n';
 
 interface ModalProps {
@@ -62,7 +63,7 @@ export default function Modal({
 
     if (!isOpen) return null;
 
-    return (
+    return createPortal(
         <div
             className={`fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-fade-in ${overlayClassName}`}
             onClick={(e) => {
@@ -122,6 +123,7 @@ export default function Modal({
                     </div>
                 )}
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }
