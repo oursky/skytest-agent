@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/app/auth-provider';
 import { CustomSelect, Modal } from '@/components/shared';
 import { LOCALE_META, Locale, useI18n } from '@/i18n';
-import { useTeams } from '@/hooks/useTeams';
+import { dispatchTeamsChanged, useTeams } from '@/hooks/useTeams';
 import { useCurrentTeam } from '@/hooks/useCurrentTeam';
 
 export default function Header() {
@@ -74,6 +74,7 @@ export default function Header() {
                 throw new Error('Failed to create team');
             }
 
+            dispatchTeamsChanged();
             await refreshTeams();
             await setCurrentTeam(data.id);
             setNewTeamName('');

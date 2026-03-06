@@ -8,6 +8,16 @@ export interface TeamOption {
     updatedAt: string;
 }
 
+const TEAMS_CHANGED_EVENT = 'skytest:teams-changed';
+
+export function dispatchTeamsChanged() {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    window.dispatchEvent(new CustomEvent(TEAMS_CHANGED_EVENT));
+}
+
 export function useTeams(
     getAccessToken?: () => Promise<string | null>,
     enabled = true
@@ -51,6 +61,21 @@ export function useTeams(
 
     useEffect(() => {
         void fetchTeams();
+    }, [fetchTeams]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+
+        const handleTeamsChanged = () => {
+            void fetchTeams();
+        };
+
+        window.addEventListener(TEAMS_CHANGED_EVENT, handleTeamsChanged);
+        return () => {
+            window.removeEventListener(TEAMS_CHANGED_EVENT, handleTeamsChanged);
+        };
     }, [fetchTeams]);
 
     return {

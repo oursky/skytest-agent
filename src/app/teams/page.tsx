@@ -8,7 +8,7 @@ import TeamAiSettings from '@/components/features/team-ai/ui/TeamAiSettings';
 import TeamMembers from '@/components/features/team-members/ui/TeamMembers';
 import TeamUsage from '@/components/features/team-usage/ui/TeamUsage';
 import { useCurrentTeam } from '@/hooks/useCurrentTeam';
-import { useTeams } from '@/hooks/useTeams';
+import { dispatchTeamsChanged, useTeams } from '@/hooks/useTeams';
 import { useI18n } from '@/i18n';
 
 interface TeamDetails {
@@ -135,6 +135,7 @@ export default function TeamsPage() {
                 return;
             }
 
+            dispatchTeamsChanged();
             await refreshTeams();
             setSuccess(t('team.page.success.rename'));
             setError(null);
@@ -193,12 +194,14 @@ export default function TeamsPage() {
                 return;
             }
 
+            const nextTeamId = teams.find((team) => team.id !== currentTeam.id)?.id ?? null;
+            dispatchTeamsChanged();
             setIsDeleteOpen(false);
             setDeleteConfirmationValue('');
             await refreshTeams();
-            const nextTeamId = teams.find((team) => team.id !== currentTeam.id)?.id;
             if (nextTeamId) {
                 await setCurrentTeam(nextTeamId);
+                router.push('/projects');
             } else {
                 router.push('/welcome');
             }

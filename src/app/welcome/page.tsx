@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/auth-provider';
-import { useTeams } from '@/hooks/useTeams';
+import { dispatchTeamsChanged, useTeams } from '@/hooks/useTeams';
 import { useCurrentTeam } from '@/hooks/useCurrentTeam';
 import { useI18n } from '@/i18n';
 
@@ -56,6 +56,7 @@ export default function WelcomePage() {
                 return;
             }
 
+            dispatchTeamsChanged();
             await setCurrentTeam(data.id);
             await refreshTeams();
             router.push('/projects');

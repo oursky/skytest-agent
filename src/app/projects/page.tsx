@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { Modal } from "@/components/shared";
 import { formatDateTime } from "@/utils/dateFormatter";
 import { useProjects } from "@/hooks/useProjects";
-import { useTeams } from "@/hooks/useTeams";
+import { dispatchTeamsChanged, useTeams } from "@/hooks/useTeams";
 import { useCurrentTeam } from "@/hooks/useCurrentTeam";
 import { useI18n } from "@/i18n";
 
@@ -109,6 +109,7 @@ export default function ProjectsPage() {
             }
 
             const team = await response.json() as { id: string };
+            dispatchTeamsChanged();
             await refreshTeams();
             await setCurrentTeam(team.id);
             setNewTeamName('');
