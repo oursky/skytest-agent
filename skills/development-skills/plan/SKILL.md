@@ -35,7 +35,7 @@ This repo is currently moving toward a single control plane on k8s, durable runn
 ### 2. Shape the design (non-trivial work)
 
 - Propose 1–2 approaches with tradeoffs and confirm direction
-- Capture design notes in `docs/plans/YYYY-MM-DD-<slug>-design.md` when behavior or architecture changes
+- Capture design notes in a focused markdown doc under `docs/maintainers/` when behavior or architecture changes
 - Default to the simplest durable design that matches the current target:
   - Postgres instead of SQLite
   - object storage instead of local uploads
@@ -47,7 +47,7 @@ This repo is currently moving toward a single control plane on k8s, durable runn
 ### 3. Write the plan
 
 - List the files you will touch and the tests you will run
-- Write the plan in `docs/plans/YYYY-MM-DD-<slug>.md` (create the directory if missing)
+- Write the plan in a dedicated markdown file under `docs/maintainers/` when persistent planning notes are needed
 - Keep tasks bite-sized (2–5 minutes each) with exact paths and validation steps
 - If the work is part of a larger refactor, include:
   - branch name

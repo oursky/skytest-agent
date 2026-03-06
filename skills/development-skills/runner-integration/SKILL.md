@@ -21,8 +21,9 @@ Use this skill when touching:
 ## Source Of Truth
 
 Read:
-- `docs/plans/2026-03-06-phase-3-runner-review-design.md`
-- `docs/plans/2026-03-06-phase-3-runner-review-plan.md`
+- `docs/maintainers/android-runtime-maintenance.md`
+- `docs/maintainers/coding-agent-maintenance-guide.md`
+- `docs/operators/android-runtime-deployment-checklist.md`
 
 ## Runner Model
 

@@ -25,12 +25,6 @@ Core app features can run without Android SDK/emulator tooling. Android operator
 - [`docs/maintainers/mcp-server-tooling.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/mcp-server-tooling.md)
   - MCP tool contracts for all registered tools (CRUD, stop-all, query)
 
-## Design Notes / Plans
-
-- [`docs/plans/`](https://github.com/oursky/skytest-agent/tree/main/docs/plans)
-  - implementation plans and design notes used during feature development
-  - useful for historical context, but not a stable contract
-
 ## Maintenance Guidance
 
 - Prefer treating operator docs and maintainer docs as separate audiences.

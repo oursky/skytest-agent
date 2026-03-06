@@ -5,7 +5,6 @@
 src/
 ├── lib/                    # Backend domain modules + singletons
 │   ├── runtime/            # Run lifecycle and execution
-│   │   ├── queue.ts        # Job queue (singleton) - test scheduling
 │   │   ├── test-runner.ts  # Playwright/Midscene execution engine
 │   │   └── usage.ts        # API usage tracking
 │   ├── android/            # Android devices/emulators runtime
@@ -58,8 +57,8 @@ src/
 
 | Task | Start Here | Related Files |
 |------|------------|---------------|
-| Fix test execution | `src/lib/runtime/test-runner.ts` | `src/lib/runtime/queue.ts` |
-| Fix queue/scheduling | `src/lib/runtime/queue.ts` | `src/lib/runtime/test-runner.ts` |
+| Fix test execution | `src/lib/runtime/test-runner.ts` | `src/runners/browser-runner.ts`, `desktop/runner/index.ts` |
+| Fix run scheduling/claiming | `src/lib/runners/claim-service.ts` | `src/app/api/runners/v1/jobs/claim/route.ts` |
 | Fix SSE/real-time updates | `src/app/api/test-runs/[id]/events/route.ts` | `src/components/features/result-viewer/ui/ResultViewer.tsx` |
 | Fix test case CRUD | `src/app/api/test-cases/` | `src/types/test.ts` |
 | Fix project CRUD | `src/app/api/projects/` | `src/lib/core/prisma.ts` |
@@ -70,7 +69,7 @@ src/
 
 ## Tech Stack
 - Next.js 16 (App Router), React 19, TailwindCSS 4
-- Prisma + SQLite, Server-Sent Events
+- Prisma + PostgreSQL, Server-Sent Events
 - Playwright 1.57, Midscene.js
 
 ## Docs To Read First
@@ -87,11 +86,10 @@ If you are changing operator-facing Android behavior, also read:
 ## Docs Structure (Audience Split)
 - `docs/operators/` - Self-hosting / setup / runbooks for repo users and operators
 - `docs/maintainers/` - Technical maintenance notes for developers and coding agents
-- `docs/plans/` - Design notes and implementation plans (historical context, not stable contract)
 
 ## Rules
 1. **No `any`** - All types in `src/types/index.ts`
-2. **Singletons only** - Use `src/lib/core/prisma.ts` and `src/lib/runtime/queue.ts`, never create new instances
+2. **Singletons only** - Use `src/lib/core/prisma.ts`, never create new Prisma instances
 3. **No hardcoding** - Use `src/config/app.ts`
 4. **Minimal diffs** - Change only what's necessary
 5. **Match existing style** - No reformatting unrelated code
@@ -101,8 +99,8 @@ If you are changing operator-facing Android behavior, also read:
 
 ## Workflow
 - Align on intent and success criteria before coding.
-- For non-trivial changes, capture design notes in `docs/plans/YYYY-MM-DD-<slug>-design.md`.
-- For multi-step work, write a plan in `docs/plans/YYYY-MM-DD-<slug>.md`.
+- For non-trivial changes, capture design notes in a focused doc under `docs/maintainers/`.
+- For multi-step work, keep a task-by-task implementation checklist in the PR/branch notes.
 - When changing runtime behavior (Android emulator pool, queueing, import/export), update the relevant docs in `docs/operators/` and/or `docs/maintainers/`.
 - Prefer test-first for new behavior; reproduce and trace root causes before fixes.
 - Self-review spec compliance first, then code quality; verify before completion claims.

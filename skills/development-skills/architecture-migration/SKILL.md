@@ -23,8 +23,9 @@ Use this skill when the work touches one or more of:
 ## Source Of Truth
 
 Read these first when the task is non-trivial:
-- `docs/plans/2026-03-06-phase-3-runner-review-design.md`
-- `docs/plans/2026-03-06-phase-3-runner-review-plan.md`
+- `docs/maintainers/android-runtime-maintenance.md`
+- `docs/maintainers/coding-agent-maintenance-guide.md`
+- `docs/operators/android-runtime-deployment-checklist.md`
 
 Do not invent a competing architecture.
 
