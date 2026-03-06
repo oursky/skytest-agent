@@ -48,9 +48,10 @@ It is self-hosted, open source, and uses your own API key.
 ## Quick Start
 
 ```bash
-cp .env.example .env.local
-# Start Postgres and a local MinIO server, then edit .env.local with your credentials
 npm install
+npm run dev:services:up
+cp .env.example .env.local
+# Edit .env.local with your credentials and the local Postgres + MinIO values from docs/operators/local-dev.md
 npm run db:migrate:dev
 npm run dev
 ```
@@ -83,6 +84,23 @@ Users provide their own [OpenRouter](https://openrouter.ai/) API keys via the ap
 - **View database**: `npm run db:studio`
 - **Auth redirect issues**: Check Authgear redirect URI matches your domain
 - **Android devices (Local macOS Only)**: See [macOS Android Emulator Guide](https://github.com/oursky/skytest-agent/blob/main/docs/operators/mac-android-emulator-guide.md)
+
+## Local Development
+
+For local development, run the same infrastructure shape as hosted:
+- PostgreSQL
+- S3-compatible object storage via MinIO
+
+Quick start:
+
+```bash
+npm run dev:services:up
+npm run db:migrate:dev
+npm run dev
+```
+
+Detailed setup:
+- [Local Development Guide](./docs/operators/local-dev.md)
 
 ## Community & Contributing
 

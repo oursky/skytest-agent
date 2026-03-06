@@ -24,6 +24,9 @@
   },
   "scripts": {
     "dev": "next dev",
+    "dev:services:up": "docker compose -f docker-compose.local.yml up -d",
+    "dev:services:down": "docker compose -f docker-compose.local.yml down",
+    "dev:services:logs": "docker compose -f docker-compose.local.yml logs -f postgres minio createbuckets",
     "build": "next build",
     "start": "next start",
     "lint": "eslint && npx tsc --noEmit",
