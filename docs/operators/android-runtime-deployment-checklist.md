@@ -28,7 +28,7 @@ Reference:
 
 - [ ] Confirm runner pairing tokens are issued only by owner/admin users
 - [ ] Confirm runner tokens are rotated/revoked according to your policy
-- [ ] Confirm project device visibility is team-scoped in `Project > Devices`
+- [ ] Confirm team device visibility is exposed through `Team Settings -> Runners`
 - [ ] Confirm stream-token auth remains resource-scoped for run events
 - [ ] Treat the host as sensitive: local ADB/emulator access should be restricted to trusted operators
 
@@ -51,4 +51,4 @@ Reference:
 
 - [ ] If Android runs stall, check runner heartbeat and runner device sync freshness
 - [ ] If runner host is unhealthy, restart the runner process and republish inventory
-- [ ] If selected devices disappear mid-run, revalidate targets in `Project > Devices`
+- [ ] If selected devices disappear mid-run, revalidate availability from `Team Settings -> Runners`

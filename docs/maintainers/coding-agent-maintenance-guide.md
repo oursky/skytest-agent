@@ -8,6 +8,7 @@ It complements `AGENTS.md` with project-specific runtime invariants for the Phas
 
 - `AGENTS.md` (repo workflow, constraints, style)
 - [`docs/maintainers/android-runtime-maintenance.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/android-runtime-maintenance.md) (runner runtime behavior + constraints)
+- [`docs/maintainers/team-runners-k8s-model.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/team-runners-k8s-model.md) (target team-level runners UX and deployment direction)
 - [`docs/operators/android-runtime-deployment-checklist.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/android-runtime-deployment-checklist.md) (operator rollout expectations)
 
 ## High-Risk Runtime Areas
@@ -60,7 +61,8 @@ Key invariants:
 ## Control Plane Constraints
 
 - Web app is control plane only; it must not own in-process job execution.
-- Device visibility in web UI comes from runner-published inventory (`/api/projects/[id]/devices`).
+- Team-facing device visibility must come from runner-published inventory, not host-local inspection.
+- Do not extend project-scoped device inventory surfaces; the target model is `Team Settings -> Runners`.
 - Do not re-introduce host-local Android inventory assumptions into web APIs.
 
 If you add features that expose Android state/control:
@@ -78,6 +80,7 @@ When changing runner runtime behavior, update docs in the same PR/commit series:
   - [`docs/operators/android-runtime-deployment-checklist.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/android-runtime-deployment-checklist.md)
 - Maintainer-facing impact:
   - [`docs/maintainers/android-runtime-maintenance.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/android-runtime-maintenance.md)
+  - [`docs/maintainers/team-runners-k8s-model.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/team-runners-k8s-model.md)
 - Import/export behavior:
   - [`docs/maintainers/test-case-excel-format.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/test-case-excel-format.md)
 

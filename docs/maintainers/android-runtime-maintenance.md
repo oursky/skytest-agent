@@ -7,6 +7,7 @@ This document describes the Phase 3 Android runner behavior and operational cons
 Related docs:
 
 - [`docs/maintainers/coding-agent-maintenance-guide.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/coding-agent-maintenance-guide.md)
+- [`docs/maintainers/team-runners-k8s-model.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/team-runners-k8s-model.md)
 - [`docs/operators/android-runtime-deployment-checklist.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/android-runtime-deployment-checklist.md)
 - [`docs/operators/mac-android-emulator-guide.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/mac-android-emulator-guide.md)
 
@@ -22,7 +23,7 @@ Related docs:
 - Control plane responsibilities:
   - durable run scheduling/state in Postgres
   - runner auth/claim/event APIs
-  - Project > Devices aggregation from runner inventory
+  - team-scoped runner/device inventory aggregation from runner inventory
 - Runner responsibilities:
   - local Android discovery
   - Android execution
@@ -37,7 +38,7 @@ Implications:
 ## Device Inventory Model
 
 - Runner publishes snapshots to `/api/runners/v1/devices/sync`.
-- Control plane exposes aggregated project-scoped inventory via `/api/projects/[id]/devices`.
+- Target product model exposes aggregated team-scoped inventory in `Team Settings -> Runners`.
 - Device freshness and availability are derived from runner heartbeat and device `lastSeenAt`.
 - The old `/api/devices` host-local route is removed.
 

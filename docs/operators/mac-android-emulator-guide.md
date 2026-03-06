@@ -74,6 +74,8 @@ npm run dev
 
 The runner needs a short-lived pairing token on first boot.
 
+This section documents the current developer/operator bootstrap path. It is not the intended end-user pairing UX. The target product surface is `Team Settings -> Runners`.
+
 1. Create a user API key in the web UI (Account Settings -> API Keys).
 2. Get your team ID:
 

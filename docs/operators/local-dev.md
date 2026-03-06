@@ -71,6 +71,8 @@ The web app is now the control plane only. Runs are executed by runner processes
 
 Run this in a separate terminal after you have provisioned a `RUNNER_TOKEN` for a `HOSTED_BROWSER` runner:
 
+This is a developer/operator bootstrap path. It is not the intended end-user UX.
+
 ```bash
 RUNNER_CONTROL_PLANE_URL="http://127.0.0.1:3000" \
 RUNNER_TOKEN="<browser-runner-token>" \
@@ -84,6 +86,8 @@ See the full setup guide:
 - [macOS Android Devices Guide](./mac-android-emulator-guide.md)
 
 Quick start:
+
+This pairing-token flow is a developer/operator bootstrap path. The intended product UX is a team-level `Runners` UI.
 
 ```bash
 RUNNER_CONTROL_PLANE_URL="http://127.0.0.1:3000" \
