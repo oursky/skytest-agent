@@ -1,19 +1,18 @@
 name: team-product-flow
-description: Guide for implementing team-scoped projects, invites, shared OpenRouter key management, and usage UX. Use when changing team flows, permissions, settings pages, invites, AI key ownership, or usage reporting.
+description: Guide for implementing team-scoped projects, email-based membership management, shared OpenRouter key management, and usage UX. Use when changing team flows, permissions, settings pages, membership rules, AI key ownership, or usage reporting.
 ---
 
 # Team Product Flow
 
-Use this skill when the task changes how users relate to teams, projects, invites, AI keys, or usage.
+Use this skill when the task changes how users relate to teams, projects, memberships, AI keys, or usage.
 
 ## Trigger Conditions
 
 Use this skill when touching:
 - team routes or membership tables
-- project membership or invite routes
 - project settings UI
 - header team switcher
-- project AI key pages or APIs
+- team AI key pages or APIs
 - usage pages or APIs
 - MCP or API permissions that depend on team/project ownership
 
@@ -32,7 +31,6 @@ Keep the model simple:
 
 Role model this month:
 - team roles: `owner`, `admin`, `member`
-- project roles: `admin`, `member`
 
 Do not add subteams or viewers unless explicitly requested.
 
@@ -40,20 +38,22 @@ Do not add subteams or viewers unless explicitly requested.
 
 ### OpenRouter key
 
-- owned by project, not user
-- used by all runs in the project
-- editable only by project admins
+- owned by team, not user
+- used by all runs in the team
+- editable only by team owners and admins
 
 ### Usage
 
 - recorded at project level
 - attributed to actor user
-- viewable in project context
+- viewable in team context
 
-### Invites
+### Membership
 
-- project invite may also grant team membership if needed
-- invite acceptance must be explicit and auditable
+- add/remove membership happens by email
+- if an email exactly matches an Authgear-backed user, the membership links automatically
+- if no user exists yet, the row stays email-only and should be shown as pending
+- ownership transfer happens only from team settings, not from the member table
 
 ## UI Rules
 
@@ -74,33 +74,27 @@ Project is the team workspace.
 
 The page should expose tabs or sections for:
 - test cases
-- members
-- AI
-- usage
-- runners
+- configs
+- android when enabled
 
-### Invite flow
+### Membership flow
 
-Project admins can:
-- invite by email
-- select project role
-- copy invite link
-- resend or cancel pending invites
+Owners and admins can:
+- add a member by email
+- remove a member
+- change a member between `admin` and `member`
 
-Acceptance page should show:
-- team name
-- project name
-- invited role
-- accept / decline
+Owners:
+- transfer ownership from team settings
 
 ### AI key flow
 
-Project admins:
+Team owners and admins:
 - set key
 - replace key
 - remove key
 
-Project members:
+Team members:
 - may see configured state
 - may not edit key
 
@@ -135,7 +129,7 @@ If API allows an action:
 
 Prefer clear labels like:
 - `Shared OpenRouter key`
-- `Invite members`
+- `Add Member`
 - `Project usage`
 - `Android execution requires a macOS runner`
 
@@ -149,8 +143,8 @@ Do not add new flows that imply:
 ## Completion Checklist
 
 - permission matrix is enforced server-side
-- user flow still makes sense from first login through invite acceptance
-- project AI key actions are project-admin-only
+- user flow still makes sense from first login through email-based membership claiming
+- team AI key actions are team-owner/admin-only
 - project usage is team-scoped and user-attributed
 - relevant i18n keys are added
 - `npm run lint` passes

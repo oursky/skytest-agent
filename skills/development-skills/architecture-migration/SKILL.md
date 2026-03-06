@@ -1,6 +1,6 @@
 ---
 name: architecture-migration
-description: Guide for implementing the March 2026 platform refactor toward a k8s control plane, durable runners, Postgres/object storage, project-owned AI keys and usage, and macOS-only Android execution. Use when changing architecture seams such as storage, queueing, SSE, runner ownership, auth boundaries, or MCP control-plane behavior.
+description: Guide for implementing the March 2026 platform refactor toward a k8s control plane, durable runners, Postgres/object storage, team-owned AI keys, project-scoped usage, and macOS-only Android execution. Use when changing architecture seams such as storage, queueing, SSE, runner ownership, auth boundaries, or MCP control-plane behavior.
 ---
 
 # Architecture Migration
@@ -16,8 +16,8 @@ Use this skill when the work touches one or more of:
 - `src/lib/runners/` or `src/runners/`
 - `src/lib/mcp/` or `src/app/api/mcp/route.ts`
 - file storage or upload/download APIs
-- auth, org/project permission boundaries
-- project-level OpenRouter key and usage ownership
+- auth, team/project permission boundaries
+- team-owned OpenRouter key and project-scoped usage
 - hosted browser vs macOS Android execution behavior
 
 ## Source Of Truth
@@ -36,7 +36,7 @@ The correct end state is:
 - S3-compatible object storage for files and artifacts
 - browser execution through hosted runners
 - Android execution only through macOS runners
-- project/team-owned OpenRouter key and usage
+- team-owned OpenRouter key and project-scoped usage
 - control-plane-only MCP
 
 ## Hard Rules
@@ -46,7 +46,7 @@ The correct end state is:
 - Do not add new local-disk source-of-truth file handling
 - Do not add new in-memory queue ownership or in-memory event fanout
 - Do not check Android capability from the API host when runner capability should be used
-- Do not add new user-owned OpenRouter key behavior if project-owned behavior is the target
+- Do not add new user-owned OpenRouter key behavior if team-owned behavior is the target
 
 ## Workflow
 
