@@ -12,12 +12,7 @@ enum OrganizationRole {
   MEMBER
 }
 
-enum ProjectRole {
-  ADMIN
-  MEMBER
-}
-
-enum ProjectInviteStatus {
+enum OrganizationInviteStatus {
   PENDING
   ACCEPTED
   DECLINED
@@ -35,8 +30,7 @@ model User {
   actorUsageRecords        UsageRecord[]            @relation("UsageRecordActor")
   apiKeys                  ApiKey[]
   organizationMemberships  OrganizationMembership[]
-  projectMemberships       ProjectMembership[]
-  sentProjectInvites       ProjectInvite[]          @relation("ProjectInviteSender")
+  sentOrganizationInvites  OrganizationInvite[]     @relation("OrganizationInviteSender")
 }
 
 model UsageRecord {
@@ -58,12 +52,15 @@ model UsageRecord {
 }
 
 model Organization {
-  id          String                   @id @default(cuid())
-  name        String
-  createdAt   DateTime                 @default(now())
-  updatedAt   DateTime                 @updatedAt
-  memberships OrganizationMembership[]
-  projects    Project[]
+  id                     String                   @id @default(cuid())
+  name                   String
+  openRouterKeyEncrypted String?
+  openRouterKeyUpdatedAt DateTime?
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+  memberships            OrganizationMembership[]
+  invites                OrganizationInvite[]
+  projects               Project[]
 
   @@index([updatedAt(sort: Desc)])
 }
@@ -83,62 +80,43 @@ model OrganizationMembership {
   @@index([organizationId, role])
 }
 
-model Project {
-  id                    String              @id @default(cuid())
-  name                  String
-  organizationId        String
-  organization          Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdByUserId       String
-  createdByUser         User                @relation("ProjectCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
-  openRouterKeyEncrypted String?
-  openRouterKeyUpdatedAt DateTime?
-  testCases             TestCase[]
-  configs               ProjectConfig[]
-  memberships           ProjectMembership[]
-  invites               ProjectInvite[]
-  usageRecords          UsageRecord[]
-  createdAt             DateTime            @default(now())
-  updatedAt             DateTime            @updatedAt
-
-  @@index([organizationId, updatedAt(sort: Desc)])
-  @@index([createdByUserId, updatedAt(sort: Desc)])
-}
-
-model ProjectMembership {
-  id        String      @id @default(cuid())
-  projectId String
-  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role      ProjectRole
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
-
-  @@unique([projectId, userId])
-  @@index([userId, projectId])
-  @@index([projectId, role])
-}
-
-model ProjectInvite {
-  id              String              @id @default(cuid())
-  projectId       String
-  project         Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+model OrganizationInvite {
+  id              String                   @id @default(cuid())
+  organizationId  String
+  organization    Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   email           String
-  role            ProjectRole
-  status          ProjectInviteStatus @default(PENDING)
-  tokenHash       String              @unique
+  role            OrganizationRole
+  status          OrganizationInviteStatus @default(PENDING)
+  tokenHash       String                   @unique
   expiresAt       DateTime
   invitedByUserId String
-  invitedByUser   User                @relation("ProjectInviteSender", fields: [invitedByUserId], references: [id], onDelete: Cascade)
+  invitedByUser   User                     @relation("OrganizationInviteSender", fields: [invitedByUserId], references: [id], onDelete: Cascade)
   acceptedAt      DateTime?
   declinedAt      DateTime?
   canceledAt      DateTime?
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+
+  @@index([organizationId, status])
+  @@index([email, status])
+  @@index([invitedByUserId, status])
+}
+
+model Project {
+  id              String              @id @default(cuid())
+  name            String
+  organizationId  String
+  organization    Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdByUserId String
+  createdByUser   User                @relation("ProjectCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  testCases       TestCase[]
+  configs         ProjectConfig[]
+  usageRecords    UsageRecord[]
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
 
-  @@index([projectId, status])
-  @@index([email, status])
-  @@index([invitedByUserId, status])
+  @@index([organizationId, updatedAt(sort: Desc)])
+  @@index([createdByUserId, updatedAt(sort: Desc)])
 }
 
 model TestCase {

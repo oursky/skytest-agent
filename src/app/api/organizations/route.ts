@@ -64,7 +64,7 @@ export async function GET(request: Request) {
         })));
     } catch (error) {
         logger.error('Failed to fetch organizations', error);
-        return NextResponse.json({ error: 'Failed to fetch organizations' }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to fetch teams' }, { status: 500 });
     }
 }
 
@@ -84,7 +84,7 @@ export async function POST(request: Request) {
         const name = typeof body.name === 'string' ? body.name.trim() : '';
 
         if (!name) {
-            return NextResponse.json({ error: 'Organization name is required' }, { status: 400 });
+            return NextResponse.json({ error: 'Team name is required' }, { status: 400 });
         }
 
         const organization = await prisma.organization.create({
@@ -111,6 +111,6 @@ export async function POST(request: Request) {
         }, { status: 201 });
     } catch (error) {
         logger.error('Failed to create organization', error);
-        return NextResponse.json({ error: 'Failed to create organization' }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to create team' }, { status: 500 });
     }
 }

@@ -103,7 +103,7 @@ export async function GET(request: Request) {
         return response;
     } catch (error) {
         logger.error('Failed to resolve current organization', error);
-        return NextResponse.json({ error: 'Failed to resolve current organization' }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to resolve current team' }, { status: 500 });
     }
 }
 
@@ -122,7 +122,7 @@ export async function POST(request: Request) {
         const body = await request.json() as { organizationId?: string };
         const organizationId = typeof body.organizationId === 'string' ? body.organizationId.trim() : '';
         if (!organizationId) {
-            return NextResponse.json({ error: 'Organization is required' }, { status: 400 });
+            return NextResponse.json({ error: 'Team is required' }, { status: 400 });
         }
 
         const hasAccess = await isOrganizationMember(userId, organizationId);
@@ -141,7 +141,7 @@ export async function POST(request: Request) {
         });
 
         if (!organization) {
-            return NextResponse.json({ error: 'Organization not found' }, { status: 404 });
+            return NextResponse.json({ error: 'Team not found' }, { status: 404 });
         }
 
         const response = NextResponse.json(organization);
@@ -153,6 +153,6 @@ export async function POST(request: Request) {
         return response;
     } catch (error) {
         logger.error('Failed to persist current organization', error);
-        return NextResponse.json({ error: 'Failed to persist current organization' }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to persist current team' }, { status: 500 });
     }
 }

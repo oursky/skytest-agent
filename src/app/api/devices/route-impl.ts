@@ -16,11 +16,17 @@ async function ensureProjectAccess(projectId: string, userId: string): Promise<b
 }
 
 async function listAccessibleProjectIds(userId: string): Promise<Set<string>> {
-    const memberships = await prisma.projectMembership.findMany({
-        where: { userId },
-        select: { projectId: true },
+    const projects = await prisma.project.findMany({
+        where: {
+            organization: {
+                memberships: {
+                    some: { userId },
+                }
+            }
+        },
+        select: { id: true },
     });
-    return new Set(memberships.map((membership) => membership.projectId));
+    return new Set(projects.map((project) => project.id));
 }
 
 export async function GET(request: Request) {

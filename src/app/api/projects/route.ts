@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId, type AuthPayload } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
-import { isOrganizationMember } from '@/lib/security/permissions';
+import { canCreateProject, isOrganizationMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:projects');
 
@@ -53,9 +53,11 @@ export async function GET(request: Request) {
         const projects = await prisma.project.findMany({
             where: {
                 ...(organizationId ? { organizationId } : {}),
-                memberships: {
-                    some: {
-                        userId,
+                organization: {
+                    memberships: {
+                        some: {
+                            userId,
+                        }
                     }
                 }
             },
@@ -66,9 +68,14 @@ export async function GET(request: Request) {
                 _count: {
                     select: { testCases: true },
                 },
-                memberships: {
-                    where: { userId },
-                    select: { role: true }
+                organization: {
+                    select: {
+                        memberships: {
+                            where: { userId },
+                            select: { role: true },
+                            take: 1,
+                        }
+                    }
                 },
                 testCases: {
                     select: {
@@ -91,7 +98,8 @@ export async function GET(request: Request) {
         const projectsWithStatus = projects.map(project => ({
             ...project,
             hasActiveRuns: project.testCases.some(tc => tc.testRuns.length > 0),
-            currentUserRole: project.memberships[0]?.role ?? null,
+            currentUserRole: project.organization.memberships[0]?.role ?? null,
+            organization: undefined,
             testCases: undefined
         }));
 
@@ -118,7 +126,7 @@ export async function POST(request: Request) {
         }
 
         if (!organizationId) {
-            return NextResponse.json({ error: 'Organization is required' }, { status: 400 });
+            return NextResponse.json({ error: 'Team is required' }, { status: 400 });
         }
 
         const userId = await resolveOrCreateUserId(authPayload);
@@ -126,8 +134,8 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const canCreateProject = await isOrganizationMember(userId, organizationId);
-        if (!canCreateProject) {
+        const canCreate = await canCreateProject(userId, organizationId);
+        if (!canCreate) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -136,12 +144,6 @@ export async function POST(request: Request) {
                 name,
                 organizationId,
                 createdByUserId: userId,
-                memberships: {
-                    create: {
-                        userId,
-                        role: 'ADMIN',
-                    }
-                }
             },
             select: {
                 id: true,

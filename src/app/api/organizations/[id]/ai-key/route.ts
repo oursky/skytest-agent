@@ -3,9 +3,9 @@ import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { encrypt, decrypt, maskApiKey } from '@/lib/security/crypto';
-import { canManageProject, isProjectMember } from '@/lib/security/permissions';
+import { canManageOrganizationApiKey, isOrganizationMember } from '@/lib/security/permissions';
 
-const logger = createLogger('api:projects:ai-key');
+const logger = createLogger('api:organizations:ai-key');
 
 export const dynamic = 'force-dynamic';
 
@@ -25,29 +25,32 @@ export async function GET(
         }
 
         const { id } = await params;
-        const hasAccess = await isProjectMember(userId, id);
-        if (!hasAccess) {
+        if (!await isOrganizationMember(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
-        const canEdit = await canManageProject(userId, id);
 
-        const project = await prisma.project.findUnique({
+        const canEdit = await canManageOrganizationApiKey(userId, id);
+        const organization = await prisma.organization.findUnique({
             where: { id },
-            select: { openRouterKeyEncrypted: true }
+            select: {
+                openRouterKeyEncrypted: true,
+                openRouterKeyUpdatedAt: true,
+            }
         });
 
-        if (!project || !project.openRouterKeyEncrypted) {
-            return NextResponse.json({ hasKey: false, maskedKey: null, canEdit });
+        if (!organization || !organization.openRouterKeyEncrypted) {
+            return NextResponse.json({ hasKey: false, maskedKey: null, canEdit, updatedAt: null });
         }
 
         return NextResponse.json({
             hasKey: true,
-            maskedKey: maskApiKey(decrypt(project.openRouterKeyEncrypted)),
+            maskedKey: maskApiKey(decrypt(organization.openRouterKeyEncrypted)),
             canEdit,
+            updatedAt: organization.openRouterKeyUpdatedAt,
         });
     } catch (error) {
-        logger.error('Failed to fetch project AI key status', error);
-        return NextResponse.json({ error: 'Failed to fetch project AI key status' }, { status: 500 });
+        logger.error('Failed to fetch organization AI key', error);
+        return NextResponse.json({ error: 'Failed to load team key' }, { status: 500 });
     }
 }
 
@@ -67,8 +70,7 @@ export async function POST(
         }
 
         const { id } = await params;
-        const canEdit = await canManageProject(userId, id);
-        if (!canEdit) {
+        if (!await canManageOrganizationApiKey(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -81,7 +83,7 @@ export async function POST(
             return NextResponse.json({ error: 'Invalid API key format' }, { status: 400 });
         }
 
-        await prisma.project.update({
+        await prisma.organization.update({
             where: { id },
             data: {
                 openRouterKeyEncrypted: encrypt(apiKey),
@@ -94,8 +96,8 @@ export async function POST(
             maskedKey: maskApiKey(apiKey),
         });
     } catch (error) {
-        logger.error('Failed to save project AI key', error);
-        return NextResponse.json({ error: 'Failed to save project AI key' }, { status: 500 });
+        logger.error('Failed to save organization AI key', error);
+        return NextResponse.json({ error: 'Failed to save team key' }, { status: 500 });
     }
 }
 
@@ -115,12 +117,11 @@ export async function DELETE(
         }
 
         const { id } = await params;
-        const canEdit = await canManageProject(userId, id);
-        if (!canEdit) {
+        if (!await canManageOrganizationApiKey(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        await prisma.project.update({
+        await prisma.organization.update({
             where: { id },
             data: {
                 openRouterKeyEncrypted: null,
@@ -130,7 +131,7 @@ export async function DELETE(
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        logger.error('Failed to remove project AI key', error);
-        return NextResponse.json({ error: 'Failed to remove project AI key' }, { status: 500 });
+        logger.error('Failed to remove organization AI key', error);
+        return NextResponse.json({ error: 'Failed to remove team key' }, { status: 500 });
     }
 }

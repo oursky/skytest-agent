@@ -12,16 +12,12 @@ interface InvitePageProps {
 interface InviteDetails {
     id: string;
     email: string;
-    role: 'ADMIN' | 'MEMBER';
+    role: 'ADMIN' | 'MEMBER' | 'OWNER';
     status: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'CANCELED' | 'EXPIRED';
     expiresAt: string;
-    project: {
+    organization: {
         id: string;
         name: string;
-        organization: {
-            id: string;
-            name: string;
-        };
     };
 }
 
@@ -85,9 +81,9 @@ export default function InviteAcceptancePage({ params }: InvitePageProps) {
                 return;
             }
 
-            if (action === 'accept' && data.projectId) {
+            if (action === 'accept' && data.organizationId) {
                 setActionSuccess(t('invite.success.accepted'));
-                router.push(`/projects/${data.projectId}`);
+                router.push('/projects');
                 return;
             }
 
@@ -135,11 +131,7 @@ export default function InviteAcceptancePage({ params }: InvitePageProps) {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm">
                     <div>
                         <div className="text-gray-500">{t('invite.organization')}</div>
-                        <div className="font-medium text-gray-900">{invite.project.organization.name}</div>
-                    </div>
-                    <div>
-                        <div className="text-gray-500">{t('invite.project')}</div>
-                        <div className="font-medium text-gray-900">{invite.project.name}</div>
+                        <div className="font-medium text-gray-900">{invite.organization.name}</div>
                     </div>
                     <div>
                         <div className="text-gray-500">{t('invite.role')}</div>

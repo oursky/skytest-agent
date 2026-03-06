@@ -5,6 +5,7 @@ import { createLogger } from '@/lib/core/logger';
 import { hashInviteToken } from '@/lib/security/invite-token';
 
 const logger = createLogger('api:invites:token');
+const CURRENT_ORGANIZATION_COOKIE = 'skytest_current_organization';
 
 function getPayloadEmail(authPayload: Record<string, unknown>): string | null {
     const email = authPayload.email;
@@ -62,19 +63,13 @@ function deriveInviteStatus(invite: { status: string; expiresAt: Date }): string
 }
 
 async function findInvite(rawToken: string) {
-    return prisma.projectInvite.findUnique({
+    return prisma.organizationInvite.findUnique({
         where: { tokenHash: hashInviteToken(rawToken) },
         include: {
-            project: {
+            organization: {
                 select: {
                     id: true,
                     name: true,
-                    organization: {
-                        select: {
-                            id: true,
-                            name: true,
-                        }
-                    }
                 }
             }
         }
@@ -99,7 +94,7 @@ export async function GET(
             role: invite.role,
             status: deriveInviteStatus(invite),
             expiresAt: invite.expiresAt,
-            project: invite.project,
+            organization: invite.organization,
         });
     } catch (error) {
         logger.error('Failed to fetch invite', error);
@@ -137,7 +132,7 @@ export async function POST(
         const derivedStatus = deriveInviteStatus(invite);
         if (derivedStatus !== 'PENDING') {
             if (derivedStatus === 'EXPIRED' && invite.status !== 'EXPIRED') {
-                await prisma.projectInvite.update({
+                await prisma.organizationInvite.update({
                     where: { id: invite.id },
                     data: { status: 'EXPIRED' }
                 });
@@ -153,7 +148,7 @@ export async function POST(
         }
 
         if (action === 'decline') {
-            await prisma.projectInvite.update({
+            await prisma.organizationInvite.update({
                 where: { id: invite.id },
                 data: {
                     status: 'DECLINED',
@@ -168,44 +163,31 @@ export async function POST(
             const orgMembership = await tx.organizationMembership.findUnique({
                 where: {
                     organizationId_userId: {
-                        organizationId: invite.project.organization.id,
+                        organizationId: invite.organization.id,
                         userId: user.id,
                     }
                 },
-                select: { id: true }
+                select: { id: true, role: true }
             });
 
             if (!orgMembership) {
                 await tx.organizationMembership.create({
                     data: {
-                        organizationId: invite.project.organization.id,
+                        organizationId: invite.organization.id,
                         userId: user.id,
-                        role: 'MEMBER',
+                        role: invite.role,
                     }
                 });
-            }
-
-            const projectMembership = await tx.projectMembership.findUnique({
-                where: {
-                    projectId_userId: {
-                        projectId: invite.project.id,
-                        userId: user.id,
-                    }
-                },
-                select: { id: true }
-            });
-
-            if (!projectMembership) {
-                await tx.projectMembership.create({
+            } else if (orgMembership.role !== 'OWNER' && orgMembership.role !== invite.role) {
+                await tx.organizationMembership.update({
+                    where: { id: orgMembership.id },
                     data: {
-                        projectId: invite.project.id,
-                        userId: user.id,
                         role: invite.role,
                     }
                 });
             }
 
-            await tx.projectInvite.update({
+            await tx.organizationInvite.update({
                 where: { id: invite.id },
                 data: {
                     status: 'ACCEPTED',
@@ -214,11 +196,17 @@ export async function POST(
             });
         });
 
-        return NextResponse.json({
+        const response = NextResponse.json({
             success: true,
             status: 'ACCEPTED',
-            projectId: invite.project.id,
+            organizationId: invite.organization.id,
         });
+        response.cookies.set(CURRENT_ORGANIZATION_COOKIE, invite.organization.id, {
+            httpOnly: true,
+            sameSite: 'lax',
+            path: '/',
+        });
+        return response;
     } catch (error) {
         logger.error('Failed to process invite', error);
         return NextResponse.json({ error: 'Failed to process invite' }, { status: 500 });

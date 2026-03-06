@@ -1,8 +1,8 @@
 import { prisma } from '@/lib/core/prisma';
-import type { OrganizationRole, ProjectRole } from '@/types';
+import type { OrganizationRole } from '@/types';
 
-const PROJECT_ADMIN_ROLES = new Set(['ADMIN']);
 const ORG_ADMIN_ROLES = new Set(['OWNER', 'ADMIN']);
+const ORG_OWNER_ROLES = new Set(['OWNER']);
 
 async function getProjectOrganizationId(projectId: string): Promise<string | null> {
     const project = await prisma.project.findUnique({
@@ -37,21 +37,7 @@ async function getTestRunProjectId(testRunId: string): Promise<string | null> {
     return testRun?.testCase.projectId ?? null;
 }
 
-async function getProjectRole(userId: string, projectId: string): Promise<ProjectRole | null> {
-    const membership = await prisma.projectMembership.findUnique({
-        where: {
-            projectId_userId: {
-                projectId,
-                userId,
-            }
-        },
-        select: { role: true }
-    });
-
-    return membership?.role ?? null;
-}
-
-async function getOrganizationRole(userId: string, organizationId: string): Promise<OrganizationRole | null> {
+export async function getOrganizationRole(userId: string, organizationId: string): Promise<OrganizationRole | null> {
     const membership = await prisma.organizationMembership.findUnique({
         where: {
             organizationId_userId: {
@@ -80,29 +66,15 @@ export async function isOrganizationMember(userId: string, organizationId: strin
 }
 
 export async function isProjectMember(userId: string, projectId: string): Promise<boolean> {
-    const membership = await prisma.projectMembership.findUnique({
-        where: {
-            projectId_userId: {
-                projectId,
-                userId,
-            }
-        },
-        select: { id: true }
-    });
-
-    return membership !== null;
-}
-
-export async function canManageProject(userId: string, projectId: string): Promise<boolean> {
-    const projectRole = await getProjectRole(userId, projectId);
-    if (projectRole === null) {
+    const organizationId = await getProjectOrganizationId(projectId);
+    if (!organizationId) {
         return false;
     }
 
-    if (PROJECT_ADMIN_ROLES.has(projectRole)) {
-        return true;
-    }
+    return isOrganizationMember(userId, organizationId);
+}
 
+export async function canManageProject(userId: string, projectId: string): Promise<boolean> {
     const organizationId = await getProjectOrganizationId(projectId);
     if (!organizationId) {
         return false;
@@ -110,6 +82,35 @@ export async function canManageProject(userId: string, projectId: string): Promi
 
     const organizationRole = await getOrganizationRole(userId, organizationId);
     return organizationRole !== null && ORG_ADMIN_ROLES.has(organizationRole);
+}
+
+export async function canCreateProject(userId: string, organizationId: string): Promise<boolean> {
+    const organizationRole = await getOrganizationRole(userId, organizationId);
+    return organizationRole !== null && ORG_ADMIN_ROLES.has(organizationRole);
+}
+
+export async function canDeleteOrganization(userId: string, organizationId: string): Promise<boolean> {
+    const organizationRole = await getOrganizationRole(userId, organizationId);
+    return organizationRole !== null && ORG_OWNER_ROLES.has(organizationRole);
+}
+
+export async function canTransferOrganizationOwnership(userId: string, organizationId: string): Promise<boolean> {
+    const organizationRole = await getOrganizationRole(userId, organizationId);
+    return organizationRole !== null && ORG_OWNER_ROLES.has(organizationRole);
+}
+
+export async function canManageOrganizationMembers(userId: string, organizationId: string): Promise<boolean> {
+    const organizationRole = await getOrganizationRole(userId, organizationId);
+    return organizationRole !== null && ORG_ADMIN_ROLES.has(organizationRole);
+}
+
+export async function canManageOrganizationApiKey(userId: string, organizationId: string): Promise<boolean> {
+    const organizationRole = await getOrganizationRole(userId, organizationId);
+    return organizationRole !== null && ORG_ADMIN_ROLES.has(organizationRole);
+}
+
+export async function canRenameOrganization(userId: string, organizationId: string): Promise<boolean> {
+    return canManageOrganizationMembers(userId, organizationId);
 }
 
 export async function isTestCaseProjectMember(userId: string, testCaseId: string): Promise<boolean> {
@@ -128,36 +129,6 @@ export async function isTestRunProjectMember(userId: string, testRunId: string):
     }
 
     return isProjectMember(userId, projectId);
-}
-
-export async function canViewProjectMembers(userId: string, projectId: string): Promise<boolean> {
-    const projectRole = await getProjectRole(userId, projectId);
-    if (projectRole !== null) {
-        return true;
-    }
-
-    const organizationId = await getProjectOrganizationId(projectId);
-    if (!organizationId) {
-        return false;
-    }
-
-    const organizationRole = await getOrganizationRole(userId, organizationId);
-    return organizationRole !== null && ORG_ADMIN_ROLES.has(organizationRole);
-}
-
-export async function canManageProjectMembers(userId: string, projectId: string): Promise<boolean> {
-    const projectRole = await getProjectRole(userId, projectId);
-    if (projectRole !== null && PROJECT_ADMIN_ROLES.has(projectRole)) {
-        return true;
-    }
-
-    const organizationId = await getProjectOrganizationId(projectId);
-    if (!organizationId) {
-        return false;
-    }
-
-    const organizationRole = await getOrganizationRole(userId, organizationId);
-    return organizationRole !== null && ORG_ADMIN_ROLES.has(organizationRole);
 }
 
 export async function getProjectOrganizationMembership(

@@ -2,26 +2,23 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
-import {
-    canManageProjectMembers,
-    canViewProjectMembers,
-} from '@/lib/security/permissions';
+import { canManageOrganizationMembers, isOrganizationMember } from '@/lib/security/permissions';
 import { generateInviteToken, hashInviteToken } from '@/lib/security/invite-token';
 
-const logger = createLogger('api:projects:invites');
-const PROJECT_ROLES = new Set(['ADMIN', 'MEMBER']);
+const logger = createLogger('api:organizations:invites');
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const INVITE_ROLES = new Set(['ADMIN', 'MEMBER']);
 
-function buildInviteUrl(request: Request, token: string): string {
-    const url = new URL(request.url);
-    return `${url.origin}/invites/${token}`;
-}
-
-function deriveInviteStatus(invite: { status: string; expiresAt: Date }): string {
+function deriveInviteStatus(invite: { status: string; expiresAt: Date }) {
     if (invite.status === 'PENDING' && invite.expiresAt.getTime() < Date.now()) {
         return 'EXPIRED';
     }
     return invite.status;
+}
+
+function buildInviteUrl(request: Request, token: string) {
+    const url = new URL(request.url);
+    return `${url.origin}/invites/${token}`;
 }
 
 export async function GET(
@@ -40,13 +37,12 @@ export async function GET(
         }
 
         const { id } = await params;
-        const canView = await canViewProjectMembers(userId, id);
-        if (!canView) {
+        if (!await isOrganizationMember(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const invites = await prisma.projectInvite.findMany({
-            where: { projectId: id },
+        const invites = await prisma.organizationInvite.findMany({
+            where: { organizationId: id },
             orderBy: { createdAt: 'desc' },
             select: {
                 id: true,
@@ -68,16 +64,19 @@ export async function GET(
             }
         });
 
-        return NextResponse.json(invites.map((invite) => ({
-            ...invite,
-            status: deriveInviteStatus(invite),
-            invitedByUserId: invite.invitedByUser.id,
-            invitedByEmail: invite.invitedByUser.email,
-            invitedByUser: undefined,
-        })));
+        return NextResponse.json({
+            canManageInvites: await canManageOrganizationMembers(userId, id),
+            invites: invites.map((invite) => ({
+                ...invite,
+                status: deriveInviteStatus(invite),
+                invitedByUserId: invite.invitedByUser.id,
+                invitedByEmail: invite.invitedByUser.email,
+                invitedByUser: undefined,
+            })),
+        });
     } catch (error) {
-        logger.error('Failed to list project invites', error);
-        return NextResponse.json({ error: 'Failed to list project invites' }, { status: 500 });
+        logger.error('Failed to list organization invites', error);
+        return NextResponse.json({ error: 'Failed to load team invites' }, { status: 500 });
     }
 }
 
@@ -97,8 +96,7 @@ export async function POST(
         }
 
         const { id } = await params;
-        const canManage = await canManageProjectMembers(userId, id);
-        if (!canManage) {
+        if (!await canManageOrganizationMembers(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -109,13 +107,26 @@ export async function POST(
         if (!email) {
             return NextResponse.json({ error: 'Email is required' }, { status: 400 });
         }
-        if (!PROJECT_ROLES.has(role)) {
-            return NextResponse.json({ error: 'Valid project role is required' }, { status: 400 });
+        if (!INVITE_ROLES.has(role)) {
+            return NextResponse.json({ error: 'Valid team role is required' }, { status: 400 });
         }
 
-        const existingPendingInvite = await prisma.projectInvite.findFirst({
+        const existingMember = await prisma.organizationMembership.findFirst({
             where: {
-                projectId: id,
+                organizationId: id,
+                user: {
+                    email,
+                }
+            },
+            select: { id: true }
+        });
+        if (existingMember) {
+            return NextResponse.json({ error: 'User is already in this team' }, { status: 409 });
+        }
+
+        const existingPendingInvite = await prisma.organizationInvite.findFirst({
+            where: {
+                organizationId: id,
                 email,
                 status: 'PENDING',
                 expiresAt: {
@@ -131,9 +142,9 @@ export async function POST(
         const rawToken = generateInviteToken();
         const tokenHash = hashInviteToken(rawToken);
 
-        const invite = await prisma.projectInvite.create({
+        const invite = await prisma.organizationInvite.create({
             data: {
-                projectId: id,
+                organizationId: id,
                 email,
                 role: role as 'ADMIN' | 'MEMBER',
                 tokenHash,
@@ -159,7 +170,7 @@ export async function POST(
             inviteUrl: buildInviteUrl(request, rawToken),
         }, { status: 201 });
     } catch (error) {
-        logger.error('Failed to create project invite', error);
-        return NextResponse.json({ error: 'Failed to create project invite' }, { status: 500 });
+        logger.error('Failed to create organization invite', error);
+        return NextResponse.json({ error: 'Failed to create team invite' }, { status: 500 });
     }
 }

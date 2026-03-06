@@ -3,7 +3,6 @@ export interface Project {
     name: string;
     organizationId: string;
     createdByUserId: string;
-    hasOpenRouterKey?: boolean;
     createdAt: string;
     updatedAt: string;
     _count?: {
@@ -14,13 +13,13 @@ export interface Project {
 
 export type OrganizationRole = 'OWNER' | 'ADMIN' | 'MEMBER';
 
-export type ProjectRole = 'ADMIN' | 'MEMBER';
-
-export type ProjectInviteStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'CANCELED' | 'EXPIRED';
+export type OrganizationInviteStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'CANCELED' | 'EXPIRED';
 
 export interface Organization {
     id: string;
     name: string;
+    role?: OrganizationRole;
+    openRouterKeyUpdatedAt?: string | null;
     createdAt: string;
     updatedAt: string;
 }
@@ -34,21 +33,12 @@ export interface OrganizationMembership {
     updatedAt: string;
 }
 
-export interface ProjectMembership {
+export interface OrganizationInvite {
     id: string;
-    projectId: string;
-    userId: string;
-    role: ProjectRole;
-    createdAt: string;
-    updatedAt: string;
-}
-
-export interface ProjectInvite {
-    id: string;
-    projectId: string;
+    organizationId: string;
     email: string;
-    role: ProjectRole;
-    status: ProjectInviteStatus;
+    role: OrganizationRole;
+    status: OrganizationInviteStatus;
     expiresAt: string;
     invitedByUserId: string;
     acceptedAt: string | null;

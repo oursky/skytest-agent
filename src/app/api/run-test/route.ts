@@ -214,11 +214,15 @@ export async function POST(request: Request) {
                 project: {
                     select: {
                         id: true,
-                        openRouterKeyEncrypted: true,
-                        memberships: {
-                            where: { userId },
-                            select: { id: true },
-                            take: 1,
+                        organization: {
+                            select: {
+                                openRouterKeyEncrypted: true,
+                                memberships: {
+                                    where: { userId },
+                                    select: { id: true },
+                                    take: 1,
+                                }
+                            }
                         }
                     }
                 }
@@ -229,7 +233,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
         }
 
-        if (testCase.project.memberships.length === 0) {
+        if (testCase.project.organization.memberships.length === 0) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -238,19 +242,19 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: androidValidationError }, { status: 400 });
         }
 
-        if (!testCase.project.openRouterKeyEncrypted) {
+        if (!testCase.project.organization.openRouterKeyEncrypted) {
             return NextResponse.json(
-                { error: 'Please configure this project OpenRouter API key' },
+                { error: 'Please configure this team OpenRouter API key' },
                 { status: 400 }
             );
         }
 
         let openRouterApiKey: string;
         try {
-            openRouterApiKey = decrypt(testCase.project.openRouterKeyEncrypted);
+            openRouterApiKey = decrypt(testCase.project.organization.openRouterKeyEncrypted);
         } catch {
             return NextResponse.json(
-                { error: 'Failed to decrypt API key. Please re-enter your API key.' },
+                { error: 'Failed to decrypt team API key. Please re-enter your API key.' },
                 { status: 400 }
             );
         }

@@ -2,20 +2,10 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
-import { canManageProjectMembers } from '@/lib/security/permissions';
+import { canManageOrganizationMembers } from '@/lib/security/permissions';
 
-const logger = createLogger('api:projects:members:id');
-
-const PROJECT_ROLES = new Set(['ADMIN', 'MEMBER']);
-
-async function countProjectAdmins(projectId: string): Promise<number> {
-    return prisma.projectMembership.count({
-        where: {
-            projectId,
-            role: 'ADMIN',
-        }
-    });
-}
+const logger = createLogger('api:organizations:members:id');
+const MANAGEABLE_ROLES = new Set(['ADMIN', 'MEMBER']);
 
 export async function PATCH(
     request: Request,
@@ -33,23 +23,24 @@ export async function PATCH(
         }
 
         const { id, memberId } = await params;
-        const canManage = await canManageProjectMembers(userId, id);
-        if (!canManage) {
+        if (!await canManageOrganizationMembers(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
         const body = await request.json() as { role?: string };
         const role = typeof body.role === 'string' ? body.role.trim() : '';
-        if (!PROJECT_ROLES.has(role)) {
-            return NextResponse.json({ error: 'Valid project role is required' }, { status: 400 });
+        if (!MANAGEABLE_ROLES.has(role)) {
+            return NextResponse.json({ error: 'Valid team role is required' }, { status: 400 });
         }
 
-        const membership = await prisma.projectMembership.findUnique({
+        const membership = await prisma.organizationMembership.findUnique({
             where: { id: memberId },
             select: {
                 id: true,
-                projectId: true,
+                organizationId: true,
                 role: true,
+                createdAt: true,
+                updatedAt: true,
                 user: {
                     select: {
                         id: true,
@@ -59,18 +50,15 @@ export async function PATCH(
             }
         });
 
-        if (!membership || membership.projectId !== id) {
-            return NextResponse.json({ error: 'Project member not found' }, { status: 404 });
+        if (!membership || membership.organizationId !== id) {
+            return NextResponse.json({ error: 'Team member not found' }, { status: 404 });
         }
 
-        if (membership.role === 'ADMIN' && role !== 'ADMIN') {
-            const adminCount = await countProjectAdmins(id);
-            if (adminCount <= 1) {
-                return NextResponse.json({ error: 'Project must have at least one admin' }, { status: 400 });
-            }
+        if (membership.role === 'OWNER') {
+            return NextResponse.json({ error: 'Transfer ownership instead of changing the owner role' }, { status: 400 });
         }
 
-        const updatedMembership = await prisma.projectMembership.update({
+        const updated = await prisma.organizationMembership.update({
             where: { id: memberId },
             data: { role: role as 'ADMIN' | 'MEMBER' },
             select: {
@@ -88,16 +76,16 @@ export async function PATCH(
         });
 
         return NextResponse.json({
-            id: updatedMembership.id,
-            userId: updatedMembership.user.id,
-            email: updatedMembership.user.email,
-            role: updatedMembership.role,
-            createdAt: updatedMembership.createdAt,
-            updatedAt: updatedMembership.updatedAt,
+            id: updated.id,
+            userId: updated.user.id,
+            email: updated.user.email,
+            role: updated.role,
+            createdAt: updated.createdAt,
+            updatedAt: updated.updatedAt,
         });
     } catch (error) {
-        logger.error('Failed to update project member', error);
-        return NextResponse.json({ error: 'Failed to update project member' }, { status: 500 });
+        logger.error('Failed to update organization member', error);
+        return NextResponse.json({ error: 'Failed to update team member' }, { status: 500 });
     }
 }
 
@@ -117,35 +105,31 @@ export async function DELETE(
         }
 
         const { id, memberId } = await params;
-        const canManage = await canManageProjectMembers(userId, id);
-        if (!canManage) {
+        if (!await canManageOrganizationMembers(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const membership = await prisma.projectMembership.findUnique({
+        const membership = await prisma.organizationMembership.findUnique({
             where: { id: memberId },
             select: {
                 id: true,
-                projectId: true,
+                organizationId: true,
                 role: true,
             }
         });
 
-        if (!membership || membership.projectId !== id) {
-            return NextResponse.json({ error: 'Project member not found' }, { status: 404 });
+        if (!membership || membership.organizationId !== id) {
+            return NextResponse.json({ error: 'Team member not found' }, { status: 404 });
         }
 
-        if (membership.role === 'ADMIN') {
-            const adminCount = await countProjectAdmins(id);
-            if (adminCount <= 1) {
-                return NextResponse.json({ error: 'Project must have at least one admin' }, { status: 400 });
-            }
+        if (membership.role === 'OWNER') {
+            return NextResponse.json({ error: 'Transfer ownership before removing the owner' }, { status: 400 });
         }
 
-        await prisma.projectMembership.delete({ where: { id: memberId } });
+        await prisma.organizationMembership.delete({ where: { id: memberId } });
         return NextResponse.json({ success: true });
     } catch (error) {
-        logger.error('Failed to remove project member', error);
-        return NextResponse.json({ error: 'Failed to remove project member' }, { status: 500 });
+        logger.error('Failed to remove organization member', error);
+        return NextResponse.json({ error: 'Failed to remove team member' }, { status: 500 });
     }
 }

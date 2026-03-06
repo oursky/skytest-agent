@@ -111,7 +111,7 @@ export function createMcpServer(): McpServer {
         const userId = getUserId(extra);
         if (!userId) return errorResult('Unauthorized');
         const projects = await prisma.project.findMany({
-            where: { memberships: { some: { userId } } },
+            where: { organization: { memberships: { some: { userId } } } },
             orderBy: { updatedAt: 'desc' },
             include: { _count: { select: { testCases: true } } }
         });

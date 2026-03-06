@@ -3,7 +3,7 @@ import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { deleteObjectIfExists } from '@/lib/storage/object-store-utils';
-import { canManageProject, canManageProjectMembers, isProjectMember } from '@/lib/security/permissions';
+import { canManageProject, isProjectMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:projects:id');
 
@@ -30,7 +30,6 @@ export async function GET(
                 name: true,
                 organizationId: true,
                 createdByUserId: true,
-                openRouterKeyEncrypted: true,
                 createdAt: true,
                 updatedAt: true,
             },
@@ -45,17 +44,11 @@ export async function GET(
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const [canManage, canManageMembers] = await Promise.all([
-            canManageProject(userId, id),
-            canManageProjectMembers(userId, id),
-        ]);
+        const canManage = await canManageProject(userId, id);
 
         return NextResponse.json({
             ...project,
-            hasOpenRouterKey: project.openRouterKeyEncrypted !== null,
-            openRouterKeyEncrypted: undefined,
             canManageProject: canManage,
-            canManageMembers,
         });
     } catch (error) {
         logger.error('Failed to fetch project', error);

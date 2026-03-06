@@ -80,7 +80,6 @@ export default function WelcomePage() {
                 <div className="space-y-3">
                     <p className="text-sm font-medium text-blue-600">{t('welcome.badge')}</p>
                     <h1 className="text-3xl font-semibold text-gray-900">{t('welcome.title')}</h1>
-                    <p className="text-sm text-gray-600">{t('welcome.subtitle')}</p>
                 </div>
 
                 <form onSubmit={handleSubmit} className="mt-8 space-y-4">

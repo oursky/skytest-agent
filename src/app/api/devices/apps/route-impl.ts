@@ -34,11 +34,17 @@ export async function GET(request: Request) {
     }
 
     try {
-        const memberships = await prisma.projectMembership.findMany({
-            where: { userId },
-            select: { projectId: true },
+        const projects = await prisma.project.findMany({
+            where: {
+                organization: {
+                    memberships: {
+                        some: { userId },
+                    }
+                }
+            },
+            select: { id: true },
         });
-        const projectIds = new Set(memberships.map((membership) => membership.projectId));
+        const projectIds = new Set(projects.map((project) => project.id));
 
         const status = androidDeviceManager.getStatus(projectIds);
         const activeManagedDevice = status.devices.find((item) => item.id === deviceId);
