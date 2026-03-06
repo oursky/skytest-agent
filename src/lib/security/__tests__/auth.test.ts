@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const { createRemoteJWKSet, jwtVerify } = vi.hoisted(() => ({
+    createRemoteJWKSet: vi.fn(),
+    jwtVerify: vi.fn(),
+}));
+
 const { findUnique, update, upsert } = vi.hoisted(() => ({
     findUnique: vi.fn(),
     update: vi.fn(),
@@ -31,12 +36,20 @@ vi.mock('@/lib/core/prisma', () => ({
     },
 }));
 
-const { resolveUserId, resolveOrCreateUserId } = await import('@/lib/security/auth');
+vi.mock('jose', () => ({
+    createRemoteJWKSet,
+    jwtVerify,
+}));
+
+const { resolveUserId, resolveOrCreateUserId, verifyAuth } = await import('@/lib/security/auth');
 
 type ResolveUserIdPayload = Parameters<typeof resolveUserId>[0];
 
 describe('resolveUserId', () => {
     beforeEach(() => {
+        process.env.NEXT_PUBLIC_AUTHGEAR_ENDPOINT = 'https://example.authgear.com';
+        createRemoteJWKSet.mockReset();
+        jwtVerify.mockReset();
         findUnique.mockReset();
         update.mockReset();
         upsert.mockReset();
@@ -130,10 +143,29 @@ describe('resolveUserId', () => {
             data: { email: 'new@example.com' }
         });
     });
+
+    it('uses preferred_username when it contains an email address', async () => {
+        upsert.mockResolvedValueOnce({ id: 'user-1', email: 'user@example.com' });
+
+        await expect(resolveUserId({
+            sub: 'auth-1',
+            preferred_username: 'User@Example.com',
+        } as ResolveUserIdPayload)).resolves.toBe('user-1');
+
+        expect(upsert).toHaveBeenCalledWith({
+            where: { authId: 'auth-1' },
+            update: { email: 'user@example.com' },
+            create: { authId: 'auth-1', email: 'user@example.com' },
+            select: { id: true, email: true },
+        });
+    });
 });
 
 describe('resolveOrCreateUserId', () => {
     beforeEach(() => {
+        process.env.NEXT_PUBLIC_AUTHGEAR_ENDPOINT = 'https://example.authgear.com';
+        createRemoteJWKSet.mockReset();
+        jwtVerify.mockReset();
         findUnique.mockReset();
         update.mockReset();
         upsert.mockReset();
@@ -169,5 +201,49 @@ describe('resolveOrCreateUserId', () => {
             userId: 'user-1',
         } as ResolveUserIdPayload)).resolves.toBeNull();
         expect(upsert).not.toHaveBeenCalled();
+    });
+});
+
+describe('verifyAuth', () => {
+    const fetchMock = vi.fn();
+
+    beforeEach(() => {
+        process.env.NEXT_PUBLIC_AUTHGEAR_ENDPOINT = 'https://example.authgear.com';
+        createRemoteJWKSet.mockReset();
+        jwtVerify.mockReset();
+        findUnique.mockReset();
+        fetchMock.mockReset();
+        createRemoteJWKSet.mockReturnValue({} as ReturnType<typeof createRemoteJWKSet>);
+        vi.stubGlobal('fetch', fetchMock);
+    });
+
+    it('falls back to the Authgear userinfo endpoint for email', async () => {
+        jwtVerify.mockResolvedValueOnce({ payload: { sub: 'auth-1' } });
+        findUnique.mockResolvedValueOnce({ id: 'user-1', authId: 'auth-1', email: null });
+        fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ email: 'user@example.com' }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+        }));
+
+        const result = await verifyAuth(new Request('http://localhost/api/test', {
+            headers: {
+                Authorization: 'Bearer access-token',
+            }
+        }));
+
+        expect(fetchMock).toHaveBeenCalledWith(
+            new URL('/oauth2/userinfo', 'https://example.authgear.com'),
+            expect.objectContaining({
+                headers: {
+                    Authorization: 'Bearer access-token',
+                },
+                cache: 'no-store',
+            })
+        );
+        expect(result).toEqual({
+            sub: 'auth-1',
+            email: 'user@example.com',
+            userId: 'user-1',
+        });
     });
 });

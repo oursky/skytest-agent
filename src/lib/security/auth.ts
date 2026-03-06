@@ -9,14 +9,57 @@ let jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
 
 export type AuthPayload = NonNullable<Awaited<ReturnType<typeof verifyAuth>>>;
 
-function getPayloadEmail(authPayload: Record<string, unknown>): string | null {
-    const email = authPayload.email;
-    if (typeof email !== 'string') {
+function normalizeEmail(value: unknown): string | null {
+    if (typeof value !== 'string') {
         return null;
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedEmail = value.trim().toLowerCase();
     return normalizedEmail.length > 0 ? normalizedEmail : null;
+}
+
+function isEmailLike(value: string): boolean {
+    return value.includes('@');
+}
+
+function getPayloadEmail(authPayload: Record<string, unknown>): string | null {
+    const email = normalizeEmail(authPayload.email);
+    if (email) {
+        return email;
+    }
+
+    const preferredUsername = normalizeEmail(authPayload.preferred_username);
+    if (preferredUsername && isEmailLike(preferredUsername)) {
+        return preferredUsername;
+    }
+
+    return null;
+}
+
+async function fetchUserInfoEmail(accessToken: string): Promise<string | null> {
+    const endpoint = process.env.NEXT_PUBLIC_AUTHGEAR_ENDPOINT;
+    if (!endpoint) {
+        return null;
+    }
+
+    try {
+        const response = await fetch(new URL('/oauth2/userinfo', endpoint), {
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+            },
+            cache: 'no-store',
+        });
+
+        if (!response.ok) {
+            return null;
+        }
+
+        const payload = await response.json() as Record<string, unknown>;
+        return getPayloadEmail(payload);
+    } catch (error) {
+        logger.warn('Failed to fetch Authgear user info', error);
+        return null;
+    }
 }
 
 async function syncMembershipEmails(userId: string, email: string) {
@@ -191,18 +234,20 @@ export async function verifyAuth(request: Request) {
         }
 
         const { payload } = await jwtVerify(finalToken, jwks);
+        const email = getPayloadEmail(payload) ?? await fetchUserInfoEmail(finalToken);
+        const enrichedPayload = email ? { ...payload, email } : payload;
         try {
-            const authId = (payload.sub as string | undefined) || undefined;
+            const authId = (enrichedPayload.sub as string | undefined) || undefined;
             if (authId) {
                 const user = await prisma.user.findUnique({ where: { authId } });
                 if (user) {
-                    return { ...payload, userId: user.id } as typeof payload & { userId: string };
+                    return { ...enrichedPayload, userId: user.id } as typeof enrichedPayload & { userId: string };
                 }
             }
         } catch (e) {
             logger.warn('verifyAuth: failed to map auth sub to userId', e);
         }
-        return payload;
+        return enrichedPayload;
     } catch (error) {
         logger.error('verifyAuth: token verification failed', error);
         return null;
