@@ -1,7 +1,6 @@
 'use client';
 
 import { TestCaseFile } from '@/types';
-import { config } from '@/config/app';
 import { useAuth } from '@/app/auth-provider';
 import { useCallback, useEffect, useState } from 'react';
 import { useI18n } from '@/i18n';
@@ -18,6 +17,10 @@ function formatFileSize(bytes: number): string {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function buildPromptFileReference(filename: string): string {
+    return `{{file:${filename}}}`;
 }
 
 function getFileIcon(mimeType: string): React.ReactNode {
@@ -171,13 +174,11 @@ export default function FileList({ files, testCaseId, onDelete, readOnly }: File
         }
     };
 
-    const uploadRoot = config.files.uploadDir.replace(/^\.?\//, '');
-
     return (
         <div className="space-y-2 overflow-x-hidden">
             <div className="grid gap-2 overflow-x-hidden">
                 {files.map((file) => {
-                    const relativePath = `${uploadRoot}/${testCaseId}/${file.storedName}`;
+                    const fileReference = buildPromptFileReference(file.filename);
 
                     return (
                         <div
@@ -205,13 +206,13 @@ export default function FileList({ files, testCaseId, onDelete, readOnly }: File
                                     <div className="mt-1 flex items-center gap-2 min-w-0">
                                         <code
                                             className="text-[10px] text-gray-500 bg-white border border-gray-200 px-1.5 py-0.5 rounded truncate max-w-[60%] md:max-w-[70%]"
-                                            title={relativePath}
+                                            title={fileReference}
                                         >
-                                            {relativePath}
+                                            {fileReference}
                                         </code>
                                         <button
                                             type="button"
-                                            onClick={() => copyPath(file.id, relativePath)}
+                                            onClick={() => copyPath(file.id, fileReference)}
                                             className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-200 rounded"
                                             title={t('file.copyPath')}
                                         >

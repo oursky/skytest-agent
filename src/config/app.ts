@@ -2,6 +2,10 @@ const maxConcurrentTestRunsPerUserValue = Number.parseInt(process.env.MAX_CONCUR
 const maxConcurrentTestRunsPerUser = Number.isFinite(maxConcurrentTestRunsPerUserValue) && maxConcurrentTestRunsPerUserValue > 0
     ? maxConcurrentTestRunsPerUserValue
     : 5;
+const storageSignedUrlTtlSecondsValue = Number.parseInt(process.env.STORAGE_SIGNED_URL_TTL_SECONDS ?? '', 10);
+const storageSignedUrlTtlSeconds = Number.isFinite(storageSignedUrlTtlSecondsValue) && storageSignedUrlTtlSecondsValue > 0
+    ? storageSignedUrlTtlSecondsValue
+    : 900;
 
 export const config = {
     app: {
@@ -140,7 +144,6 @@ export const config = {
     },
 
     files: {
-        uploadDir: './uploads',
         maxFileSize: 10 * 1024 * 1024,
         maxFilesPerTestCase: 20,
         allowedMimeTypes: [
@@ -168,6 +171,16 @@ export const config = {
             '.zip',
             '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
         ] as string[],
+    },
+
+    storage: {
+        endpoint: process.env.S3_ENDPOINT ?? '',
+        region: process.env.S3_REGION ?? '',
+        bucket: process.env.S3_BUCKET ?? '',
+        accessKeyId: process.env.S3_ACCESS_KEY_ID ?? '',
+        secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? '',
+        forcePathStyle: process.env.S3_FORCE_PATH_STYLE === 'true',
+        signedUrlTtlSeconds: storageSignedUrlTtlSeconds,
     },
 
     emulator: {

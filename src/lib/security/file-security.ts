@@ -1,6 +1,6 @@
 import { config } from '@/config/app';
-import path from 'path';
 import crypto from 'crypto';
+import path from 'path';
 
 export interface FileValidationResult {
     valid: boolean;
@@ -29,32 +29,33 @@ export function validateAndSanitizeFile(
     }
 
     const sanitizedFilename = sanitizeFilename(filename);
-    const storedName = `${crypto.randomUUID()}${ext}`;
+    const storedName = createStoredName(filename);
 
     return { valid: true, sanitizedFilename, storedName };
 }
 
-function sanitizeFilename(filename: string): string {
+export function createStoredName(filename: string): string {
+    const ext = path.extname(filename).toLowerCase();
+    return `${crypto.randomUUID()}${ext}`;
+}
+
+export function sanitizeFilename(filename: string): string {
     const basename = path.basename(filename);
     return basename.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 255);
 }
 
-export function getUploadDir(): string {
-    return path.join(process.cwd(), config.files.uploadDir);
+export function buildTestCaseFileObjectKey(testCaseId: string, storedName: string): string {
+    return `test-cases/${testCaseId}/files/${storedName}`;
 }
 
-export function getUploadPath(testCaseId: string): string {
-    return path.join(getUploadDir(), testCaseId);
+export function buildProjectConfigObjectKey(projectId: string, storedName: string): string {
+    return `projects/${projectId}/configs/${storedName}`;
 }
 
-export function getFilePath(testCaseId: string, storedName: string): string {
-    return path.join(getUploadPath(testCaseId), storedName);
+export function buildTestCaseConfigObjectKey(testCaseId: string, storedName: string): string {
+    return `test-cases/${testCaseId}/configs/${storedName}`;
 }
 
-export function getProjectConfigUploadPath(projectId: string): string {
-    return path.join(getUploadDir(), 'project-configs', projectId);
-}
-
-export function getTestCaseConfigUploadPath(testCaseId: string): string {
-    return path.join(getUploadDir(), 'testcase-configs', testCaseId);
+export function buildRunArtifactObjectKey(runId: string, storedName: string): string {
+    return `test-runs/${runId}/artifacts/${storedName}`;
 }

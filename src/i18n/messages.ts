@@ -290,7 +290,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'step.editor.loading': 'Loading editor...',
 
     // FileList
-    'file.copyPath': 'Copy path',
+    'file.copyPath': 'Copy reference',
     'file.download': 'Download',
     'file.delete': 'Delete',
     'file.deleteFailed': 'Failed to delete file',
@@ -743,7 +743,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'step.editor.loading': '正在載入編輯器…',
 
     // FileList
-    'file.copyPath': '複製路徑',
+    'file.copyPath': '複製參照',
     'file.download': '下載',
     'file.delete': '刪除',
     'file.deleteFailed': '刪除檔案失敗',
@@ -1196,7 +1196,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'step.editor.loading': '正在加载编辑器…',
 
     // FileList
-    'file.copyPath': '复制路径',
+    'file.copyPath': '复制引用',
     'file.download': '下载',
     'file.delete': '删除',
     'file.deleteFailed': '删除文件失败',

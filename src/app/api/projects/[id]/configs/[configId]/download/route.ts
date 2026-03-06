@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth } from '@/lib/security/auth';
-import { getProjectConfigUploadPath } from '@/lib/security/file-security';
 import { createLogger } from '@/lib/core/logger';
 import { buildContentDisposition } from '@/lib/security/http-headers';
-import fs from 'fs/promises';
-import path from 'path';
+import { readObjectBuffer } from '@/lib/storage/object-store-utils';
 
 const logger = createLogger('api:projects:config:download');
 
@@ -34,20 +32,18 @@ export async function GET(
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const filePath = path.join(getProjectConfigUploadPath(id), config.value);
-
-        try {
-            const buffer = await fs.readFile(filePath);
-            return new NextResponse(buffer, {
-                headers: {
-                    'Content-Type': config.mimeType || 'application/octet-stream',
-                    'Content-Disposition': buildContentDisposition('attachment', config.filename || config.name),
-                    'Content-Length': (config.size || buffer.length).toString(),
-                },
-            });
-        } catch {
-            return NextResponse.json({ error: 'File not found on disk' }, { status: 404 });
+        const object = await readObjectBuffer(config.value);
+        if (!object) {
+            return NextResponse.json({ error: 'File not found in object storage' }, { status: 404 });
         }
+
+        return new NextResponse(new Uint8Array(object.body), {
+            headers: {
+                'Content-Type': config.mimeType || 'application/octet-stream',
+                'Content-Disposition': buildContentDisposition('attachment', config.filename || config.name),
+                'Content-Length': (config.size || object.body.length).toString(),
+            },
+        });
     } catch (error) {
         logger.error('Failed to download config file', error);
         return NextResponse.json({ error: 'Failed to download file' }, { status: 500 });

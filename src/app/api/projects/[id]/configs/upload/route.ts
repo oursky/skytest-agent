@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth } from '@/lib/security/auth';
-import { validateAndSanitizeFile, getProjectConfigUploadPath } from '@/lib/security/file-security';
+import { buildProjectConfigObjectKey, validateAndSanitizeFile } from '@/lib/security/file-security';
 import { validateConfigName, normalizeConfigName } from '@/lib/config/validation';
 import { createLogger } from '@/lib/core/logger';
 import { normalizeConfigGroup } from '@/lib/config/sort';
-import fs from 'fs/promises';
-import path from 'path';
+import { putObjectBuffer } from '@/lib/storage/object-store-utils';
 
 const logger = createLogger('api:projects:configs:upload');
 
@@ -61,20 +60,21 @@ export async function POST(
             return NextResponse.json({ error: validation.error }, { status: 400 });
         }
 
-        const uploadDir = getProjectConfigUploadPath(id);
-        await fs.mkdir(uploadDir, { recursive: true });
-
         const storedName = validation.storedName!;
-        const filePath = path.join(uploadDir, storedName);
         const buffer = Buffer.from(await file.arrayBuffer());
-        await fs.writeFile(filePath, buffer);
+        const objectKey = buildProjectConfigObjectKey(id, storedName);
+        await putObjectBuffer({
+            key: objectKey,
+            body: buffer,
+            contentType: file.type,
+        });
 
         const config = await prisma.projectConfig.create({
             data: {
                 projectId: id,
                 name: normalizedName,
                 type: 'FILE',
-                value: storedName,
+                value: objectKey,
                 masked: false,
                 group: normalizedGroup || null,
                 filename: validation.sanitizedFilename!,

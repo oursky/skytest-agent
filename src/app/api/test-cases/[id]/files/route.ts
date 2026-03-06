@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth } from '@/lib/security/auth';
-import { validateAndSanitizeFile, getUploadPath } from '@/lib/security/file-security';
+import { buildTestCaseFileObjectKey, validateAndSanitizeFile } from '@/lib/security/file-security';
 import { createLogger } from '@/lib/core/logger';
 import { config } from '@/config/app';
-import fs from 'fs/promises';
-import path from 'path';
+import { putObjectBuffer } from '@/lib/storage/object-store-utils';
 
 const logger = createLogger('api:test-cases:files');
 
@@ -95,29 +94,34 @@ export async function POST(
             return NextResponse.json({ error: validation.error }, { status: 400 });
         }
 
-        const ext = path.extname(validation.sanitizedFilename!);
-        const base = path.basename(validation.sanitizedFilename!, ext);
+        const extension = validation.sanitizedFilename!.includes('.')
+            ? validation.sanitizedFilename!.slice(validation.sanitizedFilename!.lastIndexOf('.'))
+            : '';
+        const base = extension
+            ? validation.sanitizedFilename!.slice(0, -extension.length)
+            : validation.sanitizedFilename!;
         let candidateFilename = validation.sanitizedFilename!;
         const existingFiles = await prisma.testCaseFile.findMany({ where: { testCaseId: id } });
         let n = 1;
         const exists = (name: string) => existingFiles.some(f => f.filename === name);
         while (exists(candidateFilename)) {
-            candidateFilename = `${base} (${n})${ext}`;
+            candidateFilename = `${base} (${n})${extension}`;
             n += 1;
         }
 
-        const uploadDir = getUploadPath(id);
-        await fs.mkdir(uploadDir, { recursive: true });
-
-        const filePath = path.join(uploadDir, validation.storedName!);
         const buffer = Buffer.from(await file.arrayBuffer());
-        await fs.writeFile(filePath, buffer);
+        const objectKey = buildTestCaseFileObjectKey(id, validation.storedName!);
+        await putObjectBuffer({
+            key: objectKey,
+            body: buffer,
+            contentType: file.type,
+        });
 
         const dbFile = await prisma.testCaseFile.create({
             data: {
                 testCaseId: id,
                 filename: candidateFilename,
-                storedName: validation.storedName!,
+                storedName: objectKey,
                 mimeType: file.type,
                 size: file.size,
             }
