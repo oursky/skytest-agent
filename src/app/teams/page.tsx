@@ -57,7 +57,6 @@ export default function TeamsPage() {
     const [isDeleteOpen, setIsDeleteOpen] = useState(false);
     const [deleteConfirmationValue, setDeleteConfirmationValue] = useState('');
     const [error, setError] = useState<string | null>(null);
-    const [success, setSuccess] = useState<string | null>(null);
 
     const currentTeam = useMemo(() => {
         if (!selectedTeam) {
@@ -160,7 +159,6 @@ export default function TeamsPage() {
 
             dispatchTeamsChanged();
             await refreshTeams();
-            setSuccess(t('team.page.success.rename'));
             setError(null);
             await loadTeamDetails(currentTeam.id);
         } catch {
@@ -227,7 +225,6 @@ export default function TeamsPage() {
             } else {
                 router.push('/welcome');
             }
-            setSuccess(t('team.page.success.delete'));
             setError(null);
         } catch {
             setError(t('team.page.error.delete'));
@@ -293,11 +290,6 @@ export default function TeamsPage() {
                 {error && (
                     <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                         {error}
-                    </div>
-                )}
-                {success && (
-                    <div className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                        {success}
                     </div>
                 )}
 
