@@ -191,7 +191,6 @@ export default function TeamsPage() {
             }
 
             await refreshTeams();
-            setSuccess(t('team.page.success.transfer'));
             setError(null);
             await loadTeamDetails(currentTeam.id);
         } catch {
