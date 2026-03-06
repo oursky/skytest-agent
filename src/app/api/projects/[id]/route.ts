@@ -2,8 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
-import { getProjectConfigUploadPath, getTestCaseConfigUploadPath, getUploadPath } from '@/lib/security/file-security';
-import fs from 'fs/promises';
+import { deleteObjectIfExists } from '@/lib/storage/object-store-utils';
 
 const logger = createLogger('api:projects:id');
 
@@ -132,28 +131,43 @@ export async function DELETE(
             );
         }
 
-        const testCaseIds = await prisma.testCase.findMany({
+        const testCases = await prisma.testCase.findMany({
             where: { projectId: id },
-            select: { id: true }
+            select: {
+                id: true,
+                files: { select: { storedName: true } },
+                configs: {
+                    where: { type: 'FILE' },
+                    select: { value: true }
+                }
+            }
+        });
+
+        const projectConfigFiles = await prisma.projectConfig.findMany({
+            where: {
+                projectId: id,
+                type: 'FILE'
+            },
+            select: { value: true }
         });
 
         await prisma.project.delete({
             where: { id },
         });
 
-        const cleanupPaths = [
-            getProjectConfigUploadPath(id),
-            ...testCaseIds.flatMap(({ id: testCaseId }) => [
-                getUploadPath(testCaseId),
-                getTestCaseConfigUploadPath(testCaseId)
+        const objectKeys = [
+            ...projectConfigFiles.map((config) => config.value),
+            ...testCases.flatMap((testCase) => [
+                ...testCase.files.map((file) => file.storedName),
+                ...testCase.configs.map((config) => config.value),
             ])
         ];
 
-        await Promise.all(cleanupPaths.map(async (cleanupPath) => {
+        await Promise.all(objectKeys.map(async (objectKey) => {
             try {
-                await fs.rm(cleanupPath, { recursive: true, force: true });
+                await deleteObjectIfExists(objectKey);
             } catch {
-                logger.warn('Failed to delete upload directory', { cleanupPath });
+                logger.warn('Failed to delete object from storage', { objectKey });
             }
         }));
 

@@ -4,8 +4,7 @@ import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { parseTestCaseJson, cleanStepsForStorage, normalizeTargetConfigMap } from '@/lib/runtime/test-case-utils';
 import { BrowserConfig, TargetConfig } from '@/types';
-import { getUploadPath, getTestCaseConfigUploadPath } from '@/lib/security/file-security';
-import fs from 'fs/promises';
+import { deleteObjectIfExists } from '@/lib/storage/object-store-utils';
 
 const logger = createLogger('api:test-cases:id');
 
@@ -76,7 +75,14 @@ export async function PUT(
 
         const existingTestCase = await prisma.testCase.findUnique({
             where: { id },
-            include: { project: { select: { userId: true } } }
+            include: {
+                project: { select: { userId: true } },
+                files: { select: { storedName: true } },
+                configs: {
+                    where: { type: 'FILE' },
+                    select: { value: true }
+                }
+            }
         });
 
         if (!existingTestCase) {
@@ -141,7 +147,14 @@ export async function DELETE(
 
         const existingTestCase = await prisma.testCase.findUnique({
             where: { id },
-            include: { project: { select: { userId: true } } }
+            include: {
+                project: { select: { userId: true } },
+                files: { select: { storedName: true } },
+                configs: {
+                    where: { type: 'FILE' },
+                    select: { value: true }
+                }
+            }
         });
 
         if (!existingTestCase) {
@@ -161,12 +174,16 @@ export async function DELETE(
             where: { id },
         });
 
-        const cleanupPaths = [getUploadPath(id), getTestCaseConfigUploadPath(id)];
-        await Promise.all(cleanupPaths.map(async (cleanupPath) => {
+        const objectKeys = [
+            ...existingTestCase.files.map((file) => file.storedName),
+            ...existingTestCase.configs.map((config) => config.value),
+        ];
+
+        await Promise.all(objectKeys.map(async (objectKey) => {
             try {
-                await fs.rm(cleanupPath, { recursive: true, force: true });
+                await deleteObjectIfExists(objectKey);
             } catch {
-                logger.warn('Failed to delete upload directory', { cleanupPath });
+                logger.warn('Failed to delete object from storage', { objectKey });
             }
         }));
 
