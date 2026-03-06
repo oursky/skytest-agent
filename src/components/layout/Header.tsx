@@ -113,7 +113,7 @@ export default function Header() {
                             autoFocus
                         />
                     </label>
-                    <div className="flex justify-end gap-3 border-t border-gray-100 pt-4">
+                    <div className="flex justify-end gap-3 pt-4">
                         <button
                             type="button"
                             onClick={() => {

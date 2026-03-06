@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../auth-provider";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CustomSelect, Modal } from "@/components/shared";
+import { Modal } from "@/components/shared";
 import { formatDateTime } from "@/utils/dateFormatter";
 import { useProjects } from "@/hooks/useProjects";
 import { useTeams } from "@/hooks/useTeams";
@@ -38,11 +38,6 @@ export default function ProjectsPage() {
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; projectId: string; projectName: string }>({ isOpen: false, projectId: "", projectName: "" });
     const [editModal, setEditModal] = useState<{ isOpen: boolean; projectId: string; currentName: string }>({ isOpen: false, projectId: "", currentName: "" });
     const [editName, setEditName] = useState("");
-    const teamOptions = teams.map((team) => ({
-        value: team.id,
-        label: team.name,
-    }));
-
     useEffect(() => {
         if (!isAuthLoading && !isLoggedIn) {
             router.push("/");
@@ -223,6 +218,54 @@ export default function ProjectsPage() {
                 </div>
             </Modal>
 
+            <Modal
+                isOpen={isCreating && teams.length > 0 && canManageProjects}
+                onClose={() => {
+                    setIsCreating(false);
+                    setNewProjectName("");
+                    setCreateError("");
+                }}
+                title={t('projects.addProjectTitle')}
+                closeOnConfirm={false}
+                showFooter={false}
+                panelClassName="max-w-lg"
+            >
+                <form onSubmit={handleCreateProject} className="space-y-4">
+                    <label className="block space-y-2">
+                        <span className="text-sm font-medium text-gray-700">{t('projects.projectName')}</span>
+                        <input
+                            type="text"
+                            value={newProjectName}
+                            onChange={(e) => setNewProjectName(e.target.value)}
+                            placeholder={t('projects.newProject.formPlaceholder')}
+                            className="w-full rounded-md border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                            autoFocus
+                        />
+                    </label>
+                    {createError && <p className="text-sm text-red-600">{createError}</p>}
+                    <div className="flex justify-end gap-3 pt-4">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setIsCreating(false);
+                                setNewProjectName("");
+                                setCreateError("");
+                            }}
+                            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                        >
+                            {t('projects.cancel')}
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={!newProjectName.trim() || !effectiveTeamId}
+                            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
+                        >
+                            {t('projects.create')}
+                        </button>
+                    </div>
+                </form>
+            </Modal>
+
             <div className="max-w-7xl mx-auto px-8 py-8">
                 <div className="flex justify-between items-center mb-8">
                     <h1 className="text-3xl font-bold text-gray-900">{t('projects.title')}</h1>
@@ -257,46 +300,6 @@ export default function ProjectsPage() {
                             </button>
                         </form>
                         {teamError && <p className="text-red-500 text-sm mt-2">{teamError}</p>}
-                    </div>
-                )}
-
-                {isCreating && teams.length > 0 && canManageProjects && (
-                    <div className="mb-8 bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                        <form onSubmit={handleCreateProject} className="flex flex-col gap-4">
-                            <CustomSelect
-                                value={effectiveTeamId}
-                                options={teamOptions}
-                                onChange={(teamId) => void setCurrentTeam(teamId)}
-                                ariaLabel={t('header.team')}
-                                fullWidth
-                                buttonClassName="px-4 py-2 shadow-none"
-                            />
-                            <div className="flex gap-4">
-                                <input
-                                    type="text"
-                                    value={newProjectName}
-                                    onChange={(e) => setNewProjectName(e.target.value)}
-                                    placeholder={t('projects.newProject.formPlaceholder')}
-                                    className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50"
-                                    autoFocus
-                                />
-                                <button
-                                    type="submit"
-                                    disabled={!newProjectName.trim() || !effectiveTeamId}
-                                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
-                                >
-                                    {t('projects.create')}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setIsCreating(false)}
-                                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
-                                >
-                                    {t('projects.cancel')}
-                                </button>
-                            </div>
-                        </form>
-                        {createError && <p className="text-red-500 text-sm mt-2">{createError}</p>}
                     </div>
                 )}
 
