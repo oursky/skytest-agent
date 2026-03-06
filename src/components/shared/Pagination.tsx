@@ -2,6 +2,7 @@
 
 import { useI18n } from "@/i18n";
 import { PAGE_SIZE_OPTIONS } from "@/utils/pagination";
+import CustomSelect from "./CustomSelect";
 
 interface PaginationProps {
     page: number;
@@ -21,6 +22,10 @@ export default function Pagination({
     onLimitChange,
 }: PaginationProps) {
     const { t } = useI18n();
+    const pageSizeOptions = PAGE_SIZE_OPTIONS.map((size) => ({
+        value: size,
+        label: String(size),
+    }));
 
     const from = total > 0 ? (page - 1) * limit + 1 : 0;
     const to = Math.min(page * limit, total);
@@ -35,17 +40,14 @@ export default function Pagination({
                 </p>
                 <div className="flex items-center gap-2">
                     <span className="text-sm text-gray-500">{t('pagination.rowsPerPage')}</span>
-                    <select
+                    <CustomSelect
                         value={limit}
-                        onChange={(e) => onLimitChange(Number(e.target.value))}
-                        className="px-2 py-1 text-sm text-gray-600 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
-                    >
-                        {PAGE_SIZE_OPTIONS.map((size) => (
-                            <option key={size} value={size}>
-                                {size}
-                            </option>
-                        ))}
-                    </select>
+                        options={pageSizeOptions}
+                        onChange={onLimitChange}
+                        ariaLabel={t('pagination.rowsPerPage')}
+                        buttonClassName="min-w-20 px-2 py-1 text-gray-600 focus:ring-1 shadow-none"
+                        menuClassName="min-w-20"
+                    />
                 </div>
             </div>
             <div className="flex items-center gap-2">

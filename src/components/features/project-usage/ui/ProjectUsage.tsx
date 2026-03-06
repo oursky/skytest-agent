@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/app/auth-provider';
-import { Pagination } from '@/components/shared';
+import { CustomSelect, Pagination } from '@/components/shared';
 import { useI18n } from '@/i18n';
 import { formatDateTimeCompact } from '@/utils/dateFormatter';
 
@@ -164,6 +164,26 @@ export default function ProjectUsage({ projectId }: ProjectUsageProps) {
     }, [summary, t]);
 
     const resetPage = () => setPage(1);
+    const memberOptions = useMemo(
+        () => [
+            { value: '', label: t('project.usage.filters.allUsers') },
+            ...members.map((member) => ({
+                value: member.userId,
+                label: member.email || t('project.members.unknownEmail'),
+            })),
+        ],
+        [members, t]
+    );
+    const testCaseOptions = useMemo(
+        () => [
+            { value: '', label: t('project.usage.filters.allTestCases') },
+            ...testCases.map((testCase) => ({
+                value: testCase.id,
+                label: testCase.name,
+            })),
+        ],
+        [t, testCases]
+    );
 
     return (
         <section className="space-y-6">
@@ -180,40 +200,32 @@ export default function ProjectUsage({ projectId }: ProjectUsageProps) {
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                     <label className="space-y-2">
                         <span className="text-sm font-medium text-gray-700">{t('project.usage.filters.user')}</span>
-                        <select
+                        <CustomSelect
                             value={selectedUserId}
-                            onChange={(event) => {
-                                setSelectedUserId(event.target.value);
+                            options={memberOptions}
+                            onChange={(userId) => {
+                                setSelectedUserId(userId);
                                 resetPage();
                             }}
-                            className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
-                        >
-                            <option value="">{t('project.usage.filters.allUsers')}</option>
-                            {members.map((member) => (
-                                <option key={member.id} value={member.userId}>
-                                    {member.email || t('project.members.unknownEmail')}
-                                </option>
-                            ))}
-                        </select>
+                            ariaLabel={t('project.usage.filters.user')}
+                            fullWidth
+                            buttonClassName="shadow-none"
+                        />
                     </label>
 
                     <label className="space-y-2">
                         <span className="text-sm font-medium text-gray-700">{t('project.usage.filters.testCase')}</span>
-                        <select
+                        <CustomSelect
                             value={selectedTestCaseId}
-                            onChange={(event) => {
-                                setSelectedTestCaseId(event.target.value);
+                            options={testCaseOptions}
+                            onChange={(testCaseId) => {
+                                setSelectedTestCaseId(testCaseId);
                                 resetPage();
                             }}
-                            className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
-                        >
-                            <option value="">{t('project.usage.filters.allTestCases')}</option>
-                            {testCases.map((testCase) => (
-                                <option key={testCase.id} value={testCase.id}>
-                                    {testCase.name}
-                                </option>
-                            ))}
-                        </select>
+                            ariaLabel={t('project.usage.filters.testCase')}
+                            fullWidth
+                            buttonClassName="shadow-none"
+                        />
                     </label>
 
                     <label className="space-y-2">

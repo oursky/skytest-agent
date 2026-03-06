@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/app/auth-provider';
+import { CustomSelect } from '@/components/shared';
 import { LOCALE_META, Locale, useI18n } from '@/i18n';
 import { useOrganizations } from '@/hooks/useOrganizations';
 import { useCurrentOrganization } from '@/hooks/useCurrentOrganization';
@@ -122,17 +123,17 @@ export default function Header() {
                         {isLoggedIn && organizations.length > 0 && (
                             <label className="hidden md:flex items-center gap-2 text-sm text-gray-600">
                                 <span>{t('header.organization')}</span>
-                                <select
+                                <CustomSelect
                                     value={currentOrganization?.id ?? organizations[0]?.id ?? ''}
-                                    onChange={(event) => void handleOrganizationChange(event.target.value)}
-                                    className="h-9 min-w-44 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                >
-                                    {organizations.map((organization) => (
-                                        <option key={organization.id} value={organization.id}>
-                                            {organization.name}
-                                        </option>
-                                    ))}
-                                </select>
+                                    options={organizations.map((organization) => ({
+                                        value: organization.id,
+                                        label: organization.name,
+                                    }))}
+                                    onChange={(organizationId) => void handleOrganizationChange(organizationId)}
+                                    ariaLabel={t('header.organization')}
+                                    buttonClassName="h-9 min-w-44 border-gray-200 px-3 focus:ring-blue-500"
+                                    menuClassName="min-w-44"
+                                />
                             </label>
                         )}
 

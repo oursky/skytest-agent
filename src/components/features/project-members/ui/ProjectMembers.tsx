@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Modal } from '@/components/shared';
+import { CustomSelect, Modal } from '@/components/shared';
 import { useAuth } from '@/app/auth-provider';
 import { useI18n } from '@/i18n';
 import { formatDateTimeCompact } from '@/utils/dateFormatter';
@@ -46,6 +46,13 @@ export default function ProjectMembers({ projectId, canManageMembers }: ProjectM
     const pendingInvites = useMemo(
         () => invites.filter((invite) => invite.status === 'PENDING'),
         [invites]
+    );
+    const roleOptions = useMemo(
+        () => [
+            { value: 'MEMBER' as const, label: t('project.members.roles.member') },
+            { value: 'ADMIN' as const, label: t('project.members.roles.admin') },
+        ],
+        [t]
     );
 
     useEffect(() => {
@@ -206,14 +213,14 @@ export default function ProjectMembers({ projectId, canManageMembers }: ProjectM
                     </label>
                     <label className="block space-y-2">
                         <span className="text-sm font-medium text-gray-700">{t('project.members.role')}</span>
-                        <select
+                        <CustomSelect
                             value={inviteRole}
-                            onChange={(event) => setInviteRole(event.target.value as 'ADMIN' | 'MEMBER')}
-                            className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
-                        >
-                            <option value="MEMBER">{t('project.members.roles.member')}</option>
-                            <option value="ADMIN">{t('project.members.roles.admin')}</option>
-                        </select>
+                            options={roleOptions}
+                            onChange={setInviteRole}
+                            ariaLabel={t('project.members.role')}
+                            fullWidth
+                            buttonClassName="shadow-none"
+                        />
                     </label>
                 </div>
             </Modal>
@@ -260,14 +267,14 @@ export default function ProjectMembers({ projectId, canManageMembers }: ProjectM
                             <div className="flex justify-start gap-2 md:justify-end">
                                 {canManageMembers ? (
                                     <>
-                                        <select
+                                        <CustomSelect
                                             value={member.role}
-                                            onChange={(event) => void updateMemberRole(member.id, event.target.value as 'ADMIN' | 'MEMBER')}
-                                            className="rounded-md border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                                        >
-                                            <option value="ADMIN">{t('project.members.roles.admin')}</option>
-                                            <option value="MEMBER">{t('project.members.roles.member')}</option>
-                                        </select>
+                                            options={roleOptions}
+                                            onChange={(role) => void updateMemberRole(member.id, role)}
+                                            ariaLabel={t('project.members.role')}
+                                            buttonClassName="min-w-28 px-2 py-1 shadow-none"
+                                            menuClassName="min-w-28"
+                                        />
                                         <button
                                             type="button"
                                             onClick={() => setMemberToRemove(member)}

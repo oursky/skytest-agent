@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../auth-provider";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Modal } from "@/components/shared";
+import { CustomSelect, Modal } from "@/components/shared";
 import { formatDateTime } from "@/utils/dateFormatter";
 import { useProjects } from "@/hooks/useProjects";
 import { useOrganizations } from "@/hooks/useOrganizations";
@@ -36,6 +36,10 @@ export default function ProjectsPage() {
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; projectId: string; projectName: string }>({ isOpen: false, projectId: "", projectName: "" });
     const [editModal, setEditModal] = useState<{ isOpen: boolean; projectId: string; currentName: string }>({ isOpen: false, projectId: "", currentName: "" });
     const [editName, setEditName] = useState("");
+    const organizationOptions = organizations.map((organization) => ({
+        value: organization.id,
+        label: organization.name,
+    }));
 
     useEffect(() => {
         if (!isAuthLoading && !isLoggedIn) {
@@ -257,17 +261,14 @@ export default function ProjectsPage() {
                 {isCreating && organizations.length > 0 && (
                     <div className="mb-8 bg-white p-6 rounded-lg shadow-sm border border-gray-200">
                         <form onSubmit={handleCreateProject} className="flex flex-col gap-4">
-                            <select
+                            <CustomSelect
                                 value={effectiveOrganizationId}
-                                onChange={(e) => void setCurrentOrganization(e.target.value)}
-                                className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50"
-                            >
-                                {organizations.map((organization) => (
-                                    <option key={organization.id} value={organization.id}>
-                                        {organization.name}
-                                    </option>
-                                ))}
-                            </select>
+                                options={organizationOptions}
+                                onChange={(organizationId) => void setCurrentOrganization(organizationId)}
+                                ariaLabel={t('header.organization')}
+                                fullWidth
+                                buttonClassName="px-4 py-2 shadow-none"
+                            />
                             <div className="flex gap-4">
                                 <input
                                     type="text"
