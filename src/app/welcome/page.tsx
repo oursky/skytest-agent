@@ -12,7 +12,7 @@ export default function WelcomePage() {
     const router = useRouter();
     const { t } = useI18n();
     const { teams, loading: isTeamsLoading, refresh: refreshTeams } = useTeams(getAccessToken, isLoggedIn);
-    const { setCurrentTeam } = useCurrentTeam(getAccessToken, isLoggedIn);
+    const { setCurrentTeam } = useCurrentTeam(getAccessToken, false);
     const [name, setName] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);

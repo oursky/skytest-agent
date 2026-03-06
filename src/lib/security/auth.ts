@@ -27,6 +27,40 @@ export async function resolveUserId(authPayload: AuthPayload): Promise<string | 
     return user?.id ?? null;
 }
 
+function isUniqueConstraintError(error: unknown): error is { code: string } {
+    return typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002';
+}
+
+export async function resolveOrCreateUserId(authPayload: AuthPayload): Promise<string | null> {
+    const existingUserId = await resolveUserId(authPayload);
+    if (existingUserId) {
+        return existingUserId;
+    }
+
+    const authId = authPayload.sub as string | undefined;
+    if (!authId) {
+        return null;
+    }
+
+    try {
+        const user = await prisma.user.create({
+            data: { authId },
+            select: { id: true }
+        });
+        return user.id;
+    } catch (error) {
+        if (!isUniqueConstraintError(error)) {
+            throw error;
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { authId },
+            select: { id: true }
+        });
+        return user?.id ?? null;
+    }
+}
+
 function getJwks() {
     if (jwks) return jwks;
 

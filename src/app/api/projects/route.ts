@@ -1,31 +1,10 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth, resolveUserId, type AuthPayload } from '@/lib/security/auth';
+import { verifyAuth, resolveOrCreateUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { canCreateProject, isTeamMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:projects');
-
-async function resolveOrCreateUserId(authPayload: AuthPayload): Promise<string | null> {
-    const resolvedUserId = await resolveUserId(authPayload);
-    if (resolvedUserId) {
-        return resolvedUserId;
-    }
-
-    const authId = authPayload.sub as string | undefined;
-    if (!authId) {
-        return null;
-    }
-
-    const user = await prisma.user.upsert({
-        where: { authId },
-        update: {},
-        create: { authId },
-        select: { id: true }
-    });
-
-    return user.id;
-}
 
 export async function GET(request: Request) {
     const authPayload = await verifyAuth(request);
