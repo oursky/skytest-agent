@@ -348,52 +348,58 @@ export default function TeamMembers({ teamId, teamRole }: TeamMembersProps) {
             </Modal>
 
             <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-900">{t('team.members.title')}</h2>
+                <div>
+                    <h2 className="text-base font-semibold text-gray-900">{t('team.members.title')}</h2>
+                    <p className="mt-1 text-sm text-gray-500">{t('team.members.subtitle')}</p>
+                </div>
                 {canManage && (
                     <button
                         type="button"
                         onClick={() => setIsInviteModalOpen(true)}
-                        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+                        className="shrink-0 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
                     >
                         {t('team.members.invites.open')}
                     </button>
                 )}
             </div>
 
-            <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+            <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
                 {rows.length === 0 ? (
                     <div className="px-6 py-12 text-center text-sm text-gray-500">{t('team.members.empty')}</div>
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-100 text-sm">
-                            <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            <thead className="bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
                                 <tr>
-                                    <th className="px-6 py-3">{t('team.members.table.person')}</th>
-                                    <th className="px-6 py-3">{t('team.members.table.status')}</th>
-                                    <th className="px-6 py-3">{t('team.members.table.role')}</th>
-                                    <th className="px-6 py-3">{t('team.members.table.lastUpdated')}</th>
-                                    <th className="px-6 py-3 text-right">{t('team.members.table.actions')}</th>
+                                    <th className="px-4 py-2.5">{t('team.members.table.person')}</th>
+                                    <th className="px-4 py-2.5">{t('team.members.table.status')}</th>
+                                    <th className="px-4 py-2.5">{t('team.members.table.role')}</th>
+                                    <th className="px-4 py-2.5">{t('team.members.table.lastUpdated')}</th>
+                                    <th className="px-4 py-2.5 text-right">{t('team.members.table.actions')}</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-100 bg-white text-gray-700">
+                            <tbody className="divide-y divide-gray-100 text-gray-700">
                                 {rows.map((row) => (
-                                    <tr key={`${row.kind}-${row.id}`}>
-                                        <td className="px-6 py-4 align-top">
+                                    <tr key={`${row.kind}-${row.id}`} className="hover:bg-gray-50/50">
+                                        <td className="px-4 py-3 align-top">
                                             <div className="font-medium text-gray-900">
                                                 {row.email || t('team.members.unknownEmail')}
                                             </div>
-                                            <div className="mt-1 text-xs text-gray-500">
+                                            <div className="mt-0.5 text-xs text-gray-500">
                                                 {row.kind === 'member'
                                                     ? t('team.members.joinedAt', { date: formatDateTimeCompact(row.createdAt) })
                                                     : t('team.members.invites.expiresAt', { date: formatDateTimeCompact(row.expiresAt) })}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 align-top">
-                                            <span className={row.kind === 'member' ? 'font-medium text-gray-700' : 'font-medium text-amber-700'}>
+                                        <td className="px-4 py-3 align-top">
+                                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${row.kind === 'member'
+                                                ? 'bg-emerald-50 text-emerald-700'
+                                                : 'bg-amber-50 text-amber-700'
+                                            }`}>
                                                 {row.kind === 'member' ? t('team.members.status.active') : t('team.members.status.invited')}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-4 align-top">
+                                        <td className="px-4 py-3 align-top">
                                             {row.kind === 'member' && canManage && row.role !== 'OWNER' ? (
                                                 <CustomSelect
                                                     value={row.role}
@@ -409,14 +415,14 @@ export default function TeamMembers({ teamId, teamRole }: TeamMembersProps) {
                                                 </span>
                                             )}
                                         </td>
-                                        <td className="px-6 py-4 align-top text-sm text-gray-500">
+                                        <td className="px-4 py-3 align-top text-sm text-gray-500">
                                             {formatDateTimeCompact(row.kind === 'member' ? row.updatedAt : row.createdAt)}
                                         </td>
-                                        <td className="px-6 py-4 align-top">
+                                        <td className="px-4 py-3 align-top">
                                             <div className="flex justify-end gap-2">
                                                 {row.kind === 'member' ? (
                                                     row.role === 'OWNER' ? (
-                                                        <span className="text-sm text-gray-400">{t('team.members.ownerHint')}</span>
+                                                        <span className="text-xs text-gray-400">{t('team.members.ownerHint')}</span>
                                                     ) : canManage ? (
                                                         <button
                                                             type="button"
@@ -424,19 +430,19 @@ export default function TeamMembers({ teamId, teamRole }: TeamMembersProps) {
                                                                 const member = members.find((entry) => entry.id === row.id) ?? null;
                                                                 setMemberToRemove(member);
                                                             }}
-                                                            className="rounded-md border border-red-200 px-3 py-1 text-sm text-red-600 hover:bg-red-50"
+                                                            className="rounded-md border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
                                                         >
                                                             {t('common.remove')}
                                                         </button>
                                                     ) : (
-                                                        <span className="text-sm text-gray-400">{t('team.members.readOnly')}</span>
+                                                        <span className="text-xs text-gray-400">{t('team.members.readOnly')}</span>
                                                     )
                                                 ) : canManage ? (
                                                     <>
                                                         <button
                                                             type="button"
                                                             onClick={() => void resendInvite(row.id)}
-                                                            className="rounded-md border border-gray-200 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50"
+                                                            className="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
                                                         >
                                                             {t('team.members.invites.resend')}
                                                         </button>
@@ -446,13 +452,13 @@ export default function TeamMembers({ teamId, teamRole }: TeamMembersProps) {
                                                                 const invite = invites.find((entry) => entry.id === row.id) ?? null;
                                                                 setInviteToCancel(invite);
                                                             }}
-                                                            className="rounded-md border border-red-200 px-3 py-1 text-sm text-red-600 hover:bg-red-50"
+                                                            className="rounded-md border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
                                                         >
                                                             {t('team.members.invites.cancel')}
                                                         </button>
                                                     </>
                                                 ) : (
-                                                    <span className="text-sm text-gray-400">{t('team.members.readOnly')}</span>
+                                                    <span className="text-xs text-gray-400">{t('team.members.readOnly')}</span>
                                                 )}
                                             </div>
                                         </td>
@@ -465,12 +471,12 @@ export default function TeamMembers({ teamId, teamRole }: TeamMembersProps) {
             </div>
 
             {success && (
-                <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
                     {success}
                 </div>
             )}
             {error && (
-                <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                     {error}
                 </div>
             )}

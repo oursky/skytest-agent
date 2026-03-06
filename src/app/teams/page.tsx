@@ -218,7 +218,7 @@ export default function TeamsPage() {
     }
 
     return (
-        <main className="min-h-screen bg-gray-50 px-6 py-8 md:px-8">
+        <main className="min-h-screen bg-gray-50">
             <Modal
                 isOpen={isDeleteOpen}
                 onClose={() => {
@@ -252,169 +252,155 @@ export default function TeamsPage() {
                 </div>
             </Modal>
 
-            <div className="mx-auto max-w-7xl space-y-6">
-                <div className="flex items-center justify-between">
-                    <h1 className="text-3xl font-bold text-gray-900">{t('team.page.title')}</h1>
-                </div>
+            <div className="max-w-7xl mx-auto px-8 py-8">
+                <h1 className="text-3xl font-bold text-gray-900 mb-4">{t('team.page.title')}</h1>
 
                 {error && (
-                    <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                         {error}
                     </div>
                 )}
                 {success && (
-                    <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                    <div className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
                         {success}
                     </div>
                 )}
 
-                {currentTeam && (
+                {currentTeam && teamDetails?.id === currentTeam.id && (
                     <>
-                        {teamDetails?.id === currentTeam.id && (
-                            <>
-                                <div className="border-b border-gray-200">
-                                    <nav className="-mb-px flex gap-6">
-                                        <button
-                                            type="button"
-                                            onClick={() => setActiveTab('api')}
-                                            className={`pb-3 text-sm font-medium border-b-2 transition-colors ${visibleTab === 'api'
-                                                ? 'border-primary text-primary'
-                                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                            }`}
-                                        >
-                                            {t('team.page.tab.api')}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setActiveTab('members')}
-                                            className={`pb-3 text-sm font-medium border-b-2 transition-colors ${visibleTab === 'members'
-                                                ? 'border-primary text-primary'
-                                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                            }`}
-                                        >
-                                            {t('team.page.tab.members')}
-                                        </button>
-                                        {currentTeam.role === 'OWNER' && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setActiveTab('settings')}
-                                                className={`pb-3 text-sm font-medium border-b-2 transition-colors ${visibleTab === 'settings'
-                                                    ? 'border-primary text-primary'
-                                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                                }`}
-                                            >
-                                                {t('team.page.tab.settings')}
-                                            </button>
-                                        )}
-                                    </nav>
-                                </div>
-
-                                {visibleTab === 'api' && (
-                                    <div className="space-y-6">
-                                        <TeamAiSettings teamId={currentTeam.id} />
-                                        <TeamUsage teamId={currentTeam.id} />
-                                    </div>
+                        <div className="border-b border-gray-200 mb-6">
+                            <nav className="flex gap-6 -mb-px">
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveTab('api')}
+                                    className={`pb-3 text-sm font-medium border-b-2 transition-colors ${visibleTab === 'api'
+                                        ? 'border-primary text-primary'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    }`}
+                                >
+                                    {t('team.page.tab.api')}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveTab('members')}
+                                    className={`pb-3 text-sm font-medium border-b-2 transition-colors ${visibleTab === 'members'
+                                        ? 'border-primary text-primary'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    }`}
+                                >
+                                    {t('team.page.tab.members')}
+                                </button>
+                                {currentTeam.role === 'OWNER' && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveTab('settings')}
+                                        className={`pb-3 text-sm font-medium border-b-2 transition-colors ${visibleTab === 'settings'
+                                            ? 'border-primary text-primary'
+                                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                        }`}
+                                    >
+                                        {t('team.page.tab.settings')}
+                                    </button>
                                 )}
+                            </nav>
+                        </div>
 
-                                {visibleTab === 'members' && (
-                                    <TeamMembers teamId={currentTeam.id} teamRole={currentTeam.role} />
-                                )}
+                        {visibleTab === 'api' && (
+                            <div className="space-y-6">
+                                <TeamAiSettings teamId={currentTeam.id} />
+                                <TeamUsage teamId={currentTeam.id} />
+                            </div>
+                        )}
 
-                                {visibleTab === 'settings' && currentTeam.role === 'OWNER' && (
-                                    <div className="space-y-6">
-                                        <section className="space-y-6">
-                                            <div className="space-y-3">
-                                                <label className="block space-y-2">
-                                                    <span className="text-sm font-medium text-gray-700">{t('team.page.settings.name')}</span>
-                                                    <div className="flex flex-wrap items-center gap-3">
-                                                        <input
-                                                            type="text"
-                                                            value={renameValue}
-                                                            onChange={(event) => setRenameValue(event.target.value)}
-                                                            disabled={!teamDetails.canRename || !isEditingSettings}
-                                                            className="h-10 w-[320px] shrink-0 rounded-md border border-gray-300 px-4 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:bg-gray-50 sm:w-[360px]"
-                                                        />
-                                                        {teamDetails.canRename && (
-                                                            isEditingSettings ? (
-                                                                <>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => void renameTeam()}
-                                                                        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
-                                                                    >
-                                                                        {t('team.page.settings.save')}
-                                                                    </button>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => {
-                                                                            setRenameValue(teamDetails.name);
-                                                                            setIsEditingSettings(false);
-                                                                        }}
-                                                                        className="rounded-md border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                                                                    >
-                                                                        {t('common.cancel')}
-                                                                    </button>
-                                                                </>
-                                                            ) : (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => setIsEditingSettings(true)}
-                                                                    className="rounded-md border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                                                                >
-                                                                    {t('team.page.settings.edit')}
-                                                                </button>
-                                                            )
-                                                        )}
-                                                    </div>
-                                                </label>
-                                            </div>
+                        {visibleTab === 'members' && (
+                            <TeamMembers teamId={currentTeam.id} teamRole={currentTeam.role} />
+                        )}
 
-                                            {teamDetails.canTransferOwnership && ownerOptions.length > 0 && (
-                                                <div className="max-w-xl space-y-3 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-                                                    <div>
-                                                        <h2 className="text-sm font-semibold text-gray-900">{t('team.page.transfer.title')}</h2>
-                                                        <p className="text-sm text-gray-500">{t('team.page.transfer.subtitle')}</p>
-                                                    </div>
-                                                    <CustomSelect
-                                                        value={transferUserId}
-                                                        options={ownerOptions}
-                                                        onChange={setTransferUserId}
-                                                        ariaLabel={t('team.page.transfer.title')}
-                                                        fullWidth
-                                                        buttonClassName="shadow-none"
-                                                    />
+                        {visibleTab === 'settings' && currentTeam.role === 'OWNER' && (
+                            <div className="space-y-6">
+                                <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+                                    <h2 className="text-base font-semibold text-gray-900">{t('team.page.settings.name')}</h2>
+                                    <div className="mt-4 flex flex-wrap items-center gap-3">
+                                        <input
+                                            type="text"
+                                            value={renameValue}
+                                            onChange={(event) => setRenameValue(event.target.value)}
+                                            disabled={!teamDetails.canRename || !isEditingSettings}
+                                            className="h-10 w-full max-w-sm rounded-md border border-gray-300 px-4 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:bg-gray-50"
+                                        />
+                                        {teamDetails.canRename && (
+                                            isEditingSettings ? (
+                                                <div className="flex gap-2">
                                                     <button
                                                         type="button"
-                                                        onClick={() => void transferOwnership()}
-                                                        disabled={!transferUserId}
-                                                        className="rounded-md border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-white disabled:opacity-50"
+                                                        onClick={() => void renameTeam()}
+                                                        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
                                                     >
-                                                        {t('team.page.transfer.confirm')}
+                                                        {t('team.page.settings.save')}
                                                     </button>
-                                                </div>
-                                            )}
-                                        </section>
-
-                                        {teamDetails.canDelete && (
-                                            <section className="rounded-2xl border border-red-200 bg-red-50 p-6 shadow-sm">
-                                                <div className="space-y-3">
-                                                    <div>
-                                                        <h2 className="text-sm font-semibold text-red-700">{t('team.page.delete.zoneTitle')}</h2>
-                                                        <p className="text-sm text-red-600">{t('team.page.delete.zoneSubtitle')}</p>
-                                                    </div>
                                                     <button
                                                         type="button"
-                                                        onClick={() => setIsDeleteOpen(true)}
-                                                        className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                                                        onClick={() => {
+                                                            setRenameValue(teamDetails.name);
+                                                            setIsEditingSettings(false);
+                                                        }}
+                                                        className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                                                     >
-                                                        {t('team.page.delete.open')}
+                                                        {t('common.cancel')}
                                                     </button>
                                                 </div>
-                                            </section>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setIsEditingSettings(true)}
+                                                    className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                                >
+                                                    {t('team.page.settings.edit')}
+                                                </button>
+                                            )
                                         )}
                                     </div>
+                                </section>
+
+                                {teamDetails.canTransferOwnership && ownerOptions.length > 0 && (
+                                    <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+                                        <h2 className="text-base font-semibold text-gray-900">{t('team.page.transfer.title')}</h2>
+                                        <p className="mt-1 text-sm text-gray-500">{t('team.page.transfer.subtitle')}</p>
+                                        <div className="mt-4 max-w-sm">
+                                            <CustomSelect
+                                                value={transferUserId}
+                                                options={ownerOptions}
+                                                onChange={setTransferUserId}
+                                                ariaLabel={t('team.page.transfer.title')}
+                                                fullWidth
+                                                buttonClassName="shadow-none"
+                                            />
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => void transferOwnership()}
+                                            disabled={!transferUserId}
+                                            className="mt-3 rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                                        >
+                                            {t('team.page.transfer.confirm')}
+                                        </button>
+                                    </section>
                                 )}
-                            </>
+
+                                {teamDetails.canDelete && (
+                                    <section className="rounded-lg border border-red-200 bg-red-50 p-6 shadow-sm">
+                                        <h2 className="text-base font-semibold text-red-700">{t('team.page.delete.zoneTitle')}</h2>
+                                        <p className="mt-1 text-sm text-red-600">{t('team.page.delete.zoneSubtitle')}</p>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsDeleteOpen(true)}
+                                            className="mt-4 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                                        >
+                                            {t('team.page.delete.open')}
+                                        </button>
+                                    </section>
+                                )}
+                            </div>
                         )}
                     </>
                 )}

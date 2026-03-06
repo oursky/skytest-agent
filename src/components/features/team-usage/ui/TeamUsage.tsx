@@ -132,10 +132,14 @@ export default function TeamUsage({ teamId }: TeamUsageProps) {
     );
 
     return (
-        <section className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">{t('team.usage.title')}</h3>
-            <div className="grid gap-4 md:grid-cols-3">
-                <label className="space-y-2">
+        <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm space-y-4">
+            <div>
+                <h2 className="text-base font-semibold text-gray-900">{t('team.usage.title')}</h2>
+                <p className="mt-1 text-sm text-gray-500">{t('team.usage.subtitle')}</p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-3">
+                <label className="space-y-1.5">
                     <span className="text-sm font-medium text-gray-700">{t('team.usage.filters.project')}</span>
                     <CustomSelect
                         value={selectedProjectId}
@@ -150,7 +154,7 @@ export default function TeamUsage({ teamId }: TeamUsageProps) {
                     />
                 </label>
 
-                <label className="space-y-2">
+                <label className="space-y-1.5">
                     <span className="text-sm font-medium text-gray-700">{t('team.usage.filters.from')}</span>
                     <input
                         type="date"
@@ -159,11 +163,11 @@ export default function TeamUsage({ teamId }: TeamUsageProps) {
                             setFromDate(event.target.value);
                             setPage(1);
                         }}
-                        className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                     />
                 </label>
 
-                <label className="space-y-2">
+                <label className="space-y-1.5">
                     <span className="text-sm font-medium text-gray-700">{t('team.usage.filters.to')}</span>
                     <input
                         type="date"
@@ -172,48 +176,48 @@ export default function TeamUsage({ teamId }: TeamUsageProps) {
                             setToDate(event.target.value);
                             setPage(1);
                         }}
-                        className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                     />
                 </label>
             </div>
 
             {isLoading ? (
-                <div className="flex items-center justify-center py-16">
-                    <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary"></div>
+                <div className="flex items-center justify-center py-12">
+                    <div className="h-6 w-6 animate-spin rounded-full border-b-2 border-primary"></div>
                 </div>
             ) : records.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-gray-200 px-6 py-16 text-center text-sm text-gray-500">
+                <div className="rounded-lg border border-dashed border-gray-200 px-6 py-12 text-center text-sm text-gray-500">
                     {t('team.usage.empty')}
                 </div>
             ) : (
-                <div className="overflow-hidden rounded-xl border border-gray-200">
+                <div className="overflow-hidden rounded-lg border border-gray-200">
                     <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-100 text-sm">
-                            <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            <thead className="bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
                                 <tr>
-                                    <th className="px-6 py-3">{t('team.usage.table.run')}</th>
-                                    <th className="px-6 py-3">{t('team.usage.table.project')}</th>
-                                    <th className="px-6 py-3">{t('team.usage.table.testCase')}</th>
-                                    <th className="px-6 py-3">{t('usage.table.description')}</th>
-                                    <th className="px-6 py-3">{t('usage.table.actionsCount')}</th>
-                                    <th className="px-6 py-3">{t('usage.table.dateTime')}</th>
+                                    <th className="px-4 py-2.5">{t('team.usage.table.run')}</th>
+                                    <th className="px-4 py-2.5">{t('team.usage.table.project')}</th>
+                                    <th className="px-4 py-2.5">{t('team.usage.table.testCase')}</th>
+                                    <th className="px-4 py-2.5">{t('usage.table.description')}</th>
+                                    <th className="px-4 py-2.5">{t('usage.table.actionsCount')}</th>
+                                    <th className="px-4 py-2.5">{t('usage.table.dateTime')}</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-100 bg-white text-gray-700">
+                            <tbody className="divide-y divide-gray-100 text-gray-700">
                                 {records.map((record) => (
-                                    <tr key={record.id}>
-                                        <td className="px-6 py-4 align-top font-medium text-gray-900">
+                                    <tr key={record.id} className="hover:bg-gray-50/50">
+                                        <td className="px-4 py-3 align-top font-medium text-gray-900">
                                             {record.testRun?.id ?? '-'}
                                         </td>
-                                        <td className="px-6 py-4 align-top">{record.project.name}</td>
-                                        <td className="px-6 py-4 align-top">
+                                        <td className="px-4 py-3 align-top">{record.project.name}</td>
+                                        <td className="px-4 py-3 align-top">
                                             {record.testRun?.testCase?.name || t('team.usage.table.noTestCase')}
                                         </td>
-                                        <td className="px-6 py-4 align-top">
+                                        <td className="px-4 py-3 align-top">
                                             {record.description || t('team.usage.table.noDescription')}
                                         </td>
-                                        <td className="px-6 py-4 align-top">{record.aiActions}</td>
-                                        <td className="px-6 py-4 align-top">{formatDateTimeCompact(record.createdAt)}</td>
+                                        <td className="px-4 py-3 align-top">{record.aiActions}</td>
+                                        <td className="px-4 py-3 align-top">{formatDateTimeCompact(record.createdAt)}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -237,7 +241,7 @@ export default function TeamUsage({ teamId }: TeamUsageProps) {
             )}
 
             {error && (
-                <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                     {error}
                 </div>
             )}
