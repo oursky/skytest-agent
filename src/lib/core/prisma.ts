@@ -1,16 +1,23 @@
 import { PrismaClient } from '@prisma/client';
-import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
+import { PrismaPg } from '@prisma/adapter-pg';
 
-
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
+const globalForPrisma = global as unknown as { prisma?: PrismaClient };
 
 const enableQueryLogging = process.env.PRISMA_LOG_QUERIES === 'true';
+const databaseUrl = process.env.DATABASE_URL;
 
-export const prisma =
-    globalForPrisma.prisma ||
+if (!databaseUrl) {
+    throw new Error('DATABASE_URL is required');
+}
+
+const createPrismaClient = () =>
     new PrismaClient({
         log: enableQueryLogging ? ['query'] : [],
-        adapter: new PrismaBetterSqlite3({ url: process.env.DATABASE_URL || "file:./dev.db" }),
+        adapter: new PrismaPg({ connectionString: databaseUrl }),
     });
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+export const prisma = globalForPrisma.prisma ?? createPrismaClient();
+
+if (process.env.NODE_ENV !== 'production') {
+    globalForPrisma.prisma = prisma;
+}
