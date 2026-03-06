@@ -74,17 +74,11 @@ npm run dev
 
 The runner needs a short-lived pairing token on first boot.
 
-This section documents the current developer/operator bootstrap path. It is not the intended end-user pairing UX. The target product surface is `Team Settings -> Runners`.
+1. Open `Team Settings -> Runners`.
+2. Click `Add Runner` (owner/admin team role required).
+3. Copy the one-time pairing token shown in the dialog.
 
-1. Create a user API key in the web UI (Account Settings -> API Keys).
-2. Get your team ID:
-
-```bash
-curl -sS "http://127.0.0.1:3000/api/teams" \
-  -H "Authorization: Bearer <your-api-key>"
-```
-
-3. Create pairing token (owner/admin team role required):
+API fallback for automation only:
 
 ```bash
 curl -sS -X POST "http://127.0.0.1:3000/api/teams/<team-id>/runner-pairing" \
@@ -92,8 +86,6 @@ curl -sS -X POST "http://127.0.0.1:3000/api/teams/<team-id>/runner-pairing" \
   -H "Content-Type: application/json" \
   -d '{"ttlMinutes":10}'
 ```
-
-Copy the `token` value from the JSON response.
 
 ## 5. Start macOS Runner
 
@@ -134,7 +126,7 @@ emulator -list-avds
 
 ## 7. Validate End-to-End
 
-1. Open web app and go to `Project -> Devices`.
+1. Open web app and go to `Team Settings -> Runners`.
 2. Confirm runner is connected and device rows are visible.
 3. Start an Android test run from the run page and select an available device.
 4. Confirm run status/events update and screenshots appear in results.
@@ -155,7 +147,7 @@ emulator -list-avds
 ### Selected device cannot run
 
 - Device may have become stale/disconnected between selection and claim.
-- Refresh `Project -> Devices`, re-check availability, and rerun.
+- Refresh `Team Settings -> Runners`, re-check availability, and rerun.
 
 ### Need to reset local runner credential
 

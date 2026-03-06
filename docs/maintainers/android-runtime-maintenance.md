@@ -37,7 +37,8 @@ Implications:
 ## Device Inventory Model
 
 - Runner publishes snapshots to `/api/runners/v1/devices/sync`.
-- Target product model exposes aggregated team-scoped inventory in `Team Settings -> Runners`.
+- Control plane exposes aggregated team-scoped inventory via `/api/teams/[id]/devices`.
+- Team-facing inventory and runner status are shown in `Team Settings -> Runners`.
 - Device freshness and availability are derived from runner heartbeat and device `lastSeenAt`.
 - The old `/api/devices` host-local route is removed.
 

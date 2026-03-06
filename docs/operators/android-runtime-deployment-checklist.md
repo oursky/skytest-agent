@@ -19,7 +19,7 @@ Reference:
 
 - [ ] Android SDK installed and available to the runner process
 - [ ] `adb` and `emulator` binaries resolvable on runner host
-- [ ] Required emulator profiles (AVDs, shown under Devices -> Emulators in UI) are created on the host
+- [ ] Required emulator profiles (AVDs) are created on the host and match names used in test targets
 - [ ] If using physical Android devices, USB debugging is enabled and devices can be listed by `adb devices`
 - [ ] Host has sufficient CPU/RAM for configured emulator pool size
 - [ ] Runner can reach control plane URL over HTTPS

@@ -88,4 +88,4 @@ This document defines current SkyTest MCP tool behavior for maintainers.
 
 - Always cancel through durable run state updates (`CANCELLED` + lease cleanup), never through in-memory queue paths.
 - Do not add batch update semantics to `update_test_case`; keep one-test-case-per-call behavior.
-- Android device resolution uses runner inventory aliases (serial/name/profile metadata) when available. The target product model is team-scoped inventory surfaced from `Team Settings -> Runners`. When no match is found, the raw input is used as emulator profile name and a warning is returned.
+- Android device resolution uses runner inventory aliases (serial/name/profile metadata) from team-scoped runner inventory surfaced in `Team Settings -> Runners`. When no match is found, the raw input is used as emulator profile name and a warning is returned.

@@ -61,7 +61,7 @@ Key invariants:
 
 - Web app is control plane only; it must not own in-process job execution.
 - Team-facing device visibility must come from runner-published inventory, not host-local inspection.
-- Do not extend project-scoped device inventory surfaces; the target model is `Team Settings -> Runners`.
+- Do not re-introduce project-scoped device inventory surfaces; active UI is `Team Settings -> Runners`.
 - Do not re-introduce host-local Android inventory assumptions into web APIs.
 
 If you add features that expose Android state/control:
