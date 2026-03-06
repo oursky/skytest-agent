@@ -12,6 +12,10 @@ interface ModalProps {
     confirmText?: string;
     cancelText?: string;
     confirmVariant?: 'primary' | 'danger';
+    closeOnConfirm?: boolean;
+    overlayClassName?: string;
+    panelClassName?: string;
+    contentClassName?: string;
 }
 
 export default function Modal({
@@ -22,7 +26,11 @@ export default function Modal({
     onConfirm,
     confirmText,
     cancelText,
-    confirmVariant = 'primary'
+    confirmVariant = 'primary',
+    closeOnConfirm = true,
+    overlayClassName = '',
+    panelClassName = '',
+    contentClassName = '',
 }: ModalProps) {
     const { t } = useI18n();
     const modalRef = useRef<HTMLDivElement>(null);
@@ -52,7 +60,7 @@ export default function Modal({
 
     return (
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 animate-fade-in"
+            className={`fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-fade-in ${overlayClassName}`}
             onClick={(e) => {
                 if (e.target === e.currentTarget) {
                     onClose();
@@ -61,7 +69,7 @@ export default function Modal({
         >
             <div
                 ref={modalRef}
-                className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-hidden flex flex-col"
+                className={`flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-lg bg-white shadow-xl ${panelClassName}`}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="modal-title"
@@ -74,7 +82,7 @@ export default function Modal({
                 </div>
 
                 {/* Content */}
-                <div className="px-6 py-4 overflow-y-auto flex-1">
+                <div className={`flex-1 overflow-y-auto px-6 py-4 ${contentClassName}`}>
                     {children}
                 </div>
 
@@ -90,7 +98,9 @@ export default function Modal({
                         <button
                             onClick={() => {
                                 onConfirm();
-                                onClose();
+                                if (closeOnConfirm) {
+                                    onClose();
+                                }
                             }}
                             className={`px-4 py-2 text-sm font-medium text-white rounded-md transition-colors ${
                                 confirmVariant === 'danger'

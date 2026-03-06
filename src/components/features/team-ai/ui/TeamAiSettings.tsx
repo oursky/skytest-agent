@@ -113,7 +113,6 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
         <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm space-y-4">
             <div>
                 <h2 className="text-xl font-semibold text-gray-900">{t('team.ai.title')}</h2>
-                <p className="mt-1 text-sm text-gray-500">{t('team.ai.description')}</p>
             </div>
 
             {state.hasKey ? (

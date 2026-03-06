@@ -30,6 +30,26 @@ interface Invite {
     createdAt: string;
 }
 
+type MemberRow =
+    | {
+        kind: 'member';
+        id: string;
+        email: string | null;
+        role: 'OWNER' | 'ADMIN' | 'MEMBER';
+        status: 'ACTIVE';
+        createdAt: string;
+        updatedAt: string;
+      }
+    | {
+        kind: 'invite';
+        id: string;
+        email: string;
+        role: 'ADMIN' | 'MEMBER';
+        status: 'INVITED';
+        createdAt: string;
+        expiresAt: string;
+      };
+
 export default function TeamMembers({ teamId, teamRole }: TeamMembersProps) {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
@@ -51,6 +71,30 @@ export default function TeamMembers({ teamId, teamRole }: TeamMembersProps) {
             { value: 'ADMIN' as const, label: t('team.members.roles.admin') },
         ],
         [t]
+    );
+
+    const rows = useMemo<MemberRow[]>(
+        () => [
+            ...members.map((member) => ({
+                kind: 'member' as const,
+                id: member.id,
+                email: member.email,
+                role: member.role,
+                status: 'ACTIVE' as const,
+                createdAt: member.createdAt,
+                updatedAt: member.updatedAt,
+            })),
+            ...invites.map((invite) => ({
+                kind: 'invite' as const,
+                id: invite.id,
+                email: invite.email,
+                role: invite.role,
+                status: 'INVITED' as const,
+                createdAt: invite.createdAt,
+                expiresAt: invite.expiresAt,
+            })),
+        ],
+        [invites, members]
     );
 
     const loadData = useCallback(async () => {
@@ -244,11 +288,15 @@ export default function TeamMembers({ teamId, teamRole }: TeamMembersProps) {
             <Modal
                 isOpen={isInviteModalOpen}
                 onClose={() => setIsInviteModalOpen(false)}
-                title={t('team.members.invites.title')}
+                title={t('team.members.invites.open')}
                 onConfirm={submitInvite}
                 confirmText={t('team.members.invites.send')}
+                closeOnConfirm={false}
+                overlayClassName="items-start pt-16 sm:pt-24"
+                panelClassName="max-w-xl overflow-visible"
+                contentClassName="overflow-visible"
             >
-                <div className="space-y-4">
+                <div className="space-y-4 pb-4">
                     <label className="block space-y-2">
                         <span className="text-sm font-medium text-gray-700">{t('team.members.invites.email')}</span>
                         <input
@@ -299,12 +347,9 @@ export default function TeamMembers({ teamId, teamRole }: TeamMembersProps) {
                 </p>
             </Modal>
 
-            <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
+            <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
                 <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
-                    <div>
-                        <h2 className="text-lg font-semibold text-gray-900">{t('team.members.title')}</h2>
-                        <p className="text-sm text-gray-500">{t('team.members.subtitle')}</p>
-                    </div>
+                    <h2 className="text-lg font-semibold text-gray-900">{t('team.members.title')}</h2>
                     {canManage && (
                         <button
                             type="button"
@@ -316,83 +361,107 @@ export default function TeamMembers({ teamId, teamRole }: TeamMembersProps) {
                     )}
                 </div>
 
-                <div className="divide-y divide-gray-100">
-                    {members.map((member) => (
-                        <div key={member.id} className="grid gap-3 px-6 py-4 md:grid-cols-[minmax(0,2fr),120px,140px,170px,180px] md:items-center">
-                            <div>
-                                <div className="font-medium text-gray-900">{member.email || t('team.members.unknownEmail')}</div>
-                                <div className="text-xs text-gray-500">{t('team.members.joinedAt', { date: formatDateTimeCompact(member.createdAt) })}</div>
-                            </div>
-                            <div className="text-sm font-medium text-gray-700">{t('team.members.status.active')}</div>
-                            <div>
-                                {canManage && member.role !== 'OWNER' ? (
-                                    <CustomSelect
-                                        value={member.role}
-                                        options={roleOptions}
-                                        onChange={(role) => void updateMemberRole(member.id, role)}
-                                        ariaLabel={t('team.members.role')}
-                                        buttonClassName="min-w-28 px-2 py-1 shadow-none"
-                                        menuClassName="min-w-28"
-                                    />
-                                ) : (
-                                    <span className="text-sm text-gray-500">{t(`team.members.roles.${member.role.toLowerCase()}`)}</span>
-                                )}
-                            </div>
-                            <div className="text-sm text-gray-500">{formatDateTimeCompact(member.updatedAt)}</div>
-                            <div className="flex justify-start gap-2 md:justify-end">
-                                {member.role === 'OWNER' ? (
-                                    <span className="text-sm text-gray-400">{t('team.members.ownerHint')}</span>
-                                ) : canManage ? (
-                                    <button
-                                        type="button"
-                                        onClick={() => setMemberToRemove(member)}
-                                        className="rounded-md border border-red-200 px-3 py-1 text-sm text-red-600 hover:bg-red-50"
-                                    >
-                                        {t('common.remove')}
-                                    </button>
-                                ) : (
-                                    <span className="text-sm text-gray-400">{t('team.members.readOnly')}</span>
-                                )}
-                            </div>
-                        </div>
-                    ))}
-
-                    {invites.map((invite) => (
-                        <div key={invite.id} className="grid gap-3 px-6 py-4 md:grid-cols-[minmax(0,2fr),120px,140px,170px,180px] md:items-center">
-                            <div>
-                                <div className="font-medium text-gray-900">{invite.email}</div>
-                                <div className="text-xs text-gray-500">{t('team.members.invites.expiresAt', { date: formatDateTimeCompact(invite.expiresAt) })}</div>
-                            </div>
-                            <div className="text-sm font-medium text-amber-700">{t('team.members.status.invited')}</div>
-                            <div className="text-sm text-gray-500">{t(`team.members.roles.${invite.role.toLowerCase()}`)}</div>
-                            <div className="text-sm text-gray-500">{formatDateTimeCompact(invite.createdAt)}</div>
-                            <div className="flex justify-start gap-2 md:justify-end">
-                                {canManage && (
-                                    <>
-                                        <button
-                                            type="button"
-                                            onClick={() => void resendInvite(invite.id)}
-                                            className="rounded-md border border-gray-200 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50"
-                                        >
-                                            {t('team.members.invites.resend')}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setInviteToCancel(invite)}
-                                            className="rounded-md border border-red-200 px-3 py-1 text-sm text-red-600 hover:bg-red-50"
-                                        >
-                                            {t('team.members.invites.cancel')}
-                                        </button>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                    ))}
-
-                    {members.length === 0 && invites.length === 0 && (
-                        <div className="px-6 py-12 text-center text-sm text-gray-500">{t('team.members.empty')}</div>
-                    )}
-                </div>
+                {rows.length === 0 ? (
+                    <div className="px-6 py-12 text-center text-sm text-gray-500">{t('team.members.empty')}</div>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-100 text-sm">
+                            <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                <tr>
+                                    <th className="px-6 py-3">{t('team.members.table.person')}</th>
+                                    <th className="px-6 py-3">{t('team.members.table.status')}</th>
+                                    <th className="px-6 py-3">{t('team.members.table.role')}</th>
+                                    <th className="px-6 py-3">{t('team.members.table.lastUpdated')}</th>
+                                    <th className="px-6 py-3 text-right">{t('team.members.table.actions')}</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 bg-white text-gray-700">
+                                {rows.map((row) => (
+                                    <tr key={`${row.kind}-${row.id}`}>
+                                        <td className="px-6 py-4 align-top">
+                                            <div className="font-medium text-gray-900">
+                                                {row.email || t('team.members.unknownEmail')}
+                                            </div>
+                                            <div className="mt-1 text-xs text-gray-500">
+                                                {row.kind === 'member'
+                                                    ? t('team.members.joinedAt', { date: formatDateTimeCompact(row.createdAt) })
+                                                    : t('team.members.invites.expiresAt', { date: formatDateTimeCompact(row.expiresAt) })}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 align-top">
+                                            <span className={row.kind === 'member' ? 'font-medium text-gray-700' : 'font-medium text-amber-700'}>
+                                                {row.kind === 'member' ? t('team.members.status.active') : t('team.members.status.invited')}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 align-top">
+                                            {row.kind === 'member' && canManage && row.role !== 'OWNER' ? (
+                                                <CustomSelect
+                                                    value={row.role}
+                                                    options={roleOptions}
+                                                    onChange={(role) => void updateMemberRole(row.id, role)}
+                                                    ariaLabel={t('team.members.role')}
+                                                    buttonClassName="min-w-28 px-2 py-1 shadow-none"
+                                                    menuClassName="min-w-28"
+                                                />
+                                            ) : (
+                                                <span className="text-sm text-gray-500">
+                                                    {t(`team.members.roles.${row.role.toLowerCase()}`)}
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-4 align-top text-sm text-gray-500">
+                                            {formatDateTimeCompact(row.kind === 'member' ? row.updatedAt : row.createdAt)}
+                                        </td>
+                                        <td className="px-6 py-4 align-top">
+                                            <div className="flex justify-end gap-2">
+                                                {row.kind === 'member' ? (
+                                                    row.role === 'OWNER' ? (
+                                                        <span className="text-sm text-gray-400">{t('team.members.ownerHint')}</span>
+                                                    ) : canManage ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const member = members.find((entry) => entry.id === row.id) ?? null;
+                                                                setMemberToRemove(member);
+                                                            }}
+                                                            className="rounded-md border border-red-200 px-3 py-1 text-sm text-red-600 hover:bg-red-50"
+                                                        >
+                                                            {t('common.remove')}
+                                                        </button>
+                                                    ) : (
+                                                        <span className="text-sm text-gray-400">{t('team.members.readOnly')}</span>
+                                                    )
+                                                ) : canManage ? (
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => void resendInvite(row.id)}
+                                                            className="rounded-md border border-gray-200 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50"
+                                                        >
+                                                            {t('team.members.invites.resend')}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const invite = invites.find((entry) => entry.id === row.id) ?? null;
+                                                                setInviteToCancel(invite);
+                                                            }}
+                                                            className="rounded-md border border-red-200 px-3 py-1 text-sm text-red-600 hover:bg-red-50"
+                                                        >
+                                                            {t('team.members.invites.cancel')}
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <span className="text-sm text-gray-400">{t('team.members.readOnly')}</span>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
             </div>
 
             {success && (
