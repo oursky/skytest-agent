@@ -1,12 +1,20 @@
 -- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
 
+-- CreateEnum
+CREATE TYPE "OrganizationRole" AS ENUM ('OWNER', 'ADMIN', 'MEMBER');
+
+-- CreateEnum
+CREATE TYPE "ProjectRole" AS ENUM ('ADMIN', 'MEMBER');
+
+-- CreateEnum
+CREATE TYPE "ProjectInviteStatus" AS ENUM ('PENDING', 'ACCEPTED', 'DECLINED', 'CANCELED', 'EXPIRED');
+
 -- CreateTable
 CREATE TABLE "User" (
     "id" TEXT NOT NULL,
     "authId" TEXT NOT NULL,
     "email" TEXT,
-    "openRouterKey" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -16,7 +24,8 @@ CREATE TABLE "User" (
 -- CreateTable
 CREATE TABLE "UsageRecord" (
     "id" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
+    "actorUserId" TEXT NOT NULL,
+    "projectId" TEXT NOT NULL,
     "type" TEXT NOT NULL,
     "description" TEXT,
     "aiActions" INTEGER NOT NULL,
@@ -27,14 +36,70 @@ CREATE TABLE "UsageRecord" (
 );
 
 -- CreateTable
+CREATE TABLE "Organization" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Organization_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "OrganizationMembership" (
+    "id" TEXT NOT NULL,
+    "organizationId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "role" "OrganizationRole" NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "OrganizationMembership_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "Project" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
+    "organizationId" TEXT NOT NULL,
+    "createdByUserId" TEXT NOT NULL,
+    "openRouterKeyEncrypted" TEXT,
+    "openRouterKeyUpdatedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "Project_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ProjectMembership" (
+    "id" TEXT NOT NULL,
+    "projectId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "role" "ProjectRole" NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "ProjectMembership_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ProjectInvite" (
+    "id" TEXT NOT NULL,
+    "projectId" TEXT NOT NULL,
+    "email" TEXT NOT NULL,
+    "role" "ProjectRole" NOT NULL,
+    "status" "ProjectInviteStatus" NOT NULL DEFAULT 'PENDING',
+    "tokenHash" TEXT NOT NULL,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "invitedByUserId" TEXT NOT NULL,
+    "acceptedAt" TIMESTAMP(3),
+    "declinedAt" TIMESTAMP(3),
+    "canceledAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "ProjectInvite_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -150,10 +215,52 @@ CREATE TABLE "TestCaseConfig" (
 CREATE UNIQUE INDEX "User_authId_key" ON "User"("authId");
 
 -- CreateIndex
-CREATE INDEX "UsageRecord_userId_createdAt_idx" ON "UsageRecord"("userId", "createdAt" DESC);
+CREATE INDEX "UsageRecord_projectId_createdAt_idx" ON "UsageRecord"("projectId", "createdAt" DESC);
 
 -- CreateIndex
-CREATE INDEX "Project_userId_updatedAt_idx" ON "Project"("userId", "updatedAt" DESC);
+CREATE INDEX "UsageRecord_actorUserId_createdAt_idx" ON "UsageRecord"("actorUserId", "createdAt" DESC);
+
+-- CreateIndex
+CREATE INDEX "UsageRecord_projectId_actorUserId_createdAt_idx" ON "UsageRecord"("projectId", "actorUserId", "createdAt" DESC);
+
+-- CreateIndex
+CREATE INDEX "Organization_updatedAt_idx" ON "Organization"("updatedAt" DESC);
+
+-- CreateIndex
+CREATE INDEX "OrganizationMembership_userId_organizationId_idx" ON "OrganizationMembership"("userId", "organizationId");
+
+-- CreateIndex
+CREATE INDEX "OrganizationMembership_organizationId_role_idx" ON "OrganizationMembership"("organizationId", "role");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "OrganizationMembership_organizationId_userId_key" ON "OrganizationMembership"("organizationId", "userId");
+
+-- CreateIndex
+CREATE INDEX "Project_organizationId_updatedAt_idx" ON "Project"("organizationId", "updatedAt" DESC);
+
+-- CreateIndex
+CREATE INDEX "Project_createdByUserId_updatedAt_idx" ON "Project"("createdByUserId", "updatedAt" DESC);
+
+-- CreateIndex
+CREATE INDEX "ProjectMembership_userId_projectId_idx" ON "ProjectMembership"("userId", "projectId");
+
+-- CreateIndex
+CREATE INDEX "ProjectMembership_projectId_role_idx" ON "ProjectMembership"("projectId", "role");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ProjectMembership_projectId_userId_key" ON "ProjectMembership"("projectId", "userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ProjectInvite_tokenHash_key" ON "ProjectInvite"("tokenHash");
+
+-- CreateIndex
+CREATE INDEX "ProjectInvite_projectId_status_idx" ON "ProjectInvite"("projectId", "status");
+
+-- CreateIndex
+CREATE INDEX "ProjectInvite_email_status_idx" ON "ProjectInvite"("email", "status");
+
+-- CreateIndex
+CREATE INDEX "ProjectInvite_invitedByUserId_status_idx" ON "ProjectInvite"("invitedByUserId", "status");
 
 -- CreateIndex
 CREATE INDEX "TestCase_projectId_updatedAt_idx" ON "TestCase"("projectId", "updatedAt" DESC);
@@ -192,13 +299,37 @@ CREATE INDEX "TestCaseConfig_testCaseId_idx" ON "TestCaseConfig"("testCaseId");
 CREATE UNIQUE INDEX "TestCaseConfig_testCaseId_name_key" ON "TestCaseConfig"("testCaseId", "name");
 
 -- AddForeignKey
-ALTER TABLE "UsageRecord" ADD CONSTRAINT "UsageRecord_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "UsageRecord" ADD CONSTRAINT "UsageRecord_actorUserId_fkey" FOREIGN KEY ("actorUserId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "UsageRecord" ADD CONSTRAINT "UsageRecord_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "UsageRecord" ADD CONSTRAINT "UsageRecord_testRunId_fkey" FOREIGN KEY ("testRunId") REFERENCES "TestRun"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Project" ADD CONSTRAINT "Project_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "OrganizationMembership" ADD CONSTRAINT "OrganizationMembership_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "OrganizationMembership" ADD CONSTRAINT "OrganizationMembership_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Project" ADD CONSTRAINT "Project_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Project" ADD CONSTRAINT "Project_createdByUserId_fkey" FOREIGN KEY ("createdByUserId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ProjectMembership" ADD CONSTRAINT "ProjectMembership_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ProjectMembership" ADD CONSTRAINT "ProjectMembership_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ProjectInvite" ADD CONSTRAINT "ProjectInvite_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ProjectInvite" ADD CONSTRAINT "ProjectInvite_invitedByUserId_fkey" FOREIGN KEY ("invitedByUserId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "TestCase" ADD CONSTRAINT "TestCase_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -220,4 +351,3 @@ ALTER TABLE "ApiKey" ADD CONSTRAINT "ApiKey_userId_fkey" FOREIGN KEY ("userId") 
 
 -- AddForeignKey
 ALTER TABLE "TestCaseConfig" ADD CONSTRAINT "TestCaseConfig_testCaseId_fkey" FOREIGN KEY ("testCaseId") REFERENCES "TestCase"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-

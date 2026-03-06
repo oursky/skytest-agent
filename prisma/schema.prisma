@@ -88,7 +88,7 @@ model Project {
   name                  String
   organizationId        String
   organization          Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdByUserId       String              @map("userId")
+  createdByUserId       String
   createdByUser         User                @relation("ProjectCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
   openRouterKeyEncrypted String?
   openRouterKeyUpdatedAt DateTime?
