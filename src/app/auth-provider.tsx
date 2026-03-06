@@ -126,7 +126,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const openSettings = async () => {
         const authgearModule = await ensureAuthgearConfigured();
         await authgearModule.default.open(authgearModule.Page.Settings, {
-            openInSameTab: true,
+            openInSameTab: false,
         });
     };
 
