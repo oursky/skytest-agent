@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth } from '@/lib/security/auth';
+import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
+import { isProjectMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:test-cases:history');
 
@@ -24,14 +25,18 @@ export async function GET(
 
         const testCase = await prisma.testCase.findUnique({
             where: { id },
-            include: { project: { select: { createdByUserId: true } } }
+            select: { id: true, projectId: true }
         });
 
         if (!testCase) {
             return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
         }
 
-        if (testCase.project.createdByUserId !== authPayload.userId) {
+        const userId = await resolveUserId(authPayload);
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+        if (!await isProjectMember(userId, testCase.projectId)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

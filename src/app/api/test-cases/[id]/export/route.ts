@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth } from '@/lib/security/auth';
+import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { parseTestCaseJson } from '@/lib/runtime/test-case-utils';
 import { buildContentDisposition } from '@/lib/security/http-headers';
@@ -9,6 +9,7 @@ import { exportToExcelBuffer } from '@/utils/testCaseExcel';
 import archiver from 'archiver';
 import path from 'path';
 import { PassThrough } from 'stream';
+import { isProjectMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:test-cases:export');
 
@@ -24,11 +25,14 @@ export async function GET(
     try {
         const { id } = await params;
         const xlsxOnly = new URL(request.url).searchParams.get('xlsxOnly') === 'true';
+        const userId = await resolveUserId(authPayload);
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
 
         const testCase = await prisma.testCase.findUnique({
             where: { id },
             include: {
-                project: { select: { createdByUserId: true } },
                 files: true
             }
         });
@@ -37,7 +41,7 @@ export async function GET(
             return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
         }
 
-        if (testCase.project.createdByUserId !== authPayload.userId) {
+        if (!await isProjectMember(userId, testCase.projectId)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

@@ -6,6 +6,7 @@ import { createLogger } from '@/lib/core/logger';
 import { verifyStreamToken } from '@/lib/security/stream-token';
 import { config as appConfig } from '@/config/app';
 import { parseStoredEvents } from '@/lib/runtime/test-events';
+import { isTestRunProjectMember } from '@/lib/security/permissions';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,11 +47,6 @@ export async function GET(
             error: true,
             result: true,
             logs: true,
-            testCase: {
-                select: {
-                    project: { select: { createdByUserId: true } }
-                }
-            }
         }
     });
 
@@ -58,7 +54,7 @@ export async function GET(
         return NextResponse.json({ error: 'Test run not found' }, { status: 404 });
     }
 
-    if (testRun.testCase.project.createdByUserId !== userId) {
+    if (!await isTestRunProjectMember(userId, id)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

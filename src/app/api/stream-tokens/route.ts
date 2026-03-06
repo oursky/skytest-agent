@@ -3,6 +3,7 @@ import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { issueStreamToken, StreamScope } from '@/lib/security/stream-token';
+import { isProjectMember, isTestCaseProjectMember, isTestRunProjectMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:stream-tokens');
 
@@ -44,42 +45,32 @@ export async function POST(request: Request) {
         if (body.scope === 'project-events') {
             const project = await prisma.project.findUnique({
                 where: { id: body.resourceId },
-                select: { createdByUserId: true }
+                select: { id: true }
             });
             if (!project) {
                 return NextResponse.json({ error: 'Project not found' }, { status: 404 });
             }
-            if (project.createdByUserId !== userId) {
+            if (!await isProjectMember(userId, body.resourceId)) {
                 return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
             }
         } else if (body.scope === 'test-run-events') {
             const testRun = await prisma.testRun.findUnique({
-                where: { id: body.resourceId },
-                select: {
-                    testCase: {
-                        select: {
-                            project: { select: { createdByUserId: true } }
-                        }
-                    }
-                }
+                where: { id: body.resourceId }
             });
             if (!testRun) {
                 return NextResponse.json({ error: 'Test run not found' }, { status: 404 });
             }
-            if (testRun.testCase.project.createdByUserId !== userId) {
+            if (!await isTestRunProjectMember(userId, body.resourceId)) {
                 return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
             }
         } else {
             const testCase = await prisma.testCase.findUnique({
-                where: { id: body.resourceId },
-                select: {
-                    project: { select: { createdByUserId: true } }
-                }
+                where: { id: body.resourceId }
             });
             if (!testCase) {
                 return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
             }
-            if (testCase.project.createdByUserId !== userId) {
+            if (!await isTestCaseProjectMember(userId, body.resourceId)) {
                 return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
             }
         }

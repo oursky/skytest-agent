@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth } from '@/lib/security/auth';
+import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { buildProjectConfigObjectKey, validateAndSanitizeFile } from '@/lib/security/file-security';
 import { validateConfigName, normalizeConfigName } from '@/lib/config/validation';
 import { createLogger } from '@/lib/core/logger';
 import { normalizeConfigGroup } from '@/lib/config/sort';
 import { putObjectBuffer } from '@/lib/storage/object-store-utils';
+import { isProjectMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:projects:configs:upload');
 
@@ -20,17 +21,21 @@ export async function POST(
 
     try {
         const { id } = await params;
+        const userId = await resolveUserId(authPayload);
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
 
         const project = await prisma.project.findUnique({
             where: { id },
-            select: { createdByUserId: true }
+            select: { id: true }
         });
 
         if (!project) {
             return NextResponse.json({ error: 'Project not found' }, { status: 404 });
         }
 
-        if (project.createdByUserId !== authPayload.userId) {
+        if (!await isProjectMember(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

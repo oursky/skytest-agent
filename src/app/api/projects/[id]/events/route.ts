@@ -5,6 +5,7 @@ import { createLogger } from '@/lib/core/logger';
 import { subscribeProjectEvents } from '@/lib/runtime/project-events';
 import { verifyStreamToken } from '@/lib/security/stream-token';
 import { config as appConfig } from '@/config/app';
+import { isProjectMember } from '@/lib/security/permissions';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,12 +40,12 @@ export async function GET(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const project = await prisma.project.findUnique({ where: { id }, select: { createdByUserId: true } });
+    const project = await prisma.project.findUnique({ where: { id }, select: { id: true } });
     if (!project) {
         return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    if (project.createdByUserId !== userId) {
+    if (!await isProjectMember(userId, id)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

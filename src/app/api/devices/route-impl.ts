@@ -5,25 +5,22 @@ import { androidDeviceManager } from '@/lib/android/device-manager';
 import { listAndroidDeviceInventory } from '@/lib/android/devices';
 import { createLogger } from '@/lib/core/logger';
 import { getAndroidAccessStatus } from '@/lib/android/user-features';
+import { isProjectMember, isTestRunProjectMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:devices');
 
 export const dynamic = 'force-dynamic';
 
-async function ensureProjectOwnership(projectId: string, userId: string): Promise<boolean> {
-    const project = await prisma.project.findFirst({
-        where: { id: projectId, createdByUserId: userId },
-        select: { id: true },
-    });
-    return Boolean(project);
+async function ensureProjectAccess(projectId: string, userId: string): Promise<boolean> {
+    return isProjectMember(userId, projectId);
 }
 
-async function listOwnedProjectIds(userId: string): Promise<Set<string>> {
-    const projects = await prisma.project.findMany({
-        where: { createdByUserId: userId },
-        select: { id: true },
+async function listAccessibleProjectIds(userId: string): Promise<Set<string>> {
+    const memberships = await prisma.projectMembership.findMany({
+        where: { userId },
+        select: { projectId: true },
     });
-    return new Set(projects.map((project) => project.id));
+    return new Set(memberships.map((membership) => membership.projectId));
 }
 
 export async function GET(request: Request) {
@@ -47,13 +44,12 @@ export async function GET(request: Request) {
 
         let projectIds: Set<string>;
         if (requestedProjectId) {
-            const owned = await ensureProjectOwnership(requestedProjectId, userId);
-            if (!owned) {
+            if (!await ensureProjectAccess(requestedProjectId, userId)) {
                 return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
             }
             projectIds = new Set([requestedProjectId]);
         } else {
-            projectIds = await listOwnedProjectIds(userId);
+            projectIds = await listAccessibleProjectIds(userId);
         }
 
         const [status, inventory] = await Promise.all([
@@ -138,18 +134,7 @@ export async function POST(request: Request) {
                 }
 
                 if (managedDevice.state === 'ACQUIRED' && managedDevice.runId) {
-                    const testRun = await prisma.testRun.findUnique({
-                        where: { id: managedDevice.runId },
-                        select: {
-                            testCase: {
-                                select: {
-                                    project: { select: { createdByUserId: true } }
-                                }
-                            }
-                        }
-                    });
-
-                    if (!testRun || testRun.testCase.project.createdByUserId !== userId) {
+                    if (!await isTestRunProjectMember(userId, managedDevice.runId)) {
                         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
                     }
                 }

@@ -5,6 +5,7 @@ import { createLogger } from '@/lib/core/logger';
 import { verifyStreamToken } from '@/lib/security/stream-token';
 import { buildContentDisposition } from '@/lib/security/http-headers';
 import { deleteObjectIfExists, readObjectBuffer } from '@/lib/storage/object-store-utils';
+import { isProjectMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:test-cases:file');
 
@@ -47,14 +48,14 @@ export async function GET(
         if (storedName) {
             const testCase = await prisma.testCase.findUnique({
                 where: { id },
-                include: { project: { select: { createdByUserId: true } } }
+                select: { id: true, projectId: true }
             });
 
             if (!testCase) {
                 return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
             }
 
-            if (testCase.project.createdByUserId !== userId) {
+            if (!await isProjectMember(userId, testCase.projectId)) {
                 return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
             }
 
@@ -80,18 +81,14 @@ export async function GET(
         } else {
             const file = await prisma.testCaseFile.findUnique({
                 where: { id: fileId },
-                include: {
-                    testCase: {
-                        include: { project: { select: { createdByUserId: true } } }
-                    }
-                }
+                include: { testCase: { select: { projectId: true } } }
             });
 
             if (!file || file.testCaseId !== id) {
                 return NextResponse.json({ error: 'File not found' }, { status: 404 });
             }
 
-            if (file.testCase.project.createdByUserId !== userId) {
+            if (!await isProjectMember(userId, file.testCase.projectId)) {
                 return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
             }
 
@@ -132,21 +129,21 @@ export async function DELETE(
 
     try {
         const { id, fileId } = await params;
+        const userId = await resolveUserId(authPayload);
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
 
         const file = await prisma.testCaseFile.findUnique({
             where: { id: fileId },
-            include: {
-                testCase: {
-                    include: { project: { select: { createdByUserId: true } } }
-                }
-            }
+            include: { testCase: { select: { projectId: true } } }
         });
 
         if (!file || file.testCaseId !== id) {
             return NextResponse.json({ error: 'File not found' }, { status: 404 });
         }
 
-        if (file.testCase.project.createdByUserId !== authPayload.userId) {
+        if (!await isProjectMember(userId, file.testCase.projectId)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

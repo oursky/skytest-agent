@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth } from '@/lib/security/auth';
+import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { buildContentDisposition } from '@/lib/security/http-headers';
 import { readObjectBuffer } from '@/lib/storage/object-store-utils';
+import { isProjectMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:test-cases:config:download');
 
@@ -18,21 +19,21 @@ export async function GET(
 
     try {
         const { id, configId } = await params;
+        const userId = await resolveUserId(authPayload);
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
 
         const config = await prisma.testCaseConfig.findUnique({
             where: { id: configId },
-            include: {
-                testCase: {
-                    include: { project: { select: { createdByUserId: true } } }
-                }
-            }
+            include: { testCase: { select: { projectId: true } } }
         });
 
         if (!config || config.testCaseId !== id || config.type !== 'FILE') {
             return NextResponse.json({ error: 'Not found' }, { status: 404 });
         }
 
-        if (config.testCase.project.createdByUserId !== authPayload.userId) {
+        if (!await isProjectMember(userId, config.testCase.projectId)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

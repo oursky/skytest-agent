@@ -13,6 +13,30 @@ async function getProjectOrganizationId(projectId: string): Promise<string | nul
     return project?.organizationId ?? null;
 }
 
+async function getTestCaseProjectId(testCaseId: string): Promise<string | null> {
+    const testCase = await prisma.testCase.findUnique({
+        where: { id: testCaseId },
+        select: { projectId: true }
+    });
+
+    return testCase?.projectId ?? null;
+}
+
+async function getTestRunProjectId(testRunId: string): Promise<string | null> {
+    const testRun = await prisma.testRun.findUnique({
+        where: { id: testRunId },
+        select: {
+            testCase: {
+                select: {
+                    projectId: true,
+                }
+            }
+        }
+    });
+
+    return testRun?.testCase.projectId ?? null;
+}
+
 async function getProjectRole(userId: string, projectId: string): Promise<ProjectRole | null> {
     const membership = await prisma.projectMembership.findUnique({
         where: {
@@ -86,6 +110,24 @@ export async function canManageProject(userId: string, projectId: string): Promi
 
     const organizationRole = await getOrganizationRole(userId, organizationId);
     return organizationRole !== null && ORG_ADMIN_ROLES.has(organizationRole);
+}
+
+export async function isTestCaseProjectMember(userId: string, testCaseId: string): Promise<boolean> {
+    const projectId = await getTestCaseProjectId(testCaseId);
+    if (!projectId) {
+        return false;
+    }
+
+    return isProjectMember(userId, projectId);
+}
+
+export async function isTestRunProjectMember(userId: string, testRunId: string): Promise<boolean> {
+    const projectId = await getTestRunProjectId(testRunId);
+    if (!projectId) {
+        return false;
+    }
+
+    return isProjectMember(userId, projectId);
 }
 
 export async function canViewProjectMembers(userId: string, projectId: string): Promise<boolean> {

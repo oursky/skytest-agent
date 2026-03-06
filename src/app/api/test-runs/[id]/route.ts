@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { queue } from '@/lib/runtime/queue';
-import { verifyAuth } from '@/lib/security/auth';
+import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
+import { isProjectMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:test-runs:id');
 
@@ -17,6 +18,10 @@ export async function GET(
 
     try {
         const { id } = await params;
+        const userId = await resolveUserId(authPayload);
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
 
         const testRun = await prisma.testRun.findUnique({
             where: { id },
@@ -25,7 +30,7 @@ export async function GET(
                 testCase: {
                     select: {
                         id: true,
-                        project: { select: { createdByUserId: true } }
+                        projectId: true,
                     }
                 }
             }
@@ -35,7 +40,7 @@ export async function GET(
             return NextResponse.json({ error: 'Test run not found' }, { status: 404 });
         }
 
-        if (testRun.testCase.project.createdByUserId !== authPayload.userId) {
+        if (!await isProjectMember(userId, testRun.testCase.projectId)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -71,12 +76,16 @@ export async function DELETE(
 
     try {
         const { id } = await params;
+        const userId = await resolveUserId(authPayload);
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
 
         const testRun = await prisma.testRun.findUnique({
             where: { id },
             include: {
                 testCase: {
-                    include: { project: { select: { createdByUserId: true } } }
+                    select: { projectId: true }
                 }
             }
         });
@@ -85,7 +94,7 @@ export async function DELETE(
             return NextResponse.json({ error: 'Test run not found' }, { status: 404 });
         }
 
-        if (testRun.testCase.project.createdByUserId !== authPayload.userId) {
+        if (!await isProjectMember(userId, testRun.testCase.projectId)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

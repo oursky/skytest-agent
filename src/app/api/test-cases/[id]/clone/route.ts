@@ -8,6 +8,7 @@ import {
 } from '@/lib/security/file-security';
 import { createLogger } from '@/lib/core/logger';
 import { copyObject } from '@/lib/storage/object-store-utils';
+import { isProjectMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:test-cases:clone');
 
@@ -27,7 +28,6 @@ export async function POST(
         const existingTestCase = await prisma.testCase.findUnique({
             where: { id },
             include: {
-                project: { select: { createdByUserId: true } },
                 files: {
                     orderBy: { createdAt: 'desc' }
                 },
@@ -46,7 +46,7 @@ export async function POST(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        if (existingTestCase.project.createdByUserId !== userId) {
+        if (!await isProjectMember(userId, existingTestCase.projectId)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

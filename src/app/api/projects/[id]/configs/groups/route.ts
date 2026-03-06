@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth } from '@/lib/security/auth';
+import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { GROUPABLE_CONFIG_TYPES, normalizeConfigGroup } from '@/lib/config/sort';
 import { createLogger } from '@/lib/core/logger';
+import { isProjectMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:projects:config-groups');
 
@@ -17,6 +18,10 @@ export async function DELETE(
 
     try {
         const { id } = await params;
+        const userId = await resolveUserId(authPayload);
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
         const body = await request.json().catch(() => ({} as { group?: string | null }));
         const normalizedGroup = normalizeConfigGroup(body.group);
 
@@ -26,14 +31,14 @@ export async function DELETE(
 
         const project = await prisma.project.findUnique({
             where: { id },
-            select: { createdByUserId: true }
+            select: { id: true }
         });
 
         if (!project) {
             return NextResponse.json({ error: 'Project not found' }, { status: 404 });
         }
 
-        if (project.createdByUserId !== authPayload.userId) {
+        if (!await isProjectMember(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

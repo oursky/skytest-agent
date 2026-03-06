@@ -4,6 +4,7 @@ import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { cleanStepsForStorage } from '@/lib/runtime/test-case-utils';
 import { TestStep } from '@/types';
+import { isProjectMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:projects:test-cases');
 
@@ -20,7 +21,7 @@ export async function GET(
 
     try {
         const { id } = await params;
-        const project = await prisma.project.findUnique({ where: { id }, select: { createdByUserId: true } });
+        const project = await prisma.project.findUnique({ where: { id }, select: { id: true } });
         if (!project) {
             return NextResponse.json({ error: 'Project not found' }, { status: 404 });
         }
@@ -29,7 +30,7 @@ export async function GET(
         if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-        if (project.createdByUserId !== userId) {
+        if (!await isProjectMember(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -72,7 +73,7 @@ export async function POST(
 
     try {
         const { id } = await params;
-        const project = await prisma.project.findUnique({ where: { id }, select: { createdByUserId: true } });
+        const project = await prisma.project.findUnique({ where: { id }, select: { id: true } });
         if (!project) {
             return NextResponse.json({ error: 'Project not found' }, { status: 404 });
         }
@@ -81,7 +82,7 @@ export async function POST(
         if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-        if (project.createdByUserId !== userId) {
+        if (!await isProjectMember(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
