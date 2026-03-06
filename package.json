@@ -36,7 +36,8 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
-    "postinstall": "npx playwright install && npx prisma generate"
+    "postinstall": "npx playwright install && npx prisma generate",
+    "test": "vitest --run"
   },
   "dependencies": {
     "@authgear/web": "5.0.1",
@@ -78,6 +79,7 @@
     "postcss": "8.5.6",
     "prisma": "7.4.1",
     "tailwindcss": "4.1.18",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vitest": "4.0.18"
   }
 }
