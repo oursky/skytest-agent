@@ -1,14 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/app/auth-provider';
-import { Modal } from '@/components/shared';
+import { CustomSelect, Modal } from '@/components/shared';
 import { useI18n } from '@/i18n';
 import { formatDateTimeCompact } from '@/utils/dateFormatter';
 
 interface TeamMembersProps {
     teamId: string;
     teamRole: 'OWNER' | 'ADMIN' | 'MEMBER';
+    onMembersChanged?: () => Promise<void> | void;
 }
 
 interface Member {
@@ -17,10 +18,9 @@ interface Member {
     email: string | null;
     role: 'OWNER' | 'ADMIN' | 'MEMBER';
     createdAt: string;
-    updatedAt: string;
 }
 
-export default function TeamMembers({ teamId, teamRole }: TeamMembersProps) {
+export default function TeamMembers({ teamId, teamRole, onMembersChanged }: TeamMembersProps) {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
     const [members, setMembers] = useState<Member[]>([]);
@@ -32,6 +32,25 @@ export default function TeamMembers({ teamId, teamRole }: TeamMembersProps) {
     const [memberToRemove, setMemberToRemove] = useState<Member | null>(null);
 
     const canManage = teamRole === 'OWNER' || teamRole === 'ADMIN';
+
+    const roleOptions = useMemo(() => {
+        if (teamRole === 'OWNER') {
+            return [
+                { value: 'OWNER' as const, label: t('team.members.roles.owner') },
+                { value: 'ADMIN' as const, label: t('team.members.roles.admin') },
+                { value: 'MEMBER' as const, label: t('team.members.roles.member') },
+            ];
+        }
+
+        if (teamRole === 'ADMIN') {
+            return [
+                { value: 'ADMIN' as const, label: t('team.members.roles.admin') },
+                { value: 'MEMBER' as const, label: t('team.members.roles.member') },
+            ];
+        }
+
+        return [];
+    }, [t, teamRole]);
 
     const loadData = useCallback(async () => {
         try {
@@ -57,6 +76,41 @@ export default function TeamMembers({ teamId, teamRole }: TeamMembersProps) {
     useEffect(() => {
         void loadData();
     }, [loadData]);
+
+    const notifyMembersChanged = useCallback(async () => {
+        if (!onMembersChanged) {
+            return;
+        }
+
+        await onMembersChanged();
+    }, [onMembersChanged]);
+
+    const updateMemberRole = async (memberId: string, role: 'OWNER' | 'ADMIN' | 'MEMBER') => {
+        try {
+            const token = await getAccessToken();
+            const response = await fetch(`/api/teams/${teamId}/members/${memberId}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({ role }),
+            });
+
+            const data = await response.json().catch(() => ({ error: t('team.members.error.role') }));
+            if (!response.ok) {
+                setError(data.error || t('team.members.error.role'));
+                return;
+            }
+
+            await loadData();
+            await notifyMembersChanged();
+            setSuccess(t('team.members.success.role'));
+            setError(null);
+        } catch {
+            setError(t('team.members.error.role'));
+        }
+    };
 
     const addMember = async () => {
         if (!memberEmail.trim()) {
@@ -84,6 +138,7 @@ export default function TeamMembers({ teamId, teamRole }: TeamMembersProps) {
             setMembers((current) => [data as Member, ...current]);
             setMemberEmail('');
             setIsAddModalOpen(false);
+            await notifyMembersChanged();
             setSuccess(t('team.members.add.success'));
             setError(null);
         } catch {
@@ -111,6 +166,7 @@ export default function TeamMembers({ teamId, teamRole }: TeamMembersProps) {
 
             setMembers((current) => current.filter((member) => member.id !== memberToRemove.id));
             setMemberToRemove(null);
+            await notifyMembersChanged();
             setSuccess(t('team.members.success.remove'));
             setError(null);
         } catch {
@@ -192,7 +248,7 @@ export default function TeamMembers({ teamId, teamRole }: TeamMembersProps) {
                                 <tr>
                                     <th className="px-4 py-2.5">{t('team.members.table.person')}</th>
                                     <th className="px-4 py-2.5">{t('team.members.table.role')}</th>
-                                    <th className="px-4 py-2.5">{t('team.members.table.lastUpdated')}</th>
+                                    <th className="px-4 py-2.5">{t('team.members.table.dateAdded')}</th>
                                     <th className="px-4 py-2.5 text-right">{t('team.members.table.actions')}</th>
                                 </tr>
                             </thead>
@@ -203,27 +259,35 @@ export default function TeamMembers({ teamId, teamRole }: TeamMembersProps) {
                                             <div className="font-medium text-gray-900">
                                                 {member.email || t('team.members.unknownEmail')}
                                             </div>
-                                            <div className="mt-0.5 text-xs text-gray-500">
-                                                {t('team.members.addedAt', { date: formatDateTimeCompact(member.createdAt) })}
-                                            </div>
                                         </td>
                                         <td className="px-4 py-3 align-top">
-                                            <span className="text-sm text-gray-500">
-                                                {t(`team.members.roles.${member.role.toLowerCase()}`)}
-                                            </span>
+                                            {member.role !== 'OWNER' && canManage ? (
+                                                <CustomSelect
+                                                    value={member.role}
+                                                    options={roleOptions}
+                                                    onChange={(role) => void updateMemberRole(member.id, role)}
+                                                    ariaLabel={t('team.members.role')}
+                                                    buttonClassName="min-w-32 rounded-full border-gray-200 bg-gray-50 px-3 py-1 text-xs font-semibold text-gray-700 shadow-none hover:bg-gray-100"
+                                                    menuClassName="min-w-36"
+                                                />
+                                            ) : (
+                                                <span className="inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
+                                                    {t(`team.members.roles.${member.role.toLowerCase()}`)}
+                                                </span>
+                                            )}
                                         </td>
                                         <td className="px-4 py-3 align-top text-sm text-gray-500">
-                                            {formatDateTimeCompact(member.updatedAt)}
+                                            {formatDateTimeCompact(member.createdAt)}
                                         </td>
                                         <td className="px-4 py-3 align-top">
                                             <div className="flex justify-end gap-2">
                                                 {member.role === 'OWNER' ? (
-                                                    <span className="text-xs text-gray-400">{t('team.members.ownerHint')}</span>
+                                                    <span className="sr-only">{t('team.members.roles.owner')}</span>
                                                 ) : canManage ? (
                                                     <button
                                                         type="button"
                                                         onClick={() => setMemberToRemove(member)}
-                                                        className="rounded-md border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                                                        className="text-xs font-medium text-red-600 hover:text-red-700"
                                                     >
                                                         {t('common.remove')}
                                                     </button>

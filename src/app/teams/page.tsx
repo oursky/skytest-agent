@@ -214,6 +214,16 @@ export default function TeamsPage() {
         }
     };
 
+    const handleMembersChanged = useCallback(async () => {
+        if (!currentTeam) {
+            return;
+        }
+
+        dispatchTeamsChanged();
+        await refreshTeams();
+        await loadTeamDetails(currentTeam.id);
+    }, [currentTeam, loadTeamDetails, refreshTeams]);
+
     if (isAuthLoading || areTeamsLoading || isCurrentTeamLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
@@ -318,7 +328,11 @@ export default function TeamsPage() {
                         )}
 
                         {visibleTab === 'members' && (
-                            <TeamMembers teamId={currentTeam.id} teamRole={currentTeam.role} />
+                            <TeamMembers
+                                teamId={currentTeam.id}
+                                teamRole={currentTeam.role}
+                                onMembersChanged={handleMembersChanged}
+                            />
                         )}
 
                         {visibleTab === 'settings' && currentTeam.role === 'OWNER' && (
