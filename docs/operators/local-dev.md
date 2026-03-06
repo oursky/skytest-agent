@@ -72,6 +72,77 @@ Default credentials:
 
 Confirm the `skytest-agent` bucket exists.
 
+## Manage Local Object Storage
+
+Use either:
+- the MinIO console at `http://127.0.0.1:9001`
+- the MinIO CLI client through `docker compose`
+
+The console is fine for ad-hoc inspection.
+Use the CLI when you want repeatable cleanup commands.
+
+### List buckets
+
+```bash
+docker compose -f docker-compose.local.yml run --rm createbuckets \
+  /bin/sh -c 'mc alias set local http://minio:9000 minioadmin minioadmin && mc ls local'
+```
+
+### List objects in the app bucket
+
+```bash
+docker compose -f docker-compose.local.yml run --rm createbuckets \
+  /bin/sh -c 'mc alias set local http://minio:9000 minioadmin minioadmin && mc ls --recursive local/skytest-agent'
+```
+
+### Remove one object
+
+Replace `<object-key>` with the full object key, for example `test-cases/<id>/files/<uuid>.pdf`.
+
+```bash
+docker compose -f docker-compose.local.yml run --rm createbuckets \
+  /bin/sh -c 'mc alias set local http://minio:9000 minioadmin minioadmin && mc rm local/skytest-agent/<object-key>'
+```
+
+### Remove all objects under a prefix
+
+Examples:
+- all files for one test case: `test-cases/<test-case-id>/`
+- all artifacts for one run: `test-runs/<run-id>/`
+
+```bash
+docker compose -f docker-compose.local.yml run --rm createbuckets \
+  /bin/sh -c 'mc alias set local http://minio:9000 minioadmin minioadmin && mc rm --recursive --force local/skytest-agent/<prefix>'
+```
+
+### Empty the whole app bucket
+
+Use this when you want to clear local object storage without destroying the bucket itself.
+
+```bash
+docker compose -f docker-compose.local.yml run --rm createbuckets \
+  /bin/sh -c 'mc alias set local http://minio:9000 minioadmin minioadmin && mc rm --recursive --force local/skytest-agent'
+```
+
+### Remove and recreate the whole bucket
+
+Use this only when you want a full local reset of object storage metadata and contents.
+
+```bash
+docker compose -f docker-compose.local.yml run --rm createbuckets \
+  /bin/sh -c "mc alias set local http://minio:9000 minioadmin minioadmin && mc rb --force local/skytest-agent && mc mb local/skytest-agent && mc anonymous set private local/skytest-agent"
+```
+
+### Full local reset of Postgres and MinIO data
+
+This removes the Docker volumes and deletes all local database and object storage data.
+
+```bash
+docker compose -f docker-compose.local.yml down -v
+docker compose -f docker-compose.local.yml up -d
+DATABASE_URL='postgresql://postgres:postgres@127.0.0.1:5432/skytest_agent?schema=public' npx prisma db push
+```
+
 ## Troubleshooting
 
 ### Port already in use
@@ -101,3 +172,11 @@ Check:
 - `.env.local` points to `127.0.0.1:9000`
 - the `skytest-agent` bucket exists
 - `S3_FORCE_PATH_STYLE` is `true`
+
+### Need to inspect or delete objects manually
+
+Use the commands in `Manage Local Object Storage` above.
+The most useful first checks are:
+- list objects with `mc ls --recursive`
+- remove one bad object with `mc rm`
+- clear a whole prefix with `mc rm --recursive --force`
