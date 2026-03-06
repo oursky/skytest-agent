@@ -44,7 +44,6 @@ export const MESSAGES: Record<Locale, Messages> = {
 
     // Header
     'header.accountSettings': 'Account Settings',
-    'header.apiKeyUsage': 'API Key & Usage',
     'header.connectMcp': 'Connect MCP',
     'header.logout': 'Logout',
     'header.language': 'Language',
@@ -184,22 +183,6 @@ export const MESSAGES: Record<Locale, Messages> = {
     'runDetail.breadcrumb.runPrefix': 'Run - {time}',
 
     // Usage page
-    'usage.apiKey.title': 'OpenRouter API Key',
-    'usage.apiKey.descPrefix': 'Enter your OpenRouter API Key here. Visit',
-    'usage.apiKey.descSuffix': 'to get a key.',
-    'usage.apiKey.remove': 'Remove',
-    'usage.apiKey.placeholder': 'sk-or-v1-...',
-    'usage.apiKey.save': 'Save',
-    'usage.apiKey.saving': 'Saving...',
-    'usage.apiKey.error.enter': 'Please enter an API key',
-    'usage.apiKey.error.prefix': 'API key should start with "sk-"',
-    'usage.apiKey.success.saved': 'API key saved successfully',
-    'usage.apiKey.success.removed': 'API key removed',
-    'usage.apiKey.error.saveFailed': 'Failed to save API key',
-    'usage.apiKey.error.removeFailed': 'Failed to remove API key',
-    'usage.apiKey.deleteConfirm.title': 'Remove API Key',
-    'usage.apiKey.deleteConfirm.body': 'Are you sure you want to remove your OpenRouter API key? You will need to add it again to run tests.',
-    'usage.apiKey.deleteConfirm.confirm': 'Remove',
     'usage.agentKeys.title': 'Agent API Keys',
     'usage.agentKeys.description': 'Generate API keys for external agents (e.g., Claude Code, Claude Desktop, Codex, Antigravity) to access SkyTest via MCP.',
     'usage.agentKeys.generate': 'Generate Key',
@@ -519,7 +502,6 @@ export const MESSAGES: Record<Locale, Messages> = {
 
     // Header
     'header.accountSettings': '帳戶設定',
-    'header.apiKeyUsage': 'API Key 與使用量',
     'header.connectMcp': '連接 MCP',
     'header.logout': '登出',
     'header.language': '語言',
@@ -659,22 +641,6 @@ export const MESSAGES: Record<Locale, Messages> = {
     'runDetail.breadcrumb.runPrefix': '執行 - {time}',
 
     // Usage page
-    'usage.apiKey.title': 'OpenRouter API Key',
-    'usage.apiKey.descPrefix': '在此輸入你的 OpenRouter API Key。前往',
-    'usage.apiKey.descSuffix': '取得 API Key。',
-    'usage.apiKey.remove': '移除',
-    'usage.apiKey.placeholder': 'sk-or-v1-...',
-    'usage.apiKey.save': '儲存',
-    'usage.apiKey.saving': '儲存中…',
-    'usage.apiKey.error.enter': '請輸入 API Key',
-    'usage.apiKey.error.prefix': 'API Key 需以 "sk-" 開頭',
-    'usage.apiKey.success.saved': 'API Key 已成功儲存',
-    'usage.apiKey.success.removed': 'API Key 已移除',
-    'usage.apiKey.error.saveFailed': '儲存 API Key 失敗',
-    'usage.apiKey.error.removeFailed': '移除 API Key 失敗',
-    'usage.apiKey.deleteConfirm.title': '移除 API Key',
-    'usage.apiKey.deleteConfirm.body': '確定要移除你的 OpenRouter API Key 嗎？之後若要執行測試，需要重新新增。',
-    'usage.apiKey.deleteConfirm.confirm': '移除',
     'usage.agentKeys.title': 'Agent API Keys',
     'usage.agentKeys.description': '為外部代理（如 Claude Code、Claude Desktop、Codex、Antigravity）生成 API Key，以透過 MCP 存取 SkyTest。',
     'usage.agentKeys.generate': '生成 Key',
@@ -994,7 +960,6 @@ export const MESSAGES: Record<Locale, Messages> = {
 
     // Header
     'header.accountSettings': '账号设置',
-    'header.apiKeyUsage': 'API Key 与用量',
     'header.connectMcp': '连接 MCP',
     'header.logout': '退出登录',
     'header.language': '语言',
@@ -1134,22 +1099,6 @@ export const MESSAGES: Record<Locale, Messages> = {
     'runDetail.breadcrumb.runPrefix': '运行 - {time}',
 
     // Usage page
-    'usage.apiKey.title': 'OpenRouter API Key',
-    'usage.apiKey.descPrefix': '在此输入你的 OpenRouter API Key。访问',
-    'usage.apiKey.descSuffix': '获取 API Key。',
-    'usage.apiKey.remove': '移除',
-    'usage.apiKey.placeholder': 'sk-or-v1-...',
-    'usage.apiKey.save': '保存',
-    'usage.apiKey.saving': '保存中…',
-    'usage.apiKey.error.enter': '请输入 API Key',
-    'usage.apiKey.error.prefix': 'API Key 应以 "sk-" 开头',
-    'usage.apiKey.success.saved': 'API Key 保存成功',
-    'usage.apiKey.success.removed': 'API Key 已移除',
-    'usage.apiKey.error.saveFailed': '保存 API Key 失败',
-    'usage.apiKey.error.removeFailed': '移除 API Key 失败',
-    'usage.apiKey.deleteConfirm.title': '移除 API Key',
-    'usage.apiKey.deleteConfirm.body': '确定要移除你的 OpenRouter API Key 吗？之后如需运行测试，需要重新添加。',
-    'usage.apiKey.deleteConfirm.confirm': '移除',
     'usage.agentKeys.title': 'Agent API Keys',
     'usage.agentKeys.description': '为外部代理（如 Claude Code、Claude Desktop、Codex、Antigravity）生成 API Key，通过 MCP 访问 SkyTest。',
     'usage.agentKeys.generate': '生成 Key',

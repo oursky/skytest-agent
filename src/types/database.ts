@@ -58,6 +58,17 @@ export interface ProjectInvite {
     updatedAt: string;
 }
 
+export interface UsageRecord {
+    id: string;
+    actorUserId: string;
+    projectId: string;
+    type: string;
+    description: string | null;
+    aiActions: number;
+    testRunId: string | null;
+    createdAt: string;
+}
+
 export interface TestCase {
     id: string;
     displayId?: string;

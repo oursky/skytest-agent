@@ -32,7 +32,7 @@ model User {
   createdAt                DateTime                 @default(now())
   updatedAt                DateTime                 @updatedAt
   createdProjects          Project[]                @relation("ProjectCreator")
-  usageRecords             UsageRecord[]
+  actorUsageRecords        UsageRecord[]            @relation("UsageRecordActor")
   apiKeys                  ApiKey[]
   organizationMemberships  OrganizationMembership[]
   projectMemberships       ProjectMembership[]
@@ -41,8 +41,10 @@ model User {
 
 model UsageRecord {
   id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  actorUserId String
+  actorUser   User     @relation("UsageRecordActor", fields: [actorUserId], references: [id], onDelete: Cascade)
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   type        String   // "TEST_RUN"
   description String?  // e.g., "Project Name - Test Case Name"
   aiActions   Int      // Exact number of AI actions executed
@@ -50,7 +52,9 @@ model UsageRecord {
   testRun     TestRun? @relation(fields: [testRunId], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now())
 
-  @@index([userId, createdAt(sort: Desc)])
+  @@index([projectId, createdAt(sort: Desc)])
+  @@index([actorUserId, createdAt(sort: Desc)])
+  @@index([projectId, actorUserId, createdAt(sort: Desc)])
 }
 
 model Organization {
@@ -92,6 +96,7 @@ model Project {
   configs               ProjectConfig[]
   memberships           ProjectMembership[]
   invites               ProjectInvite[]
+  usageRecords          UsageRecord[]
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
 
