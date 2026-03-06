@@ -1,8 +1,7 @@
 import type { RunnerCapability } from '@skytest/runner-protocol';
 import { Prisma } from '@prisma/client';
+import { config as appConfig } from '@/config/app';
 import { prisma } from '@/lib/core/prisma';
-
-const RUN_LEASE_SECONDS = 120;
 
 interface ClaimedRunRow {
     id: string;
@@ -42,7 +41,7 @@ function getCapabilityFilters(capabilities: string[]) {
 }
 
 function createLeaseExpiry(): Date {
-    return new Date(Date.now() + RUN_LEASE_SECONDS * 1000);
+    return new Date(Date.now() + appConfig.runner.leaseDurationSeconds * 1000);
 }
 
 async function claimExplicitDeviceRun(input: {

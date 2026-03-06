@@ -6,6 +6,18 @@ const storageSignedUrlTtlSecondsValue = Number.parseInt(process.env.STORAGE_SIGN
 const storageSignedUrlTtlSeconds = Number.isFinite(storageSignedUrlTtlSecondsValue) && storageSignedUrlTtlSecondsValue > 0
     ? storageSignedUrlTtlSecondsValue
     : 900;
+const runnerLeaseDurationSecondsValue = Number.parseInt(process.env.RUNNER_LEASE_DURATION_SECONDS ?? '', 10);
+const runnerLeaseDurationSeconds = Number.isFinite(runnerLeaseDurationSecondsValue) && runnerLeaseDurationSecondsValue > 0
+    ? runnerLeaseDurationSecondsValue
+    : 120;
+const runnerLeaseReaperIntervalMsValue = Number.parseInt(process.env.RUNNER_LEASE_REAPER_INTERVAL_MS ?? '', 10);
+const runnerLeaseReaperIntervalMs = Number.isFinite(runnerLeaseReaperIntervalMsValue) && runnerLeaseReaperIntervalMsValue > 0
+    ? runnerLeaseReaperIntervalMsValue
+    : 15_000;
+const runnerEventRetentionDaysValue = Number.parseInt(process.env.RUNNER_EVENT_RETENTION_DAYS ?? '', 10);
+const runnerEventRetentionDays = Number.isFinite(runnerEventRetentionDaysValue) && runnerEventRetentionDaysValue > 0
+    ? runnerEventRetentionDaysValue
+    : 30;
 
 export const config = {
     app: {
@@ -41,6 +53,12 @@ export const config = {
         logRetentionMs: 10000,
         maxEventsPerRun: 2000,
         maxScreenshotsPerRun: 300,
+    },
+
+    runner: {
+        leaseDurationSeconds: runnerLeaseDurationSeconds,
+        leaseReaperIntervalMs: runnerLeaseReaperIntervalMs,
+        eventRetentionDays: runnerEventRetentionDays,
     },
 
     test: {

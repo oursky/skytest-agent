@@ -40,7 +40,8 @@
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "playwright:install": "playwright install chromium",
-    "test": "vitest --run"
+    "test": "vitest --run",
+    "runner:maintenance": "tsx src/workers/runner-maintenance.ts"
   },
   "dependencies": {
     "@authgear/web": "5.0.1",
@@ -82,6 +83,7 @@
     "postcss": "8.5.6",
     "prisma": "7.4.1",
     "tailwindcss": "4.1.18",
+    "tsx": "4.20.6",
     "typescript": "5.9.3",
     "vitest": "4.0.18"
   }
