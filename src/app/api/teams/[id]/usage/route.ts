@@ -64,9 +64,11 @@ export async function GET(
                     testRun: {
                         select: {
                             id: true,
+                            createdAt: true,
                             testCase: {
                                 select: {
                                     id: true,
+                                    displayId: true,
                                     name: true,
                                 }
                             }

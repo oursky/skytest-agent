@@ -160,8 +160,8 @@ export default function Header() {
                                             }))}
                                             onChange={(teamId) => void handleTeamChange(teamId)}
                                             ariaLabel={t('header.team')}
-                                            buttonClassName="h-9 min-w-40 border-gray-200 px-3 focus:ring-blue-500"
-                                            menuClassName="min-w-40"
+                                            buttonClassName="h-9 min-w-40 lg:min-w-56 border-gray-200 px-3 focus:ring-blue-500"
+                                            menuClassName="min-w-40 lg:min-w-56"
                                             footerActionLabel={t('header.addTeam')}
                                             onFooterAction={() => {
                                                 setIsCreateTeamOpen(true);

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/app/auth-provider';
 import { CustomSelect, Pagination } from '@/components/shared';
 import { useI18n } from '@/i18n';
@@ -26,8 +27,10 @@ interface UsageRecord {
     };
     testRun: {
         id: string;
+        createdAt: string;
         testCase: {
             id: string;
+            displayId: string | null;
             name: string;
         } | null;
     } | null;
@@ -139,7 +142,7 @@ export default function TeamUsage({ teamId }: TeamUsageProps) {
             </div>
 
             <div className="grid gap-4 sm:grid-cols-3">
-                <label className="space-y-1.5">
+                <div className="space-y-1.5">
                     <span className="text-sm font-medium text-gray-700">{t('team.usage.filters.project')}</span>
                     <CustomSelect
                         value={selectedProjectId}
@@ -152,7 +155,7 @@ export default function TeamUsage({ teamId }: TeamUsageProps) {
                         fullWidth
                         buttonClassName="shadow-none"
                     />
-                </label>
+                </div>
 
                 <label className="space-y-1.5">
                     <span className="text-sm font-medium text-gray-700">{t('team.usage.filters.from')}</span>
@@ -195,49 +198,55 @@ export default function TeamUsage({ teamId }: TeamUsageProps) {
                         <table className="min-w-full divide-y divide-gray-100 text-sm">
                             <thead className="bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
                                 <tr>
-                                    <th className="px-4 py-2.5">{t('team.usage.table.run')}</th>
                                     <th className="px-4 py-2.5">{t('team.usage.table.project')}</th>
+                                    <th className="px-4 py-2.5">{t('team.usage.table.id')}</th>
                                     <th className="px-4 py-2.5">{t('team.usage.table.testCase')}</th>
-                                    <th className="px-4 py-2.5">{t('usage.table.description')}</th>
+                                    <th className="px-4 py-2.5">{t('team.usage.table.run')}</th>
                                     <th className="px-4 py-2.5">{t('usage.table.actionsCount')}</th>
-                                    <th className="px-4 py-2.5">{t('usage.table.dateTime')}</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100 text-gray-700">
                                 {records.map((record) => (
                                     <tr key={record.id} className="hover:bg-gray-50/50">
-                                        <td className="px-4 py-3 align-top font-medium text-gray-900">
-                                            {record.testRun?.id ?? '-'}
-                                        </td>
                                         <td className="px-4 py-3 align-top">{record.project.name}</td>
+                                        <td className="px-4 py-3 align-top font-medium text-gray-900">
+                                            {record.testRun?.testCase?.displayId || '-'}
+                                        </td>
                                         <td className="px-4 py-3 align-top">
                                             {record.testRun?.testCase?.name || t('team.usage.table.noTestCase')}
                                         </td>
-                                        <td className="px-4 py-3 align-top">
-                                            {record.description || t('team.usage.table.noDescription')}
+                                        <td className="px-4 py-3 align-top whitespace-nowrap">
+                                            {record.testRun?.testCase ? (
+                                                <Link
+                                                    href={`/test-cases/${record.testRun.testCase.id}/history/${record.testRun.id}`}
+                                                    className="text-primary hover:underline"
+                                                >
+                                                    {`Run - ${formatDateTimeCompact(record.testRun.createdAt)}`}
+                                                </Link>
+                                            ) : (
+                                                <span className="text-gray-400">-</span>
+                                            )}
                                         </td>
                                         <td className="px-4 py-3 align-top">{record.aiActions}</td>
-                                        <td className="px-4 py-3 align-top">{formatDateTimeCompact(record.createdAt)}</td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
                     </div>
+                    {pagination && (
+                        <Pagination
+                            page={pagination.page}
+                            limit={pagination.limit}
+                            total={pagination.total}
+                            totalPages={pagination.totalPages}
+                            onPageChange={setPage}
+                            onLimitChange={(nextLimit) => {
+                                setLimit(nextLimit);
+                                setPage(1);
+                            }}
+                        />
+                    )}
                 </div>
-            )}
-
-            {pagination && (
-                <Pagination
-                    page={pagination.page}
-                    limit={pagination.limit}
-                    total={pagination.total}
-                    totalPages={pagination.totalPages}
-                    onPageChange={setPage}
-                    onLimitChange={(nextLimit) => {
-                        setLimit(nextLimit);
-                        setPage(1);
-                    }}
-                />
             )}
 
             {error && (
