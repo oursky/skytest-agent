@@ -10,6 +10,52 @@ export interface Project {
     hasActiveRuns?: boolean;
 }
 
+export type OrganizationRole = 'OWNER' | 'ADMIN' | 'MEMBER';
+
+export type ProjectRole = 'ADMIN' | 'MEMBER';
+
+export type ProjectInviteStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'CANCELED' | 'EXPIRED';
+
+export interface Organization {
+    id: string;
+    name: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface OrganizationMembership {
+    id: string;
+    organizationId: string;
+    userId: string;
+    role: OrganizationRole;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface ProjectMembership {
+    id: string;
+    projectId: string;
+    userId: string;
+    role: ProjectRole;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface ProjectInvite {
+    id: string;
+    projectId: string;
+    email: string;
+    role: ProjectRole;
+    status: ProjectInviteStatus;
+    expiresAt: string;
+    invitedByUserId: string;
+    acceptedAt: string | null;
+    declinedAt: string | null;
+    canceledAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
 export interface TestCase {
     id: string;
     displayId?: string;

@@ -6,16 +6,38 @@ datasource db {
   provider = "postgresql"
 }
 
+enum OrganizationRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum ProjectRole {
+  ADMIN
+  MEMBER
+}
+
+enum ProjectInviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELED
+  EXPIRED
+}
+
 model User {
-  id              String    @id @default(cuid())
-  authId          String    @unique
-  email           String?
-  openRouterKey   String?   // Encrypted OpenRouter API key
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  projects        Project[]
-  usageRecords    UsageRecord[]
-  apiKeys         ApiKey[]
+  id                       String                   @id @default(cuid())
+  authId                   String                   @unique
+  email                    String?
+  openRouterKey            String?                  // Encrypted OpenRouter API key
+  createdAt                DateTime                 @default(now())
+  updatedAt                DateTime                 @updatedAt
+  projects                 Project[]
+  usageRecords             UsageRecord[]
+  apiKeys                  ApiKey[]
+  organizationMemberships  OrganizationMembership[]
+  projectMemberships       ProjectMembership[]
+  sentProjectInvites       ProjectInvite[]          @relation("ProjectInviteSender")
 }
 
 model UsageRecord {
@@ -32,17 +54,81 @@ model UsageRecord {
   @@index([userId, createdAt(sort: Desc)])
 }
 
+model Organization {
+  id          String                   @id @default(cuid())
+  name        String
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+  memberships OrganizationMembership[]
+
+  @@index([updatedAt(sort: Desc)])
+}
+
+model OrganizationMembership {
+  id             String           @id @default(cuid())
+  organizationId String
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           OrganizationRole
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([organizationId, userId])
+  @@index([userId, organizationId])
+  @@index([organizationId, role])
+}
+
 model Project {
-  id        String          @id @default(cuid())
-  name      String
-  userId    String
-  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  testCases TestCase[]
+  id          String              @id @default(cuid())
+  name        String
+  userId      String
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  testCases   TestCase[]
   configs     ProjectConfig[]
-  createdAt   DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
+  memberships ProjectMembership[]
+  invites     ProjectInvite[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
 
   @@index([userId, updatedAt(sort: Desc)])
+}
+
+model ProjectMembership {
+  id        String      @id @default(cuid())
+  projectId String
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      ProjectRole
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@unique([projectId, userId])
+  @@index([userId, projectId])
+  @@index([projectId, role])
+}
+
+model ProjectInvite {
+  id              String              @id @default(cuid())
+  projectId       String
+  project         Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  email           String
+  role            ProjectRole
+  status          ProjectInviteStatus @default(PENDING)
+  tokenHash       String              @unique
+  expiresAt       DateTime
+  invitedByUserId String
+  invitedByUser   User                @relation("ProjectInviteSender", fields: [invitedByUserId], references: [id], onDelete: Cascade)
+  acceptedAt      DateTime?
+  declinedAt      DateTime?
+  canceledAt      DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([projectId, status])
+  @@index([email, status])
+  @@index([invitedByUserId, status])
 }
 
 model TestCase {
