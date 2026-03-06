@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 type SelectValue = string | number;
 
@@ -63,6 +64,7 @@ export default function CustomSelect<T extends SelectValue>({
     const menuRef = useRef<HTMLDivElement | null>(null);
     const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
     const [isOpen, setIsOpen] = useState(false);
+    const [menuStyle, setMenuStyle] = useState<{ top: number; left: number; width: number } | null>(null);
 
     const selectedIndex = useMemo(
         () => options.findIndex((option) => option.value === value),
@@ -83,11 +85,33 @@ export default function CustomSelect<T extends SelectValue>({
             return;
         }
 
+        const updateMenuPosition = () => {
+            const button = buttonRef.current;
+            if (!button) {
+                return;
+            }
+
+            const rect = button.getBoundingClientRect();
+            setMenuStyle({
+                top: rect.bottom + 8,
+                left: rect.left,
+                width: rect.width,
+            });
+        };
+
+        updateMenuPosition();
+        window.addEventListener('resize', updateMenuPosition);
+        window.addEventListener('scroll', updateMenuPosition, true);
+
         const rafId = window.requestAnimationFrame(() => {
             optionRefs.current[focusIndex]?.focus();
         });
 
-        return () => window.cancelAnimationFrame(rafId);
+        return () => {
+            window.cancelAnimationFrame(rafId);
+            window.removeEventListener('resize', updateMenuPosition);
+            window.removeEventListener('scroll', updateMenuPosition, true);
+        };
     }, [focusIndex, isOpen]);
 
     useEffect(() => {
@@ -166,6 +190,72 @@ export default function CustomSelect<T extends SelectValue>({
         };
     }, [focusIndex, isOpen, onChange, options]);
 
+    const menu = isOpen && menuStyle ? createPortal(
+        <div
+            ref={menuRef}
+            id={listboxId}
+            role="listbox"
+            aria-label={ariaLabel}
+            aria-labelledby={ariaLabelledBy}
+            style={{
+                top: menuStyle.top,
+                left: menuStyle.left,
+                width: menuStyle.width,
+            }}
+            className={`fixed z-[70] max-h-64 overflow-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg ${fullWidth ? 'w-full' : 'min-w-full'} ${menuClassName}`.trim()}
+        >
+            {options.map((option, index) => (
+                <button
+                    key={String(option.value)}
+                    ref={(element) => {
+                        optionRefs.current[index] = element;
+                    }}
+                    type="button"
+                    role="option"
+                    aria-selected={option.value === value}
+                    disabled={option.disabled}
+                    onMouseEnter={() => {
+                        if (!option.disabled) {
+                            setFocusIndex(index);
+                        }
+                    }}
+                    onClick={() => {
+                        if (option.disabled) {
+                            return;
+                        }
+                        onChange(option.value);
+                        setIsOpen(false);
+                        buttonRef.current?.focus();
+                    }}
+                    className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50 focus:bg-gray-50 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${option.value === value ? 'font-semibold text-primary' : 'text-gray-700'} ${optionClassName}`.trim()}
+                >
+                    <span className="truncate">{option.label}</span>
+                    {option.value === value && (
+                        <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                    )}
+                </button>
+            ))}
+            {footerActionLabel && onFooterAction && (
+                <div className="border-t border-gray-100 px-1 pt-1">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setIsOpen(false);
+                            onFooterAction();
+                            buttonRef.current?.focus();
+                        }}
+                        className={`flex w-full items-center px-3 py-2 text-left text-sm font-medium text-primary transition-colors hover:bg-gray-50 focus:bg-gray-50 focus:outline-none ${footerActionClassName}`.trim()}
+                    >
+                        {footerActionLabel}
+                    </button>
+                </div>
+            )}
+        </div>,
+        document.body
+    ) : null;
+
     return (
         <div className={`relative ${fullWidth ? 'w-full' : ''}`}>
             <button
@@ -208,66 +298,7 @@ export default function CustomSelect<T extends SelectValue>({
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
             </button>
-
-            {isOpen && (
-                <div
-                    ref={menuRef}
-                    id={listboxId}
-                    role="listbox"
-                    aria-label={ariaLabel}
-                    aria-labelledby={ariaLabelledBy}
-                    className={`absolute left-0 top-full z-50 mt-2 max-h-64 overflow-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg ${fullWidth ? 'w-full' : 'min-w-full'} ${menuClassName}`.trim()}
-                >
-                    {options.map((option, index) => (
-                        <button
-                            key={String(option.value)}
-                            ref={(element) => {
-                                optionRefs.current[index] = element;
-                            }}
-                            type="button"
-                            role="option"
-                            aria-selected={option.value === value}
-                            disabled={option.disabled}
-                            onMouseEnter={() => {
-                                if (!option.disabled) {
-                                    setFocusIndex(index);
-                                }
-                            }}
-                            onClick={() => {
-                                if (option.disabled) {
-                                    return;
-                                }
-                                onChange(option.value);
-                                setIsOpen(false);
-                                buttonRef.current?.focus();
-                            }}
-                            className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50 focus:bg-gray-50 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${option.value === value ? 'font-semibold text-primary' : 'text-gray-700'} ${optionClassName}`.trim()}
-                        >
-                            <span className="truncate">{option.label}</span>
-                            {option.value === value && (
-                                <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                </svg>
-                            )}
-                        </button>
-                    ))}
-                    {footerActionLabel && onFooterAction && (
-                        <div className="border-t border-gray-100 px-1 pt-1">
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setIsOpen(false);
-                                    onFooterAction();
-                                    buttonRef.current?.focus();
-                                }}
-                                className={`flex w-full items-center px-3 py-2 text-left text-sm font-medium text-primary transition-colors hover:bg-gray-50 focus:bg-gray-50 focus:outline-none ${footerActionClassName}`.trim()}
-                            >
-                                {footerActionLabel}
-                            </button>
-                        </div>
-                    )}
-                </div>
-            )}
+            {menu}
         </div>
     );
 }

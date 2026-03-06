@@ -191,8 +191,8 @@ export default function TeamMembers({ teamId, teamRole, onMembersChanged }: Team
                 onConfirm={addMember}
                 confirmText={t('team.members.add.confirm')}
                 closeOnConfirm={false}
-                overlayClassName="items-start pt-16 sm:pt-24"
-                panelClassName="max-w-xl overflow-visible"
+                overlayClassName="items-start overflow-y-auto py-16 sm:py-24"
+                panelClassName="mt-0 max-w-xl overflow-visible"
                 contentClassName="overflow-visible"
             >
                 <div className="space-y-4 pb-4">
