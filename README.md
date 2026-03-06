@@ -48,9 +48,10 @@ It is self-hosted, open source, and uses your own API key.
 ## Quick Start
 
 ```bash
-cp .env.example .env.local
-# Start Postgres and edit .env.local with your credentials
 npm install
+npm run dev:services:up
+cp .env.example .env.local
+# Edit .env.local with your credentials and the local Postgres + MinIO values from docs/operators/local-dev.md
 npm run db:migrate:dev
 npm run dev
 ```
@@ -69,6 +70,7 @@ Don't want to self-host? We're building a managed version of SkyTest.
 See `.env.example` for all available options. Required:
 
 - `DATABASE_URL` - PostgreSQL connection string for the application database
+- `S3_*` - S3-compatible object storage credentials and bucket settings. Use local MinIO in development and hosted object storage in production.
 - `ENCRYPTION_SECRET` - Random 32+ char string for API key encryption
 - `NEXT_PUBLIC_AUTHGEAR_*` - Authgear credentials from [portal.authgear.com](https://portal.authgear.com/)
 
@@ -78,9 +80,27 @@ Users provide their own [OpenRouter](https://openrouter.ai/) API keys via the ap
 
 - **Browsers not found**: `npx playwright install`
 - **Database errors**: Verify `DATABASE_URL`, then run `npm run db:migrate:dev`
+- **Object storage errors**: Verify the `S3_*` variables and confirm the bucket exists in MinIO/S3
 - **View database**: `npm run db:studio`
 - **Auth redirect issues**: Check Authgear redirect URI matches your domain
 - **Android devices (Local macOS Only)**: See [macOS Android Emulator Guide](https://github.com/oursky/skytest-agent/blob/main/docs/operators/mac-android-emulator-guide.md)
+
+## Local Development
+
+For local development, run the same infrastructure shape as hosted:
+- PostgreSQL
+- S3-compatible object storage via MinIO
+
+Quick start:
+
+```bash
+npm run dev:services:up
+npm run db:migrate:dev
+npm run dev
+```
+
+Detailed setup:
+- [Local Development Guide](./docs/operators/local-dev.md)
 
 ## Community & Contributing
 

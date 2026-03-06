@@ -62,34 +62,11 @@ function normalizeUploadPath(filePath: string, policy: SetInputFilesPolicy, step
         return resolved;
     }
 
-    const uploadRoot = path.resolve(process.cwd(), config.files.uploadDir);
-    const prefix = uploadRoot.endsWith(path.sep) ? uploadRoot : `${uploadRoot}${path.sep}`;
-
-    if (!resolved.startsWith(prefix)) {
-        throw new PlaywrightCodeError(
-            'Only files uploaded for this test case can be used with setInputFiles',
-            stepIndex,
-            code
-        );
-    }
-
-    if (policy.allowedFilePaths.size === 0) {
-        throw new PlaywrightCodeError(
-            'No files were attached to this step. Attach files to the step before calling setInputFiles.',
-            stepIndex,
-            code
-        );
-    }
-
-    if (!policy.allowedFilePaths.has(resolved)) {
-        throw new PlaywrightCodeError(
-            'Only files attached to this step can be used with setInputFiles',
-            stepIndex,
-            code
-        );
-    }
-
-    return resolved;
+    throw new PlaywrightCodeError(
+        'No uploaded files are available for this step. Attach files to the step before calling setInputFiles.',
+        stepIndex,
+        code
+    );
 }
 
 function hasFilePath(value: unknown): value is FilePayloadWithPath {

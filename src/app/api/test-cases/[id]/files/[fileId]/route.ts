@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
-import { getFilePath } from '@/lib/security/file-security';
 import { createLogger } from '@/lib/core/logger';
 import { verifyStreamToken } from '@/lib/security/stream-token';
 import { buildContentDisposition } from '@/lib/security/http-headers';
-import fs from 'fs/promises';
+import { deleteObjectIfExists, readObjectBuffer } from '@/lib/storage/object-store-utils';
 
 const logger = createLogger('api:test-cases:file');
 
@@ -40,7 +39,7 @@ export async function GET(
         const storedName = url.searchParams.get('storedName');
         const forceInline = url.searchParams.get('inline') === '1';
 
-        let filePath: string;
+        let objectKey: string;
         let mimeType: string;
         let filename: string;
         let size: number;
@@ -59,7 +58,7 @@ export async function GET(
                 return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
             }
 
-            filePath = getFilePath(id, storedName);
+            objectKey = storedName;
             const testCaseFile = await prisma.testCaseFile.findFirst({
                 where: { testCaseId: id, storedName }
             });
@@ -96,26 +95,26 @@ export async function GET(
                 return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
             }
 
-            filePath = getFilePath(id, file.storedName);
+            objectKey = file.storedName;
             mimeType = file.mimeType;
             filename = file.filename;
             size = file.size;
         }
 
-        try {
-            const buffer = await fs.readFile(filePath);
-            const isImage = mimeType.startsWith('image/');
-            const dispositionType = (forceInline || isImage) ? 'inline' : 'attachment';
-            return new NextResponse(buffer, {
-                headers: {
-                    'Content-Type': mimeType,
-                    'Content-Disposition': buildContentDisposition(dispositionType, filename),
-                    'Content-Length': size.toString(),
-                },
-            });
-        } catch {
-            return NextResponse.json({ error: 'File not found on disk' }, { status: 404 });
+        const object = await readObjectBuffer(objectKey);
+        if (!object) {
+            return NextResponse.json({ error: 'File not found in object storage' }, { status: 404 });
         }
+
+        const isImage = mimeType.startsWith('image/');
+        const dispositionType = (forceInline || isImage) ? 'inline' : 'attachment';
+        return new NextResponse(new Uint8Array(object.body), {
+            headers: {
+                'Content-Type': mimeType,
+                'Content-Disposition': buildContentDisposition(dispositionType, filename),
+                'Content-Length': size.toString(),
+            },
+        });
     } catch (error) {
         logger.error('Failed to download file', error);
         return NextResponse.json({ error: 'Failed to download file' }, { status: 500 });
@@ -151,12 +150,10 @@ export async function DELETE(
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const filePath = getFilePath(id, file.storedName);
-
         try {
-            await fs.unlink(filePath);
+            await deleteObjectIfExists(file.storedName);
         } catch {
-            logger.warn('File not found on disk', { filePath });
+            logger.warn('File not found in object storage', { objectKey: file.storedName });
         }
 
         await prisma.testCaseFile.delete({

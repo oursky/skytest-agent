@@ -1,13 +1,12 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth } from '@/lib/security/auth';
-import { getFilePath, getProjectConfigUploadPath, getTestCaseConfigUploadPath } from '@/lib/security/file-security';
 import { createLogger } from '@/lib/core/logger';
 import { parseTestCaseJson } from '@/lib/runtime/test-case-utils';
 import { buildContentDisposition } from '@/lib/security/http-headers';
+import { readObjectBuffer } from '@/lib/storage/object-store-utils';
 import { exportToExcelBuffer } from '@/utils/testCaseExcel';
 import archiver from 'archiver';
-import fs from 'fs/promises';
 import path from 'path';
 import { PassThrough } from 'stream';
 
@@ -149,43 +148,41 @@ export async function GET(
         };
 
         for (const file of testCase.files) {
-            const filePath = getFilePath(id, file.storedName);
-            try {
-                const fileBuffer = await fs.readFile(filePath);
-                archive.append(fileBuffer, { name: getUniqueZipFilePath(file.filename) });
-            } catch {
-                logger.warn('File not found on disk', { filePath });
+            const object = await readObjectBuffer(file.storedName);
+            if (!object) {
+                logger.warn('File not found in object storage', { objectKey: file.storedName });
+                continue;
             }
+
+            archive.append(object.body, { name: getUniqueZipFilePath(file.filename) });
         }
 
-        const projectConfigFileDir = getProjectConfigUploadPath(testCase.projectId);
         for (const variable of projectFileVariables) {
             if (!variable.value) {
                 continue;
             }
-            const filePath = path.join(projectConfigFileDir, variable.value);
-            const fileName = variable.filename || variable.value;
-            try {
-                const fileBuffer = await fs.readFile(filePath);
-                archive.append(fileBuffer, { name: getUniqueZipFilePath(fileName) });
-            } catch {
-                logger.warn('Project config file not found on disk', { filePath });
+            const object = await readObjectBuffer(variable.value);
+            if (!object) {
+                logger.warn('Project config file not found in object storage', { objectKey: variable.value });
+                continue;
             }
+
+            const fileName = variable.filename || variable.value;
+            archive.append(object.body, { name: getUniqueZipFilePath(fileName) });
         }
 
-        const testCaseConfigFileDir = getTestCaseConfigUploadPath(testCase.id);
         for (const variable of testCaseFileVariables) {
             if (!variable.value) {
                 continue;
             }
-            const filePath = path.join(testCaseConfigFileDir, variable.value);
-            const fileName = variable.filename || variable.value;
-            try {
-                const fileBuffer = await fs.readFile(filePath);
-                archive.append(fileBuffer, { name: getUniqueZipFilePath(fileName) });
-            } catch {
-                logger.warn('Test case config file not found on disk', { filePath });
+            const object = await readObjectBuffer(variable.value);
+            if (!object) {
+                logger.warn('Test case config file not found in object storage', { objectKey: variable.value });
+                continue;
             }
+
+            const fileName = variable.filename || variable.value;
+            archive.append(object.body, { name: getUniqueZipFilePath(fileName) });
         }
 
         await archive.finalize();

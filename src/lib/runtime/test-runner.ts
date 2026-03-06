@@ -4,7 +4,6 @@ import { PlaywrightAgent } from '@midscene/web/playwright';
 import { TestStep, BrowserConfig, TargetConfig, AndroidTargetConfig, AndroidAgent, AndroidDevice, TestEvent, TestResult, RunTestOptions, TestCaseFile } from '@/types';
 import { config } from '@/config/app';
 import { ConfigurationError, TestExecutionError, PlaywrightCodeError, getErrorMessage } from '@/lib/core/errors';
-import { getFilePath, getUploadPath } from '@/lib/security/file-security';
 import { substituteAll } from '@/lib/config/resolver';
 import { createLogger as createServerLogger } from '@/lib/core/logger';
 import { withMidsceneApiKey } from '@/lib/runtime/midscene-env';
@@ -16,6 +15,7 @@ import { normalizeBrowserConfig } from '@/lib/config/browser-target';
 import { ReliableAdb } from '@/lib/android/adb-reliable';
 import { resolveAndroidToolPath } from '@/lib/android/sdk';
 import { createSafePage, validatePlaywrightCode } from '@/lib/runtime/playwright-code-sandbox';
+import { createTempDirectory, materializeObjectToFile, removeTempDirectory } from '@/lib/storage/object-store-utils';
 import { Script, createContext } from 'node:vm';
 import path from 'node:path';
 
@@ -947,6 +947,13 @@ interface PlaywrightCodeStepContext {
     stepFiles: Record<string, string>;
 }
 
+interface MaterializedExecutionFiles {
+    allowedTestCaseDir?: string;
+    configFiles: Record<string, string>;
+    stepFilesById: Record<string, string>;
+    cleanup: () => Promise<void>;
+}
+
 async function executePlaywrightCode(
     code: string,
     page: Page,
@@ -1089,30 +1096,100 @@ async function executePlaywrightCode(
 
 function resolvePlaywrightCodeStepContext(
     step: TestStep,
-    testCaseId: string | undefined,
-    files: TestCaseFile[] | undefined
+    materializedExecutionFiles: MaterializedExecutionFiles
 ): PlaywrightCodeStepContext {
     const stepFiles: Record<string, string> = {};
 
-    if (!testCaseId) {
-        return { stepFiles, allowedFilePaths: new Set<string>() };
-    }
-
-    const allowedTestCaseDir = getUploadPath(testCaseId);
-
-    if (!step.files || step.files.length === 0 || !files) {
-        return { stepFiles, allowedFilePaths: new Set<string>(), allowedTestCaseDir };
+    if (!step.files || step.files.length === 0) {
+        return {
+            stepFiles,
+            allowedFilePaths: new Set<string>(),
+            allowedTestCaseDir: materializedExecutionFiles.allowedTestCaseDir,
+        };
     }
 
     for (const fileId of step.files) {
-        const file = files.find((f) => f.id === fileId);
-        if (!file) continue;
-        stepFiles[fileId] = getFilePath(testCaseId, file.storedName);
+        const filePath = materializedExecutionFiles.stepFilesById[fileId];
+        if (!filePath) continue;
+        stepFiles[fileId] = filePath;
     }
 
     const allowedFilePaths = new Set(Object.values(stepFiles).map((filePath) => path.resolve(filePath)));
 
-    return { stepFiles, allowedFilePaths, allowedTestCaseDir };
+    return {
+        stepFiles,
+        allowedFilePaths,
+        allowedTestCaseDir: materializedExecutionFiles.allowedTestCaseDir,
+    };
+}
+
+async function prepareExecutionFiles(
+    files: TestCaseFile[] | undefined,
+    resolvedFiles: Record<string, string> | undefined,
+    runId: string
+): Promise<MaterializedExecutionFiles> {
+    const requestedConfigFiles = resolvedFiles ?? {};
+    const requestedTestCaseFiles = files ?? [];
+
+    if (requestedTestCaseFiles.length === 0 && Object.keys(requestedConfigFiles).length === 0) {
+        return {
+            configFiles: {},
+            stepFilesById: {},
+            cleanup: async () => { },
+        };
+    }
+
+    const tempRoot = await createTempDirectory(`skytest-run-${runId}-`);
+    const testCaseDir = path.join(tempRoot, 'test-case-files');
+    const configDir = path.join(tempRoot, 'config-files');
+    const stepFilesById: Record<string, string> = {};
+    const configFiles: Record<string, string> = {};
+    const materializedByObjectKey = new Map<string, string>();
+
+    for (const file of requestedTestCaseFiles) {
+        const materializedPath = await materializeObjectToFile({
+            key: file.storedName,
+            directory: testCaseDir,
+            filename: file.filename,
+        });
+        if (!materializedPath) {
+            continue;
+        }
+
+        stepFilesById[file.id] = materializedPath;
+        materializedByObjectKey.set(file.storedName, materializedPath);
+    }
+
+    for (const [referenceName, objectKey] of Object.entries(requestedConfigFiles)) {
+        const existingPath = materializedByObjectKey.get(objectKey);
+        if (existingPath) {
+            configFiles[referenceName] = existingPath;
+            continue;
+        }
+
+        const fallbackFilename = path.basename(objectKey) || referenceName;
+        const materializedPath = await materializeObjectToFile({
+            key: objectKey,
+            directory: configDir,
+            filename: fallbackFilename,
+        });
+
+        if (!materializedPath) {
+            continue;
+        }
+
+        materializedByObjectKey.set(objectKey, materializedPath);
+        configFiles[referenceName] = materializedPath;
+    }
+
+    return {
+        allowedTestCaseDir: Object.keys(stepFilesById).length > 0 ? testCaseDir : undefined,
+        configFiles,
+        stepFilesById,
+        cleanup: async () => {
+            await removeTempDirectory(tempRoot);
+        },
+    };
 }
 
 async function executeSteps(
@@ -1121,9 +1198,8 @@ async function executeSteps(
     targetConfigs: Record<string, BrowserConfig | TargetConfig>,
     onEvent: EventHandler,
     runId: string,
+    materializedExecutionFiles: MaterializedExecutionFiles,
     signal?: AbortSignal,
-    testCaseId?: string,
-    files?: TestCaseFile[],
     resolvedVariables?: Record<string, string>,
     resolvedConfigFiles?: Record<string, string>
 ): Promise<void> {
@@ -1164,7 +1240,7 @@ async function executeSteps(
                         step.action
                     );
                 }
-                const stepContext = resolvePlaywrightCodeStepContext(step, testCaseId, files);
+                const stepContext = resolvePlaywrightCodeStepContext(step, materializedExecutionFiles);
                 await executePlaywrightCode(
                     step.action,
                     page,
@@ -1474,12 +1550,8 @@ async function cleanupTargets(targets: ExecutionTargets): Promise<void> {
 
 export async function runTest(options: RunTestOptions): Promise<TestResult> {
     const { config: testConfig, onEvent, signal, runId, onCleanup, onPreparing, onRunning } = options;
-    const { url, prompt, steps, browserConfig, openRouterApiKey, testCaseId, projectId, files, resolvedVariables, resolvedFiles } = testConfig;
+    const { url, prompt, steps, browserConfig, openRouterApiKey, projectId, files, resolvedVariables, resolvedFiles } = testConfig;
     const log = createLogger(onEvent);
-
-    const vars = resolvedVariables || {};
-    const fileRefs = resolvedFiles || {};
-    const sub = (text: string) => substituteAll(text, vars, fileRefs);
 
     if (!openRouterApiKey) {
         return { status: 'FAIL', error: 'OpenRouter API key is required. Please configure it in API Key & Usage settings.' };
@@ -1488,6 +1560,10 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
     return await withMidsceneApiKey(openRouterApiKey, async () => {
         const runAbortController = new AbortController();
         const runSignal = runAbortController.signal;
+        const materializedExecutionFiles = await prepareExecutionFiles(files, resolvedFiles, runId);
+        const vars = resolvedVariables || {};
+        const fileRefs = materializedExecutionFiles.configFiles;
+        const sub = (text: string) => substituteAll(text, vars, fileRefs);
         let timeoutExceeded = false;
         const timeoutMessage = `Test exceeded maximum duration (${config.test.maxDuration}s)`;
         const timeoutHandle = setTimeout(() => {
@@ -1578,11 +1654,10 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
                 targetConfigs,
                 onEvent,
                 runId,
+                materializedExecutionFiles,
                 runSignal,
-                testCaseId,
-                files,
                 vars,
-                fileRefs
+                materializedExecutionFiles.configFiles
             );
 
             if (runSignal.aborted) throw new Error('Aborted');
@@ -1621,6 +1696,7 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
             if (executionTargets) {
                 await cleanupExecutionTargets(executionTargets);
             }
+            await materializedExecutionFiles.cleanup();
         }
     });
 }
