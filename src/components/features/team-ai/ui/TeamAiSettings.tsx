@@ -20,6 +20,7 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
     const [state, setState] = useState<TeamAiState>({ hasKey: false, maskedKey: null, canEdit: false, updatedAt: null });
+    const [isLoading, setIsLoading] = useState(true);
     const [apiKey, setApiKey] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
@@ -27,17 +28,22 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
     const [isRemoveConfirmOpen, setIsRemoveConfirmOpen] = useState(false);
 
     const loadState = useCallback(async () => {
-        const token = await getAccessToken();
-        const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
-        const response = await fetch(`/api/teams/${teamId}/ai-key`, { headers });
-        if (!response.ok) {
-            setError(t('team.ai.error.load'));
-            return;
-        }
+        try {
+            setIsLoading(true);
+            const token = await getAccessToken();
+            const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+            const response = await fetch(`/api/teams/${teamId}/ai-key`, { headers });
+            if (!response.ok) {
+                setError(t('team.ai.error.load'));
+                return;
+            }
 
-        const data = await response.json() as TeamAiState;
-        setState(data);
-        setError(null);
+            const data = await response.json() as TeamAiState;
+            setState(data);
+            setError(null);
+        } finally {
+            setIsLoading(false);
+        }
     }, [getAccessToken, teamId, t]);
 
     useEffect(() => {
@@ -119,7 +125,12 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
                 <p className="mt-1 text-sm text-gray-500">{t('team.ai.description')}</p>
             </div>
 
-            {state.hasKey ? (
+            {isLoading ? (
+                <div className="flex items-center gap-3 rounded-md bg-gray-50 px-4 py-3 text-sm text-gray-600">
+                    <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-primary"></div>
+                    <span>{t('common.loading')}</span>
+                </div>
+            ) : state.hasKey ? (
                 <div className="flex items-center gap-3">
                     <input
                         type="text"
