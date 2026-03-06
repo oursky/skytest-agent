@@ -64,7 +64,7 @@ export default function CustomSelect<T extends SelectValue>({
     const menuRef = useRef<HTMLDivElement | null>(null);
     const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
     const [isOpen, setIsOpen] = useState(false);
-    const [menuStyle, setMenuStyle] = useState<{ top: number; left: number; width: number } | null>(null);
+    const [menuStyle, setMenuStyle] = useState<{ top: number; left: number; minWidth: number } | null>(null);
 
     const selectedIndex = useMemo(
         () => options.findIndex((option) => option.value === value),
@@ -95,7 +95,7 @@ export default function CustomSelect<T extends SelectValue>({
             setMenuStyle({
                 top: rect.bottom + 8,
                 left: rect.left,
-                width: rect.width,
+                minWidth: rect.width,
             });
         };
 
@@ -200,7 +200,8 @@ export default function CustomSelect<T extends SelectValue>({
             style={{
                 top: menuStyle.top,
                 left: menuStyle.left,
-                width: menuStyle.width,
+                minWidth: menuStyle.minWidth,
+                ...(fullWidth ? { width: menuStyle.minWidth } : {}),
             }}
             className={`fixed z-[70] max-h-64 overflow-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg ${fullWidth ? 'w-full' : 'min-w-full'} ${menuClassName}`.trim()}
         >
