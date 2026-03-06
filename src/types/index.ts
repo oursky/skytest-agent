@@ -17,6 +17,8 @@ export type {
     HeartbeatRunnerResponse,
     IngestEventsRequest,
     IngestEventsResponse,
+    JobDetailsRequest,
+    JobDetailsResponse,
     PairingExchangeRequest,
     PairingExchangeResponse,
     RegisterRunnerResponse,

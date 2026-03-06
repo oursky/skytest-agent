@@ -41,7 +41,8 @@
     "db:studio": "prisma studio",
     "playwright:install": "playwright install chromium",
     "test": "vitest --run",
-    "runner:maintenance": "tsx src/workers/runner-maintenance.ts"
+    "runner:maintenance": "tsx src/workers/runner-maintenance.ts",
+    "runner:browser": "tsx src/runners/browser-runner.ts"
   },
   "dependencies": {
     "@authgear/web": "5.0.1",

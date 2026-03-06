@@ -1,16 +1,11 @@
 import { NextResponse } from 'next/server';
-import { queue } from '@/lib/runtime/queue';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
-import { decrypt } from '@/lib/security/crypto';
 import { validateTargetUrl } from '@/lib/security/url-security';
 import { createLogger } from '@/lib/core/logger';
-import { resolveConfigs } from '@/lib/config/resolver';
 import { config as appConfig } from '@/config/app';
-import { listAndroidDeviceInventory } from '@/lib/android/devices';
-import { isAndroidAdbAvailable, isAndroidEmulatorAvailable } from '@/lib/android/sdk';
 import { normalizeAndroidTargetConfig } from '@/lib/android/target-config';
-import type { BrowserConfig, TargetConfig, AndroidTargetConfig, ResolvedConfig, TestStep } from '@/types';
+import type { BrowserConfig, TargetConfig, AndroidTargetConfig, TestStep } from '@/types';
 
 const logger = createLogger('api:run-test');
 
@@ -26,14 +21,11 @@ interface RunTestRequest {
     testCaseId?: string;
 }
 
-function createConfigurationSnapshot(config: RunTestRequest, resolvedConfigurations?: ResolvedConfig[]) {
+function createConfigurationSnapshot(config: RunTestRequest) {
     const { testCaseId, ...sanitized } = config;
     void testCaseId;
 
-    return {
-        ...sanitized,
-        ...(resolvedConfigurations && resolvedConfigurations.length > 0 ? { resolvedConfigurations } : {})
-    };
+    return sanitized;
 }
 
 function validateConfigUrls(config: RunTestRequest): string | null {
@@ -68,14 +60,19 @@ function hasAndroidTargets(browserConfig: RunTestRequest['browserConfig']): bool
     return Object.values(browserConfig).some(isAndroidTargetConfig);
 }
 
-function hasAndroidEmulatorProfileTargets(browserConfig: RunTestRequest['browserConfig']): boolean {
+function extractRequestedDeviceId(browserConfig: RunTestRequest['browserConfig']): string | null {
     if (!browserConfig || Object.keys(browserConfig).length === 0) {
-        return false;
+        return null;
     }
 
-    return Object.values(browserConfig)
-        .filter(isAndroidTargetConfig)
-        .some((target) => normalizeAndroidTargetConfig(target).deviceSelector.mode === 'emulator-profile');
+    for (const target of Object.values(browserConfig).filter(isAndroidTargetConfig)) {
+        const selector = normalizeAndroidTargetConfig(target).deviceSelector;
+        if (selector.mode === 'connected-device') {
+            return selector.serial;
+        }
+    }
+
+    return null;
 }
 
 async function validateAndroidTargets(
@@ -89,10 +86,6 @@ async function validateAndroidTargets(
     if (androidTargets.length === 0) {
         return null;
     }
-
-    const inventory = await listAndroidDeviceInventory();
-    const availableProfileNames = new Set(inventory.emulatorProfiles.map((profile) => profile.name));
-    const connectedDeviceBySerial = new Map(inventory.connectedDevices.map((device) => [device.serial, device]));
 
     for (const target of androidTargets) {
         const normalizedTarget = normalizeAndroidTargetConfig(target);
@@ -112,21 +105,6 @@ async function validateAndroidTargets(
         }
         if (typeof target.allowAllPermissions !== 'boolean') {
             return 'Android target allowAllPermissions must be a boolean';
-        }
-        if (selector.mode === 'emulator-profile' && !availableProfileNames.has(selector.emulatorProfileName)) {
-            return `Device "${selector.emulatorProfileName}" is not available in current runtime inventory`;
-        }
-        if (selector.mode === 'connected-device') {
-            const connectedDevice = connectedDeviceBySerial.get(selector.serial);
-            if (!connectedDevice) {
-                return `Device "${selector.serial}" is not connected`;
-            }
-            if (connectedDevice.adbState === 'unauthorized') {
-                return `Device "${selector.serial}" is unauthorized. Allow USB debugging on the device and try again.`;
-            }
-            if (connectedDevice.adbState !== 'device') {
-                return `Device "${selector.serial}" is not ready (state: ${connectedDevice.adbState})`;
-            }
         }
     }
 
@@ -193,21 +171,6 @@ export async function POST(request: Request) {
         }
         const requestHasAndroidTargets = hasAndroidTargets(browserConfig);
 
-        if (requestHasAndroidTargets) {
-            if (!isAndroidAdbAvailable()) {
-                return NextResponse.json(
-                    { error: 'Android testing is not available on this server' },
-                    { status: 503 }
-                );
-            }
-            if (hasAndroidEmulatorProfileTargets(browserConfig) && !isAndroidEmulatorAvailable()) {
-                return NextResponse.json(
-                    { error: 'Android emulator testing is not available on this server' },
-                    { status: 503 }
-                );
-            }
-        }
-
         const testCase = await prisma.testCase.findUnique({
             where: { id: testCaseId },
             include: {
@@ -249,29 +212,22 @@ export async function POST(request: Request) {
             );
         }
 
-        let openRouterApiKey: string;
-        try {
-            openRouterApiKey = decrypt(testCase.project.team.openRouterKeyEncrypted);
-        } catch {
-            return NextResponse.json(
-                { error: 'Failed to decrypt team API key. Please re-enter your API key.' },
-                { status: 400 }
-            );
-        }
-
         const files = await prisma.testCaseFile.findMany({
             where: { testCaseId },
             select: { id: true, filename: true, storedName: true, mimeType: true, size: true }
         });
 
-        const resolved = await resolveConfigs(testCase.projectId, testCaseId);
-        const configurationSnapshot = JSON.stringify(createConfigurationSnapshot(config, resolved.allConfigs));
+        const configurationSnapshot = JSON.stringify(createConfigurationSnapshot(config));
+        const requestedDeviceId = extractRequestedDeviceId(browserConfig);
 
         const testRun = await prisma.testRun.create({
             data: {
                 testCaseId,
                 status: 'QUEUED',
-                configurationSnapshot
+                configurationSnapshot,
+                requiredCapability: requestHasAndroidTargets ? 'ANDROID' : 'BROWSER',
+                requiredRunnerKind: requestHasAndroidTargets ? 'MACOS_AGENT' : 'HOSTED_BROWSER',
+                requestedDeviceId,
             }
         });
 
@@ -291,18 +247,12 @@ export async function POST(request: Request) {
             }
         }
 
-        await queue.add(testRun.id, {
-            ...config,
-            userId,
-            openRouterApiKey,
-            testCaseId,
-            projectId: testCase.projectId,
-            files,
-            resolvedVariables: resolved.variables,
-            resolvedFiles: resolved.files,
+        return NextResponse.json({
+            runId: testRun.id,
+            status: testRun.status,
+            requiredCapability: testRun.requiredCapability,
+            requestedDeviceId: testRun.requestedDeviceId,
         });
-
-        return NextResponse.json({ runId: testRun.id });
 
     } catch (error) {
         logger.error('Failed to submit test job', error);

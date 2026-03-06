@@ -125,7 +125,7 @@ export const claimJobResponseSchema = z.object({
 export const runnerEventInputSchema = z.object({
     kind: z.string().trim().min(1).max(80),
     message: z.string().trim().max(5000).optional(),
-    payload: z.record(z.string(), z.unknown()).optional(),
+    payload: z.unknown().optional(),
     artifactKey: z.string().trim().max(500).optional(),
 });
 
@@ -177,6 +177,37 @@ export const completeRunResponseSchema = z.object({
     rotationRequired: z.boolean(),
 });
 
+export const jobDetailsRequestSchema = z.object({
+    protocolVersion: runnerProtocolVersionSchema,
+    runnerVersion: runnerVersionSchema,
+});
+
+export const runFileSchema = z.object({
+    id: z.string().min(1),
+    filename: z.string().min(1),
+    storedName: z.string().min(1),
+    mimeType: z.string().min(1),
+    size: z.number().int().nonnegative(),
+});
+
+export const jobDetailsResponseSchema = z.object({
+    runId: z.string().min(1),
+    testCaseId: z.string().min(1),
+    projectId: z.string().min(1),
+    compatibility: compatibilityMetadataSchema,
+    rotationRequired: z.boolean(),
+    config: z.object({
+        url: z.string().optional(),
+        prompt: z.string().optional(),
+        steps: z.array(z.record(z.string(), z.unknown())).optional(),
+        browserConfig: z.record(z.string(), z.record(z.string(), z.unknown())).optional(),
+        openRouterApiKey: z.string().min(1),
+        files: z.array(runFileSchema),
+        resolvedVariables: z.record(z.string(), z.string()),
+        resolvedFiles: z.record(z.string(), z.string()),
+    }),
+});
+
 export type RunnerKind = z.infer<typeof runnerKindSchema>;
 export type RunnerCapability = z.infer<typeof runnerCapabilitySchema>;
 export type RegisterRunnerRequest = z.infer<typeof registerRunnerRequestSchema>;
@@ -200,5 +231,7 @@ export type UploadArtifactResponse = z.infer<typeof uploadArtifactResponseSchema
 export type CompleteRunRequest = z.infer<typeof completeRunRequestSchema>;
 export type FailRunRequest = z.infer<typeof failRunRequestSchema>;
 export type CompleteRunResponse = z.infer<typeof completeRunResponseSchema>;
+export type JobDetailsRequest = z.infer<typeof jobDetailsRequestSchema>;
+export type JobDetailsResponse = z.infer<typeof jobDetailsResponseSchema>;
 export type CompatibilityMetadata = z.infer<typeof compatibilityMetadataSchema>;
 export type RunnerTransportMetadata = z.infer<typeof runnerTransportMetadataSchema>;

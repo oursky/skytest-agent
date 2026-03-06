@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
-import { queue } from '@/lib/runtime/queue';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { isProjectMember } from '@/lib/security/permissions';
@@ -42,7 +41,16 @@ export async function POST(
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        await queue.cancel(id);
+        await prisma.testRun.update({
+            where: { id },
+            data: {
+                status: 'CANCELLED',
+                error: 'Cancelled by user',
+                completedAt: new Date(),
+                assignedRunnerId: null,
+                leaseExpiresAt: null,
+            }
+        });
 
         const updated = await prisma.testRun.findUnique({ where: { id }, select: { status: true } });
 

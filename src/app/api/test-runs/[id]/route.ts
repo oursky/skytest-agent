@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
-import { queue } from '@/lib/runtime/queue';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { isProjectMember } from '@/lib/security/permissions';
@@ -96,12 +95,6 @@ export async function DELETE(
 
         if (!await isProjectMember(userId, testRun.testCase.projectId)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
-
-        try {
-            queue.cancel(id);
-        } catch (e) {
-            logger.warn('Failed to cancel job from queue', e);
         }
 
         await prisma.testRun.delete({
