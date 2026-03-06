@@ -33,10 +33,10 @@
     "audit": "npm audit --audit-level=moderate --package-lock-only",
     "verify": "npm run lint && npm run audit",
     "db:generate": "prisma generate",
-    "db:migrate:dev": "prisma migrate dev",
-    "db:migrate:deploy": "prisma migrate deploy",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
-    "postinstall": "npx playwright install && npx prisma generate",
+    "playwright:install": "playwright install chromium",
     "test": "vitest --run"
   },
   "dependencies": {

@@ -52,7 +52,8 @@ npm install
 npm run dev:services:up
 cp .env.example .env.local
 # Edit .env.local with your credentials and the local Postgres + MinIO values from docs/operators/local-dev.md
-npm run db:migrate:dev
+npm run db:generate
+npm run db:migrate
 npm run dev
 ```
 
@@ -78,8 +79,8 @@ Users provide their own [OpenRouter](https://openrouter.ai/) API keys via the ap
 
 ## Troubleshooting
 
-- **Browsers not found**: `npx playwright install`
-- **Database errors**: Verify `DATABASE_URL`, then run `npm run db:migrate:dev`
+- **Browsers not found**: `npm run playwright:install`
+- **Database errors**: Verify `DATABASE_URL`, then run `npm run db:migrate`
 - **Object storage errors**: Verify the `S3_*` variables and confirm the bucket exists in MinIO/S3
 - **View database**: `npm run db:studio`
 - **Auth redirect issues**: Check Authgear redirect URI matches your domain
@@ -95,7 +96,8 @@ Quick start:
 
 ```bash
 npm run dev:services:up
-npm run db:migrate:dev
+npm run db:generate
+npm run db:migrate
 npm run dev
 ```
 
