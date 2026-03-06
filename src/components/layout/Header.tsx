@@ -110,20 +110,8 @@ export default function Header() {
                                             {t('header.myTeams')}
                                         </button>
 
-                                        <div className="border-t border-gray-50 mt-1 pt-1">
-                                            <button
-                                                onClick={handleLogout}
-                                                className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-                                            >
-                                                {t('header.logout')}
-                                            </button>
-                                        </div>
-
                                         <div className="border-t border-gray-50 mt-2 px-4 pt-3">
-                                            <div className="text-xs font-medium uppercase tracking-wide text-gray-400">
-                                                {t('header.language')}
-                                            </div>
-                                            <div className="mt-2 grid grid-cols-3 gap-1 rounded-lg bg-gray-100 p-1">
+                                            <div className="grid grid-cols-3 gap-1 rounded-lg bg-gray-100 p-1">
                                                 {localeOptions.map((option) => (
                                                     <button
                                                         key={option}
@@ -135,6 +123,15 @@ export default function Header() {
                                                     </button>
                                                 ))}
                                             </div>
+                                        </div>
+
+                                        <div className="border-t border-gray-50 mt-2 pt-1">
+                                            <button
+                                                onClick={handleLogout}
+                                                className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                                            >
+                                                {t('header.logout')}
+                                            </button>
                                         </div>
                                     </div>
                                 )}
