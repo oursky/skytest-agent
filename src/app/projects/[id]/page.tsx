@@ -12,7 +12,6 @@ import { getStatusBadgeClass } from '@/utils/statusBadge';
 import { isActiveRunStatus } from '@/utils/statusHelpers';
 import { parsePageSize } from '@/utils/pagination';
 import { ProjectConfigs } from '@/components/features/project-configs';
-import { AndroidSetup } from '@/components/features/device-status';
 
 interface TestRun {
     id: string;
@@ -58,8 +57,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     const [currentPage, setCurrentPage] = useState(1);
     const [searchInput, setSearchInput] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
-    const [activeTab, setActiveTab] = useState<'test-cases' | 'configs' | 'android'>('test-cases');
-    const [androidAvailable, setAndroidAvailable] = useState(false);
+    const [activeTab, setActiveTab] = useState<'test-cases' | 'configs'>('test-cases');
 
     useEffect(() => {
         if (!isAuthLoading && !isLoggedIn) {
@@ -70,12 +68,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     useEffect(() => {
         const tab = searchParams.get('tab');
         if (tab === 'configs') { setActiveTab('configs'); return; }
-        if (tab === 'android' && androidAvailable) { setActiveTab('android'); return; }
         if (tab === 'test-cases') { setActiveTab('test-cases'); }
-        if (tab === 'android' && !androidAvailable) { setActiveTab('test-cases'); }
-    }, [searchParams, androidAvailable]);
+    }, [searchParams]);
 
-    const handleTabChange = useCallback((tab: 'test-cases' | 'configs' | 'android') => {
+    const handleTabChange = useCallback((tab: 'test-cases' | 'configs') => {
         setActiveTab(tab);
 
         const params = new URLSearchParams(searchParams.toString());
@@ -121,20 +117,6 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         setTestCases(testCasesData);
     }, [resolvedParams.id, getAuthHeaders]);
 
-    const fetchAndroidFeatureFlag = useCallback(async () => {
-        try {
-            const token = await getAccessToken();
-            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const res = await fetch('/api/user/features', { headers });
-            if (res.ok) {
-                const data = await res.json() as { androidAvailable: boolean };
-                setAndroidAvailable(data.androidAvailable);
-            }
-        } catch {
-            // ignore
-        }
-    }, [getAccessToken]);
-
     const fetchData = useCallback(async (silent = false) => {
         if (!resolvedParams.id) return;
 
@@ -164,8 +146,6 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         };
 
         fetchData();
-        void fetchAndroidFeatureFlag();
-
         const onFocus = () => {
             void fetchData(true);
         };
@@ -186,7 +166,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             document.removeEventListener('visibilitychange', onVisibilityChange);
             clearInterval(refreshIntervalId);
         };
-    }, [fetchData, fetchTestCases, fetchAndroidFeatureFlag, isLoggedIn, isAuthLoading, resolvedParams.id]);
+    }, [fetchData, fetchTestCases, isLoggedIn, isAuthLoading, resolvedParams.id]);
 
     const handleDeleteTestCase = async () => {
         try {
@@ -389,18 +369,6 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                         >
                             {t('project.tab.configs')}
                         </button>
-                        {androidAvailable && (
-                            <button
-                                type="button"
-                                onClick={() => handleTabChange('android')}
-                                className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'android'
-                                    ? 'border-primary text-primary'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                }`}
-                            >
-                                {t('project.tab.android')}
-                            </button>
-                        )}
                     </nav>
                 </div>
 
@@ -495,10 +463,6 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
                 {activeTab === 'configs' && (
                     <ProjectConfigs projectId={id} />
-                )}
-
-                {activeTab === 'android' && androidAvailable && (
-                    <AndroidSetup projectId={id} />
                 )}
 
                 <div className={`bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden ${activeTab !== 'test-cases' ? 'hidden' : ''}`}>

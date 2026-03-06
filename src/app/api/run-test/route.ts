@@ -3,7 +3,7 @@ import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { validateTargetUrl } from '@/lib/security/url-security';
 import { createLogger } from '@/lib/core/logger';
-import { getProjectDevicesAvailability } from '@/lib/runners/availability-service';
+import { getTeamDevicesAvailability } from '@/lib/runners/availability-service';
 import { config as appConfig } from '@/config/app';
 import { normalizeAndroidTargetConfig } from '@/lib/android/target-config';
 import type { BrowserConfig, TargetConfig, AndroidTargetConfig, TestStep } from '@/types';
@@ -179,6 +179,7 @@ export async function POST(request: Request) {
                 project: {
                     select: {
                         id: true,
+                        teamId: true,
                         team: {
                             select: {
                                 openRouterKeyEncrypted: true,
@@ -237,12 +238,12 @@ export async function POST(request: Request) {
             : null;
 
         if (requestHasAndroidTargets && requestedDeviceId) {
-            const availability = await getProjectDevicesAvailability(testCase.projectId);
+            const availability = await getTeamDevicesAvailability(testCase.project.teamId);
             const selectedDevice = availability?.devices.find((device) => device.deviceId === requestedDeviceId);
 
             if (!selectedDevice || !selectedDevice.isAvailable) {
                 return NextResponse.json(
-                    { error: 'Selected device is no longer available. Reopen Project > Devices and choose an available device.' },
+                    { error: 'Selected device is no longer available. Check Team Settings > Runners and choose an available device.' },
                     { status: 409 }
                 );
             }

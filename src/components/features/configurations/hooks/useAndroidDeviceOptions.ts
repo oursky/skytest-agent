@@ -3,12 +3,12 @@ import { buildAuthHeaders } from '@/components/features/configurations/model/con
 import { AndroidDeviceOption } from '../model/device-utils';
 
 interface UseAndroidDeviceOptionsParams {
-    projectId?: string;
+    teamId?: string;
     readOnly?: boolean;
     getAccessToken: () => Promise<string | null>;
 }
 
-interface ProjectDevice {
+interface TeamDevice {
     id: string;
     deviceId: string;
     name: string;
@@ -17,11 +17,11 @@ interface ProjectDevice {
     isAvailable: boolean;
 }
 
-interface ProjectDevicesResponse {
-    devices: ProjectDevice[];
+interface TeamDevicesResponse {
+    devices: TeamDevice[];
 }
 
-function buildStatusMeta(device: ProjectDevice): { statusKey: string; statusColorClass: string; disabled: boolean } {
+function buildStatusMeta(device: TeamDevice): { statusKey: string; statusColorClass: string; disabled: boolean } {
     if (device.isAvailable) {
         return {
             statusKey: 'device.state.online',
@@ -54,28 +54,28 @@ function buildStatusMeta(device: ProjectDevice): { statusKey: string; statusColo
 }
 
 export function useAndroidDeviceOptions({
-    projectId,
+    teamId,
     readOnly,
     getAccessToken,
 }: UseAndroidDeviceOptionsParams): AndroidDeviceOption[] {
     const [androidDeviceOptions, setAndroidDeviceOptions] = useState<AndroidDeviceOption[]>([]);
 
     useEffect(() => {
-        if (readOnly || !projectId) {
+        if (readOnly || !teamId) {
             return;
         }
 
-        const fetchProjectDevices = async () => {
+        const fetchTeamDevices = async () => {
             const token = await getAccessToken();
             const res = await fetch(
-                `/api/projects/${encodeURIComponent(projectId)}/devices`,
+                `/api/teams/${encodeURIComponent(teamId)}/devices`,
                 { headers: buildAuthHeaders(token) }
             );
             if (!res.ok) {
                 return;
             }
 
-            const payload = await res.json() as ProjectDevicesResponse;
+            const payload = await res.json() as TeamDevicesResponse;
             const options: AndroidDeviceOption[] = payload.devices.map((device) => {
                 const statusMeta = buildStatusMeta(device);
 
@@ -94,10 +94,10 @@ export function useAndroidDeviceOptions({
             setAndroidDeviceOptions(options);
         };
 
-        void fetchProjectDevices().catch(() => {});
-    }, [projectId, getAccessToken, readOnly]);
+        void fetchTeamDevices().catch(() => {});
+    }, [teamId, getAccessToken, readOnly]);
 
-    if (readOnly || !projectId) {
+    if (readOnly || !teamId) {
         return [];
     }
 

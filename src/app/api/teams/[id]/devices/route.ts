@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { createLogger } from '@/lib/core/logger';
-import { getProjectDevicesAvailability } from '@/lib/runners/availability-service';
+import { getTeamDevicesAvailability } from '@/lib/runners/availability-service';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
-import { isProjectMember } from '@/lib/security/permissions';
+import { isTeamMember } from '@/lib/security/permissions';
 
-const logger = createLogger('api:projects:devices');
+const logger = createLogger('api:teams:devices');
 
 export async function GET(
     request: Request,
@@ -21,19 +21,15 @@ export async function GET(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { id: projectId } = await params;
-        if (!await isProjectMember(userId, projectId)) {
+        const { id: teamId } = await params;
+        if (!await isTeamMember(userId, teamId)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const availability = await getProjectDevicesAvailability(projectId);
-        if (!availability) {
-            return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-        }
-
+        const availability = await getTeamDevicesAvailability(teamId);
         return NextResponse.json(availability);
     } catch (error) {
-        logger.error('Failed to load project devices', error);
-        return NextResponse.json({ error: 'Failed to load project devices' }, { status: 500 });
+        logger.error('Failed to load team devices', error);
+        return NextResponse.json({ error: 'Failed to load team devices' }, { status: 500 });
     }
 }
