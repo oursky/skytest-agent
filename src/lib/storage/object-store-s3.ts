@@ -1,6 +1,7 @@
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadBucketCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
@@ -102,6 +103,12 @@ export class S3ObjectStore {
         return getSignedUrl(this.client, command, {
             expiresIn: this.signedUrlTtlSeconds,
         });
+    }
+
+    async checkHealth(): Promise<void> {
+        await this.client.send(new HeadBucketCommand({
+            Bucket: this.bucket,
+        }));
     }
 }
 
