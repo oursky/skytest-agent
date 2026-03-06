@@ -64,10 +64,6 @@ export default function Header() {
                     <div className="flex items-center gap-3">
                         {isLoggedIn ? (
                             <div className="flex items-center gap-3">
-                                <span className="hidden max-w-[180px] truncate text-sm font-medium text-gray-700 md:block">
-                                    {user?.email || 'User'}
-                                </span>
-
                                 {teams.length > 0 && (
                                     <CustomSelect
                                         value={currentTeam?.id ?? teams[0]?.id ?? ''}
@@ -93,6 +89,9 @@ export default function Header() {
                                         <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 font-semibold text-white">
                                             {(user?.email?.[0] || 'U').toUpperCase()}
                                         </div>
+                                        <span className="hidden max-w-[180px] truncate text-sm font-medium text-gray-700 md:block">
+                                            {user?.email || 'User'}
+                                        </span>
                                         <svg
                                             className={`h-4 w-4 text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`}
                                             fill="none"

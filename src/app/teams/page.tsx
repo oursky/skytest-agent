@@ -340,19 +340,17 @@ export default function TeamsPage() {
 
                 {currentTeam && (
                     <>
-                        <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-                            <div className="max-w-sm">
-                                <CustomSelect
-                                    value={currentTeam.id}
-                                    options={teamOptions}
-                                    onChange={(teamId) => void setCurrentTeam(teamId)}
-                                    ariaLabel={t('header.team')}
-                                    fullWidth
-                                    buttonClassName="h-9 border-gray-200 px-3 shadow-none"
-                                    menuClassName="min-w-full"
-                                />
-                            </div>
-                        </section>
+                        <div className="max-w-sm">
+                            <CustomSelect
+                                value={currentTeam.id}
+                                options={teamOptions}
+                                onChange={(teamId) => void setCurrentTeam(teamId)}
+                                ariaLabel={t('header.team')}
+                                fullWidth
+                                buttonClassName="h-9 border-gray-200 px-3 shadow-none"
+                                menuClassName="min-w-full"
+                            />
+                        </div>
 
                         {teamDetails?.id === currentTeam.id && (
                             <>
