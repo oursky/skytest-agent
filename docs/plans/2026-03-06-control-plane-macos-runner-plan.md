@@ -25,6 +25,7 @@ These are already true and should be treated as prerequisites, not new work:
 - Roles are `OWNER`, `ADMIN`, `MEMBER`.
 - Team AI key management exists.
 - Team settings, membership management, and ownership transfer flows exist in the web UI.
+- Project-level UI already exists and is the right place to add a `Devices` tab for runtime visibility.
 
 ## Phase 3A: Durable Queue And Runner Schema
 
@@ -103,6 +104,7 @@ These are already true and should be treated as prerequisites, not new work:
 1. Reuse Android detection logic where it is still valid.
 2. Report device/emulator capabilities from the runner, not the API host.
 3. Surface meaningful diagnostics for missing SDK/device state.
+4. Keep detection read-only with respect to installed apps.
 **Validation:** macOS runner reports `browser-only` or `android-ready` accurately.
 
 ### Task 3C.3: Execute Android jobs through the macOS runner
@@ -125,28 +127,39 @@ These are already true and should be treated as prerequisites, not new work:
 ## Phase 3D: Web UX For Runner Availability
 
 ### Task 3D.1: Add runner availability APIs
-**Files:** `src/app/api/teams/[id]/runners/route.ts`, `src/lib/runners/availability-service.ts`
+**Files:** `src/app/api/teams/[id]/runners/route.ts`, `src/app/api/projects/[id]/devices/route.ts`, `src/lib/runners/availability-service.ts`
 **Steps:**
 1. Return runner inventory relevant to a team.
-2. Include capability summaries and last heartbeat.
-3. Keep the response focused on run-form and settings needs.
-**Validation:** web UI can distinguish browser availability from Android availability.
+2. Add project-scoped device inventory derived from connected runners.
+3. Include capability summaries, device metadata, and last heartbeat.
+4. Keep the response focused on run-form and devices-tab needs.
+**Validation:** web UI can distinguish browser availability from Android availability and can list concrete Android devices.
 
 ### Task 3D.2: Update run submission UX
 **Files:** `src/app/run/page.tsx`, `src/components/features/configurations/*`, `src/i18n/messages.ts`
 **Steps:**
 1. Show runner availability based on current test target requirements.
 2. Explain when Android execution is unavailable because no macOS runner is online.
-3. Keep browser-only runs usable in hosted mode.
-**Validation:** browser runs stay enabled when Android is unavailable; Android state is clearly explained.
+3. Add device selection UI for Android-capable runs using currently available devices.
+4. Keep browser-only runs usable in hosted mode.
+**Validation:** browser runs stay enabled when Android is unavailable; Android state is clearly explained; Android runs can target a specific available device.
 
-### Task 3D.3: Add team-level runner visibility
-**Files:** `src/app/teams/page.tsx`, new runner settings component if needed, `src/i18n/messages.ts`
+### Task 3D.3: Add project devices tab
+**Files:** `src/app/projects/[id]/page.tsx`, new devices feature component, `src/i18n/messages.ts`
 **Steps:**
-1. Add a runner status surface under team settings or a dedicated team runners view.
-2. Show online/offline, type, version, and Android readiness.
-3. Add setup instructions for connecting a macOS runner.
-**Validation:** a team owner/admin can see the connected runner state without leaving the web app.
+1. Add a `Devices` tab under the project page.
+2. Show available devices/emulators, runner source, heartbeat, and scheduling availability.
+3. Expose project-level device functions in this tab.
+4. Make the manual-install rule explicit in the UI copy.
+**Validation:** a user can view available devices and understand that app installation is managed manually outside SkyTest.
+
+### Task 3D.4: Keep team settings focused on connection health
+**Files:** `src/app/teams/page.tsx`, new runner summary component if needed, `src/i18n/messages.ts`
+**Steps:**
+1. Keep team settings at summary level only.
+2. Show runner online/offline state and setup guidance.
+3. Link device operations back to `Project > Devices`.
+**Validation:** team settings does not become a second device-management surface.
 
 ## Phase 3E: MCP And Runtime Cleanup
 
@@ -156,7 +169,8 @@ These are already true and should be treated as prerequisites, not new work:
 1. Replace local Android inventory reads with runner inventory data.
 2. Keep MCP control-plane only.
 3. Preserve permission checks through team/project access helpers.
-**Validation:** MCP can reason about capability availability without local host assumptions.
+4. Expose concrete available-device inventory where the MCP surface needs it.
+**Validation:** MCP can reason about capability and available-device inventory without local host assumptions.
 
 ### Task 3E.2: Remove remaining dead paths
 **Files:** `src/lib/runtime/queue.ts`, `src/lib/runtime/project-events.ts`, `src/app/api/projects/[id]/events/route.ts`, any stale docs
@@ -181,5 +195,7 @@ Run before phase completion and before merging major slices:
 - Browser execution no longer runs inside the API process.
 - Android execution no longer depends on the API host machine.
 - Runner claims, heartbeats, leases, and events are durable.
-- The web UI communicates runner availability clearly.
+- The web UI communicates runner and device availability clearly.
+- `Project > Devices` is the main device-management surface.
+- Manual app installation remains explicit product behavior.
 - No organization or invite abstractions were reintroduced.

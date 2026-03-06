@@ -64,7 +64,7 @@ At the end of Phase 3:
 - browser runs execute through hosted runner processes, not inside the API process
 - Android runs execute only through a connected macOS runner
 - run ownership, heartbeats, claims, events, and completion are durable in Postgres
-- the web UI can show runner availability and explain why Android execution is blocked when no macOS runner is online
+- the web UI can show runner availability, device inventory, and explain why Android execution is blocked when no macOS runner is online
 - MCP depends on control-plane state and runner inventory APIs, not local process state
 
 ## 4. Scope
@@ -75,7 +75,7 @@ At the end of Phase 3:
 - Durable run ownership and lease recovery.
 - Hosted browser runner extraction from the API process.
 - macOS runner agent for Android execution.
-- Web UI updates for runner availability and setup guidance.
+- Web UI updates for runner availability, device inventory, and setup guidance.
 - Removal of remaining local-only runtime assumptions from the control plane.
 
 ### Explicitly Out Of Scope
@@ -133,9 +133,21 @@ Responsibilities:
 
 - discover Android SDK, devices, and emulators
 - register capabilities with the control plane
+- publish connected-device and available-emulator inventory
 - claim Android-compatible jobs
 - execute Android runs locally
 - upload events, screenshots, logs, and results
+
+### Manual App Install Rule
+
+Manual app installation is a product requirement, not a temporary limitation.
+
+That means:
+
+- the runner does not install APKs or app bundles
+- the control plane does not manage app distribution
+- the device flow should make it clear that users prepare the device state themselves before running tests
+- the runner may verify app presence or device readiness, but it must not mutate installed app state as part of job setup
 
 ## 6. Data Model Direction
 
@@ -227,20 +239,35 @@ The web app should explain runner state instead of hiding it.
 
 - Browser runs can be submitted when a hosted browser runner exists.
 - Android runs remain queued or are blocked with a clear explanation when no macOS runner is available.
+- For Android runs, the user should be able to select from currently available devices exposed by connected runners.
+- Device selection should prefer explicit runner-reported devices over generic capability-only scheduling when the user has chosen a specific target.
 - The page should surface the missing capability, not a generic error.
+
+### Project Devices UI
+
+Device operations belong in the web control plane under `Project > Devices`.
+
+The `Devices` tab should let the user:
+
+- see all currently available devices and emulators relevant to the project
+- inspect runner source, online/offline state, and last heartbeat
+- understand whether a device is available for test runs
+- perform device-related functions that do not conflict with the manual-install rule
+- access setup guidance for connecting a macOS runner
+
+The minimum useful device data is:
+
+- device name
+- device identifier
+- runner name or runner type
+- online/offline state
+- platform version if available
+- emulator vs physical device
+- availability for scheduling
 
 ### Team UI
 
-Runner setup and visibility belong in the web control plane, likely under team settings or a dedicated runners view.
-
-The minimum useful information is:
-
-- runner type
-- online/offline state
-- last heartbeat
-- version
-- Android readiness
-- setup instructions for connecting a macOS runner
+Team settings should still show high-level runner setup and status, but device-level operations should live on the project page, not the team settings page.
 
 ## 9. MCP Rule
 
@@ -272,5 +299,6 @@ Phase 3 is done when:
 - browser runs complete through a hosted runner process
 - Android runs complete only through a macOS runner
 - runner events survive process restart
-- team members can understand runner availability from the web UI
+- team members can understand runner and device availability from the web UI
+- `Project > Devices` is the canonical UI for device visibility and selection
 - no new organization or invite abstractions were introduced
