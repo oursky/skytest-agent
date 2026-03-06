@@ -12,14 +12,6 @@ enum TeamRole {
   MEMBER
 }
 
-enum TeamInviteStatus {
-  PENDING
-  ACCEPTED
-  DECLINED
-  CANCELED
-  EXPIRED
-}
-
 model User {
   id                String          @id @default(cuid())
   authId            String          @unique
@@ -30,7 +22,6 @@ model User {
   actorUsageRecords UsageRecord[]   @relation("UsageRecordActor")
   apiKeys           ApiKey[]
   teamMemberships   TeamMembership[]
-  sentTeamInvites   TeamInvite[]    @relation("TeamInviteSender")
 }
 
 model UsageRecord {
@@ -59,7 +50,6 @@ model Team {
   createdAt              DateTime                 @default(now())
   updatedAt              DateTime                 @updatedAt
   memberships            TeamMembership[]
-  invites                TeamInvite[]
   projects               Project[]
 
   @@index([updatedAt(sort: Desc)])
@@ -81,28 +71,6 @@ model TeamMembership {
   @@index([teamId, role])
   @@index([teamId, email])
   @@index([email])
-}
-
-model TeamInvite {
-  id              String           @id @default(cuid())
-  teamId          String
-  team            Team             @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  email           String
-  role            TeamRole
-  status          TeamInviteStatus @default(PENDING)
-  tokenHash       String           @unique
-  expiresAt       DateTime
-  invitedByUserId String
-  invitedByUser   User             @relation("TeamInviteSender", fields: [invitedByUserId], references: [id], onDelete: Cascade)
-  acceptedAt      DateTime?
-  declinedAt      DateTime?
-  canceledAt      DateTime?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-
-  @@index([teamId, status])
-  @@index([email, status])
-  @@index([invitedByUserId, status])
 }
 
 model Project {
