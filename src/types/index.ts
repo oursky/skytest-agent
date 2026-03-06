@@ -5,6 +5,8 @@ export * from './android';
 export * from './api-key';
 export type {
     CompatibilityMetadata,
+    ClaimJobRequest,
+    ClaimJobResponse,
     CreatePairingTokenResponse,
     DeviceSyncRequest,
     DeviceSyncResponse,

@@ -61,6 +61,8 @@ export interface TestCase {
 export interface TestRun {
     id: string;
     testCaseId: string;
+    requiredCapability?: string | null;
+    requiredRunnerKind?: string | null;
     requestedDeviceId?: string | null;
     assignedRunnerId?: string | null;
     leaseExpiresAt?: string | null;

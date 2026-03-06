@@ -42,7 +42,7 @@ describe('authenticateRunnerRequest', () => {
             kind: 'RUNNER',
             revokedAt: new Date('2026-03-06T00:00:00.000Z'),
             expiresAt: new Date('2026-03-08T00:00:00.000Z'),
-            runner: { id: 'runner-1' },
+            runner: { id: 'runner-1', kind: 'MACOS_AGENT', capabilities: ['ANDROID'] },
         });
 
         const result = await authenticateRunnerRequest(new Request('http://localhost', {
@@ -62,7 +62,7 @@ describe('authenticateRunnerRequest', () => {
             kind: 'RUNNER',
             revokedAt: null,
             expiresAt: new Date('2026-03-06T23:59:00.000Z'),
-            runner: { id: 'runner-1' },
+            runner: { id: 'runner-1', kind: 'MACOS_AGENT', capabilities: ['ANDROID'] },
         });
 
         const result = await authenticateRunnerRequest(new Request('http://localhost', {
@@ -82,7 +82,7 @@ describe('authenticateRunnerRequest', () => {
             kind: 'RUNNER',
             revokedAt: null,
             expiresAt: new Date('2026-03-07T12:00:00.000Z'),
-            runner: { id: 'runner-1' },
+            runner: { id: 'runner-1', kind: 'MACOS_AGENT', capabilities: ['ANDROID'] },
         });
 
         const result = await authenticateRunnerRequest(new Request('http://localhost', {
@@ -95,6 +95,8 @@ describe('authenticateRunnerRequest', () => {
             tokenId: 'token-1',
             runnerId: 'runner-1',
             teamId: 'team-1',
+            runnerKind: 'MACOS_AGENT',
+            capabilities: ['ANDROID'],
             credentialExpiresAt: new Date('2026-03-07T12:00:00.000Z'),
             rotationRequired: true,
         });
@@ -114,7 +116,7 @@ describe('authenticateRunnerRequest', () => {
             kind: 'RUNNER',
             revokedAt: null,
             expiresAt: new Date('2026-03-12T00:00:00.000Z'),
-            runner: { id: 'runner-1' },
+            runner: { id: 'runner-1', kind: 'HOSTED_BROWSER', capabilities: ['BROWSER'] },
         });
 
         const result = await authenticateRunnerRequest(new Request('http://localhost', {
@@ -127,6 +129,8 @@ describe('authenticateRunnerRequest', () => {
             tokenId: 'token-1',
             runnerId: 'runner-1',
             teamId: 'team-1',
+            runnerKind: 'HOSTED_BROWSER',
+            capabilities: ['BROWSER'],
             credentialExpiresAt: new Date('2026-03-12T00:00:00.000Z'),
             rotationRequired: false,
         });

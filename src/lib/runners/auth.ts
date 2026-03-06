@@ -7,6 +7,8 @@ export interface RunnerAuthContext {
     tokenId: string;
     runnerId: string;
     teamId: string;
+    runnerKind: string;
+    capabilities: string[];
     credentialExpiresAt: Date;
     rotationRequired: boolean;
 }
@@ -40,7 +42,11 @@ export async function authenticateRunnerRequest(request: Request): Promise<Runne
             revokedAt: true,
             expiresAt: true,
             runner: {
-                select: { id: true },
+                select: {
+                    id: true,
+                    kind: true,
+                    capabilities: true,
+                },
             },
         },
     });
@@ -70,6 +76,8 @@ export async function authenticateRunnerRequest(request: Request): Promise<Runne
         tokenId: token.id,
         runnerId: token.runnerId,
         teamId: token.teamId,
+        runnerKind: token.runner.kind,
+        capabilities: token.runner.capabilities,
         credentialExpiresAt: token.expiresAt,
         rotationRequired: token.expiresAt.getTime() - now.getTime() <= CREDENTIAL_ROTATION_THRESHOLD_MS,
     };

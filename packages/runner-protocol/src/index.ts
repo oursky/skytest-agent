@@ -103,6 +103,25 @@ export const deviceSyncResponseSchema = z.object({
     rotationRequired: z.boolean(),
 });
 
+export const claimJobSchema = z.object({
+    runId: z.string().min(1),
+    testCaseId: z.string().min(1),
+    requiredCapability: z.string().nullable(),
+    requestedDeviceId: z.string().nullable(),
+    leaseExpiresAt: z.string().datetime(),
+});
+
+export const claimJobRequestSchema = z.object({
+    protocolVersion: runnerProtocolVersionSchema,
+    runnerVersion: runnerVersionSchema,
+});
+
+export const claimJobResponseSchema = z.object({
+    compatibility: compatibilityMetadataSchema,
+    rotationRequired: z.boolean(),
+    job: claimJobSchema.nullable(),
+});
+
 export type RunnerKind = z.infer<typeof runnerKindSchema>;
 export type RunnerCapability = z.infer<typeof runnerCapabilitySchema>;
 export type RegisterRunnerRequest = z.infer<typeof registerRunnerRequestSchema>;
@@ -115,5 +134,8 @@ export type PairingExchangeResponse = z.infer<typeof pairingExchangeResponseSche
 export type DeviceSyncItem = z.infer<typeof deviceSyncItemSchema>;
 export type DeviceSyncRequest = z.infer<typeof deviceSyncRequestSchema>;
 export type DeviceSyncResponse = z.infer<typeof deviceSyncResponseSchema>;
+export type ClaimJob = z.infer<typeof claimJobSchema>;
+export type ClaimJobRequest = z.infer<typeof claimJobRequestSchema>;
+export type ClaimJobResponse = z.infer<typeof claimJobResponseSchema>;
 export type CompatibilityMetadata = z.infer<typeof compatibilityMetadataSchema>;
 export type RunnerTransportMetadata = z.infer<typeof runnerTransportMetadataSchema>;

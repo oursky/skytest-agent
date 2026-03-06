@@ -132,6 +132,8 @@ model TestRun {
   id                      String   @id @default(cuid())
   testCaseId              String
   testCase                TestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  requiredCapability      String?
+  requiredRunnerKind      String?
   requestedDeviceId       String?
   assignedRunnerId        String?
   assignedRunner          Runner?  @relation("AssignedRunnerRuns", fields: [assignedRunnerId], references: [id], onDelete: SetNull)
@@ -152,6 +154,7 @@ model TestRun {
 
   @@index([testCaseId, createdAt(sort: Desc)])
   @@index([status])
+  @@index([status, requiredCapability, createdAt(sort: Asc)])
   @@index([assignedRunnerId, leaseExpiresAt])
   @@index([requestedDeviceId])
 }
