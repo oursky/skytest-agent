@@ -284,8 +284,8 @@ export default function TeamMembers({ teamId, teamRole, onMembersChanged }: Team
                                         </td>
                                         <td className="px-4 py-3 align-middle">
                                             <div className="flex min-h-8 items-center justify-end gap-2">
-                                                {member.role === 'OWNER' ? (
-                                                    <span aria-hidden="true" className="block h-0 w-0"></span>
+                                            {member.role === 'OWNER' ? (
+                                                    <span className="text-xs text-gray-400">{t('team.members.readOnly')}</span>
                                                 ) : canManage ? (
                                                     <button
                                                         type="button"
