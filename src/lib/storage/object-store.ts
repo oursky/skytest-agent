@@ -15,6 +15,7 @@ export interface ObjectStore {
         contentType?: string;
         inline?: boolean;
     }): Promise<string>;
+    checkHealth(): Promise<void>;
 }
 
 const globalForObjectStore = global as unknown as { objectStore?: ObjectStore };
@@ -37,8 +38,37 @@ function createObjectStore(): ObjectStore {
     });
 }
 
-export const objectStore = globalForObjectStore.objectStore ?? createObjectStore();
+export function getObjectStore(): ObjectStore {
+    if (globalForObjectStore.objectStore) {
+        return globalForObjectStore.objectStore;
+    }
 
-if (process.env.NODE_ENV !== 'production') {
-    globalForObjectStore.objectStore = objectStore;
+    const store = createObjectStore();
+    if (process.env.NODE_ENV !== 'production') {
+        globalForObjectStore.objectStore = store;
+    }
+
+    return store;
+}
+
+export const objectStore: ObjectStore = {
+    putObject(input) {
+        return getObjectStore().putObject(input);
+    },
+    getObject(key) {
+        return getObjectStore().getObject(key);
+    },
+    deleteObject(key) {
+        return getObjectStore().deleteObject(key);
+    },
+    getSignedDownloadUrl(input) {
+        return getObjectStore().getSignedDownloadUrl(input);
+    },
+    checkHealth() {
+        return getObjectStore().checkHealth();
+    },
+};
+
+export async function checkObjectStoreHealth(): Promise<void> {
+    await objectStore.checkHealth();
 }
