@@ -253,12 +253,12 @@ export default function TeamMembers({ teamId, teamRole, onMembersChanged }: Team
                             <tbody className="divide-y divide-gray-100 text-gray-700">
                                 {members.map((member) => (
                                     <tr key={member.id} className="hover:bg-gray-50/50">
-                                        <td className="px-4 py-3 align-top">
+                                        <td className="px-4 py-3 align-middle">
                                             <div className="font-medium text-gray-900">
                                                 {member.email || t('team.members.unknownEmail')}
                                             </div>
                                         </td>
-                                        <td className="px-4 py-3 align-top">
+                                        <td className="px-4 py-3 align-middle">
                                             {member.role !== 'OWNER' && canManage ? (
                                                 <CustomSelect
                                                     value={member.role}
@@ -274,18 +274,18 @@ export default function TeamMembers({ teamId, teamRole, onMembersChanged }: Team
                                                 </span>
                                             )}
                                         </td>
-                                        <td className="px-4 py-3 align-top text-sm text-gray-500">
+                                        <td className="px-4 py-3 align-middle text-sm text-gray-500">
                                             {formatDateTimeCompact(member.createdAt)}
                                         </td>
-                                        <td className="px-4 py-3 align-top">
-                                            <div className="flex justify-end gap-2">
+                                        <td className="px-4 py-3 align-middle">
+                                            <div className="flex min-h-8 items-center justify-end gap-2">
                                                 {member.role === 'OWNER' ? (
-                                                    <span className="sr-only">{t('team.members.roles.owner')}</span>
+                                                    <span aria-hidden="true" className="block h-0 w-0"></span>
                                                 ) : canManage ? (
                                                     <button
                                                         type="button"
                                                         onClick={() => setMemberToRemove(member)}
-                                                        className="text-xs font-medium text-red-600 hover:text-red-700"
+                                                        className="text-sm font-medium text-red-600 hover:text-red-700"
                                                     >
                                                         {t('common.remove')}
                                                     </button>
