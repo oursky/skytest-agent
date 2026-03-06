@@ -2,6 +2,9 @@
   "name": "skytest-agent",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "overrides": {
     "@hono/node-server": "1.19.10",
     "@modelcontextprotocol/sdk": "$@modelcontextprotocol/sdk",
