@@ -2,6 +2,7 @@ import type { RunnerEventInput } from '@skytest/runner-protocol';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/core/prisma';
 import { config as appConfig } from '@/config/app';
+import { publishRunUpdate } from '@/lib/runners/event-bus';
 import { createStoredName, validateAndSanitizeFile, buildRunArtifactObjectKey } from '@/lib/security/file-security';
 import { putObjectBuffer } from '@/lib/storage/object-store-utils';
 
@@ -54,7 +55,7 @@ export async function appendRunEvents(input: {
 }) {
     const now = new Date();
 
-    return prisma.$transaction(async (tx) => {
+    const appended = await prisma.$transaction(async (tx) => {
         const run = await tx.testRun.findUnique({
             where: { id: input.runId },
             select: {
@@ -105,6 +106,12 @@ export async function appendRunEvents(input: {
             nextSequence: startSequence + input.events.length,
         };
     });
+
+    if (appended) {
+        publishRunUpdate(input.runId);
+    }
+
+    return appended;
 }
 
 export async function uploadRunArtifact(input: {
@@ -151,10 +158,12 @@ export async function uploadRunArtifact(input: {
         },
     });
 
-    return {
+    const result = {
         fileId: file.id,
         artifactKey,
     };
+    publishRunUpdate(input.runId);
+    return result;
 }
 
 export async function completeOwnedRun(input: {
@@ -164,7 +173,7 @@ export async function completeOwnedRun(input: {
 }) {
     const now = new Date();
 
-    return prisma.$transaction(async (tx) => {
+    const completed = await prisma.$transaction(async (tx) => {
         const run = await tx.testRun.findUnique({
             where: { id: input.runId },
             select: {
@@ -199,6 +208,12 @@ export async function completeOwnedRun(input: {
 
         return { runId: input.runId, status: 'PASS' as const };
     });
+
+    if (completed) {
+        publishRunUpdate(input.runId);
+    }
+
+    return completed;
 }
 
 export async function failOwnedRun(input: {
@@ -209,7 +224,7 @@ export async function failOwnedRun(input: {
 }) {
     const now = new Date();
 
-    return prisma.$transaction(async (tx) => {
+    const failed = await prisma.$transaction(async (tx) => {
         const run = await tx.testRun.findUnique({
             where: { id: input.runId },
             select: {
@@ -245,4 +260,10 @@ export async function failOwnedRun(input: {
 
         return { runId: input.runId, status: 'FAIL' as const };
     });
+
+    if (failed) {
+        publishRunUpdate(input.runId);
+    }
+
+    return failed;
 }

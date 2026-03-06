@@ -1,74 +1,157 @@
 import { NextResponse } from 'next/server';
-import { queue } from '@/lib/runtime/queue';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { verifyStreamToken } from '@/lib/security/stream-token';
 import { config as appConfig } from '@/config/app';
-import { parseStoredEvents } from '@/lib/runtime/test-events';
 import { isTestRunProjectMember } from '@/lib/security/permissions';
+import { subscribeRunUpdates } from '@/lib/runners/event-bus';
+import type { TestEvent, LogLevel } from '@/types';
 
 export const dynamic = 'force-dynamic';
 
 const logger = createLogger('api:test-runs:events');
 
+interface RunStatusRow {
+    status: string;
+    error: string | null;
+}
+
+interface RunEventRow {
+    sequence: number;
+    kind: string;
+    message: string | null;
+    payload: unknown;
+    artifactKey: string | null;
+    createdAt: Date;
+}
+
+function isLogLevel(value: unknown): value is LogLevel {
+    return value === 'info' || value === 'error' || value === 'success';
+}
+
+function isUiTestEvent(payload: unknown): payload is TestEvent {
+    if (!payload || typeof payload !== 'object') {
+        return false;
+    }
+
+    const candidate = payload as Record<string, unknown>;
+    if (candidate.type !== 'log' && candidate.type !== 'screenshot') {
+        return false;
+    }
+
+    return typeof candidate.timestamp === 'number' && typeof candidate.data === 'object' && candidate.data !== null;
+}
+
+function mapRunEventToUiEvent(row: RunEventRow): TestEvent {
+    if (isUiTestEvent(row.payload)) {
+        return row.payload;
+    }
+
+    const level: LogLevel = row.kind.toLowerCase().includes('error') ? 'error' : 'info';
+    const message = row.message
+        || (row.artifactKey ? `Artifact uploaded: ${row.artifactKey}` : row.kind);
+
+    return {
+        type: 'log',
+        data: {
+            message,
+            level: isLogLevel(level) ? level : 'info',
+        },
+        timestamp: row.createdAt.getTime(),
+    };
+}
+
+async function resolveAuthorizedUserId(request: Request, runId: string): Promise<string | null> {
+    const { searchParams } = new URL(request.url);
+    const streamToken = searchParams.get('streamToken');
+
+    const authPayload = await verifyAuth(request);
+    if (authPayload) {
+        const userId = await resolveUserId(authPayload);
+        if (userId) {
+            return userId;
+        }
+    }
+
+    if (!streamToken) {
+        return null;
+    }
+
+    const streamIdentity = await verifyStreamToken({
+        token: streamToken,
+        scope: 'test-run-events',
+        resourceId: runId,
+    });
+
+    return streamIdentity?.userId ?? null;
+}
+
+async function fetchRunStatus(runId: string): Promise<RunStatusRow | null> {
+    return prisma.testRun.findUnique({
+        where: { id: runId },
+        select: {
+            status: true,
+            error: true,
+        },
+    });
+}
+
+async function fetchRunEventsAfter(runId: string, afterSequence: number): Promise<RunEventRow[]> {
+    return prisma.testRunEvent.findMany({
+        where: {
+            runId,
+            sequence: { gt: afterSequence },
+        },
+        orderBy: { sequence: 'asc' },
+        take: 300,
+        select: {
+            sequence: true,
+            kind: true,
+            message: true,
+            payload: true,
+            artifactKey: true,
+            createdAt: true,
+        },
+    });
+}
+
 export async function GET(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const { searchParams } = new URL(request.url);
-    const streamToken = searchParams.get('streamToken');
+    const { id: runId } = await params;
 
-    const { id } = await params;
-
-    let userId: string | null = null;
-    const authPayload = await verifyAuth(request);
-    if (authPayload) {
-        userId = await resolveUserId(authPayload);
-    }
-
-    if (!userId && streamToken) {
-        const streamIdentity = await verifyStreamToken({
-            token: streamToken,
-            scope: 'test-run-events',
-            resourceId: id
-        });
-        userId = streamIdentity?.userId ?? null;
-    }
-
+    const userId = await resolveAuthorizedUserId(request, runId);
     if (!userId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const testRun = await prisma.testRun.findUnique({
-        where: { id },
-        select: {
-            status: true,
-            error: true,
-            result: true,
-            logs: true,
-        }
-    });
-
-    if (!testRun) {
+    const currentRun = await fetchRunStatus(runId);
+    if (!currentRun) {
         return NextResponse.json({ error: 'Test run not found' }, { status: 404 });
     }
 
-    if (!await isTestRunProjectMember(userId, id)) {
+    if (!await isTestRunProjectMember(userId, runId)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    let streamClosed = false;
     let pollInterval: ReturnType<typeof setInterval> | null = null;
     let ttlTimer: ReturnType<typeof setTimeout> | null = null;
-    let streamClosed = false;
+    let unsubscribe: (() => void) | null = null;
+    let lastSequence = 0;
+    let lastStatus = '';
 
     const stream = new ReadableStream({
-        async start(controller) {
+        start(controller) {
             const encoder = new TextEncoder();
             const encode = (data: unknown) => encoder.encode(`data: ${JSON.stringify(data)}\n\n`);
 
             const closeStream = () => {
-                if (streamClosed) return;
+                if (streamClosed) {
+                    return;
+                }
                 streamClosed = true;
                 if (pollInterval) {
                     clearInterval(pollInterval);
@@ -76,6 +159,10 @@ export async function GET(
                 if (ttlTimer) {
                     clearTimeout(ttlTimer);
                     ttlTimer = null;
+                }
+                if (unsubscribe) {
+                    unsubscribe();
+                    unsubscribe = null;
                 }
                 try {
                     controller.close();
@@ -85,100 +172,65 @@ export async function GET(
             };
 
             const safeEnqueue = (data: unknown) => {
-                if (streamClosed) return;
+                if (streamClosed) {
+                    return;
+                }
                 try {
                     controller.enqueue(encode(data));
                 } catch (error) {
-                    if (!(error instanceof TypeError && error.message.includes('Controller is already closed'))) {
-                        logger.warn('Stream enqueue failed', error);
-                    }
+                    logger.warn('SSE enqueue failed', error);
                     closeStream();
                 }
             };
 
-            if (['PASS', 'FAIL', 'CANCELLED'].includes(testRun.status)) {
-                safeEnqueue({ type: 'status', status: testRun.status, error: testRun.error });
-
-                const events = parseStoredEvents(testRun.result ?? testRun.logs);
-                for (const event of events) {
-                    safeEnqueue(event);
+            let flushInProgress = false;
+            const flushFromDb = async () => {
+                if (streamClosed || flushInProgress) {
+                    return;
                 }
+                flushInProgress = true;
 
-                closeStream();
-                return;
-            }
-
-            const currentStatus = queue.getStatus(id) ?? testRun.status;
-            safeEnqueue({ type: 'status', status: currentStatus });
-
-            let lastIndex = 0;
-            let lastSentStatus = currentStatus;
-
-            const tryEnqueueStoredEvents = (stored: string | null | undefined) => {
-                const parsed = parseStoredEvents(stored);
-                if (parsed.length > lastIndex) {
-                    const newEvents = parsed.slice(lastIndex);
-                    for (const event of newEvents) {
-                        safeEnqueue(event);
-                    }
-                    lastIndex = parsed.length;
-                }
-            };
-
-            pollInterval = setInterval(async () => {
-                if (streamClosed) return;
                 try {
-                    const status = queue.getStatus(id);
-
-                    if (status && status !== lastSentStatus) {
-                        safeEnqueue({ type: 'status', status });
-                        lastSentStatus = status;
-                    }
-
-                    if (!status) {
-                        const freshRun = await prisma.testRun.findUnique({
-                            where: { id },
-                            select: { status: true, error: true, result: true, logs: true }
-                        });
-
-                        if (!freshRun) return;
-
-                        tryEnqueueStoredEvents(freshRun.result ?? freshRun.logs);
-
-                        if (['PASS', 'FAIL', 'CANCELLED'].includes(freshRun.status)) {
-                            if (pollInterval) {
-                                clearInterval(pollInterval);
-                            }
-
-                            safeEnqueue({ type: 'status', status: freshRun.status, error: freshRun.error });
-                            closeStream();
-                            return;
-                        }
-
-                        if (['RUNNING', 'QUEUED', 'PREPARING'].includes(freshRun.status) && freshRun.status !== lastSentStatus) {
-                            safeEnqueue({ type: 'status', status: freshRun.status });
-                            lastSentStatus = freshRun.status;
-                        }
-
+                    const statusRow = await fetchRunStatus(runId);
+                    if (!statusRow) {
+                        safeEnqueue({ type: 'status', status: 'FAIL', error: 'Run deleted' });
+                        closeStream();
                         return;
                     }
 
-                    const events = queue.getEvents(id);
-                    if (events.length > lastIndex) {
-                        const newEvents = events.slice(lastIndex);
-                        for (const event of newEvents) {
-                            safeEnqueue(event);
-                        }
-                        lastIndex = events.length;
+                    if (statusRow.status !== lastStatus) {
+                        safeEnqueue({ type: 'status', status: statusRow.status, error: statusRow.error });
+                        lastStatus = statusRow.status;
                     }
 
-                } catch (error) {
-                    if (!streamClosed) {
-                        logger.warn('Streaming error', error);
+                    const events = await fetchRunEventsAfter(runId, lastSequence);
+                    for (const row of events) {
+                        safeEnqueue(mapRunEventToUiEvent(row));
+                        lastSequence = row.sequence;
                     }
+
+                    if (['PASS', 'FAIL', 'CANCELLED'].includes(statusRow.status)) {
+                        closeStream();
+                    }
+                } catch (error) {
+                    logger.warn('Failed to flush run events from DB', error);
                     closeStream();
+                } finally {
+                    flushInProgress = false;
                 }
+            };
+
+            safeEnqueue({ type: 'status', status: currentRun.status, error: currentRun.error });
+            lastStatus = currentRun.status;
+            void flushFromDb();
+
+            pollInterval = setInterval(() => {
+                void flushFromDb();
             }, appConfig.queue.pollInterval);
+
+            unsubscribe = subscribeRunUpdates(runId, () => {
+                void flushFromDb();
+            });
 
             ttlTimer = setTimeout(() => {
                 closeStream();
@@ -191,16 +243,18 @@ export async function GET(
             }
             if (ttlTimer) {
                 clearTimeout(ttlTimer);
-                ttlTimer = null;
             }
-        }
+            if (unsubscribe) {
+                unsubscribe();
+            }
+        },
     });
 
     return new Response(stream, {
         headers: {
             'Content-Type': 'text/event-stream',
             'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
+            Connection: 'keep-alive',
         },
     });
 }
