@@ -3,6 +3,7 @@ import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { validateTargetUrl } from '@/lib/security/url-security';
 import { createLogger } from '@/lib/core/logger';
+import { getProjectDevicesAvailability } from '@/lib/runners/availability-service';
 import { config as appConfig } from '@/config/app';
 import { normalizeAndroidTargetConfig } from '@/lib/android/target-config';
 import type { BrowserConfig, TargetConfig, AndroidTargetConfig, TestStep } from '@/types';
@@ -18,6 +19,7 @@ interface RunTestRequest {
     prompt?: string;
     steps?: TestStep[];
     browserConfig?: Record<string, BrowserConfig | TargetConfig>;
+    requestedDeviceId?: string;
     testCaseId?: string;
 }
 
@@ -218,7 +220,33 @@ export async function POST(request: Request) {
         });
 
         const configurationSnapshot = JSON.stringify(createConfigurationSnapshot(config));
-        const requestedDeviceId = extractRequestedDeviceId(browserConfig);
+        const requestedDeviceIdInput = typeof config.requestedDeviceId === 'string'
+            ? config.requestedDeviceId.trim()
+            : '';
+
+        if (!requestHasAndroidTargets && requestedDeviceIdInput) {
+            return NextResponse.json(
+                { error: 'requestedDeviceId requires Android targets' },
+                { status: 400 }
+            );
+        }
+
+        const inferredRequestedDeviceId = extractRequestedDeviceId(browserConfig);
+        const requestedDeviceId = requestHasAndroidTargets
+            ? (requestedDeviceIdInput || inferredRequestedDeviceId)
+            : null;
+
+        if (requestHasAndroidTargets && requestedDeviceId) {
+            const availability = await getProjectDevicesAvailability(testCase.projectId);
+            const selectedDevice = availability?.devices.find((device) => device.deviceId === requestedDeviceId);
+
+            if (!selectedDevice || !selectedDevice.isAvailable) {
+                return NextResponse.json(
+                    { error: 'Selected device is no longer available. Reopen Project > Devices and choose an available device.' },
+                    { status: 409 }
+                );
+            }
+        }
 
         const testRun = await prisma.testRun.create({
             data: {
