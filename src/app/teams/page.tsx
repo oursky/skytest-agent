@@ -65,11 +65,6 @@ export default function TeamsPage() {
             label: member.email || t('team.members.unknownEmail'),
         }));
 
-    const teamOptions = teams.map((team) => ({
-        value: team.id,
-        label: team.name,
-    }));
-
     const loadTeamDetails = useCallback(async (teamId: string) => {
         const token = await getAccessToken();
         const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
@@ -340,18 +335,6 @@ export default function TeamsPage() {
 
                 {currentTeam && (
                     <>
-                        <div className="max-w-sm">
-                            <CustomSelect
-                                value={currentTeam.id}
-                                options={teamOptions}
-                                onChange={(teamId) => void setCurrentTeam(teamId)}
-                                ariaLabel={t('header.team')}
-                                fullWidth
-                                buttonClassName="h-9 border-gray-200 px-3 shadow-none"
-                                menuClassName="min-w-full"
-                            />
-                        </div>
-
                         {teamDetails?.id === currentTeam.id && (
                             <>
                                 <div className="border-b border-gray-200">

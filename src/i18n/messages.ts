@@ -48,7 +48,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'header.logout': 'Logout',
     'header.language': 'Language',
     'header.team': 'Team',
-    'header.myTeams': 'My Teams',
+    'header.myTeams': 'Team Settings',
 
     // Breadcrumbs
     'breadcrumbs.projects': 'Projects',
@@ -136,7 +136,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'projects.tooltip.edit': 'Edit Project',
     'projects.tooltip.delete': 'Delete Project',
     'projects.tooltip.cannotDeleteRunning': 'Cannot delete project with running tests',
-    'team.page.title': 'My Teams',
+    'team.page.title': 'Team Settings',
     'team.page.subtitle': 'Manage teams, members, invites, shared key access, and team-wide usage.',
     'team.page.create.open': 'Add Team',
     'team.page.create.placeholder': 'Team name',
@@ -684,7 +684,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'header.logout': '登出',
     'header.language': '語言',
     'header.team': '團隊',
-    'header.myTeams': '我的團隊',
+    'header.myTeams': '團隊設定',
 
     // Breadcrumbs
     'breadcrumbs.projects': '專案',
@@ -772,7 +772,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'projects.tooltip.edit': '編輯專案',
     'projects.tooltip.delete': '刪除專案',
     'projects.tooltip.cannotDeleteRunning': '有測試執行中，無法刪除專案',
-    'team.page.title': '我的團隊',
+    'team.page.title': '團隊設定',
     'team.page.subtitle': '管理團隊、成員、邀請、共用金鑰存取，以及團隊層級用量。',
     'team.page.create.open': '新增團隊',
     'team.page.create.placeholder': '團隊名稱',
@@ -1320,7 +1320,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'header.logout': '退出登录',
     'header.language': '语言',
     'header.team': '团队',
-    'header.myTeams': '我的团队',
+    'header.myTeams': '团队设置',
 
     // Breadcrumbs
     'breadcrumbs.projects': '项目',
@@ -1408,7 +1408,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'projects.tooltip.edit': '编辑项目',
     'projects.tooltip.delete': '删除项目',
     'projects.tooltip.cannotDeleteRunning': '有测试运行中，无法删除项目',
-    'team.page.title': '我的团队',
+    'team.page.title': '团队设置',
     'team.page.subtitle': '管理团队、成员、邀请、共享密钥访问，以及团队级用量。',
     'team.page.create.open': '新增团队',
     'team.page.create.placeholder': '团队名称',
