@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/app/auth-provider';
 import { CustomSelect, Modal } from '@/components/shared';
 import TeamAiSettings from '@/components/features/team-ai/ui/TeamAiSettings';
@@ -27,9 +27,21 @@ interface TeamMemberOption {
     role: 'OWNER' | 'ADMIN' | 'MEMBER';
 }
 
+type TeamTab = 'api' | 'members' | 'settings';
+
+function resolveTeamTab(value: string | null): TeamTab {
+    if (value === 'members' || value === 'settings') {
+        return value;
+    }
+
+    return 'api';
+}
+
 export default function TeamsPage() {
     const { isLoggedIn, isLoading: isAuthLoading, getAccessToken } = useAuth();
     const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
     const { t } = useI18n();
     const { teams, loading: areTeamsLoading, refresh: refreshTeams } = useTeams(getAccessToken, isLoggedIn);
     const {
@@ -41,7 +53,6 @@ export default function TeamsPage() {
     const [ownerCandidates, setOwnerCandidates] = useState<TeamMemberOption[]>([]);
     const [renameValue, setRenameValue] = useState('');
     const [transferUserId, setTransferUserId] = useState('');
-    const [activeTab, setActiveTab] = useState<'api' | 'members' | 'settings'>('api');
     const [isEditingSettings, setIsEditingSettings] = useState(false);
     const [isDeleteOpen, setIsDeleteOpen] = useState(false);
     const [deleteConfirmationValue, setDeleteConfirmationValue] = useState('');
@@ -111,9 +122,19 @@ export default function TeamsPage() {
         });
     }, [currentTeam, teams.length, loadTeamDetails, t]);
 
+    const activeTab = resolveTeamTab(searchParams.get('tab'));
+
     const visibleTab = activeTab === 'settings' && currentTeam?.role !== 'OWNER'
         ? 'api'
         : activeTab;
+
+    const handleTabChange = useCallback((tab: TeamTab) => {
+        const params = new URLSearchParams(searchParams.toString());
+        params.set('tab', tab);
+        const query = params.toString();
+
+        router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    }, [pathname, router, searchParams]);
 
     const renameTeam = async () => {
         if (!currentTeam || !renameValue.trim()) {
@@ -287,7 +308,7 @@ export default function TeamsPage() {
                             <nav className="flex gap-6 -mb-px">
                                 <button
                                     type="button"
-                                    onClick={() => setActiveTab('api')}
+                                    onClick={() => handleTabChange('api')}
                                     className={`pb-3 text-sm font-medium border-b-2 transition-colors ${visibleTab === 'api'
                                         ? 'border-primary text-primary'
                                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -297,7 +318,7 @@ export default function TeamsPage() {
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => setActiveTab('members')}
+                                    onClick={() => handleTabChange('members')}
                                     className={`pb-3 text-sm font-medium border-b-2 transition-colors ${visibleTab === 'members'
                                         ? 'border-primary text-primary'
                                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -308,7 +329,7 @@ export default function TeamsPage() {
                                 {currentTeam.role === 'OWNER' && (
                                     <button
                                         type="button"
-                                        onClick={() => setActiveTab('settings')}
+                                        onClick={() => handleTabChange('settings')}
                                         className={`pb-3 text-sm font-medium border-b-2 transition-colors ${visibleTab === 'settings'
                                             ? 'border-primary text-primary'
                                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -399,7 +420,7 @@ export default function TeamsPage() {
                                             type="button"
                                             onClick={() => void transferOwnership()}
                                             disabled={!transferUserId}
-                                            className="mt-3 rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                                            className="mt-3 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
                                         >
                                             {t('team.page.transfer.confirm')}
                                         </button>

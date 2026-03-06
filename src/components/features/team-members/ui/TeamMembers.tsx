@@ -34,15 +34,7 @@ export default function TeamMembers({ teamId, teamRole, onMembersChanged }: Team
     const canManage = teamRole === 'OWNER' || teamRole === 'ADMIN';
 
     const roleOptions = useMemo(() => {
-        if (teamRole === 'OWNER') {
-            return [
-                { value: 'OWNER' as const, label: t('team.members.roles.owner') },
-                { value: 'ADMIN' as const, label: t('team.members.roles.admin') },
-                { value: 'MEMBER' as const, label: t('team.members.roles.member') },
-            ];
-        }
-
-        if (teamRole === 'ADMIN') {
+        if (teamRole === 'OWNER' || teamRole === 'ADMIN') {
             return [
                 { value: 'ADMIN' as const, label: t('team.members.roles.admin') },
                 { value: 'MEMBER' as const, label: t('team.members.roles.member') },
@@ -85,7 +77,7 @@ export default function TeamMembers({ teamId, teamRole, onMembersChanged }: Team
         await onMembersChanged();
     }, [onMembersChanged]);
 
-    const updateMemberRole = async (memberId: string, role: 'OWNER' | 'ADMIN' | 'MEMBER') => {
+    const updateMemberRole = async (memberId: string, role: 'ADMIN' | 'MEMBER') => {
         try {
             const token = await getAccessToken();
             const response = await fetch(`/api/teams/${teamId}/members/${memberId}`, {

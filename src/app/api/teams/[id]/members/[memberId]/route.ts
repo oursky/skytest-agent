@@ -5,7 +5,7 @@ import { createLogger } from '@/lib/core/logger';
 import { canManageTeamMembers, getTeamRole } from '@/lib/security/permissions';
 
 const logger = createLogger('api:teams:members:id');
-const ROLE_OPTIONS = new Set(['OWNER', 'ADMIN', 'MEMBER']);
+const ROLE_OPTIONS = new Set(['ADMIN', 'MEMBER']);
 
 export async function PATCH(
     request: Request,
@@ -72,49 +72,14 @@ export async function PATCH(
             });
         }
 
-        if (actorRole === 'ADMIN') {
-            if (membership.role === 'OWNER' || role === 'OWNER') {
-                return NextResponse.json({ error: 'Only the team owner can assign ownership' }, { status: 403 });
-            }
+        if (membership.role === 'OWNER') {
+            return NextResponse.json({ error: 'Transfer ownership before changing the owner role' }, { status: 400 });
         }
 
-        if (role === 'OWNER') {
-            if (!membership.userId) {
-                return NextResponse.json({ error: 'Only a member with an account can become owner' }, { status: 400 });
-            }
-
-            const currentOwner = await prisma.teamMembership.findFirst({
-                where: {
-                    teamId: id,
-                    role: 'OWNER',
-                },
-                select: { id: true }
-            });
-
-            if (!currentOwner) {
-                return NextResponse.json({ error: 'Current team owner not found' }, { status: 404 });
-            }
-
-            await prisma.$transaction([
-                prisma.teamMembership.update({
-                    where: { id: currentOwner.id },
-                    data: { role: 'ADMIN' },
-                }),
-                prisma.teamMembership.update({
-                    where: { id: memberId },
-                    data: { role: 'OWNER' },
-                }),
-            ]);
-        } else {
-            if (membership.role === 'OWNER') {
-                return NextResponse.json({ error: 'Transfer ownership before changing the owner role' }, { status: 400 });
-            }
-
-            await prisma.teamMembership.update({
-                where: { id: memberId },
-                data: { role: role as 'ADMIN' | 'MEMBER' },
-            });
-        }
+        await prisma.teamMembership.update({
+            where: { id: memberId },
+            data: { role: role as 'ADMIN' | 'MEMBER' },
+        });
 
         const updatedMembership = await prisma.teamMembership.findUnique({
             where: { id: memberId },
