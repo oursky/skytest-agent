@@ -45,6 +45,7 @@ export default function TeamsPage() {
     const [activeTab, setActiveTab] = useState<'api' | 'members' | 'settings'>('api');
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isCreateSubmitting, setIsCreateSubmitting] = useState(false);
+    const [isEditingSettings, setIsEditingSettings] = useState(false);
     const [isDeleteOpen, setIsDeleteOpen] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
@@ -86,6 +87,7 @@ export default function TeamsPage() {
         const membersData = await membersResponse.json() as { members: TeamMemberOption[] };
         setTeamDetails(details);
         setRenameValue(details.name);
+        setIsEditingSettings(false);
         setOwnerCandidates(membersData.members);
         setTransferUserId(membersData.members.find((member) => member.role !== 'OWNER')?.userId ?? '');
     }, [getAccessToken]);
@@ -338,25 +340,17 @@ export default function TeamsPage() {
 
                 {currentTeam && (
                     <>
-                        <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                            <div className="grid gap-5 lg:grid-cols-[minmax(0,360px),1fr] lg:items-start">
-                                <label className="space-y-2">
-                                    <span className="text-sm font-medium text-gray-700">{t('header.team')}</span>
-                                    <CustomSelect
-                                        value={currentTeam.id}
-                                        options={teamOptions}
-                                        onChange={(teamId) => void setCurrentTeam(teamId)}
-                                        ariaLabel={t('header.team')}
-                                        fullWidth
-                                        buttonClassName="h-11 border-gray-200 px-4 shadow-none"
-                                        menuClassName="min-w-full"
-                                    />
-                                </label>
-
-                                <div className="space-y-1 text-sm text-gray-500">
-                                    <p>{t('team.page.settings.subtitle')}</p>
-                                    <p>{t('team.members.subtitle')}</p>
-                                </div>
+                        <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+                            <div className="max-w-sm">
+                                <CustomSelect
+                                    value={currentTeam.id}
+                                    options={teamOptions}
+                                    onChange={(teamId) => void setCurrentTeam(teamId)}
+                                    ariaLabel={t('header.team')}
+                                    fullWidth
+                                    buttonClassName="h-9 border-gray-200 px-3 shadow-none"
+                                    menuClassName="min-w-full"
+                                />
                             </div>
                         </section>
 
@@ -420,24 +414,48 @@ export default function TeamsPage() {
                                                         type="text"
                                                         value={renameValue}
                                                         onChange={(event) => setRenameValue(event.target.value)}
-                                                        disabled={!teamDetails.canRename}
+                                                        disabled={!teamDetails.canRename || !isEditingSettings}
                                                         className="w-full rounded-md border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:bg-gray-50"
                                                     />
                                                 </label>
                                                 {teamDetails.canRename && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => void renameTeam()}
-                                                        className="rounded-md border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                                                    >
-                                                        {t('team.page.settings.save')}
-                                                    </button>
+                                                    <div className="flex gap-3">
+                                                        {isEditingSettings ? (
+                                                            <>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => void renameTeam()}
+                                                                    className="rounded-md border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                                                >
+                                                                    {t('team.page.settings.save')}
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setRenameValue(teamDetails.name);
+                                                                        setIsEditingSettings(false);
+                                                                    }}
+                                                                    className="rounded-md border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                                                >
+                                                                    {t('common.cancel')}
+                                                                </button>
+                                                            </>
+                                                        ) : (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setIsEditingSettings(true)}
+                                                                className="rounded-md border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                                            >
+                                                                {t('team.page.settings.edit')}
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 )}
                                             </div>
 
-                                            <div className="space-y-4 rounded-xl border border-gray-100 bg-gray-50 p-4">
+                                            <div className="space-y-4">
                                                 {teamDetails.canTransferOwnership && ownerOptions.length > 0 && (
-                                                    <div className="space-y-3">
+                                                    <div className="space-y-3 rounded-xl border border-gray-100 bg-gray-50 p-4">
                                                         <div>
                                                             <h2 className="text-sm font-semibold text-gray-900">{t('team.page.transfer.title')}</h2>
                                                             <p className="text-sm text-gray-500">{t('team.page.transfer.subtitle')}</p>
@@ -462,9 +480,10 @@ export default function TeamsPage() {
                                                 )}
 
                                                 {teamDetails.canDelete && (
-                                                    <div className="space-y-3 border-t border-gray-200 pt-4">
+                                                    <div className="space-y-3 rounded-xl border border-red-200 bg-red-50 p-4">
                                                         <div>
-                                                            <h2 className="text-sm font-semibold text-gray-900">{t('team.page.delete.title')}</h2>
+                                                            <h2 className="text-sm font-semibold text-red-700">{t('team.page.delete.zoneTitle')}</h2>
+                                                            <p className="text-sm text-red-600">{t('team.page.delete.zoneSubtitle')}</p>
                                                         </div>
                                                         <button
                                                             type="button"

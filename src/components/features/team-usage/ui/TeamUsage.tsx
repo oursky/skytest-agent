@@ -134,7 +134,7 @@ export default function TeamUsage({ teamId }: TeamUsageProps) {
     return (
         <section className="space-y-4 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
             <h3 className="text-lg font-semibold text-gray-900">{t('team.usage.title')}</h3>
-            <div className="grid gap-4 rounded-xl border border-gray-100 bg-gray-50 p-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-3">
                 <label className="space-y-2">
                     <span className="text-sm font-medium text-gray-700">{t('team.usage.filters.project')}</span>
                     <CustomSelect
