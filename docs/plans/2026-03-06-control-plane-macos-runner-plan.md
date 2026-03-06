@@ -25,7 +25,7 @@ These are already true and should be treated as prerequisites, not new work:
 - Roles are `OWNER`, `ADMIN`, `MEMBER`.
 - Team AI key management exists.
 - Team settings, membership management, and ownership transfer flows exist in the web UI.
-- Project-level UI already exists and is the right place to add a `Devices` tab for runtime visibility.
+- Project-level UI already exists, including the current `Project > Devices` tab that should be extended for runtime visibility.
 
 ## Phase 3A: Durable Queue And Runner Schema
 
@@ -144,10 +144,10 @@ These are already true and should be treated as prerequisites, not new work:
 4. Keep browser-only runs usable in hosted mode.
 **Validation:** browser runs stay enabled when Android is unavailable; Android state is clearly explained; Android runs can target a specific available device.
 
-### Task 3D.3: Add project devices tab
+### Task 3D.3: Extend the existing project devices tab
 **Files:** `src/app/projects/[id]/page.tsx`, new devices feature component, `src/i18n/messages.ts`
 **Steps:**
-1. Add a `Devices` tab under the project page.
+1. Extend the existing `Project > Devices` tab instead of creating a new device-management surface.
 2. Show available devices/emulators, runner source, heartbeat, and scheduling availability.
 3. Expose project-level device functions in this tab.
 4. Make the manual-install rule explicit in the UI copy.
@@ -158,7 +158,7 @@ These are already true and should be treated as prerequisites, not new work:
 **Steps:**
 1. Keep team settings at summary level only.
 2. Show runner online/offline state and setup guidance.
-3. Link device operations back to `Project > Devices`.
+3. Link device operations back to the existing `Project > Devices` tab.
 **Validation:** team settings does not become a second device-management surface.
 
 ## Phase 3E: MCP And Runtime Cleanup
@@ -196,6 +196,6 @@ Run before phase completion and before merging major slices:
 - Android execution no longer depends on the API host machine.
 - Runner claims, heartbeats, leases, and events are durable.
 - The web UI communicates runner and device availability clearly.
-- `Project > Devices` is the main device-management surface.
+- the existing `Project > Devices` tab is the main device-management surface.
 - Manual app installation remains explicit product behavior.
 - No organization or invite abstractions were reintroduced.

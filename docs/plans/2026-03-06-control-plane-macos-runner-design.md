@@ -245,7 +245,7 @@ The web app should explain runner state instead of hiding it.
 
 ### Project Devices UI
 
-Device operations belong in the web control plane under `Project > Devices`.
+Device operations belong in the existing `Project > Devices` tab in the web control plane.
 
 The `Devices` tab should let the user:
 
@@ -300,5 +300,5 @@ Phase 3 is done when:
 - Android runs complete only through a macOS runner
 - runner events survive process restart
 - team members can understand runner and device availability from the web UI
-- `Project > Devices` is the canonical UI for device visibility and selection
+- the existing `Project > Devices` tab is the canonical UI for device visibility and selection
 - no new organization or invite abstractions were introduced
