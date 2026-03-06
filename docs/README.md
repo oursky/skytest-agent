@@ -20,8 +20,6 @@ Core app features can run without Android SDK/emulator tooling. Android operator
   - code map, invariants, and maintenance traps for runner orchestration and Android runtime
 - [`docs/maintainers/android-runtime-maintenance.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/android-runtime-maintenance.md)
   - Android device runtime behavior, isolation model, and operational constraints
-- [`docs/maintainers/team-runners-k8s-model.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/team-runners-k8s-model.md)
-  - target product model for team-level runners UX and Kubernetes-aligned execution topology
 - [`docs/maintainers/test-case-excel-format.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/test-case-excel-format.md)
   - current import/export Excel format contract and compatibility policy
 - [`docs/maintainers/mcp-server-tooling.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/mcp-server-tooling.md)

@@ -7,7 +7,6 @@ This document describes the Phase 3 Android runner behavior and operational cons
 Related docs:
 
 - [`docs/maintainers/coding-agent-maintenance-guide.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/coding-agent-maintenance-guide.md)
-- [`docs/maintainers/team-runners-k8s-model.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/team-runners-k8s-model.md)
 - [`docs/operators/android-runtime-deployment-checklist.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/android-runtime-deployment-checklist.md)
 - [`docs/operators/mac-android-emulator-guide.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/mac-android-emulator-guide.md)
 

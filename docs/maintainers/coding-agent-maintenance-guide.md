@@ -8,7 +8,6 @@ It complements `AGENTS.md` with project-specific runtime invariants for the Phas
 
 - `AGENTS.md` (repo workflow, constraints, style)
 - [`docs/maintainers/android-runtime-maintenance.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/android-runtime-maintenance.md) (runner runtime behavior + constraints)
-- [`docs/maintainers/team-runners-k8s-model.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/team-runners-k8s-model.md) (target team-level runners UX and deployment direction)
 - [`docs/operators/android-runtime-deployment-checklist.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/android-runtime-deployment-checklist.md) (operator rollout expectations)
 
 ## High-Risk Runtime Areas
@@ -80,7 +79,6 @@ When changing runner runtime behavior, update docs in the same PR/commit series:
   - [`docs/operators/android-runtime-deployment-checklist.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/android-runtime-deployment-checklist.md)
 - Maintainer-facing impact:
   - [`docs/maintainers/android-runtime-maintenance.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/android-runtime-maintenance.md)
-  - [`docs/maintainers/team-runners-k8s-model.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/team-runners-k8s-model.md)
 - Import/export behavior:
   - [`docs/maintainers/test-case-excel-format.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/test-case-excel-format.md)
 
