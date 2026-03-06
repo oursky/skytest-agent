@@ -7,7 +7,7 @@ export interface CurrentOrganization {
     updatedAt: string;
 }
 
-const CURRENT_ORG_EVENT = 'skytest:current-organization-changed';
+const CURRENT_ORG_EVENT = 'skytest:current-team-changed';
 
 export function dispatchCurrentOrganizationChanged(organizationId: string | null) {
     if (typeof window === 'undefined') {
@@ -44,7 +44,7 @@ export function useCurrentOrganization(
                 }
             }
 
-            const response = await fetch('/api/organizations/current', { headers });
+            const response = await fetch('/api/teams/current', { headers });
             if (!response.ok) {
                 throw new Error('Failed to fetch current organization');
             }
@@ -77,7 +77,7 @@ export function useCurrentOrganization(
             }
         }
 
-        const response = await fetch('/api/organizations/current', {
+        const response = await fetch('/api/teams/current', {
             method: 'POST',
             headers,
             body: JSON.stringify({ organizationId }),

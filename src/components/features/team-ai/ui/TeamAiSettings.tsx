@@ -27,7 +27,7 @@ export default function TeamAiSettings({ organizationId }: TeamAiSettingsProps) 
     const loadState = useCallback(async () => {
         const token = await getAccessToken();
         const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
-        const response = await fetch(`/api/organizations/${organizationId}/ai-key`, { headers });
+        const response = await fetch(`/api/teams/${organizationId}/ai-key`, { headers });
         if (!response.ok) {
             setError(t('team.ai.error.load'));
             return;
@@ -59,7 +59,7 @@ export default function TeamAiSettings({ organizationId }: TeamAiSettingsProps) 
         setIsSaving(true);
         try {
             const token = await getAccessToken();
-            const response = await fetch(`/api/organizations/${organizationId}/ai-key`, {
+            const response = await fetch(`/api/teams/${organizationId}/ai-key`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -92,7 +92,7 @@ export default function TeamAiSettings({ organizationId }: TeamAiSettingsProps) 
 
         try {
             const token = await getAccessToken();
-            const response = await fetch(`/api/organizations/${organizationId}/ai-key`, {
+            const response = await fetch(`/api/teams/${organizationId}/ai-key`, {
                 method: 'DELETE',
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });

@@ -4,8 +4,8 @@ import { verifyAuth, resolveUserId, type AuthPayload } from '@/lib/security/auth
 import { createLogger } from '@/lib/core/logger';
 import { isOrganizationMember } from '@/lib/security/permissions';
 
-const logger = createLogger('api:organizations:current');
-const CURRENT_ORGANIZATION_COOKIE = 'skytest_current_organization';
+const logger = createLogger('api:teams:current');
+const CURRENT_TEAM_COOKIE = 'skytest_current_team';
 
 async function resolveOrCreateUserId(authPayload: AuthPayload): Promise<string | null> {
     const resolvedUserId = await resolveUserId(authPayload);
@@ -65,7 +65,7 @@ export async function GET(request: Request) {
         const cookieValue = cookieHeader
             .split(';')
             .map((item) => item.trim())
-            .find((item) => item.startsWith(`${CURRENT_ORGANIZATION_COOKIE}=`))
+            .find((item) => item.startsWith(`${CURRENT_TEAM_COOKIE}=`))
             ?.split('=')[1];
 
         if (cookieValue) {
@@ -95,7 +95,7 @@ export async function GET(request: Request) {
         }
 
         const response = NextResponse.json(membership.organization);
-        response.cookies.set(CURRENT_ORGANIZATION_COOKIE, membership.organization.id, {
+        response.cookies.set(CURRENT_TEAM_COOKIE, membership.organization.id, {
             httpOnly: true,
             sameSite: 'lax',
             path: '/',
@@ -145,7 +145,7 @@ export async function POST(request: Request) {
         }
 
         const response = NextResponse.json(organization);
-        response.cookies.set(CURRENT_ORGANIZATION_COOKIE, organization.id, {
+        response.cookies.set(CURRENT_TEAM_COOKIE, organization.id, {
             httpOnly: true,
             sameSite: 'lax',
             path: '/',

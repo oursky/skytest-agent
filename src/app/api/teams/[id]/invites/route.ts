@@ -5,7 +5,7 @@ import { createLogger } from '@/lib/core/logger';
 import { canManageOrganizationMembers, isOrganizationMember } from '@/lib/security/permissions';
 import { generateInviteToken, hashInviteToken } from '@/lib/security/invite-token';
 
-const logger = createLogger('api:organizations:invites');
+const logger = createLogger('api:teams:invites');
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const INVITE_ROLES = new Set(['ADMIN', 'MEMBER']);
 

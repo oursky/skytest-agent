@@ -5,7 +5,7 @@ import { createLogger } from '@/lib/core/logger';
 import { encrypt, decrypt, maskApiKey } from '@/lib/security/crypto';
 import { canManageOrganizationApiKey, isOrganizationMember } from '@/lib/security/permissions';
 
-const logger = createLogger('api:organizations:ai-key');
+const logger = createLogger('api:teams:ai-key');
 
 export const dynamic = 'force-dynamic';
 

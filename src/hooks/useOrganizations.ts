@@ -33,7 +33,7 @@ export function useOrganizations(
                 }
             }
 
-            const response = await fetch('/api/organizations', { headers });
+            const response = await fetch('/api/teams', { headers });
             if (!response.ok) {
                 throw new Error('Failed to fetch organizations');
             }

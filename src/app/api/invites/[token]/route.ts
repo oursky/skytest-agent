@@ -5,7 +5,7 @@ import { createLogger } from '@/lib/core/logger';
 import { hashInviteToken } from '@/lib/security/invite-token';
 
 const logger = createLogger('api:invites:token');
-const CURRENT_ORGANIZATION_COOKIE = 'skytest_current_organization';
+const CURRENT_TEAM_COOKIE = 'skytest_current_team';
 
 function getPayloadEmail(authPayload: Record<string, unknown>): string | null {
     const email = authPayload.email;
@@ -201,7 +201,7 @@ export async function POST(
             status: 'ACCEPTED',
             organizationId: invite.organization.id,
         });
-        response.cookies.set(CURRENT_ORGANIZATION_COOKIE, invite.organization.id, {
+        response.cookies.set(CURRENT_TEAM_COOKIE, invite.organization.id, {
             httpOnly: true,
             sameSite: 'lax',
             path: '/',

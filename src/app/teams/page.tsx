@@ -64,8 +64,8 @@ export default function TeamsPage() {
         const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
 
         const [detailsResponse, membersResponse] = await Promise.all([
-            fetch(`/api/organizations/${organizationId}`, { headers }),
-            fetch(`/api/organizations/${organizationId}/members`, { headers }),
+            fetch(`/api/teams/${organizationId}`, { headers }),
+            fetch(`/api/teams/${organizationId}/members`, { headers }),
         ]);
 
         if (!detailsResponse.ok || !membersResponse.ok) {
@@ -112,7 +112,7 @@ export default function TeamsPage() {
 
         try {
             const token = await getAccessToken();
-            const response = await fetch('/api/organizations', {
+            const response = await fetch('/api/teams', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -145,7 +145,7 @@ export default function TeamsPage() {
 
         try {
             const token = await getAccessToken();
-            const response = await fetch(`/api/organizations/${currentTeam.id}`, {
+            const response = await fetch(`/api/teams/${currentTeam.id}`, {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
@@ -176,7 +176,7 @@ export default function TeamsPage() {
 
         try {
             const token = await getAccessToken();
-            const response = await fetch(`/api/organizations/${currentTeam.id}/ownership`, {
+            const response = await fetch(`/api/teams/${currentTeam.id}/ownership`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -207,7 +207,7 @@ export default function TeamsPage() {
 
         try {
             const token = await getAccessToken();
-            const response = await fetch(`/api/organizations/${currentTeam.id}`, {
+            const response = await fetch(`/api/teams/${currentTeam.id}`, {
                 method: 'DELETE',
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
             });

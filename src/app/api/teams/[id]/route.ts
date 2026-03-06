@@ -11,7 +11,7 @@ import {
 } from '@/lib/security/permissions';
 import { deleteObjectIfExists } from '@/lib/storage/object-store-utils';
 
-const logger = createLogger('api:organizations:id');
+const logger = createLogger('api:teams:id');
 
 export async function GET(
     request: Request,

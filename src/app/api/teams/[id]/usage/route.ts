@@ -4,7 +4,7 @@ import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { isOrganizationMember } from '@/lib/security/permissions';
 
-const logger = createLogger('api:organizations:usage');
+const logger = createLogger('api:teams:usage');
 
 export const dynamic = 'force-dynamic';
 

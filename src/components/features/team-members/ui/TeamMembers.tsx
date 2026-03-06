@@ -59,8 +59,8 @@ export default function TeamMembers({ organizationId, organizationRole }: TeamMe
             const token = await getAccessToken();
             const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
             const [membersResponse, invitesResponse] = await Promise.all([
-                fetch(`/api/organizations/${organizationId}/members`, { headers }),
-                fetch(`/api/organizations/${organizationId}/invites`, { headers }),
+                fetch(`/api/teams/${organizationId}/members`, { headers }),
+                fetch(`/api/teams/${organizationId}/invites`, { headers }),
             ]);
 
             if (!membersResponse.ok || !invitesResponse.ok) {
@@ -87,7 +87,7 @@ export default function TeamMembers({ organizationId, organizationRole }: TeamMe
     const updateMemberRole = async (memberId: string, role: 'ADMIN' | 'MEMBER') => {
         try {
             const token = await getAccessToken();
-            const response = await fetch(`/api/organizations/${organizationId}/members/${memberId}`, {
+            const response = await fetch(`/api/teams/${organizationId}/members/${memberId}`, {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
@@ -117,7 +117,7 @@ export default function TeamMembers({ organizationId, organizationRole }: TeamMe
 
         try {
             const token = await getAccessToken();
-            const response = await fetch(`/api/organizations/${organizationId}/members/${memberToRemove.id}`, {
+            const response = await fetch(`/api/teams/${organizationId}/members/${memberToRemove.id}`, {
                 method: 'DELETE',
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
             });
@@ -145,7 +145,7 @@ export default function TeamMembers({ organizationId, organizationRole }: TeamMe
 
         try {
             const token = await getAccessToken();
-            const response = await fetch(`/api/organizations/${organizationId}/invites`, {
+            const response = await fetch(`/api/teams/${organizationId}/invites`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -181,7 +181,7 @@ export default function TeamMembers({ organizationId, organizationRole }: TeamMe
     const resendInvite = async (inviteId: string) => {
         try {
             const token = await getAccessToken();
-            const response = await fetch(`/api/organizations/${organizationId}/invites/${inviteId}/resend`, {
+            const response = await fetch(`/api/teams/${organizationId}/invites/${inviteId}/resend`, {
                 method: 'POST',
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
             });
@@ -211,7 +211,7 @@ export default function TeamMembers({ organizationId, organizationRole }: TeamMe
 
         try {
             const token = await getAccessToken();
-            const response = await fetch(`/api/organizations/${organizationId}/invites/${inviteToCancel.id}`, {
+            const response = await fetch(`/api/teams/${organizationId}/invites/${inviteToCancel.id}`, {
                 method: 'DELETE',
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
             });

@@ -4,7 +4,7 @@ import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { canManageOrganizationMembers } from '@/lib/security/permissions';
 
-const logger = createLogger('api:organizations:members:id');
+const logger = createLogger('api:teams:members:id');
 const MANAGEABLE_ROLES = new Set(['ADMIN', 'MEMBER']);
 
 export async function PATCH(

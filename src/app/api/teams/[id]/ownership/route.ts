@@ -4,7 +4,7 @@ import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { canTransferOrganizationOwnership } from '@/lib/security/permissions';
 
-const logger = createLogger('api:organizations:ownership');
+const logger = createLogger('api:teams:ownership');
 
 export async function POST(
     request: Request,

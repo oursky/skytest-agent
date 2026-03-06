@@ -88,7 +88,7 @@ export default function TeamUsage({ organizationId }: TeamUsageProps) {
                 setIsLoading(true);
                 const token = await getAccessToken();
                 const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
-                const url = new URL(`/api/organizations/${organizationId}/usage`, window.location.origin);
+                const url = new URL(`/api/teams/${organizationId}/usage`, window.location.origin);
                 url.searchParams.set('page', String(page));
                 url.searchParams.set('limit', String(limit));
 

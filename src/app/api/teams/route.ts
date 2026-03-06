@@ -3,7 +3,7 @@ import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId, type AuthPayload } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 
-const logger = createLogger('api:organizations');
+const logger = createLogger('api:teams');
 
 async function resolveOrCreateUserId(authPayload: AuthPayload): Promise<string | null> {
     const existingUserId = await resolveUserId(authPayload);

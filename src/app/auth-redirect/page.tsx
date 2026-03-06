@@ -51,7 +51,7 @@ export default function AuthRedirect() {
                     return;
                 }
 
-                const organizationsResponse = await fetch('/api/organizations', {
+                const organizationsResponse = await fetch('/api/teams', {
                     headers: {
                         Authorization: `Bearer ${accessToken}`
                     }

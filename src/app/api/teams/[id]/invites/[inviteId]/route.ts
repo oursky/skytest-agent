@@ -4,7 +4,7 @@ import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { canManageOrganizationMembers } from '@/lib/security/permissions';
 
-const logger = createLogger('api:organizations:invites:id');
+const logger = createLogger('api:teams:invites:id');
 
 export async function DELETE(
     request: Request,

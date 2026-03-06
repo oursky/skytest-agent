@@ -98,7 +98,7 @@ export default function ProjectsPage() {
 
         try {
             const token = await getAccessToken();
-            const response = await fetch('/api/organizations', {
+            const response = await fetch('/api/teams', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

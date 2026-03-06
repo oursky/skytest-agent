@@ -5,7 +5,7 @@ import { createLogger } from '@/lib/core/logger';
 import { canManageOrganizationMembers } from '@/lib/security/permissions';
 import { generateInviteToken, hashInviteToken } from '@/lib/security/invite-token';
 
-const logger = createLogger('api:organizations:invites:resend');
+const logger = createLogger('api:teams:invites:resend');
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 function buildInviteUrl(request: Request, token: string) {

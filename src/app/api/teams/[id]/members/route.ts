@@ -4,7 +4,7 @@ import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { canManageOrganizationMembers, isOrganizationMember } from '@/lib/security/permissions';
 
-const logger = createLogger('api:organizations:members');
+const logger = createLogger('api:teams:members');
 
 export async function GET(
     request: Request,
