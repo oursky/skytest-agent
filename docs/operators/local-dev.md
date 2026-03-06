@@ -56,7 +56,8 @@ Keep the rest of your existing auth and app settings in `.env.local`.
 
 ```bash
 npm install
-npm run db:migrate:dev
+npm run db:generate
+npm run db:migrate
 npm run dev
 ```
 
@@ -140,7 +141,8 @@ This removes the Docker volumes and deletes all local database and object storag
 ```bash
 docker compose -f docker-compose.local.yml down -v
 docker compose -f docker-compose.local.yml up -d
-DATABASE_URL='postgresql://postgres:postgres@127.0.0.1:5432/skytest_agent?schema=public' npx prisma db push
+npm run db:generate
+npm run db:migrate
 ```
 
 ## Troubleshooting
@@ -162,7 +164,15 @@ docker compose -f docker-compose.local.yml run --rm createbuckets
 Run:
 
 ```bash
-npm run db:migrate:dev
+npm run db:migrate
+```
+
+### Browsers not installed for local test execution
+
+Run:
+
+```bash
+npm run playwright:install
 ```
 
 ### Object storage errors in the app
