@@ -5,6 +5,13 @@ export * from './android';
 export * from './api-key';
 export type {
     CompatibilityMetadata,
+    CreatePairingTokenResponse,
     HeartbeatRunnerRequest,
+    HeartbeatRunnerResponse,
+    PairingExchangeRequest,
+    PairingExchangeResponse,
+    RegisterRunnerResponse,
+    RunnerCapability,
+    RunnerKind,
     RegisterRunnerRequest,
 } from '@skytest/runner-protocol';

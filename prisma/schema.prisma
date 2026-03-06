@@ -22,6 +22,7 @@ model User {
   actorUsageRecords UsageRecord[]   @relation("UsageRecordActor")
   apiKeys           ApiKey[]
   teamMemberships   TeamMembership[]
+  createdRunnerTokens RunnerToken[] @relation("RunnerTokenCreator")
 }
 
 model UsageRecord {
@@ -51,6 +52,8 @@ model Team {
   updatedAt              DateTime                 @updatedAt
   memberships            TeamMembership[]
   projects               Project[]
+  runners                Runner[]
+  runnerTokens           RunnerToken[]
 
   @@index([updatedAt(sort: Desc)])
 }
@@ -129,6 +132,12 @@ model TestRun {
   id                      String   @id @default(cuid())
   testCaseId              String
   testCase                TestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  requestedDeviceId       String?
+  assignedRunnerId        String?
+  assignedRunner          Runner?  @relation("AssignedRunnerRuns", fields: [assignedRunnerId], references: [id], onDelete: SetNull)
+  leaseExpiresAt          DateTime?
+  lastEventAt             DateTime?
+  nextEventSequence       Int      @default(1)
   status                  String
   result                  String?
   logs                    String?
@@ -139,9 +148,12 @@ model TestRun {
   createdAt               DateTime @default(now())
   usageRecords            UsageRecord[]
   files                   TestRunFile[]
+  events                  TestRunEvent[]
 
   @@index([testCaseId, createdAt(sort: Desc)])
   @@index([status])
+  @@index([assignedRunnerId, leaseExpiresAt])
+  @@index([requestedDeviceId])
 }
 
 model TestRunFile {
@@ -206,4 +218,79 @@ model TestCaseConfig {
 
   @@unique([testCaseId, name])
   @@index([testCaseId])
+}
+
+model Runner {
+  id              String       @id @default(cuid())
+  teamId          String
+  team            Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  label           String
+  kind            String
+  capabilities    String[]     @default([])
+  protocolVersion String
+  runnerVersion   String
+  status          String       @default("ONLINE")
+  lastSeenAt      DateTime
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  tokens          RunnerToken[]
+  devices         RunnerDevice[]
+  assignedRuns    TestRun[]    @relation("AssignedRunnerRuns")
+
+  @@index([teamId, kind])
+  @@index([teamId, status, lastSeenAt])
+}
+
+model RunnerToken {
+  id              String    @id @default(cuid())
+  teamId          String
+  team            Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  runnerId        String?
+  runner          Runner?   @relation(fields: [runnerId], references: [id], onDelete: Cascade)
+  createdByUserId String?
+  createdByUser   User?     @relation("RunnerTokenCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  kind            String
+  prefix          String
+  hash            String    @unique
+  expiresAt       DateTime
+  revokedAt       DateTime?
+  consumedAt      DateTime?
+  lastUsedAt      DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([teamId, kind, expiresAt])
+  @@index([runnerId, kind, expiresAt])
+}
+
+model RunnerDevice {
+  id         String   @id @default(cuid())
+  runnerId   String
+  runner     Runner   @relation(fields: [runnerId], references: [id], onDelete: Cascade)
+  deviceId   String
+  platform   String
+  name       String
+  state      String
+  metadata   Json?
+  lastSeenAt DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([runnerId, deviceId])
+  @@index([runnerId, state, lastSeenAt])
+}
+
+model TestRunEvent {
+  id          String   @id @default(cuid())
+  runId       String
+  testRun     TestRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  sequence    Int
+  kind        String
+  message     String?
+  payload     Json?
+  artifactKey String?
+  createdAt   DateTime @default(now())
+
+  @@unique([runId, sequence])
+  @@index([runId, createdAt(sort: Asc)])
+  @@index([createdAt(sort: Desc)])
 }
