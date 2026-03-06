@@ -187,25 +187,10 @@ export async function POST(request: Request) {
             );
         }
 
-        const resolvedUserId = await resolveUserId(authPayload);
-        const user = resolvedUserId
-            ? await prisma.user.findUnique({ where: { id: resolvedUserId }, select: { id: true, openRouterKey: true } })
-            : authPayload.sub
-                ? await prisma.user.findUnique({ where: { authId: authPayload.sub as string }, select: { id: true, openRouterKey: true } })
-                : null;
-
-        if (!user) {
+        const userId = await resolveUserId(authPayload);
+        if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-
-        if (!user.openRouterKey) {
-            return NextResponse.json(
-                { error: 'Please configure your OpenRouter API key' },
-                { status: 400 }
-            );
-        }
-
-        const userId = user.id;
         const requestHasAndroidTargets = hasAndroidTargets(browserConfig);
 
         if (requestHasAndroidTargets) {
@@ -225,14 +210,26 @@ export async function POST(request: Request) {
 
         const testCase = await prisma.testCase.findUnique({
             where: { id: testCaseId },
-            include: { project: { select: { userId: true } } }
+            include: {
+                project: {
+                    select: {
+                        id: true,
+                        openRouterKeyEncrypted: true,
+                        memberships: {
+                            where: { userId },
+                            select: { id: true },
+                            take: 1,
+                        }
+                    }
+                }
+            }
         });
 
         if (!testCase) {
             return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
         }
 
-        if (testCase.project.userId !== userId) {
+        if (testCase.project.memberships.length === 0) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -241,9 +238,16 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: androidValidationError }, { status: 400 });
         }
 
+        if (!testCase.project.openRouterKeyEncrypted) {
+            return NextResponse.json(
+                { error: 'Please configure this project OpenRouter API key' },
+                { status: 400 }
+            );
+        }
+
         let openRouterApiKey: string;
         try {
-            openRouterApiKey = decrypt(user.openRouterKey);
+            openRouterApiKey = decrypt(testCase.project.openRouterKeyEncrypted);
         } catch {
             return NextResponse.json(
                 { error: 'Failed to decrypt API key. Please re-enter your API key.' },

@@ -23,14 +23,14 @@ export async function PUT(
 
         const existing = await prisma.projectConfig.findUnique({
             where: { id: configId },
-            include: { project: { select: { userId: true } } }
+            include: { project: { select: { createdByUserId: true } } }
         });
 
         if (!existing || existing.projectId !== id) {
             return NextResponse.json({ error: 'Config not found' }, { status: 404 });
         }
 
-        if (existing.project.userId !== authPayload.userId) {
+        if (existing.project.createdByUserId !== authPayload.userId) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -101,14 +101,14 @@ export async function DELETE(
 
         const existing = await prisma.projectConfig.findUnique({
             where: { id: configId },
-            include: { project: { select: { userId: true } } }
+            include: { project: { select: { createdByUserId: true } } }
         });
 
         if (!existing || existing.projectId !== id) {
             return NextResponse.json({ error: 'Config not found' }, { status: 404 });
         }
 
-        if (existing.project.userId !== authPayload.userId) {
+        if (existing.project.createdByUserId !== authPayload.userId) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

@@ -25,7 +25,7 @@ export async function GET(
                 testCase: {
                     select: {
                         id: true,
-                        project: { select: { userId: true } }
+                        project: { select: { createdByUserId: true } }
                     }
                 }
             }
@@ -35,7 +35,7 @@ export async function GET(
             return NextResponse.json({ error: 'Test run not found' }, { status: 404 });
         }
 
-        if (testRun.testCase.project.userId !== authPayload.userId) {
+        if (testRun.testCase.project.createdByUserId !== authPayload.userId) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -76,7 +76,7 @@ export async function DELETE(
             where: { id },
             include: {
                 testCase: {
-                    include: { project: { select: { userId: true } } }
+                    include: { project: { select: { createdByUserId: true } } }
                 }
             }
         });
@@ -85,7 +85,7 @@ export async function DELETE(
             return NextResponse.json({ error: 'Test run not found' }, { status: 404 });
         }
 
-        if (testRun.testCase.project.userId !== authPayload.userId) {
+        if (testRun.testCase.project.createdByUserId !== authPayload.userId) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

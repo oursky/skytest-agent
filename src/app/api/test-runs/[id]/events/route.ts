@@ -48,7 +48,7 @@ export async function GET(
             logs: true,
             testCase: {
                 select: {
-                    project: { select: { userId: true } }
+                    project: { select: { createdByUserId: true } }
                 }
             }
         }
@@ -58,7 +58,7 @@ export async function GET(
         return NextResponse.json({ error: 'Test run not found' }, { status: 404 });
     }
 
-    if (testRun.testCase.project.userId !== userId) {
+    if (testRun.testCase.project.createdByUserId !== userId) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

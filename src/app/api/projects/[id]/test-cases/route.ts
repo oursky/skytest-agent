@@ -20,7 +20,7 @@ export async function GET(
 
     try {
         const { id } = await params;
-        const project = await prisma.project.findUnique({ where: { id }, select: { userId: true } });
+        const project = await prisma.project.findUnique({ where: { id }, select: { createdByUserId: true } });
         if (!project) {
             return NextResponse.json({ error: 'Project not found' }, { status: 404 });
         }
@@ -29,7 +29,7 @@ export async function GET(
         if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-        if (project.userId !== userId) {
+        if (project.createdByUserId !== userId) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -72,7 +72,7 @@ export async function POST(
 
     try {
         const { id } = await params;
-        const project = await prisma.project.findUnique({ where: { id }, select: { userId: true } });
+        const project = await prisma.project.findUnique({ where: { id }, select: { createdByUserId: true } });
         if (!project) {
             return NextResponse.json({ error: 'Project not found' }, { status: 404 });
         }
@@ -81,7 +81,7 @@ export async function POST(
         if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-        if (project.userId !== userId) {
+        if (project.createdByUserId !== userId) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

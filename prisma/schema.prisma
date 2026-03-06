@@ -29,10 +29,9 @@ model User {
   id                       String                   @id @default(cuid())
   authId                   String                   @unique
   email                    String?
-  openRouterKey            String?                  // Encrypted OpenRouter API key
   createdAt                DateTime                 @default(now())
   updatedAt                DateTime                 @updatedAt
-  projects                 Project[]
+  createdProjects          Project[]                @relation("ProjectCreator")
   usageRecords             UsageRecord[]
   apiKeys                  ApiKey[]
   organizationMemberships  OrganizationMembership[]
@@ -60,6 +59,7 @@ model Organization {
   createdAt   DateTime                 @default(now())
   updatedAt   DateTime                 @updatedAt
   memberships OrganizationMembership[]
+  projects    Project[]
 
   @@index([updatedAt(sort: Desc)])
 }
@@ -80,18 +80,23 @@ model OrganizationMembership {
 }
 
 model Project {
-  id          String              @id @default(cuid())
-  name        String
-  userId      String
-  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  testCases   TestCase[]
-  configs     ProjectConfig[]
-  memberships ProjectMembership[]
-  invites     ProjectInvite[]
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  id                    String              @id @default(cuid())
+  name                  String
+  organizationId        String
+  organization          Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdByUserId       String              @map("userId")
+  createdByUser         User                @relation("ProjectCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  openRouterKeyEncrypted String?
+  openRouterKeyUpdatedAt DateTime?
+  testCases             TestCase[]
+  configs               ProjectConfig[]
+  memberships           ProjectMembership[]
+  invites               ProjectInvite[]
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
 
-  @@index([userId, updatedAt(sort: Desc)])
+  @@index([organizationId, updatedAt(sort: Desc)])
+  @@index([createdByUserId, updatedAt(sort: Desc)])
 }
 
 model ProjectMembership {

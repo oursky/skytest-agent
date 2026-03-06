@@ -2,14 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { Project } from '@/types';
 import { API_ENDPOINTS } from '@/lib/core/constants';
 
-export function useProjects(userId: string, getAccessToken?: () => Promise<string | null>) {
+export function useProjects(getAccessToken?: () => Promise<string | null>) {
     const [projects, setProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     const fetchProjects = useCallback(async () => {
-        if (!userId) return;
-
         try {
             setLoading(true);
             const headers: HeadersInit = {};
@@ -20,7 +18,7 @@ export function useProjects(userId: string, getAccessToken?: () => Promise<strin
                 }
             }
 
-            const response = await fetch(`${API_ENDPOINTS.PROJECTS}?userId=${userId}`, {
+            const response = await fetch(API_ENDPOINTS.PROJECTS, {
                 headers
             });
 
@@ -36,7 +34,7 @@ export function useProjects(userId: string, getAccessToken?: () => Promise<strin
         } finally {
             setLoading(false);
         }
-    }, [userId, getAccessToken]);
+    }, [getAccessToken]);
 
     useEffect(() => {
         fetchProjects();

@@ -23,14 +23,14 @@ export async function POST(
 
         const project = await prisma.project.findUnique({
             where: { id },
-            select: { userId: true }
+            select: { createdByUserId: true }
         });
 
         if (!project) {
             return NextResponse.json({ error: 'Project not found' }, { status: 404 });
         }
 
-        if (project.userId !== authPayload.userId) {
+        if (project.createdByUserId !== authPayload.userId) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

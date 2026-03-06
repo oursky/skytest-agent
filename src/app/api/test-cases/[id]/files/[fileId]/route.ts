@@ -47,14 +47,14 @@ export async function GET(
         if (storedName) {
             const testCase = await prisma.testCase.findUnique({
                 where: { id },
-                include: { project: { select: { userId: true } } }
+                include: { project: { select: { createdByUserId: true } } }
             });
 
             if (!testCase) {
                 return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
             }
 
-            if (testCase.project.userId !== userId) {
+            if (testCase.project.createdByUserId !== userId) {
                 return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
             }
 
@@ -82,7 +82,7 @@ export async function GET(
                 where: { id: fileId },
                 include: {
                     testCase: {
-                        include: { project: { select: { userId: true } } }
+                        include: { project: { select: { createdByUserId: true } } }
                     }
                 }
             });
@@ -91,7 +91,7 @@ export async function GET(
                 return NextResponse.json({ error: 'File not found' }, { status: 404 });
             }
 
-            if (file.testCase.project.userId !== userId) {
+            if (file.testCase.project.createdByUserId !== userId) {
                 return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
             }
 
@@ -137,7 +137,7 @@ export async function DELETE(
             where: { id: fileId },
             include: {
                 testCase: {
-                    include: { project: { select: { userId: true } } }
+                    include: { project: { select: { createdByUserId: true } } }
                 }
             }
         });
@@ -146,7 +146,7 @@ export async function DELETE(
             return NextResponse.json({ error: 'File not found' }, { status: 404 });
         }
 
-        if (file.testCase.project.userId !== authPayload.userId) {
+        if (file.testCase.project.createdByUserId !== authPayload.userId) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

@@ -39,12 +39,12 @@ export async function GET(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const project = await prisma.project.findUnique({ where: { id }, select: { userId: true } });
+    const project = await prisma.project.findUnique({ where: { id }, select: { createdByUserId: true } });
     if (!project) {
         return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    if (project.userId !== userId) {
+    if (project.createdByUserId !== userId) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

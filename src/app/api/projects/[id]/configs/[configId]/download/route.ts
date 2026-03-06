@@ -21,14 +21,14 @@ export async function GET(
 
         const config = await prisma.projectConfig.findUnique({
             where: { id: configId },
-            include: { project: { select: { userId: true } } }
+            include: { project: { select: { createdByUserId: true } } }
         });
 
         if (!config || config.projectId !== id || config.type !== 'FILE') {
             return NextResponse.json({ error: 'Not found' }, { status: 404 });
         }
 
-        if (config.project.userId !== authPayload.userId) {
+        if (config.project.createdByUserId !== authPayload.userId) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

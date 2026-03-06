@@ -218,13 +218,6 @@ export default function Header() {
                                         </button>
 
                                         <button
-                                            onClick={() => router.push('/usage')}
-                                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                                        >
-                                            {t('header.apiKeyUsage')}
-                                        </button>
-
-                                        <button
                                             onClick={() => router.push('/mcp')}
                                             className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                                         >

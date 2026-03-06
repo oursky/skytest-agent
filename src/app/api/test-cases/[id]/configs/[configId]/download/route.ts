@@ -23,7 +23,7 @@ export async function GET(
             where: { id: configId },
             include: {
                 testCase: {
-                    include: { project: { select: { userId: true } } }
+                    include: { project: { select: { createdByUserId: true } } }
                 }
             }
         });
@@ -32,7 +32,7 @@ export async function GET(
             return NextResponse.json({ error: 'Not found' }, { status: 404 });
         }
 
-        if (config.testCase.project.userId !== authPayload.userId) {
+        if (config.testCase.project.createdByUserId !== authPayload.userId) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

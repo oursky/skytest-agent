@@ -25,7 +25,7 @@ export async function PUT(
             where: { id: configId },
             include: {
                 testCase: {
-                    include: { project: { select: { userId: true } } }
+                    include: { project: { select: { createdByUserId: true } } }
                 }
             }
         });
@@ -34,7 +34,7 @@ export async function PUT(
             return NextResponse.json({ error: 'Config not found' }, { status: 404 });
         }
 
-        if (existing.testCase.project.userId !== authPayload.userId) {
+        if (existing.testCase.project.createdByUserId !== authPayload.userId) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -107,7 +107,7 @@ export async function DELETE(
             where: { id: configId },
             include: {
                 testCase: {
-                    include: { project: { select: { userId: true } } }
+                    include: { project: { select: { createdByUserId: true } } }
                 }
             }
         });
@@ -116,7 +116,7 @@ export async function DELETE(
             return NextResponse.json({ error: 'Config not found' }, { status: 404 });
         }
 
-        if (existing.testCase.project.userId !== authPayload.userId) {
+        if (existing.testCase.project.createdByUserId !== authPayload.userId) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

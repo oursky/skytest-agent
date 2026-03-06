@@ -7,20 +7,26 @@ import { useRouter } from "next/navigation";
 import { Modal } from "@/components/shared";
 import { formatDateTime } from "@/utils/dateFormatter";
 import { useProjects } from "@/hooks/useProjects";
+import { useOrganizations } from "@/hooks/useOrganizations";
 import { useI18n } from "@/i18n";
 
 export default function ProjectsPage() {
-    const { user, isLoggedIn, isLoading: isAuthLoading, getAccessToken } = useAuth();
+    const { isLoggedIn, isLoading: isAuthLoading, getAccessToken } = useAuth();
     const router = useRouter();
     const { t } = useI18n();
 
-    const { projects, loading: isLoading, addProject, removeProject, refresh } = useProjects(user?.sub || '', getAccessToken);
+    const { projects, loading: isProjectsLoading, addProject, removeProject, refresh } = useProjects(getAccessToken);
+    const { organizations, loading: isOrganizationsLoading, refresh: refreshOrganizations } = useOrganizations(getAccessToken);
     const [isCreating, setIsCreating] = useState(false);
     const [newProjectName, setNewProjectName] = useState("");
+    const [newOrganizationName, setNewOrganizationName] = useState("");
+    const [selectedOrganizationId, setSelectedOrganizationId] = useState("");
     const [createError, setCreateError] = useState("");
+    const [organizationError, setOrganizationError] = useState("");
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; projectId: string; projectName: string }>({ isOpen: false, projectId: "", projectName: "" });
     const [editModal, setEditModal] = useState<{ isOpen: boolean; projectId: string; currentName: string }>({ isOpen: false, projectId: "", currentName: "" });
     const [editName, setEditName] = useState("");
+    const effectiveOrganizationId = selectedOrganizationId || organizations[0]?.id || '';
 
     useEffect(() => {
         if (!isAuthLoading && !isLoggedIn) {
@@ -30,7 +36,8 @@ export default function ProjectsPage() {
 
     const handleCreateProject = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newProjectName.trim() || !user?.sub) return;
+        const organizationId = selectedOrganizationId || organizations[0]?.id || '';
+        if (!newProjectName.trim() || !organizationId) return;
 
         try {
             const token = await getAccessToken();
@@ -40,7 +47,7 @@ export default function ProjectsPage() {
                     "Content-Type": "application/json",
                     ...(token ? { "Authorization": `Bearer ${token}` } : {})
                 },
-                body: JSON.stringify({ name: newProjectName, userId: user.sub }),
+                body: JSON.stringify({ name: newProjectName, organizationId }),
             });
 
             if (response.ok) {
@@ -50,10 +57,42 @@ export default function ProjectsPage() {
                 setIsCreating(false);
                 setCreateError("");
             } else {
-                setCreateError(t('projects.createError'));
+                const data = await response.json().catch(() => ({ error: t('projects.createError') }));
+                setCreateError(data.error || t('projects.createError'));
             }
         } catch {
             setCreateError(t('projects.createError'));
+        }
+    };
+
+    const handleCreateOrganization = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newOrganizationName.trim()) return;
+
+        try {
+            const token = await getAccessToken();
+            const response = await fetch('/api/organizations', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
+                body: JSON.stringify({ name: newOrganizationName })
+            });
+
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({ error: t('projects.organization.createError') }));
+                setOrganizationError(data.error || t('projects.organization.createError'));
+                return;
+            }
+
+            const organization = await response.json() as { id: string };
+            await refreshOrganizations();
+            setSelectedOrganizationId(organization.id);
+            setNewOrganizationName('');
+            setOrganizationError('');
+        } catch {
+            setOrganizationError(t('projects.organization.createError'));
         }
     };
 
@@ -105,7 +144,7 @@ export default function ProjectsPage() {
         setEditName("");
     };
 
-    if (isAuthLoading || isLoading) {
+    if (isAuthLoading || isProjectsLoading || isOrganizationsLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -160,39 +199,78 @@ export default function ProjectsPage() {
             <div className="max-w-7xl mx-auto px-8 py-8">
                 <div className="flex justify-between items-center mb-8">
                     <h1 className="text-3xl font-bold text-gray-900">{t('projects.title')}</h1>
-                    <button
-                        onClick={() => setIsCreating(true)}
-                        className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
-                    >
-                        {t('projects.newProject')}
-                    </button>
+                    {organizations.length > 0 && (
+                        <button
+                            onClick={() => setIsCreating(true)}
+                            className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
+                        >
+                            {t('projects.newProject')}
+                        </button>
+                    )}
                 </div>
 
-                {isCreating && (
+                {organizations.length === 0 && (
                     <div className="mb-8 bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                        <form onSubmit={handleCreateProject} className="flex gap-4">
+                        <h2 className="text-xl font-semibold text-gray-900 mb-2">{t('projects.organization.emptyTitle')}</h2>
+                        <p className="text-sm text-gray-500 mb-4">{t('projects.organization.emptySubtitle')}</p>
+                        <form onSubmit={handleCreateOrganization} className="flex gap-4">
                             <input
                                 type="text"
-                                value={newProjectName}
-                                onChange={(e) => setNewProjectName(e.target.value)}
-                                placeholder={t('projects.newProject.formPlaceholder')}
+                                value={newOrganizationName}
+                                onChange={(e) => setNewOrganizationName(e.target.value)}
+                                placeholder={t('projects.organization.placeholder')}
                                 className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50"
-                                autoFocus
                             />
                             <button
                                 type="submit"
-                                disabled={!newProjectName.trim()}
-                                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+                                disabled={!newOrganizationName.trim()}
+                                className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 disabled:opacity-50"
                             >
-                                {t('projects.create')}
+                                {t('projects.organization.create')}
                             </button>
-                            <button
-                                type="button"
-                                onClick={() => setIsCreating(false)}
-                                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+                        </form>
+                        {organizationError && <p className="text-red-500 text-sm mt-2">{organizationError}</p>}
+                    </div>
+                )}
+
+                {isCreating && organizations.length > 0 && (
+                    <div className="mb-8 bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                        <form onSubmit={handleCreateProject} className="flex flex-col gap-4">
+                            <select
+                                value={effectiveOrganizationId}
+                                onChange={(e) => setSelectedOrganizationId(e.target.value)}
+                                className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50"
                             >
-                                {t('projects.cancel')}
-                            </button>
+                                {organizations.map((organization) => (
+                                    <option key={organization.id} value={organization.id}>
+                                        {organization.name}
+                                    </option>
+                                ))}
+                            </select>
+                            <div className="flex gap-4">
+                                <input
+                                    type="text"
+                                    value={newProjectName}
+                                    onChange={(e) => setNewProjectName(e.target.value)}
+                                    placeholder={t('projects.newProject.formPlaceholder')}
+                                    className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                    autoFocus
+                                />
+                                <button
+                                    type="submit"
+                                    disabled={!newProjectName.trim() || !effectiveOrganizationId}
+                                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+                                >
+                                    {t('projects.create')}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsCreating(false)}
+                                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+                                >
+                                    {t('projects.cancel')}
+                                </button>
+                            </div>
                         </form>
                         {createError && <p className="text-red-500 text-sm mt-2">{createError}</p>}
                     </div>
@@ -256,7 +334,7 @@ export default function ProjectsPage() {
                     ))}
                 </div>
 
-                {projects.length === 0 && !isCreating && (
+                {projects.length === 0 && !isCreating && organizations.length > 0 && (
                     <div className="text-center py-16">
                         <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
                             <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>

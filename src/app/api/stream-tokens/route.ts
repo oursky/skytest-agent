@@ -44,12 +44,12 @@ export async function POST(request: Request) {
         if (body.scope === 'project-events') {
             const project = await prisma.project.findUnique({
                 where: { id: body.resourceId },
-                select: { userId: true }
+                select: { createdByUserId: true }
             });
             if (!project) {
                 return NextResponse.json({ error: 'Project not found' }, { status: 404 });
             }
-            if (project.userId !== userId) {
+            if (project.createdByUserId !== userId) {
                 return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
             }
         } else if (body.scope === 'test-run-events') {
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
                 select: {
                     testCase: {
                         select: {
-                            project: { select: { userId: true } }
+                            project: { select: { createdByUserId: true } }
                         }
                     }
                 }
@@ -66,20 +66,20 @@ export async function POST(request: Request) {
             if (!testRun) {
                 return NextResponse.json({ error: 'Test run not found' }, { status: 404 });
             }
-            if (testRun.testCase.project.userId !== userId) {
+            if (testRun.testCase.project.createdByUserId !== userId) {
                 return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
             }
         } else {
             const testCase = await prisma.testCase.findUnique({
                 where: { id: body.resourceId },
                 select: {
-                    project: { select: { userId: true } }
+                    project: { select: { createdByUserId: true } }
                 }
             });
             if (!testCase) {
                 return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
             }
-            if (testCase.project.userId !== userId) {
+            if (testCase.project.createdByUserId !== userId) {
                 return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
             }
         }

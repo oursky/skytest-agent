@@ -1,7 +1,9 @@
 export interface Project {
     id: string;
     name: string;
-    userId: string;
+    organizationId: string;
+    createdByUserId: string;
+    hasOpenRouterKey?: boolean;
     createdAt: string;
     updatedAt: string;
     _count?: {

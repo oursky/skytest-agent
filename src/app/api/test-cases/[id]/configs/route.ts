@@ -21,14 +21,14 @@ export async function GET(
 
         const testCase = await prisma.testCase.findUnique({
             where: { id },
-            include: { project: { select: { userId: true } } }
+            include: { project: { select: { createdByUserId: true } } }
         });
 
         if (!testCase) {
             return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
         }
 
-        if (testCase.project.userId !== authPayload.userId) {
+        if (testCase.project.createdByUserId !== authPayload.userId) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -64,14 +64,14 @@ export async function POST(
 
         const testCase = await prisma.testCase.findUnique({
             where: { id },
-            include: { project: { select: { userId: true } } }
+            include: { project: { select: { createdByUserId: true } } }
         });
 
         if (!testCase) {
             return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
         }
 
-        if (testCase.project.userId !== authPayload.userId) {
+        if (testCase.project.createdByUserId !== authPayload.userId) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 
 async function ensureProjectOwnership(projectId: string, userId: string): Promise<boolean> {
     const project = await prisma.project.findFirst({
-        where: { id: projectId, userId },
+        where: { id: projectId, createdByUserId: userId },
         select: { id: true },
     });
     return Boolean(project);
@@ -20,7 +20,7 @@ async function ensureProjectOwnership(projectId: string, userId: string): Promis
 
 async function listOwnedProjectIds(userId: string): Promise<Set<string>> {
     const projects = await prisma.project.findMany({
-        where: { userId },
+        where: { createdByUserId: userId },
         select: { id: true },
     });
     return new Set(projects.map((project) => project.id));
@@ -143,13 +143,13 @@ export async function POST(request: Request) {
                         select: {
                             testCase: {
                                 select: {
-                                    project: { select: { userId: true } }
+                                    project: { select: { createdByUserId: true } }
                                 }
                             }
                         }
                     });
 
-                    if (!testRun || testRun.testCase.project.userId !== userId) {
+                    if (!testRun || testRun.testCase.project.createdByUserId !== userId) {
                         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
                     }
                 }

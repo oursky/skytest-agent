@@ -27,7 +27,7 @@ export async function POST(
         const existingTestCase = await prisma.testCase.findUnique({
             where: { id },
             include: {
-                project: { select: { userId: true } },
+                project: { select: { createdByUserId: true } },
                 files: {
                     orderBy: { createdAt: 'desc' }
                 },
@@ -46,7 +46,7 @@ export async function POST(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        if (existingTestCase.project.userId !== userId) {
+        if (existingTestCase.project.createdByUserId !== userId) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

@@ -22,7 +22,7 @@ export async function GET(
         const testCase = await prisma.testCase.findUnique({
             where: { id },
             include: {
-                project: { select: { userId: true } },
+                project: { select: { createdByUserId: true } },
                 testRuns: {
                     take: 1,
                     orderBy: { createdAt: 'desc' },
@@ -43,7 +43,7 @@ export async function GET(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        if (testCase.project.userId !== userId) {
+        if (testCase.project.createdByUserId !== userId) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -76,7 +76,7 @@ export async function PUT(
         const existingTestCase = await prisma.testCase.findUnique({
             where: { id },
             include: {
-                project: { select: { userId: true } },
+                project: { select: { createdByUserId: true } },
                 files: { select: { storedName: true } },
                 configs: {
                     where: { type: 'FILE' },
@@ -94,7 +94,7 @@ export async function PUT(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        if (existingTestCase.project.userId !== userId) {
+        if (existingTestCase.project.createdByUserId !== userId) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -148,7 +148,7 @@ export async function DELETE(
         const existingTestCase = await prisma.testCase.findUnique({
             where: { id },
             include: {
-                project: { select: { userId: true } },
+                project: { select: { createdByUserId: true } },
                 files: { select: { storedName: true } },
                 configs: {
                     where: { type: 'FILE' },
@@ -166,7 +166,7 @@ export async function DELETE(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        if (existingTestCase.project.userId !== userId) {
+        if (existingTestCase.project.createdByUserId !== userId) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
