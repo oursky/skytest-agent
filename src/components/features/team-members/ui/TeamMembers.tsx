@@ -347,20 +347,20 @@ export default function TeamMembers({ teamId, teamRole }: TeamMembersProps) {
                 </p>
             </Modal>
 
-            <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-                <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
-                    <h2 className="text-lg font-semibold text-gray-900">{t('team.members.title')}</h2>
-                    {canManage && (
-                        <button
-                            type="button"
-                            onClick={() => setIsInviteModalOpen(true)}
-                            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
-                        >
-                            {t('team.members.invites.open')}
-                        </button>
-                    )}
-                </div>
+            <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-900">{t('team.members.title')}</h2>
+                {canManage && (
+                    <button
+                        type="button"
+                        onClick={() => setIsInviteModalOpen(true)}
+                        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+                    >
+                        {t('team.members.invites.open')}
+                    </button>
+                )}
+            </div>
 
+            <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
                 {rows.length === 0 ? (
                     <div className="px-6 py-12 text-center text-sm text-gray-500">{t('team.members.empty')}</div>
                 ) : (

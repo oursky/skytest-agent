@@ -21,6 +21,9 @@ interface CustomSelectProps<T extends SelectValue> {
     optionClassName?: string;
     disabled?: boolean;
     fullWidth?: boolean;
+    footerActionLabel?: string;
+    onFooterAction?: () => void;
+    footerActionClassName?: string;
 }
 
 const findEnabledIndex = <T extends SelectValue>(
@@ -51,6 +54,9 @@ export default function CustomSelect<T extends SelectValue>({
     optionClassName = '',
     disabled = false,
     fullWidth = false,
+    footerActionLabel,
+    onFooterAction,
+    footerActionClassName = '',
 }: CustomSelectProps<T>) {
     const listboxId = useId();
     const buttonRef = useRef<HTMLButtonElement | null>(null);
@@ -245,6 +251,21 @@ export default function CustomSelect<T extends SelectValue>({
                             )}
                         </button>
                     ))}
+                    {footerActionLabel && onFooterAction && (
+                        <div className="border-t border-gray-100 px-1 pt-1">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsOpen(false);
+                                    onFooterAction();
+                                    buttonRef.current?.focus();
+                                }}
+                                className={`flex w-full items-center px-3 py-2 text-left text-sm font-medium text-primary transition-colors hover:bg-gray-50 focus:bg-gray-50 focus:outline-none ${footerActionClassName}`.trim()}
+                            >
+                                {footerActionLabel}
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
         </div>

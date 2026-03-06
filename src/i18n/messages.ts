@@ -48,6 +48,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'header.logout': 'Logout',
     'header.language': 'Language',
     'header.team': 'Team',
+    'header.addTeam': '+ Add Team',
     'header.myTeams': 'Team Settings',
 
     // Breadcrumbs
@@ -153,6 +154,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'team.page.delete.body': 'Delete {name}? This removes every project and record in this team.',
     'team.page.delete.confirm': 'Delete Team',
     'team.page.delete.open': 'Delete Team',
+    'team.page.delete.confirmNameLabel': 'Type {name} to confirm deletion',
     'team.page.delete.zoneTitle': 'Danger Zone',
     'team.page.delete.zoneSubtitle': 'Deleting this team removes every project and record in this team.',
     'team.page.tab.members': 'Members',
@@ -684,6 +686,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'header.logout': '登出',
     'header.language': '語言',
     'header.team': '團隊',
+    'header.addTeam': '+ 新增團隊',
     'header.myTeams': '團隊設定',
 
     // Breadcrumbs
@@ -789,6 +792,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'team.page.delete.body': '要刪除 {name} 嗎？這會移除此團隊中的所有專案與紀錄。',
     'team.page.delete.confirm': '刪除團隊',
     'team.page.delete.open': '刪除團隊',
+    'team.page.delete.confirmNameLabel': '輸入 {name} 以確認刪除',
     'team.page.delete.zoneTitle': '危險區域',
     'team.page.delete.zoneSubtitle': '刪除此團隊會移除此團隊中的所有專案與紀錄。',
     'team.page.tab.members': '成員',
@@ -1320,6 +1324,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'header.logout': '退出登录',
     'header.language': '语言',
     'header.team': '团队',
+    'header.addTeam': '+ 新增团队',
     'header.myTeams': '团队设置',
 
     // Breadcrumbs
@@ -1425,6 +1430,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'team.page.delete.body': '删除 {name}？这会移除此团队中的所有项目和记录。',
     'team.page.delete.confirm': '删除团队',
     'team.page.delete.open': '删除团队',
+    'team.page.delete.confirmNameLabel': '输入 {name} 以确认删除',
     'team.page.delete.zoneTitle': '危险区域',
     'team.page.delete.zoneSubtitle': '删除此团队会移除此团队中的所有项目和记录。',
     'team.page.tab.members': '成员',

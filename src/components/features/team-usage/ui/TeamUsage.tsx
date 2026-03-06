@@ -132,7 +132,7 @@ export default function TeamUsage({ teamId }: TeamUsageProps) {
     );
 
     return (
-        <section className="space-y-4 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+        <section className="space-y-4">
             <h3 className="text-lg font-semibold text-gray-900">{t('team.usage.title')}</h3>
             <div className="grid gap-4 md:grid-cols-3">
                 <label className="space-y-2">
@@ -237,7 +237,7 @@ export default function TeamUsage({ teamId }: TeamUsageProps) {
             )}
 
             {error && (
-                <div className="border-t border-red-100 bg-red-50 px-6 py-3 text-sm text-red-700">
+                <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                     {error}
                 </div>
             )}
