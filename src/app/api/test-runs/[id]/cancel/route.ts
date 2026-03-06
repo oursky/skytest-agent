@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { queue } from '@/lib/runtime/queue';
-import { verifyAuth } from '@/lib/security/auth';
+import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
+import { isProjectMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:test-runs:cancel');
 
@@ -19,12 +20,16 @@ export async function POST(
 
     try {
         const { id } = await params;
+        const userId = await resolveUserId(authPayload);
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
 
         const testRun = await prisma.testRun.findUnique({
             where: { id },
             include: {
                 testCase: {
-                    include: { project: { select: { userId: true } } }
+                    select: { projectId: true }
                 }
             }
         });
@@ -33,7 +38,7 @@ export async function POST(
             return NextResponse.json({ error: 'Test run not found' }, { status: 404 });
         }
 
-        if (testRun.testCase.project.userId !== authPayload.userId) {
+        if (!await isProjectMember(userId, testRun.testCase.projectId)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

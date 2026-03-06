@@ -24,8 +24,8 @@ This repo is currently moving toward a single control plane on k8s, durable runn
 - Ask clarifying questions for missing constraints or edge cases
 - Identify impacted files, dependencies, and risks
 - Identify whether the work touches any of these architectural seams:
-  - org/project membership and invites
-  - project-level OpenRouter key ownership
+  - team membership and ownership rules
+  - team-owned OpenRouter key ownership
   - Postgres/object storage
   - runner claiming and leases
   - hosted browser runner vs macOS Android runner

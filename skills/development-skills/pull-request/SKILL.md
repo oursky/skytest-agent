@@ -63,8 +63,8 @@ Classify the PR as one of:
 
 For this repo, also say whether the PR touches:
 - Postgres/object storage
-- org/project membership
-- project AI key/usage
+- team membership/ownership
+- team AI key or project usage
 - runner claiming or leases
 - browser runner
 - macOS runner
@@ -122,7 +122,7 @@ If the user explicitly asked to create the PR:
 Prefer concise imperative titles with area prefix when useful:
 - `schema: move project storage to Postgres and object storage`
 - `runner: add durable job claiming for browser runners`
-- `ui: add project members and AI settings tabs`
+- `ui: update team membership and AI settings flows`
 - `mcp: scope project keys and audit write actions`
 
 If the PR is a broad platform slice, use a clear summary title instead of a vague one.
@@ -167,7 +167,7 @@ Always mention these when applicable:
 - deleted compatibility code
 - runner capability changes
 - project/team permission changes
-- project AI key ownership changes
+- team AI key ownership changes
 - MCP scope or audit changes
 - deployment or rollout sequencing
 

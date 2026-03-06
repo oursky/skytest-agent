@@ -6,22 +6,30 @@ datasource db {
   provider = "postgresql"
 }
 
+enum TeamRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
 model User {
-  id              String    @id @default(cuid())
-  authId          String    @unique
-  email           String?
-  openRouterKey   String?   // Encrypted OpenRouter API key
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  projects        Project[]
-  usageRecords    UsageRecord[]
-  apiKeys         ApiKey[]
+  id                String          @id @default(cuid())
+  authId            String          @unique
+  email             String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  createdProjects   Project[]       @relation("ProjectCreator")
+  actorUsageRecords UsageRecord[]   @relation("UsageRecordActor")
+  apiKeys           ApiKey[]
+  teamMemberships   TeamMembership[]
 }
 
 model UsageRecord {
   id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  actorUserId String
+  actorUser   User     @relation("UsageRecordActor", fields: [actorUserId], references: [id], onDelete: Cascade)
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   type        String   // "TEST_RUN"
   description String?  // e.g., "Project Name - Test Case Name"
   aiActions   Int      // Exact number of AI actions executed
@@ -29,20 +37,57 @@ model UsageRecord {
   testRun     TestRun? @relation(fields: [testRunId], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now())
 
-  @@index([userId, createdAt(sort: Desc)])
+  @@index([projectId, createdAt(sort: Desc)])
+  @@index([actorUserId, createdAt(sort: Desc)])
+  @@index([projectId, actorUserId, createdAt(sort: Desc)])
+}
+
+model Team {
+  id                     String                   @id @default(cuid())
+  name                   String
+  openRouterKeyEncrypted String?
+  openRouterKeyUpdatedAt DateTime?
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+  memberships            TeamMembership[]
+  projects               Project[]
+
+  @@index([updatedAt(sort: Desc)])
+}
+
+model TeamMembership {
+  id        String    @id @default(cuid())
+  teamId    String
+  team      Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email     String?
+  role      TeamRole
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([teamId, userId])
+  @@index([userId, teamId])
+  @@index([teamId, role])
+  @@index([teamId, email])
+  @@index([email])
 }
 
 model Project {
-  id        String          @id @default(cuid())
-  name      String
-  userId    String
-  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  testCases TestCase[]
-  configs     ProjectConfig[]
-  createdAt   DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
+  id              String              @id @default(cuid())
+  name            String
+  teamId  String
+  team    Team        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdByUserId String
+  createdByUser   User                @relation("ProjectCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  testCases       TestCase[]
+  configs         ProjectConfig[]
+  usageRecords    UsageRecord[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
 
-  @@index([userId, updatedAt(sort: Desc)])
+  @@index([teamId, updatedAt(sort: Desc)])
+  @@index([createdByUserId, updatedAt(sort: Desc)])
 }
 
 model TestCase {

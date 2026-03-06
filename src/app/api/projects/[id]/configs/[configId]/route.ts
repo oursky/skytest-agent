@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth } from '@/lib/security/auth';
+import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { validateConfigName, validateConfigType, normalizeConfigName } from '@/lib/config/validation';
 import { createLogger } from '@/lib/core/logger';
 import { isGroupableConfigType, normalizeConfigGroup } from '@/lib/config/sort';
 import type { ConfigType } from '@/types';
 import { deleteObjectIfExists } from '@/lib/storage/object-store-utils';
+import { isProjectMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:projects:config');
 
@@ -20,17 +21,29 @@ export async function PUT(
 
     try {
         const { id, configId } = await params;
+        const userId = await resolveUserId(authPayload);
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
 
         const existing = await prisma.projectConfig.findUnique({
             where: { id: configId },
-            include: { project: { select: { userId: true } } }
+            select: {
+                id: true,
+                projectId: true,
+                type: true,
+                value: true,
+                masked: true,
+                group: true,
+                name: true,
+            }
         });
 
         if (!existing || existing.projectId !== id) {
             return NextResponse.json({ error: 'Config not found' }, { status: 404 });
         }
 
-        if (existing.project.userId !== authPayload.userId) {
+        if (!await isProjectMember(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -98,17 +111,26 @@ export async function DELETE(
 
     try {
         const { id, configId } = await params;
+        const userId = await resolveUserId(authPayload);
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
 
         const existing = await prisma.projectConfig.findUnique({
             where: { id: configId },
-            include: { project: { select: { userId: true } } }
+            select: {
+                id: true,
+                projectId: true,
+                type: true,
+                value: true,
+            }
         });
 
         if (!existing || existing.projectId !== id) {
             return NextResponse.json({ error: 'Config not found' }, { status: 404 });
         }
 
-        if (existing.project.userId !== authPayload.userId) {
+        if (!await isProjectMember(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

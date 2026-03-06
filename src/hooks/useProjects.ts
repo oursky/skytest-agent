@@ -2,13 +2,21 @@ import { useState, useEffect, useCallback } from 'react';
 import { Project } from '@/types';
 import { API_ENDPOINTS } from '@/lib/core/constants';
 
-export function useProjects(userId: string, getAccessToken?: () => Promise<string | null>) {
+export function useProjects(
+    getAccessToken?: () => Promise<string | null>,
+    teamId?: string,
+    enabled = true
+) {
     const [projects, setProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     const fetchProjects = useCallback(async () => {
-        if (!userId) return;
+        if (!enabled) {
+            setProjects([]);
+            setLoading(false);
+            return;
+        }
 
         try {
             setLoading(true);
@@ -20,7 +28,12 @@ export function useProjects(userId: string, getAccessToken?: () => Promise<strin
                 }
             }
 
-            const response = await fetch(`${API_ENDPOINTS.PROJECTS}?userId=${userId}`, {
+            const url = new URL(API_ENDPOINTS.PROJECTS, window.location.origin);
+            if (teamId) {
+                url.searchParams.set('teamId', teamId);
+            }
+
+            const response = await fetch(url.toString(), {
                 headers
             });
 
@@ -36,10 +49,10 @@ export function useProjects(userId: string, getAccessToken?: () => Promise<strin
         } finally {
             setLoading(false);
         }
-    }, [userId, getAccessToken]);
+    }, [enabled, getAccessToken, teamId]);
 
     useEffect(() => {
-        fetchProjects();
+        void fetchProjects();
     }, [fetchProjects]);
 
     const refresh = () => {

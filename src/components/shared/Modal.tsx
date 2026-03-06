@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useI18n } from '@/i18n';
 
 interface ModalProps {
@@ -12,6 +13,12 @@ interface ModalProps {
     confirmText?: string;
     cancelText?: string;
     confirmVariant?: 'primary' | 'danger';
+    closeOnConfirm?: boolean;
+    confirmDisabled?: boolean;
+    showFooter?: boolean;
+    overlayClassName?: string;
+    panelClassName?: string;
+    contentClassName?: string;
 }
 
 export default function Modal({
@@ -22,7 +29,13 @@ export default function Modal({
     onConfirm,
     confirmText,
     cancelText,
-    confirmVariant = 'primary'
+    confirmVariant = 'primary',
+    closeOnConfirm = true,
+    confirmDisabled = false,
+    showFooter = true,
+    overlayClassName = '',
+    panelClassName = '',
+    contentClassName = '',
 }: ModalProps) {
     const { t } = useI18n();
     const modalRef = useRef<HTMLDivElement>(null);
@@ -50,9 +63,9 @@ export default function Modal({
 
     if (!isOpen) return null;
 
-    return (
+    return createPortal(
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 animate-fade-in"
+            className={`fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-fade-in ${overlayClassName}`}
             onClick={(e) => {
                 if (e.target === e.currentTarget) {
                     onClose();
@@ -61,7 +74,7 @@ export default function Modal({
         >
             <div
                 ref={modalRef}
-                className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-hidden flex flex-col"
+                className={`flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-lg bg-white shadow-xl ${panelClassName}`}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="modal-title"
@@ -74,35 +87,43 @@ export default function Modal({
                 </div>
 
                 {/* Content */}
-                <div className="px-6 py-4 overflow-y-auto flex-1">
+                <div className={`flex-1 overflow-y-auto px-6 py-4 ${contentClassName}`}>
                     {children}
                 </div>
 
-                {/* Footer */}
-                <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
-                    <button
-                        onClick={onClose}
-                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-                    >
-                        {effectiveCancelText}
-                    </button>
-                    {onConfirm && (
+                {showFooter && (
+                    <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
                         <button
-                            onClick={() => {
-                                onConfirm();
-                                onClose();
-                            }}
-                            className={`px-4 py-2 text-sm font-medium text-white rounded-md transition-colors ${
-                                confirmVariant === 'danger'
-                                    ? 'bg-red-600 hover:bg-red-700'
-                                    : 'bg-primary hover:bg-primary/90'
-                            }`}
+                            onClick={onClose}
+                            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
                         >
-                            {effectiveConfirmText}
+                            {effectiveCancelText}
                         </button>
-                    )}
-                </div>
+                        {onConfirm && (
+                            <button
+                                onClick={() => {
+                                    if (confirmDisabled) {
+                                        return;
+                                    }
+                                    onConfirm();
+                                    if (closeOnConfirm) {
+                                        onClose();
+                                    }
+                                }}
+                                disabled={confirmDisabled}
+                                className={`px-4 py-2 text-sm font-medium text-white rounded-md transition-colors ${
+                                    confirmVariant === 'danger'
+                                        ? 'bg-red-600 hover:bg-red-700'
+                                        : 'bg-primary hover:bg-primary/90'
+                                } disabled:cursor-not-allowed disabled:opacity-50`}
+                            >
+                                {effectiveConfirmText}
+                            </button>
+                        )}
+                    </div>
+                )}
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }

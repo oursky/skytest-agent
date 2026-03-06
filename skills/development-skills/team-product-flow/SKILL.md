@@ -1,22 +1,20 @@
----
 name: team-product-flow
-description: Guide for implementing organization, project membership, invites, project-owned OpenRouter key management, and project-level usage UX. Use when changing org/team flows, permissions, settings pages, invites, AI key ownership, or usage reporting.
+description: Guide for implementing team-scoped projects, email-based membership management, shared OpenRouter key management, and usage UX. Use when changing team flows, permissions, settings pages, membership rules, AI key ownership, or usage reporting.
 ---
 
 # Team Product Flow
 
-Use this skill when the task changes how users relate to organizations, projects, invites, AI keys, or usage.
+Use this skill when the task changes how users relate to teams, projects, memberships, AI keys, or usage.
 
 ## Trigger Conditions
 
 Use this skill when touching:
-- organization routes or membership tables
-- project membership or invite routes
+- team routes or membership tables
 - project settings UI
-- header org switcher
-- project AI key pages or APIs
+- header team switcher
+- team AI key pages or APIs
 - usage pages or APIs
-- MCP or API permissions that depend on org/project ownership
+- MCP or API permissions that depend on team/project ownership
 
 ## Source Of Truth
 
@@ -27,13 +25,12 @@ Read:
 ## Product Model
 
 Keep the model simple:
-- a user belongs to one or more organizations
-- an organization contains many projects
+- a user belongs to one or more teams
+- a team contains many projects
 - each project is the team workspace
 
 Role model this month:
-- org roles: `owner`, `admin`, `member`
-- project roles: `admin`, `member`
+- team roles: `owner`, `admin`, `member`
 
 Do not add subteams or viewers unless explicitly requested.
 
@@ -41,33 +38,35 @@ Do not add subteams or viewers unless explicitly requested.
 
 ### OpenRouter key
 
-- owned by project, not user
-- used by all runs in the project
-- editable only by project admins
+- owned by team, not user
+- used by all runs in the team
+- editable only by team owners and admins
 
 ### Usage
 
 - recorded at project level
 - attributed to actor user
-- viewable in project context
+- viewable in team context
 
-### Invites
+### Membership
 
-- project invite may also grant org membership if needed
-- invite acceptance must be explicit and auditable
+- add/remove membership happens by email
+- if an email exactly matches an Authgear-backed user, the membership links automatically
+- if no user exists yet, the row stays email-only and should be shown as pending
+- ownership transfer happens only from team settings, not from the member table
 
 ## UI Rules
 
 ### First login
 
-If the user has no org memberships:
-- route to org bootstrap flow
+If the user has no team memberships:
+- route to team bootstrap flow
 - do not drop them into an empty personal dashboard
 
 ### Header
 
-- org switcher belongs in the main header
-- current org context should drive project list and settings
+- team switcher belongs in the main header
+- current team context should drive project list and settings
 
 ### Project page
 
@@ -75,33 +74,27 @@ Project is the team workspace.
 
 The page should expose tabs or sections for:
 - test cases
-- members
-- AI
-- usage
-- runners
+- configs
+- android when enabled
 
-### Invite flow
+### Membership flow
 
-Project admins can:
-- invite by email
-- select project role
-- copy invite link
-- resend or cancel pending invites
+Owners and admins can:
+- add a member by email
+- remove a member
+- change a member between `admin` and `member`
 
-Acceptance page should show:
-- org name
-- project name
-- invited role
-- accept / decline
+Owners:
+- transfer ownership from team settings
 
 ### AI key flow
 
-Project admins:
+Team owners and admins:
 - set key
 - replace key
 - remove key
 
-Project members:
+Team members:
 - may see configured state
 - may not edit key
 
@@ -120,7 +113,7 @@ Do not build a full billing system this month.
 ### 1. Start with permission matrix
 
 Before coding, state:
-- which org roles can do the action
+- which team roles can do the action
 - which project roles can do the action
 - what non-members should see
 
@@ -136,22 +129,22 @@ If API allows an action:
 
 Prefer clear labels like:
 - `Shared OpenRouter key`
-- `Invite members`
+- `Add Member`
 - `Project usage`
 - `Android execution requires a macOS runner`
 
 ### 4. Avoid user-owned fallbacks
 
 Do not add new flows that imply:
-- personal project ownership outside org context
+- personal project ownership outside team context
 - user-owned AI key as the main path
 - user-only usage as the source of truth
 
 ## Completion Checklist
 
 - permission matrix is enforced server-side
-- user flow still makes sense from first login through invite acceptance
-- project AI key actions are project-admin-only
+- user flow still makes sense from first login through email-based membership claiming
+- team AI key actions are team-owner/admin-only
 - project usage is team-scoped and user-attributed
 - relevant i18n keys are added
 - `npm run lint` passes

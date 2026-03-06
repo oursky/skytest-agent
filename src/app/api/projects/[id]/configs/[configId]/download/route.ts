@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth } from '@/lib/security/auth';
+import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { buildContentDisposition } from '@/lib/security/http-headers';
 import { readObjectBuffer } from '@/lib/storage/object-store-utils';
+import { isProjectMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:projects:config:download');
 
@@ -18,17 +19,30 @@ export async function GET(
 
     try {
         const { id, configId } = await params;
+        const userId = await resolveUserId(authPayload);
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
 
         const config = await prisma.projectConfig.findUnique({
             where: { id: configId },
-            include: { project: { select: { userId: true } } }
+            select: {
+                id: true,
+                projectId: true,
+                type: true,
+                value: true,
+                mimeType: true,
+                filename: true,
+                name: true,
+                size: true,
+            }
         });
 
         if (!config || config.projectId !== id || config.type !== 'FILE') {
             return NextResponse.json({ error: 'Not found' }, { status: 404 });
         }
 
-        if (config.project.userId !== authPayload.userId) {
+        if (!await isProjectMember(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

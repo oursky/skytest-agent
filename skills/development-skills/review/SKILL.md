@@ -26,8 +26,8 @@ For this repo, also explicitly check whether the change is consistent with the t
 - Postgres and object storage
 - hosted browser runner
 - macOS-only Android runner
-- org/project membership model
-- project-owned OpenRouter key and usage
+- team membership model
+- team-owned OpenRouter key and project-scoped usage
 - control-plane-only MCP
 
 ### 2. Locate start files
@@ -49,7 +49,7 @@ Use the review type to pick targeted entry points — don't scan the whole repo:
 - **AI Safety/Behavior**: execution engines, config, prompt/tool guardrails
 
 Additional repo-specific starting points:
-- **Auth/Permissions**: `src/lib/security/auth.ts`, permission helpers, org/project membership routes
+- **Auth/Permissions**: `src/lib/security/auth.ts`, permission helpers, team/project membership routes
 - **Runners**: `src/lib/runners/`, `src/runners/`, runner APIs
 - **Storage**: Prisma schema, storage adapters, file APIs
 - **MCP**: `src/app/api/mcp/route.ts`, `src/lib/mcp/server.ts`
@@ -106,5 +106,5 @@ Structure findings as:
   - depends on local uploads as the source of truth
   - depends on in-memory queue or in-memory event fanout
   - checks Android availability from the API host instead of runner capability
-  - stores OpenRouter key or usage at user level when team/project ownership is required
+  - stores OpenRouter key at user level when team ownership is required
   - introduces unscoped MCP auth or non-audited MCP write paths

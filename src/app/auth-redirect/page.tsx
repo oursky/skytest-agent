@@ -34,9 +34,41 @@ export default function AuthRedirect() {
 
                 await authgear.finishAuthentication();
                 await refreshUser();
-                router.push("/");
+                const redirectTo = typeof window !== 'undefined'
+                    ? window.sessionStorage.getItem('skytest.postLoginRedirect')
+                    : null;
+                if (typeof window !== 'undefined') {
+                    window.sessionStorage.removeItem('skytest.postLoginRedirect');
+                }
+                if (redirectTo) {
+                    router.push(redirectTo);
+                    return;
+                }
+
+                const accessToken = authgear.accessToken;
+                if (!accessToken) {
+                    router.push('/projects');
+                    return;
+                }
+
+                const teamsResponse = await fetch('/api/teams', {
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`
+                    }
+                });
+
+                if (!teamsResponse.ok) {
+                    router.push('/projects');
+                    return;
+                }
+
+                const teams = await teamsResponse.json() as Array<{ id: string }>;
+                router.push(teams.length > 0 ? '/projects' : '/welcome');
             } catch (error) {
                 console.error("Authentication failed", error);
+                if (typeof window !== 'undefined') {
+                    window.sessionStorage.removeItem('skytest.postLoginRedirect');
+                }
                 router.push("/");
             }
         };

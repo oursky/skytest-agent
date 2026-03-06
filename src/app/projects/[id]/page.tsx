@@ -36,6 +36,7 @@ interface ProjectPageProps {
 interface Project {
     id: string;
     name: string;
+    canManageProject?: boolean;
 }
 
 export default function ProjectPage({ params }: ProjectPageProps) {
