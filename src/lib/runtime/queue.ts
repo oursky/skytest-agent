@@ -635,17 +635,18 @@ export class TestQueue {
                 userId,
                 actionCount: result.actionCount
             });
-            if (userId && result.actionCount && result.actionCount > 0) {
+            if (userId && config.projectId && result.actionCount && result.actionCount > 0) {
                 try {
                     const description = await this.buildUsageDescription(runId);
                     logger.debug('Recording usage', {
                         runId,
                         userId,
+                        projectId: config.projectId,
                         actionCount: result.actionCount,
                         description
                     });
-                    await UsageService.recordUsage(userId, result.actionCount, description, runId);
-                    logger.debug('Usage recorded', { runId, userId });
+                    await UsageService.recordUsage(userId, config.projectId, result.actionCount, description, runId);
+                    logger.debug('Usage recorded', { runId, userId, projectId: config.projectId });
                 } catch (err) {
                     logger.warn('Failed to record usage', err);
                 }
@@ -653,6 +654,7 @@ export class TestQueue {
                 logger.debug('Skipping usage recording', {
                     runId,
                     hasUserId: Boolean(userId),
+                    hasProjectId: Boolean(config.projectId),
                     actionCount: result.actionCount
                 });
             }

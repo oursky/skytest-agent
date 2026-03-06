@@ -33,7 +33,7 @@ Before changing code, capture:
   - macOS runner
   - Postgres state
   - object storage state
-  - Authgear token or project membership context
+  - Authgear token or team/project membership context
 
 ### 3. Trace the root cause
 
@@ -69,5 +69,5 @@ Before changing code, capture:
 - **Architecture-aware fixes**:
   - do not reintroduce in-memory queue ownership
   - do not add new SQLite-specific logic
-  - do not add new user-level OpenRouter key behavior if the project-level path is the target
+  - do not add new user-level OpenRouter key behavior if the team-owned path is the target
   - do not patch MCP by reading local Android state on the server when runner inventory should be used

@@ -5,6 +5,7 @@ import { createLogger } from '@/lib/core/logger';
 import { parseTestCaseJson, cleanStepsForStorage, normalizeTargetConfigMap } from '@/lib/runtime/test-case-utils';
 import { BrowserConfig, TargetConfig } from '@/types';
 import { deleteObjectIfExists } from '@/lib/storage/object-store-utils';
+import { isProjectMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:test-cases:id');
 
@@ -22,7 +23,6 @@ export async function GET(
         const testCase = await prisma.testCase.findUnique({
             where: { id },
             include: {
-                project: { select: { userId: true } },
                 testRuns: {
                     take: 1,
                     orderBy: { createdAt: 'desc' },
@@ -43,13 +43,11 @@ export async function GET(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        if (testCase.project.userId !== userId) {
+        if (!await isProjectMember(userId, testCase.projectId)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const { project, ...testCaseData } = testCase;
-        void project;
-        const parsedTestCase = parseTestCaseJson(testCaseData);
+        const parsedTestCase = parseTestCaseJson(testCase);
 
         return NextResponse.json(parsedTestCase);
     } catch (error) {
@@ -76,7 +74,6 @@ export async function PUT(
         const existingTestCase = await prisma.testCase.findUnique({
             where: { id },
             include: {
-                project: { select: { userId: true } },
                 files: { select: { storedName: true } },
                 configs: {
                     where: { type: 'FILE' },
@@ -94,7 +91,7 @@ export async function PUT(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        if (existingTestCase.project.userId !== userId) {
+        if (!await isProjectMember(userId, existingTestCase.projectId)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -148,7 +145,6 @@ export async function DELETE(
         const existingTestCase = await prisma.testCase.findUnique({
             where: { id },
             include: {
-                project: { select: { userId: true } },
                 files: { select: { storedName: true } },
                 configs: {
                     where: { type: 'FILE' },
@@ -166,7 +162,7 @@ export async function DELETE(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        if (existingTestCase.project.userId !== userId) {
+        if (!await isProjectMember(userId, existingTestCase.projectId)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

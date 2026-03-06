@@ -35,7 +35,13 @@ export async function GET(request: Request) {
 
     try {
         const projects = await prisma.project.findMany({
-            where: { userId },
+            where: {
+                team: {
+                    memberships: {
+                        some: { userId },
+                    }
+                }
+            },
             select: { id: true },
         });
         const projectIds = new Set(projects.map((project) => project.id));

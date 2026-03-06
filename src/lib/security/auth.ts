@@ -9,22 +9,172 @@ let jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
 
 export type AuthPayload = NonNullable<Awaited<ReturnType<typeof verifyAuth>>>;
 
-export async function resolveUserId(authPayload: AuthPayload): Promise<string | null> {
-    const maybeUserId = (authPayload as { userId?: unknown }).userId;
-    if (typeof maybeUserId === 'string' && maybeUserId.length > 0) {
-        const user = await prisma.user.findUnique({
-            where: { id: maybeUserId },
-            select: { id: true, authId: true }
+function normalizeEmail(value: unknown): string | null {
+    if (typeof value !== 'string') {
+        return null;
+    }
+
+    const normalizedEmail = value.trim().toLowerCase();
+    return normalizedEmail.length > 0 ? normalizedEmail : null;
+}
+
+function isEmailLike(value: string): boolean {
+    return value.includes('@');
+}
+
+function getPayloadEmail(authPayload: Record<string, unknown>): string | null {
+    const email = normalizeEmail(authPayload.email);
+    if (email) {
+        return email;
+    }
+
+    const preferredUsername = normalizeEmail(authPayload.preferred_username);
+    if (preferredUsername && isEmailLike(preferredUsername)) {
+        return preferredUsername;
+    }
+
+    return null;
+}
+
+async function fetchUserInfoEmail(accessToken: string): Promise<string | null> {
+    const endpoint = process.env.NEXT_PUBLIC_AUTHGEAR_ENDPOINT;
+    if (!endpoint) {
+        return null;
+    }
+
+    try {
+        const response = await fetch(new URL('/oauth2/userinfo', endpoint), {
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+            },
+            cache: 'no-store',
         });
-        if (user && (authPayload.sub === user.authId || authPayload.sub === user.id)) {
-            return user.id;
+
+        if (!response.ok) {
+            return null;
+        }
+
+        const payload = await response.json() as Record<string, unknown>;
+        return getPayloadEmail(payload);
+    } catch (error) {
+        logger.warn('Failed to fetch Authgear user info', error);
+        return null;
+    }
+}
+
+async function syncMembershipEmails(userId: string, email: string) {
+    const pendingMemberships = await prisma.teamMembership.findMany({
+        where: {
+            email,
+            userId: null,
+        },
+        select: {
+            id: true,
+            teamId: true,
+        }
+    });
+
+    for (const membership of pendingMemberships) {
+        const existingMembership = await prisma.teamMembership.findFirst({
+            where: {
+                teamId: membership.teamId,
+                userId,
+            },
+            select: { id: true }
+        });
+
+        if (existingMembership) {
+            await prisma.teamMembership.delete({ where: { id: membership.id } });
+            continue;
+        }
+
+        try {
+            await prisma.teamMembership.update({
+                where: { id: membership.id },
+                data: {
+                    userId,
+                    email,
+                }
+            });
+        } catch (error) {
+            if (!isUniqueConstraintError(error)) {
+                throw error;
+            }
         }
     }
 
-    const authId = authPayload.sub as string | undefined;
-    if (!authId) return null;
-    const user = await prisma.user.findUnique({ where: { authId }, select: { id: true } });
+    await prisma.teamMembership.updateMany({
+        where: { userId },
+        data: { email }
+    });
+}
+
+async function syncUser(authPayload: AuthPayload): Promise<{ id: string; email: string | null } | null> {
+    const authSubject = typeof authPayload.sub === 'string' ? authPayload.sub : null;
+    const payloadEmail = getPayloadEmail(authPayload as Record<string, unknown>);
+    const maybeUserId = (authPayload as { userId?: unknown }).userId;
+
+    if (typeof maybeUserId === 'string' && maybeUserId.length > 0) {
+        const user = await prisma.user.findUnique({
+            where: { id: maybeUserId },
+            select: { id: true, authId: true, email: true }
+        });
+
+        if (user && (authSubject === user.authId || authSubject === user.id)) {
+            const syncedUser = payloadEmail && authSubject === user.authId && user.email !== payloadEmail
+                ? await prisma.user.update({
+                    where: { id: user.id },
+                    data: { email: payloadEmail },
+                    select: { id: true, email: true }
+                })
+                : { id: user.id, email: user.email };
+
+            if (payloadEmail) {
+                await syncMembershipEmails(syncedUser.id, payloadEmail);
+                return { id: syncedUser.id, email: payloadEmail };
+            }
+
+            return syncedUser;
+        }
+
+        if (authSubject === maybeUserId) {
+            return null;
+        }
+    }
+
+    if (!authSubject) {
+        return null;
+    }
+
+    const user = await prisma.user.upsert({
+        where: { authId: authSubject },
+        update: payloadEmail ? { email: payloadEmail } : {},
+        create: {
+            authId: authSubject,
+            email: payloadEmail,
+        },
+        select: { id: true, email: true }
+    });
+
+    if (payloadEmail) {
+        await syncMembershipEmails(user.id, payloadEmail);
+        return { id: user.id, email: payloadEmail };
+    }
+
+    return user;
+}
+
+export async function resolveUserId(authPayload: AuthPayload): Promise<string | null> {
+    const user = await syncUser(authPayload);
     return user?.id ?? null;
+}
+
+function isUniqueConstraintError(error: unknown): error is { code: string } {
+    return typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002';
+}
+
+export async function resolveOrCreateUserId(authPayload: AuthPayload): Promise<string | null> {
+    return resolveUserId(authPayload);
 }
 
 function getJwks() {
@@ -84,18 +234,20 @@ export async function verifyAuth(request: Request) {
         }
 
         const { payload } = await jwtVerify(finalToken, jwks);
+        const email = getPayloadEmail(payload) ?? await fetchUserInfoEmail(finalToken);
+        const enrichedPayload = email ? { ...payload, email } : payload;
         try {
-            const authId = (payload.sub as string | undefined) || undefined;
+            const authId = (enrichedPayload.sub as string | undefined) || undefined;
             if (authId) {
                 const user = await prisma.user.findUnique({ where: { authId } });
                 if (user) {
-                    return { ...payload, userId: user.id } as typeof payload & { userId: string };
+                    return { ...enrichedPayload, userId: user.id } as typeof enrichedPayload & { userId: string };
                 }
             }
         } catch (e) {
             logger.warn('verifyAuth: failed to map auth sub to userId', e);
         }
-        return payload;
+        return enrichedPayload;
     } catch (error) {
         logger.error('verifyAuth: token verification failed', error);
         return null;

@@ -15,7 +15,7 @@ interface AuthContextType {
     isLoggedIn: boolean;
     isLoading: boolean;
     user: UserInfo | null;
-    login: () => Promise<void>;
+    login: (options?: { redirectTo?: string }) => Promise<void>;
     logout: () => Promise<void>;
     refreshUser: () => Promise<void>;
     getAccessToken: () => Promise<string | null>;
@@ -88,9 +88,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         initAuthgear();
     }, [initAuthgear]);
 
-    const login = async () => {
+    const login = async (options?: { redirectTo?: string }) => {
         const authgearModule = await ensureAuthgearConfigured();
         const authgear = authgearModule.default;
+
+        if (typeof window !== 'undefined') {
+            const redirectTo = options?.redirectTo?.trim();
+            if (redirectTo) {
+                window.sessionStorage.setItem('skytest.postLoginRedirect', redirectTo);
+            } else {
+                window.sessionStorage.removeItem('skytest.postLoginRedirect');
+            }
+        }
 
         await authgear.startAuthentication({
             redirectURI: process.env.NEXT_PUBLIC_AUTHGEAR_REDIRECT_URI || "",
@@ -117,7 +126,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const openSettings = async () => {
         const authgearModule = await ensureAuthgearConfigured();
         await authgearModule.default.open(authgearModule.Page.Settings, {
-            openInSameTab: true,
+            openInSameTab: false,
         });
     };
 

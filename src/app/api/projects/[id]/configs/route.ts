@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth } from '@/lib/security/auth';
+import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { validateConfigName, validateConfigType, normalizeConfigName } from '@/lib/config/validation';
 import { createLogger } from '@/lib/core/logger';
 import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } from '@/lib/config/sort';
+import { isProjectMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:projects:configs');
 
@@ -18,17 +19,21 @@ export async function GET(
 
     try {
         const { id } = await params;
+        const userId = await resolveUserId(authPayload);
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
 
         const project = await prisma.project.findUnique({
             where: { id },
-            select: { userId: true }
+            select: { id: true }
         });
 
         if (!project) {
             return NextResponse.json({ error: 'Project not found' }, { status: 404 });
         }
 
-        if (project.userId !== authPayload.userId) {
+        if (!await isProjectMember(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -61,17 +66,21 @@ export async function POST(
 
     try {
         const { id } = await params;
+        const userId = await resolveUserId(authPayload);
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
 
         const project = await prisma.project.findUnique({
             where: { id },
-            select: { userId: true }
+            select: { id: true }
         });
 
         if (!project) {
             return NextResponse.json({ error: 'Project not found' }, { status: 404 });
         }
 
-        if (project.userId !== authPayload.userId) {
+        if (!await isProjectMember(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

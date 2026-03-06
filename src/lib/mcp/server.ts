@@ -12,6 +12,7 @@ import { ACTIVE_RUN_STATUSES } from '@/utils/statusHelpers';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { ServerRequest, ServerNotification } from '@modelcontextprotocol/sdk/types.js';
 import type { TestStep, BrowserConfig, TargetConfig, ConfigType } from '@/types';
+import { isProjectMember, isTestCaseProjectMember, isTestRunProjectMember } from '@/lib/security/permissions';
 
 type Extra = RequestHandlerExtra<ServerRequest, ServerNotification>;
 
@@ -30,9 +31,8 @@ function errorResult(message: string, details?: unknown) {
     return { content: [{ type: 'text' as const, text: JSON.stringify(payload) }], isError: true as const };
 }
 
-async function verifyProjectOwnership(projectId: string, userId: string): Promise<boolean> {
-    const project = await prisma.project.findUnique({ where: { id: projectId }, select: { userId: true } });
-    return project?.userId === userId;
+async function verifyProjectAccess(projectId: string, userId: string): Promise<boolean> {
+    return isProjectMember(userId, projectId);
 }
 
 function buildTargetIdGenerator(existingIds: Set<string>, prefix: 'browser' | 'android') {
@@ -62,7 +62,7 @@ const mcpConfigSchema = z.object({
     type: z.string().describe('URL | VARIABLE | RANDOM_STRING | APP_ID'),
     value: z.string().optional().describe('Config value'),
     masked: z.boolean().optional().describe('Mask value in UI (VARIABLE type only)'),
-    group: z.string().nullable().optional().describe('Group name for organization'),
+    group: z.string().nullable().optional().describe('Group name for team'),
 });
 
 const mcpCreateTestCaseSchema = z.object({
@@ -111,7 +111,7 @@ export function createMcpServer(): McpServer {
         const userId = getUserId(extra);
         if (!userId) return errorResult('Unauthorized');
         const projects = await prisma.project.findMany({
-            where: { userId },
+            where: { team: { memberships: { some: { userId } } } },
             orderBy: { updatedAt: 'desc' },
             include: { _count: { select: { testCases: true } } }
         });
@@ -131,7 +131,7 @@ export function createMcpServer(): McpServer {
             include: { _count: { select: { testCases: true } }, configs: true }
         });
         if (!project) return errorResult('Project not found');
-        if (project.userId !== userId) return errorResult('Forbidden');
+        if (!await verifyProjectAccess(projectId, userId)) return errorResult('Forbidden');
         const configs = project.configs.sort(compareByGroupThenName).map(c => ({
             ...c, value: c.masked ? '' : c.value
         }));
@@ -148,7 +148,7 @@ export function createMcpServer(): McpServer {
     }, async ({ projectId, status, limit }, extra) => {
         const userId = getUserId(extra);
         if (!userId) return errorResult('Unauthorized');
-        if (!await verifyProjectOwnership(projectId, userId)) return errorResult('Forbidden');
+        if (!await verifyProjectAccess(projectId, userId)) return errorResult('Forbidden');
         const take = Math.max(1, Math.min(limit ?? 50, 100));
         const where: Record<string, unknown> = { projectId };
         if (status) where.status = status;
@@ -168,15 +168,13 @@ export function createMcpServer(): McpServer {
         const tc = await prisma.testCase.findUnique({
             where: { id: testCaseId },
             include: {
-                project: { select: { userId: true } },
                 configs: true,
                 testRuns: { take: 5, orderBy: { createdAt: 'desc' }, select: { id: true, status: true, error: true, createdAt: true, completedAt: true } }
             }
         });
         if (!tc) return errorResult('Not found');
-        if (tc.project.userId !== userId) return errorResult('Forbidden');
-        const { project, configs, testRuns, ...tcData } = tc;
-        void project;
+        if (!await isTestCaseProjectMember(userId, testCaseId)) return errorResult('Forbidden');
+        const { configs, testRuns, ...tcData } = tc;
         const parsed = parseTestCaseJson(tcData);
         const sortedConfigs = configs.sort(compareByGroupThenName).map(c => ({
             ...c, value: c.masked ? '' : c.value
@@ -191,7 +189,7 @@ export function createMcpServer(): McpServer {
     const createTestCaseHandler = async ({ projectId, testCase }: { projectId: string; testCase: McpCreateTestCaseInput }, extra: Extra) => {
         const userId = getUserId(extra);
         if (!userId) return errorResult('Unauthorized');
-        if (!await verifyProjectOwnership(projectId, userId)) return errorResult('Forbidden');
+        if (!await verifyProjectAccess(projectId, userId)) return errorResult('Forbidden');
 
         const name = testCase.name?.trim();
         if (!name) {
@@ -443,10 +441,10 @@ export function createMcpServer(): McpServer {
         if (!userId) return errorResult('Unauthorized');
         const tc = await prisma.testCase.findUnique({
             where: { id: testCaseId },
-            include: { project: { select: { userId: true } } }
+            select: { id: true, name: true, status: true }
         });
         if (!tc) return errorResult('Not found');
-        if (tc.project.userId !== userId) return errorResult('Forbidden');
+        if (!await isTestCaseProjectMember(userId, testCaseId)) return errorResult('Forbidden');
 
         const changedFields: Array<'name' | 'url' | 'prompt' | 'steps' | 'browserConfig' | 'configs'> = [];
         if (name !== undefined) changedFields.push('name');
@@ -661,11 +659,11 @@ export function createMcpServer(): McpServer {
     }, async ({ projectId, reason }, extra) => {
         const userId = getUserId(extra);
         if (!userId) return errorResult('Unauthorized');
-        if (!await verifyProjectOwnership(projectId, userId)) return errorResult('Forbidden');
+        if (!await verifyProjectAccess(projectId, userId)) return errorResult('Forbidden');
 
         const where = {
             status: { in: [...ACTIVE_RUN_STATUSES] },
-            testCase: { projectId, project: { userId } },
+            testCase: { projectId },
         };
 
         const activeRuns = await prisma.testRun.findMany({
@@ -728,11 +726,11 @@ export function createMcpServer(): McpServer {
     }, async ({ projectId, reason }, extra) => {
         const userId = getUserId(extra);
         if (!userId) return errorResult('Unauthorized');
-        if (!await verifyProjectOwnership(projectId, userId)) return errorResult('Forbidden');
+        if (!await verifyProjectAccess(projectId, userId)) return errorResult('Forbidden');
 
         const where = {
             status: 'QUEUED' as const,
-            testCase: { projectId, project: { userId } },
+            testCase: { projectId },
         };
 
         const queuedRuns = await prisma.testRun.findMany({
@@ -794,10 +792,10 @@ export function createMcpServer(): McpServer {
         if (!userId) return errorResult('Unauthorized');
         const tc = await prisma.testCase.findUnique({
             where: { id: testCaseId },
-            include: { project: { select: { userId: true } } }
+            select: { id: true }
         });
         if (!tc) return errorResult('Not found');
-        if (tc.project.userId !== userId) return errorResult('Forbidden');
+        if (!await isTestCaseProjectMember(userId, testCaseId)) return errorResult('Forbidden');
         await prisma.testCase.delete({ where: { id: testCaseId } });
         return textResult({ success: true });
     });
@@ -810,10 +808,17 @@ export function createMcpServer(): McpServer {
         if (!userId) return errorResult('Unauthorized');
         const run = await prisma.testRun.findUnique({
             where: { id: runId },
-            include: { testCase: { include: { project: { select: { userId: true } } } } }
+            select: {
+                id: true,
+                status: true,
+                error: true,
+                startedAt: true,
+                completedAt: true,
+                createdAt: true,
+            }
         });
         if (!run) return errorResult('Not found');
-        if (run.testCase.project.userId !== userId) return errorResult('Forbidden');
+        if (!await isTestRunProjectMember(userId, runId)) return errorResult('Forbidden');
         return textResult({
             id: run.id, status: run.status, error: run.error,
             startedAt: run.startedAt, completedAt: run.completedAt, createdAt: run.createdAt
@@ -826,7 +831,7 @@ export function createMcpServer(): McpServer {
     }, async ({ projectId }, extra) => {
         const userId = getUserId(extra);
         if (!userId) return errorResult('Unauthorized');
-        if (!await verifyProjectOwnership(projectId, userId)) return errorResult('Forbidden');
+        if (!await verifyProjectAccess(projectId, userId)) return errorResult('Forbidden');
         const testCases = await prisma.testCase.findMany({
             where: { projectId }, select: { status: true }
         });

@@ -1,30 +1,10 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth, resolveUserId, type AuthPayload } from '@/lib/security/auth';
+import { verifyAuth, resolveOrCreateUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
+import { canCreateProject, isTeamMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:projects');
-
-async function resolveOrCreateUserId(authPayload: AuthPayload): Promise<string | null> {
-    const resolvedUserId = await resolveUserId(authPayload);
-    if (resolvedUserId) {
-        return resolvedUserId;
-    }
-
-    const authId = authPayload.sub as string | undefined;
-    if (!authId) {
-        return null;
-    }
-
-    const user = await prisma.user.upsert({
-        where: { authId },
-        update: {},
-        create: { authId },
-        select: { id: true }
-    });
-
-    return user.id;
-}
 
 export async function GET(request: Request) {
     const authPayload = await verifyAuth(request);
@@ -39,9 +19,26 @@ export async function GET(request: Request) {
     }
 
     try {
+        const { searchParams } = new URL(request.url);
+        const teamId = searchParams.get('teamId')?.trim() || null;
+
+        if (teamId) {
+            const hasTeamAccess = await isTeamMember(userId, teamId);
+            if (!hasTeamAccess) {
+                return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+            }
+        }
+
         const projects = await prisma.project.findMany({
             where: {
-                userId,
+                ...(teamId ? { teamId } : {}),
+                team: {
+                    memberships: {
+                        some: {
+                            userId,
+                        }
+                    }
+                }
             },
             orderBy: {
                 updatedAt: 'desc',
@@ -49,6 +46,15 @@ export async function GET(request: Request) {
             include: {
                 _count: {
                     select: { testCases: true },
+                },
+                team: {
+                    select: {
+                        memberships: {
+                            where: { userId },
+                            select: { role: true },
+                            take: 1,
+                        }
+                    }
                 },
                 testCases: {
                     select: {
@@ -71,6 +77,8 @@ export async function GET(request: Request) {
         const projectsWithStatus = projects.map(project => ({
             ...project,
             hasActiveRuns: project.testCases.some(tc => tc.testRuns.length > 0),
+            currentUserRole: project.team.memberships[0]?.role ?? null,
+            team: undefined,
             testCases: undefined
         }));
 
@@ -89,10 +97,15 @@ export async function POST(request: Request) {
         }
 
         const body = await request.json();
-        const { name } = body;
+        const name = typeof body.name === 'string' ? body.name.trim() : '';
+        const teamId = typeof body.teamId === 'string' ? body.teamId.trim() : '';
 
-        if (!name || typeof name !== 'string' || !name.trim()) {
+        if (!name) {
             return NextResponse.json({ error: 'Valid project name is required' }, { status: 400 });
+        }
+
+        if (!teamId) {
+            return NextResponse.json({ error: 'Team is required' }, { status: 400 });
         }
 
         const userId = await resolveOrCreateUserId(authPayload);
@@ -100,11 +113,25 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        const canCreate = await canCreateProject(userId, teamId);
+        if (!canCreate) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+
         const project = await prisma.project.create({
             data: {
-                name: name.trim(),
-                userId,
+                name,
+                teamId,
+                createdByUserId: userId,
             },
+            select: {
+                id: true,
+                name: true,
+                teamId: true,
+                createdByUserId: true,
+                createdAt: true,
+                updatedAt: true,
+            }
         });
 
         return NextResponse.json(project);

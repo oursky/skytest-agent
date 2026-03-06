@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth } from '@/lib/security/auth';
+import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { deleteObjectIfExists } from '@/lib/storage/object-store-utils';
+import { canDeleteProject, canManageProject, isProjectMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:projects:id');
 
@@ -16,15 +17,21 @@ export async function GET(
     }
 
     try {
+        const userId = await resolveUserId(authPayload);
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const { id } = await params;
         const project = await prisma.project.findUnique({
             where: { id },
             select: {
                 id: true,
                 name: true,
+                teamId: true,
+                createdByUserId: true,
                 createdAt: true,
                 updatedAt: true,
-                userId: true,
             },
         });
 
@@ -32,11 +39,18 @@ export async function GET(
             return NextResponse.json({ error: 'Project not found' }, { status: 404 });
         }
 
-        if (project.userId !== authPayload.userId) {
+        const hasAccess = await isProjectMember(userId, id);
+        if (!hasAccess) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        return NextResponse.json(project);
+        const canManage = await canManageProject(userId, id);
+
+        return NextResponse.json({
+            ...project,
+            canManageProject: canManage,
+            canDeleteProject: await canDeleteProject(userId, id),
+        });
     } catch (error) {
         logger.error('Failed to fetch project', error);
         return NextResponse.json({ error: 'Failed to fetch project' }, { status: 500 });
@@ -54,18 +68,24 @@ export async function PUT(
     }
 
     try {
+        const userId = await resolveUserId(authPayload);
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const { id } = await params;
 
         const existingProject = await prisma.project.findUnique({
             where: { id },
-            select: { userId: true }
+            select: { id: true }
         });
 
         if (!existingProject) {
             return NextResponse.json({ error: 'Project not found' }, { status: 404 });
         }
 
-        if (existingProject.userId !== authPayload.userId) {
+        const canDelete = await canDeleteProject(userId, id);
+        if (!canDelete) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -98,18 +118,24 @@ export async function DELETE(
     }
 
     try {
+        const userId = await resolveUserId(authPayload);
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const { id } = await params;
 
         const existingProject = await prisma.project.findUnique({
             where: { id },
-            select: { userId: true }
+            select: { id: true }
         });
 
         if (!existingProject) {
             return NextResponse.json({ error: 'Project not found' }, { status: 404 });
         }
 
-        if (existingProject.userId !== authPayload.userId) {
+        const canManage = await canManageProject(userId, id);
+        if (!canManage) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

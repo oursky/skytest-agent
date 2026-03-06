@@ -1,24 +1,27 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/app/auth-provider';
+import { CustomSelect, Modal } from '@/components/shared';
 import { LOCALE_META, Locale, useI18n } from '@/i18n';
+import { dispatchTeamsChanged, useTeams } from '@/hooks/useTeams';
+import { useCurrentTeam } from '@/hooks/useCurrentTeam';
 
 export default function Header() {
-    const { isLoggedIn, isLoading: isAuthLoading, user, logout, openSettings, login } = useAuth();
+    const { isLoggedIn, isLoading: isAuthLoading, user, logout, openSettings, login, getAccessToken } = useAuth();
     const router = useRouter();
+    const pathname = usePathname();
     const { locale, setLocale, t } = useI18n();
+    const { teams, refresh: refreshTeams } = useTeams(getAccessToken, isLoggedIn);
+    const { currentTeam, setCurrentTeam } = useCurrentTeam(getAccessToken, isLoggedIn);
 
     const localeOptions = useMemo(() => Object.keys(LOCALE_META) as Locale[], []);
 
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-
-    const [isLanguageOpen, setIsLanguageOpen] = useState(false);
-    const [languageFocusIndex, setLanguageFocusIndex] = useState(0);
-    const languageButtonRef = useRef<HTMLButtonElement | null>(null);
-    const languageMenuRef = useRef<HTMLDivElement | null>(null);
-    const languageOptionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+    const [isCreateTeamOpen, setIsCreateTeamOpen] = useState(false);
+    const [newTeamName, setNewTeamName] = useState('');
+    const [isCreateTeamSubmitting, setIsCreateTeamSubmitting] = useState(false);
 
     useEffect(() => {
         const closeDropdown = () => {
@@ -27,58 +30,6 @@ export default function Header() {
         if (isDropdownOpen) document.addEventListener('click', closeDropdown);
         return () => document.removeEventListener('click', closeDropdown);
     }, [isDropdownOpen]);
-
-    useEffect(() => {
-        if (!isLanguageOpen) return;
-        const rafId = window.requestAnimationFrame(() => {
-            languageOptionRefs.current[languageFocusIndex]?.focus();
-        });
-        return () => window.cancelAnimationFrame(rafId);
-    }, [isLanguageOpen, languageFocusIndex]);
-
-    useEffect(() => {
-        if (!isLanguageOpen) return;
-
-        const onMouseDown = (e: MouseEvent) => {
-            const target = e.target as Node;
-            if (languageMenuRef.current?.contains(target)) return;
-            if (languageButtonRef.current?.contains(target)) return;
-            setIsLanguageOpen(false);
-        };
-
-        const onKeyDown = (e: KeyboardEvent) => {
-            if (!isLanguageOpen) return;
-            if (e.key === 'Escape') {
-                setIsLanguageOpen(false);
-                languageButtonRef.current?.focus();
-                return;
-            }
-            if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                setLanguageFocusIndex((i) => Math.min(localeOptions.length - 1, i + 1));
-                return;
-            }
-            if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                setLanguageFocusIndex((i) => Math.max(0, i - 1));
-                return;
-            }
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                const selected = localeOptions[languageFocusIndex];
-                if (selected) setLocale(selected);
-                setIsLanguageOpen(false);
-                languageButtonRef.current?.focus();
-            }
-        };
-
-        document.addEventListener('mousedown', onMouseDown);
-        document.addEventListener('keydown', onKeyDown);
-        return () => {
-            document.removeEventListener('mousedown', onMouseDown);
-            document.removeEventListener('keydown', onKeyDown);
-        };
-    }, [isLanguageOpen, languageFocusIndex, localeOptions, setLocale]);
 
     const handleLogout = async () => {
         await logout();
@@ -89,171 +40,223 @@ export default function Header() {
         router.push(isLoggedIn ? '/projects' : '/');
     };
 
+    const handleTeamChange = async (teamId: string) => {
+        try {
+            await setCurrentTeam(teamId);
+            if (pathname === '/projects' || pathname === '/teams') {
+                router.refresh();
+            }
+        } catch (error) {
+            console.error('Failed to switch team', error);
+        }
+    };
+
+    const createTeam = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        if (!newTeamName.trim()) {
+            return;
+        }
+
+        try {
+            setIsCreateTeamSubmitting(true);
+            const token = await getAccessToken();
+            const response = await fetch('/api/teams', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({ name: newTeamName }),
+            });
+
+            const data = await response.json().catch(() => null);
+            if (!response.ok || !data || typeof data.id !== 'string') {
+                throw new Error('Failed to create team');
+            }
+
+            dispatchTeamsChanged();
+            await refreshTeams();
+            await setCurrentTeam(data.id);
+            setNewTeamName('');
+            setIsCreateTeamOpen(false);
+            if (pathname === '/projects' || pathname === '/teams') {
+                router.refresh();
+            }
+        } catch (error) {
+            console.error('Failed to create team', error);
+        } finally {
+            setIsCreateTeamSubmitting(false);
+        }
+    };
+
     return (
-        <header className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
-            <div className="max-w-7xl mx-auto px-8 py-4">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
+        <>
+            <Modal
+                isOpen={isCreateTeamOpen}
+                onClose={() => {
+                    setIsCreateTeamOpen(false);
+                    setNewTeamName('');
+                }}
+                title={t('team.page.create.open')}
+                closeOnConfirm={false}
+                showFooter={false}
+                panelClassName="max-w-lg"
+            >
+                <form onSubmit={createTeam} className="space-y-4">
+                    <label className="block space-y-2">
+                        <span className="text-sm font-medium text-gray-700">{t('team.page.settings.name')}</span>
+                        <input
+                            type="text"
+                            value={newTeamName}
+                            onChange={(event) => setNewTeamName(event.target.value)}
+                            placeholder={t('team.page.create.placeholder')}
+                            className="w-full rounded-md border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                            autoFocus
+                        />
+                    </label>
+                    <div className="flex justify-end gap-3 pt-4">
                         <button
-                            onClick={handleBrandClick}
-                            className="text-xl font-bold text-blue-600 hover:text-blue-700 transition-colors"
+                            type="button"
+                            onClick={() => {
+                                setIsCreateTeamOpen(false);
+                                setNewTeamName('');
+                            }}
+                            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                         >
-                            SkyTest Agent
+                            {t('common.cancel')}
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={isCreateTeamSubmitting || !newTeamName.trim()}
+                            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
+                        >
+                            {t('team.page.create.confirm')}
                         </button>
                     </div>
+                </form>
+            </Modal>
 
-                    <div className="flex items-center gap-4">
-                        <div className="relative">
-                            <span className="sr-only" id="language-label">
-                                {t('header.language')}
-                            </span>
+            <header className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
+                <div className="max-w-7xl mx-auto px-8 py-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
                             <button
-                                ref={languageButtonRef}
-                                type="button"
-                                aria-haspopup="listbox"
-                                aria-expanded={isLanguageOpen}
-                                aria-labelledby="language-label"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setIsDropdownOpen(false);
-                                    setIsLanguageOpen((open) => {
-                                        const nextOpen = !open;
-                                        if (nextOpen) {
-                                            setLanguageFocusIndex(Math.max(0, localeOptions.indexOf(locale)));
-                                        }
-                                        return nextOpen;
-                                    });
-                                }}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
-                                        e.preventDefault();
-                                        setIsDropdownOpen(false);
-                                        setLanguageFocusIndex(Math.max(0, localeOptions.indexOf(locale)));
-                                        setIsLanguageOpen(true);
-                                    }
-                                }}
-                                className="h-9 px-3 text-sm text-gray-700 border border-gray-200 rounded-md bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 inline-flex items-center gap-2"
+                                onClick={handleBrandClick}
+                                className="text-xl font-bold text-blue-600 hover:text-blue-700 transition-colors"
                             >
-                                <span className="font-medium">{LOCALE_META[locale].label}</span>
-                                <svg
-                                    className={`w-4 h-4 text-gray-400 transition-transform ${isLanguageOpen ? 'rotate-180' : ''}`}
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                >
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
+                                SkyTest Agent
                             </button>
-
-                            {isLanguageOpen && (
-                                <div
-                                    ref={languageMenuRef}
-                                    role="listbox"
-                                    aria-labelledby="language-label"
-                                    className="absolute right-0 top-full mt-2 w-28 bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-50"
-                                    onClick={(e) => e.stopPropagation()}
-                                >
-                                    {localeOptions.map((l, index) => (
-                                        <button
-                                            key={l}
-                                            ref={(el) => {
-                                                languageOptionRefs.current[index] = el;
-                                            }}
-                                            type="button"
-                                            role="option"
-                                            aria-selected={l === locale}
-                                            onMouseEnter={() => setLanguageFocusIndex(index)}
-                                            onClick={() => {
-                                                setLocale(l);
-                                                setIsLanguageOpen(false);
-                                                languageButtonRef.current?.focus();
-                                            }}
-                                            className={`w-full px-3 py-2 text-left text-sm flex items-center justify-between hover:bg-gray-50 ${l === locale ? 'text-blue-600 font-semibold' : 'text-gray-700'}`}
-                                        >
-                                            <span>{LOCALE_META[l].label}</span>
-                                            {l === locale && (
-                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                                </svg>
-                                            )}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
                         </div>
 
-                        {isLoggedIn ? (
-                            <div className="relative">
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setIsLanguageOpen(false);
-                                        setIsDropdownOpen(!isDropdownOpen);
-                                    }}
-                                    className="flex items-center gap-2 hover:bg-gray-50 p-2 rounded-lg transition-colors focus:outline-none"
-                                >
-                                    <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold flex-shrink-0">
-                                        {(user?.email?.[0] || 'U').toUpperCase()}
-                                    </div>
-                                    <span className="text-sm font-medium text-gray-700 max-w-[150px] truncate hidden md:block">
-                                        {user?.email || 'User'}
-                                    </span>
-                                    <svg
-                                        className={`w-4 h-4 text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`}
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        stroke="currentColor"
-                                    >
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                </button>
+                        <div className="flex items-center gap-3">
+                            {isLoggedIn ? (
+                                <div className="flex items-center gap-3">
+                                    {teams.length > 0 && (
+                                        <CustomSelect
+                                            value={currentTeam?.id ?? teams[0]?.id ?? ''}
+                                            options={teams.map((team) => ({
+                                                value: team.id,
+                                                label: team.name,
+                                            }))}
+                                            onChange={(teamId) => void handleTeamChange(teamId)}
+                                            ariaLabel={t('header.team')}
+                                            buttonClassName="h-9 min-w-40 lg:min-w-56 border-gray-200 px-3 focus:ring-blue-500"
+                                            menuClassName="min-w-40 lg:min-w-56"
+                                            footerActionLabel={t('header.addTeam')}
+                                            onFooterAction={() => {
+                                                setIsCreateTeamOpen(true);
+                                                setNewTeamName('');
+                                            }}
+                                        />
+                                    )}
 
-                                {isDropdownOpen && (
-                                    <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-100 py-2 z-50">
+                                    <div className="relative">
                                         <button
-                                            onClick={() => openSettings()}
-                                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setIsDropdownOpen(!isDropdownOpen);
+                                            }}
+                                            className="flex items-center gap-2 rounded-lg p-2 transition-colors hover:bg-gray-50 focus:outline-none"
                                         >
-                                            {t('header.accountSettings')}
-                                        </button>
-
-                                        <button
-                                            onClick={() => router.push('/usage')}
-                                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                                        >
-                                            {t('header.apiKeyUsage')}
-                                        </button>
-
-                                        <button
-                                            onClick={() => router.push('/mcp')}
-                                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                                        >
-                                            {t('header.connectMcp')}
-                                        </button>
-
-                                        <div className="border-t border-gray-50 mt-1 pt-1">
-                                            <button
-                                                onClick={handleLogout}
-                                                className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                                            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 font-semibold text-white">
+                                                {(user?.email?.[0] || 'U').toUpperCase()}
+                                            </div>
+                                            <span className="hidden max-w-[180px] truncate text-sm font-medium text-gray-700 md:block">
+                                                {user?.email || 'User'}
+                                            </span>
+                                            <svg
+                                                className={`h-4 w-4 text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`}
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                                stroke="currentColor"
                                             >
-                                                {t('header.logout')}
-                                            </button>
-                                        </div>
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </button>
+
+                                        {isDropdownOpen && (
+                                            <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-lg border border-gray-100 bg-white py-2 shadow-lg">
+                                                <button
+                                                    onClick={() => openSettings()}
+                                                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                                >
+                                                    {t('header.accountSettings')}
+                                                </button>
+
+                                                <button
+                                                    onClick={() => router.push('/teams')}
+                                                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                                >
+                                                    {t('header.myTeams')}
+                                                </button>
+
+                                                <button
+                                                    onClick={() => router.push('/mcp')}
+                                                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                                >
+                                                    {t('header.connectMcp')}
+                                                </button>
+
+                                                <div className="mt-2 border-t border-gray-50 px-4 pt-3">
+                                                    <div className="grid grid-cols-3 gap-1 rounded-lg bg-gray-100 p-1">
+                                                        {localeOptions.map((option) => (
+                                                            <button
+                                                                key={option}
+                                                                type="button"
+                                                                onClick={() => setLocale(option)}
+                                                                className={`rounded-md px-2 py-1.5 text-sm font-medium transition-colors ${option === locale ? 'bg-white text-primary shadow-sm' : 'text-gray-600 hover:bg-white/70'}`}
+                                                            >
+                                                                {LOCALE_META[option].label}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                <div className="mt-2 border-t border-gray-50 pt-1">
+                                                    <button
+                                                        onClick={handleLogout}
+                                                        className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                                                    >
+                                                        {t('header.logout')}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
-                                )}
-                            </div>
-                        ) : (
-                            <button
-                                onClick={() => login()}
-                                disabled={isAuthLoading}
-                                className="h-9 px-3 text-sm font-medium text-blue-600 border border-blue-200 rounded-md hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {t('landing.loginToStart')}
-                            </button>
-                        )}
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={() => login()}
+                                    disabled={isAuthLoading}
+                                    className="h-9 px-3 text-sm font-medium text-blue-600 border border-blue-200 rounded-md hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {t('landing.loginToStart')}
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </div>
-            </div>
-        </header>
+            </header>
+        </>
     );
 }
