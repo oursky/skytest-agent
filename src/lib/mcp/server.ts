@@ -1,7 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { prisma } from '@/lib/core/prisma';
-import { queue } from '@/lib/runtime/queue';
 import { parseTestCaseJson, cleanStepsForStorage, normalizeTargetConfigMap } from '@/lib/runtime/test-case-utils';
 import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } from '@/lib/config/sort';
 import { validateConfigName, normalizeConfigName, validateConfigType } from '@/lib/config/validation';
@@ -33,6 +32,38 @@ function errorResult(message: string, details?: unknown) {
 
 async function verifyProjectAccess(projectId: string, userId: string): Promise<boolean> {
     return isProjectMember(userId, projectId);
+}
+
+async function cancelRunDurably(runId: string, errorMessage: string): Promise<boolean> {
+    const run = await prisma.testRun.findUnique({
+        where: { id: runId },
+        select: { id: true, status: true, testCaseId: true },
+    });
+
+    if (!run) {
+        return false;
+    }
+    if (['PASS', 'FAIL', 'CANCELLED'].includes(run.status)) {
+        return true;
+    }
+
+    await prisma.testRun.update({
+        where: { id: runId },
+        data: {
+            status: 'CANCELLED',
+            error: errorMessage,
+            completedAt: new Date(),
+            assignedRunnerId: null,
+            leaseExpiresAt: null,
+        },
+    });
+
+    await prisma.testCase.update({
+        where: { id: run.testCaseId },
+        data: { status: 'CANCELLED' },
+    });
+
+    return true;
 }
 
 function buildTargetIdGenerator(existingIds: Set<string>, prefix: 'browser' | 'android') {
@@ -512,7 +543,7 @@ export function createMcpServer(): McpServer {
             }
 
             for (const run of activeRuns) {
-                await queue.cancel(run.id, 'Cancelled to allow MCP test case update');
+                await cancelRunDurably(run.id, 'Cancelled to allow MCP test case update');
             }
         }
 
@@ -696,7 +727,7 @@ export function createMcpServer(): McpServer {
 
         for (const run of activeRuns) {
             try {
-                await queue.cancel(run.id, cancellationReason);
+                await cancelRunDurably(run.id, cancellationReason);
                 cancelledRunIds.push(run.id);
             } catch (error) {
                 failures.push({
@@ -763,7 +794,7 @@ export function createMcpServer(): McpServer {
 
         for (const run of queuedRuns) {
             try {
-                await queue.cancel(run.id, cancellationReason);
+                await cancelRunDurably(run.id, cancellationReason);
                 cancelledRunIds.push(run.id);
             } catch (error) {
                 failures.push({
