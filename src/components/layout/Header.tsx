@@ -106,6 +106,13 @@ export default function Header() {
                                     {isDropdownOpen && (
                                         <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-lg border border-gray-100 bg-white py-2 shadow-lg">
                                             <button
+                                                onClick={() => router.push('/teams')}
+                                                className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                            >
+                                                {t('header.myTeams')}
+                                            </button>
+
+                                            <button
                                                 onClick={() => openSettings()}
                                                 className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                                             >
@@ -117,13 +124,6 @@ export default function Header() {
                                                 className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                                             >
                                                 {t('header.connectMcp')}
-                                            </button>
-
-                                            <button
-                                                onClick={() => router.push('/teams')}
-                                                className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                                            >
-                                                {t('header.myTeams')}
                                             </button>
 
                                             <div className="mt-2 border-t border-gray-50 px-4 pt-3">
