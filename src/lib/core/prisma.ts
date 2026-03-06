@@ -21,3 +21,7 @@ export const prisma = globalForPrisma.prisma ?? createPrismaClient();
 if (process.env.NODE_ENV !== 'production') {
     globalForPrisma.prisma = prisma;
 }
+
+export async function checkDatabaseHealth(): Promise<void> {
+    await prisma.$queryRawUnsafe('SELECT 1');
+}
