@@ -3,11 +3,11 @@ import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import {
-    canDeleteOrganization,
-    canRenameOrganization,
-    canTransferOrganizationOwnership,
-    getOrganizationRole,
-    isOrganizationMember,
+    canDeleteTeam,
+    canRenameTeam,
+    canTransferTeamOwnership,
+    getTeamRole,
+    isTeamMember,
 } from '@/lib/security/permissions';
 import { deleteObjectIfExists } from '@/lib/storage/object-store-utils';
 
@@ -29,11 +29,11 @@ export async function GET(
         }
 
         const { id } = await params;
-        if (!await isOrganizationMember(userId, id)) {
+        if (!await isTeamMember(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const organization = await prisma.organization.findUnique({
+        const team = await prisma.team.findUnique({
             where: { id },
             select: {
                 id: true,
@@ -51,21 +51,21 @@ export async function GET(
             }
         });
 
-        if (!organization) {
+        if (!team) {
             return NextResponse.json({ error: 'Team not found' }, { status: 404 });
         }
 
-        const role = await getOrganizationRole(userId, id);
+        const role = await getTeamRole(userId, id);
 
         return NextResponse.json({
-            ...organization,
+            ...team,
             role,
-            canRename: await canRenameOrganization(userId, id),
-            canDelete: await canDeleteOrganization(userId, id),
-            canTransferOwnership: await canTransferOrganizationOwnership(userId, id),
+            canRename: await canRenameTeam(userId, id),
+            canDelete: await canDeleteTeam(userId, id),
+            canTransferOwnership: await canTransferTeamOwnership(userId, id),
         });
     } catch (error) {
-        logger.error('Failed to fetch organization', error);
+        logger.error('Failed to fetch team', error);
         return NextResponse.json({ error: 'Failed to fetch team' }, { status: 500 });
     }
 }
@@ -86,7 +86,7 @@ export async function PATCH(
         }
 
         const { id } = await params;
-        if (!await canRenameOrganization(userId, id)) {
+        if (!await canRenameTeam(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -96,7 +96,7 @@ export async function PATCH(
             return NextResponse.json({ error: 'Team name is required' }, { status: 400 });
         }
 
-        const organization = await prisma.organization.update({
+        const team = await prisma.team.update({
             where: { id },
             data: { name },
             select: {
@@ -107,9 +107,9 @@ export async function PATCH(
             }
         });
 
-        return NextResponse.json(organization);
+        return NextResponse.json(team);
     } catch (error) {
-        logger.error('Failed to update organization', error);
+        logger.error('Failed to update team', error);
         return NextResponse.json({ error: 'Failed to update team' }, { status: 500 });
     }
 }
@@ -130,7 +130,7 @@ export async function DELETE(
         }
 
         const { id } = await params;
-        if (!await canDeleteOrganization(userId, id)) {
+        if (!await canDeleteTeam(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -138,7 +138,7 @@ export async function DELETE(
             where: {
                 testCase: {
                     project: {
-                        organizationId: id,
+                        teamId: id,
                     }
                 },
                 status: {
@@ -153,7 +153,7 @@ export async function DELETE(
         }
 
         const projects = await prisma.project.findMany({
-            where: { organizationId: id },
+            where: { teamId: id },
             select: {
                 id: true,
                 configs: {
@@ -172,7 +172,7 @@ export async function DELETE(
             }
         });
 
-        await prisma.organization.delete({ where: { id } });
+        await prisma.team.delete({ where: { id } });
 
         const objectKeys = projects.flatMap((project) => [
             ...project.configs.map((config) => config.value),
@@ -192,7 +192,7 @@ export async function DELETE(
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        logger.error('Failed to delete organization', error);
+        logger.error('Failed to delete team', error);
         return NextResponse.json({ error: 'Failed to delete team' }, { status: 500 });
     }
 }

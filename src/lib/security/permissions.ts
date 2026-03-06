@@ -1,16 +1,16 @@
 import { prisma } from '@/lib/core/prisma';
-import type { OrganizationRole } from '@/types';
+import type { TeamRole } from '@/types';
 
-const ORG_ADMIN_ROLES = new Set(['OWNER', 'ADMIN']);
-const ORG_OWNER_ROLES = new Set(['OWNER']);
+const TEAM_ADMIN_ROLES = new Set(['OWNER', 'ADMIN']);
+const TEAM_OWNER_ROLES = new Set(['OWNER']);
 
-async function getProjectOrganizationId(projectId: string): Promise<string | null> {
+async function getProjectTeamId(projectId: string): Promise<string | null> {
     const project = await prisma.project.findUnique({
         where: { id: projectId },
-        select: { organizationId: true }
+        select: { teamId: true }
     });
 
-    return project?.organizationId ?? null;
+    return project?.teamId ?? null;
 }
 
 async function getTestCaseProjectId(testCaseId: string): Promise<string | null> {
@@ -37,11 +37,11 @@ async function getTestRunProjectId(testRunId: string): Promise<string | null> {
     return testRun?.testCase.projectId ?? null;
 }
 
-export async function getOrganizationRole(userId: string, organizationId: string): Promise<OrganizationRole | null> {
-    const membership = await prisma.organizationMembership.findUnique({
+export async function getTeamRole(userId: string, teamId: string): Promise<TeamRole | null> {
+    const membership = await prisma.teamMembership.findUnique({
         where: {
-            organizationId_userId: {
-                organizationId,
+            teamId_userId: {
+                teamId,
                 userId,
             }
         },
@@ -51,11 +51,11 @@ export async function getOrganizationRole(userId: string, organizationId: string
     return membership?.role ?? null;
 }
 
-export async function isOrganizationMember(userId: string, organizationId: string): Promise<boolean> {
-    const membership = await prisma.organizationMembership.findUnique({
+export async function isTeamMember(userId: string, teamId: string): Promise<boolean> {
+    const membership = await prisma.teamMembership.findUnique({
         where: {
-            organizationId_userId: {
-                organizationId,
+            teamId_userId: {
+                teamId,
                 userId,
             }
         },
@@ -66,51 +66,51 @@ export async function isOrganizationMember(userId: string, organizationId: strin
 }
 
 export async function isProjectMember(userId: string, projectId: string): Promise<boolean> {
-    const organizationId = await getProjectOrganizationId(projectId);
-    if (!organizationId) {
+    const teamId = await getProjectTeamId(projectId);
+    if (!teamId) {
         return false;
     }
 
-    return isOrganizationMember(userId, organizationId);
+    return isTeamMember(userId, teamId);
 }
 
 export async function canManageProject(userId: string, projectId: string): Promise<boolean> {
-    const organizationId = await getProjectOrganizationId(projectId);
-    if (!organizationId) {
+    const teamId = await getProjectTeamId(projectId);
+    if (!teamId) {
         return false;
     }
 
-    const organizationRole = await getOrganizationRole(userId, organizationId);
-    return organizationRole !== null && ORG_ADMIN_ROLES.has(organizationRole);
+    const teamRole = await getTeamRole(userId, teamId);
+    return teamRole !== null && TEAM_ADMIN_ROLES.has(teamRole);
 }
 
-export async function canCreateProject(userId: string, organizationId: string): Promise<boolean> {
-    const organizationRole = await getOrganizationRole(userId, organizationId);
-    return organizationRole !== null && ORG_ADMIN_ROLES.has(organizationRole);
+export async function canCreateProject(userId: string, teamId: string): Promise<boolean> {
+    const teamRole = await getTeamRole(userId, teamId);
+    return teamRole !== null && TEAM_ADMIN_ROLES.has(teamRole);
 }
 
-export async function canDeleteOrganization(userId: string, organizationId: string): Promise<boolean> {
-    const organizationRole = await getOrganizationRole(userId, organizationId);
-    return organizationRole !== null && ORG_OWNER_ROLES.has(organizationRole);
+export async function canDeleteTeam(userId: string, teamId: string): Promise<boolean> {
+    const teamRole = await getTeamRole(userId, teamId);
+    return teamRole !== null && TEAM_OWNER_ROLES.has(teamRole);
 }
 
-export async function canTransferOrganizationOwnership(userId: string, organizationId: string): Promise<boolean> {
-    const organizationRole = await getOrganizationRole(userId, organizationId);
-    return organizationRole !== null && ORG_OWNER_ROLES.has(organizationRole);
+export async function canTransferTeamOwnership(userId: string, teamId: string): Promise<boolean> {
+    const teamRole = await getTeamRole(userId, teamId);
+    return teamRole !== null && TEAM_OWNER_ROLES.has(teamRole);
 }
 
-export async function canManageOrganizationMembers(userId: string, organizationId: string): Promise<boolean> {
-    const organizationRole = await getOrganizationRole(userId, organizationId);
-    return organizationRole !== null && ORG_ADMIN_ROLES.has(organizationRole);
+export async function canManageTeamMembers(userId: string, teamId: string): Promise<boolean> {
+    const teamRole = await getTeamRole(userId, teamId);
+    return teamRole !== null && TEAM_ADMIN_ROLES.has(teamRole);
 }
 
-export async function canManageOrganizationApiKey(userId: string, organizationId: string): Promise<boolean> {
-    const organizationRole = await getOrganizationRole(userId, organizationId);
-    return organizationRole !== null && ORG_ADMIN_ROLES.has(organizationRole);
+export async function canManageTeamApiKey(userId: string, teamId: string): Promise<boolean> {
+    const teamRole = await getTeamRole(userId, teamId);
+    return teamRole !== null && TEAM_ADMIN_ROLES.has(teamRole);
 }
 
-export async function canRenameOrganization(userId: string, organizationId: string): Promise<boolean> {
-    return canManageOrganizationMembers(userId, organizationId);
+export async function canRenameTeam(userId: string, teamId: string): Promise<boolean> {
+    return canManageTeamMembers(userId, teamId);
 }
 
 export async function isTestCaseProjectMember(userId: string, testCaseId: string): Promise<boolean> {
@@ -131,17 +131,17 @@ export async function isTestRunProjectMember(userId: string, testRunId: string):
     return isProjectMember(userId, projectId);
 }
 
-export async function getProjectOrganizationMembership(
+export async function getProjectTeamMembership(
     userId: string,
     projectId: string
-): Promise<{ organizationId: string; organizationRole: OrganizationRole | null } | null> {
-    const organizationId = await getProjectOrganizationId(projectId);
-    if (!organizationId) {
+): Promise<{ teamId: string; teamRole: TeamRole | null } | null> {
+    const teamId = await getProjectTeamId(projectId);
+    if (!teamId) {
         return null;
     }
 
     return {
-        organizationId,
-        organizationRole: await getOrganizationRole(userId, organizationId),
+        teamId,
+        teamRole: await getTeamRole(userId, teamId),
     };
 }

@@ -4,7 +4,7 @@ import { API_ENDPOINTS } from '@/lib/core/constants';
 
 export function useProjects(
     getAccessToken?: () => Promise<string | null>,
-    organizationId?: string,
+    teamId?: string,
     enabled = true
 ) {
     const [projects, setProjects] = useState<Project[]>([]);
@@ -29,8 +29,8 @@ export function useProjects(
             }
 
             const url = new URL(API_ENDPOINTS.PROJECTS, window.location.origin);
-            if (organizationId) {
-                url.searchParams.set('organizationId', organizationId);
+            if (teamId) {
+                url.searchParams.set('teamId', teamId);
             }
 
             const response = await fetch(url.toString(), {
@@ -49,7 +49,7 @@ export function useProjects(
         } finally {
             setLoading(false);
         }
-    }, [enabled, getAccessToken, organizationId]);
+    }, [enabled, getAccessToken, teamId]);
 
     useEffect(() => {
         void fetchProjects();

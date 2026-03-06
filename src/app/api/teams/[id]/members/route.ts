@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
-import { canManageOrganizationMembers, isOrganizationMember } from '@/lib/security/permissions';
+import { canManageTeamMembers, isTeamMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:teams:members');
 
@@ -22,12 +22,12 @@ export async function GET(
         }
 
         const { id } = await params;
-        if (!await isOrganizationMember(userId, id)) {
+        if (!await isTeamMember(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const members = await prisma.organizationMembership.findMany({
-            where: { organizationId: id },
+        const members = await prisma.teamMembership.findMany({
+            where: { teamId: id },
             orderBy: [
                 { role: 'asc' },
                 { user: { email: 'asc' } },
@@ -48,7 +48,7 @@ export async function GET(
         });
 
         return NextResponse.json({
-            canManageMembers: await canManageOrganizationMembers(userId, id),
+            canManageMembers: await canManageTeamMembers(userId, id),
             members: members.map((member) => ({
                 id: member.id,
                 userId: member.user.id,
@@ -59,7 +59,7 @@ export async function GET(
             })),
         });
     } catch (error) {
-        logger.error('Failed to list organization members', error);
+        logger.error('Failed to list team members', error);
         return NextResponse.json({ error: 'Failed to load team members' }, { status: 500 });
     }
 }

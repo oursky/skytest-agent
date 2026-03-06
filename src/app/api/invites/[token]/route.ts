@@ -63,10 +63,10 @@ function deriveInviteStatus(invite: { status: string; expiresAt: Date }): string
 }
 
 async function findInvite(rawToken: string) {
-    return prisma.organizationInvite.findUnique({
+    return prisma.teamInvite.findUnique({
         where: { tokenHash: hashInviteToken(rawToken) },
         include: {
-            organization: {
+            team: {
                 select: {
                     id: true,
                     name: true,
@@ -94,7 +94,7 @@ export async function GET(
             role: invite.role,
             status: deriveInviteStatus(invite),
             expiresAt: invite.expiresAt,
-            organization: invite.organization,
+            team: invite.team,
         });
     } catch (error) {
         logger.error('Failed to fetch invite', error);
@@ -132,7 +132,7 @@ export async function POST(
         const derivedStatus = deriveInviteStatus(invite);
         if (derivedStatus !== 'PENDING') {
             if (derivedStatus === 'EXPIRED' && invite.status !== 'EXPIRED') {
-                await prisma.organizationInvite.update({
+                await prisma.teamInvite.update({
                     where: { id: invite.id },
                     data: { status: 'EXPIRED' }
                 });
@@ -148,7 +148,7 @@ export async function POST(
         }
 
         if (action === 'decline') {
-            await prisma.organizationInvite.update({
+            await prisma.teamInvite.update({
                 where: { id: invite.id },
                 data: {
                     status: 'DECLINED',
@@ -160,10 +160,10 @@ export async function POST(
         }
 
         await prisma.$transaction(async (tx) => {
-            const orgMembership = await tx.organizationMembership.findUnique({
+            const orgMembership = await tx.teamMembership.findUnique({
                 where: {
-                    organizationId_userId: {
-                        organizationId: invite.organization.id,
+                    teamId_userId: {
+                        teamId: invite.team.id,
                         userId: user.id,
                     }
                 },
@@ -171,15 +171,15 @@ export async function POST(
             });
 
             if (!orgMembership) {
-                await tx.organizationMembership.create({
+                await tx.teamMembership.create({
                     data: {
-                        organizationId: invite.organization.id,
+                        teamId: invite.team.id,
                         userId: user.id,
                         role: invite.role,
                     }
                 });
             } else if (orgMembership.role !== 'OWNER' && orgMembership.role !== invite.role) {
-                await tx.organizationMembership.update({
+                await tx.teamMembership.update({
                     where: { id: orgMembership.id },
                     data: {
                         role: invite.role,
@@ -187,7 +187,7 @@ export async function POST(
                 });
             }
 
-            await tx.organizationInvite.update({
+            await tx.teamInvite.update({
                 where: { id: invite.id },
                 data: {
                     status: 'ACCEPTED',
@@ -199,9 +199,9 @@ export async function POST(
         const response = NextResponse.json({
             success: true,
             status: 'ACCEPTED',
-            organizationId: invite.organization.id,
+            teamId: invite.team.id,
         });
-        response.cookies.set(CURRENT_TEAM_COOKIE, invite.organization.id, {
+        response.cookies.set(CURRENT_TEAM_COOKIE, invite.team.id, {
             httpOnly: true,
             sameSite: 'lax',
             path: '/',

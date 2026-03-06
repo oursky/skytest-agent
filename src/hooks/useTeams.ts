@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
-export interface OrganizationOption {
+export interface TeamOption {
     id: string;
     name: string;
     role: 'OWNER' | 'ADMIN' | 'MEMBER';
@@ -8,17 +8,17 @@ export interface OrganizationOption {
     updatedAt: string;
 }
 
-export function useOrganizations(
+export function useTeams(
     getAccessToken?: () => Promise<string | null>,
     enabled = true
 ) {
-    const [organizations, setOrganizations] = useState<OrganizationOption[]>([]);
+    const [teams, setTeams] = useState<TeamOption[]>([]);
     const [loading, setLoading] = useState(enabled);
     const [error, setError] = useState<string | null>(null);
 
-    const fetchOrganizations = useCallback(async () => {
+    const fetchTeams = useCallback(async () => {
         if (!enabled) {
-            setOrganizations([]);
+            setTeams([]);
             setLoading(false);
             return;
         }
@@ -35,29 +35,29 @@ export function useOrganizations(
 
             const response = await fetch('/api/teams', { headers });
             if (!response.ok) {
-                throw new Error('Failed to fetch organizations');
+                throw new Error('Failed to fetch teams');
             }
 
-            const data = await response.json() as OrganizationOption[];
-            setOrganizations(data);
+            const data = await response.json() as TeamOption[];
+            setTeams(data);
             setError(null);
         } catch (err) {
-            console.error('Error fetching organizations:', err);
-            setError('Failed to load organizations');
+            console.error('Error fetching teams:', err);
+            setError('Failed to load teams');
         } finally {
             setLoading(false);
         }
     }, [enabled, getAccessToken]);
 
     useEffect(() => {
-        void fetchOrganizations();
-    }, [fetchOrganizations]);
+        void fetchTeams();
+    }, [fetchTeams]);
 
     return {
-        organizations,
+        teams,
         loading,
         error,
-        refresh: fetchOrganizations,
-        setOrganizations,
+        refresh: fetchTeams,
+        setTeams,
     };
 }

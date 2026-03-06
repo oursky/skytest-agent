@@ -6,13 +6,13 @@ datasource db {
   provider = "postgresql"
 }
 
-enum OrganizationRole {
+enum TeamRole {
   OWNER
   ADMIN
   MEMBER
 }
 
-enum OrganizationInviteStatus {
+enum TeamInviteStatus {
   PENDING
   ACCEPTED
   DECLINED
@@ -29,8 +29,8 @@ model User {
   createdProjects          Project[]                @relation("ProjectCreator")
   actorUsageRecords        UsageRecord[]            @relation("UsageRecordActor")
   apiKeys                  ApiKey[]
-  organizationMemberships  OrganizationMembership[]
-  sentOrganizationInvites  OrganizationInvite[]     @relation("OrganizationInviteSender")
+  teamMemberships  TeamMembership[]
+  sentTeamInvites  TeamInvite[]     @relation("TeamInviteSender")
 }
 
 model UsageRecord {
@@ -51,53 +51,53 @@ model UsageRecord {
   @@index([projectId, actorUserId, createdAt(sort: Desc)])
 }
 
-model Organization {
+model Team {
   id                     String                   @id @default(cuid())
   name                   String
   openRouterKeyEncrypted String?
   openRouterKeyUpdatedAt DateTime?
   createdAt              DateTime                 @default(now())
   updatedAt              DateTime                 @updatedAt
-  memberships            OrganizationMembership[]
-  invites                OrganizationInvite[]
+  memberships            TeamMembership[]
+  invites                TeamInvite[]
   projects               Project[]
 
   @@index([updatedAt(sort: Desc)])
 }
 
-model OrganizationMembership {
+model TeamMembership {
   id             String           @id @default(cuid())
-  organizationId String
-  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  teamId String
+  team   Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   userId         String
   user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role           OrganizationRole
+  role           TeamRole
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
-  @@unique([organizationId, userId])
-  @@index([userId, organizationId])
-  @@index([organizationId, role])
+  @@unique([teamId, userId])
+  @@index([userId, teamId])
+  @@index([teamId, role])
 }
 
-model OrganizationInvite {
+model TeamInvite {
   id              String                   @id @default(cuid())
-  organizationId  String
-  organization    Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  teamId  String
+  team    Team             @relation(fields: [teamId], references: [id], onDelete: Cascade)
   email           String
-  role            OrganizationRole
-  status          OrganizationInviteStatus @default(PENDING)
+  role            TeamRole
+  status          TeamInviteStatus @default(PENDING)
   tokenHash       String                   @unique
   expiresAt       DateTime
   invitedByUserId String
-  invitedByUser   User                     @relation("OrganizationInviteSender", fields: [invitedByUserId], references: [id], onDelete: Cascade)
+  invitedByUser   User                     @relation("TeamInviteSender", fields: [invitedByUserId], references: [id], onDelete: Cascade)
   acceptedAt      DateTime?
   declinedAt      DateTime?
   canceledAt      DateTime?
   createdAt       DateTime                 @default(now())
   updatedAt       DateTime                 @updatedAt
 
-  @@index([organizationId, status])
+  @@index([teamId, status])
   @@index([email, status])
   @@index([invitedByUserId, status])
 }
@@ -105,8 +105,8 @@ model OrganizationInvite {
 model Project {
   id              String              @id @default(cuid())
   name            String
-  organizationId  String
-  organization    Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  teamId  String
+  team    Team        @relation(fields: [teamId], references: [id], onDelete: Cascade)
   createdByUserId String
   createdByUser   User                @relation("ProjectCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
   testCases       TestCase[]
@@ -115,7 +115,7 @@ model Project {
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
 
-  @@index([organizationId, updatedAt(sort: Desc)])
+  @@index([teamId, updatedAt(sort: Desc)])
   @@index([createdByUserId, updatedAt(sort: Desc)])
 }
 

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
-import { canManageOrganizationMembers } from '@/lib/security/permissions';
+import { canManageTeamMembers } from '@/lib/security/permissions';
 import { generateInviteToken, hashInviteToken } from '@/lib/security/invite-token';
 
 const logger = createLogger('api:teams:invites:resend');
@@ -29,15 +29,15 @@ export async function POST(
         }
 
         const { id, inviteId } = await params;
-        if (!await canManageOrganizationMembers(userId, id)) {
+        if (!await canManageTeamMembers(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const invite = await prisma.organizationInvite.findUnique({
+        const invite = await prisma.teamInvite.findUnique({
             where: { id: inviteId },
             select: {
                 id: true,
-                organizationId: true,
+                teamId: true,
                 status: true,
                 acceptedAt: true,
                 declinedAt: true,
@@ -45,7 +45,7 @@ export async function POST(
             }
         });
 
-        if (!invite || invite.organizationId !== id) {
+        if (!invite || invite.teamId !== id) {
             return NextResponse.json({ error: 'Invite not found' }, { status: 404 });
         }
 
@@ -54,7 +54,7 @@ export async function POST(
         }
 
         const rawToken = generateInviteToken();
-        await prisma.organizationInvite.update({
+        await prisma.teamInvite.update({
             where: { id: inviteId },
             data: {
                 tokenHash: hashInviteToken(rawToken),
@@ -71,7 +71,7 @@ export async function POST(
             inviteUrl: buildInviteUrl(request, rawToken),
         });
     } catch (error) {
-        logger.error('Failed to resend organization invite', error);
+        logger.error('Failed to resend team invite', error);
         return NextResponse.json({ error: 'Failed to resend team invite' }, { status: 500 });
     }
 }

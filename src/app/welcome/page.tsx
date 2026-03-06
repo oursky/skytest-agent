@@ -3,16 +3,16 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/auth-provider';
-import { useOrganizations } from '@/hooks/useOrganizations';
-import { useCurrentOrganization } from '@/hooks/useCurrentOrganization';
+import { useTeams } from '@/hooks/useTeams';
+import { useCurrentTeam } from '@/hooks/useCurrentTeam';
 import { useI18n } from '@/i18n';
 
 export default function WelcomePage() {
     const { isLoggedIn, isLoading: isAuthLoading, getAccessToken } = useAuth();
     const router = useRouter();
     const { t } = useI18n();
-    const { organizations, loading: isOrganizationsLoading, refresh: refreshOrganizations } = useOrganizations(getAccessToken, isLoggedIn);
-    const { setCurrentOrganization } = useCurrentOrganization(getAccessToken, isLoggedIn);
+    const { teams, loading: isTeamsLoading, refresh: refreshTeams } = useTeams(getAccessToken, isLoggedIn);
+    const { setCurrentTeam } = useCurrentTeam(getAccessToken, isLoggedIn);
     const [name, setName] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -23,10 +23,10 @@ export default function WelcomePage() {
             return;
         }
 
-        if (!isOrganizationsLoading && organizations.length > 0) {
+        if (!isTeamsLoading && teams.length > 0) {
             router.push('/projects');
         }
-    }, [isAuthLoading, isLoggedIn, isOrganizationsLoading, organizations.length, router]);
+    }, [isAuthLoading, isLoggedIn, isTeamsLoading, teams.length, router]);
 
     const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -56,8 +56,8 @@ export default function WelcomePage() {
                 return;
             }
 
-            await setCurrentOrganization(data.id);
-            await refreshOrganizations();
+            await setCurrentTeam(data.id);
+            await refreshTeams();
             router.push('/projects');
         } catch {
             setError(t('welcome.error.create'));
@@ -66,7 +66,7 @@ export default function WelcomePage() {
         }
     };
 
-    if (isAuthLoading || isOrganizationsLoading) {
+    if (isAuthLoading || isTeamsLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -84,7 +84,7 @@ export default function WelcomePage() {
 
                 <form onSubmit={handleSubmit} className="mt-8 space-y-4">
                     <label className="block space-y-2">
-                        <span className="text-sm font-medium text-gray-700">{t('welcome.organizationName')}</span>
+                        <span className="text-sm font-medium text-gray-700">{t('welcome.teamName')}</span>
                         <input
                             type="text"
                             value={name}

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId, type AuthPayload } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
-import { canCreateProject, isOrganizationMember } from '@/lib/security/permissions';
+import { canCreateProject, isTeamMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:projects');
 
@@ -41,19 +41,19 @@ export async function GET(request: Request) {
 
     try {
         const { searchParams } = new URL(request.url);
-        const organizationId = searchParams.get('organizationId')?.trim() || null;
+        const teamId = searchParams.get('teamId')?.trim() || null;
 
-        if (organizationId) {
-            const hasOrganizationAccess = await isOrganizationMember(userId, organizationId);
-            if (!hasOrganizationAccess) {
+        if (teamId) {
+            const hasTeamAccess = await isTeamMember(userId, teamId);
+            if (!hasTeamAccess) {
                 return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
             }
         }
 
         const projects = await prisma.project.findMany({
             where: {
-                ...(organizationId ? { organizationId } : {}),
-                organization: {
+                ...(teamId ? { teamId } : {}),
+                team: {
                     memberships: {
                         some: {
                             userId,
@@ -68,7 +68,7 @@ export async function GET(request: Request) {
                 _count: {
                     select: { testCases: true },
                 },
-                organization: {
+                team: {
                     select: {
                         memberships: {
                             where: { userId },
@@ -98,8 +98,8 @@ export async function GET(request: Request) {
         const projectsWithStatus = projects.map(project => ({
             ...project,
             hasActiveRuns: project.testCases.some(tc => tc.testRuns.length > 0),
-            currentUserRole: project.organization.memberships[0]?.role ?? null,
-            organization: undefined,
+            currentUserRole: project.team.memberships[0]?.role ?? null,
+            team: undefined,
             testCases: undefined
         }));
 
@@ -119,13 +119,13 @@ export async function POST(request: Request) {
 
         const body = await request.json();
         const name = typeof body.name === 'string' ? body.name.trim() : '';
-        const organizationId = typeof body.organizationId === 'string' ? body.organizationId.trim() : '';
+        const teamId = typeof body.teamId === 'string' ? body.teamId.trim() : '';
 
         if (!name) {
             return NextResponse.json({ error: 'Valid project name is required' }, { status: 400 });
         }
 
-        if (!organizationId) {
+        if (!teamId) {
             return NextResponse.json({ error: 'Team is required' }, { status: 400 });
         }
 
@@ -134,7 +134,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const canCreate = await canCreateProject(userId, organizationId);
+        const canCreate = await canCreateProject(userId, teamId);
         if (!canCreate) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
@@ -142,13 +142,13 @@ export async function POST(request: Request) {
         const project = await prisma.project.create({
             data: {
                 name,
-                organizationId,
+                teamId,
                 createdByUserId: userId,
             },
             select: {
                 id: true,
                 name: true,
-                organizationId: true,
+                teamId: true,
                 createdByUserId: true,
                 createdAt: true,
                 updatedAt: true,

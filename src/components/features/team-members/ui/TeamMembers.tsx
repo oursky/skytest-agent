@@ -7,8 +7,8 @@ import { useI18n } from '@/i18n';
 import { formatDateTimeCompact } from '@/utils/dateFormatter';
 
 interface TeamMembersProps {
-    organizationId: string;
-    organizationRole: 'OWNER' | 'ADMIN' | 'MEMBER';
+    teamId: string;
+    teamRole: 'OWNER' | 'ADMIN' | 'MEMBER';
 }
 
 interface Member {
@@ -30,7 +30,7 @@ interface Invite {
     createdAt: string;
 }
 
-export default function TeamMembers({ organizationId, organizationRole }: TeamMembersProps) {
+export default function TeamMembers({ teamId, teamRole }: TeamMembersProps) {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
     const [members, setMembers] = useState<Member[]>([]);
@@ -44,7 +44,7 @@ export default function TeamMembers({ organizationId, organizationRole }: TeamMe
     const [memberToRemove, setMemberToRemove] = useState<Member | null>(null);
     const [inviteToCancel, setInviteToCancel] = useState<Invite | null>(null);
 
-    const canManage = organizationRole === 'OWNER' || organizationRole === 'ADMIN';
+    const canManage = teamRole === 'OWNER' || teamRole === 'ADMIN';
     const roleOptions = useMemo(
         () => [
             { value: 'MEMBER' as const, label: t('team.members.roles.member') },
@@ -59,8 +59,8 @@ export default function TeamMembers({ organizationId, organizationRole }: TeamMe
             const token = await getAccessToken();
             const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
             const [membersResponse, invitesResponse] = await Promise.all([
-                fetch(`/api/teams/${organizationId}/members`, { headers }),
-                fetch(`/api/teams/${organizationId}/invites`, { headers }),
+                fetch(`/api/teams/${teamId}/members`, { headers }),
+                fetch(`/api/teams/${teamId}/invites`, { headers }),
             ]);
 
             if (!membersResponse.ok || !invitesResponse.ok) {
@@ -78,7 +78,7 @@ export default function TeamMembers({ organizationId, organizationRole }: TeamMe
         } finally {
             setIsLoading(false);
         }
-    }, [getAccessToken, organizationId, t]);
+    }, [getAccessToken, teamId, t]);
 
     useEffect(() => {
         void loadData();
@@ -87,7 +87,7 @@ export default function TeamMembers({ organizationId, organizationRole }: TeamMe
     const updateMemberRole = async (memberId: string, role: 'ADMIN' | 'MEMBER') => {
         try {
             const token = await getAccessToken();
-            const response = await fetch(`/api/teams/${organizationId}/members/${memberId}`, {
+            const response = await fetch(`/api/teams/${teamId}/members/${memberId}`, {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
@@ -117,7 +117,7 @@ export default function TeamMembers({ organizationId, organizationRole }: TeamMe
 
         try {
             const token = await getAccessToken();
-            const response = await fetch(`/api/teams/${organizationId}/members/${memberToRemove.id}`, {
+            const response = await fetch(`/api/teams/${teamId}/members/${memberToRemove.id}`, {
                 method: 'DELETE',
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
             });
@@ -145,7 +145,7 @@ export default function TeamMembers({ organizationId, organizationRole }: TeamMe
 
         try {
             const token = await getAccessToken();
-            const response = await fetch(`/api/teams/${organizationId}/invites`, {
+            const response = await fetch(`/api/teams/${teamId}/invites`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -181,7 +181,7 @@ export default function TeamMembers({ organizationId, organizationRole }: TeamMe
     const resendInvite = async (inviteId: string) => {
         try {
             const token = await getAccessToken();
-            const response = await fetch(`/api/teams/${organizationId}/invites/${inviteId}/resend`, {
+            const response = await fetch(`/api/teams/${teamId}/invites/${inviteId}/resend`, {
                 method: 'POST',
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
             });
@@ -211,7 +211,7 @@ export default function TeamMembers({ organizationId, organizationRole }: TeamMe
 
         try {
             const token = await getAccessToken();
-            const response = await fetch(`/api/teams/${organizationId}/invites/${inviteToCancel.id}`, {
+            const response = await fetch(`/api/teams/${teamId}/invites/${inviteToCancel.id}`, {
                 method: 'DELETE',
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
             });

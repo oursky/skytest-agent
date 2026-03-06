@@ -1,7 +1,7 @@
 export interface Project {
     id: string;
     name: string;
-    organizationId: string;
+    teamId: string;
     createdByUserId: string;
     createdAt: string;
     updatedAt: string;
@@ -11,34 +11,34 @@ export interface Project {
     hasActiveRuns?: boolean;
 }
 
-export type OrganizationRole = 'OWNER' | 'ADMIN' | 'MEMBER';
+export type TeamRole = 'OWNER' | 'ADMIN' | 'MEMBER';
 
-export type OrganizationInviteStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'CANCELED' | 'EXPIRED';
+export type TeamInviteStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'CANCELED' | 'EXPIRED';
 
-export interface Organization {
+export interface Team {
     id: string;
     name: string;
-    role?: OrganizationRole;
+    role?: TeamRole;
     openRouterKeyUpdatedAt?: string | null;
     createdAt: string;
     updatedAt: string;
 }
 
-export interface OrganizationMembership {
+export interface TeamMembership {
     id: string;
-    organizationId: string;
+    teamId: string;
     userId: string;
-    role: OrganizationRole;
+    role: TeamRole;
     createdAt: string;
     updatedAt: string;
 }
 
-export interface OrganizationInvite {
+export interface TeamInvite {
     id: string;
-    organizationId: string;
+    teamId: string;
     email: string;
-    role: OrganizationRole;
-    status: OrganizationInviteStatus;
+    role: TeamRole;
+    status: TeamInviteStatus;
     expiresAt: string;
     invitedByUserId: string;
     acceptedAt: string | null;

@@ -214,7 +214,7 @@ export async function POST(request: Request) {
                 project: {
                     select: {
                         id: true,
-                        organization: {
+                        team: {
                             select: {
                                 openRouterKeyEncrypted: true,
                                 memberships: {
@@ -233,7 +233,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
         }
 
-        if (testCase.project.organization.memberships.length === 0) {
+        if (testCase.project.team.memberships.length === 0) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -242,7 +242,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: androidValidationError }, { status: 400 });
         }
 
-        if (!testCase.project.organization.openRouterKeyEncrypted) {
+        if (!testCase.project.team.openRouterKeyEncrypted) {
             return NextResponse.json(
                 { error: 'Please configure this team OpenRouter API key' },
                 { status: 400 }
@@ -251,7 +251,7 @@ export async function POST(request: Request) {
 
         let openRouterApiKey: string;
         try {
-            openRouterApiKey = decrypt(testCase.project.organization.openRouterKeyEncrypted);
+            openRouterApiKey = decrypt(testCase.project.team.openRouterKeyEncrypted);
         } catch {
             return NextResponse.json(
                 { error: 'Failed to decrypt team API key. Please re-enter your API key.' },

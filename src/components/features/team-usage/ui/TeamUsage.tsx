@@ -7,7 +7,7 @@ import { useI18n } from '@/i18n';
 import { formatDateTimeCompact } from '@/utils/dateFormatter';
 
 interface TeamUsageProps {
-    organizationId: string;
+    teamId: string;
 }
 
 interface UsageRecord {
@@ -48,7 +48,7 @@ interface ProjectOption {
     name: string;
 }
 
-export default function TeamUsage({ organizationId }: TeamUsageProps) {
+export default function TeamUsage({ teamId }: TeamUsageProps) {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
     const [records, setRecords] = useState<UsageRecord[]>([]);
@@ -67,7 +67,7 @@ export default function TeamUsage({ organizationId }: TeamUsageProps) {
             try {
                 const token = await getAccessToken();
                 const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
-                const response = await fetch(`/api/projects?organizationId=${organizationId}`, { headers });
+                const response = await fetch(`/api/projects?teamId=${teamId}`, { headers });
                 if (!response.ok) {
                     return;
                 }
@@ -80,7 +80,7 @@ export default function TeamUsage({ organizationId }: TeamUsageProps) {
         };
 
         void loadProjects();
-    }, [getAccessToken, organizationId]);
+    }, [getAccessToken, teamId]);
 
     useEffect(() => {
         const loadUsage = async () => {
@@ -88,7 +88,7 @@ export default function TeamUsage({ organizationId }: TeamUsageProps) {
                 setIsLoading(true);
                 const token = await getAccessToken();
                 const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
-                const url = new URL(`/api/teams/${organizationId}/usage`, window.location.origin);
+                const url = new URL(`/api/teams/${teamId}/usage`, window.location.origin);
                 url.searchParams.set('page', String(page));
                 url.searchParams.set('limit', String(limit));
 
@@ -121,7 +121,7 @@ export default function TeamUsage({ organizationId }: TeamUsageProps) {
         };
 
         void loadUsage();
-    }, [fromDate, getAccessToken, limit, organizationId, page, selectedProjectId, t, toDate]);
+    }, [fromDate, getAccessToken, limit, teamId, page, selectedProjectId, t, toDate]);
 
     const projectOptions = useMemo(
         () => [

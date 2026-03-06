@@ -38,16 +38,16 @@ export async function GET(request: Request) {
     }
 
     try {
-        const organizations = await prisma.organizationMembership.findMany({
+        const teams = await prisma.teamMembership.findMany({
             where: { userId },
             orderBy: {
-                organization: {
+                team: {
                     updatedAt: 'desc',
                 }
             },
             select: {
                 role: true,
-                organization: {
+                team: {
                     select: {
                         id: true,
                         name: true,
@@ -58,12 +58,12 @@ export async function GET(request: Request) {
             }
         });
 
-        return NextResponse.json(organizations.map((membership) => ({
-            ...membership.organization,
+        return NextResponse.json(teams.map((membership) => ({
+            ...membership.team,
             role: membership.role,
         })));
     } catch (error) {
-        logger.error('Failed to fetch organizations', error);
+        logger.error('Failed to fetch teams', error);
         return NextResponse.json({ error: 'Failed to fetch teams' }, { status: 500 });
     }
 }
@@ -87,7 +87,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Team name is required' }, { status: 400 });
         }
 
-        const organization = await prisma.organization.create({
+        const team = await prisma.team.create({
             data: {
                 name,
                 memberships: {
@@ -106,11 +106,11 @@ export async function POST(request: Request) {
         });
 
         return NextResponse.json({
-            ...organization,
+            ...team,
             role: 'OWNER',
         }, { status: 201 });
     } catch (error) {
-        logger.error('Failed to create organization', error);
+        logger.error('Failed to create team', error);
         return NextResponse.json({ error: 'Failed to create team' }, { status: 500 });
     }
 }

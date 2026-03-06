@@ -36,7 +36,7 @@ export async function GET(request: Request) {
     try {
         const projects = await prisma.project.findMany({
             where: {
-                organization: {
+                team: {
                     memberships: {
                         some: { userId },
                     }

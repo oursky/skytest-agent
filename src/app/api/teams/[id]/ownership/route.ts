@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
-import { canTransferOrganizationOwnership } from '@/lib/security/permissions';
+import { canTransferTeamOwnership } from '@/lib/security/permissions';
 
 const logger = createLogger('api:teams:ownership');
 
@@ -22,7 +22,7 @@ export async function POST(
         }
 
         const { id } = await params;
-        if (!await canTransferOrganizationOwnership(userId, id)) {
+        if (!await canTransferTeamOwnership(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -36,19 +36,19 @@ export async function POST(
         }
 
         const [currentOwnerMembership, nextOwnerMembership] = await Promise.all([
-            prisma.organizationMembership.findUnique({
+            prisma.teamMembership.findUnique({
                 where: {
-                    organizationId_userId: {
-                        organizationId: id,
+                    teamId_userId: {
+                        teamId: id,
                         userId,
                     }
                 },
                 select: { id: true, role: true }
             }),
-            prisma.organizationMembership.findUnique({
+            prisma.teamMembership.findUnique({
                 where: {
-                    organizationId_userId: {
-                        organizationId: id,
+                    teamId_userId: {
+                        teamId: id,
                         userId: nextOwnerUserId,
                     }
                 },
@@ -65,11 +65,11 @@ export async function POST(
         }
 
         await prisma.$transaction([
-            prisma.organizationMembership.update({
+            prisma.teamMembership.update({
                 where: { id: currentOwnerMembership.id },
                 data: { role: 'ADMIN' },
             }),
-            prisma.organizationMembership.update({
+            prisma.teamMembership.update({
                 where: { id: nextOwnerMembership.id },
                 data: { role: 'OWNER' },
             }),
@@ -83,7 +83,7 @@ export async function POST(
             }
         });
     } catch (error) {
-        logger.error('Failed to transfer organization ownership', error);
+        logger.error('Failed to transfer team ownership', error);
         return NextResponse.json({ error: 'Failed to transfer team ownership' }, { status: 500 });
     }
 }

@@ -15,7 +15,7 @@ interface InviteDetails {
     role: 'ADMIN' | 'MEMBER' | 'OWNER';
     status: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'CANCELED' | 'EXPIRED';
     expiresAt: string;
-    organization: {
+    team: {
         id: string;
         name: string;
     };
@@ -81,7 +81,7 @@ export default function InviteAcceptancePage({ params }: InvitePageProps) {
                 return;
             }
 
-            if (action === 'accept' && data.organizationId) {
+            if (action === 'accept' && data.teamId) {
                 setActionSuccess(t('invite.success.accepted'));
                 router.push('/projects');
                 return;
@@ -130,8 +130,8 @@ export default function InviteAcceptancePage({ params }: InvitePageProps) {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm">
                     <div>
-                        <div className="text-gray-500">{t('invite.organization')}</div>
-                        <div className="font-medium text-gray-900">{invite.organization.name}</div>
+                        <div className="text-gray-500">{t('invite.team')}</div>
+                        <div className="font-medium text-gray-900">{invite.team.name}</div>
                     </div>
                     <div>
                         <div className="text-gray-500">{t('invite.role')}</div>

@@ -51,19 +51,19 @@ export default function AuthRedirect() {
                     return;
                 }
 
-                const organizationsResponse = await fetch('/api/teams', {
+                const teamsResponse = await fetch('/api/teams', {
                     headers: {
                         Authorization: `Bearer ${accessToken}`
                     }
                 });
 
-                if (!organizationsResponse.ok) {
+                if (!teamsResponse.ok) {
                     router.push('/projects');
                     return;
                 }
 
-                const organizations = await organizationsResponse.json() as Array<{ id: string }>;
-                router.push(organizations.length > 0 ? '/projects' : '/welcome');
+                const teams = await teamsResponse.json() as Array<{ id: string }>;
+                router.push(teams.length > 0 ? '/projects' : '/welcome');
             } catch (error) {
                 console.error("Authentication failed", error);
                 if (typeof window !== 'undefined') {

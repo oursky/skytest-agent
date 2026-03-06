@@ -7,8 +7,8 @@ import { CustomSelect, Modal } from '@/components/shared';
 import TeamAiSettings from '@/components/features/team-ai/ui/TeamAiSettings';
 import TeamMembers from '@/components/features/team-members/ui/TeamMembers';
 import TeamUsage from '@/components/features/team-usage/ui/TeamUsage';
-import { useCurrentOrganization } from '@/hooks/useCurrentOrganization';
-import { useOrganizations } from '@/hooks/useOrganizations';
+import { useCurrentTeam } from '@/hooks/useCurrentTeam';
+import { useTeams } from '@/hooks/useTeams';
 import { useI18n } from '@/i18n';
 
 interface TeamDetails {
@@ -31,8 +31,12 @@ export default function TeamsPage() {
     const { isLoggedIn, isLoading: isAuthLoading, getAccessToken } = useAuth();
     const router = useRouter();
     const { t } = useI18n();
-    const { organizations, loading: areTeamsLoading, refresh: refreshTeams } = useOrganizations(getAccessToken, isLoggedIn);
-    const { currentOrganization, loading: isCurrentTeamLoading, setCurrentOrganization } = useCurrentOrganization(getAccessToken, isLoggedIn);
+    const { teams, loading: areTeamsLoading, refresh: refreshTeams } = useTeams(getAccessToken, isLoggedIn);
+    const {
+        currentTeam: selectedTeam,
+        loading: isCurrentTeamLoading,
+        setCurrentTeam,
+    } = useCurrentTeam(getAccessToken, isLoggedIn);
     const [teamDetails, setTeamDetails] = useState<TeamDetails | null>(null);
     const [ownerCandidates, setOwnerCandidates] = useState<TeamMemberOption[]>([]);
     const [newTeamName, setNewTeamName] = useState('');
@@ -45,12 +49,12 @@ export default function TeamsPage() {
     const [success, setSuccess] = useState<string | null>(null);
 
     const currentTeam = useMemo(() => {
-        if (!currentOrganization) {
+        if (!selectedTeam) {
             return null;
         }
 
-        return organizations.find((organization) => organization.id === currentOrganization.id) ?? null;
-    }, [currentOrganization, organizations]);
+        return teams.find((team) => team.id === selectedTeam.id) ?? null;
+    }, [selectedTeam, teams]);
 
     const ownerOptions = ownerCandidates
         .filter((member) => member.role !== 'OWNER')
@@ -59,13 +63,13 @@ export default function TeamsPage() {
             label: member.email || t('team.members.unknownEmail'),
         }));
 
-    const loadTeamDetails = useCallback(async (organizationId: string) => {
+    const loadTeamDetails = useCallback(async (teamId: string) => {
         const token = await getAccessToken();
         const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
 
         const [detailsResponse, membersResponse] = await Promise.all([
-            fetch(`/api/teams/${organizationId}`, { headers }),
-            fetch(`/api/teams/${organizationId}/members`, { headers }),
+            fetch(`/api/teams/${teamId}`, { headers }),
+            fetch(`/api/teams/${teamId}/members`, { headers }),
         ]);
 
         if (!detailsResponse.ok || !membersResponse.ok) {
@@ -87,22 +91,22 @@ export default function TeamsPage() {
     }, [isAuthLoading, isLoggedIn, router]);
 
     useEffect(() => {
-        if (!isAuthLoading && isLoggedIn && !areTeamsLoading && organizations.length === 0) {
+        if (!isAuthLoading && isLoggedIn && !areTeamsLoading && teams.length === 0) {
             router.push('/welcome');
         }
-    }, [areTeamsLoading, isAuthLoading, isLoggedIn, organizations.length, router]);
+    }, [areTeamsLoading, isAuthLoading, isLoggedIn, teams.length, router]);
 
     useEffect(() => {
-        if (!currentOrganization || organizations.length === 0) {
+        if (!currentTeam || teams.length === 0) {
             return;
         }
 
         queueMicrotask(() => {
-            void loadTeamDetails(currentOrganization.id).catch(() => {
+            void loadTeamDetails(currentTeam.id).catch(() => {
                 setError(t('team.page.error.load'));
             });
         });
-    }, [currentOrganization, organizations.length, loadTeamDetails, t]);
+    }, [currentTeam, teams.length, loadTeamDetails, t]);
 
     const createTeam = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -128,7 +132,7 @@ export default function TeamsPage() {
             }
 
             await refreshTeams();
-            await setCurrentOrganization(data.id);
+            await setCurrentTeam(data.id);
             setNewTeamName('');
             setIsCreating(false);
             setSuccess(t('team.page.success.create'));
@@ -220,9 +224,9 @@ export default function TeamsPage() {
 
             setIsDeleteOpen(false);
             await refreshTeams();
-            const nextTeamId = organizations.find((team) => team.id !== currentTeam.id)?.id;
+            const nextTeamId = teams.find((team) => team.id !== currentTeam.id)?.id;
             if (nextTeamId) {
-                await setCurrentOrganization(nextTeamId);
+                await setCurrentTeam(nextTeamId);
             } else {
                 router.push('/welcome');
             }
@@ -293,18 +297,18 @@ export default function TeamsPage() {
                 )}
 
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                    {organizations.map((organization) => {
-                        const isActive = currentTeam?.id === organization.id;
+                    {teams.map((team) => {
+                        const isActive = currentTeam?.id === team.id;
 
                         return (
                             <button
-                                key={organization.id}
+                                key={team.id}
                                 type="button"
-                                onClick={() => void setCurrentOrganization(organization.id)}
+                                onClick={() => void setCurrentTeam(team.id)}
                                 className={`rounded-xl border p-5 text-left shadow-sm transition-colors ${isActive ? 'border-primary bg-white ring-2 ring-primary/20' : 'border-gray-200 bg-white hover:border-gray-300'}`}
                             >
-                                <div className="text-sm font-medium text-primary">{t(`team.members.roles.${organization.role.toLowerCase()}`)}</div>
-                                <div className="mt-2 text-lg font-semibold text-gray-900">{organization.name}</div>
+                                <div className="text-sm font-medium text-primary">{t(`team.members.roles.${team.role.toLowerCase()}`)}</div>
+                                <div className="mt-2 text-lg font-semibold text-gray-900">{team.name}</div>
                             </button>
                         );
                     })}
@@ -405,13 +409,13 @@ export default function TeamsPage() {
                         </div>
 
                         {activeTab === 'members' && (
-                            <TeamMembers organizationId={currentTeam.id} organizationRole={currentTeam.role} />
+                            <TeamMembers teamId={currentTeam.id} teamRole={currentTeam.role} />
                         )}
 
                         {activeTab === 'api' && (
                             <div className="space-y-6">
-                                <TeamAiSettings organizationId={currentTeam.id} />
-                                <TeamUsage organizationId={currentTeam.id} />
+                                <TeamAiSettings teamId={currentTeam.id} />
+                                <TeamUsage teamId={currentTeam.id} />
                             </div>
                         )}
                     </>

@@ -18,7 +18,7 @@ async function ensureProjectAccess(projectId: string, userId: string): Promise<b
 async function listAccessibleProjectIds(userId: string): Promise<Set<string>> {
     const projects = await prisma.project.findMany({
         where: {
-            organization: {
+            team: {
                 memberships: {
                     some: { userId },
                 }

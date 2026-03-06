@@ -5,7 +5,7 @@ import { useAuth } from '@/app/auth-provider';
 import { useI18n } from '@/i18n';
 
 interface TeamAiSettingsProps {
-    organizationId: string;
+    teamId: string;
 }
 
 interface TeamAiState {
@@ -15,7 +15,7 @@ interface TeamAiState {
     updatedAt: string | null;
 }
 
-export default function TeamAiSettings({ organizationId }: TeamAiSettingsProps) {
+export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
     const [state, setState] = useState<TeamAiState>({ hasKey: false, maskedKey: null, canEdit: false, updatedAt: null });
@@ -27,7 +27,7 @@ export default function TeamAiSettings({ organizationId }: TeamAiSettingsProps) 
     const loadState = useCallback(async () => {
         const token = await getAccessToken();
         const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
-        const response = await fetch(`/api/teams/${organizationId}/ai-key`, { headers });
+        const response = await fetch(`/api/teams/${teamId}/ai-key`, { headers });
         if (!response.ok) {
             setError(t('team.ai.error.load'));
             return;
@@ -36,7 +36,7 @@ export default function TeamAiSettings({ organizationId }: TeamAiSettingsProps) 
         const data = await response.json() as TeamAiState;
         setState(data);
         setError(null);
-    }, [getAccessToken, organizationId, t]);
+    }, [getAccessToken, teamId, t]);
 
     useEffect(() => {
         void loadState();
@@ -59,7 +59,7 @@ export default function TeamAiSettings({ organizationId }: TeamAiSettingsProps) 
         setIsSaving(true);
         try {
             const token = await getAccessToken();
-            const response = await fetch(`/api/teams/${organizationId}/ai-key`, {
+            const response = await fetch(`/api/teams/${teamId}/ai-key`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -92,7 +92,7 @@ export default function TeamAiSettings({ organizationId }: TeamAiSettingsProps) 
 
         try {
             const token = await getAccessToken();
-            const response = await fetch(`/api/teams/${organizationId}/ai-key`, {
+            const response = await fetch(`/api/teams/${teamId}/ai-key`, {
                 method: 'DELETE',
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });

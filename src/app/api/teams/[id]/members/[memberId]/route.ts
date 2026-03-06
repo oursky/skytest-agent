@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
-import { canManageOrganizationMembers } from '@/lib/security/permissions';
+import { canManageTeamMembers } from '@/lib/security/permissions';
 
 const logger = createLogger('api:teams:members:id');
 const MANAGEABLE_ROLES = new Set(['ADMIN', 'MEMBER']);
@@ -23,7 +23,7 @@ export async function PATCH(
         }
 
         const { id, memberId } = await params;
-        if (!await canManageOrganizationMembers(userId, id)) {
+        if (!await canManageTeamMembers(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -33,11 +33,11 @@ export async function PATCH(
             return NextResponse.json({ error: 'Valid team role is required' }, { status: 400 });
         }
 
-        const membership = await prisma.organizationMembership.findUnique({
+        const membership = await prisma.teamMembership.findUnique({
             where: { id: memberId },
             select: {
                 id: true,
-                organizationId: true,
+                teamId: true,
                 role: true,
                 createdAt: true,
                 updatedAt: true,
@@ -50,7 +50,7 @@ export async function PATCH(
             }
         });
 
-        if (!membership || membership.organizationId !== id) {
+        if (!membership || membership.teamId !== id) {
             return NextResponse.json({ error: 'Team member not found' }, { status: 404 });
         }
 
@@ -58,7 +58,7 @@ export async function PATCH(
             return NextResponse.json({ error: 'Transfer ownership instead of changing the owner role' }, { status: 400 });
         }
 
-        const updated = await prisma.organizationMembership.update({
+        const updated = await prisma.teamMembership.update({
             where: { id: memberId },
             data: { role: role as 'ADMIN' | 'MEMBER' },
             select: {
@@ -84,7 +84,7 @@ export async function PATCH(
             updatedAt: updated.updatedAt,
         });
     } catch (error) {
-        logger.error('Failed to update organization member', error);
+        logger.error('Failed to update team member', error);
         return NextResponse.json({ error: 'Failed to update team member' }, { status: 500 });
     }
 }
@@ -105,20 +105,20 @@ export async function DELETE(
         }
 
         const { id, memberId } = await params;
-        if (!await canManageOrganizationMembers(userId, id)) {
+        if (!await canManageTeamMembers(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const membership = await prisma.organizationMembership.findUnique({
+        const membership = await prisma.teamMembership.findUnique({
             where: { id: memberId },
             select: {
                 id: true,
-                organizationId: true,
+                teamId: true,
                 role: true,
             }
         });
 
-        if (!membership || membership.organizationId !== id) {
+        if (!membership || membership.teamId !== id) {
             return NextResponse.json({ error: 'Team member not found' }, { status: 404 });
         }
 
@@ -126,10 +126,10 @@ export async function DELETE(
             return NextResponse.json({ error: 'Transfer ownership before removing the owner' }, { status: 400 });
         }
 
-        await prisma.organizationMembership.delete({ where: { id: memberId } });
+        await prisma.teamMembership.delete({ where: { id: memberId } });
         return NextResponse.json({ success: true });
     } catch (error) {
-        logger.error('Failed to remove organization member', error);
+        logger.error('Failed to remove team member', error);
         return NextResponse.json({ error: 'Failed to remove team member' }, { status: 500 });
     }
 }

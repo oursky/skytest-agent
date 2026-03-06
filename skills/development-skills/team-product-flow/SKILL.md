@@ -1,22 +1,21 @@
----
 name: team-product-flow
-description: Guide for implementing organization, project membership, invites, project-owned OpenRouter key management, and project-level usage UX. Use when changing org/team flows, permissions, settings pages, invites, AI key ownership, or usage reporting.
+description: Guide for implementing team-scoped projects, invites, shared OpenRouter key management, and usage UX. Use when changing team flows, permissions, settings pages, invites, AI key ownership, or usage reporting.
 ---
 
 # Team Product Flow
 
-Use this skill when the task changes how users relate to organizations, projects, invites, AI keys, or usage.
+Use this skill when the task changes how users relate to teams, projects, invites, AI keys, or usage.
 
 ## Trigger Conditions
 
 Use this skill when touching:
-- organization routes or membership tables
+- team routes or membership tables
 - project membership or invite routes
 - project settings UI
-- header org switcher
+- header team switcher
 - project AI key pages or APIs
 - usage pages or APIs
-- MCP or API permissions that depend on org/project ownership
+- MCP or API permissions that depend on team/project ownership
 
 ## Source Of Truth
 
@@ -27,12 +26,12 @@ Read:
 ## Product Model
 
 Keep the model simple:
-- a user belongs to one or more organizations
-- an organization contains many projects
+- a user belongs to one or more teams
+- a team contains many projects
 - each project is the team workspace
 
 Role model this month:
-- org roles: `owner`, `admin`, `member`
+- team roles: `owner`, `admin`, `member`
 - project roles: `admin`, `member`
 
 Do not add subteams or viewers unless explicitly requested.
@@ -53,21 +52,21 @@ Do not add subteams or viewers unless explicitly requested.
 
 ### Invites
 
-- project invite may also grant org membership if needed
+- project invite may also grant team membership if needed
 - invite acceptance must be explicit and auditable
 
 ## UI Rules
 
 ### First login
 
-If the user has no org memberships:
-- route to org bootstrap flow
+If the user has no team memberships:
+- route to team bootstrap flow
 - do not drop them into an empty personal dashboard
 
 ### Header
 
-- org switcher belongs in the main header
-- current org context should drive project list and settings
+- team switcher belongs in the main header
+- current team context should drive project list and settings
 
 ### Project page
 
@@ -89,7 +88,7 @@ Project admins can:
 - resend or cancel pending invites
 
 Acceptance page should show:
-- org name
+- team name
 - project name
 - invited role
 - accept / decline
@@ -120,7 +119,7 @@ Do not build a full billing system this month.
 ### 1. Start with permission matrix
 
 Before coding, state:
-- which org roles can do the action
+- which team roles can do the action
 - which project roles can do the action
 - what non-members should see
 
@@ -143,7 +142,7 @@ Prefer clear labels like:
 ### 4. Avoid user-owned fallbacks
 
 Do not add new flows that imply:
-- personal project ownership outside org context
+- personal project ownership outside team context
 - user-owned AI key as the main path
 - user-only usage as the source of truth
 

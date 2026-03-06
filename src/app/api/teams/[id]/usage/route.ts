@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
-import { isOrganizationMember } from '@/lib/security/permissions';
+import { isTeamMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:teams:usage');
 
@@ -24,7 +24,7 @@ export async function GET(
         }
 
         const { id } = await params;
-        if (!await isOrganizationMember(userId, id)) {
+        if (!await isTeamMember(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -37,7 +37,7 @@ export async function GET(
 
         const where = {
             project: {
-                organizationId: id,
+                teamId: id,
                 ...(projectId ? { id: projectId } : {}),
             },
             ...(from || to ? {
@@ -93,7 +93,7 @@ export async function GET(
             }
         });
     } catch (error) {
-        logger.error('Failed to fetch organization usage', error);
+        logger.error('Failed to fetch team usage', error);
         return NextResponse.json({ error: 'Failed to load team usage' }, { status: 500 });
     }
 }

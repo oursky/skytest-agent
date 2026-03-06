@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
-import { canManageOrganizationMembers } from '@/lib/security/permissions';
+import { canManageTeamMembers } from '@/lib/security/permissions';
 
 const logger = createLogger('api:teams:invites:id');
 
@@ -22,20 +22,20 @@ export async function DELETE(
         }
 
         const { id, inviteId } = await params;
-        if (!await canManageOrganizationMembers(userId, id)) {
+        if (!await canManageTeamMembers(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const invite = await prisma.organizationInvite.findUnique({
+        const invite = await prisma.teamInvite.findUnique({
             where: { id: inviteId },
             select: {
                 id: true,
-                organizationId: true,
+                teamId: true,
                 status: true,
             }
         });
 
-        if (!invite || invite.organizationId !== id) {
+        if (!invite || invite.teamId !== id) {
             return NextResponse.json({ error: 'Invite not found' }, { status: 404 });
         }
 
@@ -43,7 +43,7 @@ export async function DELETE(
             return NextResponse.json({ error: 'Accepted invites cannot be canceled' }, { status: 400 });
         }
 
-        await prisma.organizationInvite.update({
+        await prisma.teamInvite.update({
             where: { id: inviteId },
             data: {
                 status: 'CANCELED',
@@ -53,7 +53,7 @@ export async function DELETE(
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        logger.error('Failed to cancel organization invite', error);
+        logger.error('Failed to cancel team invite', error);
         return NextResponse.json({ error: 'Failed to cancel team invite' }, { status: 500 });
     }
 }

@@ -7,8 +7,8 @@ import { useRouter } from "next/navigation";
 import { CustomSelect, Modal } from "@/components/shared";
 import { formatDateTime } from "@/utils/dateFormatter";
 import { useProjects } from "@/hooks/useProjects";
-import { useOrganizations } from "@/hooks/useOrganizations";
-import { useCurrentOrganization } from "@/hooks/useCurrentOrganization";
+import { useTeams } from "@/hooks/useTeams";
+import { useCurrentTeam } from "@/hooks/useCurrentTeam";
 import { useI18n } from "@/i18n";
 
 export default function ProjectsPage() {
@@ -16,31 +16,31 @@ export default function ProjectsPage() {
     const router = useRouter();
     const { t } = useI18n();
 
-    const { organizations, loading: isOrganizationsLoading, refresh: refreshOrganizations } = useOrganizations(getAccessToken, isLoggedIn);
+    const { teams, loading: isTeamsLoading, refresh: refreshTeams } = useTeams(getAccessToken, isLoggedIn);
     const {
-        currentOrganization,
-        loading: isCurrentOrganizationLoading,
-        setCurrentOrganization,
-    } = useCurrentOrganization(getAccessToken, isLoggedIn);
-    const effectiveOrganizationId = currentOrganization?.id || organizations[0]?.id || '';
-    const currentTeam = organizations.find((organization) => organization.id === effectiveOrganizationId) ?? null;
+        currentTeam: selectedTeam,
+        loading: isCurrentTeamLoading,
+        setCurrentTeam,
+    } = useCurrentTeam(getAccessToken, isLoggedIn);
+    const effectiveTeamId = selectedTeam?.id || teams[0]?.id || '';
+    const currentTeam = teams.find((team) => team.id === effectiveTeamId) ?? null;
     const canManageProjects = currentTeam !== null && currentTeam.role !== 'MEMBER';
     const { projects, loading: isProjectsLoading, addProject, removeProject, refresh } = useProjects(
         getAccessToken,
-        effectiveOrganizationId || undefined,
-        isLoggedIn && (!isOrganizationsLoading || organizations.length > 0)
+        effectiveTeamId || undefined,
+        isLoggedIn && (!isTeamsLoading || teams.length > 0)
     );
     const [isCreating, setIsCreating] = useState(false);
     const [newProjectName, setNewProjectName] = useState("");
-    const [newOrganizationName, setNewOrganizationName] = useState("");
+    const [newTeamName, setNewTeamName] = useState("");
     const [createError, setCreateError] = useState("");
-    const [organizationError, setOrganizationError] = useState("");
+    const [teamError, setTeamError] = useState("");
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; projectId: string; projectName: string }>({ isOpen: false, projectId: "", projectName: "" });
     const [editModal, setEditModal] = useState<{ isOpen: boolean; projectId: string; currentName: string }>({ isOpen: false, projectId: "", currentName: "" });
     const [editName, setEditName] = useState("");
-    const organizationOptions = organizations.map((organization) => ({
-        value: organization.id,
-        label: organization.name,
+    const teamOptions = teams.map((team) => ({
+        value: team.id,
+        label: team.name,
     }));
 
     useEffect(() => {
@@ -50,21 +50,21 @@ export default function ProjectsPage() {
     }, [isAuthLoading, isLoggedIn, router]);
 
     useEffect(() => {
-        if (!isAuthLoading && isLoggedIn && !isOrganizationsLoading && organizations.length === 0) {
+        if (!isAuthLoading && isLoggedIn && !isTeamsLoading && teams.length === 0) {
             router.push('/welcome');
         }
-    }, [isAuthLoading, isLoggedIn, isOrganizationsLoading, organizations.length, router]);
+    }, [isAuthLoading, isLoggedIn, isTeamsLoading, teams.length, router]);
 
     useEffect(() => {
-        if (!currentOrganization && organizations.length > 0) {
-            void setCurrentOrganization(organizations[0].id);
+        if (!selectedTeam && teams.length > 0) {
+            void setCurrentTeam(teams[0].id);
         }
-    }, [currentOrganization, organizations, setCurrentOrganization]);
+    }, [selectedTeam, teams, setCurrentTeam]);
 
     const handleCreateProject = async (e: React.FormEvent) => {
         e.preventDefault();
-        const organizationId = effectiveOrganizationId;
-        if (!newProjectName.trim() || !organizationId) return;
+        const teamId = effectiveTeamId;
+        if (!newProjectName.trim() || !teamId) return;
 
         try {
             const token = await getAccessToken();
@@ -74,7 +74,7 @@ export default function ProjectsPage() {
                     "Content-Type": "application/json",
                     ...(token ? { "Authorization": `Bearer ${token}` } : {})
                 },
-                body: JSON.stringify({ name: newProjectName, organizationId }),
+                body: JSON.stringify({ name: newProjectName, teamId }),
             });
 
             if (response.ok) {
@@ -92,9 +92,9 @@ export default function ProjectsPage() {
         }
     };
 
-    const handleCreateOrganization = async (e: React.FormEvent) => {
+    const handleCreateTeam = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newOrganizationName.trim()) return;
+        if (!newTeamName.trim()) return;
 
         try {
             const token = await getAccessToken();
@@ -104,22 +104,22 @@ export default function ProjectsPage() {
                     'Content-Type': 'application/json',
                     ...(token ? { Authorization: `Bearer ${token}` } : {})
                 },
-                body: JSON.stringify({ name: newOrganizationName })
+                body: JSON.stringify({ name: newTeamName })
             });
 
             if (!response.ok) {
-                const data = await response.json().catch(() => ({ error: t('projects.organization.createError') }));
-                setOrganizationError(data.error || t('projects.organization.createError'));
+                const data = await response.json().catch(() => ({ error: t('projects.team.createError') }));
+                setTeamError(data.error || t('projects.team.createError'));
                 return;
             }
 
-            const organization = await response.json() as { id: string };
-            await refreshOrganizations();
-            await setCurrentOrganization(organization.id);
-            setNewOrganizationName('');
-            setOrganizationError('');
+            const team = await response.json() as { id: string };
+            await refreshTeams();
+            await setCurrentTeam(team.id);
+            setNewTeamName('');
+            setTeamError('');
         } catch {
-            setOrganizationError(t('projects.organization.createError'));
+            setTeamError(t('projects.team.createError'));
         }
     };
 
@@ -171,7 +171,7 @@ export default function ProjectsPage() {
         setEditName("");
     };
 
-    if (isAuthLoading || isProjectsLoading || isOrganizationsLoading || isCurrentOrganizationLoading) {
+    if (isAuthLoading || isProjectsLoading || isTeamsLoading || isCurrentTeamLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -226,7 +226,7 @@ export default function ProjectsPage() {
             <div className="max-w-7xl mx-auto px-8 py-8">
                 <div className="flex justify-between items-center mb-8">
                     <h1 className="text-3xl font-bold text-gray-900">{t('projects.title')}</h1>
-                    {organizations.length > 0 && canManageProjects && (
+                    {teams.length > 0 && canManageProjects && (
                         <button
                             onClick={() => setIsCreating(true)}
                             className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
@@ -236,38 +236,38 @@ export default function ProjectsPage() {
                     )}
                 </div>
 
-                {organizations.length === 0 && (
+                {teams.length === 0 && (
                     <div className="mb-8 bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                        <h2 className="text-xl font-semibold text-gray-900 mb-2">{t('projects.organization.emptyTitle')}</h2>
-                        <p className="text-sm text-gray-500 mb-4">{t('projects.organization.emptySubtitle')}</p>
-                        <form onSubmit={handleCreateOrganization} className="flex gap-4">
+                        <h2 className="text-xl font-semibold text-gray-900 mb-2">{t('projects.team.emptyTitle')}</h2>
+                        <p className="text-sm text-gray-500 mb-4">{t('projects.team.emptySubtitle')}</p>
+                        <form onSubmit={handleCreateTeam} className="flex gap-4">
                             <input
                                 type="text"
-                                value={newOrganizationName}
-                                onChange={(e) => setNewOrganizationName(e.target.value)}
-                                placeholder={t('projects.organization.placeholder')}
+                                value={newTeamName}
+                                onChange={(e) => setNewTeamName(e.target.value)}
+                                placeholder={t('projects.team.placeholder')}
                                 className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50"
                             />
                             <button
                                 type="submit"
-                                disabled={!newOrganizationName.trim()}
+                                disabled={!newTeamName.trim()}
                                 className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 disabled:opacity-50"
                             >
-                                {t('projects.organization.create')}
+                                {t('projects.team.create')}
                             </button>
                         </form>
-                        {organizationError && <p className="text-red-500 text-sm mt-2">{organizationError}</p>}
+                        {teamError && <p className="text-red-500 text-sm mt-2">{teamError}</p>}
                     </div>
                 )}
 
-                {isCreating && organizations.length > 0 && canManageProjects && (
+                {isCreating && teams.length > 0 && canManageProjects && (
                     <div className="mb-8 bg-white p-6 rounded-lg shadow-sm border border-gray-200">
                         <form onSubmit={handleCreateProject} className="flex flex-col gap-4">
                             <CustomSelect
-                                value={effectiveOrganizationId}
-                                options={organizationOptions}
-                                onChange={(organizationId) => void setCurrentOrganization(organizationId)}
-                                ariaLabel={t('header.organization')}
+                                value={effectiveTeamId}
+                                options={teamOptions}
+                                onChange={(teamId) => void setCurrentTeam(teamId)}
+                                ariaLabel={t('header.team')}
                                 fullWidth
                                 buttonClassName="px-4 py-2 shadow-none"
                             />
@@ -282,7 +282,7 @@ export default function ProjectsPage() {
                                 />
                                 <button
                                     type="submit"
-                                    disabled={!newProjectName.trim() || !effectiveOrganizationId}
+                                    disabled={!newProjectName.trim() || !effectiveTeamId}
                                     className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
                                 >
                                     {t('projects.create')}
@@ -362,7 +362,7 @@ export default function ProjectsPage() {
                     ))}
                 </div>
 
-                {projects.length === 0 && !isCreating && organizations.length > 0 && (
+                {projects.length === 0 && !isCreating && teams.length > 0 && (
                     <div className="text-center py-16">
                         <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
                             <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>

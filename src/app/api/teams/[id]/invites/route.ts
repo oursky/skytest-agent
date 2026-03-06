@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
-import { canManageOrganizationMembers, isOrganizationMember } from '@/lib/security/permissions';
+import { canManageTeamMembers, isTeamMember } from '@/lib/security/permissions';
 import { generateInviteToken, hashInviteToken } from '@/lib/security/invite-token';
 
 const logger = createLogger('api:teams:invites');
@@ -37,12 +37,12 @@ export async function GET(
         }
 
         const { id } = await params;
-        if (!await isOrganizationMember(userId, id)) {
+        if (!await isTeamMember(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const invites = await prisma.organizationInvite.findMany({
-            where: { organizationId: id },
+        const invites = await prisma.teamInvite.findMany({
+            where: { teamId: id },
             orderBy: { createdAt: 'desc' },
             select: {
                 id: true,
@@ -65,7 +65,7 @@ export async function GET(
         });
 
         return NextResponse.json({
-            canManageInvites: await canManageOrganizationMembers(userId, id),
+            canManageInvites: await canManageTeamMembers(userId, id),
             invites: invites.map((invite) => ({
                 ...invite,
                 status: deriveInviteStatus(invite),
@@ -75,7 +75,7 @@ export async function GET(
             })),
         });
     } catch (error) {
-        logger.error('Failed to list organization invites', error);
+        logger.error('Failed to list team invites', error);
         return NextResponse.json({ error: 'Failed to load team invites' }, { status: 500 });
     }
 }
@@ -96,7 +96,7 @@ export async function POST(
         }
 
         const { id } = await params;
-        if (!await canManageOrganizationMembers(userId, id)) {
+        if (!await canManageTeamMembers(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -111,9 +111,9 @@ export async function POST(
             return NextResponse.json({ error: 'Valid team role is required' }, { status: 400 });
         }
 
-        const existingMember = await prisma.organizationMembership.findFirst({
+        const existingMember = await prisma.teamMembership.findFirst({
             where: {
-                organizationId: id,
+                teamId: id,
                 user: {
                     email,
                 }
@@ -124,9 +124,9 @@ export async function POST(
             return NextResponse.json({ error: 'User is already in this team' }, { status: 409 });
         }
 
-        const existingPendingInvite = await prisma.organizationInvite.findFirst({
+        const existingPendingInvite = await prisma.teamInvite.findFirst({
             where: {
-                organizationId: id,
+                teamId: id,
                 email,
                 status: 'PENDING',
                 expiresAt: {
@@ -142,9 +142,9 @@ export async function POST(
         const rawToken = generateInviteToken();
         const tokenHash = hashInviteToken(rawToken);
 
-        const invite = await prisma.organizationInvite.create({
+        const invite = await prisma.teamInvite.create({
             data: {
-                organizationId: id,
+                teamId: id,
                 email,
                 role: role as 'ADMIN' | 'MEMBER',
                 tokenHash,
@@ -170,7 +170,7 @@ export async function POST(
             inviteUrl: buildInviteUrl(request, rawToken),
         }, { status: 201 });
     } catch (error) {
-        logger.error('Failed to create organization invite', error);
+        logger.error('Failed to create team invite', error);
         return NextResponse.json({ error: 'Failed to create team invite' }, { status: 500 });
     }
 }

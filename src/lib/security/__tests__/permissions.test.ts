@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
     projectFindUnique,
-    organizationMembershipFindUnique,
+    teamMembershipFindUnique,
 } = vi.hoisted(() => ({
     projectFindUnique: vi.fn(),
-    organizationMembershipFindUnique: vi.fn(),
+    teamMembershipFindUnique: vi.fn(),
 }));
 
 vi.mock('@/lib/core/prisma', () => ({
@@ -13,8 +13,8 @@ vi.mock('@/lib/core/prisma', () => ({
         project: {
             findUnique: projectFindUnique,
         },
-        organizationMembership: {
-            findUnique: organizationMembershipFindUnique,
+        teamMembership: {
+            findUnique: teamMembershipFindUnique,
         },
     },
 }));
@@ -22,24 +22,24 @@ vi.mock('@/lib/core/prisma', () => ({
 const {
     canManageProject,
     canCreateProject,
-    canDeleteOrganization,
+    canDeleteTeam,
 } = await import('@/lib/security/permissions');
 
 describe('team permissions', () => {
     beforeEach(() => {
         projectFindUnique.mockReset();
-        organizationMembershipFindUnique.mockReset();
+        teamMembershipFindUnique.mockReset();
     });
 
     it('allows team admins to manage their project', async () => {
-        projectFindUnique.mockResolvedValueOnce({ organizationId: 'org-1' });
-        organizationMembershipFindUnique.mockResolvedValueOnce({ role: 'ADMIN' });
+        projectFindUnique.mockResolvedValueOnce({ teamId: 'org-1' });
+        teamMembershipFindUnique.mockResolvedValueOnce({ role: 'ADMIN' });
 
         await expect(canManageProject('user-1', 'project-1')).resolves.toBe(true);
-        expect(organizationMembershipFindUnique).toHaveBeenCalledWith({
+        expect(teamMembershipFindUnique).toHaveBeenCalledWith({
             where: {
-                organizationId_userId: {
-                    organizationId: 'org-1',
+                teamId_userId: {
+                    teamId: 'org-1',
                     userId: 'user-1',
                 }
             },
@@ -48,20 +48,20 @@ describe('team permissions', () => {
     });
 
     it('allows team admins to create projects', async () => {
-        organizationMembershipFindUnique.mockResolvedValueOnce({ role: 'ADMIN' });
+        teamMembershipFindUnique.mockResolvedValueOnce({ role: 'ADMIN' });
 
         await expect(canCreateProject('user-1', 'org-1')).resolves.toBe(true);
     });
 
     it('allows owners to delete their team', async () => {
-        organizationMembershipFindUnique.mockResolvedValueOnce({ role: 'OWNER' });
+        teamMembershipFindUnique.mockResolvedValueOnce({ role: 'OWNER' });
 
-        await expect(canDeleteOrganization('user-1', 'org-1')).resolves.toBe(true);
+        await expect(canDeleteTeam('user-1', 'org-1')).resolves.toBe(true);
     });
 
     it('rejects members from managing projects', async () => {
-        projectFindUnique.mockResolvedValueOnce({ organizationId: 'org-1' });
-        organizationMembershipFindUnique.mockResolvedValueOnce({ role: 'MEMBER' });
+        projectFindUnique.mockResolvedValueOnce({ teamId: 'org-1' });
+        teamMembershipFindUnique.mockResolvedValueOnce({ role: 'MEMBER' });
 
         await expect(canManageProject('user-1', 'project-1')).resolves.toBe(false);
     });

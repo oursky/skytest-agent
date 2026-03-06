@@ -3,7 +3,7 @@ import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { encrypt, decrypt, maskApiKey } from '@/lib/security/crypto';
-import { canManageOrganizationApiKey, isOrganizationMember } from '@/lib/security/permissions';
+import { canManageTeamApiKey, isTeamMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:teams:ai-key');
 
@@ -25,12 +25,12 @@ export async function GET(
         }
 
         const { id } = await params;
-        if (!await isOrganizationMember(userId, id)) {
+        if (!await isTeamMember(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const canEdit = await canManageOrganizationApiKey(userId, id);
-        const organization = await prisma.organization.findUnique({
+        const canEdit = await canManageTeamApiKey(userId, id);
+        const team = await prisma.team.findUnique({
             where: { id },
             select: {
                 openRouterKeyEncrypted: true,
@@ -38,18 +38,18 @@ export async function GET(
             }
         });
 
-        if (!organization || !organization.openRouterKeyEncrypted) {
+        if (!team || !team.openRouterKeyEncrypted) {
             return NextResponse.json({ hasKey: false, maskedKey: null, canEdit, updatedAt: null });
         }
 
         return NextResponse.json({
             hasKey: true,
-            maskedKey: maskApiKey(decrypt(organization.openRouterKeyEncrypted)),
+            maskedKey: maskApiKey(decrypt(team.openRouterKeyEncrypted)),
             canEdit,
-            updatedAt: organization.openRouterKeyUpdatedAt,
+            updatedAt: team.openRouterKeyUpdatedAt,
         });
     } catch (error) {
-        logger.error('Failed to fetch organization AI key', error);
+        logger.error('Failed to fetch team AI key', error);
         return NextResponse.json({ error: 'Failed to load team key' }, { status: 500 });
     }
 }
@@ -70,7 +70,7 @@ export async function POST(
         }
 
         const { id } = await params;
-        if (!await canManageOrganizationApiKey(userId, id)) {
+        if (!await canManageTeamApiKey(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -83,7 +83,7 @@ export async function POST(
             return NextResponse.json({ error: 'Invalid API key format' }, { status: 400 });
         }
 
-        await prisma.organization.update({
+        await prisma.team.update({
             where: { id },
             data: {
                 openRouterKeyEncrypted: encrypt(apiKey),
@@ -96,7 +96,7 @@ export async function POST(
             maskedKey: maskApiKey(apiKey),
         });
     } catch (error) {
-        logger.error('Failed to save organization AI key', error);
+        logger.error('Failed to save team AI key', error);
         return NextResponse.json({ error: 'Failed to save team key' }, { status: 500 });
     }
 }
@@ -117,11 +117,11 @@ export async function DELETE(
         }
 
         const { id } = await params;
-        if (!await canManageOrganizationApiKey(userId, id)) {
+        if (!await canManageTeamApiKey(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        await prisma.organization.update({
+        await prisma.team.update({
             where: { id },
             data: {
                 openRouterKeyEncrypted: null,
@@ -131,7 +131,7 @@ export async function DELETE(
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        logger.error('Failed to remove organization AI key', error);
+        logger.error('Failed to remove team AI key', error);
         return NextResponse.json({ error: 'Failed to remove team key' }, { status: 500 });
     }
 }

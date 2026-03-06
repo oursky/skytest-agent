@@ -28,7 +28,7 @@ export async function GET(
             select: {
                 id: true,
                 name: true,
-                organizationId: true,
+                teamId: true,
                 createdByUserId: true,
                 createdAt: true,
                 updatedAt: true,

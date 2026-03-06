@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId, type AuthPayload } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
-import { isOrganizationMember } from '@/lib/security/permissions';
+import { isTeamMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:teams:current');
 const CURRENT_TEAM_COOKIE = 'skytest_current_team';
@@ -28,16 +28,16 @@ async function resolveOrCreateUserId(authPayload: AuthPayload): Promise<string |
     return user.id;
 }
 
-async function getDefaultOrganization(userId: string) {
-    return prisma.organizationMembership.findFirst({
+async function getDefaultTeam(userId: string) {
+    return prisma.teamMembership.findFirst({
         where: { userId },
         orderBy: {
-            organization: {
+            team: {
                 updatedAt: 'desc',
             }
         },
         select: {
-            organization: {
+            team: {
                 select: {
                     id: true,
                     name: true,
@@ -69,12 +69,12 @@ export async function GET(request: Request) {
             ?.split('=')[1];
 
         if (cookieValue) {
-            const organizationId = decodeURIComponent(cookieValue);
-            const hasAccess = await isOrganizationMember(userId, organizationId);
+            const teamId = decodeURIComponent(cookieValue);
+            const hasAccess = await isTeamMember(userId, teamId);
 
             if (hasAccess) {
-                const organization = await prisma.organization.findUnique({
-                    where: { id: organizationId },
+                const team = await prisma.team.findUnique({
+                    where: { id: teamId },
                     select: {
                         id: true,
                         name: true,
@@ -83,26 +83,26 @@ export async function GET(request: Request) {
                     }
                 });
 
-                if (organization) {
-                    return NextResponse.json(organization);
+                if (team) {
+                    return NextResponse.json(team);
                 }
             }
         }
 
-        const membership = await getDefaultOrganization(userId);
+        const membership = await getDefaultTeam(userId);
         if (!membership) {
-            return NextResponse.json({ organization: null });
+            return NextResponse.json({ team: null });
         }
 
-        const response = NextResponse.json(membership.organization);
-        response.cookies.set(CURRENT_TEAM_COOKIE, membership.organization.id, {
+        const response = NextResponse.json(membership.team);
+        response.cookies.set(CURRENT_TEAM_COOKIE, membership.team.id, {
             httpOnly: true,
             sameSite: 'lax',
             path: '/',
         });
         return response;
     } catch (error) {
-        logger.error('Failed to resolve current organization', error);
+        logger.error('Failed to resolve current team', error);
         return NextResponse.json({ error: 'Failed to resolve current team' }, { status: 500 });
     }
 }
@@ -119,19 +119,19 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const body = await request.json() as { organizationId?: string };
-        const organizationId = typeof body.organizationId === 'string' ? body.organizationId.trim() : '';
-        if (!organizationId) {
+        const body = await request.json() as { teamId?: string };
+        const teamId = typeof body.teamId === 'string' ? body.teamId.trim() : '';
+        if (!teamId) {
             return NextResponse.json({ error: 'Team is required' }, { status: 400 });
         }
 
-        const hasAccess = await isOrganizationMember(userId, organizationId);
+        const hasAccess = await isTeamMember(userId, teamId);
         if (!hasAccess) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const organization = await prisma.organization.findUnique({
-            where: { id: organizationId },
+        const team = await prisma.team.findUnique({
+            where: { id: teamId },
             select: {
                 id: true,
                 name: true,
@@ -140,19 +140,19 @@ export async function POST(request: Request) {
             }
         });
 
-        if (!organization) {
+        if (!team) {
             return NextResponse.json({ error: 'Team not found' }, { status: 404 });
         }
 
-        const response = NextResponse.json(organization);
-        response.cookies.set(CURRENT_TEAM_COOKIE, organization.id, {
+        const response = NextResponse.json(team);
+        response.cookies.set(CURRENT_TEAM_COOKIE, team.id, {
             httpOnly: true,
             sameSite: 'lax',
             path: '/',
         });
         return response;
     } catch (error) {
-        logger.error('Failed to persist current organization', error);
+        logger.error('Failed to persist current team', error);
         return NextResponse.json({ error: 'Failed to persist current team' }, { status: 500 });
     }
 }

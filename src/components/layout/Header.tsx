@@ -5,16 +5,16 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/app/auth-provider';
 import { CustomSelect } from '@/components/shared';
 import { LOCALE_META, Locale, useI18n } from '@/i18n';
-import { useOrganizations } from '@/hooks/useOrganizations';
-import { useCurrentOrganization } from '@/hooks/useCurrentOrganization';
+import { useTeams } from '@/hooks/useTeams';
+import { useCurrentTeam } from '@/hooks/useCurrentTeam';
 
 export default function Header() {
     const { isLoggedIn, isLoading: isAuthLoading, user, logout, openSettings, login, getAccessToken } = useAuth();
     const router = useRouter();
     const pathname = usePathname();
     const { locale, setLocale, t } = useI18n();
-    const { organizations } = useOrganizations(getAccessToken, isLoggedIn);
-    const { currentOrganization, setCurrentOrganization } = useCurrentOrganization(getAccessToken, isLoggedIn);
+    const { teams } = useTeams(getAccessToken, isLoggedIn);
+    const { currentTeam, setCurrentTeam } = useCurrentTeam(getAccessToken, isLoggedIn);
 
     const localeOptions = useMemo(() => Object.keys(LOCALE_META) as Locale[], []);
 
@@ -37,14 +37,14 @@ export default function Header() {
         router.push(isLoggedIn ? '/projects' : '/');
     };
 
-    const handleOrganizationChange = async (organizationId: string) => {
+    const handleTeamChange = async (teamId: string) => {
         try {
-            await setCurrentOrganization(organizationId);
+            await setCurrentTeam(teamId);
             if (pathname === '/projects') {
                 router.refresh();
             }
         } catch (error) {
-            console.error('Failed to switch organization', error);
+            console.error('Failed to switch team', error);
         }
     };
 
@@ -149,15 +149,15 @@ export default function Header() {
                             </button>
                         )}
 
-                        {isLoggedIn && organizations.length > 0 && (
+                        {isLoggedIn && teams.length > 0 && (
                             <CustomSelect
-                                value={currentOrganization?.id ?? organizations[0]?.id ?? ''}
-                                options={organizations.map((organization) => ({
-                                    value: organization.id,
-                                    label: organization.name,
+                                value={currentTeam?.id ?? teams[0]?.id ?? ''}
+                                options={teams.map((team) => ({
+                                    value: team.id,
+                                    label: team.name,
                                 }))}
-                                onChange={(organizationId) => void handleOrganizationChange(organizationId)}
-                                ariaLabel={t('header.organization')}
+                                onChange={(teamId) => void handleTeamChange(teamId)}
+                                ariaLabel={t('header.team')}
                                 buttonClassName="h-9 min-w-44 border-gray-200 px-3 focus:ring-blue-500"
                                 menuClassName="min-w-44"
                             />
