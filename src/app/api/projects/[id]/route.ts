@@ -3,7 +3,7 @@ import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { deleteObjectIfExists } from '@/lib/storage/object-store-utils';
-import { canManageProject, isProjectMember } from '@/lib/security/permissions';
+import { canDeleteProject, canManageProject, isProjectMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:projects:id');
 
@@ -49,6 +49,7 @@ export async function GET(
         return NextResponse.json({
             ...project,
             canManageProject: canManage,
+            canDeleteProject: await canDeleteProject(userId, id),
         });
     } catch (error) {
         logger.error('Failed to fetch project', error);
@@ -83,8 +84,8 @@ export async function PUT(
             return NextResponse.json({ error: 'Project not found' }, { status: 404 });
         }
 
-        const canManage = await canManageProject(userId, id);
-        if (!canManage) {
+        const canDelete = await canDeleteProject(userId, id);
+        if (!canDelete) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

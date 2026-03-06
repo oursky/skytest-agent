@@ -3,6 +3,7 @@ import type { TeamRole } from '@/types';
 
 interface TeamCapabilities {
     canManageProjects: boolean;
+    canDeleteProjects: boolean;
     canManageMembers: boolean;
     canManageApiKey: boolean;
     canRenameTeam: boolean;
@@ -25,6 +26,7 @@ export interface ProjectAccess extends TeamCapabilities {
 
 const DEFAULT_CAPABILITIES: TeamCapabilities = {
     canManageProjects: false,
+    canDeleteProjects: false,
     canManageMembers: false,
     canManageApiKey: false,
     canRenameTeam: false,
@@ -35,6 +37,7 @@ const DEFAULT_CAPABILITIES: TeamCapabilities = {
 const TEAM_ROLE_CAPABILITIES: Record<TeamRole, TeamCapabilities> = {
     OWNER: {
         canManageProjects: true,
+        canDeleteProjects: true,
         canManageMembers: true,
         canManageApiKey: true,
         canRenameTeam: true,
@@ -43,14 +46,16 @@ const TEAM_ROLE_CAPABILITIES: Record<TeamRole, TeamCapabilities> = {
     },
     ADMIN: {
         canManageProjects: true,
+        canDeleteProjects: false,
         canManageMembers: true,
         canManageApiKey: true,
-        canRenameTeam: true,
+        canRenameTeam: false,
         canDeleteTeam: false,
         canTransferOwnership: false,
     },
     MEMBER: {
-        canManageProjects: false,
+        canManageProjects: true,
+        canDeleteProjects: false,
         canManageMembers: false,
         canManageApiKey: false,
         canRenameTeam: false,
@@ -147,6 +152,11 @@ export async function canDeleteTeam(userId: string, teamId: string): Promise<boo
     return access.canDeleteTeam;
 }
 
+export async function canDeleteProject(userId: string, projectId: string): Promise<boolean> {
+    const access = await getProjectAccess(userId, projectId);
+    return access.canDeleteProjects;
+}
+
 export async function canTransferTeamOwnership(userId: string, teamId: string): Promise<boolean> {
     const access = await getTeamAccess(userId, teamId);
     return access.canTransferOwnership;
@@ -220,6 +230,7 @@ export async function getProjectAccess(userId: string, projectId: string): Promi
         role: access.role,
         isMember: access.isMember,
         canManageProjects: access.canManageProjects,
+        canDeleteProjects: access.canDeleteProjects,
         canManageMembers: access.canManageMembers,
         canManageApiKey: access.canManageApiKey,
         canRenameTeam: access.canRenameTeam,

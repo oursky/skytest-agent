@@ -22,7 +22,9 @@ vi.mock('@/lib/core/prisma', () => ({
 const {
     canManageProject,
     canCreateProject,
+    canDeleteProject,
     canDeleteTeam,
+    canRenameTeam,
     getTeamAccess,
 } = await import('@/lib/security/permissions');
 
@@ -60,11 +62,24 @@ describe('team permissions', () => {
         await expect(canDeleteTeam('user-1', 'org-1')).resolves.toBe(true);
     });
 
-    it('rejects members from managing projects', async () => {
+    it('allows members to manage projects', async () => {
         projectFindUnique.mockResolvedValueOnce({ teamId: 'org-1' });
         teamMembershipFindUnique.mockResolvedValueOnce({ role: 'MEMBER' });
 
-        await expect(canManageProject('user-1', 'project-1')).resolves.toBe(false);
+        await expect(canManageProject('user-1', 'project-1')).resolves.toBe(true);
+    });
+
+    it('only allows owners to delete projects', async () => {
+        projectFindUnique.mockResolvedValueOnce({ teamId: 'org-1' });
+        teamMembershipFindUnique.mockResolvedValueOnce({ role: 'OWNER' });
+
+        await expect(canDeleteProject('user-1', 'project-1')).resolves.toBe(true);
+    });
+
+    it('prevents admins from renaming teams', async () => {
+        teamMembershipFindUnique.mockResolvedValueOnce({ role: 'ADMIN' });
+
+        await expect(canRenameTeam('user-1', 'org-1')).resolves.toBe(false);
     });
 
     it('returns centralized owner capabilities', async () => {
@@ -75,6 +90,7 @@ describe('team permissions', () => {
             role: 'OWNER',
             isMember: true,
             canManageProjects: true,
+            canDeleteProjects: true,
             canManageMembers: true,
             canManageApiKey: true,
             canRenameTeam: true,
@@ -91,6 +107,7 @@ describe('team permissions', () => {
             role: null,
             isMember: false,
             canManageProjects: false,
+            canDeleteProjects: false,
             canManageMembers: false,
             canManageApiKey: false,
             canRenameTeam: false,
