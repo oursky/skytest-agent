@@ -8,12 +8,21 @@ export interface OrganizationOption {
     updatedAt: string;
 }
 
-export function useOrganizations(getAccessToken?: () => Promise<string | null>) {
+export function useOrganizations(
+    getAccessToken?: () => Promise<string | null>,
+    enabled = true
+) {
     const [organizations, setOrganizations] = useState<OrganizationOption[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(enabled);
     const [error, setError] = useState<string | null>(null);
 
     const fetchOrganizations = useCallback(async () => {
+        if (!enabled) {
+            setOrganizations([]);
+            setLoading(false);
+            return;
+        }
+
         try {
             setLoading(true);
             const headers: HeadersInit = {};
@@ -38,7 +47,7 @@ export function useOrganizations(getAccessToken?: () => Promise<string | null>) 
         } finally {
             setLoading(false);
         }
-    }, [getAccessToken]);
+    }, [enabled, getAccessToken]);
 
     useEffect(() => {
         void fetchOrganizations();

@@ -8,6 +8,7 @@ import { Modal } from "@/components/shared";
 import { formatDateTime } from "@/utils/dateFormatter";
 import { useProjects } from "@/hooks/useProjects";
 import { useOrganizations } from "@/hooks/useOrganizations";
+import { useCurrentOrganization } from "@/hooks/useCurrentOrganization";
 import { useI18n } from "@/i18n";
 
 export default function ProjectsPage() {
@@ -15,18 +16,26 @@ export default function ProjectsPage() {
     const router = useRouter();
     const { t } = useI18n();
 
-    const { projects, loading: isProjectsLoading, addProject, removeProject, refresh } = useProjects(getAccessToken);
-    const { organizations, loading: isOrganizationsLoading, refresh: refreshOrganizations } = useOrganizations(getAccessToken);
+    const { organizations, loading: isOrganizationsLoading, refresh: refreshOrganizations } = useOrganizations(getAccessToken, isLoggedIn);
+    const {
+        currentOrganization,
+        loading: isCurrentOrganizationLoading,
+        setCurrentOrganization,
+    } = useCurrentOrganization(getAccessToken, isLoggedIn);
+    const effectiveOrganizationId = currentOrganization?.id || organizations[0]?.id || '';
+    const { projects, loading: isProjectsLoading, addProject, removeProject, refresh } = useProjects(
+        getAccessToken,
+        effectiveOrganizationId || undefined,
+        isLoggedIn && (!isOrganizationsLoading || organizations.length > 0)
+    );
     const [isCreating, setIsCreating] = useState(false);
     const [newProjectName, setNewProjectName] = useState("");
     const [newOrganizationName, setNewOrganizationName] = useState("");
-    const [selectedOrganizationId, setSelectedOrganizationId] = useState("");
     const [createError, setCreateError] = useState("");
     const [organizationError, setOrganizationError] = useState("");
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; projectId: string; projectName: string }>({ isOpen: false, projectId: "", projectName: "" });
     const [editModal, setEditModal] = useState<{ isOpen: boolean; projectId: string; currentName: string }>({ isOpen: false, projectId: "", currentName: "" });
     const [editName, setEditName] = useState("");
-    const effectiveOrganizationId = selectedOrganizationId || organizations[0]?.id || '';
 
     useEffect(() => {
         if (!isAuthLoading && !isLoggedIn) {
@@ -34,9 +43,21 @@ export default function ProjectsPage() {
         }
     }, [isAuthLoading, isLoggedIn, router]);
 
+    useEffect(() => {
+        if (!isAuthLoading && isLoggedIn && !isOrganizationsLoading && organizations.length === 0) {
+            router.push('/welcome');
+        }
+    }, [isAuthLoading, isLoggedIn, isOrganizationsLoading, organizations.length, router]);
+
+    useEffect(() => {
+        if (!currentOrganization && organizations.length > 0) {
+            void setCurrentOrganization(organizations[0].id);
+        }
+    }, [currentOrganization, organizations, setCurrentOrganization]);
+
     const handleCreateProject = async (e: React.FormEvent) => {
         e.preventDefault();
-        const organizationId = selectedOrganizationId || organizations[0]?.id || '';
+        const organizationId = effectiveOrganizationId;
         if (!newProjectName.trim() || !organizationId) return;
 
         try {
@@ -88,7 +109,7 @@ export default function ProjectsPage() {
 
             const organization = await response.json() as { id: string };
             await refreshOrganizations();
-            setSelectedOrganizationId(organization.id);
+            await setCurrentOrganization(organization.id);
             setNewOrganizationName('');
             setOrganizationError('');
         } catch {
@@ -144,7 +165,7 @@ export default function ProjectsPage() {
         setEditName("");
     };
 
-    if (isAuthLoading || isProjectsLoading || isOrganizationsLoading) {
+    if (isAuthLoading || isProjectsLoading || isOrganizationsLoading || isCurrentOrganizationLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -238,7 +259,7 @@ export default function ProjectsPage() {
                         <form onSubmit={handleCreateProject} className="flex flex-col gap-4">
                             <select
                                 value={effectiveOrganizationId}
-                                onChange={(e) => setSelectedOrganizationId(e.target.value)}
+                                onChange={(e) => void setCurrentOrganization(e.target.value)}
                                 className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50"
                             >
                                 {organizations.map((organization) => (

@@ -40,8 +40,19 @@ export async function GET(request: Request) {
     }
 
     try {
+        const { searchParams } = new URL(request.url);
+        const organizationId = searchParams.get('organizationId')?.trim() || null;
+
+        if (organizationId) {
+            const hasOrganizationAccess = await isOrganizationMember(userId, organizationId);
+            if (!hasOrganizationAccess) {
+                return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+            }
+        }
+
         const projects = await prisma.project.findMany({
             where: {
+                ...(organizationId ? { organizationId } : {}),
                 memberships: {
                     some: {
                         userId,

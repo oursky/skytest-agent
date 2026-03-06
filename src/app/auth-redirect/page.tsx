@@ -40,7 +40,30 @@ export default function AuthRedirect() {
                 if (typeof window !== 'undefined') {
                     window.sessionStorage.removeItem('skytest.postLoginRedirect');
                 }
-                router.push(redirectTo || "/");
+                if (redirectTo) {
+                    router.push(redirectTo);
+                    return;
+                }
+
+                const accessToken = authgear.accessToken;
+                if (!accessToken) {
+                    router.push('/projects');
+                    return;
+                }
+
+                const organizationsResponse = await fetch('/api/organizations', {
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`
+                    }
+                });
+
+                if (!organizationsResponse.ok) {
+                    router.push('/projects');
+                    return;
+                }
+
+                const organizations = await organizationsResponse.json() as Array<{ id: string }>;
+                router.push(organizations.length > 0 ? '/projects' : '/welcome');
             } catch (error) {
                 console.error("Authentication failed", error);
                 if (typeof window !== 'undefined') {

@@ -1,14 +1,19 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/app/auth-provider';
 import { LOCALE_META, Locale, useI18n } from '@/i18n';
+import { useOrganizations } from '@/hooks/useOrganizations';
+import { useCurrentOrganization } from '@/hooks/useCurrentOrganization';
 
 export default function Header() {
-    const { isLoggedIn, isLoading: isAuthLoading, user, logout, openSettings, login } = useAuth();
+    const { isLoggedIn, isLoading: isAuthLoading, user, logout, openSettings, login, getAccessToken } = useAuth();
     const router = useRouter();
+    const pathname = usePathname();
     const { locale, setLocale, t } = useI18n();
+    const { organizations } = useOrganizations(getAccessToken, isLoggedIn);
+    const { currentOrganization, setCurrentOrganization } = useCurrentOrganization(getAccessToken, isLoggedIn);
 
     const localeOptions = useMemo(() => Object.keys(LOCALE_META) as Locale[], []);
 
@@ -89,6 +94,17 @@ export default function Header() {
         router.push(isLoggedIn ? '/projects' : '/');
     };
 
+    const handleOrganizationChange = async (organizationId: string) => {
+        try {
+            await setCurrentOrganization(organizationId);
+            if (pathname === '/projects') {
+                router.refresh();
+            }
+        } catch (error) {
+            console.error('Failed to switch organization', error);
+        }
+    };
+
     return (
         <header className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
             <div className="max-w-7xl mx-auto px-8 py-4">
@@ -103,6 +119,23 @@ export default function Header() {
                     </div>
 
                     <div className="flex items-center gap-4">
+                        {isLoggedIn && organizations.length > 0 && (
+                            <label className="hidden md:flex items-center gap-2 text-sm text-gray-600">
+                                <span>{t('header.organization')}</span>
+                                <select
+                                    value={currentOrganization?.id ?? organizations[0]?.id ?? ''}
+                                    onChange={(event) => void handleOrganizationChange(event.target.value)}
+                                    className="h-9 min-w-44 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                    {organizations.map((organization) => (
+                                        <option key={organization.id} value={organization.id}>
+                                            {organization.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+                        )}
+
                         <div className="relative">
                             <span className="sr-only" id="language-label">
                                 {t('header.language')}

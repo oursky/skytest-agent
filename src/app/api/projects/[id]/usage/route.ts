@@ -32,10 +32,28 @@ export async function GET(
         const { searchParams } = new URL(request.url);
         const page = Math.max(1, Number.parseInt(searchParams.get('page') || '1', 10));
         const limit = Math.min(100, Math.max(1, Number.parseInt(searchParams.get('limit') || '20', 10)));
+        const actorUserId = searchParams.get('actorUserId')?.trim() || undefined;
+        const testCaseId = searchParams.get('testCaseId')?.trim() || undefined;
+        const from = searchParams.get('from')?.trim() || undefined;
+        const to = searchParams.get('to')?.trim() || undefined;
 
-        const where = { projectId: id };
+        const where = {
+            projectId: id,
+            ...(actorUserId ? { actorUserId } : {}),
+            ...(from || to ? {
+                createdAt: {
+                    ...(from ? { gte: new Date(from) } : {}),
+                    ...(to ? { lte: new Date(to) } : {}),
+                }
+            } : {}),
+            ...(testCaseId ? {
+                testRun: {
+                    testCaseId,
+                }
+            } : {})
+        };
 
-        const [records, total] = await Promise.all([
+        const [records, total, aggregate, distinctUsers] = await Promise.all([
             prisma.usageRecord.findMany({
                 where,
                 orderBy: { createdAt: 'desc' },
@@ -63,10 +81,30 @@ export async function GET(
                 }
             }),
             prisma.usageRecord.count({ where }),
+            prisma.usageRecord.aggregate({
+                where,
+                _sum: {
+                    aiActions: true,
+                }
+            }),
+            prisma.usageRecord.findMany({
+                where,
+                distinct: ['actorUserId'],
+                select: {
+                    actorUserId: true,
+                }
+            }),
         ]);
 
         return NextResponse.json({
             records,
+            summary: {
+                totalRecords: total,
+                totalAiActions: aggregate._sum.aiActions ?? 0,
+                activeUsers: distinctUsers.length,
+                totalTokens: null,
+                estimatedCostUsd: null,
+            },
             pagination: {
                 page,
                 limit,

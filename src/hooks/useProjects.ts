@@ -2,12 +2,22 @@ import { useState, useEffect, useCallback } from 'react';
 import { Project } from '@/types';
 import { API_ENDPOINTS } from '@/lib/core/constants';
 
-export function useProjects(getAccessToken?: () => Promise<string | null>) {
+export function useProjects(
+    getAccessToken?: () => Promise<string | null>,
+    organizationId?: string,
+    enabled = true
+) {
     const [projects, setProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     const fetchProjects = useCallback(async () => {
+        if (!enabled) {
+            setProjects([]);
+            setLoading(false);
+            return;
+        }
+
         try {
             setLoading(true);
             const headers: HeadersInit = {};
@@ -18,7 +28,12 @@ export function useProjects(getAccessToken?: () => Promise<string | null>) {
                 }
             }
 
-            const response = await fetch(API_ENDPOINTS.PROJECTS, {
+            const url = new URL(API_ENDPOINTS.PROJECTS, window.location.origin);
+            if (organizationId) {
+                url.searchParams.set('organizationId', organizationId);
+            }
+
+            const response = await fetch(url.toString(), {
                 headers
             });
 
@@ -34,10 +49,10 @@ export function useProjects(getAccessToken?: () => Promise<string | null>) {
         } finally {
             setLoading(false);
         }
-    }, [getAccessToken]);
+    }, [enabled, getAccessToken, organizationId]);
 
     useEffect(() => {
-        fetchProjects();
+        void fetchProjects();
     }, [fetchProjects]);
 
     const refresh = () => {

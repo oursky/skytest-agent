@@ -14,6 +14,8 @@ import { parsePageSize } from '@/utils/pagination';
 import { ProjectConfigs } from '@/components/features/project-configs';
 import { AndroidSetup } from '@/components/features/device-status';
 import ProjectAiSettings from '@/components/features/project-ai/ui/ProjectAiSettings';
+import ProjectMembers from '@/components/features/project-members/ui/ProjectMembers';
+import ProjectUsage from '@/components/features/project-usage/ui/ProjectUsage';
 
 interface TestRun {
     id: string;
@@ -38,6 +40,7 @@ interface Project {
     id: string;
     name: string;
     hasOpenRouterKey?: boolean;
+    canManageMembers?: boolean;
 }
 
 export default function ProjectPage({ params }: ProjectPageProps) {
@@ -59,7 +62,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     const [currentPage, setCurrentPage] = useState(1);
     const [searchInput, setSearchInput] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
-    const [activeTab, setActiveTab] = useState<'test-cases' | 'configs' | 'ai' | 'android'>('test-cases');
+    const [activeTab, setActiveTab] = useState<'test-cases' | 'configs' | 'members' | 'ai' | 'android'>('test-cases');
     const [androidAvailable, setAndroidAvailable] = useState(false);
 
     const refreshAbortRef = useRef<AbortController | null>(null);
@@ -74,13 +77,14 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     useEffect(() => {
         const tab = searchParams.get('tab');
         if (tab === 'configs') { setActiveTab('configs'); return; }
+        if (tab === 'members') { setActiveTab('members'); return; }
         if (tab === 'ai') { setActiveTab('ai'); return; }
         if (tab === 'android' && androidAvailable) { setActiveTab('android'); return; }
         if (tab === 'test-cases') { setActiveTab('test-cases'); }
         if (tab === 'android' && !androidAvailable) { setActiveTab('test-cases'); }
     }, [searchParams, androidAvailable]);
 
-    const handleTabChange = useCallback((tab: 'test-cases' | 'configs' | 'ai' | 'android') => {
+    const handleTabChange = useCallback((tab: 'test-cases' | 'configs' | 'members' | 'ai' | 'android') => {
         setActiveTab(tab);
 
         const params = new URLSearchParams(searchParams.toString());
@@ -522,6 +526,16 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                         >
                             {t('project.tab.ai')}
                         </button>
+                        <button
+                            type="button"
+                            onClick={() => handleTabChange('members')}
+                            className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'members'
+                                ? 'border-primary text-primary'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }`}
+                        >
+                            {t('project.tab.members')}
+                        </button>
                         {androidAvailable && (
                             <button
                                 type="button"
@@ -631,7 +645,17 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 )}
 
                 {activeTab === 'ai' && (
-                    <ProjectAiSettings projectId={id} />
+                    <div className="space-y-6">
+                        <ProjectAiSettings projectId={id} />
+                        <ProjectUsage projectId={id} />
+                    </div>
+                )}
+
+                {activeTab === 'members' && (
+                    <ProjectMembers
+                        projectId={id}
+                        canManageMembers={project?.canManageMembers ?? false}
+                    />
                 )}
 
                 {activeTab === 'android' && androidAvailable && (
