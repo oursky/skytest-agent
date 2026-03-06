@@ -7,6 +7,8 @@ description: Create an implementation plan for a task — align on intent, ident
 
 Align on intent before writing code. Shape the design, identify impacted files, and produce a step-by-step plan with validation steps.
 
+This repo is currently moving toward a single control plane on k8s, durable runners, and a macOS-only Android runner path. Planning should optimize for the target architecture, not preserve the old local-first architecture.
+
 ## When to Apply
 
 - User asks to "plan", "design", or "figure out how to implement" something
@@ -21,17 +23,37 @@ Align on intent before writing code. Shape the design, identify impacted files, 
 - Restate the request and success criteria in your own words
 - Ask clarifying questions for missing constraints or edge cases
 - Identify impacted files, dependencies, and risks
+- Identify whether the work touches any of these architectural seams:
+  - org/project membership and invites
+  - project-level OpenRouter key ownership
+  - Postgres/object storage
+  - runner claiming and leases
+  - hosted browser runner vs macOS Android runner
+  - MCP auth, scoping, and audit logging
+- If it does, explicitly state the end-state behavior before writing tasks
 
 ### 2. Shape the design (non-trivial work)
 
 - Propose 1–2 approaches with tradeoffs and confirm direction
 - Capture design notes in `docs/plans/YYYY-MM-DD-<slug>-design.md` when behavior or architecture changes
+- Default to the simplest durable design that matches the current target:
+  - Postgres instead of SQLite
+  - object storage instead of local uploads
+  - DB-backed job claiming instead of in-memory queue ownership
+  - control-plane APIs instead of host-local runtime checks
+  - project/team-owned AI key and usage instead of user-owned key usage
+- Do not plan compatibility layers unless they are needed for a short-lived refactor safety window
 
 ### 3. Write the plan
 
 - List the files you will touch and the tests you will run
 - Write the plan in `docs/plans/YYYY-MM-DD-<slug>.md` (create the directory if missing)
 - Keep tasks bite-sized (2–5 minutes each) with exact paths and validation steps
+- If the work is part of a larger refactor, include:
+  - branch name
+  - merge order
+  - legacy code to delete
+  - temporary adapters allowed and their removal step
 
 Use this template:
 
@@ -54,8 +76,14 @@ Show the plan and wait for user confirmation before implementing.
 ## Guidelines
 
 - Prefer test-first for new behavior or bug fixes when a test harness exists
-- Keep diffs minimal; avoid opportunistic refactors
+- Keep diffs minimal relative to the target architecture; avoid opportunistic refactors
 - For bugs, reproduce and identify root cause before planning the fix
 - **Scope freeze for bugfixes**: avoid unrelated refactors/polish unless explicitly approved
 - Do not claim completion without fresh verification evidence
 - Record skipped validation and the reason
+- **Hard cutover bias**: backward compatibility is not required for the current architecture migration. Prefer replacing old paths instead of preserving them.
+- **Delete old paths deliberately**: every plan should say which legacy files or flows will be removed after the new path is validated.
+- **Git discipline**:
+  - large refactors should plan work on the current epic/integration branch, not directly on `main`
+  - topic branches should stay short-lived and rebase frequently
+  - one plan item should map cleanly to one or more reviewable commits

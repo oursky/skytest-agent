@@ -50,12 +50,31 @@ Group **only the staged files** into **commit units** in **dependency order** (t
 - One logical unit = one commit
 - Order so that no commit depends on a later commit (e.g. shared lib before API routes that import it; types before components that use them)
 - **Co-locate UI with its dependencies**: Components **and i18n** must be committed in the **same unit** as the page/layout that renders them. Do not put a shared component in an earlier commit and the page that renders it in a later one; do not put a component in one commit and the i18n keys it uses (`t("...")` from `src/i18n/messages.ts`) in another — group each UI surface with all the pieces it needs, including **i18n entries** for every key that surface references
+- For the current platform refactor, prefer this dependency order when applicable:
+  1. schema / migrations
+  2. auth / permissions / shared services
+  3. storage / runner infrastructure
+  4. API routes
+  5. UI
+  6. desktop runner
+  7. MCP
+  8. docs / deployment
+- If a commit deletes obsolete compatibility code, keep that deletion in the same unit as the replacement when reviewable
 
 ### 4. Suggest commit title per unit
 
 - **Title**: Short, imperative, no period (e.g. "Add TestCase tag schema and types", "Add tag filtering to project view")
 - **Body** (optional): Bullet points for non-trivial units
 - **Footer**: If the user gave one (e.g. `refs: SKY-123, #42`), use the same footer on every commit
+- Prefer these prefixes for this repo:
+  - `schema:`
+  - `api:`
+  - `ui:`
+  - `runner:`
+  - `mcp:`
+  - `deploy:`
+  - `tests:`
+  - `docs:`
 
 ### 5. Show the plan, then stop
 
@@ -131,6 +150,10 @@ refs: SKY-123, #42
 - **Same footer everywhere**: If the user specifies a footer, add it to every new commit in this run
 - **Skip unrelated paths**: Do not commit untracked tooling (e.g. `.codex/`) unless the user asks
 - **Repo root**: Run `git` from the repository root
+- **Current architecture practice**:
+  - do not preserve legacy compatibility code in separate “cleanup later” commits unless the staged changes already force that split
+  - if the staged set includes replacement + deletion, prefer a single coherent commit that makes the old path disappear
+  - for the current monthly refactor, assume work is landing on the active epic branch unless the user says otherwise
 
 ## Example plan
 

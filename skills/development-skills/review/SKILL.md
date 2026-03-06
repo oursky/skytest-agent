@@ -21,6 +21,15 @@ Pick one or more from: Security, Performance, Reliability/Resilience, Load/Scala
 
 If the user doesn't specify, infer from the changes being reviewed.
 
+For this repo, also explicitly check whether the change is consistent with the target architecture:
+- control plane on k8s
+- Postgres and object storage
+- hosted browser runner
+- macOS-only Android runner
+- org/project membership model
+- project-owned OpenRouter key and usage
+- control-plane-only MCP
+
 ### 2. Locate start files
 
 Use the review type to pick targeted entry points — don't scan the whole repo:
@@ -39,11 +48,24 @@ Use the review type to pick targeted entry points — don't scan the whole repo:
 - **Accessibility/UX**: UI components for UI changes
 - **AI Safety/Behavior**: execution engines, config, prompt/tool guardrails
 
+Additional repo-specific starting points:
+- **Auth/Permissions**: `src/lib/security/auth.ts`, permission helpers, org/project membership routes
+- **Runners**: `src/lib/runners/`, `src/runners/`, runner APIs
+- **Storage**: Prisma schema, storage adapters, file APIs
+- **MCP**: `src/app/api/mcp/route.ts`, `src/lib/mcp/server.ts`
+- **Desktop**: `desktop/`
+
 ### 3. Two-pass review
 
 **Pass 1 — Spec compliance**: Confirm requirements/plan coverage. Flag missing or extra behavior. If this pass fails, **stop and report before quality notes.**
 
 **Pass 2 — Code quality**: Evaluate maintainability, correctness, tests, and error handling.
+
+Spec compliance for this repo should explicitly ask:
+- Did the change preserve or reintroduce local-only assumptions?
+- Did the change leave obsolete compatibility code behind?
+- Did the change put ownership and billing at project/team level where required?
+- Did the change use durable storage/state instead of process memory?
 
 ### 4. Output format
 
@@ -75,3 +97,14 @@ Structure findings as:
 - Prefer targeted search and small read windows
 - Read only relevant files — don't read everything in a directory
 - Use `git diff` to scope changes when reviewing a PR or recent work
+
+## Review Biases For Current Practice
+
+- Prefer deletion of obsolete code over preserving compatibility layers
+- Flag any new code that:
+  - depends on SQLite
+  - depends on local uploads as the source of truth
+  - depends on in-memory queue or in-memory event fanout
+  - checks Android availability from the API host instead of runner capability
+  - stores OpenRouter key or usage at user level when team/project ownership is required
+  - introduces unscoped MCP auth or non-audited MCP write paths
