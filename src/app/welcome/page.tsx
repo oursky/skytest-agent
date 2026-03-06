@@ -102,7 +102,7 @@ export default function WelcomePage() {
                         disabled={isSubmitting || !name.trim()}
                         className="inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
                     >
-                        {isSubmitting ? t('welcome.creating') : t('welcome.create')}
+                        {t('welcome.create')}
                     </button>
                 </form>
             </div>

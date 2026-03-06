@@ -44,6 +44,7 @@ export default function TeamsPage() {
     const [transferUserId, setTransferUserId] = useState('');
     const [activeTab, setActiveTab] = useState<'members' | 'api'>('members');
     const [isCreating, setIsCreating] = useState(false);
+    const [isCreateSubmitting, setIsCreateSubmitting] = useState(false);
     const [isDeleteOpen, setIsDeleteOpen] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
@@ -115,6 +116,7 @@ export default function TeamsPage() {
         }
 
         try {
+            setIsCreateSubmitting(true);
             const token = await getAccessToken();
             const response = await fetch('/api/teams', {
                 method: 'POST',
@@ -139,6 +141,8 @@ export default function TeamsPage() {
             setError(null);
         } catch {
             setError(t('team.page.error.create'));
+        } finally {
+            setIsCreateSubmitting(false);
         }
     };
 
@@ -287,7 +291,7 @@ export default function TeamsPage() {
                             />
                             <button
                                 type="submit"
-                                disabled={!newTeamName.trim()}
+                                disabled={isCreateSubmitting || !newTeamName.trim()}
                                 className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
                             >
                                 {t('team.page.create.confirm')}
