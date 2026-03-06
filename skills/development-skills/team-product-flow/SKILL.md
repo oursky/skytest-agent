@@ -19,8 +19,8 @@ Use this skill when touching:
 ## Source Of Truth
 
 Read:
-- `docs/plans/2026-03-06-control-plane-macos-runner-design.md`
-- `docs/plans/2026-03-06-control-plane-macos-runner-plan.md`
+- `docs/plans/2026-03-06-phase-3-runner-review-design.md`
+- `docs/plans/2026-03-06-phase-3-runner-review-plan.md`
 
 ## Product Model
 

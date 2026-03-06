@@ -23,8 +23,8 @@ Use this skill when the work touches one or more of:
 ## Source Of Truth
 
 Read these first when the task is non-trivial:
-- `docs/plans/2026-03-06-control-plane-macos-runner-design.md`
-- `docs/plans/2026-03-06-control-plane-macos-runner-plan.md`
+- `docs/plans/2026-03-06-phase-3-runner-review-design.md`
+- `docs/plans/2026-03-06-phase-3-runner-review-plan.md`
 
 Do not invent a competing architecture.
 
