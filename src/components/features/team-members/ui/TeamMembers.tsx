@@ -26,7 +26,6 @@ export default function TeamMembers({ teamId, teamRole, onMembersChanged }: Team
     const [members, setMembers] = useState<Member[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [success, setSuccess] = useState<string | null>(null);
     const [memberEmail, setMemberEmail] = useState('');
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [memberToRemove, setMemberToRemove] = useState<Member | null>(null);
@@ -97,7 +96,6 @@ export default function TeamMembers({ teamId, teamRole, onMembersChanged }: Team
 
             await loadData();
             await notifyMembersChanged();
-            setSuccess(t('team.members.success.role'));
             setError(null);
         } catch {
             setError(t('team.members.error.role'));
@@ -131,7 +129,6 @@ export default function TeamMembers({ teamId, teamRole, onMembersChanged }: Team
             setMemberEmail('');
             setIsAddModalOpen(false);
             await notifyMembersChanged();
-            setSuccess(t('team.members.add.success'));
             setError(null);
         } catch {
             setError(t('team.members.add.error.create'));
@@ -159,7 +156,6 @@ export default function TeamMembers({ teamId, teamRole, onMembersChanged }: Team
             setMembers((current) => current.filter((member) => member.id !== memberToRemove.id));
             setMemberToRemove(null);
             await notifyMembersChanged();
-            setSuccess(t('team.members.success.remove'));
             setError(null);
         } catch {
             setError(t('team.members.error.remove'));
@@ -299,11 +295,6 @@ export default function TeamMembers({ teamId, teamRole, onMembersChanged }: Team
                 )}
             </div>
 
-            {success && (
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                    {success}
-                </div>
-            )}
             {error && (
                 <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                     {error}

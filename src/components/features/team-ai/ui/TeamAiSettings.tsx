@@ -23,7 +23,6 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
     const [isLoading, setIsLoading] = useState(true);
     const [apiKey, setApiKey] = useState('');
     const [error, setError] = useState<string | null>(null);
-    const [success, setSuccess] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [isRemoveConfirmOpen, setIsRemoveConfirmOpen] = useState(false);
 
@@ -52,7 +51,6 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
 
     const saveKey = async () => {
         setError(null);
-        setSuccess(null);
 
         if (!apiKey.trim()) {
             setError(t('team.ai.error.enter'));
@@ -85,7 +83,6 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
             const data = await response.json() as { maskedKey: string };
             setState((current) => ({ ...current, hasKey: true, maskedKey: data.maskedKey }));
             setApiKey('');
-            setSuccess(t('team.ai.success.saved'));
             await loadState();
         } catch {
             setError(t('team.ai.error.save'));
@@ -97,7 +94,6 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
     const removeKey = async () => {
         setIsRemoveConfirmOpen(false);
         setError(null);
-        setSuccess(null);
 
         try {
             const token = await getAccessToken();
@@ -112,7 +108,6 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
             }
 
             setState((current) => ({ ...current, hasKey: false, maskedKey: null, updatedAt: null }));
-            setSuccess(t('team.ai.success.removed'));
         } catch {
             setError(t('team.ai.error.remove'));
         }
@@ -175,8 +170,6 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
             <p className="h-5 text-sm">
                 {error ? (
                     <span className="text-red-600">{error}</span>
-                ) : success ? (
-                    <span className="text-emerald-700">{success}</span>
                 ) : null}
             </p>
 
