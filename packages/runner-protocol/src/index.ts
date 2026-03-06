@@ -122,6 +122,61 @@ export const claimJobResponseSchema = z.object({
     job: claimJobSchema.nullable(),
 });
 
+export const runnerEventInputSchema = z.object({
+    kind: z.string().trim().min(1).max(80),
+    message: z.string().trim().max(5000).optional(),
+    payload: z.record(z.string(), z.unknown()).optional(),
+    artifactKey: z.string().trim().max(500).optional(),
+});
+
+export const ingestEventsRequestSchema = z.object({
+    protocolVersion: runnerProtocolVersionSchema,
+    runnerVersion: runnerVersionSchema,
+    events: z.array(runnerEventInputSchema).min(1).max(200),
+});
+
+export const ingestEventsResponseSchema = z.object({
+    accepted: z.number().int().min(0),
+    nextSequence: z.number().int().min(1),
+    compatibility: compatibilityMetadataSchema,
+    rotationRequired: z.boolean(),
+});
+
+export const uploadArtifactRequestSchema = z.object({
+    protocolVersion: runnerProtocolVersionSchema,
+    runnerVersion: runnerVersionSchema,
+    filename: z.string().trim().min(1).max(255),
+    mimeType: z.string().trim().min(1).max(120),
+    contentBase64: z.string().min(1),
+});
+
+export const uploadArtifactResponseSchema = z.object({
+    fileId: z.string().min(1),
+    artifactKey: z.string().min(1),
+    compatibility: compatibilityMetadataSchema,
+    rotationRequired: z.boolean(),
+});
+
+export const completeRunRequestSchema = z.object({
+    protocolVersion: runnerProtocolVersionSchema,
+    runnerVersion: runnerVersionSchema,
+    result: z.string().max(100_000).optional(),
+});
+
+export const failRunRequestSchema = z.object({
+    protocolVersion: runnerProtocolVersionSchema,
+    runnerVersion: runnerVersionSchema,
+    error: z.string().trim().min(1).max(10_000),
+    result: z.string().max(100_000).optional(),
+});
+
+export const completeRunResponseSchema = z.object({
+    runId: z.string().min(1),
+    status: z.string().min(1),
+    compatibility: compatibilityMetadataSchema,
+    rotationRequired: z.boolean(),
+});
+
 export type RunnerKind = z.infer<typeof runnerKindSchema>;
 export type RunnerCapability = z.infer<typeof runnerCapabilitySchema>;
 export type RegisterRunnerRequest = z.infer<typeof registerRunnerRequestSchema>;
@@ -137,5 +192,13 @@ export type DeviceSyncResponse = z.infer<typeof deviceSyncResponseSchema>;
 export type ClaimJob = z.infer<typeof claimJobSchema>;
 export type ClaimJobRequest = z.infer<typeof claimJobRequestSchema>;
 export type ClaimJobResponse = z.infer<typeof claimJobResponseSchema>;
+export type RunnerEventInput = z.infer<typeof runnerEventInputSchema>;
+export type IngestEventsRequest = z.infer<typeof ingestEventsRequestSchema>;
+export type IngestEventsResponse = z.infer<typeof ingestEventsResponseSchema>;
+export type UploadArtifactRequest = z.infer<typeof uploadArtifactRequestSchema>;
+export type UploadArtifactResponse = z.infer<typeof uploadArtifactResponseSchema>;
+export type CompleteRunRequest = z.infer<typeof completeRunRequestSchema>;
+export type FailRunRequest = z.infer<typeof failRunRequestSchema>;
+export type CompleteRunResponse = z.infer<typeof completeRunResponseSchema>;
 export type CompatibilityMetadata = z.infer<typeof compatibilityMetadataSchema>;
 export type RunnerTransportMetadata = z.infer<typeof runnerTransportMetadataSchema>;
