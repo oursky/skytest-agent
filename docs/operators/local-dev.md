@@ -57,11 +57,41 @@ Keep the rest of your existing auth and app settings in `.env.local`.
 ```bash
 npm install
 npm run db:generate
-npm run db:migrate
+npx prisma db push
 npm run dev
 ```
 
 Open `http://localhost:3000`.
+
+## Start Runner Processes (Phase 3)
+
+The web app is now the control plane only. Runs are executed by runner processes.
+
+### Browser runner (required for browser test runs)
+
+Run this in a separate terminal after you have provisioned a `RUNNER_TOKEN` for a `HOSTED_BROWSER` runner:
+
+```bash
+RUNNER_CONTROL_PLANE_URL="http://127.0.0.1:3000" \
+RUNNER_TOKEN="<browser-runner-token>" \
+npm run runner:browser
+```
+
+### macOS runner (required for Android test runs)
+
+See the full setup guide:
+
+- [macOS Android Devices Guide](./mac-android-emulator-guide.md)
+
+Quick start:
+
+```bash
+RUNNER_CONTROL_PLANE_URL="http://127.0.0.1:3000" \
+RUNNER_PAIRING_TOKEN="<pairing-token>" \
+npm run runner:macos
+```
+
+After first successful pairing, you can restart without `RUNNER_PAIRING_TOKEN`.
 
 ## Verify MinIO
 
@@ -142,7 +172,7 @@ This removes the Docker volumes and deletes all local database and object storag
 docker compose -f docker-compose.local.yml down -v
 docker compose -f docker-compose.local.yml up -d
 npm run db:generate
-npm run db:migrate
+npx prisma db push
 ```
 
 ## Troubleshooting
@@ -164,7 +194,7 @@ docker compose -f docker-compose.local.yml run --rm createbuckets
 Run:
 
 ```bash
-npm run db:migrate
+npx prisma db push
 ```
 
 ### Browsers not installed for local test execution
@@ -174,6 +204,8 @@ Run:
 ```bash
 npm run playwright:install
 ```
+
+Then restart `npm run runner:browser`.
 
 ### Object storage errors in the app
 

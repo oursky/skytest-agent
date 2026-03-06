@@ -53,7 +53,7 @@ npm run dev:services:up
 cp .env.example .env.local
 # Edit .env.local with your credentials and the local Postgres + MinIO values from docs/operators/local-dev.md
 npm run db:generate
-npm run db:migrate
+npx prisma db push
 npm run dev
 ```
 
@@ -80,7 +80,7 @@ Users provide their own [OpenRouter](https://openrouter.ai/) API keys via the ap
 ## Troubleshooting
 
 - **Browsers not found**: `npm run playwright:install`
-- **Database errors**: Verify `DATABASE_URL`, then run `npm run db:migrate`
+- **Database errors**: Verify `DATABASE_URL`, then run `npx prisma db push`
 - **Object storage errors**: Verify the `S3_*` variables and confirm the bucket exists in MinIO/S3
 - **View database**: `npm run db:studio`
 - **Auth redirect issues**: Check Authgear redirect URI matches your domain
@@ -97,9 +97,13 @@ Quick start:
 ```bash
 npm run dev:services:up
 npm run db:generate
-npm run db:migrate
+npx prisma db push
 npm run dev
 ```
+
+Runtime processes:
+- Browser runs require `npm run runner:browser`
+- Android runs require `npm run runner:macos`
 
 Detailed setup:
 - [Local Development Guide](./docs/operators/local-dev.md)

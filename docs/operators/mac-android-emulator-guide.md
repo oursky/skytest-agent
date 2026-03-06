@@ -1,32 +1,27 @@
-# macOS Android Devices Guide (Operator / Self-Hosting)
+# macOS Android Runner Setup Guide
 
-This guide is for people who clone this repository and want to run this app with Android testing on macOS.
+This guide is for local developers and self-hosting operators who run Android tests on macOS in Phase 3.
 
-It covers emulator profiles (AVDs) and connected Android devices.
+Architecture reminder:
 
-It covers:
-
-- host setup
-- Android SDK / emulator prerequisites
-- creating emulator profiles (AVDs)
-- connected physical device basics (optional)
-- day-to-day operations
-- troubleshooting
+- Web app (`npm run dev`) is the control plane only.
+- Android execution happens in the macOS runner process (`npm run runner:macos`).
+- Manual app installation on devices is required. No auto-install flow is provided.
 
 Related docs:
 
+- [`docs/operators/local-dev.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/local-dev.md)
 - [`docs/operators/android-runtime-deployment-checklist.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/android-runtime-deployment-checklist.md)
-- [`docs/maintainers/android-runtime-maintenance.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/android-runtime-maintenance.md) (runtime behavior and limitations)
+- [`docs/maintainers/android-runtime-maintenance.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/android-runtime-maintenance.md)
 
-## 1. Host Setup
-
-### Prerequisites
+## 1. Prerequisites
 
 - macOS host
 - Xcode Command Line Tools
 - Node.js + npm
-- Java runtime (JDK 17+ recommended)
+- JDK 17+
 - Android Studio (recommended) or Android SDK CLI tools
+- Running local control plane (`npm run dev`) with Postgres + MinIO
 
 Install command line tools:
 
@@ -34,31 +29,14 @@ Install command line tools:
 xcode-select --install
 ```
 
-Install Node.js (example with `nvm`):
+## 2. Android SDK Setup
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-source ~/.zshrc
-nvm install --lts
-nvm use --lts
-```
-
-Install Android Studio, then use SDK Manager to install required Android components.
-
-### Android SDK Components to Install
-
-In Android Studio -> Settings -> Android SDK, install:
+Install Android components:
 
 - Android SDK Platform-Tools
 - Android Emulator
 - Android SDK Command-line Tools (latest)
-- At least one system image
-
-Apple Silicon example image:
-
-- `system-images;android-34;google_apis;arm64-v8a`
-
-### Environment Variables
+- At least one system image (Apple Silicon example: `system-images;android-34;google_apis;arm64-v8a`)
 
 Add to `~/.zshrc`:
 
@@ -68,15 +46,10 @@ export ANDROID_SDK_ROOT="$ANDROID_HOME"
 export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
 ```
 
-Reload shell:
+Reload shell and verify:
 
 ```bash
 source ~/.zshrc
-```
-
-Verify:
-
-```bash
 which adb
 which emulator
 which avdmanager
@@ -85,219 +58,107 @@ emulator -version
 emulator -list-avds
 ```
 
-## 2. Create Emulator Profiles (AVDs)
+## 3. Start Local Control Plane
 
-The UI uses the term "Emulators" for the emulator-profile section, but under the hood Android SDK still calls them AVDs.
-
-The app stores the emulator profile (AVD) name and boots by that name.
-
-Examples:
-
-- `Pixel_7_API_34`
-- `Pixel_8_API_35`
-
-### Option A: Android Studio UI (Recommended)
-
-1. Open Android Studio -> Device Manager
-2. Create a new virtual device
-3. Choose hardware profile (for example Pixel 7)
-4. Choose system image
-5. Finish and note the emulator template / AVD name
-
-### Option B: CLI
-
-List available device definitions:
+Follow [`docs/operators/local-dev.md`](./local-dev.md) first:
 
 ```bash
-avdmanager list device
+npm run dev:services:up
+npm install
+npm run db:generate
+npx prisma db push
+npm run dev
 ```
 
-Install a system image (example):
+## 4. Create Runner Pairing Token
+
+The runner needs a short-lived pairing token on first boot.
+
+1. Create a user API key in the web UI (Account Settings -> API Keys).
+2. Get your team ID:
 
 ```bash
-sdkmanager "system-images;android-34;google_apis;arm64-v8a"
+curl -sS "http://127.0.0.1:3000/api/teams" \
+  -H "Authorization: Bearer <your-api-key>"
 ```
 
-Create emulator profile:
+3. Create pairing token (owner/admin team role required):
 
 ```bash
-avdmanager create avd -n Pixel_7_API_34 -k "system-images;android-34;google_apis;arm64-v8a" -d pixel_7
+curl -sS -X POST "http://127.0.0.1:3000/api/teams/<team-id>/runner-pairing" \
+  -H "Authorization: Bearer <your-api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"ttlMinutes":10}'
 ```
 
-Verify:
+Copy the `token` value from the JSON response.
+
+## 5. Start macOS Runner
+
+First boot (with pairing token):
 
 ```bash
+RUNNER_CONTROL_PLANE_URL="http://127.0.0.1:3000" \
+RUNNER_LABEL="Local macOS Runner" \
+RUNNER_PAIRING_TOKEN="<pairing-token>" \
+npm run runner:macos
+```
+
+After successful pairing, restart without `RUNNER_PAIRING_TOKEN`:
+
+```bash
+RUNNER_CONTROL_PLANE_URL="http://127.0.0.1:3000" \
+RUNNER_LABEL="Local macOS Runner" \
+npm run runner:macos
+```
+
+Credential storage:
+
+- macOS Keychain (when available)
+- `~/.skytest-agent/runner-credential.json` (metadata/fallback)
+
+## 6. Device Preparation Rules
+
+- Install your Android app manually before running tests.
+- Keep USB debugging enabled for physical devices.
+- For emulators, make sure target AVDs exist and can boot.
+
+Useful checks:
+
+```bash
+adb devices -l
 emulator -list-avds
 ```
 
-## 3. Manual Emulator Operations (Useful for Debugging)
+## 7. Validate End-to-End
 
-Boot with window:
+1. Open web app and go to `Project -> Devices`.
+2. Confirm runner is connected and device rows are visible.
+3. Start an Android test run from the run page and select an available device.
+4. Confirm run status/events update and screenshots appear in results.
 
-```bash
-emulator -avd Pixel_7_API_34 -port 5554
-```
+## 8. Troubleshooting
 
-Launch headless from CLI (debugging only):
+### `Invalid pairing token` or `401` on runner startup
 
-```bash
-emulator -avd Pixel_7_API_34 -port 5554 -no-window -no-audio -no-boot-anim
-```
+- Pairing token expired (default 10 minutes); generate a new one.
+- Confirm `RUNNER_CONTROL_PLANE_URL` points to the running control plane.
 
-List running emulator devices:
+### Runner connected but no devices shown
 
-```bash
-adb devices
-```
+- Check Android SDK binaries are in PATH for the runner process.
+- Run `adb devices -l` and verify at least one device is in `device` state.
+- Ensure emulator/device is online and not unauthorized/offline.
 
-Stop emulator:
+### Selected device cannot run
 
-```bash
-adb -s emulator-5554 emu kill
-```
+- Device may have become stale/disconnected between selection and claim.
+- Refresh `Project -> Devices`, re-check availability, and rerun.
 
-## 4. Optional: Connected Physical Devices (USB)
+### Need to reset local runner credential
 
-The Android runtime can also run tests on connected physical devices.
-
-Checklist:
-
-- Enable Developer Options on the Android device
-- Enable USB debugging
-- Authorize the host when prompted
-- Confirm the device appears in:
+Delete fallback file and re-pair:
 
 ```bash
-adb devices -l
+rm -f ~/.skytest-agent/runner-credential.json
 ```
-
-Notes:
-
-- Physical devices appear in the project `Devices` tab under `Physical Devices`
-- The app can use a connected physical device as an Android target
-- The app does not support stopping connected physical devices from the UI/API
-
-## 5. Android Runtime Behavior (Operator View)
-
-### Device Controls in UI
-
-In Project -> Devices:
-
-- Emulators section shows available emulator profiles (AVDs) and running emulator runtime devices
-- Physical Devices section shows connected Android devices detected via ADB
-- If an emulator profile is not running: `Boot (window)`
-- If an app-managed emulator is running: `Stop`
-- Connected emulators started outside the app may also appear and can be stopped from the UI when ADB reports them as ready
-
-### What Test Runs Do
-
-- Android test runs can target either:
-  - an emulator profile (AVD), or
-  - a connected physical device (by serial)
-- Emulator-profile runs acquire a matching emulator from the pool or boot one
-- Emulator-profile runs execute on headless emulators
-- After an emulator-profile run, the emulator is usually **released back to the pool** (may remain running as `IDLE`)
-- Connected physical devices are leased by serial and returned to `IDLE` after cleanup (not stopped by the app)
-- The app under test may or may not have data cleared depending on the `Clear App Data` toggle
-
-Important:
-
-- Do not assume every run fully stops an emulator
-- Do not assume every run fully wipes device state
-
-See [`docs/maintainers/android-runtime-maintenance.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/android-runtime-maintenance.md) for exact cleanup/isolation behavior.
-
-### Runtime Device Status Meanings
-
-- `STARTING`: emulator process launch started
-- `BOOTING`: waiting for Android boot completion
-- `IDLE`: ready and not assigned to a run
-- `ACQUIRED` (UI may show "In Use"): assigned to a test run
-- `CLEANING`: post-run cleanup in progress
-- `STOPPING`: shutdown in progress
-- `DEAD`: no active instance (typically not shown as active)
-
-Inventory-only connected devices may instead show ADB availability states (for example `Connected`, `Unauthorized`, `Offline`) when they are not attached to the app runtime.
-
-## 6. Troubleshooting
-
-### `adb` / `emulator` command not found
-
-- Re-check `ANDROID_HOME` / `ANDROID_SDK_ROOT`
-- Re-check PATH exports and reload shell
-- Confirm binaries exist under `$HOME/Library/Android/sdk`
-
-### Emulator boot hangs
-
-Check boot completion:
-
-```bash
-adb -s emulator-5554 shell getprop sys.boot_completed
-```
-
-Expected output: `1`
-
-If still hanging:
-
-```bash
-adb kill-server
-adb start-server
-adb -s emulator-5554 emu kill
-```
-
-Then boot again.
-
-### Emulator visible in `adb devices` but not controllable in the UI
-
-- Re-open the project `Devices` tab and refresh/wait for polling (15s)
-- If it is an unmanaged emulator (for example started by Android Studio/manual CLI), it may appear under emulator inventory and can usually be stopped by serial
-- If it still is not app-controllable, stop it manually:
-
-```bash
-adb -s emulator-5554 emu kill
-```
-
-### Physical device shows `Unauthorized` or `Offline`
-
-- Check the device screen for the USB debugging authorization prompt
-- Reconnect USB and run:
-
-```bash
-adb kill-server
-adb start-server
-adb devices -l
-```
-
-- Confirm the device appears with state `device` before using it in a test run
-
-### Emulator process stuck
-
-Find process and terminate:
-
-```bash
-ps aux | rg "emulator|qemu-system"
-kill -TERM <PID>
-```
-
-### Need deeper logs
-
-ADB logs:
-
-```bash
-adb -s emulator-5554 logcat
-```
-
-Manual emulator verbose run:
-
-```bash
-emulator -avd Pixel_7_API_34 -port 5554 -verbose
-```
-
-## 7. Quick Validation Checklist (Fresh Mac)
-
-1. `emulator -list-avds` returns at least one emulator profile (AVD)
-2. Boot one emulator manually and confirm `adb devices` shows it
-3. Open project Devices tab and verify the emulator profile appears and can be booted
-4. Boot and stop an app-managed emulator from the UI
-5. (Optional) Connect a physical Android device and verify it appears under Physical Devices with state `Connected`
-6. Run one Android test and verify the selected device becomes `In Use` and then returns to `IDLE` (or stops for some emulator flows)
