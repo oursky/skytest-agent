@@ -416,7 +416,7 @@ function RunPageContent() {
         }
     }, [currentTestCaseId, getAccessToken, testCaseId]);
 
-    const issueStreamToken = useCallback(async (scope: 'project-events' | 'test-run-events', resourceId: string): Promise<string | null> => {
+    const issueStreamToken = useCallback(async (scope: 'test-run-events', resourceId: string): Promise<string | null> => {
         const token = await getAccessToken();
         if (!token) return null;
 

@@ -1,7 +1,3 @@
-const maxConcurrentTestRunsPerUserValue = Number.parseInt(process.env.MAX_CONCURRENT_TEST_RUNS_PER_USER ?? '', 10);
-const maxConcurrentTestRunsPerUser = Number.isFinite(maxConcurrentTestRunsPerUserValue) && maxConcurrentTestRunsPerUserValue > 0
-    ? maxConcurrentTestRunsPerUserValue
-    : 5;
 const storageSignedUrlTtlSecondsValue = Number.parseInt(process.env.STORAGE_SIGNED_URL_TTL_SECONDS ?? '', 10);
 const storageSignedUrlTtlSeconds = Number.isFinite(storageSignedUrlTtlSecondsValue) && storageSignedUrlTtlSecondsValue > 0
     ? storageSignedUrlTtlSecondsValue
@@ -43,16 +39,9 @@ export const config = {
         },
     },
 
-    queue: {
-        concurrency: maxConcurrentTestRunsPerUser,
-        maxConcurrentPerUser: maxConcurrentTestRunsPerUser,
+    stream: {
         pollInterval: 500,
-        persistFlushMs: 1000,
-        cancelForceReleaseMs: 5000,
         sseConnectionTtlMs: 5 * 60 * 1000,
-        logRetentionMs: 10000,
-        maxEventsPerRun: 2000,
-        maxScreenshotsPerRun: 300,
     },
 
     runner: {

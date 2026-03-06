@@ -226,7 +226,7 @@ export async function GET(
 
             pollInterval = setInterval(() => {
                 void flushFromDb();
-            }, appConfig.queue.pollInterval);
+            }, appConfig.stream.pollInterval);
 
             unsubscribe = subscribeRunUpdates(runId, () => {
                 void flushFromDb();
@@ -234,7 +234,7 @@ export async function GET(
 
             ttlTimer = setTimeout(() => {
                 closeStream();
-            }, appConfig.queue.sseConnectionTtlMs);
+            }, appConfig.stream.sseConnectionTtlMs);
         },
         cancel() {
             streamClosed = true;

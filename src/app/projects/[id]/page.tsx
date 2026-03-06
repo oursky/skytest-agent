@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use, useCallback, useRef } from "react";
+import { useState, useEffect, use, useCallback } from "react";
 import { useAuth } from "../../auth-provider";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -61,9 +61,6 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     const [activeTab, setActiveTab] = useState<'test-cases' | 'configs' | 'android'>('test-cases');
     const [androidAvailable, setAndroidAvailable] = useState(false);
 
-    const refreshAbortRef = useRef<AbortController | null>(null);
-    const eventSourceRef = useRef<EventSource | null>(null);
-
     useEffect(() => {
         if (!isAuthLoading && !isLoggedIn) {
             router.push("/");
@@ -91,27 +88,6 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     const getAuthHeaders = useCallback(async (): Promise<HeadersInit> => {
         const token = await getAccessToken();
         return token ? { 'Authorization': `Bearer ${token}` } : {};
-    }, [getAccessToken]);
-
-    const issueStreamToken = useCallback(async (scope: 'project-events' | 'test-run-events', resourceId: string): Promise<string | null> => {
-        const token = await getAccessToken();
-        if (!token) return null;
-
-        const response = await fetch('/api/stream-tokens', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ scope, resourceId })
-        });
-
-        if (!response.ok) {
-            return null;
-        }
-
-        const data = await response.json() as { streamToken?: string };
-        return typeof data.streamToken === 'string' ? data.streamToken : null;
     }, [getAccessToken]);
 
     const fetchProject = useCallback(async (signal?: AbortSignal) => {
@@ -177,119 +153,26 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         if (!isLoggedIn || isAuthLoading) return;
         if (!resolvedParams.id) return;
 
-        let disposed = false;
-
-        const closeEventSource = () => {
-            if (eventSourceRef.current) {
-                eventSourceRef.current.close();
-                eventSourceRef.current = null;
-            }
-        };
-
-        const connect = async () => {
-            closeEventSource();
-
-            if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
-
-            const streamToken = await issueStreamToken('project-events', resolvedParams.id);
-            if (disposed) return;
-            if (!streamToken) return;
-
-            const eventsUrl = new URL(`/api/projects/${resolvedParams.id}/events`, window.location.origin);
-            eventsUrl.searchParams.set('streamToken', streamToken);
-
-            const es = new EventSource(eventsUrl.toString());
-            eventSourceRef.current = es;
-
-            es.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data) as {
-                        type?: string;
-                        testCaseId?: string;
-                        runId?: string;
-                        status?: string;
-                    };
-
-                    if (data.type !== 'test-run-status') return;
-
-                    const testCaseId = data.testCaseId;
-                    const runId = data.runId;
-                    const status = data.status;
-                    if (!testCaseId || !runId || !status) return;
-
-                    setTestCases((current) =>
-                        current.map((testCase) => {
-                            if (testCase.id !== testCaseId) return testCase;
-
-                            const latestRun = testCase.testRuns?.[0];
-                            if (!latestRun || latestRun.id !== runId) {
-                                return {
-                                    ...testCase,
-                                    status,
-                                    testRuns: [
-                                        {
-                                            id: runId,
-                                            status,
-                                            createdAt: new Date().toISOString(),
-                                        },
-                                    ],
-                                };
-                            }
-
-                            if (latestRun.status === status) return testCase;
-
-                            return {
-                                ...testCase,
-                                status,
-                                testRuns: [{ ...latestRun, status }],
-                            };
-                        })
-                    );
-                } catch {
-                    // ignore malformed events
-                }
-            };
-
-            es.onerror = () => {
-                if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
-                    closeEventSource();
-                }
-            };
-        };
-
         const refreshTestCases = async () => {
             if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
 
-            refreshAbortRef.current?.abort();
-            const controller = new AbortController();
-            refreshAbortRef.current = controller;
-
             try {
-                await fetchTestCases(controller.signal);
+                await fetchTestCases();
             } catch (err) {
-                if (err instanceof DOMException && err.name === 'AbortError') {
-                    return;
-                }
                 console.error("Error fetching test cases:", err);
             }
         };
 
         fetchData();
-        void connect();
         void fetchAndroidFeatureFlag();
 
         const onFocus = () => {
-            fetchData(true);
-            void connect();
+            void fetchData(true);
         };
 
         const onVisibilityChange = () => {
             if (document.visibilityState === 'visible') {
-                void connect();
                 void refreshTestCases();
-            } else {
-                closeEventSource();
-                refreshAbortRef.current?.abort();
             }
         };
 
@@ -299,15 +182,11 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         const refreshIntervalId = setInterval(refreshTestCases, 60000);
 
         return () => {
-            disposed = true;
             window.removeEventListener('focus', onFocus);
             document.removeEventListener('visibilitychange', onVisibilityChange);
             clearInterval(refreshIntervalId);
-            closeEventSource();
-            refreshAbortRef.current?.abort();
-            refreshAbortRef.current = null;
         };
-    }, [fetchData, fetchTestCases, fetchAndroidFeatureFlag, issueStreamToken, isLoggedIn, isAuthLoading, resolvedParams.id]);
+    }, [fetchData, fetchTestCases, fetchAndroidFeatureFlag, isLoggedIn, isAuthLoading, resolvedParams.id]);
 
     const handleDeleteTestCase = async () => {
         try {
