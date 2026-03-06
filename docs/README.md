@@ -17,7 +17,7 @@ Core app features can run without Android SDK/emulator tooling. Android operator
 ## Maintainer / Coding-Agent Docs
 
 - [`docs/maintainers/coding-agent-maintenance-guide.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/coding-agent-maintenance-guide.md)
-  - code map, invariants, and maintenance traps for queue/Android-device runtime
+  - code map, invariants, and maintenance traps for runner orchestration and Android runtime
 - [`docs/maintainers/android-runtime-maintenance.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/android-runtime-maintenance.md)
   - Android device runtime behavior, isolation model, and operational constraints
 - [`docs/maintainers/test-case-excel-format.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/test-case-excel-format.md)
@@ -34,7 +34,7 @@ Core app features can run without Android SDK/emulator tooling. Android operator
 ## Maintenance Guidance
 
 - Prefer treating operator docs and maintainer docs as separate audiences.
-- When runtime behavior changes (queueing, Android device cleanup, isolation, API visibility), update both:
+- When runtime behavior changes (runner scheduling, Android device cleanup, isolation, API visibility), update both:
   - operator runbooks/checklists
   - maintainer/runtime notes
 - If import/export behavior changes, update [`docs/maintainers/test-case-excel-format.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/test-case-excel-format.md).

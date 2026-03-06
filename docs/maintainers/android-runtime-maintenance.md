@@ -2,7 +2,7 @@
 
 Audience: maintainers / coding agents changing Android runtime behavior.
 
-This document describes the current Android device runtime behavior and operational constraints for this app.
+This document describes the Phase 3 Android runner behavior and operational constraints.
 
 Related docs:
 
@@ -12,67 +12,46 @@ Related docs:
 
 ## Runtime Capability Gating (Important)
 
-- Android support is gated solely by server runtime capability (Android tooling available on the host).
-- Non-Android servers are supported: the app should still boot and serve browser-only features.
-- Android UI/API surfaces should be hidden or rejected when the server runtime is not Android-capable.
+- Android support is runner-driven, not API-host-driven.
+- Web control plane can run without Android SDK or ADB tooling.
+- Android functionality appears when at least one `MACOS_AGENT` runner is connected and publishing devices.
 
 ## Deployment Model (Important)
 
-- `src/lib/runtime/queue.ts`, `src/lib/android/device-manager.ts`, and `src/lib/android/emulator-pool.ts` are in-process singletons.
-- Queue state, device ownership, and emulator wait queues live only in memory.
-- This runtime is currently intended for a single long-lived app process.
+- Control plane and runner agents are separate processes.
+- Control plane responsibilities:
+  - durable run scheduling/state in Postgres
+  - runner auth/claim/event APIs
+  - Project > Devices aggregation from runner inventory
+- Runner responsibilities:
+  - local Android discovery
+  - Android execution
+  - event/artifact/result publishing
 
 Implications:
 
-- Do not run multiple app replicas against the same host Android device/ADB environment without adding centralized coordination/locking.
-- Serverless/ephemeral runtimes are not compatible with the current emulator pool design.
-- Process restart will clear queue/pool state and active runs are marked failed on startup.
+- Restarting control plane should not drop run ownership (leases are durable).
+- Restarting a runner drops local execution capacity until it reconnects and republishes inventory.
+- Multiple runners can coexist; claim/lease ownership is resolved in DB.
 
-## Managed Runtime Devices vs Host Inventory
+## Device Inventory Model
 
-- Managed runtime devices are those tracked by `androidDeviceManager`:
-  - emulator instances started/tracked via `emulatorPool`
-  - connected physical devices currently attached as reusable leases
-- Host inventory is discovered from ADB + local profiles:
-  - connected devices (`adb devices -l`)
-  - emulator profiles (AVDs) available on the host
-- Unmanaged connected emulators are host emulators visible to ADB but not currently tracked by the app runtime (for example, Android Studio/manual launches).
+- Runner publishes snapshots to `/api/runners/v1/devices/sync`.
+- Control plane exposes aggregated project-scoped inventory via `/api/projects/[id]/devices`.
+- Device freshness and availability are derived from runner heartbeat and device `lastSeenAt`.
+- The old `/api/devices` host-local route is removed.
 
 Security behavior:
 
-- `/api/devices` requires auth + Android runtime availability.
-- `/api/devices` returns:
-  - runtime device status for the current host/process (used by the project device panel)
-  - host inventory (`connectedDevices`, `emulatorProfiles`) for device selection/UI display
-- Ownership checks are enforced for project-scoped actions and run metadata, but inventory visibility is intentionally host-level. Treat host access as privileged.
-- `/api/devices` stop action:
-  - allows stopping managed emulators
-  - allows stopping connected emulators by serial (ADB `emu kill`) when not managed
-  - rejects stopping connected physical devices
+- Runner APIs require bearer runner token auth and per-token rate limits.
+- All runner write-back endpoints enforce run ownership through `assignedRunnerId` + active lease.
+- Stream tokens remain resource-scoped; run token for run A cannot read run B.
 
-## Reuse and Isolation Model
+## Manual App Installation Rule
 
-- Emulator-profile reuse is project-scoped (`projectId` + emulator profile/AVD name).
-- Connected physical devices are leased by serial and reused in-process when healthy.
-- After a run, Android targets are released through `androidDeviceManager` (not always fully shut down).
-- Cleanup is best-effort and includes:
-  - returning to home
-  - `am kill-all`
-  - optional app-specific `am force-stop` + `pm clear` (depends on target toggle)
-
-What persists across runs by design:
-
-- Emulator disk state outside the explicitly targeted app package
-- Physical-device state outside the explicitly targeted app package
-- Other installed apps and their data
-- System settings and general device state changes that cleanup does not revert
-
-If stronger isolation is required in the future:
-
-- dedicated emulator per run, or
-- dedicated physical device per tenant/project, or
-- full wipe/cold-boot policy, or
-- tenant-isolated emulator hosts/containers
+- Runner must not auto-install, update, or remove Android apps.
+- Devices must be manually prepared by operators before runs.
+- Execution may clear app state if configured, but not mutate installation lifecycle.
 
 ## Clear App Data Toggle Semantics
 
@@ -87,33 +66,11 @@ This preserves app state across runs when the emulator is reused.
 
 For connected physical devices, the same app-specific cleanup toggle semantics apply.
 
-## Queueing and Capacity Behavior
+## Scheduling and Capacity Behavior
 
-- Emulator-profile acquisition:
-  - if no matching idle emulator is available and pool capacity is available, the pool boots a new emulator
-  - if capacity is full, requests wait in an in-memory wait queue until:
-    - a matching emulator is released, or
-    - capacity is freed and a replacement boot is triggered, or
-    - the acquire timeout is reached
-- Connected-device acquisition:
-  - targets a specific serial
-  - fails if the device is missing, unauthorized/offline, or already acquired
-  - reuses an in-process lease if healthy, otherwise recreates the lease/attachment
-
-Capacity-freeing events that now wake waiters:
-
-- manual stop
-- idle timeout stop
-- health-check failure stop
-- force reclaim stop
-- cleanup failure stop fallback
-
-## Stop Lifecycle Notes
-
-- Stop requests attempt `adb emu kill` and process termination.
-- The pool now waits for process exit (bounded timeout) before freeing ports and marking the emulator dead.
-- If the process does not exit after `SIGTERM`, a `SIGKILL` attempt is made before final cleanup.
-- Connected physical devices are not stopped by app APIs; only emulator stop flows perform process termination.
+- Control plane stores runs as `QUEUED` and runners claim with long-poll.
+- Explicit-device runs can be claimed only by the runner that currently owns/publishes that device.
+- Lease expiry recovery and event retention run in `src/workers/runner-maintenance.ts`.
 
 ## Copy Log Behavior
 
