@@ -5,9 +5,9 @@ import { createLogger } from '@/lib/core/logger';
 import { isProjectMember } from '@/lib/security/permissions';
 import { publishRunUpdate } from '@/lib/runners/event-bus';
 import { cancelLocalBrowserRun } from '@/lib/runtime/local-browser-runner';
+import { ACTIVE_RUN_STATUSES } from '@/utils/statusHelpers';
 
 const logger = createLogger('api:test-runs:cancel');
-const ACTIVE_RUN_STATUSES = ['QUEUED', 'PREPARING', 'RUNNING'] as const;
 
 export const dynamic = 'force-dynamic';
 
@@ -45,7 +45,7 @@ export async function POST(
         }
 
         let finalStatus = testRun.status;
-        if (ACTIVE_RUN_STATUSES.includes(testRun.status as typeof ACTIVE_RUN_STATUSES[number])) {
+        if (ACTIVE_RUN_STATUSES.includes(testRun.status)) {
             const completedAt = new Date();
             await prisma.$transaction(async (tx) => {
                 await tx.testRun.update({
