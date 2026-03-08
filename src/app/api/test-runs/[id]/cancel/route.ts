@@ -7,6 +7,7 @@ import { publishRunUpdate } from '@/lib/runners/event-bus';
 import { cancelLocalBrowserRun } from '@/lib/runtime/local-browser-runner';
 
 const logger = createLogger('api:test-runs:cancel');
+const ACTIVE_RUN_STATUSES = ['QUEUED', 'PREPARING', 'RUNNING'] as const;
 
 export const dynamic = 'force-dynamic';
 
@@ -43,32 +44,42 @@ export async function POST(
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        await prisma.testRun.update({
-            where: { id },
-            data: {
-                status: 'CANCELLED',
-                error: 'Cancelled by user',
-                completedAt: new Date(),
-                assignedRunnerId: null,
-                leaseExpiresAt: null,
-            }
-        });
-        publishRunUpdate(id);
+        let finalStatus = testRun.status;
+        if (ACTIVE_RUN_STATUSES.includes(testRun.status as typeof ACTIVE_RUN_STATUSES[number])) {
+            const completedAt = new Date();
+            await prisma.$transaction(async (tx) => {
+                await tx.testRun.update({
+                    where: { id },
+                    data: {
+                        status: 'CANCELLED',
+                        error: 'Cancelled by user',
+                        completedAt,
+                        assignedRunnerId: null,
+                        leaseExpiresAt: null,
+                    }
+                });
+                await tx.testCase.update({
+                    where: { id: testRun.testCaseId },
+                    data: { status: 'CANCELLED' }
+                });
+            });
+            finalStatus = 'CANCELLED';
+            publishRunUpdate(id);
+        }
+
         // Best-effort local abort for in-process execution. Worker-based runs
         // primarily rely on DB state + lease ownership updates.
         cancelLocalBrowserRun(id);
-
-        const updated = await prisma.testRun.findUnique({ where: { id }, select: { status: true } });
 
         logger.info('Cancelled test run', {
             runId: id,
             previousStatus: testRun.status,
             previousAssignedRunnerId: testRun.assignedRunnerId,
-            finalStatus: updated?.status || 'CANCELLED',
+            finalStatus,
             cancelledByUserId: userId,
         });
 
-        return NextResponse.json({ success: true, id: testRun.id, status: updated?.status || 'CANCELLED' });
+        return NextResponse.json({ success: true, id: testRun.id, status: finalStatus });
     } catch (error) {
         logger.error('Failed to cancel test run', error);
         return NextResponse.json({ error: 'Failed to cancel test run' }, { status: 500 });

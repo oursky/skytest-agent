@@ -402,7 +402,7 @@ async function failRunWithoutTestCase(runId: string, error: string, options?: Lo
     }
 }
 
-async function cancelRun(runId: string, options?: LocalBrowserRunOptions): Promise<void> {
+async function cancelRun(runId: string, testCaseId: string, options?: LocalBrowserRunOptions): Promise<void> {
     const now = new Date();
     const updated = await prisma.testRun.updateMany({
         where: buildRunOwnershipWhere(runId, options),
@@ -416,6 +416,10 @@ async function cancelRun(runId: string, options?: LocalBrowserRunOptions): Promi
     });
 
     if (updated.count > 0) {
+        await prisma.testCase.update({
+            where: { id: testCaseId },
+            data: { status: 'CANCELLED' },
+        });
         publishRunUpdate(runId);
     }
 }
@@ -614,7 +618,7 @@ async function executeLocalBrowserRun(
             return;
         }
         if (result.status === 'CANCELLED') {
-            await cancelRun(runId, options);
+            await cancelRun(runId, details.testCaseId, options);
             return;
         }
 
