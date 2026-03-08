@@ -15,9 +15,25 @@ function generateCandidateId(): string {
     return candidate;
 }
 
-export function generateLocalRunnerId(existingRunnerIds: ReadonlySet<string>): string {
+function generateCandidateIdFromBytes(randomBytesSource: (size: number) => Buffer): string {
+    const bytes = randomBytesSource(LOCAL_RUNNER_ID_LENGTH);
+    let candidate = '';
+
+    for (let index = 0; index < LOCAL_RUNNER_ID_LENGTH; index += 1) {
+        candidate += LOCAL_RUNNER_ID_CHARSET[bytes[index] % LOCAL_RUNNER_ID_CHARSET.length];
+    }
+
+    return candidate;
+}
+
+export function generateLocalRunnerId(
+    existingRunnerIds: ReadonlySet<string>,
+    randomBytesSource: (size: number) => Buffer = randomBytes
+): string {
     for (let attempt = 0; attempt < MAX_ID_ATTEMPTS; attempt += 1) {
-        const candidate = generateCandidateId();
+        const candidate = randomBytesSource === randomBytes
+            ? generateCandidateId()
+            : generateCandidateIdFromBytes(randomBytesSource);
         if (!existingRunnerIds.has(candidate)) {
             return candidate;
         }
