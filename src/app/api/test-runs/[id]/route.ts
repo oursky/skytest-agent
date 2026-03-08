@@ -111,7 +111,7 @@ export async function GET(
             }
         });
 
-        if (!testRun) {
+        if (!testRun || testRun.deletedAt) {
             return NextResponse.json({ error: 'Test run not found' }, { status: 404 });
         }
 
@@ -178,7 +178,7 @@ export async function DELETE(
             }
         });
 
-        if (!testRun) {
+        if (!testRun || testRun.deletedAt) {
             return NextResponse.json({ error: 'Test run not found' }, { status: 404 });
         }
 
@@ -186,8 +186,15 @@ export async function DELETE(
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        await prisma.testRun.delete({
+        if (['RUNNING', 'QUEUED', 'PREPARING'].includes(testRun.status)) {
+            return NextResponse.json({ error: 'Cannot delete an active test run' }, { status: 409 });
+        }
+
+        await prisma.testRun.update({
             where: { id },
+            data: {
+                deletedAt: new Date(),
+            },
         });
 
         return NextResponse.json({ success: true });

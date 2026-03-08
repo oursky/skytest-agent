@@ -2,6 +2,7 @@ import { config as appConfig } from '@/config/app';
 import { createLogger } from '@/lib/core/logger';
 import { pruneOldRunEvents } from '@/lib/runners/event-retention-service';
 import { reapExpiredRunnerLeases } from '@/lib/runners/lease-reaper';
+import { enforceRunArtifactRetention } from '@/lib/runners/run-retention-service';
 
 const logger = createLogger('worker:runner-maintenance');
 
@@ -16,12 +17,25 @@ async function runMaintenanceCycle() {
         reapExpiredRunnerLeases(),
         pruneOldRunEvents(),
     ]);
+    const runRetentionResult = await enforceRunArtifactRetention();
 
-    if (leaseResult.recoveredRuns > 0 || retentionResult.deletedEvents > 0) {
+    if (
+        leaseResult.recoveredRuns > 0
+        || retentionResult.deletedEvents > 0
+        || runRetentionResult.softDeletedRuns > 0
+        || runRetentionResult.hardDeletedRuns > 0
+        || runRetentionResult.hardDeleteFailures > 0
+    ) {
         logger.info('Runner maintenance cycle completed', {
             recoveredRuns: leaseResult.recoveredRuns,
             deletedEvents: retentionResult.deletedEvents,
             retentionCutoff: retentionResult.cutoff.toISOString(),
+            softDeletedRuns: runRetentionResult.softDeletedRuns,
+            hardDeletedRuns: runRetentionResult.hardDeletedRuns,
+            hardDeletedArtifacts: runRetentionResult.hardDeletedArtifacts,
+            hardDeleteFailures: runRetentionResult.hardDeleteFailures,
+            artifactSoftDeleteCutoff: runRetentionResult.softDeleteCutoff.toISOString(),
+            artifactHardDeleteCutoff: runRetentionResult.hardDeleteCutoff.toISOString(),
         });
     }
 }
@@ -30,6 +44,9 @@ async function main() {
     logger.info('Runner maintenance worker started', {
         leaseReaperIntervalMs: appConfig.runner.leaseReaperIntervalMs,
         eventRetentionDays: appConfig.runner.eventRetentionDays,
+        artifactSoftDeleteDays: appConfig.runner.artifactSoftDeleteDays,
+        artifactHardDeleteDays: appConfig.runner.artifactHardDeleteDays,
+        artifactHardDeleteBatchSize: appConfig.runner.artifactHardDeleteBatchSize,
     });
 
     const runOnce = process.env.RUNNER_MAINTENANCE_ONCE === 'true';

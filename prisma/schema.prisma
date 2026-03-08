@@ -147,6 +147,7 @@ model TestRun {
   configurationSnapshot   String?
   startedAt               DateTime?
   completedAt             DateTime?
+  deletedAt               DateTime?
   createdAt               DateTime @default(now())
   usageRecords            UsageRecord[]
   files                   TestRunFile[]
@@ -157,6 +158,7 @@ model TestRun {
   @@index([status, requiredCapability, createdAt(sort: Asc)])
   @@index([assignedRunnerId, leaseExpiresAt])
   @@index([requestedDeviceId])
+  @@index([deletedAt, completedAt(sort: Asc)])
 }
 
 model TestRunFile {

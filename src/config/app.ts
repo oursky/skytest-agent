@@ -14,6 +14,18 @@ const runnerEventRetentionDaysValue = Number.parseInt(process.env.RUNNER_EVENT_R
 const runnerEventRetentionDays = Number.isFinite(runnerEventRetentionDaysValue) && runnerEventRetentionDaysValue > 0
     ? runnerEventRetentionDaysValue
     : 30;
+const runnerArtifactSoftDeleteDaysValue = Number.parseInt(process.env.RUNNER_ARTIFACT_SOFT_DELETE_DAYS ?? '', 10);
+const runnerArtifactSoftDeleteDays = Number.isFinite(runnerArtifactSoftDeleteDaysValue) && runnerArtifactSoftDeleteDaysValue > 0
+    ? runnerArtifactSoftDeleteDaysValue
+    : 30;
+const runnerArtifactHardDeleteDaysValue = Number.parseInt(process.env.RUNNER_ARTIFACT_HARD_DELETE_DAYS ?? '', 10);
+const runnerArtifactHardDeleteDays = Number.isFinite(runnerArtifactHardDeleteDaysValue) && runnerArtifactHardDeleteDaysValue >= 0
+    ? runnerArtifactHardDeleteDaysValue
+    : 7;
+const runnerArtifactHardDeleteBatchSizeValue = Number.parseInt(process.env.RUNNER_ARTIFACT_HARD_DELETE_BATCH_SIZE ?? '', 10);
+const runnerArtifactHardDeleteBatchSize = Number.isFinite(runnerArtifactHardDeleteBatchSizeValue) && runnerArtifactHardDeleteBatchSizeValue > 0
+    ? runnerArtifactHardDeleteBatchSizeValue
+    : 50;
 
 export const config = {
     app: {
@@ -48,6 +60,9 @@ export const config = {
         leaseDurationSeconds: runnerLeaseDurationSeconds,
         leaseReaperIntervalMs: runnerLeaseReaperIntervalMs,
         eventRetentionDays: runnerEventRetentionDays,
+        artifactSoftDeleteDays: runnerArtifactSoftDeleteDays,
+        artifactHardDeleteDays: runnerArtifactHardDeleteDays,
+        artifactHardDeleteBatchSize: runnerArtifactHardDeleteBatchSize,
     },
 
     test: {
