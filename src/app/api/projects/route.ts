@@ -55,31 +55,36 @@ export async function GET(request: Request) {
                             take: 1,
                         }
                     }
-                },
-                testCases: {
-                    select: {
-                        testRuns: {
-                            where: {
-                                status: {
-                                    in: ['RUNNING', 'QUEUED', 'PREPARING']
-                                }
-                            },
-                            select: {
-                                id: true
-                            },
-                            take: 1
-                        }
-                    }
                 }
             },
         });
 
+        const projectIds = projects.map((project) => project.id);
+        const activeProjectRows = projectIds.length > 0
+            ? await prisma.testCase.findMany({
+                where: {
+                    projectId: { in: projectIds },
+                    testRuns: {
+                        some: {
+                            status: {
+                                in: ['RUNNING', 'QUEUED', 'PREPARING']
+                            }
+                        }
+                    }
+                },
+                select: {
+                    projectId: true,
+                },
+                distinct: ['projectId'],
+            })
+            : [];
+        const activeProjectIds = new Set(activeProjectRows.map((row) => row.projectId));
+
         const projectsWithStatus = projects.map(project => ({
             ...project,
-            hasActiveRuns: project.testCases.some(tc => tc.testRuns.length > 0),
+            hasActiveRuns: activeProjectIds.has(project.id),
             currentUserRole: project.team.memberships[0]?.role ?? null,
             team: undefined,
-            testCases: undefined
         }));
 
         return NextResponse.json(projectsWithStatus);
