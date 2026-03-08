@@ -3,7 +3,9 @@ SHELL := /bin/sh
 NODE_PM ?= npm
 COMPOSE ?= docker compose
 COMPOSE_FILE ?= docker-compose.local.yml
-CONTROL_PLANE_URL ?= http://127.0.0.1:3000
+CONTROL_PLANE_PORT ?= 3000
+CONTROL_PLANE_HOST ?= 127.0.0.1
+CONTROL_PLANE_URL ?= http://$(CONTROL_PLANE_HOST):$(CONTROL_PLANE_PORT)
 ENV_LOCAL ?= .env.local
 MACOS_RUNNER_TOKEN ?=
 MACOS_RUNNER_PAIRING_TOKEN ?=
@@ -50,7 +52,7 @@ db-push: ## Apply Prisma schema to the configured database
 db-setup: db-generate db-push ## Generate Prisma client and apply schema
 
 app: ## Start the local Next.js control plane
-	$(NODE_PM) run dev
+	$(NODE_PM) run dev -- --hostname $(CONTROL_PLANE_HOST) --port $(CONTROL_PLANE_PORT)
 
 playwright-install: ## Install Playwright Chromium locally
 	$(NODE_PM) run playwright:install
@@ -78,11 +80,23 @@ dev-macos: ## Boot local services, apply schema, start macOS runner, and start t
 	@set -eu; \
 	$(MAKE) services-up; \
 	$(MAKE) db-setup; \
-	trap 'kill $$runner_pid >/dev/null 2>&1 || true' EXIT INT TERM; \
+	trap 'if [ -n "$${runner_pid:-}" ]; then kill "$$runner_pid" >/dev/null 2>&1 || true; fi; if [ -n "$${app_pid:-}" ]; then kill "$$app_pid" >/dev/null 2>&1 || true; fi' EXIT INT TERM; \
 	set -a; [ -f "$(ENV_LOCAL)" ] && . "$(ENV_LOCAL)"; set +a; \
+	$(NODE_PM) run dev -- --hostname $(CONTROL_PLANE_HOST) --port $(CONTROL_PLANE_PORT) & \
+	app_pid=$$!; \
+	for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do \
+		if curl -fsS "$(CONTROL_PLANE_URL)/api/health/live" >/dev/null 2>&1; then \
+			break; \
+		fi; \
+		sleep 1; \
+		if [ "$$i" -eq 15 ]; then \
+			echo "Control plane did not become ready at $(CONTROL_PLANE_URL)"; \
+			exit 1; \
+		fi; \
+	done; \
 	RUNNER_CONTROL_PLANE_URL="$(CONTROL_PLANE_URL)" RUNNER_LABEL="$(MACOS_RUNNER_LABEL)" RUNNER_TOKEN="$(MACOS_RUNNER_TOKEN)" RUNNER_PAIRING_TOKEN="$(MACOS_RUNNER_PAIRING_TOKEN)" $(NODE_PM) run runner:macos & \
 	runner_pid=$$!; \
-	$(NODE_PM) run dev
+	wait $$app_pid
 
 verify: ## Run lint, TypeScript compile, and dependency audit
 	$(NODE_PM) run verify
