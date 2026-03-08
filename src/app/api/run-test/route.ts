@@ -6,7 +6,12 @@ import { createLogger } from '@/lib/core/logger';
 import { getTeamDevicesAvailability } from '@/lib/runners/availability-service';
 import { config as appConfig } from '@/config/app';
 import { normalizeAndroidTargetConfig } from '@/lib/android/target-config';
-import { startLocalBrowserRun } from '@/lib/runtime/local-browser-runner';
+import {
+    ANDROID_EXECUTION_CAPABILITY,
+    ANDROID_EXECUTION_RUNNER_KIND,
+    BROWSER_EXECUTION_CAPABILITY,
+    BROWSER_EXECUTION_RUNNER_KIND,
+} from '@/lib/runners/constants';
 import type { BrowserConfig, TargetConfig, AndroidTargetConfig, TestStep } from '@/types';
 
 const logger = createLogger('api:run-test');
@@ -272,10 +277,14 @@ export async function POST(request: Request) {
         const testRun = await prisma.testRun.create({
             data: {
                 testCaseId,
-                status: requestHasAndroidTargets ? 'QUEUED' : 'PREPARING',
+                status: 'QUEUED',
                 configurationSnapshot,
-                requiredCapability: requestHasAndroidTargets ? 'ANDROID' : null,
-                requiredRunnerKind: requestHasAndroidTargets ? 'MACOS_AGENT' : null,
+                requiredCapability: requestHasAndroidTargets
+                    ? ANDROID_EXECUTION_CAPABILITY
+                    : BROWSER_EXECUTION_CAPABILITY,
+                requiredRunnerKind: requestHasAndroidTargets
+                    ? ANDROID_EXECUTION_RUNNER_KIND
+                    : BROWSER_EXECUTION_RUNNER_KIND,
                 requestedDeviceId,
             }
         });
@@ -304,13 +313,6 @@ export async function POST(request: Request) {
             } catch (e) {
                 logger.warn('Failed to snapshot run files', e);
             }
-        }
-
-        if (!requestHasAndroidTargets) {
-            startLocalBrowserRun(testRun.id);
-            logger.info('Started local browser execution for run', {
-                runId: testRun.id,
-            });
         }
 
         return NextResponse.json({

@@ -59,7 +59,7 @@ Key invariants:
 
 ## Control Plane Constraints
 
-- Web app owns browser test execution and run state persistence.
+- Browser execution is worker-owned (`src/workers/browser-runner.ts`) and run state persists in Postgres leases.
 - Android execution stays runner-owned and must not move into web request handlers.
 - Team-facing device visibility must come from runner-published inventory, not host-local inspection.
 - Do not re-introduce project-scoped device inventory surfaces; active UI is `Team Settings -> Runners`.

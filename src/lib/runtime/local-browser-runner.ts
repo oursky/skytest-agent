@@ -46,9 +46,17 @@ interface ParsedImageDataUrl {
     contentBase64: string;
 }
 
+interface LocalBrowserRunOptions {
+    runnerId?: string;
+}
+
 const logger = createLogger('runtime:local-browser-runner');
 const activeAbortControllers = new Map<string, AbortController>();
 const activeExecutions = new Map<string, Promise<void>>();
+
+function createLeaseExpiry(now = new Date()): Date {
+    return new Date(now.getTime() + appConfig.runner.leaseDurationSeconds * 1000);
+}
 
 function parseConfigurationSnapshot(snapshot: string | null): SnapshotPayload {
     if (!snapshot) {
@@ -110,13 +118,16 @@ function toSafeScreenshotFilename(label: string, extension: string): string {
     return `${base}-${Date.now()}.${extension}`;
 }
 
-async function loadRunConfig(runId: string): Promise<LoadedRunConfig | null> {
+async function loadRunConfig(runId: string, options?: LocalBrowserRunOptions): Promise<LoadedRunConfig | null> {
+    const nowMs = Date.now();
     const run = await prisma.testRun.findUnique({
         where: { id: runId },
         select: {
             id: true,
             testCaseId: true,
             status: true,
+            assignedRunnerId: true,
+            leaseExpiresAt: true,
             configurationSnapshot: true,
             files: {
                 select: {
@@ -153,6 +164,19 @@ async function loadRunConfig(runId: string): Promise<LoadedRunConfig | null> {
         return null;
     }
 
+    if (options?.runnerId) {
+        if (run.assignedRunnerId !== options.runnerId) {
+            return null;
+        }
+        if (!run.leaseExpiresAt || run.leaseExpiresAt.getTime() <= nowMs) {
+            return null;
+        }
+    }
+
+    if (!options?.runnerId && run.assignedRunnerId) {
+        return null;
+    }
+
     const encryptedKey = run.testCase.project.team.openRouterKeyEncrypted;
     if (!encryptedKey) {
         return null;
@@ -180,7 +204,7 @@ async function loadRunConfig(runId: string): Promise<LoadedRunConfig | null> {
     };
 }
 
-async function appendRunEvents(runId: string, events: RunEventInput[]): Promise<void> {
+async function appendRunEvents(runId: string, events: RunEventInput[], options?: LocalBrowserRunOptions): Promise<void> {
     if (events.length === 0) {
         return;
     }
@@ -192,6 +216,8 @@ async function appendRunEvents(runId: string, events: RunEventInput[]): Promise<
             select: {
                 id: true,
                 status: true,
+                assignedRunnerId: true,
+                leaseExpiresAt: true,
                 nextEventSequence: true,
             },
         });
@@ -199,15 +225,45 @@ async function appendRunEvents(runId: string, events: RunEventInput[]): Promise<
         if (!run || ['PASS', 'FAIL', 'CANCELLED'].includes(run.status)) {
             return false;
         }
+        if (options?.runnerId) {
+            if (run.assignedRunnerId !== options.runnerId) {
+                return false;
+            }
+            if (!run.leaseExpiresAt || run.leaseExpiresAt.getTime() <= now.getTime()) {
+                return false;
+            }
+        }
+        if (!options?.runnerId && run.assignedRunnerId) {
+            return false;
+        }
 
         const startSequence = run.nextEventSequence;
-        await tx.testRun.update({
-            where: { id: runId },
+        const updateResult = await tx.testRun.updateMany({
+            where: {
+                id: runId,
+                nextEventSequence: startSequence,
+                ...(options?.runnerId
+                    ? {
+                        assignedRunnerId: options.runnerId,
+                        leaseExpiresAt: { gt: now },
+                    }
+                    : {
+                        assignedRunnerId: null,
+                    }),
+            },
             data: {
                 nextEventSequence: startSequence + events.length,
                 lastEventAt: now,
+                ...(options?.runnerId
+                    ? {
+                        leaseExpiresAt: createLeaseExpiry(now),
+                    }
+                    : {}),
             },
         });
+        if (updateResult.count !== 1) {
+            return false;
+        }
 
         await tx.testRunEvent.createMany({
             data: events.map((event, index) => ({
@@ -229,16 +285,34 @@ async function appendRunEvents(runId: string, events: RunEventInput[]): Promise<
     }
 }
 
-async function updateRunStatus(runId: string, status: 'PREPARING' | 'RUNNING'): Promise<void> {
+async function updateRunStatusWithOwnership(
+    runId: string,
+    status: 'PREPARING' | 'RUNNING',
+    options?: LocalBrowserRunOptions
+): Promise<void> {
+    const now = new Date();
     const result = await prisma.testRun.updateMany({
         where: {
             id: runId,
             status: {
                 in: ['PREPARING', 'RUNNING'],
             },
+            ...(options?.runnerId
+                ? {
+                    assignedRunnerId: options.runnerId,
+                    leaseExpiresAt: { gt: now },
+                }
+                : {
+                    assignedRunnerId: null,
+                }),
         },
         data: {
             status,
+            ...(options?.runnerId
+                ? {
+                    leaseExpiresAt: createLeaseExpiry(now),
+                }
+                : {}),
         },
     });
 
@@ -247,15 +321,26 @@ async function updateRunStatus(runId: string, status: 'PREPARING' | 'RUNNING'): 
     }
 }
 
-async function completeRun(runId: string, testCaseId: string, result?: string): Promise<void> {
+function buildRunOwnershipWhere(runId: string, options?: LocalBrowserRunOptions) {
+    return {
+        id: runId,
+        status: {
+            in: ['PREPARING', 'RUNNING'],
+        },
+        ...(options?.runnerId
+            ? {
+                assignedRunnerId: options.runnerId,
+            }
+            : {
+                assignedRunnerId: null,
+            }),
+    };
+}
+
+async function completeRun(runId: string, testCaseId: string, result?: string, options?: LocalBrowserRunOptions): Promise<void> {
     const now = new Date();
     const updated = await prisma.testRun.updateMany({
-        where: {
-            id: runId,
-            status: {
-                in: ['PREPARING', 'RUNNING'],
-            },
-        },
+        where: buildRunOwnershipWhere(runId, options),
         data: {
             status: 'PASS',
             result,
@@ -274,15 +359,10 @@ async function completeRun(runId: string, testCaseId: string, result?: string): 
     }
 }
 
-async function failRun(runId: string, testCaseId: string, error: string, result?: string): Promise<void> {
+async function failRun(runId: string, testCaseId: string, error: string, result?: string, options?: LocalBrowserRunOptions): Promise<void> {
     const now = new Date();
     const updated = await prisma.testRun.updateMany({
-        where: {
-            id: runId,
-            status: {
-                in: ['PREPARING', 'RUNNING'],
-            },
-        },
+        where: buildRunOwnershipWhere(runId, options),
         data: {
             status: 'FAIL',
             error,
@@ -302,15 +382,10 @@ async function failRun(runId: string, testCaseId: string, error: string, result?
     }
 }
 
-async function failRunWithoutTestCase(runId: string, error: string): Promise<void> {
+async function failRunWithoutTestCase(runId: string, error: string, options?: LocalBrowserRunOptions): Promise<void> {
     const now = new Date();
     const updated = await prisma.testRun.updateMany({
-        where: {
-            id: runId,
-            status: {
-                in: ['PREPARING', 'RUNNING'],
-            },
-        },
+        where: buildRunOwnershipWhere(runId, options),
         data: {
             status: 'FAIL',
             error,
@@ -325,15 +400,10 @@ async function failRunWithoutTestCase(runId: string, error: string): Promise<voi
     }
 }
 
-async function cancelRun(runId: string): Promise<void> {
+async function cancelRun(runId: string, options?: LocalBrowserRunOptions): Promise<void> {
     const now = new Date();
     const updated = await prisma.testRun.updateMany({
-        where: {
-            id: runId,
-            status: {
-                in: ['PREPARING', 'RUNNING'],
-            },
-        },
+        where: buildRunOwnershipWhere(runId, options),
         data: {
             status: 'CANCELLED',
             error: 'Cancelled by user',
@@ -352,7 +422,22 @@ async function uploadRunArtifact(runId: string, input: {
     filename: string;
     mimeType: string;
     contentBase64: string;
-}): Promise<string | null> {
+}, options?: LocalBrowserRunOptions): Promise<string | null> {
+    if (options?.runnerId) {
+        const ownedRun = await prisma.testRun.findFirst({
+            where: {
+                id: runId,
+                assignedRunnerId: options.runnerId,
+                leaseExpiresAt: { gt: new Date() },
+                status: { in: ['PREPARING', 'RUNNING'] },
+            },
+            select: { id: true },
+        });
+        if (!ownedRun) {
+            return null;
+        }
+    }
+
     const body = Buffer.from(input.contentBase64, 'base64');
     if (body.length === 0 || body.length > appConfig.files.maxFileSize) {
         return null;
@@ -385,10 +470,14 @@ async function uploadRunArtifact(runId: string, input: {
     return artifactKey;
 }
 
-async function executeLocalBrowserRun(runId: string, controller: AbortController): Promise<void> {
-    const details = await loadRunConfig(runId);
+async function executeLocalBrowserRun(
+    runId: string,
+    controller: AbortController,
+    options?: LocalBrowserRunOptions
+): Promise<void> {
+    const details = await loadRunConfig(runId, options);
     if (!details) {
-        await failRunWithoutTestCase(runId, 'Run is not executable').catch(() => {});
+        await failRunWithoutTestCase(runId, 'Run is not executable', options).catch(() => {});
         return;
     }
 
@@ -405,7 +494,7 @@ async function executeLocalBrowserRun(runId: string, controller: AbortController
         try {
             while (queuedEvents.length > 0) {
                 const batch = queuedEvents.splice(0, 50);
-                await appendRunEvents(runId, batch);
+                await appendRunEvents(runId, batch, options);
             }
         } finally {
             flushingEvents = false;
@@ -439,7 +528,7 @@ async function executeLocalBrowserRun(runId: string, controller: AbortController
                         filename: toSafeScreenshotFilename(screenshotData.label, parsed.extension),
                         mimeType: parsed.mimeType,
                         contentBase64: parsed.contentBase64,
-                    });
+                    }, options);
 
                     queueEvent({
                         kind: 'SCREENSHOT',
@@ -499,14 +588,14 @@ async function executeLocalBrowserRun(runId: string, controller: AbortController
                 handleTestEvent(event);
             },
             async onPreparing() {
-                await updateRunStatus(runId, 'PREPARING');
+                await updateRunStatusWithOwnership(runId, 'PREPARING', options);
                 queueEvent({
                     kind: 'STATUS',
                     message: 'Preparing run execution',
                 });
             },
             async onRunning() {
-                await updateRunStatus(runId, 'RUNNING');
+                await updateRunStatusWithOwnership(runId, 'RUNNING', options);
                 queueEvent({
                     kind: 'STATUS',
                     message: 'Running test steps',
@@ -519,32 +608,33 @@ async function executeLocalBrowserRun(runId: string, controller: AbortController
 
         const resultSummary = JSON.stringify(result);
         if (result.status === 'PASS') {
-            await completeRun(runId, details.testCaseId, resultSummary);
+            await completeRun(runId, details.testCaseId, resultSummary, options);
             return;
         }
         if (result.status === 'CANCELLED') {
-            await cancelRun(runId);
+            await cancelRun(runId, options);
             return;
         }
 
-        await failRun(runId, details.testCaseId, result.error ?? 'Run failed', resultSummary);
+        await failRun(runId, details.testCaseId, result.error ?? 'Run failed', resultSummary, options);
     } catch (error) {
         await Promise.allSettled(Array.from(pendingArtifactUploads));
         await flushEvents();
         const errorMessage = error instanceof Error ? error.message : String(error);
-        await failRun(runId, details.testCaseId, errorMessage);
+        await failRun(runId, details.testCaseId, errorMessage, undefined, options);
     }
 }
 
-export function startLocalBrowserRun(runId: string): void {
-    if (activeExecutions.has(runId)) {
-        return;
+export function startLocalBrowserRun(runId: string, options?: LocalBrowserRunOptions): Promise<void> {
+    const existingExecution = activeExecutions.get(runId);
+    if (existingExecution) {
+        return existingExecution;
     }
 
     const controller = new AbortController();
     activeAbortControllers.set(runId, controller);
 
-    const execution = executeLocalBrowserRun(runId, controller)
+    const execution = executeLocalBrowserRun(runId, controller, options)
         .catch((error) => {
             logger.error('Local browser run execution failed', error);
         })
@@ -554,6 +644,7 @@ export function startLocalBrowserRun(runId: string): void {
         });
 
     activeExecutions.set(runId, execution);
+    return execution;
 }
 
 export function cancelLocalBrowserRun(runId: string): void {
