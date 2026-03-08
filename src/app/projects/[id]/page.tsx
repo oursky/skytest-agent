@@ -374,7 +374,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
                 {activeTab === 'test-cases' && (
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-                        {/* Desktop/Tablet */}
+                        {/* Large Screen/Tablet */}
                         <div className="hidden sm:relative sm:flex items-center gap-2">
                             <input
                                 type="text"

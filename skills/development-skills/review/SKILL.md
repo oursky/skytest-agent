@@ -53,7 +53,7 @@ Additional repo-specific starting points:
 - **Runners**: `src/lib/runners/`, `src/runners/`, runner APIs
 - **Storage**: Prisma schema, storage adapters, file APIs
 - **MCP**: `src/app/api/mcp/route.ts`, `src/lib/mcp/server.ts`
-- **Desktop**: `desktop/`
+- **CLI Runner**: `cli-runner/`
 
 ### 3. Two-pass review
 

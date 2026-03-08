@@ -56,7 +56,7 @@ Group **only the staged files** into **commit units** in **dependency order** (t
   3. storage / runner infrastructure
   4. API routes
   5. UI
-  6. desktop runner
+  6. cli-runner
   7. MCP
   8. docs / deployment
 - If a commit deletes obsolete compatibility code, keep that deletion in the same unit as the replacement when reviewable

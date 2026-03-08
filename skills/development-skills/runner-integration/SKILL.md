@@ -12,7 +12,7 @@ Use this skill when the task changes how work is claimed, executed, cancelled, o
 Use this skill when touching:
 - `src/lib/runners/`
 - `src/runners/`
-- `desktop/`
+- `cli-runner/`
 - run claim/heartbeat/complete/fail APIs
 - run submission capability matching
 - browser execution extraction
@@ -29,7 +29,7 @@ Read:
 
 There are only two runner classes this month:
 - hosted browser runner
-- macOS desktop runner
+- macOS cli-runner
 
 Capability rules:
 - browser-only runs may use hosted browser runner
