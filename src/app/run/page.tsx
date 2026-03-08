@@ -464,7 +464,6 @@ function RunPageContent() {
         if (!streamToken) {
             setResult(prev => ({
                 ...prev,
-                status: 'FAIL',
                 error: t('run.error.connectionLost')
             }));
             setIsLoading(false);

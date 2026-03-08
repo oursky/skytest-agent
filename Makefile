@@ -18,6 +18,7 @@ ENV_LOCAL ?= .env.local
 	db-push \
 	db-setup \
 	app \
+	maintenance \
 	playwright-install \
 	runner-reset \
 	bootstrap \
@@ -50,6 +51,9 @@ db-setup: db-generate db-push ## Generate Prisma client and apply schema
 app: ## Start the local Next.js control plane
 	$(NODE_PM) run dev -- --hostname $(CONTROL_PLANE_HOST) --port $(CONTROL_PLANE_PORT)
 
+maintenance: ## Start the runner maintenance worker loop
+	RUNNER_MAINTENANCE_ONCE=false $(NODE_PM) run runner:maintenance
+
 playwright-install: ## Install Playwright Chromium locally
 	$(NODE_PM) run playwright:install
 
@@ -61,10 +65,17 @@ bootstrap: ## Install deps, start local services, and apply the database schema
 	$(MAKE) services-up
 	$(MAKE) db-setup
 
-dev: ## Boot local services, apply schema, and start the web app
+dev: ## Boot local services, apply schema, and start the web app with runner maintenance
 	$(MAKE) services-up
 	$(MAKE) db-setup
-	$(MAKE) app
+	@RUNNER_MAINTENANCE_ONCE=false $(NODE_PM) run runner:maintenance & \
+	MAINT_PID=$$!; \
+	trap 'kill $$MAINT_PID >/dev/null 2>&1' EXIT INT TERM; \
+	$(NODE_PM) run dev -- --hostname $(CONTROL_PLANE_HOST) --port $(CONTROL_PLANE_PORT); \
+	EXIT_CODE=$$?; \
+	kill $$MAINT_PID >/dev/null 2>&1 || true; \
+	wait $$MAINT_PID 2>/dev/null || true; \
+	exit $$EXIT_CODE
 
 verify: ## Run lint, TypeScript compile, and dependency audit
 	$(NODE_PM) run verify

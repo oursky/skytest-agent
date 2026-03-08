@@ -69,6 +69,10 @@ make dev
 
 Open `http://localhost:3000`.
 
+`make dev` starts both:
+- Next.js control plane
+- runner maintenance worker (lease expiry + retention)
+
 ## Quick Local Workflows
 
 For local development, run the same infrastructure shape as hosted:
@@ -84,6 +88,7 @@ make dev
 Runtime processes:
 - Browser runs are executed automatically by the control plane per test run
 - Android runs require `skytest` runner lifecycle commands (source: `npm run skytest -- ...`, Homebrew: `skytest ...`)
+- Lease/retention maintenance runs automatically with `make dev`
 
 Runner env and model configuration:
 
