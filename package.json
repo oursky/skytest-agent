@@ -4,7 +4,7 @@
   "private": true,
   "workspaces": [
     "packages/*",
-    "desktop"
+    "cli-runner"
   ],
   "overrides": {
     "@hono/node-server": "1.19.10",

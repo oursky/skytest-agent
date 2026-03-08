@@ -29,7 +29,7 @@ Key invariants:
 - stream token scope checks must remain strict per run/resource
 - maintenance tasks should stay out of Next.js request lifecycle
 
-### 2. Runner Clients (`src/runners/browser-runner.ts`, `desktop/runner/index.ts`)
+### 2. Runner Clients (`src/runners/browser-runner.ts`, `cli-runner/runner/index.ts`)
 
 Responsibilities:
 
