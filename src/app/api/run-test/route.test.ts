@@ -78,8 +78,8 @@ describe('POST /api/run-test', () => {
             devices: [
                 {
                     id: 'device-1',
-                    deviceId: 'emulator-profile:Pixel_8',
-                    metadata: { inventoryKind: 'emulator-profile', emulatorProfileName: 'Pixel_8' },
+                    deviceId: 'emulator-profile:android_profile_a',
+                    metadata: { inventoryKind: 'emulator-profile', emulatorProfileName: 'android_profile_a' },
                     isAvailable: false,
                     isFresh: true,
                 },
@@ -150,7 +150,7 @@ describe('POST /api/run-test', () => {
                         name: 'Pixel 8 target',
                         deviceSelector: {
                             mode: 'emulator-profile',
-                            emulatorProfileName: 'Pixel_8',
+                            emulatorProfileName: 'android_profile_a',
                         },
                         appId: 'com.example.app',
                         clearAppState: true,
@@ -170,7 +170,7 @@ describe('POST /api/run-test', () => {
                 status: 'QUEUED',
                 requiredCapability: 'ANDROID',
                 requiredRunnerKind: 'MACOS_AGENT',
-                requestedDeviceId: 'emulator-profile:Pixel_8',
+                requestedDeviceId: 'emulator-profile:android_profile_a',
             },
         });
         expect(mocks.startLocalBrowserRun).not.toHaveBeenCalled();
@@ -178,7 +178,7 @@ describe('POST /api/run-test', () => {
             runId: 'run-1',
             status: 'QUEUED',
             requiredCapability: 'ANDROID',
-            requestedDeviceId: 'emulator-profile:Pixel_8',
+            requestedDeviceId: 'emulator-profile:android_profile_a',
         });
     });
 });

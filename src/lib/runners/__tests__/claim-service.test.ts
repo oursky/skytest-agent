@@ -29,7 +29,7 @@ describe('claimNextRunForRunner', () => {
                 id: 'run-1',
                 testCaseId: 'test-case-1',
                 requiredCapability: 'ANDROID',
-                requestedDeviceId: 'emulator-profile:Pixel_8',
+                requestedDeviceId: 'emulator-profile:android_profile_a',
                 leaseExpiresAt,
             }]);
 
@@ -44,7 +44,7 @@ describe('claimNextRunForRunner', () => {
             runId: 'run-1',
             testCaseId: 'test-case-1',
             requiredCapability: 'ANDROID',
-            requestedDeviceId: 'emulator-profile:Pixel_8',
+            requestedDeviceId: 'emulator-profile:android_profile_a',
             leaseExpiresAt,
         });
         expect(queryRaw).toHaveBeenCalledTimes(1);
