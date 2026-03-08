@@ -14,7 +14,7 @@ For local work, run MinIO as the S3-compatible service.
 ## Start Local Services
 
 ```bash
-npm run dev:services:up
+make services-up
 ```
 
 This starts:
@@ -26,13 +26,13 @@ This starts:
 To stop the services:
 
 ```bash
-npm run dev:services:down
+make services-down
 ```
 
 To follow local service logs:
 
 ```bash
-npm run dev:services:logs
+make services-logs
 ```
 
 ## Local Environment Variables
@@ -56,9 +56,7 @@ Keep the rest of your existing auth and app settings in `.env.local`.
 
 ```bash
 npm install
-npm run db:generate
-npx prisma db push
-npm run dev
+make dev
 ```
 
 Open `http://localhost:3000`.
@@ -72,9 +70,7 @@ The web app is now the control plane only. Runs are executed by runner processes
 Run this in a separate terminal after you have provisioned a `RUNNER_TOKEN` for a `HOSTED_BROWSER` runner:
 
 ```bash
-RUNNER_CONTROL_PLANE_URL="http://127.0.0.1:3000" \
-RUNNER_TOKEN="<browser-runner-token>" \
-npm run runner:browser
+BROWSER_RUNNER_TOKEN="<browser-runner-token>" make runner-browser
 ```
 
 ### macOS runner (required for Android test runs)
@@ -87,12 +83,10 @@ Quick start:
 Generate the pairing token from `Team Settings -> Runners` in the web app.
 
 ```bash
-RUNNER_CONTROL_PLANE_URL="http://127.0.0.1:3000" \
-RUNNER_PAIRING_TOKEN="<pairing-token>" \
-npm run runner:macos
+MACOS_RUNNER_PAIRING_TOKEN="<pairing-token>" make runner-macos
 ```
 
-After first successful pairing, you can restart without `RUNNER_PAIRING_TOKEN`.
+After first successful pairing, you can restart without `MACOS_RUNNER_PAIRING_TOKEN`.
 
 ## Verify MinIO
 
@@ -206,7 +200,7 @@ Run:
 npm run playwright:install
 ```
 
-Then restart `npm run runner:browser`.
+Then restart `make runner-browser`.
 
 ### Object storage errors in the app
 

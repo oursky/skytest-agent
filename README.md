@@ -49,12 +49,9 @@ It is self-hosted, open source, and uses your own API key.
 
 ```bash
 npm install
-npm run dev:services:up
 cp .env.example .env.local
-# Edit .env.local with your credentials and the local Postgres + MinIO values from docs/operators/local-dev.md
-npm run db:generate
-npx prisma db push
-npm run dev
+# Edit .env.local with your credentials
+make dev
 ```
 
 Open http://localhost:3000 and sign in. <br>
@@ -95,15 +92,12 @@ For local development, run the same infrastructure shape as hosted:
 Quick start:
 
 ```bash
-npm run dev:services:up
-npm run db:generate
-npx prisma db push
-npm run dev
+make dev
 ```
 
 Runtime processes:
-- Browser runs require `npm run runner:browser`
-- Android runs require `npm run runner:macos`
+- Browser runs require `make runner-browser` or `make dev-browser`
+- Android runs require `make runner-macos` or `make dev-macos`
 
 Detailed setup:
 - [Local Development Guide](./docs/operators/local-dev.md)
