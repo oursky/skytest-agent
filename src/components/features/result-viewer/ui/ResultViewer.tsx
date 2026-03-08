@@ -156,7 +156,11 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
                 lines.push('');
             }
             try {
-                const configJson = JSON.stringify(meta.config, null, 2);
+                const { browserConfig: testingTarget, ...restConfig } = meta.config;
+                const configForLogs = testingTarget
+                    ? { ...restConfig, testingTarget }
+                    : restConfig;
+                const configJson = JSON.stringify(configForLogs, null, 2);
                 lines.push('```json');
                 lines.push(configJson);
                 lines.push('```');

@@ -521,7 +521,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                         <>
                         <div className="divide-y divide-gray-100">
                             {paginatedTestCases.map((testCase) => {
-                                const currentStatus = testCase.testRuns[0]?.status || testCase.status;
+                                const latestRunStatus = testCase.testRuns[0]?.status;
+                                const currentStatus = latestRunStatus && isActiveRunStatus(latestRunStatus)
+                                    ? latestRunStatus
+                                    : testCase.status;
 
                                 return (
                                     <div key={testCase.id} className="flex flex-col md:grid md:grid-cols-24 gap-4 p-4 hover:bg-gray-50 transition-colors group">
