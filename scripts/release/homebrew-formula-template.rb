@@ -17,7 +17,7 @@ class Skytest < Formula
       #!/usr/bin/env bash
       set -euo pipefail
       export SKYTEST_STATE_DIR="#{state_dir}"
-      exec node --import "#{libexec}/node_modules/tsx/dist/loader.mjs" "#{libexec}/packages/skytest-cli/src/index.ts" "$@"
+      exec node --import "#{libexec}/node_modules/tsx/dist/loader.mjs" "#{libexec}/packages/cli-runner/src/index.ts" "$@"
     EOS
     chmod 0755, bin/"skytest"
   end
