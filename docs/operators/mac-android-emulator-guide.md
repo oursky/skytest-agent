@@ -178,4 +178,5 @@ Homebrew install cleanup:
 ```bash
 skytest reset --force
 brew uninstall skytest
+rm -rf "$(brew --prefix)/var/skytest"
 ```

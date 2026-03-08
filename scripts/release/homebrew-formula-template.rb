@@ -11,9 +11,12 @@ class Skytest < Formula
   def install
     libexec.install Dir["*"]
     system "npm", "install", "--prefix", libexec, "tsx@4.20.6"
+    state_dir = var/"skytest"
+    state_dir.mkpath
     (bin/"skytest").write <<~EOS
       #!/usr/bin/env bash
       set -euo pipefail
+      export SKYTEST_STATE_DIR="#{state_dir}"
       exec node --import "#{libexec}/node_modules/tsx/dist/loader.mjs" "#{libexec}/packages/skytest-cli/src/index.ts" "$@"
     EOS
     chmod 0755, bin/"skytest"
