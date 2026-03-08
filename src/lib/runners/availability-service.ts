@@ -67,6 +67,60 @@ function normalizeDeviceMetadata(value: unknown): Record<string, unknown> | null
     return value as Record<string, unknown>;
 }
 
+function readMetadataString(metadata: Record<string, unknown> | null, key: string): string | null {
+    if (!metadata) {
+        return null;
+    }
+    const value = metadata[key];
+    if (typeof value !== 'string') {
+        return null;
+    }
+    const normalized = value.trim();
+    return normalized.length > 0 ? normalized : null;
+}
+
+interface NormalizedRunnerDeviceRow {
+    id: string;
+    deviceId: string;
+    platform: string;
+    name: string;
+    state: string;
+    metadata: Record<string, unknown> | null;
+    lastSeenAt: Date;
+}
+
+function dedupeRunnerDevices(devices: ReadonlyArray<TeamRunnerWithDevices['devices'][number]>): NormalizedRunnerDeviceRow[] {
+    const normalizedDevices = devices.map((device) => ({
+        id: device.id,
+        deviceId: device.deviceId,
+        platform: device.platform,
+        name: device.name,
+        state: device.state,
+        metadata: normalizeDeviceMetadata(device.metadata),
+        lastSeenAt: device.lastSeenAt,
+    }));
+
+    const publishedEmulatorProfiles = new Set(
+        normalizedDevices
+            .map((device) => readMetadataString(device.metadata, 'inventoryKind') === 'emulator-profile'
+                ? readMetadataString(device.metadata, 'emulatorProfileName')
+                : null)
+            .filter((name): name is string => Boolean(name))
+    );
+
+    return normalizedDevices.filter((device) => {
+        const inventoryKind = readMetadataString(device.metadata, 'inventoryKind');
+        const kind = readMetadataString(device.metadata, 'kind');
+        const emulatorProfileName = readMetadataString(device.metadata, 'emulatorProfileName');
+        return !(
+            inventoryKind === 'connected-device'
+            && kind === 'emulator'
+            && emulatorProfileName !== null
+            && publishedEmulatorProfiles.has(emulatorProfileName)
+        );
+    });
+}
+
 interface TeamRunnerWithDevices {
     id: string;
     label: string;
@@ -133,7 +187,8 @@ export async function getTeamDevicesAvailability(teamId: string): Promise<TeamDe
             runnerConnected = true;
         }
 
-        for (const device of runner.devices) {
+        const dedupedDevices = dedupeRunnerDevices(runner.devices);
+        for (const device of dedupedDevices) {
             const deviceFresh = device.lastSeenAt.getTime() >= staleThresholdMs;
             const isAvailable = runnerFresh && deviceFresh && device.state === 'ONLINE';
 
@@ -151,7 +206,7 @@ export async function getTeamDevicesAvailability(teamId: string): Promise<TeamDe
                 name: device.name,
                 platform: device.platform,
                 state: device.state,
-                metadata: normalizeDeviceMetadata(device.metadata),
+                metadata: device.metadata,
                 lastSeenAt: device.lastSeenAt.toISOString(),
                 isFresh: deviceFresh,
                 isAvailable,
@@ -197,7 +252,8 @@ export async function getTeamRunnersOverview(teamId: string): Promise<TeamRunner
             }
         }
 
-        const availableDeviceCount = runner.devices.reduce((count, device) => {
+        const dedupedDevices = dedupeRunnerDevices(runner.devices);
+        const availableDeviceCount = dedupedDevices.reduce((count, device) => {
             const deviceFresh = device.lastSeenAt.getTime() >= staleThresholdMs;
             if (runnerFresh && deviceFresh && device.state === 'ONLINE') {
                 return count + 1;
@@ -214,7 +270,7 @@ export async function getTeamRunnersOverview(teamId: string): Promise<TeamRunner
             runnerVersion: runner.runnerVersion,
             lastSeenAt: runner.lastSeenAt.toISOString(),
             isFresh: runnerFresh,
-            deviceCount: runner.devices.length,
+            deviceCount: dedupedDevices.length,
             availableDeviceCount,
         };
     });

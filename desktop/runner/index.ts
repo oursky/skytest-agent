@@ -325,13 +325,23 @@ function buildEmulatorProfileDeviceId(profileName: string): string {
 
 async function syncDevices() {
     const inventory = await listAndroidDeviceInventory();
-    const connectedEmulatorProfiles = new Set(
+    const emulatorDevicesByProfile = new Map(
         inventory.connectedDevices
             .filter((device) => device.kind === 'emulator' && typeof device.emulatorProfileName === 'string' && device.emulatorProfileName.trim().length > 0)
-            .map((device) => device.emulatorProfileName as string)
+            .map((device) => [device.emulatorProfileName as string, device] as const)
     );
 
-    const connectedDevices = inventory.connectedDevices.map((device) => ({
+    const connectedDevices = inventory.connectedDevices
+        .filter((device) => {
+            if (device.kind !== 'emulator') {
+                return true;
+            }
+            if (typeof device.emulatorProfileName !== 'string') {
+                return true;
+            }
+            return device.emulatorProfileName.trim().length === 0;
+        })
+        .map((device) => ({
         deviceId: device.serial,
         platform: 'ANDROID' as const,
         name: formatAndroidDeviceDisplayName(device),
@@ -351,22 +361,31 @@ async function syncDevices() {
             transportId: device.transportId,
             usb: device.usb,
         },
-    }));
+        }));
 
     const emulatorProfiles = inventory.emulatorProfiles
-        .filter((profile) => !connectedEmulatorProfiles.has(profile.name))
-        .map((profile) => ({
+        .map((profile) => {
+            const connected = emulatorDevicesByProfile.get(profile.name);
+            const state = connected ? mapDeviceState(connected) : 'OFFLINE';
+
+            return {
             deviceId: buildEmulatorProfileDeviceId(profile.name),
             platform: 'ANDROID' as const,
             name: profile.displayName,
-            state: 'OFFLINE' as const,
+            state,
             metadata: {
                 inventoryKind: 'emulator-profile',
                 emulatorProfileName: profile.name,
                 apiLevel: profile.apiLevel,
                 screenSize: profile.screenSize,
+                connectedSerial: connected?.serial ?? null,
+                adbState: connected?.adbState ?? null,
+                manufacturer: connected?.manufacturer ?? null,
+                model: connected?.model ?? null,
+                androidVersion: connected?.androidVersion ?? null,
             },
-        }));
+            };
+        });
 
     const devices = [...connectedDevices, ...emulatorProfiles];
 
