@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseEnv } from 'node:util';
 import type { LocalRunnerCredential, LocalRunnerDescriptor, LocalRunnerMetadata } from '../state/types';
 import {
     clearRunnerPid,
@@ -29,6 +30,41 @@ const RUNNER_CREDENTIAL_REVOKED_FILE = 'credential-revoked.json';
 function resolveRepoRoot(): string {
     const currentFile = fileURLToPath(import.meta.url);
     return path.resolve(path.dirname(currentFile), '../../../..');
+}
+
+function resolveRunnerEnvFileCandidates(): string[] {
+    const env = process.env.NODE_ENV ?? 'development';
+    return [
+        '.env',
+        '.env.local',
+        `.env.${env}`,
+        `.env.${env}.local`,
+    ];
+}
+
+async function loadLocalRunnerEnv(): Promise<NodeJS.ProcessEnv> {
+    const repoRoot = resolveRepoRoot();
+    const files = resolveRunnerEnvFileCandidates();
+    const result: NodeJS.ProcessEnv = {
+        NODE_ENV: process.env.NODE_ENV,
+    };
+
+    for (const file of files) {
+        const filePath = path.join(repoRoot, file);
+        try {
+            const content = await readFile(filePath, 'utf8');
+            const parsed = parseEnv(content);
+            for (const [key, value] of Object.entries(parsed)) {
+                if (value !== undefined) {
+                    result[key] = value;
+                }
+            }
+        } catch {
+            // ignore missing or unreadable env file candidates
+        }
+    }
+
+    return result;
 }
 
 function normalizeBaseUrl(baseUrl: string): string {
@@ -189,11 +225,13 @@ export async function startRunner(localRunnerId: string): Promise<StartRunnerRes
     }
 
     const entryScriptPath = path.join(resolveRepoRoot(), 'cli-runner', 'runner', 'index.ts');
+    const loadedEnv = await loadLocalRunnerEnv();
     const pid = startDetachedRunnerProcess({
         entryScriptPath,
         workingDirectory: resolveRepoRoot(),
         logPath: runnerPaths.logPath,
         env: {
+            ...loadedEnv,
             ...process.env,
             RUNNER_CONTROL_PLANE_URL: metadata.controlPlaneBaseUrl,
             RUNNER_VERSION: DEFAULT_RUNNER_VERSION,
