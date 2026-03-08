@@ -3,7 +3,7 @@ import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { encrypt, decrypt, maskApiKey } from '@/lib/security/crypto';
-import { canManageTeamApiKey, isTeamMember } from '@/lib/security/permissions';
+import { isTeamMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:teams:ai-key');
 
@@ -29,7 +29,6 @@ export async function GET(
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const canEdit = await canManageTeamApiKey(userId, id);
         const team = await prisma.team.findUnique({
             where: { id },
             select: {
@@ -39,13 +38,12 @@ export async function GET(
         });
 
         if (!team || !team.openRouterKeyEncrypted) {
-            return NextResponse.json({ hasKey: false, maskedKey: null, canEdit, updatedAt: null });
+            return NextResponse.json({ hasKey: false, maskedKey: null, updatedAt: null });
         }
 
         return NextResponse.json({
             hasKey: true,
             maskedKey: maskApiKey(decrypt(team.openRouterKeyEncrypted)),
-            canEdit,
             updatedAt: team.openRouterKeyUpdatedAt,
         });
     } catch (error) {
@@ -70,7 +68,7 @@ export async function POST(
         }
 
         const { id } = await params;
-        if (!await canManageTeamApiKey(userId, id)) {
+        if (!await isTeamMember(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -117,7 +115,7 @@ export async function DELETE(
         }
 
         const { id } = await params;
-        if (!await canManageTeamApiKey(userId, id)) {
+        if (!await isTeamMember(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

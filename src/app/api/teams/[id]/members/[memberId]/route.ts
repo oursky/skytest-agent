@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
-import { canManageTeamMembers } from '@/lib/security/permissions';
+import { isTeamMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:teams:members:id');
 
@@ -22,7 +22,7 @@ export async function DELETE(
         }
 
         const { id, memberId } = await params;
-        if (!await canManageTeamMembers(userId, id)) {
+        if (!await isTeamMember(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
