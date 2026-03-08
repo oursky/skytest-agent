@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server';
 
-import { checkDatabaseHealth } from '@/lib/core/prisma';
 import { checkObjectStoreHealth } from '@/lib/storage/object-store';
 
-type ReadinessCheckStatus = 'ok' | 'error';
+type DependencyCheckStatus = 'ok' | 'error';
 
-interface ReadinessCheckResult {
-    status: ReadinessCheckStatus;
+interface DependencyCheckResult {
+    status: DependencyCheckStatus;
     error?: string;
 }
 
@@ -14,11 +13,10 @@ function getErrorMessage(error: unknown): string {
     if (error instanceof Error && error.message) {
         return error.message;
     }
-
     return 'Unknown error';
 }
 
-async function runReadinessCheck(check: () => Promise<void>): Promise<ReadinessCheckResult> {
+async function runCheck(check: () => Promise<void>): Promise<DependencyCheckResult> {
     try {
         await check();
         return { status: 'ok' };
@@ -31,23 +29,14 @@ async function runReadinessCheck(check: () => Promise<void>): Promise<ReadinessC
 }
 
 export async function GET() {
-    const [database, storage] = await Promise.all([
-        runReadinessCheck(checkDatabaseHealth),
-        runReadinessCheck(checkObjectStoreHealth),
-    ]);
-
-    const status = database.status === 'ok' ? 'ok' : 'error';
-    const dependenciesStatus = storage.status === 'ok' ? 'ok' : 'degraded';
+    const storage = await runCheck(checkObjectStoreHealth);
+    const status: DependencyCheckStatus = storage.status === 'ok' ? 'ok' : 'error';
 
     return NextResponse.json(
         {
             status,
-            dependenciesStatus,
             checks: {
-                database,
-                dependencies: {
-                    storage,
-                },
+                storage,
             },
         },
         { status: status === 'ok' ? 200 : 503 }

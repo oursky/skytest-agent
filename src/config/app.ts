@@ -2,6 +2,10 @@ const storageSignedUrlTtlSecondsValue = Number.parseInt(process.env.STORAGE_SIGN
 const storageSignedUrlTtlSeconds = Number.isFinite(storageSignedUrlTtlSecondsValue) && storageSignedUrlTtlSecondsValue > 0
     ? storageSignedUrlTtlSecondsValue
     : 900;
+const streamPollIntervalMsValue = Number.parseInt(process.env.STREAM_POLL_INTERVAL_MS ?? '', 10);
+const streamPollIntervalMs = Number.isFinite(streamPollIntervalMsValue) && streamPollIntervalMsValue > 0
+    ? streamPollIntervalMsValue
+    : 1_500;
 const runnerLeaseDurationSecondsValue = Number.parseInt(process.env.RUNNER_LEASE_DURATION_SECONDS ?? '', 10);
 const runnerLeaseDurationSeconds = Number.isFinite(runnerLeaseDurationSecondsValue) && runnerLeaseDurationSecondsValue > 0
     ? runnerLeaseDurationSecondsValue
@@ -52,7 +56,7 @@ export const config = {
     },
 
     stream: {
-        pollInterval: 500,
+        pollInterval: streamPollIntervalMs,
         sseConnectionTtlMs: 5 * 60 * 1000,
     },
 
