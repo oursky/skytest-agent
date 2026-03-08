@@ -84,8 +84,8 @@ export async function PUT(
             return NextResponse.json({ error: 'Project not found' }, { status: 404 });
         }
 
-        const canDelete = await canDeleteProject(userId, id);
-        if (!canDelete) {
+        const canManage = await canManageProject(userId, id);
+        if (!canManage) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -134,8 +134,8 @@ export async function DELETE(
             return NextResponse.json({ error: 'Project not found' }, { status: 404 });
         }
 
-        const canManage = await canManageProject(userId, id);
-        if (!canManage) {
+        const canDelete = await canDeleteProject(userId, id);
+        if (!canDelete) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

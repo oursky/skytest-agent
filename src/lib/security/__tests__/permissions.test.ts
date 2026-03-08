@@ -34,9 +34,9 @@ describe('team permissions', () => {
         teamMembershipFindUnique.mockReset();
     });
 
-    it('allows team admins to manage their project', async () => {
+    it('allows team members to manage their project', async () => {
         projectFindUnique.mockResolvedValueOnce({ teamId: 'org-1' });
-        teamMembershipFindUnique.mockResolvedValueOnce({ role: 'ADMIN' });
+        teamMembershipFindUnique.mockResolvedValueOnce({ role: 'MEMBER' });
 
         await expect(canManageProject('user-1', 'project-1')).resolves.toBe(true);
         expect(teamMembershipFindUnique).toHaveBeenCalledWith({
@@ -50,8 +50,8 @@ describe('team permissions', () => {
         });
     });
 
-    it('allows team admins to create projects', async () => {
-        teamMembershipFindUnique.mockResolvedValueOnce({ role: 'ADMIN' });
+    it('allows team members to create projects', async () => {
+        teamMembershipFindUnique.mockResolvedValueOnce({ role: 'MEMBER' });
 
         await expect(canCreateProject('user-1', 'org-1')).resolves.toBe(true);
     });
@@ -62,11 +62,10 @@ describe('team permissions', () => {
         await expect(canDeleteTeam('user-1', 'org-1')).resolves.toBe(true);
     });
 
-    it('allows members to manage projects', async () => {
-        projectFindUnique.mockResolvedValueOnce({ teamId: 'org-1' });
+    it('allows members to delete their team', async () => {
         teamMembershipFindUnique.mockResolvedValueOnce({ role: 'MEMBER' });
 
-        await expect(canManageProject('user-1', 'project-1')).resolves.toBe(true);
+        await expect(canDeleteTeam('user-1', 'org-1')).resolves.toBe(true);
     });
 
     it('only allows owners to delete projects', async () => {
@@ -76,10 +75,10 @@ describe('team permissions', () => {
         await expect(canDeleteProject('user-1', 'project-1')).resolves.toBe(true);
     });
 
-    it('prevents admins from renaming teams', async () => {
-        teamMembershipFindUnique.mockResolvedValueOnce({ role: 'ADMIN' });
+    it('allows members to rename teams', async () => {
+        teamMembershipFindUnique.mockResolvedValueOnce({ role: 'MEMBER' });
 
-        await expect(canRenameTeam('user-1', 'org-1')).resolves.toBe(false);
+        await expect(canRenameTeam('user-1', 'org-1')).resolves.toBe(true);
     });
 
     it('returns centralized owner capabilities', async () => {

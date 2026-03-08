@@ -44,22 +44,13 @@ const TEAM_ROLE_CAPABILITIES: Record<TeamRole, TeamCapabilities> = {
         canDeleteTeam: true,
         canTransferOwnership: true,
     },
-    ADMIN: {
+    MEMBER: {
         canManageProjects: true,
         canDeleteProjects: false,
         canManageMembers: true,
         canManageApiKey: true,
-        canRenameTeam: false,
-        canDeleteTeam: false,
-        canTransferOwnership: false,
-    },
-    MEMBER: {
-        canManageProjects: true,
-        canDeleteProjects: false,
-        canManageMembers: false,
-        canManageApiKey: false,
-        canRenameTeam: false,
-        canDeleteTeam: false,
+        canRenameTeam: true,
+        canDeleteTeam: true,
         canTransferOwnership: false,
     },
 };
