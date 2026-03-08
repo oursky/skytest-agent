@@ -836,6 +836,8 @@ async function setupExecutionTargets(
 
                 const agent = new PlaywrightAgent(page, {
                     replanningCycleLimit: 15,
+                    generateReport: config.test.midscene.generateReport,
+                    autoPrintReportMsg: config.test.midscene.autoPrintReportMsg,
                     onTaskStartTip: async (tip) => {
                         if (actionCounter) {
                             actionCounter.count++;

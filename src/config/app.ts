@@ -30,6 +30,8 @@ const runnerArtifactHardDeleteBatchSizeValue = Number.parseInt(process.env.RUNNE
 const runnerArtifactHardDeleteBatchSize = Number.isFinite(runnerArtifactHardDeleteBatchSizeValue) && runnerArtifactHardDeleteBatchSizeValue > 0
     ? runnerArtifactHardDeleteBatchSizeValue
     : 50;
+const midsceneGenerateReport = process.env.SKYTEST_MIDSCENE_GENERATE_REPORT === 'true';
+const midsceneAutoPrintReportMsg = process.env.SKYTEST_MIDSCENE_AUTO_PRINT_REPORT_MSG === 'true';
 
 export const config = {
     app: {
@@ -144,6 +146,10 @@ export const config = {
         playwrightCode: {
             statementTimeoutMs: 30000,
             syncTimeoutMs: 5000,
+        },
+        midscene: {
+            generateReport: midsceneGenerateReport,
+            autoPrintReportMsg: midsceneAutoPrintReportMsg,
         },
     },
 

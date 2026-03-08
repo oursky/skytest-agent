@@ -1,4 +1,5 @@
 import { createLogger } from '@/lib/core/logger';
+import { config as appConfig } from '@/config/app';
 import { emulatorPool, type EmulatorHandle, type EmulatorPoolStatusItem, type EmulatorState } from '@/lib/android/emulator-pool';
 import { ReliableAdb } from '@/lib/android/adb-reliable';
 import { resolveAndroidToolPath } from '@/lib/android/sdk';
@@ -83,7 +84,12 @@ interface MidsceneAndroidDeviceConstructor {
 interface MidsceneAndroidAgentConstructor {
     new (
         device: MidsceneAndroidDevice,
-        options?: { groupName?: string; aiActionContext?: string }
+        options?: {
+            groupName?: string;
+            aiActionContext?: string;
+            generateReport?: boolean;
+            autoPrintReportMsg?: boolean;
+        }
     ): AndroidAgent;
 }
 
@@ -488,6 +494,8 @@ export class AndroidDeviceManager {
             };
             instance.agent = new runtimeModule.AndroidAgent(runtimeDevice, {
                 groupName: `${projectId}-device-${instance.serial}`,
+                generateReport: appConfig.test.midscene.generateReport,
+                autoPrintReportMsg: appConfig.test.midscene.autoPrintReportMsg,
             });
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);

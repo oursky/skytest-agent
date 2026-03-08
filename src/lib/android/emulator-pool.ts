@@ -85,7 +85,12 @@ interface MidsceneAndroidDeviceConstructor {
 interface MidsceneAndroidAgentConstructor {
     new (
         device: MidsceneAndroidDevice,
-        options?: { groupName?: string; aiActionContext?: string }
+        options?: {
+            groupName?: string;
+            aiActionContext?: string;
+            generateReport?: boolean;
+            autoPrintReportMsg?: boolean;
+        }
     ): AndroidAgent;
 }
 
@@ -419,6 +424,8 @@ export class EmulatorPool {
             };
             instance.agent = new runtimeModule.AndroidAgent(runtimeDevice, {
                 groupName: `${instance.currentProjectId ?? 'global'}-${instance.avdName}-${instance.port}`,
+                generateReport: appConfig.test.midscene.generateReport,
+                autoPrintReportMsg: appConfig.test.midscene.autoPrintReportMsg,
             });
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
