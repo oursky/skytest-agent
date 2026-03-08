@@ -82,16 +82,21 @@ export async function appendRunEvents(input: {
         }
 
         const startSequence = ownedRun.nextEventSequence;
+        const runUpdateData: Prisma.TestRunUpdateManyMutationInput = {
+            nextEventSequence: startSequence + input.events.length,
+            lastEventAt: now,
+        };
+        if (ownedRun.status === 'PREPARING' && input.events.length > 0) {
+            runUpdateData.status = 'RUNNING';
+        }
+
         const updateResult = await tx.testRun.updateMany({
             where: {
                 id: input.runId,
                 assignedRunnerId: input.runnerId,
                 nextEventSequence: startSequence,
             },
-            data: {
-                nextEventSequence: startSequence + input.events.length,
-                lastEventAt: now,
-            },
+            data: runUpdateData,
         });
 
         if (updateResult.count !== 1) {

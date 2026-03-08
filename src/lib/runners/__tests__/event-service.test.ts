@@ -117,6 +117,36 @@ describe('event-service', () => {
         expect(result).toEqual({ accepted: 2, nextSequence: 6 });
     });
 
+    it('promotes PREPARING runs to RUNNING when events arrive', async () => {
+        findUniqueRun.mockResolvedValueOnce({
+            id: 'run-1',
+            testCaseId: 'tc-1',
+            status: 'PREPARING',
+            assignedRunnerId: 'runner-1',
+            leaseExpiresAt: new Date(Date.now() + 10_000),
+            nextEventSequence: 1,
+        });
+
+        await appendRunEvents({
+            runId: 'run-1',
+            runnerId: 'runner-1',
+            events: [{ kind: 'LOG', message: 'running' }],
+        });
+
+        expect(updateManyRun).toHaveBeenCalledWith({
+            where: {
+                id: 'run-1',
+                assignedRunnerId: 'runner-1',
+                nextEventSequence: 1,
+            },
+            data: {
+                status: 'RUNNING',
+                nextEventSequence: 2,
+                lastEventAt: expect.any(Date),
+            },
+        });
+    });
+
     it('rejects appending when run ownership is invalid', async () => {
         findUniqueRun.mockResolvedValueOnce({
             id: 'run-1',
