@@ -446,7 +446,7 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
                                                                         setUnpairCandidate(runner);
                                                                     }}
                                                                     disabled={pendingUnpairRunnerId !== null}
-                                                                    className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-60"
+                                                                    className="text-sm font-medium text-red-600 hover:text-red-700 disabled:cursor-not-allowed disabled:text-red-300"
                                                                 >
                                                                     {pendingUnpairRunnerId === runner.id
                                                                         ? t('team.runners.unpair.loading')
