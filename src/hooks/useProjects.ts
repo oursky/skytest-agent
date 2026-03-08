@@ -9,7 +9,7 @@ export function useProjects(
     enabled = true
 ) {
     const [projects, setProjects] = useState<Project[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(enabled);
     const [error, setError] = useState<string | null>(null);
 
     const fetchProjects = useCallback(async () => {
