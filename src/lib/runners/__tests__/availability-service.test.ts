@@ -69,4 +69,79 @@ describe('getTeamDevicesAvailability', () => {
         });
         expect(result.availableDeviceCount).toBe(1);
     });
+
+    it('hides connected emulator serial rows even when profile rows are missing', async () => {
+        const now = new Date();
+
+        runnerFindMany.mockResolvedValue([
+            {
+                id: 'runner-1',
+                label: 'Local macOS Runner',
+                kind: 'MACOS_AGENT',
+                status: 'ONLINE',
+                protocolVersion: '1.0.0',
+                runnerVersion: '0.1.0',
+                lastSeenAt: now,
+                devices: [
+                    {
+                        id: 'device-connected-emulator',
+                        deviceId: 'emulator-5556',
+                        platform: 'ANDROID',
+                        name: 'sdk gphone64 arm64',
+                        state: 'OFFLINE',
+                        metadata: {
+                            inventoryKind: 'connected-device',
+                            kind: 'emulator',
+                        },
+                        lastSeenAt: now,
+                    },
+                ],
+            },
+        ]);
+
+        const result = await getTeamDevicesAvailability('team-hide-serial-emulator');
+
+        expect(result.devices).toHaveLength(0);
+        expect(result.availableDeviceCount).toBe(0);
+    });
+
+    it('keeps connected physical device rows visible', async () => {
+        const now = new Date();
+
+        runnerFindMany.mockResolvedValue([
+            {
+                id: 'runner-1',
+                label: 'Local macOS Runner',
+                kind: 'MACOS_AGENT',
+                status: 'ONLINE',
+                protocolVersion: '1.0.0',
+                runnerVersion: '0.1.0',
+                lastSeenAt: now,
+                devices: [
+                    {
+                        id: 'device-physical',
+                        deviceId: 'R58M1234ABC',
+                        platform: 'ANDROID',
+                        name: 'Samsung S24',
+                        state: 'ONLINE',
+                        metadata: {
+                            inventoryKind: 'connected-device',
+                            kind: 'physical',
+                        },
+                        lastSeenAt: now,
+                    },
+                ],
+            },
+        ]);
+
+        const result = await getTeamDevicesAvailability('team-keep-physical-device');
+
+        expect(result.devices).toHaveLength(1);
+        expect(result.devices[0]).toMatchObject({
+            deviceId: 'R58M1234ABC',
+            name: 'Samsung S24',
+            state: 'ONLINE',
+        });
+        expect(result.availableDeviceCount).toBe(1);
+    });
 });

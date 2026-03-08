@@ -90,24 +90,6 @@ interface NormalizedRunnerDeviceRow {
     lastSeenAt: Date;
 }
 
-function readEmulatorProfileNameFromDeviceId(deviceId: string): string | null {
-    if (!deviceId.startsWith(EMULATOR_PROFILE_DEVICE_PREFIX)) {
-        return null;
-    }
-    const suffix = deviceId.slice(EMULATOR_PROFILE_DEVICE_PREFIX.length).trim();
-    return suffix.length > 0 ? suffix : null;
-}
-
-function resolveEmulatorProfileName(device: NormalizedRunnerDeviceRow): string | null {
-    return readMetadataString(device.metadata, 'emulatorProfileName')
-        ?? readEmulatorProfileNameFromDeviceId(device.deviceId);
-}
-
-function isEmulatorProfileDevice(device: NormalizedRunnerDeviceRow): boolean {
-    return readMetadataString(device.metadata, 'inventoryKind') === 'emulator-profile'
-        || readEmulatorProfileNameFromDeviceId(device.deviceId) !== null;
-}
-
 function isConnectedEmulatorDevice(device: NormalizedRunnerDeviceRow): boolean {
     const inventoryKind = readMetadataString(device.metadata, 'inventoryKind');
     const kind = readMetadataString(device.metadata, 'kind');
@@ -126,21 +108,8 @@ function dedupeRunnerDevices(devices: ReadonlyArray<TeamRunnerWithDevices['devic
         lastSeenAt: device.lastSeenAt,
     }));
 
-    const publishedEmulatorProfiles = new Set(
-        normalizedDevices
-            .map((device) => isEmulatorProfileDevice(device)
-                ? resolveEmulatorProfileName(device)
-                : null)
-            .filter((name): name is string => Boolean(name))
-    );
-
     return normalizedDevices.filter((device) => {
-        const emulatorProfileName = resolveEmulatorProfileName(device);
-        return !(
-            isConnectedEmulatorDevice(device)
-            && emulatorProfileName !== null
-            && publishedEmulatorProfiles.has(emulatorProfileName)
-        );
+        return !isConnectedEmulatorDevice(device);
     });
 }
 
