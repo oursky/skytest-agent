@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { readRunnerLog } from '../runtime/runner-manager';
+import { subscribeTerminationSignals } from '../runtime/signal';
 import { resolveRunnerPaths } from '../state/store';
 import { printValue } from './output';
 
@@ -31,12 +32,17 @@ export async function runLogsRunnerCommand(options: LogsRunnerOptions): Promise<
     const tailCommand = spawn('tail', ['-n', String(tailLineCount), '-f', logPath], {
         stdio: 'inherit',
     });
+    const signalSubscription = subscribeTerminationSignals(() => {
+        tailCommand.kill('SIGTERM');
+    });
 
     await new Promise<void>((resolve, reject) => {
         tailCommand.on('error', (error) => {
+            signalSubscription.unsubscribe();
             reject(error);
         });
         tailCommand.on('exit', (code) => {
+            signalSubscription.unsubscribe();
             if (code === 0) {
                 resolve();
                 return;

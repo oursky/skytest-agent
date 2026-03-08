@@ -190,6 +190,7 @@ export async function startRunner(localRunnerId: string): Promise<StartRunnerRes
             RUNNER_TOKEN: credential.runnerToken,
             SKYTEST_RUNNER_STATE_DIR: runnerPaths.runtimeStateDir,
             SKYTEST_RUNNER_DISABLE_KEYCHAIN: '1',
+            SKYTEST_RUNNER_QUIET: '1',
         },
     });
 
