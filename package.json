@@ -33,7 +33,7 @@
     "dev:services:logs": "docker compose -f docker-compose.local.yml logs -f postgres minio createbuckets",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint && npx tsc --noEmit",
+    "lint": "npm run db:generate && eslint && npx tsc --noEmit --incremental false",
     "audit": "npm audit --audit-level=moderate --package-lock-only",
     "verify": "npm run lint && npm run audit",
     "db:generate": "prisma generate",

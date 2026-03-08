@@ -11,6 +11,16 @@ enum TeamRole {
   MEMBER
 }
 
+model RateLimitWindow {
+  bucketKey     String
+  windowStartMs BigInt
+  count         Int
+  updatedAt     DateTime @default(now())
+
+  @@id([bucketKey, windowStartMs])
+  @@index([updatedAt])
+}
+
 model User {
   id                String          @id @default(cuid())
   authId            String          @unique

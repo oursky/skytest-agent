@@ -79,7 +79,10 @@ bootstrap: ## Install deps, start local services, and apply the database schema
 dev: ## Boot local services, apply schema, and start the web app with runner maintenance
 	$(MAKE) services-up
 	$(MAKE) db-setup
-	@RUNNER_MAINTENANCE_ONCE=false $(NODE_PM) run runner:maintenance & \
+	@set -a; \
+	[ -f .env.local ] && . ./.env.local; \
+	set +a; \
+	RUNNER_MAINTENANCE_ONCE=false $(NODE_PM) run runner:maintenance & \
 	MAINT_PID=$$!; \
 	$(NODE_PM) run runner:browser & \
 	BROWSER_PID=$$!; \

@@ -32,8 +32,8 @@ jobs:
       - name: Test
         run: npm test
 
-      - name: Setup Helm
-        uses: azure/setup-helm@v4
+      - name: Install Helm
+        run: curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
       - name: Helm lint
         run: helm lint deploy/helm
