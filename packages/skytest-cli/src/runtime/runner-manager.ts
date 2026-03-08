@@ -26,6 +26,8 @@ const DEFAULT_CONTROL_PLANE_URL = process.env.RUNNER_CONTROL_PLANE_URL ?? 'http:
 const DEFAULT_RUNNER_VERSION = process.env.RUNNER_VERSION ?? '0.1.0';
 const STOP_TIMEOUT_MS = 5_000;
 const RUNNER_CREDENTIAL_REVOKED_FILE = 'credential-revoked.json';
+const RUNNER_ENV_FILE_ENV = 'SKYTEST_RUNNER_ENV_FILE';
+type RunnerEnv = Record<string, string | undefined>;
 
 function resolveRepoRoot(): string {
     const currentFile = fileURLToPath(import.meta.url);
@@ -33,24 +35,44 @@ function resolveRepoRoot(): string {
 }
 
 function resolveRunnerEnvFileCandidates(): string[] {
+    const configuredEnvFile = process.env[RUNNER_ENV_FILE_ENV]?.trim();
     const env = process.env.NODE_ENV ?? 'development';
-    return [
-        '.env',
-        '.env.local',
-        `.env.${env}`,
-        `.env.${env}.local`,
-    ];
+    const repoRoot = resolveRepoRoot();
+    const defaultUserEnvFile = path.join(os.homedir(), '.config', 'skytest', 'runner.env');
+    const candidates = [
+        configuredEnvFile ? path.resolve(configuredEnvFile) : null,
+        defaultUserEnvFile,
+        path.join(repoRoot, '.env'),
+        path.join(repoRoot, '.env.local'),
+        path.join(repoRoot, `.env.${env}`),
+        path.join(repoRoot, `.env.${env}.local`),
+    ].filter((item): item is string => Boolean(item));
+
+    return Array.from(new Set(candidates));
 }
 
-async function loadLocalRunnerEnv(): Promise<NodeJS.ProcessEnv> {
-    const repoRoot = resolveRepoRoot();
+function resolveMidsceneDefaultEnv(): RunnerEnv {
+    return {
+        MIDSCENE_MODEL_BASE_URL: 'https://openrouter.ai/api/v1',
+        MIDSCENE_MODEL_NAME: 'bytedance-seed/seed-1.6-flash',
+        MIDSCENE_MODEL_FAMILY: 'doubao-vision',
+        MIDSCENE_PLANNING_MODEL_BASE_URL: 'https://openrouter.ai/api/v1',
+        MIDSCENE_PLANNING_MODEL_NAME: 'qwen/qwen3.5-35b-a3b',
+        MIDSCENE_PLANNING_MODEL_FAMILY: 'qwen3.5',
+        MIDSCENE_INSIGHT_MODEL_BASE_URL: 'https://openrouter.ai/api/v1',
+        MIDSCENE_INSIGHT_MODEL_NAME: 'qwen/qwen3.5-35b-a3b',
+        MIDSCENE_INSIGHT_MODEL_FAMILY: 'qwen3.5',
+        MIDSCENE_MODEL_TEMPERATURE: '0.2',
+    };
+}
+
+async function loadLocalRunnerEnv(): Promise<RunnerEnv> {
     const files = resolveRunnerEnvFileCandidates();
-    const result: NodeJS.ProcessEnv = {
-        NODE_ENV: process.env.NODE_ENV,
+    const result: RunnerEnv = {
+        ...resolveMidsceneDefaultEnv(),
     };
 
-    for (const file of files) {
-        const filePath = path.join(repoRoot, file);
+    for (const filePath of files) {
         try {
             const content = await readFile(filePath, 'utf8');
             const parsed = parseEnv(content);
@@ -64,7 +86,19 @@ async function loadLocalRunnerEnv(): Promise<NodeJS.ProcessEnv> {
         }
     }
 
-    return result;
+    return {
+        ...result,
+        MIDSCENE_MODEL_BASE_URL: process.env.SKYTEST_MIDSCENE_MODEL_BASE_URL?.trim() || result.MIDSCENE_MODEL_BASE_URL,
+        MIDSCENE_MODEL_NAME: process.env.SKYTEST_MIDSCENE_MODEL_NAME?.trim() || result.MIDSCENE_MODEL_NAME,
+        MIDSCENE_MODEL_FAMILY: process.env.SKYTEST_MIDSCENE_MODEL_FAMILY?.trim() || result.MIDSCENE_MODEL_FAMILY,
+        MIDSCENE_PLANNING_MODEL_BASE_URL: process.env.SKYTEST_MIDSCENE_PLANNING_MODEL_BASE_URL?.trim() || result.MIDSCENE_PLANNING_MODEL_BASE_URL,
+        MIDSCENE_PLANNING_MODEL_NAME: process.env.SKYTEST_MIDSCENE_PLANNING_MODEL_NAME?.trim() || result.MIDSCENE_PLANNING_MODEL_NAME,
+        MIDSCENE_PLANNING_MODEL_FAMILY: process.env.SKYTEST_MIDSCENE_PLANNING_MODEL_FAMILY?.trim() || result.MIDSCENE_PLANNING_MODEL_FAMILY,
+        MIDSCENE_INSIGHT_MODEL_BASE_URL: process.env.SKYTEST_MIDSCENE_INSIGHT_MODEL_BASE_URL?.trim() || result.MIDSCENE_INSIGHT_MODEL_BASE_URL,
+        MIDSCENE_INSIGHT_MODEL_NAME: process.env.SKYTEST_MIDSCENE_INSIGHT_MODEL_NAME?.trim() || result.MIDSCENE_INSIGHT_MODEL_NAME,
+        MIDSCENE_INSIGHT_MODEL_FAMILY: process.env.SKYTEST_MIDSCENE_INSIGHT_MODEL_FAMILY?.trim() || result.MIDSCENE_INSIGHT_MODEL_FAMILY,
+        MIDSCENE_MODEL_TEMPERATURE: process.env.SKYTEST_MIDSCENE_MODEL_TEMPERATURE?.trim() || result.MIDSCENE_MODEL_TEMPERATURE,
+    };
 }
 
 function normalizeBaseUrl(baseUrl: string): string {

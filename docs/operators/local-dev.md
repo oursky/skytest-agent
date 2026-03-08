@@ -77,6 +77,10 @@ Runtime processes:
 - Browser runs are executed automatically by the control plane per test run
 - Android runs require `skytest` runner lifecycle commands (source: `npm run skytest -- ...`, Homebrew: `skytest ...`)
 
+Runner env and model configuration:
+
+- [CLI Runner Environment Configuration](./cli-runner-env.md)
+
 CLI runner management from source:
 
 ```bash
@@ -257,6 +261,19 @@ Run:
 ```bash
 npm run playwright:install
 ```
+
+### AI steps fail with missing `MIDSCENE_MODEL_NAME` (or similar model config error)
+
+Restart the runner after applying env updates:
+
+```bash
+npm run skytest -- stop runner <local-runner-id>
+npm run skytest -- start runner <local-runner-id>
+```
+
+For env resolution and override locations, see:
+
+- [CLI Runner Environment Configuration](./cli-runner-env.md)
 
 Then retry the browser run from the web UI.
 

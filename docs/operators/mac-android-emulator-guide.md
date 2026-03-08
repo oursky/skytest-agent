@@ -11,6 +11,7 @@ Architecture reminder:
 Related docs:
 
 - [`docs/operators/local-dev.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/local-dev.md)
+- [`docs/operators/cli-runner-env.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/cli-runner-env.md)
 - [`docs/operators/android-runtime-deployment-checklist.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/android-runtime-deployment-checklist.md)
 - [`docs/maintainers/android-runtime-maintenance.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/android-runtime-maintenance.md)
 
@@ -154,11 +155,18 @@ emulator -list-avds
 - Pairing token expired (default 10 minutes); generate a new one.
 - Confirm `RUNNER_CONTROL_PLANE_URL` points to the running control plane.
 
+If the runner was unpaired from web portal, local CLI entries are cleaned up automatically after the next unauthorized (`401`) runner call.
+
 ### Runner connected but no devices shown
 
 - Check Android SDK binaries are in PATH for the runner process.
 - Run `adb devices -l` and verify at least one device is in `device` state.
 - Ensure emulator/device is online and not unauthorized/offline.
+
+### AI step fails with model config error (for example missing `MIDSCENE_MODEL_NAME`)
+
+- Restart the runner process so latest env config is applied.
+- See [CLI Runner Environment Configuration](https://github.com/oursky/skytest-agent/blob/main/docs/operators/cli-runner-env.md) for fixed defaults and override options.
 
 ### Selected device cannot run
 
