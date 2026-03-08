@@ -3,6 +3,8 @@ import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { isProjectMember } from '@/lib/security/permissions';
+import { isTestEvent } from '@/lib/runtime/test-events';
+import type { TestEvent } from '@/types';
 
 const logger = createLogger('api:test-runs:id');
 
@@ -44,6 +46,18 @@ export async function GET(
         }
 
         const files = testRun.files || [];
+        const eventRows = await prisma.testRunEvent.findMany({
+            where: { runId: id },
+            orderBy: { sequence: 'asc' },
+            select: { payload: true },
+        });
+        const events: TestEvent[] = eventRows.reduce<TestEvent[]>((accumulator, eventRow) => {
+            const payload = eventRow.payload as unknown;
+            if (isTestEvent(payload)) {
+                accumulator.push(payload);
+            }
+            return accumulator;
+        }, []);
 
         return NextResponse.json({
             id: testRun.id,
@@ -56,7 +70,8 @@ export async function GET(
             completedAt: testRun.completedAt,
             createdAt: testRun.createdAt,
             testCaseId: testRun.testCaseId,
-            files
+            files,
+            events,
         });
     } catch (error) {
         logger.error('Failed to fetch test run', error);
