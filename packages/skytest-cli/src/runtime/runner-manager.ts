@@ -36,7 +36,7 @@ function normalizeBaseUrl(baseUrl: string): string {
 
 function defaultRunnerLabel(localRunnerId: string): string {
     const host = os.hostname().trim() || 'host';
-    return `SkyTest CLI Runner ${host}-${localRunnerId}`;
+    return `${host}-${localRunnerId}`;
 }
 
 function maskRunnerToken(runnerToken: string): string {
