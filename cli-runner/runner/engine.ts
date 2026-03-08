@@ -5,7 +5,7 @@ import {
     RUNNER_PROTOCOL_CURRENT_VERSION,
     claimJobResponseSchema,
     completeRunRequestSchema,
-    completeRunResponseSchema,
+    runCompletionResponseSchema,
     deviceSyncRequestSchema,
     deviceSyncResponseSchema,
     failRunRequestSchema,
@@ -608,7 +608,7 @@ async function markRunComplete(runId: string, result?: string) {
         result,
     });
     const response = await postRunnerApi(`/api/runners/v1/jobs/${runId}/complete`, payload);
-    completeRunResponseSchema.parse(response);
+    runCompletionResponseSchema.parse(response);
 }
 
 async function markRunFailed(runId: string, error: string, result?: string) {
@@ -619,7 +619,7 @@ async function markRunFailed(runId: string, error: string, result?: string) {
         result,
     });
     const response = await postRunnerApi(`/api/runners/v1/jobs/${runId}/fail`, payload);
-    completeRunResponseSchema.parse(response);
+    runCompletionResponseSchema.parse(response);
 }
 
 async function executeClaimedRun(runId: string) {

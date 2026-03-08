@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Project } from '@/types';
-import { API_ENDPOINTS } from '@/lib/core/constants';
+
+const PROJECTS_API_ENDPOINT = '/api/projects';
 
 export function useProjects(
     getAccessToken?: () => Promise<string | null>,
@@ -8,7 +9,7 @@ export function useProjects(
     enabled = true
 ) {
     const [projects, setProjects] = useState<Project[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(enabled);
     const [error, setError] = useState<string | null>(null);
 
     const fetchProjects = useCallback(async () => {
@@ -28,7 +29,7 @@ export function useProjects(
                 }
             }
 
-            const url = new URL(API_ENDPOINTS.PROJECTS, window.location.origin);
+            const url = new URL(PROJECTS_API_ENDPOINT, window.location.origin);
             if (teamId) {
                 url.searchParams.set('teamId', teamId);
             }

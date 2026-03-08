@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
+import { getRateLimitKey, isRateLimited } from '@/lib/runners/rate-limit';
 
 export const dynamic = 'force-dynamic';
+const AUTHGEAR_PROXY_RATE_LIMIT = { limit: 60, windowMs: 60_000 };
 
 function getTargetUrl(request: Request): { targetUrl: string | null; errorResponse?: NextResponse } {
   const appUrl = new URL(request.url);
@@ -51,6 +53,11 @@ function getTargetUrl(request: Request): { targetUrl: string | null; errorRespon
 }
 
 async function proxy(request: Request): Promise<NextResponse> {
+  const rateLimitKey = getRateLimitKey(request, 'authgear-proxy');
+  if (await isRateLimited(rateLimitKey, AUTHGEAR_PROXY_RATE_LIMIT)) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+  }
+
   const { targetUrl, errorResponse } = getTargetUrl(request);
   if (!targetUrl || errorResponse) return errorResponse!;
 

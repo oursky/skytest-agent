@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/auth-provider';
 import { CustomSelect, Modal } from '@/components/shared';
 import { LOCALE_META, Locale, useI18n } from '@/i18n';
@@ -11,7 +11,6 @@ import { useCurrentTeam } from '@/hooks/useCurrentTeam';
 export default function Header() {
     const { isLoggedIn, isLoading: isAuthLoading, user, logout, openSettings, login, getAccessToken } = useAuth();
     const router = useRouter();
-    const pathname = usePathname();
     const { locale, setLocale, t } = useI18n();
     const { teams, refresh: refreshTeams } = useTeams(getAccessToken, isLoggedIn);
     const { currentTeam, setCurrentTeam } = useCurrentTeam(getAccessToken, isLoggedIn);
@@ -43,9 +42,6 @@ export default function Header() {
     const handleTeamChange = async (teamId: string) => {
         try {
             await setCurrentTeam(teamId);
-            if (pathname === '/projects' || pathname === '/teams') {
-                router.refresh();
-            }
         } catch (error) {
             console.error('Failed to switch team', error);
         }
@@ -79,9 +75,7 @@ export default function Header() {
             await setCurrentTeam(data.id);
             setNewTeamName('');
             setIsCreateTeamOpen(false);
-            if (pathname === '/projects' || pathname === '/teams') {
-                router.refresh();
-            }
+            router.push(`/projects?teamId=${encodeURIComponent(data.id)}`);
         } catch (error) {
             console.error('Failed to create team', error);
         } finally {

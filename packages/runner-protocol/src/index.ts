@@ -170,7 +170,7 @@ export const failRunRequestSchema = z.object({
     result: z.string().max(100_000).optional(),
 });
 
-export const completeRunResponseSchema = z.object({
+export const runCompletionResponseSchema = z.object({
     runId: z.string().min(1),
     status: z.string().min(1),
     compatibility: compatibilityMetadataSchema,
@@ -230,7 +230,7 @@ export type UploadArtifactRequest = z.infer<typeof uploadArtifactRequestSchema>;
 export type UploadArtifactResponse = z.infer<typeof uploadArtifactResponseSchema>;
 export type CompleteRunRequest = z.infer<typeof completeRunRequestSchema>;
 export type FailRunRequest = z.infer<typeof failRunRequestSchema>;
-export type CompleteRunResponse = z.infer<typeof completeRunResponseSchema>;
+export type CompleteRunResponse = z.infer<typeof runCompletionResponseSchema>;
 export type JobDetailsRequest = z.infer<typeof jobDetailsRequestSchema>;
 export type JobDetailsResponse = z.infer<typeof jobDetailsResponseSchema>;
 export type CompatibilityMetadata = z.infer<typeof compatibilityMetadataSchema>;

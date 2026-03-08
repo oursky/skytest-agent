@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import {
-    completeRunResponseSchema,
+    runCompletionResponseSchema,
     failRunRequestSchema,
 } from '@skytest/runner-protocol';
 import { createLogger } from '@/lib/core/logger';
@@ -62,7 +62,7 @@ export async function POST(
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const responseBody = completeRunResponseSchema.parse({
+        const responseBody = runCompletionResponseSchema.parse({
             runId: failed.runId,
             status: failed.status,
             compatibility,

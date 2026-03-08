@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../auth-provider";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Modal } from "@/components/shared";
 import { formatDateTime } from "@/utils/dateFormatter";
 import { useProjects } from "@/hooks/useProjects";
@@ -14,6 +14,7 @@ import { useI18n } from "@/i18n";
 export default function ProjectsPage() {
     const { isLoggedIn, isLoading: isAuthLoading, getAccessToken } = useAuth();
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { t } = useI18n();
 
     const { teams, loading: isTeamsLoading, refresh: refreshTeams } = useTeams(getAccessToken, isLoggedIn);
@@ -22,14 +23,21 @@ export default function ProjectsPage() {
         loading: isCurrentTeamLoading,
         setCurrentTeam,
     } = useCurrentTeam(getAccessToken, isLoggedIn);
-    const effectiveTeamId = selectedTeam?.id || teams[0]?.id || '';
+    const requestedTeamId = searchParams.get('teamId')?.trim() || '';
+    const hasRequestedTeam = requestedTeamId.length > 0 && teams.some((team) => team.id === requestedTeamId);
+    const effectiveTeamId = selectedTeam?.id || (hasRequestedTeam ? requestedTeamId : '');
     const currentTeam = teams.find((team) => team.id === effectiveTeamId) ?? null;
     const canManageProjects = currentTeam !== null;
     const canDeleteProjects = currentTeam?.role === 'OWNER';
+    const shouldLoadProjects = isLoggedIn
+        && !isAuthLoading
+        && !isTeamsLoading
+        && !isCurrentTeamLoading
+        && effectiveTeamId.length > 0;
     const { projects, loading: isProjectsLoading, addProject, removeProject, refresh } = useProjects(
         getAccessToken,
         effectiveTeamId || undefined,
-        isLoggedIn && (!isTeamsLoading || teams.length > 0)
+        shouldLoadProjects
     );
     const [isCreating, setIsCreating] = useState(false);
     const [newProjectName, setNewProjectName] = useState("");
@@ -52,10 +60,21 @@ export default function ProjectsPage() {
     }, [isAuthLoading, isLoggedIn, isTeamsLoading, teams.length, router]);
 
     useEffect(() => {
-        if (!selectedTeam && teams.length > 0) {
-            void setCurrentTeam(teams[0].id);
+        if (!requestedTeamId || isCurrentTeamLoading || isTeamsLoading) {
+            return;
         }
-    }, [selectedTeam, teams, setCurrentTeam]);
+        if (!hasRequestedTeam || selectedTeam?.id === requestedTeamId) {
+            return;
+        }
+        void setCurrentTeam(requestedTeamId);
+    }, [requestedTeamId, hasRequestedTeam, isCurrentTeamLoading, isTeamsLoading, selectedTeam, setCurrentTeam]);
+
+    useEffect(() => {
+        if (isCurrentTeamLoading || selectedTeam || teams.length === 0) {
+            return;
+        }
+        void setCurrentTeam(teams[0].id);
+    }, [isCurrentTeamLoading, selectedTeam, teams, setCurrentTeam]);
 
     const handleCreateProject = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -168,7 +187,19 @@ export default function ProjectsPage() {
         setEditName("");
     };
 
-    if (isAuthLoading || isProjectsLoading || isTeamsLoading || isCurrentTeamLoading) {
+    const waitingForTeamSelection = isLoggedIn
+        && !isAuthLoading
+        && !isTeamsLoading
+        && teams.length > 0
+        && !selectedTeam
+        && !hasRequestedTeam;
+    const isPageLoading = isAuthLoading
+        || isTeamsLoading
+        || isCurrentTeamLoading
+        || waitingForTeamSelection
+        || (shouldLoadProjects && isProjectsLoading);
+
+    if (isPageLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>

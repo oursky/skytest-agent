@@ -12,6 +12,7 @@ import { getRateLimitKey, isRateLimited } from '@/lib/runners/rate-limit';
 const logger = createLogger('api:runners:v1:claim');
 const CLAIM_LONG_POLL_TIMEOUT_MS = 15_000;
 const CLAIM_RETRY_INTERVAL_MS = 1_000;
+const shouldCollectClaimDiagnosis = (process.env.LOG_LEVEL ?? 'info').toLowerCase() === 'debug';
 
 function sleep(ms: number): Promise<void> {
     return new Promise((resolve) => {
@@ -86,24 +87,30 @@ export async function POST(request: Request) {
                 elapsedMs: Date.now() - claimStartedAt,
             });
         } else {
-            const diagnosis = await diagnoseNoClaimForRunner({
-                runnerId: auth.runnerId,
-                teamId: auth.teamId,
-                runnerKind: auth.runnerKind,
-                capabilities: auth.capabilities,
-            });
-            logger.info('Runner claim returned no job', {
+            const logMeta: Record<string, unknown> = {
                 runnerId: auth.runnerId,
                 teamId: auth.teamId,
                 elapsedMs: Date.now() - claimStartedAt,
-                reasonCode: diagnosis.reasonCode,
-                queuedAndroidRuns: diagnosis.queuedAndroidRuns,
-                queuedCompatibleKindRuns: diagnosis.queuedCompatibleKindRuns,
-                explicitRequestedRuns: diagnosis.explicitRequestedRuns,
-                explicitRequestedRunsMatchingRunnerDevices: diagnosis.explicitRequestedRunsMatchingRunnerDevices,
-                genericQueuedRuns: diagnosis.genericQueuedRuns,
-                claimableDeviceIds: diagnosis.claimableDeviceIds,
-            });
+            };
+
+            if (shouldCollectClaimDiagnosis) {
+                const diagnosis = await diagnoseNoClaimForRunner({
+                    runnerId: auth.runnerId,
+                    teamId: auth.teamId,
+                    runnerKind: auth.runnerKind,
+                    capabilities: auth.capabilities,
+                });
+
+                logMeta.reasonCode = diagnosis.reasonCode;
+                logMeta.queuedAndroidRuns = diagnosis.queuedAndroidRuns;
+                logMeta.queuedCompatibleKindRuns = diagnosis.queuedCompatibleKindRuns;
+                logMeta.explicitRequestedRuns = diagnosis.explicitRequestedRuns;
+                logMeta.explicitRequestedRunsMatchingRunnerDevices = diagnosis.explicitRequestedRunsMatchingRunnerDevices;
+                logMeta.genericQueuedRuns = diagnosis.genericQueuedRuns;
+                logMeta.claimableDeviceIds = diagnosis.claimableDeviceIds;
+            }
+
+            logger.info('Runner claim returned no job', logMeta);
         }
 
         const responseBody = claimJobResponseSchema.parse({

@@ -4,12 +4,12 @@ const {
     updateMany,
     findMany,
     deleteRun,
-    deleteObjectIfExists,
+    deleteObjects,
 } = vi.hoisted(() => ({
     updateMany: vi.fn(),
     findMany: vi.fn(),
     deleteRun: vi.fn(),
-    deleteObjectIfExists: vi.fn(),
+    deleteObjects: vi.fn(),
 }));
 
 vi.mock('@/lib/core/prisma', () => ({
@@ -22,8 +22,10 @@ vi.mock('@/lib/core/prisma', () => ({
     },
 }));
 
-vi.mock('@/lib/storage/object-store-utils', () => ({
-    deleteObjectIfExists,
+vi.mock('@/lib/storage/object-store', () => ({
+    objectStore: {
+        deleteObjects,
+    },
 }));
 
 const { enforceRunArtifactRetention } = await import('@/lib/runners/run-retention-service');
@@ -33,7 +35,7 @@ describe('enforceRunArtifactRetention', () => {
         updateMany.mockReset();
         findMany.mockReset();
         deleteRun.mockReset();
-        deleteObjectIfExists.mockReset();
+        deleteObjects.mockReset();
     });
 
     it('soft deletes old completed runs and hard deletes expired soft-deleted runs', async () => {
@@ -46,7 +48,7 @@ describe('enforceRunArtifactRetention', () => {
                 events: [{ artifactKey: 'test-runs/run-1/artifacts/a.png' }, { artifactKey: 'test-runs/run-1/artifacts/b.png' }],
             },
         ]);
-        deleteObjectIfExists.mockResolvedValue(undefined);
+        deleteObjects.mockResolvedValue({ failedKeys: [] });
         deleteRun.mockResolvedValue({});
 
         const result = await enforceRunArtifactRetention(now);
@@ -90,7 +92,11 @@ describe('enforceRunArtifactRetention', () => {
                 },
             },
         });
-        expect(deleteObjectIfExists).toHaveBeenCalledTimes(2);
+        expect(deleteObjects).toHaveBeenCalledTimes(1);
+        expect(deleteObjects).toHaveBeenCalledWith([
+            'test-runs/run-1/artifacts/a.png',
+            'test-runs/run-1/artifacts/b.png',
+        ]);
         expect(deleteRun).toHaveBeenCalledWith({ where: { id: 'run-1' } });
         expect(result).toMatchObject({
             softDeletedRuns: 2,
@@ -109,7 +115,7 @@ describe('enforceRunArtifactRetention', () => {
                 events: [],
             },
         ]);
-        deleteObjectIfExists.mockRejectedValueOnce(new Error('network'));
+        deleteObjects.mockRejectedValueOnce(new Error('network'));
 
         const result = await enforceRunArtifactRetention(new Date('2026-03-08T00:00:00.000Z'));
 

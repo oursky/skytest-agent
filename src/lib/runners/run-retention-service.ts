@@ -1,7 +1,7 @@
 import { config as appConfig } from '@/config/app';
 import { createLogger } from '@/lib/core/logger';
 import { prisma } from '@/lib/core/prisma';
-import { deleteObjectIfExists } from '@/lib/storage/object-store-utils';
+import { objectStore } from '@/lib/storage/object-store';
 
 const logger = createLogger('runners:run-retention');
 
@@ -81,18 +81,25 @@ export async function enforceRunArtifactRetention(now = new Date()) {
 
     for (const run of hardDeleteCandidates) {
         const artifactKeys = collectArtifactKeys(run);
-        const deleteResults = await Promise.allSettled(artifactKeys.map(async (key) => {
-            await deleteObjectIfExists(key);
-            return key;
-        }));
-        const failedDeletes = deleteResults.filter((result) => result.status === 'rejected');
-        hardDeletedArtifacts += deleteResults.length - failedDeletes.length;
+        let failedArtifactDeletes = 0;
+        try {
+            const { failedKeys } = await objectStore.deleteObjects(artifactKeys);
+            failedArtifactDeletes = failedKeys.length;
+            hardDeletedArtifacts += artifactKeys.length - failedArtifactDeletes;
+        } catch (error) {
+            hardDeleteFailures += 1;
+            logger.warn('Failed to batch-delete run artifacts during retention', {
+                runId: run.id,
+                error: error instanceof Error ? error.message : String(error),
+            });
+            continue;
+        }
 
-        if (failedDeletes.length > 0) {
+        if (failedArtifactDeletes > 0) {
             hardDeleteFailures += 1;
             logger.warn('Failed to delete one or more run artifacts during retention', {
                 runId: run.id,
-                failedArtifactDeletes: failedDeletes.length,
+                failedArtifactDeletes,
             });
             continue;
         }

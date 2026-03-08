@@ -29,7 +29,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 INSTALL_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-exec node --import tsx "${INSTALL_ROOT}/packages/skytest-cli/src/index.ts" "$@"
+exec node --import tsx "${INSTALL_ROOT}/packages/cli-runner/src/index.ts" "$@"
 EOF
 chmod +x "${PACKAGE_DIR}/bin/skytest"
 
