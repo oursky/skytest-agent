@@ -134,6 +134,7 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
     const [pairingExpiresAt, setPairingExpiresAt] = useState<string | null>(null);
     const [isGeneratingToken, setIsGeneratingToken] = useState(false);
     const [isCopying, setIsCopying] = useState(false);
+    const [unpairCandidate, setUnpairCandidate] = useState<TeamRunnerItem | null>(null);
     const [pendingUnpairRunnerId, setPendingUnpairRunnerId] = useState<string | null>(null);
     const pollRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -270,10 +271,19 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
         }
     }, [pairingToken, isCopying]);
 
-    const unpairRunner = useCallback(async (runnerId: string) => {
+    const closeUnpairModal = useCallback(() => {
         if (pendingUnpairRunnerId) {
             return;
         }
+        setUnpairCandidate(null);
+    }, [pendingUnpairRunnerId]);
+
+    const unpairRunner = useCallback(async () => {
+        if (!unpairCandidate || pendingUnpairRunnerId) {
+            return;
+        }
+
+        const runnerId = unpairCandidate.id;
 
         setError(null);
         setPendingUnpairRunnerId(runnerId);
@@ -290,6 +300,7 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
             }
 
             await fetchData();
+            setUnpairCandidate(null);
         } catch (unpairError) {
             const message = unpairError instanceof Error
                 ? unpairError.message
@@ -298,7 +309,7 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
         } finally {
             setPendingUnpairRunnerId(null);
         }
-    }, [fetchData, getAccessToken, pendingUnpairRunnerId, teamId, t]);
+    }, [fetchData, getAccessToken, pendingUnpairRunnerId, teamId, t, unpairCandidate]);
 
     return (
         <div className="space-y-6">
@@ -336,6 +347,25 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
                             {t('common.confirm')}
                         </button>
                     </div>
+                </div>
+            </Modal>
+            <Modal
+                isOpen={Boolean(unpairCandidate)}
+                onClose={closeUnpairModal}
+                title={t('team.runners.unpair.dialog.title')}
+                onConfirm={() => void unpairRunner()}
+                confirmText={pendingUnpairRunnerId ? t('team.runners.unpair.loading') : t('team.runners.unpair')}
+                confirmVariant="danger"
+                closeOnConfirm={false}
+                confirmDisabled={pendingUnpairRunnerId !== null || !unpairCandidate}
+            >
+                <div className="space-y-3 text-sm">
+                    <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-700">
+                        {t('team.runners.unpair.dialog.warning')}
+                    </p>
+                    <p className="text-gray-600">
+                        {t('team.runners.unpair.dialog.target', { label: unpairCandidate?.label ?? '-' })}
+                    </p>
                 </div>
             </Modal>
 
@@ -411,8 +441,11 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
                                                             {runner.status === 'ONLINE' && runner.isFresh ? (
                                                                 <button
                                                                     type="button"
-                                                                    onClick={() => void unpairRunner(runner.id)}
-                                                                    disabled={pendingUnpairRunnerId === runner.id}
+                                                                    onClick={() => {
+                                                                        setError(null);
+                                                                        setUnpairCandidate(runner);
+                                                                    }}
+                                                                    disabled={pendingUnpairRunnerId !== null}
                                                                     className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-60"
                                                                 >
                                                                     {pendingUnpairRunnerId === runner.id
