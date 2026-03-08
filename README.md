@@ -99,6 +99,39 @@ Runtime processes:
 - Browser runs are executed automatically by the control plane per test run
 - Android runs require `skytest` runner lifecycle commands (source: `npm run skytest -- ...`, Homebrew: `skytest ...`)
 
+CLI runner management from source:
+
+```bash
+npm run skytest -- pair runner "<pairing-token>" --control-plane-url "http://127.0.0.1:3000"
+npm run skytest -- get runners
+npm run skytest -- start runner <local-runner-id>
+npm run skytest -- stop runner <local-runner-id>
+npm run skytest -- logs runner <local-runner-id> --tail 200
+npm run skytest -- unpair runner <local-runner-id>
+```
+
+Reset local runner environment during development:
+
+```bash
+npm run skytest -- reset --force
+```
+
+Homebrew user workflow:
+
+```bash
+brew install <tap>/skytest
+skytest --help
+skytest get runners
+brew upgrade <tap>/skytest
+```
+
+Homebrew uninstall and cleanup:
+
+```bash
+skytest reset --force
+brew uninstall skytest
+```
+
 Detailed setup:
 - [Local Development Guide](./docs/operators/local-dev.md)
 

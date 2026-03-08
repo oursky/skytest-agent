@@ -118,6 +118,7 @@ npm run skytest -- stop runner <local-runner-id>
 ```
 
 If you installed via Homebrew, run the same commands directly with `skytest ...` instead of `npm run skytest -- ...`.
+Upgrade Homebrew users with `brew upgrade <tap>/skytest`.
 
 Local development state storage:
 
@@ -170,4 +171,11 @@ Use reset to stop all runner processes and remove local runner state:
 
 ```bash
 npm run skytest -- reset --force
+```
+
+Homebrew install cleanup:
+
+```bash
+skytest reset --force
+brew uninstall skytest
 ```
