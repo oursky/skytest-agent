@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 export interface TeamOption {
     id: string;
     name: string;
-    role: 'OWNER' | 'ADMIN' | 'MEMBER';
+    role: 'OWNER' | 'MEMBER';
     createdAt: string;
     updatedAt: string;
 }

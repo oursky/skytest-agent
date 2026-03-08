@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/app/auth-provider';
-import { CustomSelect, Modal } from '@/components/shared';
+import { Modal } from '@/components/shared';
 import TeamAiSettings from '@/components/features/team-ai/ui/TeamAiSettings';
 import TeamMembers from '@/components/features/team-members/ui/TeamMembers';
 import TeamUsage from '@/components/features/team-usage/ui/TeamUsage';
@@ -15,7 +15,7 @@ import { useI18n } from '@/i18n';
 interface TeamDetails {
     id: string;
     name: string;
-    role: 'OWNER' | 'ADMIN' | 'MEMBER';
+    role: 'OWNER' | 'MEMBER';
     canRename: boolean;
     canDelete: boolean;
     canTransferOwnership: boolean;
@@ -25,10 +25,11 @@ interface TeamMemberOption {
     id: string;
     userId: string | null;
     email: string | null;
-    role: 'OWNER' | 'ADMIN' | 'MEMBER';
+    role: 'OWNER' | 'MEMBER';
 }
 
 type TeamTab = 'api' | 'members' | 'runners' | 'settings';
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function resolveTeamTab(value: string | null): TeamTab {
     if (value === 'members' || value === 'settings' || value === 'runners') {
@@ -51,11 +52,13 @@ export default function TeamsPage() {
         setCurrentTeam,
     } = useCurrentTeam(getAccessToken, isLoggedIn);
     const [teamDetails, setTeamDetails] = useState<TeamDetails | null>(null);
-    const [ownerCandidates, setOwnerCandidates] = useState<TeamMemberOption[]>([]);
+    const [transferCandidates, setTransferCandidates] = useState<TeamMemberOption[]>([]);
     const [renameValue, setRenameValue] = useState('');
-    const [transferUserId, setTransferUserId] = useState('');
+    const [transferEmail, setTransferEmail] = useState('');
+    const [transferTarget, setTransferTarget] = useState<TeamMemberOption | null>(null);
     const [isEditingSettings, setIsEditingSettings] = useState(false);
     const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+    const [isTransferOpen, setIsTransferOpen] = useState(false);
     const [deleteConfirmationValue, setDeleteConfirmationValue] = useState('');
     const [error, setError] = useState<string | null>(null);
 
@@ -67,12 +70,10 @@ export default function TeamsPage() {
         return teams.find((team) => team.id === selectedTeam.id) ?? null;
     }, [selectedTeam, teams]);
 
-    const ownerOptions = ownerCandidates
-        .filter((member) => member.role !== 'OWNER' && member.userId)
-        .map((member) => ({
-            value: member.userId as string,
-            label: member.email || t('team.members.unknownEmail'),
-        }));
+    const eligibleTransferCandidates = useMemo(
+        () => transferCandidates.filter((member) => member.role !== 'OWNER' && member.userId && member.email),
+        [transferCandidates]
+    );
 
     const loadTeamDetails = useCallback(async (teamId: string) => {
         const token = await getAccessToken();
@@ -92,10 +93,10 @@ export default function TeamsPage() {
         setTeamDetails(details);
         setRenameValue(details.name);
         setIsEditingSettings(false);
-        setOwnerCandidates(membersData.members);
-        setTransferUserId(
-            membersData.members.find((member) => member.role !== 'OWNER' && member.userId)?.userId ?? ''
-        );
+        setTransferCandidates(membersData.members);
+        setTransferEmail('');
+        setTransferTarget(null);
+        setIsTransferOpen(false);
     }, [getAccessToken]);
 
     useEffect(() => {
@@ -124,7 +125,12 @@ export default function TeamsPage() {
 
     const activeTab = resolveTeamTab(searchParams.get('tab'));
 
-    const visibleTab = activeTab === 'settings' && currentTeam?.role !== 'OWNER'
+    const canAccessSettings = teamDetails !== null && (
+        teamDetails.canRename ||
+        teamDetails.canDelete ||
+        teamDetails.canTransferOwnership
+    );
+    const visibleTab = activeTab === 'settings' && !canAccessSettings
         ? 'api'
         : activeTab;
 
@@ -167,8 +173,35 @@ export default function TeamsPage() {
         }
     };
 
+    const openTransferDialog = () => {
+        const normalizedEmail = transferEmail.trim().toLowerCase();
+
+        if (!normalizedEmail) {
+            setError(t('team.page.transfer.error.emailRequired'));
+            return;
+        }
+        if (!EMAIL_PATTERN.test(normalizedEmail)) {
+            setError(t('team.page.transfer.error.emailInvalid'));
+            return;
+        }
+
+        const candidate = eligibleTransferCandidates.find((member) => {
+            const memberEmail = member.email?.trim().toLowerCase() ?? '';
+            return memberEmail === normalizedEmail;
+        });
+
+        if (!candidate) {
+            setError(t('team.page.transfer.error.notFound'));
+            return;
+        }
+
+        setTransferTarget(candidate);
+        setIsTransferOpen(true);
+        setError(null);
+    };
+
     const transferOwnership = async () => {
-        if (!currentTeam || !transferUserId) {
+        if (!currentTeam || !transferTarget?.email) {
             return;
         }
 
@@ -180,7 +213,7 @@ export default function TeamsPage() {
                     'Content-Type': 'application/json',
                     ...(token ? { Authorization: `Bearer ${token}` } : {}),
                 },
-                body: JSON.stringify({ userId: transferUserId }),
+                body: JSON.stringify({ email: transferTarget.email }),
             });
 
             const data = await response.json().catch(() => ({ error: t('team.page.error.transfer') }));
@@ -190,6 +223,9 @@ export default function TeamsPage() {
             }
 
             await refreshTeams();
+            setIsTransferOpen(false);
+            setTransferEmail('');
+            setTransferTarget(null);
             setError(null);
             await loadTeamDetails(currentTeam.id);
         } catch {
@@ -284,6 +320,27 @@ export default function TeamsPage() {
                     </label>
                 </div>
             </Modal>
+            <Modal
+                isOpen={isTransferOpen}
+                onClose={() => {
+                    setIsTransferOpen(false);
+                    setTransferTarget(null);
+                }}
+                title={t('team.page.transfer.dialog.title')}
+                onConfirm={transferOwnership}
+                confirmText={t('team.page.transfer.confirm')}
+                confirmVariant="danger"
+                closeOnConfirm={false}
+            >
+                <div className="space-y-4">
+                    <p className="text-sm text-gray-700">
+                        {t('team.page.transfer.dialog.body')}
+                    </p>
+                    <p className="rounded-md bg-gray-100 px-3 py-2 text-sm text-gray-700">
+                        {t('team.page.transfer.dialog.target', { email: transferTarget?.email ?? '' })}
+                    </p>
+                </div>
+            </Modal>
 
             <div className="max-w-7xl mx-auto px-8 py-8">
                 <h1 className="text-3xl font-bold text-gray-900 mb-4">{t('team.page.title')}</h1>
@@ -328,7 +385,7 @@ export default function TeamsPage() {
                                 >
                                     {t('team.page.tab.runners')}
                                 </button>
-                                {currentTeam.role === 'OWNER' && (
+                                {canAccessSettings && (
                                     <button
                                         type="button"
                                         onClick={() => handleTabChange('settings')}
@@ -353,7 +410,6 @@ export default function TeamsPage() {
                         {visibleTab === 'members' && (
                             <TeamMembers
                                 teamId={currentTeam.id}
-                                teamRole={currentTeam.role}
                                 onMembersChanged={handleMembersChanged}
                             />
                         )}
@@ -362,7 +418,7 @@ export default function TeamsPage() {
                             <TeamRunners teamId={currentTeam.id} />
                         )}
 
-                        {visibleTab === 'settings' && currentTeam.role === 'OWNER' && (
+                        {visibleTab === 'settings' && canAccessSettings && (
                             <div className="space-y-6">
                                 <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
                                     <h2 className="text-base font-semibold text-gray-900">{t('team.page.settings.name')}</h2>
@@ -408,28 +464,33 @@ export default function TeamsPage() {
                                     </div>
                                 </section>
 
-                                {teamDetails.canTransferOwnership && ownerOptions.length > 0 && (
+                                {teamDetails.canTransferOwnership && (
                                     <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
                                         <h2 className="text-base font-semibold text-gray-900">{t('team.page.transfer.title')}</h2>
                                         <p className="mt-1 text-sm text-gray-500">{t('team.page.transfer.subtitle')}</p>
-                                        <div className="mt-4 max-w-sm">
-                                            <CustomSelect
-                                                value={transferUserId}
-                                                options={ownerOptions}
-                                                onChange={setTransferUserId}
-                                                ariaLabel={t('team.page.transfer.title')}
-                                                fullWidth
-                                                buttonClassName="shadow-none"
+                                        <div className="mt-4 max-w-sm space-y-2">
+                                            <label className="block text-sm font-medium text-gray-700">
+                                                {t('team.page.transfer.emailLabel')}
+                                            </label>
+                                            <input
+                                                type="email"
+                                                value={transferEmail}
+                                                onChange={(event) => setTransferEmail(event.target.value)}
+                                                placeholder={t('team.page.transfer.emailPlaceholder')}
+                                                className="h-10 w-full rounded-md border border-gray-300 px-3 focus:outline-none focus:ring-2 focus:ring-primary/50"
                                             />
                                         </div>
                                         <button
                                             type="button"
-                                            onClick={() => void transferOwnership()}
-                                            disabled={!transferUserId}
+                                            onClick={openTransferDialog}
+                                            disabled={eligibleTransferCandidates.length === 0}
                                             className="mt-3 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
                                         >
                                             {t('team.page.transfer.confirm')}
                                         </button>
+                                        {eligibleTransferCandidates.length === 0 && (
+                                            <p className="mt-2 text-sm text-gray-500">{t('team.page.transfer.noEligibleMembers')}</p>
+                                        )}
                                     </section>
                                 )}
 

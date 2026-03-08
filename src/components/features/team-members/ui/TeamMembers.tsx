@@ -1,14 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/app/auth-provider';
-import { CustomSelect, Modal } from '@/components/shared';
+import { Modal } from '@/components/shared';
 import { useI18n } from '@/i18n';
 import { formatDateTimeCompact } from '@/utils/dateFormatter';
 
 interface TeamMembersProps {
     teamId: string;
-    teamRole: 'OWNER' | 'ADMIN' | 'MEMBER';
     onMembersChanged?: () => Promise<void> | void;
 }
 
@@ -16,32 +15,25 @@ interface Member {
     id: string;
     userId: string | null;
     email: string | null;
-    role: 'OWNER' | 'ADMIN' | 'MEMBER';
+    role: 'OWNER' | 'MEMBER';
     createdAt: string;
 }
 
-export default function TeamMembers({ teamId, teamRole, onMembersChanged }: TeamMembersProps) {
+interface TeamMembersResponse {
+    canManageMembers: boolean;
+    members: Member[];
+}
+
+export default function TeamMembers({ teamId, onMembersChanged }: TeamMembersProps) {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
     const [members, setMembers] = useState<Member[]>([]);
+    const [canManage, setCanManage] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [memberEmail, setMemberEmail] = useState('');
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [memberToRemove, setMemberToRemove] = useState<Member | null>(null);
-
-    const canManage = teamRole === 'OWNER' || teamRole === 'ADMIN';
-
-    const roleOptions = useMemo(() => {
-        if (teamRole === 'OWNER' || teamRole === 'ADMIN') {
-            return [
-                { value: 'ADMIN' as const, label: t('team.members.roles.admin') },
-                { value: 'MEMBER' as const, label: t('team.members.roles.member') },
-            ];
-        }
-
-        return [];
-    }, [t, teamRole]);
 
     const loadData = useCallback(async () => {
         try {
@@ -54,7 +46,8 @@ export default function TeamMembers({ teamId, teamRole, onMembersChanged }: Team
                 throw new Error('Failed to load team members');
             }
 
-            const data = await response.json() as { members: Member[] };
+            const data = await response.json() as TeamMembersResponse;
+            setCanManage(data.canManageMembers);
             setMembers(data.members);
             setError(null);
         } catch {
@@ -75,32 +68,6 @@ export default function TeamMembers({ teamId, teamRole, onMembersChanged }: Team
 
         await onMembersChanged();
     }, [onMembersChanged]);
-
-    const updateMemberRole = async (memberId: string, role: 'ADMIN' | 'MEMBER') => {
-        try {
-            const token = await getAccessToken();
-            const response = await fetch(`/api/teams/${teamId}/members/${memberId}`, {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                },
-                body: JSON.stringify({ role }),
-            });
-
-            const data = await response.json().catch(() => ({ error: t('team.members.error.role') }));
-            if (!response.ok) {
-                setError(data.error || t('team.members.error.role'));
-                return;
-            }
-
-            await loadData();
-            await notifyMembersChanged();
-            setError(null);
-        } catch {
-            setError(t('team.members.error.role'));
-        }
-    };
 
     const addMember = async () => {
         if (!memberEmail.trim()) {
@@ -252,27 +219,16 @@ export default function TeamMembers({ teamId, teamRole, onMembersChanged }: Team
                                             </div>
                                         </td>
                                         <td className="px-4 py-3 align-middle">
-                                            {member.role !== 'OWNER' && canManage ? (
-                                                <CustomSelect
-                                                    value={member.role}
-                                                    options={roleOptions}
-                                                    onChange={(role) => void updateMemberRole(member.id, role)}
-                                                    ariaLabel={t('team.members.role')}
-                                                    buttonClassName="min-w-32 rounded-full border-gray-200 bg-gray-50 px-3 py-1 text-xs font-semibold text-gray-700 shadow-none hover:bg-gray-100"
-                                                    menuClassName="min-w-36"
-                                                />
-                                            ) : (
-                                                <span className="inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
-                                                    {t(`team.members.roles.${member.role.toLowerCase()}`)}
-                                                </span>
-                                            )}
+                                            <span className="inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
+                                                {t(`team.members.roles.${member.role.toLowerCase()}`)}
+                                            </span>
                                         </td>
                                         <td className="px-4 py-3 align-middle text-sm text-gray-500">
                                             {formatDateTimeCompact(member.createdAt)}
                                         </td>
                                         <td className="px-4 py-3 align-middle">
                                             <div className="flex min-h-8 items-center justify-end gap-2">
-                                            {member.role === 'OWNER' ? (
+                                                {member.role === 'OWNER' ? (
                                                     <span className="text-xs text-gray-400">{t('team.members.readOnly')}</span>
                                                 ) : canManage ? (
                                                     <button
