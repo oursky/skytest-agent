@@ -243,8 +243,8 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 comparison = a.name.localeCompare(b.name);
                 break;
             case 'status':
-                const statusA = a.status || a.testRuns[0]?.status || '';
-                const statusB = b.status || b.testRuns[0]?.status || '';
+                const statusA = a.testRuns[0]?.status || a.status || '';
+                const statusB = b.testRuns[0]?.status || b.status || '';
                 comparison = statusA.localeCompare(statusB);
                 break;
             case 'updated':
@@ -276,7 +276,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     const handleExportAll = () => {
         const headers = ['ID', 'Name', 'Status', 'Updated'];
         const rows = testCases.map((tc) => {
-            const status = tc.status || tc.testRuns[0]?.status || '';
+            const status = tc.testRuns[0]?.status || tc.status || '';
             return [
                 tc.displayId || '',
                 tc.name,
@@ -521,7 +521,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                         <>
                         <div className="divide-y divide-gray-100">
                             {paginatedTestCases.map((testCase) => {
-                                const currentStatus = testCase.status || (testCase.testRuns[0]?.status);
+                                const currentStatus = testCase.testRuns[0]?.status || testCase.status;
 
                                 return (
                                     <div key={testCase.id} className="flex flex-col md:grid md:grid-cols-24 gap-4 p-4 hover:bg-gray-50 transition-colors group">
