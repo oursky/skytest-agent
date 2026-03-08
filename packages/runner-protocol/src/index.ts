@@ -4,8 +4,8 @@ export const RUNNER_PROTOCOL_CURRENT_VERSION = '1.0.0';
 export const RUNNER_PROTOCOL_MINIMUM_VERSION = '1.0.0';
 export const RUNNER_MINIMUM_VERSION = '0.1.0';
 
-export const runnerKindSchema = z.enum(['MACOS_AGENT', 'HOSTED_BROWSER']);
-export const runnerCapabilitySchema = z.enum(['BROWSER', 'ANDROID']);
+export const runnerKindSchema = z.enum(['MACOS_AGENT']);
+export const runnerCapabilitySchema = z.enum(['ANDROID']);
 export const runnerDevicePlatformSchema = z.enum(['ANDROID']);
 export const runnerDeviceStateSchema = z.enum(['ONLINE', 'OFFLINE', 'UNAVAILABLE']);
 

@@ -41,7 +41,6 @@
     "playwright:install": "playwright install chromium",
     "test": "vitest --run",
     "runner:maintenance": "tsx src/workers/runner-maintenance.ts",
-    "runner:browser": "tsx src/runners/browser-runner.ts",
     "runner:macos": "npm run --workspace @skytest/macos-runner runner"
   },
   "dependencies": {

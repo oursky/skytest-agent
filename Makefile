@@ -5,7 +5,6 @@ COMPOSE ?= docker compose
 COMPOSE_FILE ?= docker-compose.local.yml
 CONTROL_PLANE_URL ?= http://127.0.0.1:3000
 ENV_LOCAL ?= .env.local
-BROWSER_RUNNER_TOKEN ?=
 MACOS_RUNNER_TOKEN ?=
 MACOS_RUNNER_PAIRING_TOKEN ?=
 MACOS_RUNNER_LABEL ?= Local macOS Runner
@@ -26,13 +25,10 @@ K8S_MANIFEST_DIR ?= deploy/k8s
 	db-setup \
 	app \
 	playwright-install \
-	runner-browser \
 	runner-macos \
 	bootstrap \
 	dev \
-	dev-browser \
 	dev-macos \
-	dev-all \
 	verify \
 	k8s-apply \
 	k8s-delete \
@@ -68,17 +64,6 @@ app: ## Start the local Next.js control plane
 playwright-install: ## Install Playwright Chromium locally
 	$(NODE_PM) run playwright:install
 
-runner-browser: ## Start the hosted browser runner (requires BROWSER_RUNNER_TOKEN)
-	@if [ -z "$(BROWSER_RUNNER_TOKEN)" ]; then \
-		echo "BROWSER_RUNNER_TOKEN is required for runner-browser"; \
-		exit 1; \
-	fi
-	@set -eu; \
-	set -a; [ -f "$(ENV_LOCAL)" ] && . "$(ENV_LOCAL)"; set +a; \
-	RUNNER_CONTROL_PLANE_URL="$(CONTROL_PLANE_URL)" \
-	RUNNER_TOKEN="$(BROWSER_RUNNER_TOKEN)" \
-	$(NODE_PM) run runner:browser
-
 runner-macos: ## Start the macOS runner (uses stored credential, MACOS_RUNNER_TOKEN, or MACOS_RUNNER_PAIRING_TOKEN)
 	@set -eu; \
 	set -a; [ -f "$(ENV_LOCAL)" ] && . "$(ENV_LOCAL)"; set +a; \
@@ -98,20 +83,6 @@ dev: ## Boot local services, apply schema, and start the web app
 	$(MAKE) db-setup
 	$(MAKE) app
 
-dev-browser: ## Boot local services, apply schema, start browser runner, and start the web app
-	@set -eu; \
-	if [ -z "$(BROWSER_RUNNER_TOKEN)" ]; then \
-		echo "BROWSER_RUNNER_TOKEN is required for dev-browser"; \
-		exit 1; \
-	fi; \
-	$(MAKE) services-up; \
-	$(MAKE) db-setup; \
-	trap 'kill $$runner_pid >/dev/null 2>&1 || true' EXIT INT TERM; \
-	set -a; [ -f "$(ENV_LOCAL)" ] && . "$(ENV_LOCAL)"; set +a; \
-	RUNNER_CONTROL_PLANE_URL="$(CONTROL_PLANE_URL)" RUNNER_TOKEN="$(BROWSER_RUNNER_TOKEN)" $(NODE_PM) run runner:browser & \
-	runner_pid=$$!; \
-	$(NODE_PM) run dev
-
 dev-macos: ## Boot local services, apply schema, start macOS runner, and start the web app
 	@set -eu; \
 	$(MAKE) services-up; \
@@ -120,22 +91,6 @@ dev-macos: ## Boot local services, apply schema, start macOS runner, and start t
 	set -a; [ -f "$(ENV_LOCAL)" ] && . "$(ENV_LOCAL)"; set +a; \
 	RUNNER_CONTROL_PLANE_URL="$(CONTROL_PLANE_URL)" RUNNER_LABEL="$(MACOS_RUNNER_LABEL)" RUNNER_TOKEN="$(MACOS_RUNNER_TOKEN)" RUNNER_PAIRING_TOKEN="$(MACOS_RUNNER_PAIRING_TOKEN)" $(NODE_PM) run runner:macos & \
 	runner_pid=$$!; \
-	$(NODE_PM) run dev
-
-dev-all: ## Boot local services, apply schema, start both runners, and start the web app
-	@set -eu; \
-	if [ -z "$(BROWSER_RUNNER_TOKEN)" ]; then \
-		echo "BROWSER_RUNNER_TOKEN is required for dev-all"; \
-		exit 1; \
-	fi; \
-	$(MAKE) services-up; \
-	$(MAKE) db-setup; \
-	trap 'kill $$browser_pid $$macos_pid >/dev/null 2>&1 || true' EXIT INT TERM; \
-	set -a; [ -f "$(ENV_LOCAL)" ] && . "$(ENV_LOCAL)"; set +a; \
-	RUNNER_CONTROL_PLANE_URL="$(CONTROL_PLANE_URL)" RUNNER_TOKEN="$(BROWSER_RUNNER_TOKEN)" $(NODE_PM) run runner:browser & \
-	browser_pid=$$!; \
-	RUNNER_CONTROL_PLANE_URL="$(CONTROL_PLANE_URL)" RUNNER_LABEL="$(MACOS_RUNNER_LABEL)" RUNNER_TOKEN="$(MACOS_RUNNER_TOKEN)" RUNNER_PAIRING_TOKEN="$(MACOS_RUNNER_PAIRING_TOKEN)" $(NODE_PM) run runner:macos & \
-	macos_pid=$$!; \
 	$(NODE_PM) run dev
 
 verify: ## Run lint, TypeScript compile, and dependency audit

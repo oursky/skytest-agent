@@ -63,15 +63,8 @@ Open `http://localhost:3000`.
 
 ## Start Runner Processes (Phase 3)
 
-The web app is now the control plane only. Runs are executed by runner processes.
-
-### Browser runner (required for browser test runs)
-
-Run this in a separate terminal after you have provisioned a `RUNNER_TOKEN` for a `HOSTED_BROWSER` runner:
-
-```bash
-BROWSER_RUNNER_TOKEN="<browser-runner-token>" make runner-browser
-```
+Browser tests are executed directly by the control plane and spawn/close browsers per run.
+Only Android execution requires a runner process.
 
 ### macOS runner (required for Android test runs)
 
@@ -200,7 +193,7 @@ Run:
 npm run playwright:install
 ```
 
-Then restart `make runner-browser`.
+Then retry the browser run from the web UI.
 
 ### Object storage errors in the app
 

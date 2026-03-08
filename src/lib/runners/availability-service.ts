@@ -51,7 +51,6 @@ export interface TeamRunnerRow {
 export interface TeamRunnersOverview {
     teamId: string;
     runnerConnected: boolean;
-    browserRunnerOnlineCount: number;
     macRunnerOnlineCount: number;
     runners: TeamRunnerRow[];
     refreshedAt: string;
@@ -176,16 +175,12 @@ export async function getTeamRunnersOverview(teamId: string): Promise<TeamRunner
     const runners = await loadTeamRunners(teamId);
     const staleThresholdMs = nowMs - DEVICE_FRESHNESS_WINDOW_MS;
     let runnerConnected = false;
-    let browserRunnerOnlineCount = 0;
     let macRunnerOnlineCount = 0;
 
     const rows: TeamRunnerRow[] = runners.map((runner) => {
         const runnerFresh = runner.status === 'ONLINE' && runner.lastSeenAt.getTime() >= staleThresholdMs;
         if (runnerFresh) {
             runnerConnected = true;
-            if (runner.kind === 'HOSTED_BROWSER') {
-                browserRunnerOnlineCount += 1;
-            }
             if (runner.kind === 'MACOS_AGENT') {
                 macRunnerOnlineCount += 1;
             }
@@ -216,7 +211,6 @@ export async function getTeamRunnersOverview(teamId: string): Promise<TeamRunner
     const payload: TeamRunnersOverview = {
         teamId,
         runnerConnected,
-        browserRunnerOnlineCount,
         macRunnerOnlineCount,
         runners: rows.sort((a, b) => a.label.localeCompare(b.label)),
         refreshedAt: new Date(nowMs).toISOString(),

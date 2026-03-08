@@ -1,4 +1,3 @@
-import type { RunnerCapability } from '@skytest/runner-protocol';
 import { Prisma } from '@prisma/client';
 import { config as appConfig } from '@/config/app';
 import { prisma } from '@/lib/core/prisma';
@@ -11,33 +10,8 @@ interface ClaimedRunRow {
     leaseExpiresAt: Date;
 }
 
-function getCapabilityFilters(capabilities: string[]) {
-    const typedCapabilities = new Set<RunnerCapability>(
-        capabilities.filter(
-            (item): item is RunnerCapability => item === 'ANDROID' || item === 'BROWSER'
-        )
-    );
-
-    const hasAndroid = typedCapabilities.has('ANDROID');
-    const hasBrowser = typedCapabilities.has('BROWSER');
-
-    const explicitSql = hasAndroid && hasBrowser
-        ? Prisma.sql`(tr."requiredCapability" IS NULL OR tr."requiredCapability" IN ('ANDROID', 'BROWSER'))`
-        : hasAndroid
-            ? Prisma.sql`(tr."requiredCapability" IS NULL OR tr."requiredCapability" = 'ANDROID')`
-            : hasBrowser
-                ? Prisma.sql`(tr."requiredCapability" IS NULL OR tr."requiredCapability" = 'BROWSER')`
-                : Prisma.sql`FALSE`;
-
-    const genericSql = hasAndroid && hasBrowser
-        ? Prisma.sql`(COALESCE(tr."requiredCapability", 'BROWSER') = 'BROWSER' OR tr."requiredCapability" = 'ANDROID')`
-        : hasAndroid
-            ? Prisma.sql`tr."requiredCapability" = 'ANDROID'`
-            : hasBrowser
-                ? Prisma.sql`COALESCE(tr."requiredCapability", 'BROWSER') = 'BROWSER'`
-                : Prisma.sql`FALSE`;
-
-    return { explicitSql, genericSql };
+function hasAndroidCapability(capabilities: string[]): boolean {
+    return capabilities.includes('ANDROID');
 }
 
 function createLeaseExpiry(): Date {
@@ -49,7 +23,6 @@ async function claimExplicitDeviceRun(input: {
     runnerId: string;
     teamId: string;
     runnerKind: string;
-    explicitCapabilitySql: Prisma.Sql;
     leaseExpiresAt: Date;
 }): Promise<ClaimedRunRow | null> {
     const rows = await input.tx.$queryRaw<ClaimedRunRow[]>(Prisma.sql`
@@ -62,7 +35,7 @@ async function claimExplicitDeviceRun(input: {
               AND tr."assignedRunnerId" IS NULL
               AND tr."requestedDeviceId" IS NOT NULL
               AND p."teamId" = ${input.teamId}
-              AND ${input.explicitCapabilitySql}
+              AND tr."requiredCapability" = 'ANDROID'
               AND (tr."requiredRunnerKind" IS NULL OR tr."requiredRunnerKind" = ${input.runnerKind})
               AND EXISTS (
                   SELECT 1
@@ -94,7 +67,6 @@ async function claimGenericRun(input: {
     runnerId: string;
     teamId: string;
     runnerKind: string;
-    genericCapabilitySql: Prisma.Sql;
     leaseExpiresAt: Date;
 }): Promise<ClaimedRunRow | null> {
     const rows = await input.tx.$queryRaw<ClaimedRunRow[]>(Prisma.sql`
@@ -107,7 +79,7 @@ async function claimGenericRun(input: {
               AND tr."assignedRunnerId" IS NULL
               AND tr."requestedDeviceId" IS NULL
               AND p."teamId" = ${input.teamId}
-              AND ${input.genericCapabilitySql}
+              AND tr."requiredCapability" = 'ANDROID'
               AND (tr."requiredRunnerKind" IS NULL OR tr."requiredRunnerKind" = ${input.runnerKind})
             ORDER BY tr."createdAt" ASC
             FOR UPDATE SKIP LOCKED
@@ -133,8 +105,11 @@ export async function claimNextRunForRunner(input: {
     runnerKind: string;
     capabilities: string[];
 }) {
+    if (!hasAndroidCapability(input.capabilities)) {
+        return null;
+    }
+
     const leaseExpiresAt = createLeaseExpiry();
-    const capabilityFilters = getCapabilityFilters(input.capabilities);
 
     const claimed = await prisma.$transaction(async (tx) => {
         const explicit = await claimExplicitDeviceRun({
@@ -142,7 +117,6 @@ export async function claimNextRunForRunner(input: {
             runnerId: input.runnerId,
             teamId: input.teamId,
             runnerKind: input.runnerKind,
-            explicitCapabilitySql: capabilityFilters.explicitSql,
             leaseExpiresAt,
         });
         if (explicit) {
@@ -154,7 +128,6 @@ export async function claimNextRunForRunner(input: {
             runnerId: input.runnerId,
             teamId: input.teamId,
             runnerKind: input.runnerKind,
-            genericCapabilitySql: capabilityFilters.genericSql,
             leaseExpiresAt,
         });
     });

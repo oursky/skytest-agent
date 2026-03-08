@@ -3,6 +3,7 @@ import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { isProjectMember } from '@/lib/security/permissions';
+import { cancelLocalBrowserRun } from '@/lib/runtime/local-browser-runner';
 
 const logger = createLogger('api:test-runs:cancel');
 
@@ -51,6 +52,7 @@ export async function POST(
                 leaseExpiresAt: null,
             }
         });
+        cancelLocalBrowserRun(id);
 
         const updated = await prisma.testRun.findUnique({ where: { id }, select: { status: true } });
 

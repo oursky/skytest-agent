@@ -25,7 +25,6 @@ interface TeamRunnerItem {
 interface TeamRunnersResponse {
     teamId: string;
     runnerConnected: boolean;
-    browserRunnerOnlineCount: number;
     macRunnerOnlineCount: number;
     canManageRunners: boolean;
     refreshedAt: string;
@@ -62,9 +61,6 @@ interface PairingTokenResponse {
 function resolveRunnerKindLabel(kind: string): string {
     if (kind === 'MACOS_AGENT') {
         return 'macOS';
-    }
-    if (kind === 'HOSTED_BROWSER') {
-        return 'Browser';
     }
     return kind;
 }
@@ -262,7 +258,6 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
         }
     }, [pairingToken, isCopying]);
 
-    const browserRunnerTotal = runners?.runners.filter((item) => item.kind === 'HOSTED_BROWSER').length ?? 0;
     const macRunnerTotal = runners?.runners.filter((item) => item.kind === 'MACOS_AGENT').length ?? 0;
 
     return (
@@ -335,13 +330,7 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
                     </div>
                 ) : (
                     <div className="mt-4 space-y-6">
-                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                            <div className="rounded-md border border-gray-200 bg-gray-50 px-4 py-3">
-                                <p className="text-xs text-gray-500">{t('team.runners.execution.browser')}</p>
-                                <p className="mt-1 text-lg font-semibold text-gray-900">
-                                    {runners.browserRunnerOnlineCount} / {browserRunnerTotal}
-                                </p>
-                            </div>
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                             <div className="rounded-md border border-gray-200 bg-gray-50 px-4 py-3">
                                 <p className="text-xs text-gray-500">{t('team.runners.execution.macos')}</p>
                                 <p className="mt-1 text-lg font-semibold text-gray-900">

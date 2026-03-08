@@ -52,14 +52,14 @@ describe('claimNextRunForRunner', () => {
         expect(firstQuery.strings.join('')).toContain('"RunnerDevice"');
     });
 
-    it('falls back to generic jobs when no explicit-device job is claimable', async () => {
+    it('falls back to generic Android jobs when no explicit-device job is claimable', async () => {
         const leaseExpiresAt = new Date('2026-03-07T03:00:00.000Z');
         queryRaw
             .mockResolvedValueOnce([])
             .mockResolvedValueOnce([{
                 id: 'run-2',
                 testCaseId: 'test-case-2',
-                requiredCapability: 'BROWSER',
+                requiredCapability: 'ANDROID',
                 requestedDeviceId: null,
                 leaseExpiresAt,
             }]);
@@ -67,17 +67,29 @@ describe('claimNextRunForRunner', () => {
         const result = await claimNextRunForRunner({
             runnerId: 'runner-2',
             teamId: 'team-1',
-            runnerKind: 'HOSTED_BROWSER',
-            capabilities: ['BROWSER'],
+            runnerKind: 'MACOS_AGENT',
+            capabilities: ['ANDROID'],
         });
 
         expect(result).toEqual({
             runId: 'run-2',
             testCaseId: 'test-case-2',
-            requiredCapability: 'BROWSER',
+            requiredCapability: 'ANDROID',
             requestedDeviceId: null,
             leaseExpiresAt,
         });
         expect(queryRaw).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not claim when runner lacks Android capability', async () => {
+        const result = await claimNextRunForRunner({
+            runnerId: 'runner-3',
+            teamId: 'team-1',
+            runnerKind: 'MACOS_AGENT',
+            capabilities: [],
+        });
+
+        expect(result).toBeNull();
+        expect(queryRaw).not.toHaveBeenCalled();
     });
 });

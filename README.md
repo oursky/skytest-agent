@@ -96,7 +96,7 @@ make dev
 ```
 
 Runtime processes:
-- Browser runs require `make runner-browser` or `make dev-browser`
+- Browser runs are executed automatically by the control plane per test run
 - Android runs require `make runner-macos` or `make dev-macos`
 
 Detailed setup:

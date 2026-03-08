@@ -49,39 +49,39 @@ function resolveModuleExport<T>(module: Record<string, unknown>, key: string): T
     return null;
 }
 
-const createLogger = resolveModuleExport<CreateLoggerFn>(loggerModule as unknown as Record<string, unknown>, 'createLogger');
-if (!createLogger) {
-    throw new Error('Failed to load createLogger from ../../src/lib/core/logger');
+function requireModuleExport<T>(module: Record<string, unknown>, key: string, source: string): T {
+    const value = resolveModuleExport<T>(module, key);
+    if (!value) {
+        throw new Error(`Failed to load ${key} from ${source}`);
+    }
+    return value;
 }
 
-const runTest = resolveModuleExport<RunTestFn>(testRunnerModule as unknown as Record<string, unknown>, 'runTest');
-if (!runTest) {
-    throw new Error('Failed to load runTest from ../../src/lib/runtime/test-runner');
-}
-
-const formatAndroidDeviceDisplayName = resolveModuleExport<FormatAndroidDeviceDisplayNameFn>(
+const createLogger = requireModuleExport<CreateLoggerFn>(
+    loggerModule as unknown as Record<string, unknown>,
+    'createLogger',
+    '../../src/lib/core/logger'
+);
+const runTest = requireModuleExport<RunTestFn>(
+    testRunnerModule as unknown as Record<string, unknown>,
+    'runTest',
+    '../../src/lib/runtime/test-runner'
+);
+const formatAndroidDeviceDisplayName = requireModuleExport<FormatAndroidDeviceDisplayNameFn>(
     deviceDisplayModule as unknown as Record<string, unknown>,
-    'formatAndroidDeviceDisplayName'
+    'formatAndroidDeviceDisplayName',
+    '../../src/lib/android/device-display'
 );
-if (!formatAndroidDeviceDisplayName) {
-    throw new Error('Failed to load formatAndroidDeviceDisplayName from ../../src/lib/android/device-display');
-}
-
-const listAndroidDeviceInventory = resolveModuleExport<ListAndroidDeviceInventoryFn>(
+const listAndroidDeviceInventory = requireModuleExport<ListAndroidDeviceInventoryFn>(
     devicesModule as unknown as Record<string, unknown>,
-    'listAndroidDeviceInventory'
+    'listAndroidDeviceInventory',
+    '../../src/lib/android/devices'
 );
-if (!listAndroidDeviceInventory) {
-    throw new Error('Failed to load listAndroidDeviceInventory from ../../src/lib/android/devices');
-}
-
-const isScreenshotData = resolveModuleExport<IsScreenshotDataFn>(
+const isScreenshotData = requireModuleExport<IsScreenshotDataFn>(
     eventsModule as unknown as Record<string, unknown>,
-    'isScreenshotData'
+    'isScreenshotData',
+    '../../src/types/events'
 );
-if (!isScreenshotData) {
-    throw new Error('Failed to load isScreenshotData from ../../src/types/events');
-}
 
 const logger = createLogger('runner:macos');
 const runnerVersion = process.env.RUNNER_VERSION ?? '0.1.0';
@@ -148,8 +148,8 @@ class RunnerHttpError extends Error {
 }
 
 async function loadAndroidDeviceManager(): Promise<AndroidDeviceManagerRuntime> {
-    const module = await import('../../src/lib/android/device-manager');
-    const candidate = module as {
+    const deviceManagerModule = await import('../../src/lib/android/device-manager');
+    const candidate = deviceManagerModule as {
         androidDeviceManager?: AndroidDeviceManagerRuntime;
         default?: { androidDeviceManager?: AndroidDeviceManagerRuntime };
     };
