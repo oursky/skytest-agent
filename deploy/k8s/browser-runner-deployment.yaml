@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: skytest-browser-runner
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: skytest-browser-runner
+  template:
+    metadata:
+      labels:
+        app: skytest-browser-runner
+    spec:
+      containers:
+        - name: browser-runner
+          image: ghcr.io/oursky/skytest-agent:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - secretRef:
+                name: skytest-agent-secrets
+          env:
+            - name: BROWSER_RUNNER_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          command: ["npm", "run", "runner:browser"]
+          resources:
+            requests:
+              cpu: "1000m"
+              memory: "2Gi"
+            limits:
+              cpu: "4"
+              memory: "8Gi"
