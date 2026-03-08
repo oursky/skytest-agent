@@ -41,3 +41,21 @@ export function printValue(value: unknown, format: OutputFormat): void {
 
     console.log(JSON.stringify(value, null, 2));
 }
+
+export function printTable(headers: string[], rows: string[][]): void {
+    const widths = headers.map((header, columnIndex) => {
+        const rowWidth = rows.reduce((max, row) => Math.max(max, row[columnIndex]?.length ?? 0), 0);
+        return Math.max(header.length, rowWidth);
+    });
+
+    const formatRow = (row: string[]): string => row
+        .map((cell, index) => cell.padEnd(widths[index], ' '))
+        .join('  ');
+
+    console.log(formatRow(headers));
+    console.log(widths.map((width) => '-'.repeat(width)).join('  '));
+
+    for (const row of rows) {
+        console.log(formatRow(row));
+    }
+}

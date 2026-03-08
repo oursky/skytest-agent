@@ -1,3 +1,6 @@
+import { spawn } from 'node:child_process';
+import { readRunnerLog } from '../runtime/runner-manager';
+import { resolveRunnerPaths } from '../state/store';
 import { printValue } from './output';
 
 interface LogsRunnerOptions {
@@ -7,15 +10,38 @@ interface LogsRunnerOptions {
 }
 
 export async function runLogsRunnerCommand(options: LogsRunnerOptions): Promise<void> {
-    printValue(
-        {
-            command: 'logs runner',
-            runnerId: options.runnerId,
-            follow: options.follow,
-            tail: options.tail,
-            status: 'planned',
-            message: 'Runner logs implementation is in progress.',
-        },
-        'text'
-    );
+    const logContent = await readRunnerLog(options.runnerId);
+    const tailLineCount = options.tail ?? 100;
+    const tailedContent = logContent
+        .split('\n')
+        .slice(-tailLineCount)
+        .join('\n')
+        .trim();
+
+    if (!options.follow) {
+        if (tailedContent.length === 0) {
+            printValue(`No logs available for runner '${options.runnerId}'.`, 'text');
+            return;
+        }
+        process.stdout.write(`${tailedContent}\n`);
+        return;
+    }
+
+    const logPath = resolveRunnerPaths(options.runnerId).logPath;
+    const tailCommand = spawn('tail', ['-n', String(tailLineCount), '-f', logPath], {
+        stdio: 'inherit',
+    });
+
+    await new Promise<void>((resolve, reject) => {
+        tailCommand.on('error', (error) => {
+            reject(error);
+        });
+        tailCommand.on('exit', (code) => {
+            if (code === 0) {
+                resolve();
+                return;
+            }
+            reject(new Error(`tail process exited with code ${code ?? -1}`));
+        });
+    });
 }

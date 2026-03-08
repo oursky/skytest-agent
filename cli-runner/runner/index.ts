@@ -94,7 +94,8 @@ const envRunnerToken = process.env.RUNNER_TOKEN?.trim() || null;
 const runnerLabel = process.env.RUNNER_LABEL ?? 'macOS Runner';
 const capabilities = ['ANDROID'] as const;
 const EMULATOR_PROFILE_DEVICE_PREFIX = 'emulator-profile:';
-const RUNNER_LOCK_PATH = path.join(os.homedir(), '.skytest-agent', 'runner.lock');
+const runnerStateRoot = process.env.SKYTEST_RUNNER_STATE_DIR?.trim() || path.join(os.homedir(), '.skytest-agent');
+const RUNNER_LOCK_PATH = path.join(runnerStateRoot, 'runner.lock');
 
 const DEFAULT_TRANSPORT: RunnerTransportMetadata = {
     heartbeatIntervalSeconds: 10,

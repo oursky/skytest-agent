@@ -1,3 +1,4 @@
+import { startRunner } from '../runtime/runner-manager';
 import { printValue } from './output';
 
 interface StartRunnerOptions {
@@ -5,13 +6,12 @@ interface StartRunnerOptions {
 }
 
 export async function runStartRunnerCommand(options: StartRunnerOptions): Promise<void> {
-    printValue(
-        {
-            command: 'start runner',
-            runnerId: options.runnerId,
-            status: 'planned',
-            message: 'Runner start implementation is in progress.',
-        },
-        'text'
-    );
+    const started = await startRunner(options.runnerId);
+    printValue({
+        command: 'start runner',
+        localRunnerId: started.localRunnerId,
+        pid: started.pid,
+        alreadyRunning: started.alreadyRunning,
+        logPath: started.logPath,
+    }, 'text');
 }

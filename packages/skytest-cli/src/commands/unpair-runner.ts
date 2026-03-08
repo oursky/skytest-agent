@@ -1,3 +1,4 @@
+import { unpairRunner } from '../runtime/runner-manager';
 import { printValue } from './output';
 
 interface UnpairRunnerOptions {
@@ -5,13 +6,10 @@ interface UnpairRunnerOptions {
 }
 
 export async function runUnpairRunnerCommand(options: UnpairRunnerOptions): Promise<void> {
-    printValue(
-        {
-            command: 'unpair runner',
-            runnerId: options.runnerId,
-            status: 'planned',
-            message: 'Runner unpair implementation is in progress.',
-        },
-        'text'
-    );
+    const unpaired = await unpairRunner(options.runnerId);
+    printValue({
+        command: 'unpair runner',
+        localRunnerId: unpaired.localRunnerId,
+        removed: unpaired.removed,
+    }, 'text');
 }

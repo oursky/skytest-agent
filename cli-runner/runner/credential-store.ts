@@ -7,7 +7,26 @@ import { promisify } from 'node:util';
 const execFileAsync = promisify(execFile);
 
 const KEYCHAIN_SERVICE = 'skytest-agent-runner';
-const CREDENTIAL_FILE_PATH = path.join(os.homedir(), '.skytest-agent', 'runner-credential.json');
+
+function resolveRunnerStateRoot(): string {
+    const configuredStateRoot = process.env.SKYTEST_RUNNER_STATE_DIR?.trim();
+    if (configuredStateRoot && configuredStateRoot.length > 0) {
+        return configuredStateRoot;
+    }
+    return path.join(os.homedir(), '.skytest-agent');
+}
+
+function shouldUseKeychainStorage(): boolean {
+    if (process.platform !== 'darwin') {
+        return false;
+    }
+    if (process.env.SKYTEST_RUNNER_DISABLE_KEYCHAIN === '1') {
+        return false;
+    }
+    return true;
+}
+
+const CREDENTIAL_FILE_PATH = path.join(resolveRunnerStateRoot(), 'runner-credential.json');
 
 export interface StoredRunnerCredential {
     runnerToken: string;
@@ -26,7 +45,7 @@ function keychainAccount(controlPlaneBaseUrl: string): string {
 }
 
 async function loadFromKeychain(controlPlaneBaseUrl: string): Promise<string | null> {
-    if (process.platform !== 'darwin') {
+    if (!shouldUseKeychainStorage()) {
         return null;
     }
 
@@ -47,7 +66,7 @@ async function loadFromKeychain(controlPlaneBaseUrl: string): Promise<string | n
 }
 
 async function saveToKeychain(controlPlaneBaseUrl: string, runnerToken: string): Promise<void> {
-    if (process.platform !== 'darwin') {
+    if (!shouldUseKeychainStorage()) {
         return;
     }
 

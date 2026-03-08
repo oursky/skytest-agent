@@ -5,6 +5,7 @@ import { runGetRunnersCommand } from './commands/get-runners';
 import { runLogsRunnerCommand } from './commands/logs-runner';
 import { resolveOutputFormat } from './commands/output';
 import { runPairRunnerCommand } from './commands/pair-runner';
+import { runResetCommand } from './commands/reset';
 import { runStartRunnerCommand } from './commands/start-runner';
 import { runStopRunnerCommand } from './commands/stop-runner';
 import { runUnpairRunnerCommand } from './commands/unpair-runner';
@@ -21,6 +22,7 @@ function printHelp(): void {
         '  skytest describe runner <runner-id> [--json|--format text|json]',
         '  skytest logs runner <runner-id> [-f|--follow] [--tail <n>]',
         '  skytest unpair runner <runner-id>',
+        '  skytest reset --force',
     ].join('\n'));
 }
 
@@ -65,6 +67,55 @@ function parseLogsArguments(args: string[]): { runnerId: string; follow: boolean
     return { runnerId, follow, tail };
 }
 
+function parsePairRunnerArguments(args: string[]): {
+    pairingToken: string;
+    label?: string;
+    controlPlaneBaseUrl?: string;
+    autoStart: boolean;
+} {
+    if (args.length === 0) {
+        throw new Error('Usage: skytest pair runner <pairing-token>');
+    }
+
+    const pairingToken = args[0];
+    let label: string | undefined;
+    let controlPlaneBaseUrl: string | undefined;
+    let autoStart = true;
+
+    for (let index = 1; index < args.length; index += 1) {
+        const token = args[index];
+
+        if (token === '--no-start') {
+            autoStart = false;
+            continue;
+        }
+
+        if (token === '--label') {
+            const value = args[index + 1];
+            if (!value) {
+                throw new Error('Missing value for `--label`.');
+            }
+            label = value;
+            index += 1;
+            continue;
+        }
+
+        if (token === '--control-plane-url') {
+            const value = args[index + 1];
+            if (!value) {
+                throw new Error('Missing value for `--control-plane-url`.');
+            }
+            controlPlaneBaseUrl = value;
+            index += 1;
+            continue;
+        }
+
+        throw new Error(`Unknown option for \`pair runner\`: ${token}`);
+    }
+
+    return { pairingToken, label, controlPlaneBaseUrl, autoStart };
+}
+
 async function main(): Promise<void> {
     const args = process.argv.slice(2);
 
@@ -73,14 +124,19 @@ async function main(): Promise<void> {
         return;
     }
 
+    if (args[0] === 'reset') {
+        const force = args.slice(1).includes('--force');
+        await runResetCommand({ force });
+        return;
+    }
+
     const [action, resource, ...remainingArgs] = args;
 
     if (action === 'pair' && resource === 'runner') {
-        const pairingToken = remainingArgs[0];
-        if (!pairingToken || isHelpFlag(pairingToken)) {
+        if (remainingArgs.length === 0 || isHelpFlag(remainingArgs[0])) {
             throw new Error('Usage: skytest pair runner <pairing-token>');
         }
-        await runPairRunnerCommand({ pairingToken });
+        await runPairRunnerCommand(parsePairRunnerArguments(remainingArgs));
         return;
     }
 

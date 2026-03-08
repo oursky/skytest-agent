@@ -1,3 +1,4 @@
+import { stopRunner } from '../runtime/runner-manager';
 import { printValue } from './output';
 
 interface StopRunnerOptions {
@@ -5,13 +6,11 @@ interface StopRunnerOptions {
 }
 
 export async function runStopRunnerCommand(options: StopRunnerOptions): Promise<void> {
-    printValue(
-        {
-            command: 'stop runner',
-            runnerId: options.runnerId,
-            status: 'planned',
-            message: 'Runner stop implementation is in progress.',
-        },
-        'text'
-    );
+    const stopped = await stopRunner(options.runnerId);
+    printValue({
+        command: 'stop runner',
+        localRunnerId: stopped.localRunnerId,
+        stopped: stopped.stopped,
+        pid: stopped.pid,
+    }, 'text');
 }
