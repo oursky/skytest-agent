@@ -8,11 +8,6 @@ ENV_LOCAL ?= .env.local
 MACOS_RUNNER_TOKEN ?=
 MACOS_RUNNER_PAIRING_TOKEN ?=
 MACOS_RUNNER_LABEL ?= Local macOS Runner
-KUBECTL ?= kubectl
-K8S_NAMESPACE ?= skytest
-K8S_APP_NAME ?= skytest-agent
-K8S_DEPLOYMENT ?= $(K8S_APP_NAME)
-K8S_MANIFEST_DIR ?= deploy/k8s
 
 .PHONY: \
 	help \
@@ -29,11 +24,7 @@ K8S_MANIFEST_DIR ?= deploy/k8s
 	bootstrap \
 	dev \
 	dev-macos \
-	verify \
-	k8s-apply \
-	k8s-delete \
-	k8s-restart \
-	k8s-rollout
+	verify
 
 help: ## Show available targets
 	@awk 'BEGIN {FS = ": ## "}; /^[A-Za-z0-9_.-]+: ## / {printf "%-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -95,15 +86,3 @@ dev-macos: ## Boot local services, apply schema, start macOS runner, and start t
 
 verify: ## Run lint, TypeScript compile, and dependency audit
 	$(NODE_PM) run verify
-
-k8s-apply: ## Apply Kubernetes manifests from K8S_MANIFEST_DIR
-	$(KUBECTL) -n $(K8S_NAMESPACE) apply -f $(K8S_MANIFEST_DIR)
-
-k8s-delete: ## Delete Kubernetes manifests from K8S_MANIFEST_DIR
-	$(KUBECTL) -n $(K8S_NAMESPACE) delete -f $(K8S_MANIFEST_DIR)
-
-k8s-restart: ## Restart the configured Kubernetes deployment
-	$(KUBECTL) -n $(K8S_NAMESPACE) rollout restart deployment/$(K8S_DEPLOYMENT)
-
-k8s-rollout: ## Wait for the configured Kubernetes deployment rollout to finish
-	$(KUBECTL) -n $(K8S_NAMESPACE) rollout status deployment/$(K8S_DEPLOYMENT)
