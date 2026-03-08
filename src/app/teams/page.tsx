@@ -56,6 +56,7 @@ export default function TeamsPage() {
     const [renameValue, setRenameValue] = useState('');
     const [transferEmail, setTransferEmail] = useState('');
     const [transferTarget, setTransferTarget] = useState<TeamMemberOption | null>(null);
+    const [transferEmailError, setTransferEmailError] = useState<string | null>(null);
     const [isEditingSettings, setIsEditingSettings] = useState(false);
     const [isDeleteOpen, setIsDeleteOpen] = useState(false);
     const [isTransferOpen, setIsTransferOpen] = useState(false);
@@ -95,6 +96,7 @@ export default function TeamsPage() {
         setIsEditingSettings(false);
         setTransferCandidates(membersData.members);
         setTransferEmail('');
+        setTransferEmailError(null);
         setTransferTarget(null);
         setIsTransferOpen(false);
     }, [getAccessToken]);
@@ -177,11 +179,11 @@ export default function TeamsPage() {
         const normalizedEmail = transferEmail.trim().toLowerCase();
 
         if (!normalizedEmail) {
-            setError(t('team.page.transfer.error.emailRequired'));
+            setTransferEmailError(t('team.page.transfer.error.emailRequired'));
             return;
         }
         if (!EMAIL_PATTERN.test(normalizedEmail)) {
-            setError(t('team.page.transfer.error.emailInvalid'));
+            setTransferEmailError(t('team.page.transfer.error.emailInvalid'));
             return;
         }
 
@@ -191,13 +193,13 @@ export default function TeamsPage() {
         });
 
         if (!candidate) {
-            setError(t('team.page.transfer.error.notFound'));
+            setTransferEmailError(t('team.page.transfer.error.notFound'));
             return;
         }
 
         setTransferTarget(candidate);
         setIsTransferOpen(true);
-        setError(null);
+        setTransferEmailError(null);
     };
 
     const transferOwnership = async () => {
@@ -218,18 +220,19 @@ export default function TeamsPage() {
 
             const data = await response.json().catch(() => ({ error: t('team.page.error.transfer') }));
             if (!response.ok) {
-                setError(data.error || t('team.page.error.transfer'));
+                setTransferEmailError(data.error || t('team.page.error.transfer'));
                 return;
             }
 
             await refreshTeams();
             setIsTransferOpen(false);
             setTransferEmail('');
+            setTransferEmailError(null);
             setTransferTarget(null);
             setError(null);
             await loadTeamDetails(currentTeam.id);
         } catch {
-            setError(t('team.page.error.transfer'));
+            setTransferEmailError(t('team.page.error.transfer'));
         }
     };
 
@@ -475,10 +478,16 @@ export default function TeamsPage() {
                                             <input
                                                 type="email"
                                                 value={transferEmail}
-                                                onChange={(event) => setTransferEmail(event.target.value)}
+                                                onChange={(event) => {
+                                                    setTransferEmail(event.target.value);
+                                                    setTransferEmailError(null);
+                                                }}
                                                 placeholder={t('team.page.transfer.emailPlaceholder')}
                                                 className="h-10 w-full rounded-md border border-gray-300 px-3 focus:outline-none focus:ring-2 focus:ring-primary/50"
                                             />
+                                            {transferEmailError && (
+                                                <p className="text-sm text-red-600">{transferEmailError}</p>
+                                            )}
                                         </div>
                                         <button
                                             type="button"
