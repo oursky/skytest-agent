@@ -29,7 +29,7 @@ describe('claimNextRunForRunner', () => {
                 id: 'run-1',
                 testCaseId: 'test-case-1',
                 requiredCapability: 'ANDROID',
-                requestedDeviceId: 'emulator-5554',
+                requestedDeviceId: 'emulator-profile:Pixel_8',
                 leaseExpiresAt,
             }]);
 
@@ -44,12 +44,14 @@ describe('claimNextRunForRunner', () => {
             runId: 'run-1',
             testCaseId: 'test-case-1',
             requiredCapability: 'ANDROID',
-            requestedDeviceId: 'emulator-5554',
+            requestedDeviceId: 'emulator-profile:Pixel_8',
             leaseExpiresAt,
         });
         expect(queryRaw).toHaveBeenCalledTimes(1);
         const [firstQuery] = queryRaw.mock.calls[0];
         expect(firstQuery.strings.join('')).toContain('"RunnerDevice"');
+        expect(firstQuery.strings.join('')).toContain('LIKE');
+        expect(firstQuery.strings.join('')).toContain(`'OFFLINE'`);
     });
 
     it('falls back to generic Android jobs when no explicit-device job is claimable', async () => {

@@ -24,6 +24,12 @@ interface RunTestRequest {
     testCaseId?: string;
 }
 
+const EMULATOR_PROFILE_DEVICE_PREFIX = 'emulator-profile:';
+
+function buildEmulatorProfileRequestedDeviceId(profileName: string): string {
+    return `${EMULATOR_PROFILE_DEVICE_PREFIX}${profileName}`;
+}
+
 function createConfigurationSnapshot(config: RunTestRequest) {
     const { testCaseId, ...sanitized } = config;
     void testCaseId;
@@ -73,9 +79,17 @@ function extractRequestedDeviceId(browserConfig: RunTestRequest['browserConfig']
         if (selector.mode === 'connected-device') {
             return selector.serial;
         }
+        if (selector.mode === 'emulator-profile' && selector.emulatorProfileName) {
+            return buildEmulatorProfileRequestedDeviceId(selector.emulatorProfileName);
+        }
     }
 
     return null;
+}
+
+function isEmulatorProfileInventoryDevice(device: { deviceId: string; metadata: Record<string, unknown> | null }): boolean {
+    return device.deviceId.startsWith(EMULATOR_PROFILE_DEVICE_PREFIX)
+        || device.metadata?.inventoryKind === 'emulator-profile';
 }
 
 async function validateAndroidTargets(
@@ -242,7 +256,12 @@ export async function POST(request: Request) {
             const availability = await getTeamDevicesAvailability(testCase.project.teamId);
             const selectedDevice = availability?.devices.find((device) => device.deviceId === requestedDeviceId);
 
-            if (!selectedDevice || !selectedDevice.isAvailable) {
+            const emulatorProfileClaimable = selectedDevice
+                && isEmulatorProfileInventoryDevice(selectedDevice)
+                && selectedDevice.isFresh
+                && availability.runnerConnected;
+
+            if (!selectedDevice || (!selectedDevice.isAvailable && !emulatorProfileClaimable)) {
                 return NextResponse.json(
                     { error: 'Selected device is no longer available. Check Team Settings > Runners and choose an available device.' },
                     { status: 409 }

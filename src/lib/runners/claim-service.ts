@@ -10,6 +10,8 @@ interface ClaimedRunRow {
     leaseExpiresAt: Date;
 }
 
+const EMULATOR_PROFILE_DEVICE_PREFIX = 'emulator-profile:';
+
 function hasAndroidCapability(capabilities: string[]): boolean {
     return capabilities.includes('ANDROID');
 }
@@ -42,7 +44,10 @@ async function claimExplicitDeviceRun(input: {
                   FROM "RunnerDevice" rd
                   WHERE rd."runnerId" = ${input.runnerId}
                     AND rd."deviceId" = tr."requestedDeviceId"
-                    AND rd."state" = 'ONLINE'
+                    AND (
+                        (tr."requestedDeviceId" LIKE ${`${EMULATOR_PROFILE_DEVICE_PREFIX}%`} AND rd."state" IN ('ONLINE', 'OFFLINE'))
+                        OR (tr."requestedDeviceId" NOT LIKE ${`${EMULATOR_PROFILE_DEVICE_PREFIX}%`} AND rd."state" = 'ONLINE')
+                    )
               )
             ORDER BY tr."createdAt" ASC
             FOR UPDATE SKIP LOCKED

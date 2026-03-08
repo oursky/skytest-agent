@@ -73,6 +73,18 @@ describe('POST /api/run-test', () => {
             },
         });
         mocks.testCaseFileFindMany.mockResolvedValue([]);
+        mocks.getTeamDevicesAvailability.mockResolvedValue({
+            runnerConnected: true,
+            devices: [
+                {
+                    id: 'device-1',
+                    deviceId: 'emulator-profile:Pixel_8',
+                    metadata: { inventoryKind: 'emulator-profile', emulatorProfileName: 'Pixel_8' },
+                    isAvailable: false,
+                    isFresh: true,
+                },
+            ],
+        });
         mocks.testRunCreate.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({
             id: 'run-1',
             status: String(data.status),
@@ -120,6 +132,53 @@ describe('POST /api/run-test', () => {
             runId: 'run-1',
             status: 'PREPARING',
             requiredCapability: null,
+        });
+    });
+
+    it('queues emulator-profile Android runs with deterministic requested device id', async () => {
+        const request = new Request('http://localhost/api/run-test', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                testCaseId: 'tc-1',
+                steps: [{ id: 'step-1', target: 'android_a', action: 'Open app', type: 'ai-action' }],
+                browserConfig: {
+                    android_a: {
+                        type: 'android',
+                        name: 'Pixel 8 target',
+                        deviceSelector: {
+                            mode: 'emulator-profile',
+                            emulatorProfileName: 'Pixel_8',
+                        },
+                        appId: 'com.example.app',
+                        clearAppState: true,
+                        allowAllPermissions: true,
+                    },
+                },
+            }),
+        });
+
+        const response = await POST(request);
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(mocks.testRunCreate).toHaveBeenCalledTimes(1);
+        expect(mocks.testRunCreate.mock.calls[0][0]).toMatchObject({
+            data: {
+                status: 'QUEUED',
+                requiredCapability: 'ANDROID',
+                requiredRunnerKind: 'MACOS_AGENT',
+                requestedDeviceId: 'emulator-profile:Pixel_8',
+            },
+        });
+        expect(mocks.startLocalBrowserRun).not.toHaveBeenCalled();
+        expect(payload).toMatchObject({
+            runId: 'run-1',
+            status: 'QUEUED',
+            requiredCapability: 'ANDROID',
+            requestedDeviceId: 'emulator-profile:Pixel_8',
         });
     });
 });
