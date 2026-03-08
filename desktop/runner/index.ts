@@ -90,6 +90,7 @@ const pairingToken = process.env.RUNNER_PAIRING_TOKEN?.trim() || null;
 const envRunnerToken = process.env.RUNNER_TOKEN?.trim() || null;
 const runnerLabel = process.env.RUNNER_LABEL ?? 'macOS Runner';
 const capabilities = ['ANDROID'] as const;
+const EMULATOR_PROFILE_DEVICE_PREFIX = 'emulator-profile:';
 
 const DEFAULT_TRANSPORT: RunnerTransportMetadata = {
     heartbeatIntervalSeconds: 10,
@@ -318,14 +319,25 @@ function mapDeviceState(device: ConnectedAndroidDeviceInfo): 'ONLINE' | 'OFFLINE
     return 'UNAVAILABLE';
 }
 
+function buildEmulatorProfileDeviceId(profileName: string): string {
+    return `${EMULATOR_PROFILE_DEVICE_PREFIX}${profileName}`;
+}
+
 async function syncDevices() {
     const inventory = await listAndroidDeviceInventory();
-    const devices = inventory.connectedDevices.map((device) => ({
+    const connectedEmulatorProfiles = new Set(
+        inventory.connectedDevices
+            .filter((device) => device.kind === 'emulator' && typeof device.emulatorProfileName === 'string' && device.emulatorProfileName.trim().length > 0)
+            .map((device) => device.emulatorProfileName as string)
+    );
+
+    const connectedDevices = inventory.connectedDevices.map((device) => ({
         deviceId: device.serial,
         platform: 'ANDROID' as const,
         name: formatAndroidDeviceDisplayName(device),
         state: mapDeviceState(device),
         metadata: {
+            inventoryKind: 'connected-device',
             adbState: device.adbState,
             kind: device.kind,
             manufacturer: device.manufacturer,
@@ -340,6 +352,23 @@ async function syncDevices() {
             usb: device.usb,
         },
     }));
+
+    const emulatorProfiles = inventory.emulatorProfiles
+        .filter((profile) => !connectedEmulatorProfiles.has(profile.name))
+        .map((profile) => ({
+            deviceId: buildEmulatorProfileDeviceId(profile.name),
+            platform: 'ANDROID' as const,
+            name: profile.displayName,
+            state: 'OFFLINE' as const,
+            metadata: {
+                inventoryKind: 'emulator-profile',
+                emulatorProfileName: profile.name,
+                apiLevel: profile.apiLevel,
+                screenSize: profile.screenSize,
+            },
+        }));
+
+    const devices = [...connectedDevices, ...emulatorProfiles];
 
     const payload = deviceSyncRequestSchema.parse({
         protocolVersion: RUNNER_PROTOCOL_CURRENT_VERSION,

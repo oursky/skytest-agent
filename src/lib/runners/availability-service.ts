@@ -21,6 +21,7 @@ interface TeamDeviceRow {
     name: string;
     platform: string;
     state: string;
+    metadata: Record<string, unknown> | null;
     lastSeenAt: string;
     isFresh: boolean;
     isAvailable: boolean;
@@ -59,6 +60,13 @@ export interface TeamRunnersOverview {
 const teamDevicesCache = new Map<string, CachedTeamDevices>();
 const teamRunnersCache = new Map<string, CachedTeamRunners>();
 
+function normalizeDeviceMetadata(value: unknown): Record<string, unknown> | null {
+    if (!value || Array.isArray(value) || typeof value !== 'object') {
+        return null;
+    }
+    return value as Record<string, unknown>;
+}
+
 interface TeamRunnerWithDevices {
     id: string;
     label: string;
@@ -73,6 +81,7 @@ interface TeamRunnerWithDevices {
         platform: string;
         name: string;
         state: string;
+        metadata: unknown;
         lastSeenAt: Date;
     }>;
 }
@@ -95,6 +104,7 @@ async function loadTeamRunners(teamId: string): Promise<TeamRunnerWithDevices[]>
                     platform: true,
                     name: true,
                     state: true,
+                    metadata: true,
                     lastSeenAt: true,
                 },
             },
@@ -141,6 +151,7 @@ export async function getTeamDevicesAvailability(teamId: string): Promise<TeamDe
                 name: device.name,
                 platform: device.platform,
                 state: device.state,
+                metadata: normalizeDeviceMetadata(device.metadata),
                 lastSeenAt: device.lastSeenAt.toISOString(),
                 isFresh: deviceFresh,
                 isAvailable,

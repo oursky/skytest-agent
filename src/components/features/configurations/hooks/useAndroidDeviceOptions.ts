@@ -15,10 +15,25 @@ interface TeamDevice {
     state: string;
     isFresh: boolean;
     isAvailable: boolean;
+    metadata?: Record<string, unknown> | null;
 }
 
 interface TeamDevicesResponse {
     devices: TeamDevice[];
+}
+
+function isEmulatorProfileInventory(device: TeamDevice): boolean {
+    const inventoryKind = device.metadata?.inventoryKind;
+    return inventoryKind === 'emulator-profile';
+}
+
+function resolveEmulatorProfileName(device: TeamDevice): string | null {
+    const value = device.metadata?.emulatorProfileName;
+    if (typeof value !== 'string') {
+        return null;
+    }
+    const normalized = value.trim();
+    return normalized.length > 0 ? normalized : null;
 }
 
 function buildStatusMeta(device: TeamDevice): { statusKey: string; statusColorClass: string; disabled: boolean } {
@@ -26,6 +41,14 @@ function buildStatusMeta(device: TeamDevice): { statusKey: string; statusColorCl
         return {
             statusKey: 'device.state.online',
             statusColorClass: 'bg-green-100 text-green-700',
+            disabled: false,
+        };
+    }
+
+    if (device.state === 'OFFLINE' && isEmulatorProfileInventory(device)) {
+        return {
+            statusKey: 'device.state.notRunning',
+            statusColorClass: 'bg-gray-100 text-gray-600',
             disabled: false,
         };
     }
@@ -78,16 +101,20 @@ export function useAndroidDeviceOptions({
             const payload = await res.json() as TeamDevicesResponse;
             const options: AndroidDeviceOption[] = payload.devices.map((device) => {
                 const statusMeta = buildStatusMeta(device);
+                const emulatorProfileName = resolveEmulatorProfileName(device);
+                const isEmulatorProfile = isEmulatorProfileInventory(device) && Boolean(emulatorProfileName);
 
                 return {
                     id: `android:${device.id}`,
-                    selector: { mode: 'connected-device', serial: device.deviceId },
+                    selector: isEmulatorProfile && emulatorProfileName
+                        ? { mode: 'emulator-profile', emulatorProfileName }
+                        : { mode: 'connected-device', serial: device.deviceId },
                     label: device.name,
-                    detail: device.deviceId,
+                    detail: isEmulatorProfile && emulatorProfileName ? emulatorProfileName : device.deviceId,
                     statusKey: statusMeta.statusKey,
                     statusColorClass: statusMeta.statusColorClass,
                     disabled: statusMeta.disabled,
-                    group: 'physical',
+                    group: isEmulatorProfile ? 'emulator' : 'physical',
                 };
             });
 

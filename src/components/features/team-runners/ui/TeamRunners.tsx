@@ -39,6 +39,7 @@ interface TeamDeviceItem {
     name: string;
     platform: string;
     state: string;
+    metadata?: Record<string, unknown> | null;
     lastSeenAt: string;
     isFresh: boolean;
     isAvailable: boolean;
@@ -51,6 +52,10 @@ interface TeamDevicesResponse {
     staleDeviceCount: number;
     refreshedAt: string;
     devices: TeamDeviceItem[];
+}
+
+function isEmulatorProfileInventory(device: TeamDeviceItem): boolean {
+    return device.metadata?.inventoryKind === 'emulator-profile';
 }
 
 interface PairingTokenResponse {
@@ -89,6 +94,9 @@ function buildDeviceStatusClass(device: TeamDeviceItem): string {
     if (device.isAvailable) {
         return 'bg-green-100 text-green-700';
     }
+    if (device.state === 'OFFLINE' && isEmulatorProfileInventory(device)) {
+        return 'bg-gray-100 text-gray-700';
+    }
     if (device.state === 'ONLINE' && !device.isFresh) {
         return 'bg-amber-100 text-amber-700';
     }
@@ -101,6 +109,9 @@ function buildDeviceStatusClass(device: TeamDeviceItem): string {
 function buildDeviceStatusLabel(device: TeamDeviceItem, t: (key: string) => string): string {
     if (device.isAvailable) {
         return t('device.state.online');
+    }
+    if (device.state === 'OFFLINE' && isEmulatorProfileInventory(device)) {
+        return t('device.state.notRunning');
     }
     if (device.state === 'ONLINE' && !device.isFresh) {
         return t('device.state.stale');
