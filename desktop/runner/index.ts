@@ -152,6 +152,16 @@ class RunnerHttpError extends Error {
     }
 }
 
+function isRunOwnershipLostError(error: unknown): boolean {
+    return error instanceof RunnerHttpError && error.status === 403;
+}
+
+function isRunOwnershipArtifactError(error: unknown): boolean {
+    return error instanceof RunnerHttpError
+        && (error.status === 400 || error.status === 403)
+        && /ownership/i.test(error.body);
+}
+
 async function loadAndroidDeviceManager(): Promise<AndroidDeviceManagerRuntime> {
     const deviceManagerModule = await import('../../src/lib/android/device-manager');
     const candidate = deviceManagerModule as {
@@ -592,9 +602,16 @@ async function executeClaimedRun(runId: string) {
     const details = await loadJobDetails(runId);
     const queuedEvents: RunnerEventInput[] = [];
     const pendingArtifactUploads = new Set<Promise<void>>();
+    const runAbortController = new AbortController();
     let flushingEvents = false;
+    let acceptsRunEvents = true;
 
     const flushEvents = async () => {
+        if (!acceptsRunEvents) {
+            queuedEvents.length = 0;
+            return;
+        }
+
         if (flushingEvents || queuedEvents.length === 0) {
             return;
         }
@@ -603,7 +620,20 @@ async function executeClaimedRun(runId: string) {
         try {
             while (queuedEvents.length > 0) {
                 const batch = queuedEvents.splice(0, 50);
-                await postRunEvents(runId, batch);
+                try {
+                    await postRunEvents(runId, batch);
+                } catch (error) {
+                    if (isRunOwnershipLostError(error)) {
+                        acceptsRunEvents = false;
+                        if (!runAbortController.signal.aborted) {
+                            runAbortController.abort();
+                        }
+                        queuedEvents.length = 0;
+                        logger.warn('Dropping run events because run ownership is no longer valid', { runId });
+                        return;
+                    }
+                    throw error;
+                }
             }
         } finally {
             flushingEvents = false;
@@ -611,8 +641,13 @@ async function executeClaimedRun(runId: string) {
     };
 
     const queueEvent = (event: RunnerEventInput) => {
+        if (!acceptsRunEvents) {
+            return;
+        }
         queuedEvents.push(event);
-        void flushEvents();
+        void flushEvents().catch((error) => {
+            logger.error('Failed to flush run events', error);
+        });
     };
 
     const handleTestEvent = (event: TestEvent) => {
@@ -650,6 +685,14 @@ async function executeClaimedRun(runId: string) {
                         },
                     });
                 } catch (error) {
+                    if (isRunOwnershipArtifactError(error)) {
+                        acceptsRunEvents = false;
+                        if (!runAbortController.signal.aborted) {
+                            runAbortController.abort();
+                        }
+                        logger.warn('Stopping artifact upload because run ownership is no longer valid', { runId });
+                        return;
+                    }
                     logger.warn('Failed to upload screenshot artifact', error);
                     queueEvent({
                         kind: 'SCREENSHOT',
@@ -691,6 +734,7 @@ async function executeClaimedRun(runId: string) {
             onEvent(event) {
                 handleTestEvent(event);
             },
+            signal: runAbortController.signal,
             async onPreparing() {
                 queueEvent({
                     kind: 'STATUS',
@@ -710,16 +754,44 @@ async function executeClaimedRun(runId: string) {
 
         const resultSummary = JSON.stringify(result);
         if (result.status === 'PASS') {
-            await markRunComplete(runId, resultSummary);
+            try {
+                await markRunComplete(runId, resultSummary);
+            } catch (error) {
+                if (isRunOwnershipLostError(error)) {
+                    logger.warn('Run ownership lost before completion update', { runId });
+                    return;
+                }
+                throw error;
+            }
             return;
         }
 
-        await markRunFailed(runId, result.error ?? 'Run failed', resultSummary);
+        try {
+            await markRunFailed(runId, result.error ?? 'Run failed', resultSummary);
+        } catch (error) {
+            if (isRunOwnershipLostError(error)) {
+                logger.warn('Run ownership lost before failure update', { runId });
+                return;
+            }
+            throw error;
+        }
     } catch (error) {
         await Promise.allSettled(Array.from(pendingArtifactUploads));
-        await flushEvents();
+        try {
+            await flushEvents();
+        } catch (flushError) {
+            logger.warn('Failed to flush queued events after run error', flushError);
+        }
         const message = error instanceof Error ? error.message : String(error);
-        await markRunFailed(runId, message);
+        try {
+            await markRunFailed(runId, message);
+        } catch (markError) {
+            if (isRunOwnershipLostError(markError)) {
+                logger.warn('Run ownership lost while reporting run error', { runId, error: message });
+                return;
+            }
+            throw markError;
+        }
     }
 }
 
