@@ -1,4 +1,4 @@
-import { mkdir, open, readFile, rm } from 'node:fs/promises';
+import { mkdir, open, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {
@@ -106,6 +106,7 @@ const capabilities = ['ANDROID'] as const;
 const EMULATOR_PROFILE_DEVICE_PREFIX = 'emulator-profile:';
 const runnerStateRoot = process.env.SKYTEST_RUNNER_STATE_DIR?.trim() || path.join(os.homedir(), '.skytest-agent');
 const RUNNER_LOCK_PATH = path.join(runnerStateRoot, 'runner.lock');
+const RUNNER_CREDENTIAL_REVOKED_PATH = path.join(runnerStateRoot, 'credential-revoked.json');
 
 const DEFAULT_TRANSPORT: RunnerTransportMetadata = {
     heartbeatIntervalSeconds: 10,
@@ -192,6 +193,7 @@ let authState: RunnerAuthState | null = null;
 let heartbeatTimer: NodeJS.Timeout | null = null;
 let deviceSyncTimer: NodeJS.Timeout | null = null;
 let stopped = false;
+let credentialRevoked = false;
 
 function stopBackgroundLoops() {
     if (heartbeatTimer) {
@@ -267,13 +269,13 @@ function ensureRunnerToken(): string {
     return authState.runnerToken;
 }
 
-async function postRunnerApi<T>(path: string, body: unknown, authenticated = true): Promise<T> {
+async function postRunnerApi<T>(endpointPath: string, body: unknown, authenticated = true): Promise<T> {
     const headers: Record<string, string> = { ...JSON_HEADERS };
     if (authenticated) {
         headers.Authorization = `Bearer ${ensureRunnerToken()}`;
     }
 
-    const response = await fetch(new URL(path, controlPlaneBaseUrl), {
+    const response = await fetch(new URL(endpointPath, controlPlaneBaseUrl), {
         method: 'POST',
         headers,
         body: JSON.stringify(body),
@@ -281,6 +283,17 @@ async function postRunnerApi<T>(path: string, body: unknown, authenticated = tru
 
     if (!response.ok) {
         const text = await response.text();
+        if (authenticated && response.status === 401 && !credentialRevoked) {
+            credentialRevoked = true;
+            await mkdir(path.dirname(RUNNER_CREDENTIAL_REVOKED_PATH), { recursive: true });
+            await writeFile(RUNNER_CREDENTIAL_REVOKED_PATH, JSON.stringify({
+                revokedAt: new Date().toISOString(),
+                status: response.status,
+                path: endpointPath,
+                body: text,
+            }), 'utf8');
+            requestRunnerStop('Runner credential unauthorized. Local runner will stop and require re-pair.');
+        }
         throw new RunnerHttpError(response.status, text);
     }
 

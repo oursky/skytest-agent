@@ -24,6 +24,7 @@ import { isProcessAlive, startDetachedRunnerProcess, stopProcessWithTimeout } fr
 const DEFAULT_CONTROL_PLANE_URL = process.env.RUNNER_CONTROL_PLANE_URL ?? 'http://127.0.0.1:3000';
 const DEFAULT_RUNNER_VERSION = process.env.RUNNER_VERSION ?? '0.1.0';
 const STOP_TIMEOUT_MS = 5_000;
+const RUNNER_CREDENTIAL_REVOKED_FILE = 'credential-revoked.json';
 
 function resolveRepoRoot(): string {
     const currentFile = fileURLToPath(import.meta.url);
@@ -74,6 +75,16 @@ async function determineRunnerStatus(localRunnerId: string): Promise<{ pid: numb
     }
 
     return { pid, status: 'RUNNING' };
+}
+
+async function isRunnerCredentialRevoked(localRunnerId: string): Promise<boolean> {
+    const { runtimeStateDir } = resolveRunnerPaths(localRunnerId);
+    try {
+        await readFile(path.join(runtimeStateDir, RUNNER_CREDENTIAL_REVOKED_FILE), 'utf8');
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 export interface PairRunnerOptions {
@@ -244,6 +255,15 @@ export async function getRunners(): Promise<LocalRunnerDescriptor[]> {
     const descriptors: LocalRunnerDescriptor[] = [];
 
     for (const localRunnerId of localRunnerIds) {
+        if (await isRunnerCredentialRevoked(localRunnerId)) {
+            try {
+                await stopRunner(localRunnerId);
+            } catch {
+            }
+            await deleteRunner(localRunnerId);
+            continue;
+        }
+
         const metadata = await readRunnerMetadata(localRunnerId);
         const credential = await readRunnerCredential(localRunnerId);
         if (!metadata || !credential) {
