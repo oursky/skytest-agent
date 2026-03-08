@@ -7,7 +7,7 @@ type ImageRemotePattern = {
   pathname: string;
 };
 
-const isProduction = process.env.NODE_ENV === 'production';
+const isDevelopment = process.env.NODE_ENV === 'development';
 
 const localImageRemotePatterns: ImageRemotePattern[] = [
   {
@@ -25,7 +25,7 @@ const localImageRemotePatterns: ImageRemotePattern[] = [
 ];
 
 function resolveImageRemotePatterns(): ImageRemotePattern[] {
-  const defaultImageRemotePatterns = isProduction ? [] : localImageRemotePatterns;
+  const defaultImageRemotePatterns = isDevelopment ? localImageRemotePatterns : [];
   const endpoint = process.env.S3_ENDPOINT;
   if (!endpoint) {
     return defaultImageRemotePatterns;
@@ -62,7 +62,7 @@ function resolveImageRemotePatterns(): ImageRemotePattern[] {
 const nextConfig: NextConfig = {
   serverExternalPackages: ['@langfuse/openai', 'langfuse', 'langsmith', '@silvia-odwyer/photon-node'],
   images: {
-    dangerouslyAllowLocalIP: !isProduction,
+    dangerouslyAllowLocalIP: isDevelopment,
     remotePatterns: resolveImageRemotePatterns(),
   },
 };
