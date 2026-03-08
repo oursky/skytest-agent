@@ -106,6 +106,7 @@ describe('event-service', () => {
             data: {
                 nextEventSequence: 6,
                 lastEventAt: expect.any(Date),
+                leaseExpiresAt: expect.any(Date),
             },
         });
         expect(createManyEvents).toHaveBeenCalledWith({
@@ -143,6 +144,7 @@ describe('event-service', () => {
                 status: 'RUNNING',
                 nextEventSequence: 2,
                 lastEventAt: expect.any(Date),
+                leaseExpiresAt: expect.any(Date),
             },
         });
     });

@@ -19,6 +19,10 @@ interface OwnedRun {
     nextEventSequence: number;
 }
 
+function createLeaseExpiry(now = new Date()): Date {
+    return new Date(now.getTime() + appConfig.runner.leaseDurationSeconds * 1000);
+}
+
 function ensureRunOwnership(run: OwnedRun | null, runnerId: string): OwnedRun | null {
     if (!run) {
         return null;
@@ -85,6 +89,7 @@ export async function appendRunEvents(input: {
         const runUpdateData: Prisma.TestRunUpdateManyMutationInput = {
             nextEventSequence: startSequence + input.events.length,
             lastEventAt: now,
+            leaseExpiresAt: createLeaseExpiry(now),
         };
         if (ownedRun.status === 'PREPARING' && input.events.length > 0) {
             runUpdateData.status = 'RUNNING';
