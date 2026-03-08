@@ -11,7 +11,7 @@ const contentSecurityPolicy = [
     "connect-src 'self' https: http: ws: wss:"
 ].join('; ');
 
-export function middleware(request: NextRequest): NextResponse {
+export function proxy(request: NextRequest): NextResponse {
     const response = NextResponse.next();
 
     response.headers.set('X-Content-Type-Options', 'nosniff');
