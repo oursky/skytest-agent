@@ -28,6 +28,15 @@ interface RunEventRow {
     createdAt: Date;
 }
 
+interface SignedArtifactUrlCacheEntry {
+    url: string;
+    expiresAtMs: number;
+}
+
+const signedArtifactUrlCache = new Map<string, SignedArtifactUrlCacheEntry>();
+const signedArtifactUrlCacheSweepIntervalMs = 60_000;
+let nextSignedArtifactUrlCacheSweepAtMs = 0;
+
 function isLogLevel(value: unknown): value is LogLevel {
     return value === 'info' || value === 'error' || value === 'success';
 }
@@ -50,6 +59,43 @@ function resolveArtifactFilename(artifactKey: string): string {
     return segments[segments.length - 1] || 'artifact.bin';
 }
 
+function maybeSweepSignedArtifactUrlCache(nowMs: number): void {
+    if (nowMs < nextSignedArtifactUrlCacheSweepAtMs) {
+        return;
+    }
+
+    nextSignedArtifactUrlCacheSweepAtMs = nowMs + signedArtifactUrlCacheSweepIntervalMs;
+    for (const [key, entry] of signedArtifactUrlCache.entries()) {
+        if (entry.expiresAtMs <= nowMs) {
+            signedArtifactUrlCache.delete(key);
+        }
+    }
+}
+
+async function getCachedSignedArtifactUrl(artifactKey: string): Promise<string> {
+    const nowMs = Date.now();
+    maybeSweepSignedArtifactUrlCache(nowMs);
+
+    const cached = signedArtifactUrlCache.get(artifactKey);
+    if (cached && cached.expiresAtMs > nowMs) {
+        return cached.url;
+    }
+
+    const signedUrl = await objectStore.getSignedDownloadUrl({
+        key: artifactKey,
+        filename: resolveArtifactFilename(artifactKey),
+        inline: true,
+    });
+
+    const ttlMs = Math.max(1, appConfig.storage.signedUrlTtlSeconds * 1000 - 5_000);
+    signedArtifactUrlCache.set(artifactKey, {
+        url: signedUrl,
+        expiresAtMs: nowMs + ttlMs,
+    });
+
+    return signedUrl;
+}
+
 async function mapRunEventToUiEvent(row: RunEventRow): Promise<TestEvent> {
     if (isUiTestEvent(row.payload)) {
         if (
@@ -59,11 +105,7 @@ async function mapRunEventToUiEvent(row: RunEventRow): Promise<TestEvent> {
             && row.payload.data.src.startsWith('artifact:')
         ) {
             try {
-                const signedUrl = await objectStore.getSignedDownloadUrl({
-                    key: row.artifactKey,
-                    filename: resolveArtifactFilename(row.artifactKey),
-                    inline: true,
-                });
+                const signedUrl = await getCachedSignedArtifactUrl(row.artifactKey);
 
                 return {
                     ...row.payload,
