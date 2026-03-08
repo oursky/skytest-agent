@@ -74,6 +74,14 @@ See `.env.example` for all available options. Required:
 
 Users provide their own [OpenRouter](https://openrouter.ai/) API keys via the app settings.
 
+## Kubernetes
+
+- Helm chart: `deploy/helm`
+- Baseline manifests (reference): `deploy/k8s`
+- Quick validation:
+  - `make helm-lint`
+  - `make helm-template`
+
 ## Troubleshooting
 
 - **Browsers not found**: `npm run playwright:install`

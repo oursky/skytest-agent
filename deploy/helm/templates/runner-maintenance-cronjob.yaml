@@ -1,0 +1,42 @@
+{{- if .Values.runnerMaintenance.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "skytest-agent.runnerMaintenanceFullname" . }}
+  labels:
+    {{- include "skytest-agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runner-maintenance
+spec:
+  schedule: {{ .Values.runnerMaintenance.schedule | quote }}
+  concurrencyPolicy: {{ .Values.runnerMaintenance.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.runnerMaintenance.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.runnerMaintenance.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.runnerMaintenance.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "skytest-agent.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: runner-maintenance
+        spec:
+          restartPolicy: Never
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: runner-maintenance
+              image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command:
+                {{- toYaml .Values.runnerMaintenance.command | nindent 16 }}
+              envFrom:
+                - secretRef:
+                    name: {{ .Values.secrets.existingSecretName }}
+              env:
+                - name: RUNNER_MAINTENANCE_ONCE
+                  value: {{ .Values.runnerMaintenance.runOnceValue | quote }}
+              resources:
+                {{- toYaml .Values.runnerMaintenance.resources | nindent 16 }}
+{{- end }}

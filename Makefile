@@ -19,6 +19,8 @@ CONTROL_PLANE_URL ?= http://$(CONTROL_PLANE_HOST):$(CONTROL_PLANE_PORT)
 	app \
 	maintenance \
 	browser-runner \
+	helm-lint \
+	helm-template \
 	playwright-install \
 	runner-reset \
 	bootstrap \
@@ -56,6 +58,12 @@ maintenance: ## Start the runner maintenance worker loop
 
 browser-runner: ## Start the browser run worker loop
 	$(NODE_PM) run runner:browser
+
+helm-lint: ## Lint Helm chart for Kubernetes deployment
+	helm lint deploy/helm
+
+helm-template: ## Render Helm chart templates locally
+	helm template skytest deploy/helm
 
 playwright-install: ## Install Playwright Chromium locally
 	$(NODE_PM) run playwright:install
