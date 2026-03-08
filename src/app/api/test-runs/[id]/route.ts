@@ -4,9 +4,83 @@ import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { isProjectMember } from '@/lib/security/permissions';
 import { isTestEvent } from '@/lib/runtime/test-events';
-import type { TestEvent } from '@/types';
+import { objectStore } from '@/lib/storage/object-store';
+import { isScreenshotData, type TestEvent, type LogLevel } from '@/types';
 
 const logger = createLogger('api:test-runs:id');
+
+interface RunEventRow {
+    kind: string;
+    message: string | null;
+    payload: unknown;
+    artifactKey: string | null;
+    createdAt: Date;
+}
+
+function isLogLevel(value: unknown): value is LogLevel {
+    return value === 'info' || value === 'error' || value === 'success';
+}
+
+function resolveArtifactFilename(artifactKey: string): string {
+    const segments = artifactKey.split('/').filter(Boolean);
+    return segments[segments.length - 1] || 'artifact.bin';
+}
+
+function createArtifactUnavailableLogEvent(row: RunEventRow): TestEvent {
+    return {
+        type: 'log',
+        data: {
+            message: row.message || `Screenshot artifact unavailable: ${row.artifactKey ?? 'unknown artifact'}`,
+            level: 'error',
+        },
+        timestamp: row.createdAt.getTime(),
+    };
+}
+
+async function mapRunEventToUiEvent(row: RunEventRow): Promise<TestEvent> {
+    if (isTestEvent(row.payload)) {
+        if (
+            row.payload.type === 'screenshot'
+            && isScreenshotData(row.payload.data)
+            && row.payload.data.src.startsWith('artifact:')
+        ) {
+            if (!row.artifactKey) {
+                return createArtifactUnavailableLogEvent(row);
+            }
+
+            try {
+                const signedUrl = await objectStore.getSignedDownloadUrl({
+                    key: row.artifactKey,
+                    filename: resolveArtifactFilename(row.artifactKey),
+                    inline: true,
+                });
+
+                return {
+                    ...row.payload,
+                    data: {
+                        ...row.payload.data,
+                        src: signedUrl,
+                    },
+                };
+            } catch (error) {
+                logger.warn('Failed to resolve signed artifact URL for history run event', error);
+                return createArtifactUnavailableLogEvent(row);
+            }
+        }
+
+        return row.payload;
+    }
+
+    const level: LogLevel = row.kind.toLowerCase().includes('error') ? 'error' : 'info';
+    return {
+        type: 'log',
+        data: {
+            message: row.message || (row.artifactKey ? `Artifact uploaded: ${row.artifactKey}` : row.kind),
+            level: isLogLevel(level) ? level : 'info',
+        },
+        timestamp: row.createdAt.getTime(),
+    };
+}
 
 export async function GET(
     request: Request,
@@ -49,15 +123,15 @@ export async function GET(
         const eventRows = await prisma.testRunEvent.findMany({
             where: { runId: id },
             orderBy: { sequence: 'asc' },
-            select: { payload: true },
+            select: {
+                kind: true,
+                message: true,
+                payload: true,
+                artifactKey: true,
+                createdAt: true,
+            },
         });
-        const events: TestEvent[] = eventRows.reduce<TestEvent[]>((accumulator, eventRow) => {
-            const payload = eventRow.payload as unknown;
-            if (isTestEvent(payload)) {
-                accumulator.push(payload);
-            }
-            return accumulator;
-        }, []);
+        const events: TestEvent[] = await Promise.all(eventRows.map((eventRow) => mapRunEventToUiEvent(eventRow)));
 
         return NextResponse.json({
             id: testRun.id,
