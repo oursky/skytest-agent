@@ -67,6 +67,7 @@ async function claimExplicitDeviceRun(input: {
             INNER JOIN "TestCase" tc ON tc.id = tr."testCaseId"
             INNER JOIN "Project" p ON p.id = tc."projectId"
             WHERE tr.status = 'QUEUED'
+              AND tr."deletedAt" IS NULL
               AND tr."assignedRunnerId" IS NULL
               AND tr."requestedDeviceId" IS NOT NULL
               AND p."teamId" = ${input.teamId}
@@ -114,6 +115,7 @@ async function claimGenericRun(input: {
             INNER JOIN "TestCase" tc ON tc.id = tr."testCaseId"
             INNER JOIN "Project" p ON p.id = tc."projectId"
             WHERE tr.status = 'QUEUED'
+              AND tr."deletedAt" IS NULL
               AND tr."assignedRunnerId" IS NULL
               AND tr."requestedDeviceId" IS NULL
               AND p."teamId" = ${input.teamId}
@@ -206,6 +208,7 @@ export async function diagnoseNoClaimForRunner(input: {
     const queuedAndroidRuns = await prisma.testRun.count({
         where: {
             status: 'QUEUED',
+            deletedAt: null,
             assignedRunnerId: null,
             requiredCapability: 'ANDROID',
             testCase: {
@@ -219,6 +222,7 @@ export async function diagnoseNoClaimForRunner(input: {
     const queuedCompatibleKindRuns = await prisma.testRun.count({
         where: {
             status: 'QUEUED',
+            deletedAt: null,
             assignedRunnerId: null,
             requiredCapability: 'ANDROID',
             OR: [
@@ -236,6 +240,7 @@ export async function diagnoseNoClaimForRunner(input: {
     const explicitRequestedRuns = await prisma.testRun.count({
         where: {
             status: 'QUEUED',
+            deletedAt: null,
             assignedRunnerId: null,
             requiredCapability: 'ANDROID',
             OR: [
@@ -255,6 +260,7 @@ export async function diagnoseNoClaimForRunner(input: {
         ? await prisma.testRun.count({
             where: {
                 status: 'QUEUED',
+                deletedAt: null,
                 assignedRunnerId: null,
                 requiredCapability: 'ANDROID',
                 OR: [
@@ -274,6 +280,7 @@ export async function diagnoseNoClaimForRunner(input: {
     const genericQueuedRuns = await prisma.testRun.count({
         where: {
             status: 'QUEUED',
+            deletedAt: null,
             assignedRunnerId: null,
             requiredCapability: 'ANDROID',
             OR: [

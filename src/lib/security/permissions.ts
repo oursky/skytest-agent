@@ -86,6 +86,7 @@ async function getTestRunProjectId(testRunId: string): Promise<string | null> {
     const testRun = await prisma.testRun.findUnique({
         where: { id: testRunId },
         select: {
+            deletedAt: true,
             testCase: {
                 select: {
                     projectId: true,
@@ -93,6 +94,10 @@ async function getTestRunProjectId(testRunId: string): Promise<string | null> {
             }
         }
     });
+
+    if (!testRun || testRun.deletedAt) {
+        return null;
+    }
 
     return testRun?.testCase.projectId ?? null;
 }

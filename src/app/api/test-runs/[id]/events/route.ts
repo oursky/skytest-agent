@@ -16,6 +16,7 @@ const logger = createLogger('api:test-runs:events');
 interface RunStatusRow {
     status: string;
     error: string | null;
+    deletedAt: Date | null;
 }
 
 interface RunEventRow {
@@ -119,13 +120,20 @@ async function resolveAuthorizedUserId(request: Request, runId: string): Promise
 }
 
 async function fetchRunStatus(runId: string): Promise<RunStatusRow | null> {
-    return prisma.testRun.findUnique({
+    const run = await prisma.testRun.findUnique({
         where: { id: runId },
         select: {
             status: true,
             error: true,
+            deletedAt: true,
         },
     });
+
+    if (!run || run.deletedAt) {
+        return null;
+    }
+
+    return run;
 }
 
 async function fetchRunEventsAfter(runId: string, afterSequence: number): Promise<RunEventRow[]> {

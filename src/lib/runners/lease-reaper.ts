@@ -6,6 +6,7 @@ export async function reapExpiredRunnerLeases(now = new Date()) {
     const expiredRuns = await prisma.testRun.findMany({
         where: {
             status: { in: [...ACTIVE_RUN_STATUSES] },
+            deletedAt: null,
             leaseExpiresAt: { lt: now },
             assignedRunnerId: { not: null },
         },

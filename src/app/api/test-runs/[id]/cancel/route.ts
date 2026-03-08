@@ -34,7 +34,7 @@ export async function POST(
             }
         });
 
-        if (!testRun) {
+        if (!testRun || testRun.deletedAt) {
             return NextResponse.json({ error: 'Test run not found' }, { status: 404 });
         }
 

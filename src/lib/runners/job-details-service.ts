@@ -57,6 +57,7 @@ export async function loadRunnerJobDetails(input: { runId: string; runnerId: str
             id: true,
             testCaseId: true,
             status: true,
+            deletedAt: true,
             configurationSnapshot: true,
             assignedRunnerId: true,
             leaseExpiresAt: true,
@@ -91,7 +92,7 @@ export async function loadRunnerJobDetails(input: { runId: string; runnerId: str
         },
     });
 
-    if (!run || !isRunnerRunOwned({
+    if (!run || run.deletedAt || !isRunnerRunOwned({
         assignedRunnerId: run.assignedRunnerId,
         leaseExpiresAt: run.leaseExpiresAt,
         status: run.status,

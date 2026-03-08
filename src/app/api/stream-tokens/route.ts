@@ -44,9 +44,13 @@ export async function POST(request: Request) {
     try {
         if (body.scope === 'test-run-events') {
             const testRun = await prisma.testRun.findUnique({
-                where: { id: body.resourceId }
+                where: { id: body.resourceId },
+                select: {
+                    id: true,
+                    deletedAt: true,
+                },
             });
-            if (!testRun) {
+            if (!testRun || testRun.deletedAt) {
                 return NextResponse.json({ error: 'Test run not found' }, { status: 404 });
             }
             if (!await isTestRunProjectMember(userId, body.resourceId)) {

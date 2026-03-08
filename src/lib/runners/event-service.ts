@@ -13,6 +13,7 @@ interface OwnedRun {
     id: string;
     testCaseId: string;
     status: string;
+    deletedAt: Date | null;
     assignedRunnerId: string | null;
     leaseExpiresAt: Date | null;
     nextEventSequence: number;
@@ -20,6 +21,9 @@ interface OwnedRun {
 
 function ensureRunOwnership(run: OwnedRun | null, runnerId: string): OwnedRun | null {
     if (!run) {
+        return null;
+    }
+    if (run.deletedAt) {
         return null;
     }
     if (run.assignedRunnerId !== runnerId) {
@@ -42,6 +46,7 @@ async function findOwnedRun(runId: string, runnerId: string): Promise<OwnedRun |
             id: true,
             testCaseId: true,
             status: true,
+            deletedAt: true,
             assignedRunnerId: true,
             leaseExpiresAt: true,
             nextEventSequence: true,
@@ -65,6 +70,7 @@ export async function appendRunEvents(input: {
                 id: true,
                 testCaseId: true,
                 status: true,
+                deletedAt: true,
                 assignedRunnerId: true,
                 leaseExpiresAt: true,
                 nextEventSequence: true,
@@ -183,6 +189,7 @@ export async function completeOwnedRun(input: {
                 id: true,
                 testCaseId: true,
                 status: true,
+                deletedAt: true,
                 assignedRunnerId: true,
                 leaseExpiresAt: true,
                 nextEventSequence: true,
@@ -243,6 +250,7 @@ export async function failOwnedRun(input: {
                 id: true,
                 testCaseId: true,
                 status: true,
+                deletedAt: true,
                 assignedRunnerId: true,
                 leaseExpiresAt: true,
                 nextEventSequence: true,

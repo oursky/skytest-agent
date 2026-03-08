@@ -48,9 +48,17 @@ S3_ACCESS_KEY_ID="minioadmin"
 S3_SECRET_ACCESS_KEY="minioadmin"
 S3_FORCE_PATH_STYLE="true"
 STORAGE_SIGNED_URL_TTL_SECONDS="900"
+RUNNER_ARTIFACT_SOFT_DELETE_DAYS="30"
+RUNNER_ARTIFACT_HARD_DELETE_DAYS="7"
+RUNNER_ARTIFACT_HARD_DELETE_BATCH_SIZE="50"
 ```
 
 Keep the rest of your existing auth and app settings in `.env.local`.
+
+Retention behavior:
+- runs older than `RUNNER_ARTIFACT_SOFT_DELETE_DAYS` are soft-deleted (hidden from history)
+- soft-deleted runs are permanently removed after `RUNNER_ARTIFACT_HARD_DELETE_DAYS`
+- hard delete is processed in batches by `RUNNER_ARTIFACT_HARD_DELETE_BATCH_SIZE`
 
 ## Start The App
 
