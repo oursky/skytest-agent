@@ -61,6 +61,11 @@ export interface TeamRunnersOverview {
 const teamDevicesCache = new Map<string, CachedTeamDevices>();
 const teamRunnersCache = new Map<string, CachedTeamRunners>();
 
+export function invalidateTeamAvailabilityCache(teamId: string): void {
+    teamDevicesCache.delete(teamId);
+    teamRunnersCache.delete(teamId);
+}
+
 function normalizeDeviceMetadata(value: unknown): Record<string, unknown> | null {
     if (!value || Array.isArray(value) || typeof value !== 'object') {
         return null;

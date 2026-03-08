@@ -134,6 +134,7 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
     const [pairingExpiresAt, setPairingExpiresAt] = useState<string | null>(null);
     const [isGeneratingToken, setIsGeneratingToken] = useState(false);
     const [isCopying, setIsCopying] = useState(false);
+    const [pendingUnpairRunnerId, setPendingUnpairRunnerId] = useState<string | null>(null);
     const pollRef = useRef<NodeJS.Timeout | null>(null);
 
     const fetchData = useCallback(async () => {
@@ -269,7 +270,35 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
         }
     }, [pairingToken, isCopying]);
 
-    const macRunnerTotal = runners?.runners.filter((item) => item.kind === 'MACOS_AGENT').length ?? 0;
+    const unpairRunner = useCallback(async (runnerId: string) => {
+        if (pendingUnpairRunnerId) {
+            return;
+        }
+
+        setError(null);
+        setPendingUnpairRunnerId(runnerId);
+        try {
+            const token = await getAccessToken();
+            const response = await fetch(`/api/teams/${encodeURIComponent(teamId)}/runners/${encodeURIComponent(runnerId)}`, {
+                method: 'DELETE',
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+            });
+
+            if (!response.ok) {
+                const payload = await response.json().catch(() => ({ error: t('team.runners.error.unpair') }));
+                throw new Error(payload.error || t('team.runners.error.unpair'));
+            }
+
+            await fetchData();
+        } catch (unpairError) {
+            const message = unpairError instanceof Error
+                ? unpairError.message
+                : t('team.runners.error.unpair');
+            setError(message);
+        } finally {
+            setPendingUnpairRunnerId(null);
+        }
+    }, [fetchData, getAccessToken, pendingUnpairRunnerId, teamId, t]);
 
     return (
         <div className="space-y-6">
@@ -341,23 +370,6 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
                     </div>
                 ) : (
                     <div className="mt-4 space-y-6">
-                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                            <div className="rounded-md border border-gray-200 bg-gray-50 px-4 py-3">
-                                <p className="text-xs text-gray-500">{t('team.runners.execution.macos')}</p>
-                                <p className="mt-1 text-lg font-semibold text-gray-900">
-                                    {runners.macRunnerOnlineCount} / {macRunnerTotal}
-                                </p>
-                            </div>
-                            <div className="rounded-md border border-gray-200 bg-gray-50 px-4 py-3">
-                                <p className="text-xs text-gray-500">{t('team.runners.execution.availableDevices')}</p>
-                                <p className="mt-1 text-lg font-semibold text-gray-900">{devices.availableDeviceCount}</p>
-                            </div>
-                            <div className="rounded-md border border-gray-200 bg-gray-50 px-4 py-3">
-                                <p className="text-xs text-gray-500">{t('team.runners.execution.staleDevices')}</p>
-                                <p className="mt-1 text-lg font-semibold text-gray-900">{devices.staleDeviceCount}</p>
-                            </div>
-                        </div>
-
                         <div>
                             <h3 className="text-sm font-semibold text-gray-900">{t('team.runners.table.title')}</h3>
                             {runners.runners.length === 0 ? (
@@ -374,6 +386,9 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
                                                 <th className="px-4 py-3 text-left">{t('team.runners.table.status')}</th>
                                                 <th className="px-4 py-3 text-left">{t('team.runners.table.devices')}</th>
                                                 <th className="px-4 py-3 text-left">{t('team.runners.table.lastSeen')}</th>
+                                                {runners.canManageRunners && (
+                                                    <th className="px-4 py-3 text-left">{t('team.runners.table.actions')}</th>
+                                                )}
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-100 text-gray-700">
@@ -391,6 +406,24 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
                                                     </td>
                                                     <td className="px-4 py-3">{runner.availableDeviceCount} / {runner.deviceCount}</td>
                                                     <td className="px-4 py-3">{new Date(runner.lastSeenAt).toLocaleString()}</td>
+                                                    {runners.canManageRunners && (
+                                                        <td className="px-4 py-3">
+                                                            {runner.status === 'ONLINE' && runner.isFresh ? (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => void unpairRunner(runner.id)}
+                                                                    disabled={pendingUnpairRunnerId === runner.id}
+                                                                    className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-60"
+                                                                >
+                                                                    {pendingUnpairRunnerId === runner.id
+                                                                        ? t('team.runners.unpair.loading')
+                                                                        : t('team.runners.unpair')}
+                                                                </button>
+                                                            ) : (
+                                                                <span className="text-xs text-gray-400">-</span>
+                                                            )}
+                                                        </td>
+                                                    )}
                                                 </tr>
                                             ))}
                                         </tbody>
