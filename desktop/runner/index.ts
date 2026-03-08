@@ -21,13 +21,67 @@ import {
     type RunnerEventInput,
     type RunnerTransportMetadata,
 } from '@skytest/runner-protocol';
-import { createLogger } from '../../src/lib/core/logger';
-import { runTest } from '../../src/lib/runtime/test-runner';
-import { androidDeviceManager } from '../../src/lib/android/device-manager';
-import { formatAndroidDeviceDisplayName, type ConnectedAndroidDeviceInfo } from '../../src/lib/android/device-display';
-import { listAndroidDeviceInventory } from '../../src/lib/android/devices';
-import { isScreenshotData, type BrowserConfig, type TargetConfig, type TestCaseFile, type TestEvent, type TestStep } from '../../src/types';
+import * as loggerModule from '../../src/lib/core/logger';
+import * as testRunnerModule from '../../src/lib/runtime/test-runner';
+import * as deviceDisplayModule from '../../src/lib/android/device-display';
+import * as devicesModule from '../../src/lib/android/devices';
+import * as eventsModule from '../../src/types/events';
+import type { ConnectedAndroidDeviceInfo } from '../../src/lib/android/device-display';
+import type { BrowserConfig, TargetConfig, TestCaseFile, TestEvent, TestStep } from '../../src/types';
 import { loadStoredRunnerCredential, saveRunnerCredential, type StoredRunnerCredential } from './credential-store';
+
+type CreateLoggerFn = typeof import('../../src/lib/core/logger').createLogger;
+type RunTestFn = typeof import('../../src/lib/runtime/test-runner').runTest;
+type FormatAndroidDeviceDisplayNameFn = typeof import('../../src/lib/android/device-display').formatAndroidDeviceDisplayName;
+type ListAndroidDeviceInventoryFn = typeof import('../../src/lib/android/devices').listAndroidDeviceInventory;
+type IsScreenshotDataFn = typeof import('../../src/types/events').isScreenshotData;
+
+function resolveModuleExport<T>(module: Record<string, unknown>, key: string): T | null {
+    if (key in module) {
+        return module[key] as T;
+    }
+
+    const defaultExport = module.default;
+    if (typeof defaultExport === 'object' && defaultExport !== null && key in defaultExport) {
+        return (defaultExport as Record<string, unknown>)[key] as T;
+    }
+
+    return null;
+}
+
+const createLogger = resolveModuleExport<CreateLoggerFn>(loggerModule as unknown as Record<string, unknown>, 'createLogger');
+if (!createLogger) {
+    throw new Error('Failed to load createLogger from ../../src/lib/core/logger');
+}
+
+const runTest = resolveModuleExport<RunTestFn>(testRunnerModule as unknown as Record<string, unknown>, 'runTest');
+if (!runTest) {
+    throw new Error('Failed to load runTest from ../../src/lib/runtime/test-runner');
+}
+
+const formatAndroidDeviceDisplayName = resolveModuleExport<FormatAndroidDeviceDisplayNameFn>(
+    deviceDisplayModule as unknown as Record<string, unknown>,
+    'formatAndroidDeviceDisplayName'
+);
+if (!formatAndroidDeviceDisplayName) {
+    throw new Error('Failed to load formatAndroidDeviceDisplayName from ../../src/lib/android/device-display');
+}
+
+const listAndroidDeviceInventory = resolveModuleExport<ListAndroidDeviceInventoryFn>(
+    devicesModule as unknown as Record<string, unknown>,
+    'listAndroidDeviceInventory'
+);
+if (!listAndroidDeviceInventory) {
+    throw new Error('Failed to load listAndroidDeviceInventory from ../../src/lib/android/devices');
+}
+
+const isScreenshotData = resolveModuleExport<IsScreenshotDataFn>(
+    eventsModule as unknown as Record<string, unknown>,
+    'isScreenshotData'
+);
+if (!isScreenshotData) {
+    throw new Error('Failed to load isScreenshotData from ../../src/types/events');
+}
 
 const logger = createLogger('runner:macos');
 const runnerVersion = process.env.RUNNER_VERSION ?? '0.1.0';
@@ -78,6 +132,10 @@ interface ParsedImageDataUrl {
     contentBase64: string;
 }
 
+interface AndroidDeviceManagerRuntime {
+    initialize(): Promise<void>;
+}
+
 class RunnerHttpError extends Error {
     status: number;
     body: string;
@@ -87,6 +145,21 @@ class RunnerHttpError extends Error {
         this.status = status;
         this.body = body;
     }
+}
+
+async function loadAndroidDeviceManager(): Promise<AndroidDeviceManagerRuntime> {
+    const module = await import('../../src/lib/android/device-manager');
+    const candidate = module as {
+        androidDeviceManager?: AndroidDeviceManagerRuntime;
+        default?: { androidDeviceManager?: AndroidDeviceManagerRuntime };
+    };
+
+    const manager = candidate.androidDeviceManager ?? candidate.default?.androidDeviceManager;
+    if (!manager) {
+        throw new Error('Failed to load androidDeviceManager from ../../src/lib/android/device-manager');
+    }
+
+    return manager;
 }
 
 let authState: RunnerAuthState | null = null;
@@ -580,6 +653,7 @@ async function start() {
         }
     }
 
+    const androidDeviceManager = await loadAndroidDeviceManager();
     await androidDeviceManager.initialize();
     await syncDevices();
 

@@ -1,4 +1,3 @@
-import 'server-only';
 import { execFile } from 'node:child_process';
 import type { AvailableAndroidProfile } from '@/lib/android/profiles';
 import { listAvailableAndroidProfiles } from '@/lib/android/profiles';

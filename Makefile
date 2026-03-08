@@ -4,6 +4,7 @@ NODE_PM ?= npm
 COMPOSE ?= docker compose
 COMPOSE_FILE ?= docker-compose.local.yml
 CONTROL_PLANE_URL ?= http://127.0.0.1:3000
+ENV_LOCAL ?= .env.local
 BROWSER_RUNNER_TOKEN ?=
 MACOS_RUNNER_TOKEN ?=
 MACOS_RUNNER_PAIRING_TOKEN ?=
@@ -72,11 +73,15 @@ runner-browser: ## Start the hosted browser runner (requires BROWSER_RUNNER_TOKE
 		echo "BROWSER_RUNNER_TOKEN is required for runner-browser"; \
 		exit 1; \
 	fi
+	@set -eu; \
+	set -a; [ -f "$(ENV_LOCAL)" ] && . "$(ENV_LOCAL)"; set +a; \
 	RUNNER_CONTROL_PLANE_URL="$(CONTROL_PLANE_URL)" \
 	RUNNER_TOKEN="$(BROWSER_RUNNER_TOKEN)" \
 	$(NODE_PM) run runner:browser
 
 runner-macos: ## Start the macOS runner (uses stored credential, MACOS_RUNNER_TOKEN, or MACOS_RUNNER_PAIRING_TOKEN)
+	@set -eu; \
+	set -a; [ -f "$(ENV_LOCAL)" ] && . "$(ENV_LOCAL)"; set +a; \
 	RUNNER_CONTROL_PLANE_URL="$(CONTROL_PLANE_URL)" \
 	RUNNER_LABEL="$(MACOS_RUNNER_LABEL)" \
 	RUNNER_TOKEN="$(MACOS_RUNNER_TOKEN)" \
@@ -102,6 +107,7 @@ dev-browser: ## Boot local services, apply schema, start browser runner, and sta
 	$(MAKE) services-up; \
 	$(MAKE) db-setup; \
 	trap 'kill $$runner_pid >/dev/null 2>&1 || true' EXIT INT TERM; \
+	set -a; [ -f "$(ENV_LOCAL)" ] && . "$(ENV_LOCAL)"; set +a; \
 	RUNNER_CONTROL_PLANE_URL="$(CONTROL_PLANE_URL)" RUNNER_TOKEN="$(BROWSER_RUNNER_TOKEN)" $(NODE_PM) run runner:browser & \
 	runner_pid=$$!; \
 	$(NODE_PM) run dev
@@ -111,6 +117,7 @@ dev-macos: ## Boot local services, apply schema, start macOS runner, and start t
 	$(MAKE) services-up; \
 	$(MAKE) db-setup; \
 	trap 'kill $$runner_pid >/dev/null 2>&1 || true' EXIT INT TERM; \
+	set -a; [ -f "$(ENV_LOCAL)" ] && . "$(ENV_LOCAL)"; set +a; \
 	RUNNER_CONTROL_PLANE_URL="$(CONTROL_PLANE_URL)" RUNNER_LABEL="$(MACOS_RUNNER_LABEL)" RUNNER_TOKEN="$(MACOS_RUNNER_TOKEN)" RUNNER_PAIRING_TOKEN="$(MACOS_RUNNER_PAIRING_TOKEN)" $(NODE_PM) run runner:macos & \
 	runner_pid=$$!; \
 	$(NODE_PM) run dev
@@ -124,6 +131,7 @@ dev-all: ## Boot local services, apply schema, start both runners, and start the
 	$(MAKE) services-up; \
 	$(MAKE) db-setup; \
 	trap 'kill $$browser_pid $$macos_pid >/dev/null 2>&1 || true' EXIT INT TERM; \
+	set -a; [ -f "$(ENV_LOCAL)" ] && . "$(ENV_LOCAL)"; set +a; \
 	RUNNER_CONTROL_PLANE_URL="$(CONTROL_PLANE_URL)" RUNNER_TOKEN="$(BROWSER_RUNNER_TOKEN)" $(NODE_PM) run runner:browser & \
 	browser_pid=$$!; \
 	RUNNER_CONTROL_PLANE_URL="$(CONTROL_PLANE_URL)" RUNNER_LABEL="$(MACOS_RUNNER_LABEL)" RUNNER_TOKEN="$(MACOS_RUNNER_TOKEN)" RUNNER_PAIRING_TOKEN="$(MACOS_RUNNER_PAIRING_TOKEN)" $(NODE_PM) run runner:macos & \
