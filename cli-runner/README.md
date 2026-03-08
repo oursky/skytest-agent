@@ -1,6 +1,7 @@
 # macOS Runner
 
 Headless runner agent for Android execution in Phase 3.
+This runtime is managed by the `skytest` CLI and is not started directly in normal workflows.
 
 ## Environment Variables
 
@@ -13,9 +14,8 @@ Headless runner agent for Android execution in Phase 3.
 ## Start
 
 ```bash
-npm run runner:macos
+npm run skytest -- pair runner "<pairing-token>" --control-plane-url "http://127.0.0.1:3000"
 ```
 
-On first boot, pass `RUNNER_PAIRING_TOKEN` to exchange for a durable credential.
-The credential is saved in macOS Keychain when available and also in
-`~/.skytest-agent/runner-credential.json`.
+Use `npm run skytest -- get runners` and `npm run skytest -- start runner <local-runner-id>`
+for lifecycle operations.

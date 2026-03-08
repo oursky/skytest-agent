@@ -12,7 +12,7 @@ The repo now uses a top-level `Makefile` for environment orchestration instead o
 
 - `make bootstrap` installs dependencies, starts local services, and applies the Prisma schema.
 - `make dev` starts local services, applies the schema, and runs the Next.js control plane.
-- `make dev-macos` adds the macOS runner to the same session.
+- `make runner-reset` clears local CLI runner state between development cycles.
 
 ## Deployment Shape
 
