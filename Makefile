@@ -82,21 +82,30 @@ dev-macos: ## Boot local services, apply schema, start macOS runner, and start t
 	$(MAKE) db-setup; \
 	trap 'if [ -n "$${runner_pid:-}" ]; then kill "$$runner_pid" >/dev/null 2>&1 || true; fi; if [ -n "$${app_pid:-}" ]; then kill "$$app_pid" >/dev/null 2>&1 || true; fi' EXIT INT TERM; \
 	set -a; [ -f "$(ENV_LOCAL)" ] && . "$(ENV_LOCAL)"; set +a; \
-	$(NODE_PM) run dev -- --hostname $(CONTROL_PLANE_HOST) --port $(CONTROL_PLANE_PORT) & \
-	app_pid=$$!; \
-	for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do \
-		if curl -fsS "$(CONTROL_PLANE_URL)/api/health/live" >/dev/null 2>&1; then \
-			break; \
-		fi; \
-		sleep 1; \
-		if [ "$$i" -eq 15 ]; then \
-			echo "Control plane did not become ready at $(CONTROL_PLANE_URL)"; \
-			exit 1; \
-		fi; \
-	done; \
+	if curl -fsS "$(CONTROL_PLANE_URL)/api/health/live" >/dev/null 2>&1; then \
+		echo "Control plane already running at $(CONTROL_PLANE_URL); reusing existing process."; \
+		app_pid=""; \
+	else \
+		$(NODE_PM) run dev -- --hostname $(CONTROL_PLANE_HOST) --port $(CONTROL_PLANE_PORT) & \
+		app_pid=$$!; \
+		for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do \
+			if curl -fsS "$(CONTROL_PLANE_URL)/api/health/live" >/dev/null 2>&1; then \
+				break; \
+			fi; \
+			sleep 1; \
+			if [ "$$i" -eq 15 ]; then \
+				echo "Control plane did not become ready at $(CONTROL_PLANE_URL)"; \
+				exit 1; \
+			fi; \
+		done; \
+	fi; \
 	RUNNER_CONTROL_PLANE_URL="$(CONTROL_PLANE_URL)" RUNNER_LABEL="$(MACOS_RUNNER_LABEL)" RUNNER_TOKEN="$(MACOS_RUNNER_TOKEN)" RUNNER_PAIRING_TOKEN="$(MACOS_RUNNER_PAIRING_TOKEN)" $(NODE_PM) run runner:macos & \
 	runner_pid=$$!; \
-	wait $$app_pid
+	if [ -n "$${app_pid:-}" ]; then \
+		wait $$app_pid; \
+	else \
+		wait $$runner_pid; \
+	fi
 
 verify: ## Run lint, TypeScript compile, and dependency audit
 	$(NODE_PM) run verify
