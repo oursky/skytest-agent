@@ -76,7 +76,7 @@ npm run dev
 The runner needs a short-lived pairing token on first boot.
 
 1. Open `Team Settings -> Runners`.
-2. Click `Add Runner` (owner/admin team role required).
+2. Click `Add Runner` (team member role required).
 3. Copy the one-time pairing token shown in the dialog.
 
 API fallback for automation only:

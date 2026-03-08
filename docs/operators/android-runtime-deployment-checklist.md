@@ -26,7 +26,7 @@ Reference:
 
 ## Security / Multi-Tenant Safety
 
-- [ ] Confirm runner pairing tokens are issued only by owner/admin users
+- [ ] Confirm runner pairing tokens are issued only by team members
 - [ ] Confirm runner tokens are rotated/revoked according to your policy
 - [ ] Confirm team device visibility is exposed through `Team Settings -> Runners`
 - [ ] Confirm stream-token auth remains resource-scoped for run events

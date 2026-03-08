@@ -3,7 +3,7 @@ import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { deleteObjectIfExists } from '@/lib/storage/object-store-utils';
-import { canDeleteProject, canManageProject, isProjectMember } from '@/lib/security/permissions';
+import { canDeleteProject, isProjectMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:projects:id');
 
@@ -44,11 +44,9 @@ export async function GET(
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const canManage = await canManageProject(userId, id);
-
         return NextResponse.json({
             ...project,
-            canManageProject: canManage,
+            canManageProject: true,
             canDeleteProject: await canDeleteProject(userId, id),
         });
     } catch (error) {
@@ -84,8 +82,7 @@ export async function PUT(
             return NextResponse.json({ error: 'Project not found' }, { status: 404 });
         }
 
-        const canDelete = await canDeleteProject(userId, id);
-        if (!canDelete) {
+        if (!await isProjectMember(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -134,8 +131,8 @@ export async function DELETE(
             return NextResponse.json({ error: 'Project not found' }, { status: 404 });
         }
 
-        const canManage = await canManageProject(userId, id);
-        if (!canManage) {
+        const canDelete = await canDeleteProject(userId, id);
+        if (!canDelete) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

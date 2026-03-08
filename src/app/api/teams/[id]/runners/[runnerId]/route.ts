@@ -24,7 +24,7 @@ export async function DELETE(
 
         const { id: teamId, runnerId } = await params;
         const access = await getTeamAccess(userId, teamId);
-        if (access.role !== 'OWNER' && access.role !== 'ADMIN') {
+        if (!access.isMember) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

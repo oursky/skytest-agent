@@ -8,7 +8,6 @@ datasource db {
 
 enum TeamRole {
   OWNER
-  ADMIN
   MEMBER
 }
 

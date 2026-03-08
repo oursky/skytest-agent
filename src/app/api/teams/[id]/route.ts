@@ -4,7 +4,6 @@ import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import {
     canDeleteTeam,
-    canRenameTeam,
     canTransferTeamOwnership,
     getTeamRole,
     isTeamMember,
@@ -59,7 +58,7 @@ export async function GET(
         return NextResponse.json({
             ...team,
             role,
-            canRename: await canRenameTeam(userId, id),
+            canRename: true,
             canDelete: await canDeleteTeam(userId, id),
             canTransferOwnership: await canTransferTeamOwnership(userId, id),
         });
@@ -85,7 +84,7 @@ export async function PATCH(
         }
 
         const { id } = await params;
-        if (!await canRenameTeam(userId, id)) {
+        if (!await isTeamMember(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
