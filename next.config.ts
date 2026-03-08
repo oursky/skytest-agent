@@ -59,6 +59,7 @@ function resolveImageRemotePatterns(): ImageRemotePattern[] {
 const nextConfig: NextConfig = {
   serverExternalPackages: ['@langfuse/openai', 'langfuse', 'langsmith', '@silvia-odwyer/photon-node'],
   images: {
+    dangerouslyAllowLocalIP: true,
     remotePatterns: resolveImageRemotePatterns(),
   },
 };
