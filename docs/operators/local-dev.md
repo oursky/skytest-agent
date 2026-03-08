@@ -66,7 +66,7 @@ Open `http://localhost:3000`.
 Browser tests are executed directly by the control plane and spawn/close browsers per run.
 Only Android execution requires a runner process.
 
-### macOS runner (required for Android test runs)
+### CLI runner (required for Android test runs)
 
 See the full setup guide:
 
@@ -76,10 +76,25 @@ Quick start:
 Generate the pairing token from `Team Settings -> Runners` in the web app.
 
 ```bash
-MACOS_RUNNER_PAIRING_TOKEN="<pairing-token>" make runner-macos
+npm run skytest -- pair runner "<pairing-token>" \
+  --control-plane-url "http://127.0.0.1:3000" \
+  --label "Local macOS Runner"
 ```
 
-After first successful pairing, you can restart without `MACOS_RUNNER_PAIRING_TOKEN`.
+After pairing, manage lifecycle with:
+
+```bash
+npm run skytest -- get runners
+npm run skytest -- start runner <local-runner-id>
+npm run skytest -- stop runner <local-runner-id>
+npm run skytest -- unpair runner <local-runner-id>
+```
+
+To cleanly reset local runner environment:
+
+```bash
+npm run skytest -- reset --force
+```
 
 ## Verify MinIO
 

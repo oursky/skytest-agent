@@ -97,7 +97,7 @@ make dev
 
 Runtime processes:
 - Browser runs are executed automatically by the control plane per test run
-- Android runs require `make runner-macos` or `make dev-macos`
+- Android runs require `skytest` runner lifecycle commands (source: `npm run skytest -- ...`, Homebrew: `skytest ...`)
 
 Detailed setup:
 - [Local Development Guide](./docs/operators/local-dev.md)

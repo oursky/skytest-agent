@@ -5,7 +5,7 @@ This guide is for local developers and self-hosting operators who run Android te
 Architecture reminder:
 
 - Web app (`npm run dev`) is the control plane only.
-- Android execution happens in the macOS runner process (`npm run runner:macos`).
+- Android execution happens in the runner process managed by `skytest`.
 - Manual app installation on devices is required. No auto-install flow is provided.
 
 Related docs:
@@ -87,29 +87,44 @@ curl -sS -X POST "http://127.0.0.1:3000/api/teams/<team-id>/runner-pairing" \
   -d '{"ttlMinutes":10}'
 ```
 
-## 5. Start macOS Runner
+## 5. Pair and Start Runner
 
-First boot (with pairing token):
-
-```bash
-RUNNER_CONTROL_PLANE_URL="http://127.0.0.1:3000" \
-RUNNER_LABEL="Local macOS Runner" \
-RUNNER_PAIRING_TOKEN="<pairing-token>" \
-npm run runner:macos
-```
-
-After successful pairing, restart without `RUNNER_PAIRING_TOKEN`:
+From source (local development), run:
 
 ```bash
-RUNNER_CONTROL_PLANE_URL="http://127.0.0.1:3000" \
-RUNNER_LABEL="Local macOS Runner" \
-npm run runner:macos
+npm run skytest -- pair runner "<pairing-token>" \
+  --control-plane-url "http://127.0.0.1:3000" \
+  --label "Local macOS Runner"
 ```
 
-Credential storage:
+This creates a local runner definition, stores credential metadata, and auto-starts the runner.
 
-- macOS Keychain (when available)
-- `~/.skytest-agent/runner-credential.json` (metadata/fallback)
+List paired runners and copy the local runner ID:
+
+```bash
+npm run skytest -- get runners
+```
+
+Restart an existing runner:
+
+```bash
+npm run skytest -- start runner <local-runner-id>
+```
+
+Stop it:
+
+```bash
+npm run skytest -- stop runner <local-runner-id>
+```
+
+If you installed via Homebrew, run the same commands directly with `skytest ...` instead of `npm run skytest -- ...`.
+
+Local development state storage:
+
+- `<repo>/.skytest-dev/runners/<local-runner-id>/runner.json`
+- `<repo>/.skytest-dev/runners/<local-runner-id>/credential.json`
+- `<repo>/.skytest-dev/runners/<local-runner-id>/runner.pid`
+- `<repo>/.skytest-dev/runners/<local-runner-id>/runner.log`
 
 ## 6. Device Preparation Rules
 
@@ -149,10 +164,10 @@ emulator -list-avds
 - Device may have become stale/disconnected between selection and claim.
 - Refresh `Team Settings -> Runners`, re-check availability, and rerun.
 
-### Need to reset local runner credential
+### Need to reset local runner state and credentials
 
-Delete fallback file and re-pair:
+Use reset to stop all runner processes and remove local runner state:
 
 ```bash
-rm -f ~/.skytest-agent/runner-credential.json
+npm run skytest -- reset --force
 ```
