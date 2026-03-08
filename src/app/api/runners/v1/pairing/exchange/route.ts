@@ -12,7 +12,7 @@ const logger = createLogger('api:runners:v1:pairing-exchange');
 
 export async function POST(request: Request) {
     const rateLimitKey = getRateLimitKey(request, 'runners-v1-pairing-exchange');
-    if (isRateLimited(rateLimitKey, { limit: 40, windowMs: 60_000 })) {
+    if (await isRateLimited(rateLimitKey, { limit: 40, windowMs: 60_000 })) {
         return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
     }
 
