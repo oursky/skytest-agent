@@ -1,5 +1,6 @@
 import {
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   GetObjectCommand,
   HeadBucketCommand,
   PutObjectCommand,
@@ -24,6 +25,7 @@ export interface StoredObject {
 }
 
 export class S3ObjectStore {
+    private static readonly MAX_DELETE_OBJECTS_BATCH_SIZE = 1000;
     private readonly client: S3Client;
     private readonly bucket: string;
     private readonly signedUrlTtlSeconds: number;
@@ -85,6 +87,33 @@ export class S3ObjectStore {
             Bucket: this.bucket,
             Key: key,
         }));
+    }
+
+    async deleteObjects(keys: string[]): Promise<{ failedKeys: string[] }> {
+        if (keys.length === 0) {
+            return { failedKeys: [] };
+        }
+
+        const failedKeys: string[] = [];
+
+        for (let offset = 0; offset < keys.length; offset += S3ObjectStore.MAX_DELETE_OBJECTS_BATCH_SIZE) {
+            const chunk = keys.slice(offset, offset + S3ObjectStore.MAX_DELETE_OBJECTS_BATCH_SIZE);
+            const response = await this.client.send(new DeleteObjectsCommand({
+                Bucket: this.bucket,
+                Delete: {
+                    Objects: chunk.map((key) => ({ Key: key })),
+                    Quiet: true,
+                },
+            }));
+
+            const erroredKeys = response.Errors
+                ?.map((entry) => entry.Key)
+                .filter((key): key is string => typeof key === 'string')
+                ?? [];
+            failedKeys.push(...erroredKeys);
+        }
+
+        return { failedKeys };
     }
 
     async getSignedDownloadUrl(input: {

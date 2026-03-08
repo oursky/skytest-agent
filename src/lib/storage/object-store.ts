@@ -9,6 +9,7 @@ export interface ObjectStore {
     }): Promise<void>;
     getObject(key: string): Promise<StoredObject | null>;
     deleteObject(key: string): Promise<void>;
+    deleteObjects(keys: string[]): Promise<{ failedKeys: string[] }>;
     getSignedDownloadUrl(input: {
         key: string;
         filename: string;
@@ -60,6 +61,9 @@ export const objectStore: ObjectStore = {
     },
     deleteObject(key) {
         return getObjectStore().deleteObject(key);
+    },
+    deleteObjects(keys) {
+        return getObjectStore().deleteObjects(keys);
     },
     getSignedDownloadUrl(input) {
         return getObjectStore().getSignedDownloadUrl(input);
