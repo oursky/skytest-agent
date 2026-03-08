@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback, use } from "react";
 import { useAuth } from "../../../auth-provider";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -35,29 +35,6 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
     const [isLoading, setIsLoading] = useState(true);
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; runId: string; status?: string }>({ isOpen: false, runId: "", status: "" });
     const [currentPage, setCurrentPage] = useState(1);
-
-    const eventSourceRef = useRef<EventSource | null>(null);
-
-    const issueStreamToken = useCallback(async (scope: 'project-events' | 'test-run-events', resourceId: string): Promise<string | null> => {
-        const token = await getAccessToken();
-        if (!token) return null;
-
-        const response = await fetch('/api/stream-tokens', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ scope, resourceId })
-        });
-
-        if (!response.ok) {
-            return null;
-        }
-
-        const data = await response.json() as { streamToken?: string };
-        return typeof data.streamToken === 'string' ? data.streamToken : null;
-    }, [getAccessToken]);
 
     useEffect(() => {
         if (!isAuthLoading && !isLoggedIn) {
@@ -122,92 +99,30 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
         if (!isLoggedIn || isAuthLoading) return;
         if (!projectId) return;
 
-        let disposed = false;
-
-        const closeEventSource = () => {
-            if (eventSourceRef.current) {
-                eventSourceRef.current.close();
-                eventSourceRef.current = null;
+        const refreshHistory = () => {
+            if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+                return;
             }
+            void fetchHistory();
         };
 
-        const connect = async () => {
-            closeEventSource();
-
-            if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
-
-            const streamToken = await issueStreamToken('project-events', projectId);
-            if (disposed) return;
-            if (!streamToken) return;
-
-            const eventsUrl = new URL(`/api/projects/${projectId}/events`, window.location.origin);
-            eventsUrl.searchParams.set('streamToken', streamToken);
-
-            const es = new EventSource(eventsUrl.toString());
-            eventSourceRef.current = es;
-
-            es.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data) as {
-                        type?: string;
-                        testCaseId?: string;
-                        runId?: string;
-                        status?: string;
-                    };
-
-                    if (data.type !== 'test-run-status') return;
-                    if (data.testCaseId !== id) return;
-
-                    const runId = data.runId;
-                    const status = data.status;
-                    if (!runId || !status) return;
-
-                    setTestRuns((current) => {
-                        const next = current.map((run) => (run.id === runId ? { ...run, status } : run));
-                        const found = next.some((run) => run.id === runId);
-                        if (found) return next;
-
-                        return [
-                            {
-                                id: runId,
-                                status,
-                                createdAt: new Date().toISOString(),
-                                result: '',
-                                error: null,
-                            },
-                            ...next,
-                        ];
-                    });
-                } catch {
-                    // ignore malformed events
-                }
-            };
-
-            es.onerror = () => {
-                if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
-                    closeEventSource();
-                }
-            };
-        };
-
-        void connect();
-
+        const interval = setInterval(refreshHistory, 30000);
+        const onFocus = () => refreshHistory();
         const onVisibilityChange = () => {
             if (document.visibilityState === 'visible') {
-                void connect();
-            } else {
-                closeEventSource();
+                refreshHistory();
             }
         };
 
+        window.addEventListener('focus', onFocus);
         document.addEventListener('visibilitychange', onVisibilityChange);
 
         return () => {
-            disposed = true;
+            clearInterval(interval);
+            window.removeEventListener('focus', onFocus);
             document.removeEventListener('visibilitychange', onVisibilityChange);
-            closeEventSource();
         };
-    }, [id, isAuthLoading, isLoggedIn, issueStreamToken, projectId]);
+    }, [fetchHistory, isAuthLoading, isLoggedIn, projectId]);
 
     const handleDeleteRun = async () => {
         try {

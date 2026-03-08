@@ -14,7 +14,7 @@ Related docs:
 - Import supports both:
   - current multi-sheet target format (`Browsers` + `Android`)
   - target rows embedded in `Configurations` (fallback compatibility path)
-- Legacy layouts outside those parser paths are not guaranteed to work.
+- Layouts outside those parser paths are unsupported.
 
 ## Sheets (Current Export)
 
@@ -112,7 +112,7 @@ Import does not:
 - import project variables
 - import file variables
 - import attached files from export zip bundles (run-page import is Excel-only)
-- import legacy `Secret` variable type rows (unsupported)
+- import `Secret` variable type rows (unsupported)
 
 Warnings may still be produced during parsing for invalid/unsupported rows.
 

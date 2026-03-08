@@ -7,6 +7,7 @@ import { CustomSelect, Modal } from '@/components/shared';
 import TeamAiSettings from '@/components/features/team-ai/ui/TeamAiSettings';
 import TeamMembers from '@/components/features/team-members/ui/TeamMembers';
 import TeamUsage from '@/components/features/team-usage/ui/TeamUsage';
+import { TeamRunners } from '@/components/features/team-runners';
 import { useCurrentTeam } from '@/hooks/useCurrentTeam';
 import { dispatchTeamsChanged, useTeams } from '@/hooks/useTeams';
 import { useI18n } from '@/i18n';
@@ -27,10 +28,10 @@ interface TeamMemberOption {
     role: 'OWNER' | 'ADMIN' | 'MEMBER';
 }
 
-type TeamTab = 'api' | 'members' | 'settings';
+type TeamTab = 'api' | 'members' | 'runners' | 'settings';
 
 function resolveTeamTab(value: string | null): TeamTab {
-    if (value === 'members' || value === 'settings') {
+    if (value === 'members' || value === 'settings' || value === 'runners') {
         return value;
     }
 
@@ -317,6 +318,16 @@ export default function TeamsPage() {
                                 >
                                     {t('team.page.tab.members')}
                                 </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleTabChange('runners')}
+                                    className={`pb-3 text-sm font-medium border-b-2 transition-colors ${visibleTab === 'runners'
+                                        ? 'border-primary text-primary'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    }`}
+                                >
+                                    {t('team.page.tab.runners')}
+                                </button>
                                 {currentTeam.role === 'OWNER' && (
                                     <button
                                         type="button"
@@ -345,6 +356,10 @@ export default function TeamsPage() {
                                 teamRole={currentTeam.role}
                                 onMembersChanged={handleMembersChanged}
                             />
+                        )}
+
+                        {visibleTab === 'runners' && (
+                            <TeamRunners teamId={currentTeam.id} />
                         )}
 
                         {visibleTab === 'settings' && currentTeam.role === 'OWNER' && (

@@ -11,13 +11,17 @@ Core app features can run without Android SDK/emulator tooling. Android operator
 
 - [`docs/operators/mac-android-emulator-guide.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/mac-android-emulator-guide.md)
   - macOS setup, emulator profile creation, connected device basics, operations, troubleshooting
+- [`docs/operators/local-dev.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/local-dev.md)
+  - local stack setup, runner lifecycle, and clean reset workflow
+- [`docs/operators/cli-runner-env.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/cli-runner-env.md)
+  - runner-required env vars, model defaults/overrides, source vs Homebrew env loading
 - [`docs/operators/android-runtime-deployment-checklist.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/android-runtime-deployment-checklist.md)
   - preflight checklist for enabling Android device runtime on a host/environment
 
 ## Maintainer / Coding-Agent Docs
 
 - [`docs/maintainers/coding-agent-maintenance-guide.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/coding-agent-maintenance-guide.md)
-  - code map, invariants, and maintenance traps for queue/Android-device runtime
+  - code map, invariants, and maintenance traps for runner orchestration and Android runtime
 - [`docs/maintainers/android-runtime-maintenance.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/android-runtime-maintenance.md)
   - Android device runtime behavior, isolation model, and operational constraints
 - [`docs/maintainers/test-case-excel-format.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/test-case-excel-format.md)
@@ -25,16 +29,10 @@ Core app features can run without Android SDK/emulator tooling. Android operator
 - [`docs/maintainers/mcp-server-tooling.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/mcp-server-tooling.md)
   - MCP tool contracts for all registered tools (CRUD, stop-all, query)
 
-## Design Notes / Plans
-
-- [`docs/plans/`](https://github.com/oursky/skytest-agent/tree/main/docs/plans)
-  - implementation plans and design notes used during feature development
-  - useful for historical context, but not a stable contract
-
 ## Maintenance Guidance
 
 - Prefer treating operator docs and maintainer docs as separate audiences.
-- When runtime behavior changes (queueing, Android device cleanup, isolation, API visibility), update both:
+- When runtime behavior changes (runner scheduling, Android device cleanup, isolation, API visibility), update both:
   - operator runbooks/checklists
   - maintainer/runtime notes
 - If import/export behavior changes, update [`docs/maintainers/test-case-excel-format.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/test-case-excel-format.md).

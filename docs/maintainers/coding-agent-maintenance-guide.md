@@ -2,94 +2,78 @@
 
 This guide is for developers and coding agents making changes in this repository.
 
-It complements `AGENTS.md` with project-specific runtime invariants that are easy to break when changing Android support, queueing, and run lifecycle logic.
+It complements `AGENTS.md` with project-specific runtime invariants for the current runner architecture.
 
-## Read These First (For Android Runtime Changes)
+## Read These First
 
 - `AGENTS.md` (repo workflow, constraints, style)
-- [`docs/maintainers/android-runtime-maintenance.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/android-runtime-maintenance.md) (runtime behavior + hosting constraints)
-- [`docs/operators/android-runtime-deployment-checklist.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/android-runtime-deployment-checklist.md) (operator expectations you should not accidentally invalidate)
+- [`docs/maintainers/android-runtime-maintenance.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/android-runtime-maintenance.md) (runner runtime behavior + constraints)
+- [`docs/operators/android-runtime-deployment-checklist.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/android-runtime-deployment-checklist.md) (operator rollout expectations)
 
 ## High-Risk Runtime Areas
 
-### 1. Test Queue (`src/lib/runtime/queue.ts`)
+### 1. Runner Orchestration (`src/lib/runners/*`, `src/app/api/runners/v1/*`)
 
 Responsibilities:
 
-- enqueue / dequeue runs
-- in-process concurrency control
-- run status transitions (`QUEUED`, `PREPARING`, `RUNNING`, terminal states)
-- event buffering + incremental log persistence
-- cancellation handling
+- runner auth and token lifecycle
+- claim/lease ownership for queued runs
+- runner heartbeat/device sync
+- ordered event ingestion and terminal run transitions
+- retention and lease maintenance (`src/workers/runner-maintenance.ts`)
 
 Key invariants:
 
-- queue advancement must not depend on unguarded async calls
-- cancellation should not be overwritten by late job completion
-- cleanup may be triggered from both queue cancellation and test-runner teardown, so cleanup paths must be idempotent
+- claim must be atomic and prevent double-claim
+- write-back endpoints must enforce assigned runner + active lease ownership
+- stream token scope checks must remain strict per run/resource
+- maintenance tasks should stay out of Next.js request lifecycle
 
-### 2. Test Runner (`src/lib/runtime/test-runner.ts`)
+### 2. Runner Client (`cli-runner/runner/index.ts`)
 
 Responsibilities:
 
-- resolve runtime targets (browser + Android)
-- setup browsers/emulators
-- execute steps
-- capture screenshots/logs
-- cleanup targets
+- register/heartbeat with control plane
+- publish device inventory
+- claim Android jobs and execute tests
+- push events/artifacts/final status
 
 Key invariants:
 
-- Android device handles should be released through `androidDeviceManager.release(...)` (not always force-stopped)
-- Android `clearAppData` semantics must remain consistent between pre-launch and release cleanup
-- cleanup must remain safe if called more than once
+- protocol version fields must be sent on every runner request
+- runner token rotation/expiry behavior must not be bypassed
+- runners must not mutate app installation state automatically
 
-### 3. Android Device Manager (`src/lib/android/device-manager.ts`)
+### 3. Execution Engine (`src/lib/runtime/test-runner.ts`)
 
 Responsibilities:
 
-- unify Android runtime acquisition/release across emulator profiles and connected physical devices
-- expose device pool status for `/api/devices`
-- enforce connected-device lease exclusivity by serial
-- delegate emulator lifecycle to `EmulatorPool`
+- shared browser/Android execution logic used by runner clients
+- step execution, event generation, and cleanup behavior
 
 Key invariants:
 
-- connected physical devices must never be force-stopped by app APIs
-- emulator and physical-device cleanup paths must remain idempotent
-- status visibility/ownership fields used by `/api/devices` must stay consistent with auth checks
+- cleanup must stay idempotent when cancellation races run completion
+- Android device handles must be released via `androidDeviceManager.release(...)`
+- `clearAppState` and permission behavior must remain stable
 
-### 4. Emulator Pool (`src/lib/android/emulator-pool.ts`)
+## Control Plane Constraints
 
-Responsibilities:
+- Web app owns browser test execution and run state persistence.
+- Android execution stays runner-owned and must not move into web request handlers.
+- Team-facing device visibility must come from runner-published inventory, not host-local inspection.
+- Do not re-introduce project-scoped device inventory surfaces; active UI is `Team Settings -> Runners`.
+- Do not re-introduce host-local Android inventory assumptions into web APIs.
 
-- manage emulator lifecycle (boot, acquire, release, stop)
-- enforce pool capacity
-- wait queue for emulator acquisition
-- health checks / idle shutdown
-
-Key invariants:
-
-- any capacity-freeing stop path should wake waiters
-- stop lifecycle should wait for process exit before freeing ports
-- pool state is in-memory and process-local (single-process runtime assumption)
-
-## Hosted Runtime Constraints (Do Not “Accidentally Scale”)
-
-- `TestQueue` and `EmulatorPool` are process-local singletons.
-- `AndroidDeviceManager` is also a process-local singleton (and wraps `EmulatorPool`).
-- Android runtime is not safe for multi-replica/serverless deployments without redesign.
-- Avoid adding behavior that assumes cross-process visibility of in-memory queue/emulator state.
-
-If you add features that expose Android device state or control:
+If you add features that expose Android state/control:
 
 - preserve ownership checks
-- be explicit about managed runtime status vs host inventory visibility
-- avoid adding privileged control of connected physical devices
+- keep behavior team/project-scoped through runner ownership
+- avoid privileged host-level actions from web routes
 
 ## Documentation Update Checklist for Code Changes
 
-When changing Android runtime behavior, update docs in the same PR/commit series:
+When changing runner runtime behavior, update docs in the same PR/commit series:
 
 - Operator-facing impact:
   - [`docs/operators/mac-android-emulator-guide.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/mac-android-emulator-guide.md)
@@ -102,7 +86,7 @@ When changing Android runtime behavior, update docs in the same PR/commit series
 ## Common Footguns
 
 - Changing Excel import parser compatibility paths without updating `docs/maintainers/test-case-excel-format.md`
-- Bypassing `androidDeviceManager.release(...)` in normal Android run teardown
-- Adding unguarded fire-and-forget promises in queue processing
-- Overwriting `CANCELLED` status after the job finishes late
-- Changing operator-visible device behavior without updating setup/runbook docs
+- Breaking runner protocol request/response shapes without updating `packages/runner-protocol`
+- Bypassing lease ownership checks on runner write-back endpoints
+- Re-introducing in-memory control-plane execution ownership
+- Changing operator-visible runner/device behavior without updating setup/runbook docs

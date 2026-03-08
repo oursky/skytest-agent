@@ -49,12 +49,9 @@ It is self-hosted, open source, and uses your own API key.
 
 ```bash
 npm install
-npm run dev:services:up
 cp .env.example .env.local
-# Edit .env.local with your credentials and the local Postgres + MinIO values from docs/operators/local-dev.md
-npm run db:generate
-npm run db:migrate
-npm run dev
+# Edit .env.local with your credentials
+make dev
 ```
 
 Open http://localhost:3000 and sign in. <br>
@@ -80,29 +77,12 @@ Users provide their own [OpenRouter](https://openrouter.ai/) API keys via the ap
 ## Troubleshooting
 
 - **Browsers not found**: `npm run playwright:install`
-- **Database errors**: Verify `DATABASE_URL`, then run `npm run db:migrate`
+- **Database errors**: Verify `DATABASE_URL`, then run `npx prisma db push`
 - **Object storage errors**: Verify the `S3_*` variables and confirm the bucket exists in MinIO/S3
 - **View database**: `npm run db:studio`
 - **Auth redirect issues**: Check Authgear redirect URI matches your domain
 - **Android devices (Local macOS Only)**: See [macOS Android Emulator Guide](https://github.com/oursky/skytest-agent/blob/main/docs/operators/mac-android-emulator-guide.md)
-
-## Local Development
-
-For local development, run the same infrastructure shape as hosted:
-- PostgreSQL
-- S3-compatible object storage via MinIO
-
-Quick start:
-
-```bash
-npm run dev:services:up
-npm run db:generate
-npm run db:migrate
-npm run dev
-```
-
-Detailed setup:
-- [Local Development Guide](./docs/operators/local-dev.md)
+- **Local development + CLI runner setup/reset**: See [Local Development Guide](./docs/operators/local-dev.md)
 
 ## Community & Contributing
 

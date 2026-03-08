@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
-import { queue } from '@/lib/runtime/queue';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { isProjectMember } from '@/lib/security/permissions';
+import { cancelLocalBrowserRun } from '@/lib/runtime/local-browser-runner';
 
 const logger = createLogger('api:test-runs:cancel');
 
@@ -34,7 +34,7 @@ export async function POST(
             }
         });
 
-        if (!testRun) {
+        if (!testRun || testRun.deletedAt) {
             return NextResponse.json({ error: 'Test run not found' }, { status: 404 });
         }
 
@@ -42,9 +42,27 @@ export async function POST(
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        await queue.cancel(id);
+        await prisma.testRun.update({
+            where: { id },
+            data: {
+                status: 'CANCELLED',
+                error: 'Cancelled by user',
+                completedAt: new Date(),
+                assignedRunnerId: null,
+                leaseExpiresAt: null,
+            }
+        });
+        cancelLocalBrowserRun(id);
 
         const updated = await prisma.testRun.findUnique({ where: { id }, select: { status: true } });
+
+        logger.info('Cancelled test run', {
+            runId: id,
+            previousStatus: testRun.status,
+            previousAssignedRunnerId: testRun.assignedRunnerId,
+            finalStatus: updated?.status || 'CANCELLED',
+            cancelledByUserId: userId,
+        });
 
         return NextResponse.json({ success: true, id: testRun.id, status: updated?.status || 'CANCELLED' });
     } catch (error) {

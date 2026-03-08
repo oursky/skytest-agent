@@ -69,7 +69,7 @@ export async function PUT(
     try {
         const { id } = await params;
         const body = await request.json();
-        const { name, url, prompt, steps, browserConfig, displayId, saveDraft } = body;
+        const { name, url, prompt, steps, browserConfig, displayId } = body;
 
         const existingTestCase = await prisma.testCase.findUnique({
             where: { id },
@@ -114,9 +114,7 @@ export async function PUT(
             updateData.displayId = displayId || null;
         }
 
-        if (saveDraft) {
-            updateData.status = 'DRAFT';
-        }
+        updateData.status = 'DRAFT';
 
         const testCase = await prisma.testCase.update({
             where: { id },

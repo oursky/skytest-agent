@@ -45,8 +45,8 @@ Common client-specific linking examples:
 Skills for contributors working on the SkyTest Agent codebase.
 
 Current development practice for this repo:
-- optimize for the new control-plane + runner architecture, not backward compatibility with the old local-first runtime
-- prefer hard cutover over long-lived compatibility layers
+- optimize for the current control-plane + runner architecture
+- prefer direct implementation over temporary compatibility layers
 - use an epic integration branch plus short-lived topic branches for major refactors
 - keep OpenRouter key ownership and usage reporting at the project/team level
 - keep Android execution on macOS runners only; hosted web stays browser-first
@@ -57,8 +57,7 @@ Current development practice for this repo:
 | [review](./development-skills/review/SKILL.md) | `/review` | Two-pass code review (spec compliance then code quality) |
 | [plan](./development-skills/plan/SKILL.md) | `/plan` | Align on intent and create step-by-step implementation plans |
 | [debug](./development-skills/debug/SKILL.md) | `/debug` | Structured debugging: reproduce, trace root cause, minimal fix |
-| [architecture-migration](./development-skills/architecture-migration/SKILL.md) | `/architecture-migration` | Keep large refactors aligned with the new control-plane, runner, storage, and ownership architecture |
-| [runner-integration](./development-skills/runner-integration/SKILL.md) | `/runner-integration` | Implement hosted browser runners, macOS runners, durable claiming, and execution/event boundaries |
+| [runner-integration](./development-skills/runner-integration/SKILL.md) | `/runner-integration` | Implement control-plane browser execution, macOS runners, durable claiming, and execution/event boundaries |
 | [team-product-flow](./development-skills/team-product-flow/SKILL.md) | `/team-product-flow` | Implement org/project membership, invites, project AI keys, usage UX, and permission-aligned flows |
 | [pull-request](./development-skills/pull-request/SKILL.md) | `/pull-request` | Draft and prepare PRs with the repo's epic-branch workflow, validation summary, breaking changes, and rollout notes |
 
@@ -66,7 +65,7 @@ Current development practice for this repo:
 
 ```bash
 mkdir -p ~/.agents/skills ~/.claude/skills
-for s in commit review plan debug architecture-migration runner-integration team-product-flow pull-request; do
+for s in commit review plan debug runner-integration team-product-flow pull-request; do
   cp -r skills/development-skills/$s ~/.agents/skills/$s
   ln -sf ~/.agents/skills/$s ~/.claude/skills/$s
 done

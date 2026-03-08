@@ -69,3 +69,6 @@ Thumbs.db
 
 # Plans
 docs/plans/
+
+# Local CLI runner state
+.skytest-dev/

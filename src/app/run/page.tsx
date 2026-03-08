@@ -50,6 +50,7 @@ function RunPageContent() {
     const [currentTestCaseId, setCurrentTestCaseId] = useState<string | null>(null);
     const [currentRunId, setCurrentRunId] = useState<string | null>(null);
     const [projectIdFromTestCase, setProjectIdFromTestCase] = useState<string | null>(null);
+    const [teamIdFromProject, setTeamIdFromProject] = useState<string | null>(null);
     const [projectName, setProjectName] = useState<string>('');
 
     const projectId = searchParams.get("projectId");
@@ -262,8 +263,9 @@ function RunPageContent() {
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
             const response = await fetch(`/api/projects/${projId}`, { headers });
             if (response.ok) {
-                const data = await response.json();
-                setProjectName(data.name);
+                const data = await response.json() as { name?: string; teamId?: string | null };
+                setProjectName(typeof data.name === 'string' ? data.name : '');
+                setTeamIdFromProject(typeof data.teamId === 'string' ? data.teamId : null);
             }
         } catch (error) {
             console.error("Failed to fetch project name", error);
@@ -416,7 +418,7 @@ function RunPageContent() {
         }
     }, [currentTestCaseId, getAccessToken, testCaseId]);
 
-    const issueStreamToken = useCallback(async (scope: 'project-events' | 'test-run-events', resourceId: string): Promise<string | null> => {
+    const issueStreamToken = useCallback(async (scope: 'test-run-events', resourceId: string): Promise<string | null> => {
         const token = await getAccessToken();
         if (!token) return null;
 
@@ -462,7 +464,6 @@ function RunPageContent() {
         if (!streamToken) {
             setResult(prev => ({
                 ...prev,
-                status: 'FAIL',
                 error: t('run.error.connectionLost')
             }));
             setIsLoading(false);
@@ -874,6 +875,7 @@ function RunPageContent() {
                             displayId={displayId}
                             onDisplayIdChange={handleDisplayIdChange}
                             projectId={projectId || projectIdFromTestCase || undefined}
+                            teamId={teamIdFromProject || undefined}
                             projectConfigs={projectConfigs}
                             testCaseConfigs={testCaseConfigs}
                             testCaseFiles={testCaseFiles}

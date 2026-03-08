@@ -411,7 +411,7 @@ export default function TargetConfigurationsPanel({
                                     </svg>
                                     {t('configs.browser.addBrowser')}
                                 </button>
-                                {projectId && androidDeviceOptions.length > 0 && (
+                                {projectId && (
                                     <button
                                         type="button"
                                         onClick={onAddAndroid}

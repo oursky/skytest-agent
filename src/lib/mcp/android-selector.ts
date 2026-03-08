@@ -1,5 +1,22 @@
 import type { AndroidDeviceSelector } from '@/types';
-import type { AndroidDeviceInventory } from '@/lib/android/devices';
+
+export interface AndroidSelectorConnectedDevice {
+    serial: string;
+    kind: 'emulator' | 'physical';
+    manufacturer?: string;
+    model?: string;
+    emulatorProfileName?: string;
+}
+
+export interface AndroidSelectorEmulatorProfile {
+    name: string;
+    displayName: string;
+}
+
+export interface AndroidDeviceSelectorInventory {
+    connectedDevices: AndroidSelectorConnectedDevice[];
+    emulatorProfiles: AndroidSelectorEmulatorProfile[];
+}
 
 export interface AndroidDeviceSelectorInput {
     mode: 'emulator-profile' | 'connected-device';
@@ -11,19 +28,19 @@ function normalizeDeviceLookupValue(value: string): string {
     return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
-function buildConnectedDeviceLabel(device: AndroidDeviceInventory['connectedDevices'][number]): string {
+function buildConnectedDeviceLabel(device: AndroidSelectorConnectedDevice): string {
     if (device.kind === 'emulator') {
         return device.emulatorProfileName || device.model || device.serial;
     }
     return [device.manufacturer, device.model].filter(Boolean).join(' ').trim() || device.serial;
 }
 
-function getUniqueProfileName(matches: ReadonlyArray<AndroidDeviceInventory['emulatorProfiles'][number]>): string | null {
+function getUniqueProfileName(matches: ReadonlyArray<AndroidSelectorEmulatorProfile>): string | null {
     const profileNames = Array.from(new Set(matches.map((profile) => profile.name)));
     return profileNames.length === 1 ? profileNames[0] : null;
 }
 
-function resolveEmulatorProfileName(rawDevice: string, inventory: AndroidDeviceInventory): string | null {
+function resolveEmulatorProfileName(rawDevice: string, inventory: AndroidDeviceSelectorInventory): string | null {
     const trimmed = rawDevice.trim();
     if (!trimmed) {
         return null;
@@ -74,7 +91,7 @@ function resolveEmulatorProfileName(rawDevice: string, inventory: AndroidDeviceI
     return null;
 }
 
-function resolveConnectedSerial(rawSerial: string, inventory: AndroidDeviceInventory): string | null {
+function resolveConnectedSerial(rawSerial: string, inventory: AndroidDeviceSelectorInventory): string | null {
     const serialLookup = rawSerial.trim().toLowerCase();
     if (!serialLookup) {
         return null;
@@ -83,7 +100,7 @@ function resolveConnectedSerial(rawSerial: string, inventory: AndroidDeviceInven
     return matched?.serial ?? null;
 }
 
-function resolveConnectedDeviceByAlias(rawDevice: string, inventory: AndroidDeviceInventory): string | null {
+function resolveConnectedDeviceByAlias(rawDevice: string, inventory: AndroidDeviceSelectorInventory): string | null {
     const trimmed = rawDevice.trim();
     if (!trimmed) {
         return null;
@@ -122,7 +139,7 @@ function resolveConnectedDeviceByAlias(rawDevice: string, inventory: AndroidDevi
 export function resolveAndroidDeviceSelector(
     device?: string,
     selector?: AndroidDeviceSelectorInput,
-    inventory?: AndroidDeviceInventory
+    inventory?: AndroidDeviceSelectorInventory
 ): AndroidDeviceSelector | null {
     if (selector) {
         if (selector.mode === 'connected-device') {

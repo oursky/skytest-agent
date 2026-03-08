@@ -2,6 +2,10 @@
   "name": "skytest-agent",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "packages/*",
+    "cli-runner"
+  ],
   "overrides": {
     "@hono/node-server": "1.19.10",
     "@modelcontextprotocol/sdk": "$@modelcontextprotocol/sdk",
@@ -33,11 +37,12 @@
     "audit": "npm audit --audit-level=moderate --package-lock-only",
     "verify": "npm run lint && npm run audit",
     "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev",
-    "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "playwright:install": "playwright install chromium",
-    "test": "vitest --run"
+    "test": "vitest --run",
+    "runner:maintenance": "tsx src/workers/runner-maintenance.ts",
+    "skytest": "npm run --workspace @skytest/cli-runner skytest --",
+    "skytest:help": "npm run --workspace @skytest/cli-runner skytest:help"
   },
   "dependencies": {
     "@authgear/web": "5.0.1",
@@ -79,6 +84,7 @@
     "postcss": "8.5.6",
     "prisma": "7.4.1",
     "tailwindcss": "4.1.18",
+    "tsx": "4.20.6",
     "typescript": "5.9.3",
     "vitest": "4.0.18"
   }

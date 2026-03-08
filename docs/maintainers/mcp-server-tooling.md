@@ -38,7 +38,7 @@ This document defines current SkyTest MCP tool behavior for maintainers.
 - Accepted config types: `URL`, `VARIABLE`, `RANDOM_STRING`, `APP_ID`.
 - `FILE` variables are rejected with a warning (MCP cannot upload file content).
 - If a test-case variable matches an existing project-level config (same type and value), it is skipped with a warning naming the matching project variable.
-- Android device names are resolved against the device inventory. If no match is found, the test case is still created but the response includes a warning so the caller can confirm with the user.
+- Android device names are resolved against runner-synced team inventory. If no match is found, the test case is still created but the response includes a warning so the caller can confirm with the user.
 
 ### update_test_case
 
@@ -56,7 +56,7 @@ This document defines current SkyTest MCP tool behavior for maintainers.
 
 ### stop_all_runs
 
-- Cancels all active test runs (`QUEUED`, `PREPARING`, `RUNNING`) for the authenticated user via queue cancellation.
+- Cancels all active test runs (`QUEUED`, `PREPARING`, `RUNNING`) for the authenticated user via durable DB state update.
 - `projectId` is required and limits cancellation to one owned project.
 - Returns:
   - requested active run count
@@ -66,7 +66,7 @@ This document defines current SkyTest MCP tool behavior for maintainers.
 
 ### stop_all_queues
 
-- Cancels only queued test runs (`QUEUED`) for the authenticated user via queue cancellation.
+- Cancels only queued test runs (`QUEUED`) for the authenticated user via durable DB state update.
 - `projectId` is required and limits cancellation to one owned project.
 - Returns:
   - requested queued run count
@@ -86,6 +86,6 @@ This document defines current SkyTest MCP tool behavior for maintainers.
 
 ## Runtime Notes
 
-- Always cancel through `queue.cancel(...)` to keep queue/running/cleanup paths consistent.
+- Always cancel through durable run state updates (`CANCELLED` + lease cleanup), never through in-memory queue paths.
 - Do not add batch update semantics to `update_test_case`; keep one-test-case-per-call behavior.
-- Android device resolution uses multiple fallback strategies (exact name, case-insensitive, normalized, prefix match). When no match is found, the raw input is used as emulator profile name and a warning is returned.
+- Android device resolution uses runner inventory aliases (serial/name/profile metadata) from team-scoped runner inventory surfaced in `Team Settings -> Runners`. When no match is found, the raw input is used as emulator profile name and a warning is returned.

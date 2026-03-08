@@ -10,7 +10,7 @@ import { formatDateTime } from "@/utils/dateFormatter";
 import { useI18n } from "@/i18n";
 import { parseStoredEvents } from "@/lib/runtime/test-events";
 
-import { TestStep, BrowserConfig, TargetConfig, ConfigItem } from "@/types";
+import { TestStep, BrowserConfig, TargetConfig, ConfigItem, TestEvent } from "@/types";
 
 interface TestRun {
     id: string;
@@ -20,6 +20,7 @@ interface TestRun {
     logs: string | null;
     error: string | null;
     configurationSnapshot: string | null;
+    events?: TestEvent[];
     files?: Array<{ id: string; filename: string; storedName: string; mimeType: string; size: number; createdAt: string }>;
 }
 
@@ -131,7 +132,9 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
         );
     }
 
-    const events = parseStoredEvents(testRun.result || testRun.logs);
+    const events = testRun.events && testRun.events.length > 0
+        ? testRun.events
+        : parseStoredEvents(testRun.result || testRun.logs);
 
     const buildExcelBaseName = (testCaseIdentifier?: string, testCaseName?: string): string => {
         const sanitize = (value: string) => value.replace(/[^a-zA-Z0-9._-]/g, '_');

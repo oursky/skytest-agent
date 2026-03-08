@@ -1,11 +1,86 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
-import { queue } from '@/lib/runtime/queue';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { isProjectMember } from '@/lib/security/permissions';
+import { isTestEvent } from '@/lib/runtime/test-events';
+import { objectStore } from '@/lib/storage/object-store';
+import { isScreenshotData, type TestEvent, type LogLevel } from '@/types';
 
 const logger = createLogger('api:test-runs:id');
+
+interface RunEventRow {
+    kind: string;
+    message: string | null;
+    payload: unknown;
+    artifactKey: string | null;
+    createdAt: Date;
+}
+
+function isLogLevel(value: unknown): value is LogLevel {
+    return value === 'info' || value === 'error' || value === 'success';
+}
+
+function resolveArtifactFilename(artifactKey: string): string {
+    const segments = artifactKey.split('/').filter(Boolean);
+    return segments[segments.length - 1] || 'artifact.bin';
+}
+
+function createArtifactUnavailableLogEvent(row: RunEventRow): TestEvent {
+    return {
+        type: 'log',
+        data: {
+            message: row.message || `Screenshot artifact unavailable: ${row.artifactKey ?? 'unknown artifact'}`,
+            level: 'error',
+        },
+        timestamp: row.createdAt.getTime(),
+    };
+}
+
+async function mapRunEventToUiEvent(row: RunEventRow): Promise<TestEvent> {
+    if (isTestEvent(row.payload)) {
+        if (
+            row.payload.type === 'screenshot'
+            && isScreenshotData(row.payload.data)
+            && row.payload.data.src.startsWith('artifact:')
+        ) {
+            if (!row.artifactKey) {
+                return createArtifactUnavailableLogEvent(row);
+            }
+
+            try {
+                const signedUrl = await objectStore.getSignedDownloadUrl({
+                    key: row.artifactKey,
+                    filename: resolveArtifactFilename(row.artifactKey),
+                    inline: true,
+                });
+
+                return {
+                    ...row.payload,
+                    data: {
+                        ...row.payload.data,
+                        src: signedUrl,
+                    },
+                };
+            } catch (error) {
+                logger.warn('Failed to resolve signed artifact URL for history run event', error);
+                return createArtifactUnavailableLogEvent(row);
+            }
+        }
+
+        return row.payload;
+    }
+
+    const level: LogLevel = row.kind.toLowerCase().includes('error') ? 'error' : 'info';
+    return {
+        type: 'log',
+        data: {
+            message: row.message || (row.artifactKey ? `Artifact uploaded: ${row.artifactKey}` : row.kind),
+            level: isLogLevel(level) ? level : 'info',
+        },
+        timestamp: row.createdAt.getTime(),
+    };
+}
 
 export async function GET(
     request: Request,
@@ -36,7 +111,7 @@ export async function GET(
             }
         });
 
-        if (!testRun) {
+        if (!testRun || testRun.deletedAt) {
             return NextResponse.json({ error: 'Test run not found' }, { status: 404 });
         }
 
@@ -45,6 +120,18 @@ export async function GET(
         }
 
         const files = testRun.files || [];
+        const eventRows = await prisma.testRunEvent.findMany({
+            where: { runId: id },
+            orderBy: { sequence: 'asc' },
+            select: {
+                kind: true,
+                message: true,
+                payload: true,
+                artifactKey: true,
+                createdAt: true,
+            },
+        });
+        const events: TestEvent[] = await Promise.all(eventRows.map((eventRow) => mapRunEventToUiEvent(eventRow)));
 
         return NextResponse.json({
             id: testRun.id,
@@ -57,7 +144,8 @@ export async function GET(
             completedAt: testRun.completedAt,
             createdAt: testRun.createdAt,
             testCaseId: testRun.testCaseId,
-            files
+            files,
+            events,
         });
     } catch (error) {
         logger.error('Failed to fetch test run', error);
@@ -90,7 +178,7 @@ export async function DELETE(
             }
         });
 
-        if (!testRun) {
+        if (!testRun || testRun.deletedAt) {
             return NextResponse.json({ error: 'Test run not found' }, { status: 404 });
         }
 
@@ -98,14 +186,15 @@ export async function DELETE(
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        try {
-            queue.cancel(id);
-        } catch (e) {
-            logger.warn('Failed to cancel job from queue', e);
+        if (['RUNNING', 'QUEUED', 'PREPARING'].includes(testRun.status)) {
+            return NextResponse.json({ error: 'Cannot delete an active test run' }, { status: 409 });
         }
 
-        await prisma.testRun.delete({
+        await prisma.testRun.update({
             where: { id },
+            data: {
+                deletedAt: new Date(),
+            },
         });
 
         return NextResponse.json({ success: true });
