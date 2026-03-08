@@ -246,4 +246,3 @@ export const config = {
 } as const;
 
 export type Config = typeof config;
-export type TestStatus = keyof typeof config.ui.statusColors;
