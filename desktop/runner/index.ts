@@ -1,3 +1,6 @@
+import { mkdir, open, readFile, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import {
     RUNNER_PROTOCOL_CURRENT_VERSION,
     claimJobResponseSchema,
@@ -91,6 +94,7 @@ const envRunnerToken = process.env.RUNNER_TOKEN?.trim() || null;
 const runnerLabel = process.env.RUNNER_LABEL ?? 'macOS Runner';
 const capabilities = ['ANDROID'] as const;
 const EMULATOR_PROFILE_DEVICE_PREFIX = 'emulator-profile:';
+const RUNNER_LOCK_PATH = path.join(os.homedir(), '.skytest-agent', 'runner.lock');
 
 const DEFAULT_TRANSPORT: RunnerTransportMetadata = {
     heartbeatIntervalSeconds: 10,
@@ -177,6 +181,62 @@ function stopBackgroundLoops() {
         clearInterval(deviceSyncTimer);
         deviceSyncTimer = null;
     }
+}
+
+function isProcessAlive(pid: number): boolean {
+    if (!Number.isInteger(pid) || pid <= 0) {
+        return false;
+    }
+    try {
+        process.kill(pid, 0);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+async function tryReadLockPid(): Promise<number | null> {
+    try {
+        const raw = await readFile(RUNNER_LOCK_PATH, 'utf8');
+        const parsed = JSON.parse(raw) as { pid?: unknown };
+        return typeof parsed.pid === 'number' ? parsed.pid : null;
+    } catch {
+        return null;
+    }
+}
+
+async function acquireRunnerLock(): Promise<() => Promise<void>> {
+    await mkdir(path.dirname(RUNNER_LOCK_PATH), { recursive: true });
+
+    const writeLock = async () => {
+        const handle = await open(RUNNER_LOCK_PATH, 'wx');
+        try {
+            await handle.writeFile(JSON.stringify({
+                pid: process.pid,
+                startedAt: new Date().toISOString(),
+                controlPlaneBaseUrl,
+                runnerLabel,
+            }));
+        } finally {
+            await handle.close();
+        }
+    };
+
+    try {
+        await writeLock();
+    } catch {
+        const lockPid = await tryReadLockPid();
+        if (!lockPid || !isProcessAlive(lockPid)) {
+            await rm(RUNNER_LOCK_PATH, { force: true });
+            await writeLock();
+        } else {
+            throw new Error(`Another macOS runner process is already running (pid ${lockPid})`);
+        }
+    }
+
+    return async () => {
+        await rm(RUNNER_LOCK_PATH, { force: true });
+    };
 }
 
 function ensureRunnerToken(): string {
@@ -688,39 +748,45 @@ function startDeviceSyncLoop() {
 }
 
 async function start() {
-    await bootstrapRunnerCredential();
+    const releaseLock = await acquireRunnerLock();
 
     try {
-        await registerRunner();
-    } catch (error) {
-        if (error instanceof RunnerHttpError && error.status === 401 && pairingToken) {
-            authState = await exchangePairingCredential();
-            await registerRunner();
-        } else {
-            throw error;
-        }
-    }
-
-    const androidDeviceManager = await loadAndroidDeviceManager();
-    await androidDeviceManager.initialize();
-    await syncDevices();
-
-    startHeartbeatLoop();
-    startDeviceSyncLoop();
-
-    while (!stopped) {
         try {
-            const job = await claimJob();
-            if (!job) {
-                continue;
-            }
+            await bootstrapRunnerCredential();
 
-            logger.info('Claimed Android run', { runId: job.runId, requestedDeviceId: job.requestedDeviceId });
-            await executeClaimedRun(job.runId);
+            await registerRunner();
         } catch (error) {
-            logger.error('Runner loop failed', error);
-            await new Promise((resolve) => setTimeout(resolve, 3000));
+            if (error instanceof RunnerHttpError && error.status === 401 && pairingToken) {
+                authState = await exchangePairingCredential();
+                await registerRunner();
+            } else {
+                throw error;
+            }
         }
+
+        const androidDeviceManager = await loadAndroidDeviceManager();
+        await androidDeviceManager.initialize();
+        await syncDevices();
+
+        startHeartbeatLoop();
+        startDeviceSyncLoop();
+
+        while (!stopped) {
+            try {
+                const job = await claimJob();
+                if (!job) {
+                    continue;
+                }
+
+                logger.info('Claimed Android run', { runId: job.runId, requestedDeviceId: job.requestedDeviceId });
+                await executeClaimedRun(job.runId);
+            } catch (error) {
+                logger.error('Runner loop failed', error);
+                await new Promise((resolve) => setTimeout(resolve, 3000));
+            }
+        }
+    } finally {
+        await releaseLock();
     }
 }
 
