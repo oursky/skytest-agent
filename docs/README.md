@@ -11,6 +11,8 @@ Core app features can run without Android SDK/emulator tooling. Android operator
 
 - [`docs/operators/mac-android-emulator-guide.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/mac-android-emulator-guide.md)
   - macOS setup, emulator profile creation, connected device basics, operations, troubleshooting
+- [`docs/operators/local-dev.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/local-dev.md)
+  - local stack setup, runner lifecycle, and clean reset workflow
 - [`docs/operators/cli-runner-env.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/cli-runner-env.md)
   - runner-required env vars, model defaults/overrides, source vs Homebrew env loading
 - [`docs/operators/android-runtime-deployment-checklist.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/android-runtime-deployment-checklist.md)

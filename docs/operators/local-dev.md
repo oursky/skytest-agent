@@ -2,38 +2,25 @@
 
 Use the same infrastructure shape in local development and hosted environments:
 - PostgreSQL for application state
-- S3-compatible object storage for files and artifacts
-
-For local work, run MinIO as the S3-compatible service.
+- S3-compatible object storage (MinIO) for files and artifacts
 
 ## Prerequisites
 
-- Docker Desktop or Docker Engine with Compose
+- Docker Engine with Compose (or Docker Desktop)
 - Node.js matching the repo toolchain
 
-## Start Local Services
+## Quick Start
 
 ```bash
-make services-up
+npm install
+make dev
 ```
 
-This starts:
-- Postgres on `127.0.0.1:5432`
-- MinIO API on `127.0.0.1:9000`
-- MinIO console on `127.0.0.1:9001`
-- A one-shot bucket bootstrap job that creates `skytest-agent`
-
-To stop the services:
-
-```bash
-make services-down
-```
-
-To follow local service logs:
-
-```bash
-make services-logs
-```
+`make dev` starts:
+- Postgres and MinIO
+- Prisma schema sync
+- Next.js control plane on `http://127.0.0.1:3000`
+- runner maintenance worker loop (lease recovery + retention)
 
 ## Local Environment Variables
 
@@ -53,48 +40,22 @@ RUNNER_ARTIFACT_HARD_DELETE_DAYS="7"
 RUNNER_ARTIFACT_HARD_DELETE_BATCH_SIZE="50"
 ```
 
-Keep the rest of your existing auth and app settings in `.env.local`.
-
 Retention behavior:
-- runs older than `RUNNER_ARTIFACT_SOFT_DELETE_DAYS` are soft-deleted (hidden from history)
+- runs older than `RUNNER_ARTIFACT_SOFT_DELETE_DAYS` are soft-deleted
 - soft-deleted runs are permanently removed after `RUNNER_ARTIFACT_HARD_DELETE_DAYS`
-- hard delete is processed in batches by `RUNNER_ARTIFACT_HARD_DELETE_BATCH_SIZE`
+- hard delete runs in batches via `RUNNER_ARTIFACT_HARD_DELETE_BATCH_SIZE`
 
-## Start The App
+## Runtime Behavior
 
-```bash
-npm install
-make dev
-```
+- Browser runs execute directly in the control plane.
+- Android runs require a paired CLI runner process.
 
-Open `http://localhost:3000`.
-
-`make dev` starts both:
-- Next.js control plane
-- runner maintenance worker (lease expiry + retention)
-
-## Quick Local Workflows
-
-For local development, run the same infrastructure shape as hosted:
-- PostgreSQL
-- S3-compatible object storage via MinIO
-
-Quick start:
-
-```bash
-make dev
-```
-
-Runtime processes:
-- Browser runs are executed automatically by the control plane per test run
-- Android runs require `skytest` runner lifecycle commands (source: `npm run skytest -- ...`, Homebrew: `skytest ...`)
-- Lease/retention maintenance runs automatically with `make dev`
-
-Runner env and model configuration:
-
+Runner environment and model configuration:
 - [CLI Runner Environment Configuration](./cli-runner-env.md)
 
-CLI runner management from source:
+## CLI Runner Lifecycle (Source)
+
+Pair and manage from this repo:
 
 ```bash
 npm run skytest -- pair runner "<pairing-token>" --control-plane-url "http://127.0.0.1:3000"
@@ -105,13 +66,7 @@ npm run skytest -- logs runner <local-runner-id> --tail 200
 npm run skytest -- unpair runner <local-runner-id>
 ```
 
-Reset local runner environment during development:
-
-```bash
-npm run skytest -- reset --force
-```
-
-Homebrew user workflow:
+## CLI Runner Lifecycle (Homebrew)
 
 ```bash
 brew install <tap>/skytest
@@ -120,7 +75,15 @@ skytest get runners
 brew upgrade <tap>/skytest
 ```
 
-Homebrew uninstall and cleanup:
+## Clean Reset For Development
+
+Reset runner state:
+
+```bash
+npm run skytest -- reset --force
+```
+
+Reset Homebrew runner state:
 
 ```bash
 skytest reset --force
@@ -128,128 +91,39 @@ brew uninstall skytest
 rm -rf "$(brew --prefix)/var/skytest"
 ```
 
-## Start Runner Processes (Phase 3)
-
-Browser tests are executed directly by the control plane and spawn/close browsers per run.
-Only Android execution requires a runner process.
-
-### CLI runner (required for Android test runs)
-
-See the full setup guide:
-
-- [macOS Android Devices Guide](./mac-android-emulator-guide.md)
-
-Quick start:
-Generate the pairing token from `Team Settings -> Runners` in the web app.
+Reset local services and data:
 
 ```bash
-npm run skytest -- pair runner "<pairing-token>" \
-  --control-plane-url "http://127.0.0.1:3000" \
-  --label "Local macOS Runner"
+make services-down
+docker compose -f docker-compose.local.yml down -v
+make services-up
+npm run db:generate
+npx prisma db push
 ```
 
-After pairing, manage lifecycle with:
+## Service Operations
+
+Start/stop/log services:
 
 ```bash
-npm run skytest -- get runners
-npm run skytest -- start runner <local-runner-id>
-npm run skytest -- stop runner <local-runner-id>
-npm run skytest -- unpair runner <local-runner-id>
-```
-
-To cleanly reset local runner environment:
-
-```bash
-npm run skytest -- reset --force
+make services-up
+make services-down
+make services-logs
 ```
 
 ## Verify MinIO
 
-Open the MinIO console at `http://127.0.0.1:9001`.
+- API: `http://127.0.0.1:9000`
+- Console: `http://127.0.0.1:9001`
+- Default username/password: `minioadmin` / `minioadmin`
 
-Default credentials:
-- username: `minioadmin`
-- password: `minioadmin`
-
-Confirm the `skytest-agent` bucket exists.
-
-## Manage Local Object Storage
-
-Use either:
-- the MinIO console at `http://127.0.0.1:9001`
-- the MinIO CLI client through `docker compose`
-
-The console is fine for ad-hoc inspection.
-Use the CLI when you want repeatable cleanup commands.
-
-### List buckets
-
-```bash
-docker compose -f docker-compose.local.yml run --rm createbuckets \
-  /bin/sh -c 'mc alias set local http://minio:9000 minioadmin minioadmin && mc ls local'
-```
-
-### List objects in the app bucket
-
-```bash
-docker compose -f docker-compose.local.yml run --rm createbuckets \
-  /bin/sh -c 'mc alias set local http://minio:9000 minioadmin minioadmin && mc ls --recursive local/skytest-agent'
-```
-
-### Remove one object
-
-Replace `<object-key>` with the full object key, for example `test-cases/<id>/files/<uuid>.pdf`.
-
-```bash
-docker compose -f docker-compose.local.yml run --rm createbuckets \
-  /bin/sh -c 'mc alias set local http://minio:9000 minioadmin minioadmin && mc rm local/skytest-agent/<object-key>'
-```
-
-### Remove all objects under a prefix
-
-Examples:
-- all files for one test case: `test-cases/<test-case-id>/`
-- all artifacts for one run: `test-runs/<run-id>/`
-
-```bash
-docker compose -f docker-compose.local.yml run --rm createbuckets \
-  /bin/sh -c 'mc alias set local http://minio:9000 minioadmin minioadmin && mc rm --recursive --force local/skytest-agent/<prefix>'
-```
-
-### Empty the whole app bucket
-
-Use this when you want to clear local object storage without destroying the bucket itself.
-
-```bash
-docker compose -f docker-compose.local.yml run --rm createbuckets \
-  /bin/sh -c 'mc alias set local http://minio:9000 minioadmin minioadmin && mc rm --recursive --force local/skytest-agent'
-```
-
-### Remove and recreate the whole bucket
-
-Use this only when you want a full local reset of object storage metadata and contents.
-
-```bash
-docker compose -f docker-compose.local.yml run --rm createbuckets \
-  /bin/sh -c "mc alias set local http://minio:9000 minioadmin minioadmin && mc rb --force local/skytest-agent && mc mb local/skytest-agent && mc anonymous set private local/skytest-agent"
-```
-
-### Full local reset of Postgres and MinIO data
-
-This removes the Docker volumes and deletes all local database and object storage data.
-
-```bash
-docker compose -f docker-compose.local.yml down -v
-docker compose -f docker-compose.local.yml up -d
-npm run db:generate
-npx prisma db push
-```
+Confirm bucket `skytest-agent` exists.
 
 ## Troubleshooting
 
 ### Port already in use
 
-If `5432`, `9000`, or `9001` is already in use, stop the conflicting service or change the host port mappings in `docker-compose.local.yml`.
+If `5432`, `9000`, or `9001` is in use, stop the conflicting process or adjust `docker-compose.local.yml` host port mappings.
 
 ### Bucket not created
 
@@ -259,49 +133,14 @@ Run:
 docker compose -f docker-compose.local.yml run --rm createbuckets
 ```
 
-### Database schema not applied
+### Runner shows 401 after unpair from web portal
 
-Run:
-
-```bash
-npx prisma db push
-```
-
-### Browsers not installed for local test execution
-
-Run:
+The local runner entry is cleaned up after the next unauthorized runner request. If needed, run:
 
 ```bash
-npm run playwright:install
+npm run skytest -- reset --force
 ```
 
-### AI steps fail with missing `MIDSCENE_MODEL_NAME` (or similar model config error)
+### Android runner setup details
 
-Restart the runner after applying env updates:
-
-```bash
-npm run skytest -- stop runner <local-runner-id>
-npm run skytest -- start runner <local-runner-id>
-```
-
-For env resolution and override locations, see:
-
-- [CLI Runner Environment Configuration](./cli-runner-env.md)
-
-Then retry the browser run from the web UI.
-
-### Object storage errors in the app
-
-Check:
-- MinIO is healthy on `http://127.0.0.1:9000/minio/health/live`
-- `.env.local` points to `127.0.0.1:9000`
-- the `skytest-agent` bucket exists
-- `S3_FORCE_PATH_STYLE` is `true`
-
-### Need to inspect or delete objects manually
-
-Use the commands in `Manage Local Object Storage` above.
-The most useful first checks are:
-- list objects with `mc ls --recursive`
-- remove one bad object with `mc rm`
-- clear a whole prefix with `mc rm --recursive --force`
+See [macOS Android Runner Setup Guide](./mac-android-emulator-guide.md).

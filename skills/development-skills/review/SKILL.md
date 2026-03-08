@@ -24,7 +24,7 @@ If the user doesn't specify, infer from the changes being reviewed.
 For this repo, also explicitly check whether the change is consistent with the target architecture:
 - control plane on k8s
 - Postgres and object storage
-- hosted browser runner
+- control-plane browser execution
 - macOS-only Android runner
 - team membership model
 - team-owned OpenRouter key and project-scoped usage
@@ -50,10 +50,10 @@ Use the review type to pick targeted entry points — don't scan the whole repo:
 
 Additional repo-specific starting points:
 - **Auth/Permissions**: `src/lib/security/auth.ts`, permission helpers, team/project membership routes
-- **Runners**: `src/lib/runners/`, `src/runners/`, runner APIs
+- **Runners**: `src/lib/runners/`, runner APIs, `cli-runner/`
 - **Storage**: Prisma schema, storage adapters, file APIs
 - **MCP**: `src/app/api/mcp/route.ts`, `src/lib/mcp/server.ts`
-- **CLI Runner**: `cli-runner/`
+- **Browser Execution**: `src/lib/runtime/local-browser-runner.ts`, `src/lib/runtime/test-runner.ts`
 
 ### 3. Two-pass review
 

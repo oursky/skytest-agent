@@ -6,7 +6,6 @@ COMPOSE_FILE ?= docker-compose.local.yml
 CONTROL_PLANE_PORT ?= 3000
 CONTROL_PLANE_HOST ?= 127.0.0.1
 CONTROL_PLANE_URL ?= http://$(CONTROL_PLANE_HOST):$(CONTROL_PLANE_PORT)
-ENV_LOCAL ?= .env.local
 
 .PHONY: \
 	help \

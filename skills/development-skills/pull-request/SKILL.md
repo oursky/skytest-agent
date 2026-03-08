@@ -11,7 +11,7 @@ Keep PRs aligned with the current repo practice:
 - epic integration branch for major refactors
 - short-lived topic branches
 - hard cutover over backward compatibility
-- explicit documentation of legacy code removal
+- explicit documentation of superseded code removal
 
 ## Trigger Conditions
 
@@ -67,7 +67,7 @@ For this repo, also say whether the PR touches:
 - team membership/ownership
 - team AI key or project usage
 - runner claiming or leases
-- browser runner
+- control-plane browser execution
 - macOS runner
 - MCP auth or audit
 - k8s deployment
@@ -77,7 +77,7 @@ For this repo, also say whether the PR touches:
 PR summaries should answer:
 - what changed
 - why it changed
-- what old path was replaced or deleted
+- what superseded path was replaced or deleted
 - what validations were run
 - what risks remain
 
@@ -88,8 +88,8 @@ This repo is currently using hard cutover for platform work.
 If the PR changes behavior incompatibly, say so directly:
 - API contract changed
 - schema changed
-- old runtime path removed
-- old UI flow removed
+- runtime path removed
+- UI flow removed
 - migration required
 
 Do not hide breaking changes inside a generic summary.
@@ -122,7 +122,7 @@ If the user explicitly asked to create the PR:
 
 Prefer concise imperative titles with area prefix when useful:
 - `schema: move project storage to Postgres and object storage`
-- `runner: add durable job claiming for browser runners`
+- `runner: add durable job claiming for Android runners`
 - `ui: update team membership and AI settings flows`
 - `mcp: scope project keys and audit write actions`
 
@@ -175,7 +175,7 @@ Always mention these when applicable:
 ## Guardrails
 
 - prefer smaller PRs over giant mixed PRs
-- do not bundle unrelated cleanup into the PR unless it is the deletion of the replaced legacy path
+- do not bundle unrelated cleanup into the PR unless it is the deletion of the replaced superseded path
 - do not omit validation status
 - do not omit base branch selection
 - do not present temporary adapters without naming the removal plan
@@ -187,5 +187,5 @@ Before calling the PR ready:
 - diff has been reviewed
 - validation section is complete
 - breaking changes are explicit
-- deleted legacy paths are named
+- deleted superseded paths are named
 - remaining follow-ups are listed

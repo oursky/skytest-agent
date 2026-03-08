@@ -2,7 +2,7 @@
 
 This guide is for developers and coding agents making changes in this repository.
 
-It complements `AGENTS.md` with project-specific runtime invariants for the Phase 3 runner architecture.
+It complements `AGENTS.md` with project-specific runtime invariants for the current runner architecture.
 
 ## Read These First
 
@@ -29,13 +29,13 @@ Key invariants:
 - stream token scope checks must remain strict per run/resource
 - maintenance tasks should stay out of Next.js request lifecycle
 
-### 2. Runner Clients (`src/runners/browser-runner.ts`, `cli-runner/runner/index.ts`)
+### 2. Runner Client (`cli-runner/runner/index.ts`)
 
 Responsibilities:
 
 - register/heartbeat with control plane
 - publish device inventory
-- claim jobs and execute tests
+- claim Android jobs and execute tests
 - push events/artifacts/final status
 
 Key invariants:
@@ -59,7 +59,8 @@ Key invariants:
 
 ## Control Plane Constraints
 
-- Web app is control plane only; it must not own in-process job execution.
+- Web app owns browser test execution and run state persistence.
+- Android execution stays runner-owned and must not move into web request handlers.
 - Team-facing device visibility must come from runner-published inventory, not host-local inspection.
 - Do not re-introduce project-scoped device inventory surfaces; active UI is `Team Settings -> Runners`.
 - Do not re-introduce host-local Android inventory assumptions into web APIs.

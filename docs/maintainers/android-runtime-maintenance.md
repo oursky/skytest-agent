@@ -2,7 +2,7 @@
 
 Audience: maintainers / coding agents changing Android runtime behavior.
 
-This document describes the Phase 3 Android runner behavior and operational constraints.
+This document describes current Android runner behavior and operational constraints.
 
 Related docs:
 
@@ -40,7 +40,6 @@ Implications:
 - Control plane exposes aggregated team-scoped inventory via `/api/teams/[id]/devices`.
 - Team-facing inventory and runner status are shown in `Team Settings -> Runners`.
 - Device freshness and availability are derived from runner heartbeat and device `lastSeenAt`.
-- The old `/api/devices` host-local route is removed.
 
 Security behavior:
 

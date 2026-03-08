@@ -1,6 +1,6 @@
 ---
 name: runner-integration
-description: Guide for implementing and reviewing hosted browser runners, macOS runners, durable job claiming, heartbeats, event ingestion, and Android capability routing. Use when changing runner lifecycle, run claiming, execution ownership, or hosted-vs-macOS execution behavior.
+description: Guide for implementing and reviewing control-plane browser execution, macOS CLI runners, durable job claiming, heartbeats, event ingestion, and Android capability routing. Use when changing runner lifecycle, run claiming, execution ownership, or browser-vs-Android execution behavior.
 ---
 
 # Runner Integration
@@ -11,11 +11,12 @@ Use this skill when the task changes how work is claimed, executed, cancelled, o
 
 Use this skill when touching:
 - `src/lib/runners/`
-- `src/runners/`
 - `cli-runner/`
+- `src/lib/runtime/local-browser-runner.ts`
+- `src/lib/runtime/test-runner.ts`
 - run claim/heartbeat/complete/fail APIs
 - run submission capability matching
-- browser execution extraction
+- browser execution behavior
 - Android execution routing
 
 ## Source Of Truth
@@ -27,20 +28,20 @@ Read:
 
 ## Runner Model
 
-There are only two runner classes this month:
-- hosted browser runner
-- macOS cli-runner
+Execution model:
+- browser runs execute in the control plane process
+- Android runs execute in macOS `cli-runner`
 
 Capability rules:
-- browser-only runs may use hosted browser runner
-- Android runs must use macOS runner
+- browser-only runs do not require a runner claim
+- Android runs must be claimed by a compatible macOS runner
 
 ## Required Behaviors
 
 ### Claiming
 
 - runs are created durably in Postgres
-- runners poll for claimable work
+- macOS runners poll for claimable Android work
 - claim happens transactionally
 - one run can be claimed by one runner only
 - claim writes runner id and lease expiry
@@ -53,7 +54,7 @@ Capability rules:
 
 ### Event and Artifact Flow
 
-- runner sends event batches to control plane
+- runner and control-plane browser execution both write event batches through the same control-plane ingestion services
 - control plane persists them
 - UI reads persisted state
 - screenshots and files go to object storage
@@ -79,9 +80,9 @@ The control plane should:
 - create runs
 - schedule runs
 - persist state
+- execute browser runs
 
 The control plane should not:
-- execute browser tests directly
 - inspect local Android SDK/device state for run eligibility
 
 ### 3. Separate browser and Android codepaths
@@ -91,7 +92,7 @@ When editing execution code:
 - keep browser-specific logic separate
 - keep Android-specific logic separate
 
-Do not let Android-only dependencies leak into hosted browser runner flow.
+Do not let Android-only dependencies leak into control-plane browser execution flow.
 
 ### 4. Prefer service and API tests over brittle full-stack tests
 

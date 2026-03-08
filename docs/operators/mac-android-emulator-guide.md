@@ -1,6 +1,6 @@
 # macOS Android Runner Setup Guide
 
-This guide is for local developers and self-hosting operators who run Android tests on macOS in Phase 3.
+This guide is for local developers and self-hosting operators who run Android tests on macOS.
 
 Architecture reminder:
 

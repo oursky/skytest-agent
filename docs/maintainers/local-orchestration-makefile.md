@@ -1,27 +1,30 @@
 # Local Orchestration Makefile
 
-The repo now uses a top-level `Makefile` for environment orchestration instead of a shell wrapper.
+The repo uses a top-level `Makefile` for local environment orchestration.
 
 ## Goals
 
 - Keep JavaScript package scripts focused on app and runner execution.
 - Put multi-step local workflows in a tool built for orchestration.
-- Make local and deployment entry points follow the same variable-driven shape.
+- Keep local workflows deterministic for maintainers and coding agents.
 
 ## Local Targets
 
 - `make bootstrap` installs dependencies, starts local services, and applies the Prisma schema.
-- `make dev` starts local services, applies the schema, and runs the Next.js control plane.
+- `make dev` starts local services, applies the schema, and runs:
+  - Next.js control plane
+  - runner maintenance worker loop
 - `make runner-reset` clears local CLI runner state between development cycles.
 
-## Deployment Shape
+## Core Variables
 
-The `Makefile` keeps deployment values in overridable variables instead of embedding environment-specific paths or names in target bodies:
+The current targets rely on these overridable variables:
 
-- `K8S_NAMESPACE`
-- `K8S_APP_NAME`
-- `K8S_DEPLOYMENT`
-- `K8S_MANIFEST_DIR`
-- `KUBECTL`
+- `NODE_PM`
+- `COMPOSE`
+- `COMPOSE_FILE`
+- `CONTROL_PLANE_HOST`
+- `CONTROL_PLANE_PORT`
+- `CONTROL_PLANE_URL`
 
-This keeps the target naming consistent between local development and Kubernetes automation while allowing CI or operators to inject environment-specific values.
+These variables keep local workflows customizable without embedding host-specific values into target bodies.

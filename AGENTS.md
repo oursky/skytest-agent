@@ -57,7 +57,7 @@ src/
 
 | Task | Start Here | Related Files |
 |------|------------|---------------|
-| Fix test execution | `src/lib/runtime/test-runner.ts` | `src/runners/browser-runner.ts`, `cli-runner/runner/index.ts` |
+| Fix test execution | `src/lib/runtime/test-runner.ts` | `src/lib/runtime/local-browser-runner.ts`, `cli-runner/runner/index.ts` |
 | Fix run scheduling/claiming | `src/lib/runners/claim-service.ts` | `src/app/api/runners/v1/jobs/claim/route.ts` |
 | Fix SSE/real-time updates | `src/app/api/test-runs/[id]/events/route.ts` | `src/components/features/result-viewer/ui/ResultViewer.tsx` |
 | Fix test case CRUD | `src/app/api/test-cases/` | `src/types/test.ts` |

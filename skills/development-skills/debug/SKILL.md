@@ -29,7 +29,7 @@ Before changing code, capture:
 - Minimal repro steps
 - For platform/runtime bugs, also capture the system boundary involved:
   - control plane API
-  - browser runner
+  - control-plane browser execution
   - macOS runner
   - Postgres state
   - object storage state
@@ -41,7 +41,7 @@ Before changing code, capture:
 - Don't guess — follow the evidence through the code
 - Prefer tracing through service boundaries, not just component code:
   - request -> permission check -> service -> DB/object storage -> runner/event ingestion
-- If the bug is in a legacy path that is scheduled for removal, confirm whether the correct fix is deletion rather than patching
+- If the bug is in a superseded path that is scheduled for removal, confirm whether the correct fix is deletion rather than patching
 
 ### 4. Write a failing test
 
@@ -53,7 +53,7 @@ Before changing code, capture:
 
 - Implement the minimal fix that addresses the root cause
 - Re-verify the fix passes the failing test and doesn't break existing tests
-- If the bug is caused by old local-first assumptions, the smallest correct fix may be to route the call through the new durable service and delete the old path
+- If the bug is caused by superseded assumptions, the smallest correct fix may be to route the call through the durable service and delete the superseded path
 
 ### 6. Report
 
