@@ -1,0 +1,57 @@
+{{- if .Values.browserRunner.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "skytest-agent.browserRunnerFullname" . }}
+  labels:
+    {{- include "skytest-agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: browser-runner
+spec:
+  replicas: {{ .Values.browserRunner.replicas }}
+  selector:
+    matchLabels:
+      {{- include "skytest-agent.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: browser-runner
+  template:
+    metadata:
+      labels:
+        {{- include "skytest-agent.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: browser-runner
+      {{- with .Values.browserRunner.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: browser-runner
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            {{- toYaml .Values.browserRunner.command | nindent 12 }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secrets.existingSecretName }}
+          env:
+            - name: BROWSER_RUNNER_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          resources:
+            {{- toYaml .Values.browserRunner.resources | nindent 12 }}
+      {{- with .Values.browserRunner.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.browserRunner.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.browserRunner.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

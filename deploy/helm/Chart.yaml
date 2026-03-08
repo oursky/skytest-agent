@@ -1,0 +1,6 @@
+apiVersion: v2
+name: skytest-agent
+description: Helm chart for SkyTest Agent control-plane and worker workloads
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

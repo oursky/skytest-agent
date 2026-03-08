@@ -13,7 +13,7 @@ const logger = createLogger('api:runners:v1:heartbeat');
 
 export async function POST(request: Request) {
     const ipRateLimitKey = getRateLimitKey(request, 'runners-v1-heartbeat-ip');
-    if (isRateLimited(ipRateLimitKey, { limit: 360, windowMs: 60_000 })) {
+    if (await isRateLimited(ipRateLimitKey, { limit: 360, windowMs: 60_000 })) {
         return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
     }
 
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     }
 
     const tokenRateLimitKey = `runners-v1-heartbeat-token:${auth.tokenId}`;
-    if (isRateLimited(tokenRateLimitKey, { limit: 600, windowMs: 60_000 })) {
+    if (await isRateLimited(tokenRateLimitKey, { limit: 600, windowMs: 60_000 })) {
         return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
     }
 

@@ -7,8 +7,10 @@ Use this checklist before enabling Android testing in a runner-enabled environme
 ## Hosting Model
 
 - [ ] Run web control plane and runner agents as separate processes
+- [ ] Run browser execution workers as separate processes from the control plane
 - [ ] Keep Postgres available to control plane (required for claims/leases/events)
 - [ ] Run at least one `MACOS_AGENT` runner for Android execution capacity
+- [ ] Run runner maintenance on a singleton worker or cron schedule
 
 Reference:
 

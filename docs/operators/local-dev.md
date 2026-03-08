@@ -20,6 +20,7 @@ make dev
 - Postgres and MinIO
 - Prisma schema sync
 - Next.js control plane on `http://127.0.0.1:3000`
+- browser runner worker loop (claimed browser run execution)
 - runner maintenance worker loop (lease recovery + retention)
 
 ## Local Environment Variables
@@ -35,6 +36,7 @@ S3_ACCESS_KEY_ID="minioadmin"
 S3_SECRET_ACCESS_KEY="minioadmin"
 S3_FORCE_PATH_STYLE="true"
 STORAGE_SIGNED_URL_TTL_SECONDS="900"
+STREAM_POLL_INTERVAL_MS="1500"
 RUNNER_ARTIFACT_SOFT_DELETE_DAYS="30"
 RUNNER_ARTIFACT_HARD_DELETE_DAYS="7"
 RUNNER_ARTIFACT_HARD_DELETE_BATCH_SIZE="50"
@@ -47,7 +49,7 @@ Retention behavior:
 
 ## Runtime Behavior
 
-- Browser runs execute directly in the control plane.
+- Browser runs are queued and claimed by the browser runner worker.
 - Android runs require a paired CLI runner process.
 
 Runner environment and model configuration:

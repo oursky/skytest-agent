@@ -18,6 +18,9 @@ CONTROL_PLANE_URL ?= http://$(CONTROL_PLANE_HOST):$(CONTROL_PLANE_PORT)
 	db-setup \
 	app \
 	maintenance \
+	browser-runner \
+	helm-lint \
+	helm-template \
 	playwright-install \
 	runner-reset \
 	bootstrap \
@@ -53,6 +56,15 @@ app: ## Start the local Next.js control plane
 maintenance: ## Start the runner maintenance worker loop
 	RUNNER_MAINTENANCE_ONCE=false $(NODE_PM) run runner:maintenance
 
+browser-runner: ## Start the browser run worker loop
+	$(NODE_PM) run runner:browser
+
+helm-lint: ## Lint Helm chart for Kubernetes deployment
+	helm lint deploy/helm
+
+helm-template: ## Render Helm chart templates locally
+	helm template skytest deploy/helm
+
 playwright-install: ## Install Playwright Chromium locally
 	$(NODE_PM) run playwright:install
 
@@ -69,11 +81,15 @@ dev: ## Boot local services, apply schema, and start the web app with runner mai
 	$(MAKE) db-setup
 	@RUNNER_MAINTENANCE_ONCE=false $(NODE_PM) run runner:maintenance & \
 	MAINT_PID=$$!; \
-	trap 'kill $$MAINT_PID >/dev/null 2>&1' EXIT INT TERM; \
+	$(NODE_PM) run runner:browser & \
+	BROWSER_PID=$$!; \
+	trap 'kill $$MAINT_PID $$BROWSER_PID >/dev/null 2>&1' EXIT INT TERM; \
 	$(NODE_PM) run dev -- --hostname $(CONTROL_PLANE_HOST) --port $(CONTROL_PLANE_PORT); \
 	EXIT_CODE=$$?; \
 	kill $$MAINT_PID >/dev/null 2>&1 || true; \
+	kill $$BROWSER_PID >/dev/null 2>&1 || true; \
 	wait $$MAINT_PID 2>/dev/null || true; \
+	wait $$BROWSER_PID 2>/dev/null || true; \
 	exit $$EXIT_CODE
 
 verify: ## Run lint, TypeScript compile, and dependency audit

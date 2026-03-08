@@ -74,6 +74,14 @@ See `.env.example` for all available options. Required:
 
 Users provide their own [OpenRouter](https://openrouter.ai/) API keys via the app settings.
 
+## Kubernetes
+
+- Helm chart: `deploy/helm`
+- Baseline manifests (reference): `deploy/k8s`
+- Quick validation:
+  - `make helm-lint`
+  - `make helm-template`
+
 ## Troubleshooting
 
 - **Browsers not found**: `npm run playwright:install`
@@ -81,6 +89,7 @@ Users provide their own [OpenRouter](https://openrouter.ai/) API keys via the ap
 - **Object storage errors**: Verify the `S3_*` variables and confirm the bucket exists in MinIO/S3
 - **View database**: `npm run db:studio`
 - **Auth redirect issues**: Check Authgear redirect URI matches your domain
+- **Production process model**: run the control plane, browser runner worker (`npm run runner:browser`), and maintenance worker (`RUNNER_MAINTENANCE_ONCE=true npm run runner:maintenance`) as separate processes
 - **Android devices (Local macOS Only)**: See [macOS Android Emulator Guide](https://github.com/oursky/skytest-agent/blob/main/docs/operators/mac-android-emulator-guide.md)
 - **Local development + CLI runner setup/reset**: See [Local Development Guide](./docs/operators/local-dev.md)
 

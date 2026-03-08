@@ -118,7 +118,7 @@ describe('event-service', () => {
         expect(result).toEqual({ accepted: 2, nextSequence: 6 });
     });
 
-    it('promotes PREPARING runs to RUNNING when events arrive', async () => {
+    it('keeps PREPARING when only setup logs arrive', async () => {
         findUniqueRun.mockResolvedValueOnce({
             id: 'run-1',
             testCaseId: 'tc-1',
@@ -131,7 +131,37 @@ describe('event-service', () => {
         await appendRunEvents({
             runId: 'run-1',
             runnerId: 'runner-1',
-            events: [{ kind: 'LOG', message: 'running' }],
+            events: [{ kind: 'LOG', message: 'Device acquired: emulator-5554' }],
+        });
+
+        expect(updateManyRun).toHaveBeenCalledWith({
+            where: {
+                id: 'run-1',
+                assignedRunnerId: 'runner-1',
+                nextEventSequence: 1,
+            },
+            data: {
+                nextEventSequence: 2,
+                lastEventAt: expect.any(Date),
+                leaseExpiresAt: expect.any(Date),
+            },
+        });
+    });
+
+    it('promotes PREPARING runs to RUNNING on explicit running status event', async () => {
+        findUniqueRun.mockResolvedValueOnce({
+            id: 'run-1',
+            testCaseId: 'tc-1',
+            status: 'PREPARING',
+            assignedRunnerId: 'runner-1',
+            leaseExpiresAt: new Date(Date.now() + 10_000),
+            nextEventSequence: 1,
+        });
+
+        await appendRunEvents({
+            runId: 'run-1',
+            runnerId: 'runner-1',
+            events: [{ kind: 'STATUS', message: 'Running test steps' }],
         });
 
         expect(updateManyRun).toHaveBeenCalledWith({

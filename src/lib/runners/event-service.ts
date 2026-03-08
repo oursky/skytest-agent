@@ -23,6 +23,16 @@ function createLeaseExpiry(now = new Date()): Date {
     return new Date(now.getTime() + appConfig.runner.leaseDurationSeconds * 1000);
 }
 
+function shouldPromoteRunToRunning(events: RunnerEventInput[]): boolean {
+    return events.some((event) => {
+        if (event.kind.trim().toUpperCase() !== 'STATUS') {
+            return false;
+        }
+        const message = event.message?.trim().toLowerCase() ?? '';
+        return message.includes('running test steps');
+    });
+}
+
 function ensureRunOwnership(run: OwnedRun | null, runnerId: string): OwnedRun | null {
     if (!run) {
         return null;
@@ -91,7 +101,7 @@ export async function appendRunEvents(input: {
             lastEventAt: now,
             leaseExpiresAt: createLeaseExpiry(now),
         };
-        if (ownedRun.status === 'PREPARING' && input.events.length > 0) {
+        if (ownedRun.status === 'PREPARING' && shouldPromoteRunToRunning(input.events)) {
             runUpdateData.status = 'RUNNING';
         }
 

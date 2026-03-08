@@ -1,0 +1,111 @@
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  repository: ghcr.io/oursky/skytest-agent
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+secrets:
+  existingSecretName: skytest-agent-secrets
+
+controlPlane:
+  enabled: true
+  replicas: 2
+  command:
+    - npm
+    - run
+    - start
+    - --
+    - --hostname
+    - 0.0.0.0
+    - --port
+    - "3000"
+  containerPort: 3000
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 3000
+  readinessProbe:
+    path: /api/health/ready
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 3
+  livenessProbe:
+    path: /api/health/live
+    initialDelaySeconds: 30
+    periodSeconds: 20
+    timeoutSeconds: 3
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "2"
+      memory: "4Gi"
+  podAnnotations: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+browserRunner:
+  enabled: true
+  replicas: 2
+  command:
+    - npm
+    - run
+    - runner:browser
+  resources:
+    requests:
+      cpu: "1000m"
+      memory: "2Gi"
+    limits:
+      cpu: "4"
+      memory: "8Gi"
+  podAnnotations: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+runnerMaintenance:
+  enabled: true
+  schedule: "*/2 * * * *"
+  command:
+    - npm
+    - run
+    - runner:maintenance
+  runOnceValue: "true"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  backoffLimit: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 8
+  targetCPUUtilizationPercentage: 70
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: skytest.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1

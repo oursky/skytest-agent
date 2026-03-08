@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({
     testCaseFindUnique: vi.fn(),
     testCaseFileFindMany: vi.fn(),
     testRunCreate: vi.fn(),
-    startLocalBrowserRun: vi.fn(),
 }));
 
 vi.mock('@/lib/security/auth', () => ({
@@ -41,10 +40,6 @@ vi.mock('@/lib/core/prisma', () => ({
     },
 }));
 
-vi.mock('@/lib/runtime/local-browser-runner', () => ({
-    startLocalBrowserRun: mocks.startLocalBrowserRun,
-}));
-
 const { POST } = await import('@/app/api/run-test/route');
 
 describe('POST /api/run-test', () => {
@@ -56,7 +51,6 @@ describe('POST /api/run-test', () => {
         mocks.testCaseFindUnique.mockReset();
         mocks.testCaseFileFindMany.mockReset();
         mocks.testRunCreate.mockReset();
-        mocks.startLocalBrowserRun.mockReset();
 
         mocks.verifyAuth.mockResolvedValue({ sub: 'auth-user' });
         mocks.resolveUserId.mockResolvedValue('user-1');
@@ -93,7 +87,7 @@ describe('POST /api/run-test', () => {
         }));
     });
 
-    it('creates browser runs as preparing without hosted browser runner requirements', async () => {
+    it('queues browser runs for control-plane browser workers', async () => {
         const request = new Request('http://localhost/api/run-test', {
             method: 'POST',
             headers: {
@@ -122,16 +116,15 @@ describe('POST /api/run-test', () => {
         expect(mocks.testRunCreate).toHaveBeenCalledTimes(1);
         expect(mocks.testRunCreate.mock.calls[0][0]).toMatchObject({
             data: {
-                status: 'PREPARING',
-                requiredCapability: null,
-                requiredRunnerKind: null,
+                status: 'QUEUED',
+                requiredCapability: 'BROWSER',
+                requiredRunnerKind: 'BROWSER_WORKER',
             },
         });
-        expect(mocks.startLocalBrowserRun).toHaveBeenCalledWith('run-1');
         expect(payload).toMatchObject({
             runId: 'run-1',
-            status: 'PREPARING',
-            requiredCapability: null,
+            status: 'QUEUED',
+            requiredCapability: 'BROWSER',
         });
     });
 
@@ -173,7 +166,6 @@ describe('POST /api/run-test', () => {
                 requestedDeviceId: 'emulator-profile:android_profile_a',
             },
         });
-        expect(mocks.startLocalBrowserRun).not.toHaveBeenCalled();
         expect(payload).toMatchObject({
             runId: 'run-1',
             status: 'QUEUED',

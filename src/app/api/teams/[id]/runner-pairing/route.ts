@@ -22,7 +22,7 @@ export async function POST(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const rateLimitKey = getRateLimitKey(request, 'teams-runner-pairing');
-    if (isRateLimited(rateLimitKey, { limit: 30, windowMs: 60_000 })) {
+    if (await isRateLimited(rateLimitKey, { limit: 30, windowMs: 60_000 })) {
         return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
     }
 

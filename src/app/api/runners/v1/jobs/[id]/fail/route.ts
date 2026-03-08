@@ -16,7 +16,7 @@ export async function POST(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const ipRateLimitKey = getRateLimitKey(request, 'runners-v1-job-fail-ip');
-    if (isRateLimited(ipRateLimitKey, { limit: 240, windowMs: 60_000 })) {
+    if (await isRateLimited(ipRateLimitKey, { limit: 240, windowMs: 60_000 })) {
         return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
     }
 
@@ -26,7 +26,7 @@ export async function POST(
     }
 
     const tokenRateLimitKey = `runners-v1-job-fail-token:${auth.tokenId}`;
-    if (isRateLimited(tokenRateLimitKey, { limit: 360, windowMs: 60_000 })) {
+    if (await isRateLimited(tokenRateLimitKey, { limit: 360, windowMs: 60_000 })) {
         return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
     }
 
