@@ -56,7 +56,7 @@ Group **only the staged files** into **commit units** in **dependency order** (t
   3. storage / runner infrastructure
   4. API routes
   5. UI
-  6. desktop runner
+  6. cli-runner
   7. MCP
   8. docs / deployment
 - If a commit deletes obsolete compatibility code, keep that deletion in the same unit as the replacement when reviewable
@@ -151,8 +151,8 @@ refs: SKY-123, #42
 - **Skip unrelated paths**: Do not commit untracked tooling (e.g. `.codex/`) unless the user asks
 - **Repo root**: Run `git` from the repository root
 - **Current architecture practice**:
-  - do not preserve legacy compatibility code in separate “cleanup later” commits unless the staged changes already force that split
-  - if the staged set includes replacement + deletion, prefer a single coherent commit that makes the old path disappear
+  - do not preserve superseded compatibility code in separate “cleanup later” commits unless the staged changes already force that split
+  - if the staged set includes replacement + deletion, prefer a single coherent commit that makes the superseded path disappear
   - for the current monthly refactor, assume work is landing on the active epic branch unless the user says otherwise
 
 ## Example plan

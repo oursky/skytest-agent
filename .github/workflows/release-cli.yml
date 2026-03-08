@@ -1,0 +1,70 @@
+name: Release CLI
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: CLI version (for example 0.1.0)
+        required: true
+  push:
+    tags:
+      - "skytest-cli-v*"
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    env:
+      CLI_VERSION: ${{ github.event.inputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version from tag
+        if: github.event_name == 'push'
+        run: echo "CLI_VERSION=${GITHUB_REF_NAME#skytest-cli-v}" >> "$GITHUB_ENV"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build CLI archive
+        run: |
+          chmod +x scripts/release/build-cli-macos.sh
+          scripts/release/build-cli-macos.sh "${CLI_VERSION}" "x86_64"
+
+      - name: Resolve archive metadata
+        id: archive
+        run: |
+          ARCHIVE_PATH="dist/cli-release/${CLI_VERSION}/skytest-${CLI_VERSION}-macos-x86_64.tar.gz"
+          SHA256="$(shasum -a 256 "${ARCHIVE_PATH}" | awk '{print $1}')"
+          echo "archive_path=${ARCHIVE_PATH}" >> "$GITHUB_OUTPUT"
+          echo "sha256=${SHA256}" >> "$GITHUB_OUTPUT"
+
+      - name: Render Homebrew formula
+        run: |
+          ARCHIVE_URL="https://github.com/${{ github.repository }}/releases/download/skytest-cli-v${CLI_VERSION}/skytest-${CLI_VERSION}-macos-x86_64.tar.gz"
+          sed \
+            -e "s|__ARCHIVE_URL__|${ARCHIVE_URL}|g" \
+            -e "s|__ARCHIVE_SHA256__|${{ steps.archive.outputs.sha256 }}|g" \
+            -e "s|__VERSION__|${CLI_VERSION}|g" \
+            scripts/release/homebrew-formula-template.rb > "skytest.rb"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: skytest-cli-${{ env.CLI_VERSION }}
+          path: |
+            ${{ steps.archive.outputs.archive_path }}
+            skytest.rb
+
+      - name: Publish GitHub release assets
+        if: startsWith(github.ref, 'refs/tags/skytest-cli-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ steps.archive.outputs.archive_path }}
+            skytest.rb

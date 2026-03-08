@@ -42,14 +42,20 @@ export async function GET(
 
         const testRunsPromise = includePayload
             ? prisma.testRun.findMany({
-                where: { testCaseId: id },
+                where: {
+                    testCaseId: id,
+                    deletedAt: null,
+                },
                 orderBy: { createdAt: 'desc' },
                 include: { files: true },
                 skip,
                 take: limit
             })
             : prisma.testRun.findMany({
-                where: { testCaseId: id },
+                where: {
+                    testCaseId: id,
+                    deletedAt: null,
+                },
                 orderBy: { createdAt: 'desc' },
                 select: {
                     id: true,
@@ -63,7 +69,12 @@ export async function GET(
 
         const [testRuns, total] = await Promise.all([
             testRunsPromise,
-            prisma.testRun.count({ where: { testCaseId: id } })
+            prisma.testRun.count({
+                where: {
+                    testCaseId: id,
+                    deletedAt: null,
+                },
+            })
         ]);
 
         return NextResponse.json({

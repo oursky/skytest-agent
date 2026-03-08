@@ -2,54 +2,53 @@
 
 Audience: operators / self-hosters who run this app with Android testing enabled.
 
-Use this checklist before enabling Android testing on a host or environment.
-
-If you are running a server without Android SDK/emulator tooling, skip this checklist. Basic features remain available, while Android UI/API paths are hidden or rejected by server capability gating.
+Use this checklist before enabling Android testing in a runner-enabled environment.
 
 ## Hosting Model
 
-- [ ] Run the app as a single long-lived process for Android runtime usage
-- [ ] Do not run multiple replicas against the same local Android device/ADB environment
-- [ ] Do not deploy Android runtime on serverless/ephemeral instances
+- [ ] Run web control plane and runner agents as separate processes
+- [ ] Keep Postgres available to control plane (required for claims/leases/events)
+- [ ] Run at least one `MACOS_AGENT` runner for Android execution capacity
 
 Reference:
 
-- [`docs/maintainers/android-runtime-maintenance.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/android-runtime-maintenance.md) (deployment model and singleton constraints)
+- [`docs/maintainers/android-runtime-maintenance.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/android-runtime-maintenance.md) (runner architecture constraints)
 - [`docs/operators/mac-android-emulator-guide.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/mac-android-emulator-guide.md) (host setup + troubleshooting)
 
-## Host Prerequisites
+## Runner Host Prerequisites
 
-- [ ] Android SDK installed and available to the app process
-- [ ] `adb` and `emulator` binaries resolvable from configured SDK path
-- [ ] Required emulator profiles (AVDs, shown under Devices -> Emulators in UI) are created on the host
+- [ ] Android SDK installed and available to the runner process
+- [ ] `adb` and `emulator` binaries resolvable on runner host
+- [ ] Required emulator profiles (AVDs) are created on the host and match names used in test targets
 - [ ] If using physical Android devices, USB debugging is enabled and devices can be listed by `adb devices`
 - [ ] Host has sufficient CPU/RAM for configured emulator pool size
+- [ ] Runner can reach control plane URL over HTTPS
 
 ## Security / Multi-Tenant Safety
 
-- [ ] Confirm `/api/devices` is only used by authenticated users with Android enabled and Android-capable server runtime
-- [ ] Confirm managed runtime device ownership is scoped to the user's projects
-- [ ] Confirm connected device inventory visibility matches your trust model for the host
-- [ ] Confirm users cannot stop connected physical devices through user APIs
+- [ ] Confirm runner pairing tokens are issued only by owner/admin users
+- [ ] Confirm runner tokens are rotated/revoked according to your policy
+- [ ] Confirm team device visibility is exposed through `Team Settings -> Runners`
+- [ ] Confirm stream-token auth remains resource-scoped for run events
 - [ ] Treat the host as sensitive: local ADB/emulator access should be restricted to trusted operators
 
 ## Runtime Behavior Expectations
 
-- [ ] Understand emulator profile reuse is project-scoped, not run-scoped
-- [ ] Understand connected physical devices are leased by serial and can be in use by only one run at a time
+- [ ] Understand Android jobs are claimed by connected runner agents, not API servers
+- [ ] Understand connected physical devices are leased by serial and can be in use by one active run at a time
 - [ ] Understand `Clear App Data` only affects the target app package (not full emulator wipe)
 - [ ] Understand other device state can persist across runs
-- [ ] Set queue/emulator capacity with expected concurrency and boot time in mind
+- [ ] Understand manual app installation is required; no auto-install flow is provided
 
 ## Observability / Operations
 
-- [ ] Monitor app logs for emulator boot failures, cleanup failures, and health-check stops
-- [ ] Monitor app logs for connected-device attach/health failures (if physical devices are used)
-- [ ] Monitor queue wait times and cancellation rates
+- [ ] Monitor control plane logs for claim, lease-expiry, and runner auth errors
+- [ ] Monitor runner logs for emulator boot failures and connected-device failures
+- [ ] Monitor run pickup latency and runner heartbeat freshness
 - [ ] Periodically verify installed emulator profiles still match expected names in projects/test cases
 
 ## Incident Response Basics
 
-- [ ] If Android runs stall, check `adb devices` and host emulator processes
-- [ ] If pool behavior becomes inconsistent after host issues, restart the app process (stale active runs will be marked failed on startup)
-- [ ] If emulator profiles or connected devices change, revalidate test case Android targets against current runtime inventory
+- [ ] If Android runs stall, check runner heartbeat and runner device sync freshness
+- [ ] If runner host is unhealthy, restart the runner process and republish inventory
+- [ ] If selected devices disappear mid-run, revalidate availability from `Team Settings -> Runners`

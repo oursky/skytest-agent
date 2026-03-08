@@ -61,11 +61,70 @@ export interface TestCase {
 export interface TestRun {
     id: string;
     testCaseId: string;
+    requiredCapability?: string | null;
+    requiredRunnerKind?: string | null;
+    requestedDeviceId?: string | null;
+    assignedRunnerId?: string | null;
+    leaseExpiresAt?: string | null;
+    lastEventAt?: string | null;
+    nextEventSequence?: number;
     status: TestStatus;
     result?: string;
     error?: string;
     createdAt: string;
     events?: TestEvent[];
+}
+
+export interface Runner {
+    id: string;
+    teamId: string;
+    label: string;
+    kind: string;
+    capabilities: string[];
+    protocolVersion: string;
+    runnerVersion: string;
+    status: string;
+    lastSeenAt: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface RunnerToken {
+    id: string;
+    teamId: string;
+    runnerId: string | null;
+    createdByUserId: string | null;
+    kind: string;
+    prefix: string;
+    expiresAt: string;
+    revokedAt: string | null;
+    consumedAt: string | null;
+    lastUsedAt: string | null;
+    createdAt: string;
+}
+
+export interface RunnerDevice {
+    id: string;
+    runnerId: string;
+    deviceId: string;
+    platform: string;
+    name: string;
+    state: string;
+    metadata: Record<string, unknown> | null;
+    lastSeenAt: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface TestRunEventRow {
+    id: string;
+    runId: string;
+    sequence: number;
+    kind: string;
+    message: string | null;
+    payload: Record<string, unknown> | null;
+    artifactKey: string | null;
+    createdAt: string;
 }
 
 import type { TestStep, BrowserConfig, TestStatus } from './test';

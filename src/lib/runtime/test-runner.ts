@@ -29,6 +29,7 @@ const ANDROID_AGENT_LAUNCH_TIMEOUT_MS = 60_000;
 const ANDROID_AGENT_OPERATION_TIMEOUT_MS = 120_000;
 const ANDROID_ADB_RECOVERY_TIMEOUT_MS = 20_000;
 const ANDROID_ADB_RECOVERY_ATTEMPTS = 2;
+const ANDROID_WAKE_UNLOCK_COMMAND_TIMEOUT_MS = config.emulator.adb.commandTimeoutMs;
 const androidAdbPath = resolveAndroidToolPath('adb');
 
 function validateTargetConfigs(targetConfigs: Record<string, BrowserConfig | TargetConfig>) {
@@ -175,7 +176,7 @@ async function recoverAndroidDeviceConnection(
             return true;
         }
 
-        await wakeAndUnlockAndroidDevice(device).catch(() => {});
+        await wakeAndUnlockAndroidDevice(device, signal).catch(() => {});
 
         if (appId) {
             await forceStopAndroidApp(device, appId).catch(() => {});
@@ -246,10 +247,18 @@ async function waitForAndroidAppForeground(
     return false;
 }
 
-async function wakeAndUnlockAndroidDevice(device: AndroidDevice): Promise<void> {
-    await device.shell('input keyevent KEYCODE_WAKEUP').catch(() => {});
-    await device.shell('wm dismiss-keyguard').catch(() => {});
-    await device.shell('input keyevent 82').catch(() => {});
+async function wakeAndUnlockAndroidDevice(device: AndroidDevice, signal?: AbortSignal): Promise<void> {
+    const runBestEffortShellCommand = async (command: string) => {
+        await withSignalAndTimeout(device.shell(command), {
+            signal,
+            timeoutMs: ANDROID_WAKE_UNLOCK_COMMAND_TIMEOUT_MS,
+            timeoutMessage: `Android wake/unlock command timed out: ${command}`,
+        }).catch(() => {});
+    };
+
+    await runBestEffortShellCommand('input keyevent KEYCODE_WAKEUP');
+    await runBestEffortShellCommand('wm dismiss-keyguard');
+    await runBestEffortShellCommand('input keyevent 82');
 }
 
 async function launchAndroidAppWithLauncherIntent(device: AndroidDevice, appId: string): Promise<boolean> {
@@ -659,7 +668,7 @@ async function setupExecutionTargets(
                 await captureAndroidScreenshot(androidDevice, `[${targetLabel}] ${tip}`, onEvent, log, targetId);
             };
 
-            await wakeAndUnlockAndroidDevice(androidDevice);
+            await wakeAndUnlockAndroidDevice(androidDevice, signal);
 
             let launched = false;
             try {

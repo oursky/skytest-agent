@@ -3,7 +3,7 @@ import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { issueStreamToken, StreamScope } from '@/lib/security/stream-token';
-import { isProjectMember, isTestCaseProjectMember, isTestRunProjectMember } from '@/lib/security/permissions';
+import { isTestCaseProjectMember, isTestRunProjectMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:stream-tokens');
 
@@ -13,7 +13,7 @@ interface StreamTokenRequestBody {
 }
 
 function isStreamScope(value: unknown): value is StreamScope {
-    return value === 'project-events' || value === 'test-run-events' || value === 'test-case-files';
+    return value === 'test-run-events' || value === 'test-case-files';
 }
 
 export async function POST(request: Request) {
@@ -42,22 +42,15 @@ export async function POST(request: Request) {
     }
 
     try {
-        if (body.scope === 'project-events') {
-            const project = await prisma.project.findUnique({
-                where: { id: body.resourceId },
-                select: { id: true }
-            });
-            if (!project) {
-                return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-            }
-            if (!await isProjectMember(userId, body.resourceId)) {
-                return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-            }
-        } else if (body.scope === 'test-run-events') {
+        if (body.scope === 'test-run-events') {
             const testRun = await prisma.testRun.findUnique({
-                where: { id: body.resourceId }
+                where: { id: body.resourceId },
+                select: {
+                    id: true,
+                    deletedAt: true,
+                },
             });
-            if (!testRun) {
+            if (!testRun || testRun.deletedAt) {
                 return NextResponse.json({ error: 'Test run not found' }, { status: 404 });
             }
             if (!await isTestRunProjectMember(userId, body.resourceId)) {

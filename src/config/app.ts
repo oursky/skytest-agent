@@ -1,11 +1,31 @@
-const maxConcurrentTestRunsPerUserValue = Number.parseInt(process.env.MAX_CONCURRENT_TEST_RUNS_PER_USER ?? '', 10);
-const maxConcurrentTestRunsPerUser = Number.isFinite(maxConcurrentTestRunsPerUserValue) && maxConcurrentTestRunsPerUserValue > 0
-    ? maxConcurrentTestRunsPerUserValue
-    : 5;
 const storageSignedUrlTtlSecondsValue = Number.parseInt(process.env.STORAGE_SIGNED_URL_TTL_SECONDS ?? '', 10);
 const storageSignedUrlTtlSeconds = Number.isFinite(storageSignedUrlTtlSecondsValue) && storageSignedUrlTtlSecondsValue > 0
     ? storageSignedUrlTtlSecondsValue
     : 900;
+const runnerLeaseDurationSecondsValue = Number.parseInt(process.env.RUNNER_LEASE_DURATION_SECONDS ?? '', 10);
+const runnerLeaseDurationSeconds = Number.isFinite(runnerLeaseDurationSecondsValue) && runnerLeaseDurationSecondsValue > 0
+    ? runnerLeaseDurationSecondsValue
+    : 120;
+const runnerLeaseReaperIntervalMsValue = Number.parseInt(process.env.RUNNER_LEASE_REAPER_INTERVAL_MS ?? '', 10);
+const runnerLeaseReaperIntervalMs = Number.isFinite(runnerLeaseReaperIntervalMsValue) && runnerLeaseReaperIntervalMsValue > 0
+    ? runnerLeaseReaperIntervalMsValue
+    : 15_000;
+const runnerEventRetentionDaysValue = Number.parseInt(process.env.RUNNER_EVENT_RETENTION_DAYS ?? '', 10);
+const runnerEventRetentionDays = Number.isFinite(runnerEventRetentionDaysValue) && runnerEventRetentionDaysValue > 0
+    ? runnerEventRetentionDaysValue
+    : 30;
+const runnerArtifactSoftDeleteDaysValue = Number.parseInt(process.env.RUNNER_ARTIFACT_SOFT_DELETE_DAYS ?? '', 10);
+const runnerArtifactSoftDeleteDays = Number.isFinite(runnerArtifactSoftDeleteDaysValue) && runnerArtifactSoftDeleteDaysValue > 0
+    ? runnerArtifactSoftDeleteDaysValue
+    : 30;
+const runnerArtifactHardDeleteDaysValue = Number.parseInt(process.env.RUNNER_ARTIFACT_HARD_DELETE_DAYS ?? '', 10);
+const runnerArtifactHardDeleteDays = Number.isFinite(runnerArtifactHardDeleteDaysValue) && runnerArtifactHardDeleteDaysValue >= 0
+    ? runnerArtifactHardDeleteDaysValue
+    : 7;
+const runnerArtifactHardDeleteBatchSizeValue = Number.parseInt(process.env.RUNNER_ARTIFACT_HARD_DELETE_BATCH_SIZE ?? '', 10);
+const runnerArtifactHardDeleteBatchSize = Number.isFinite(runnerArtifactHardDeleteBatchSizeValue) && runnerArtifactHardDeleteBatchSizeValue > 0
+    ? runnerArtifactHardDeleteBatchSizeValue
+    : 50;
 
 export const config = {
     app: {
@@ -31,16 +51,18 @@ export const config = {
         },
     },
 
-    queue: {
-        concurrency: maxConcurrentTestRunsPerUser,
-        maxConcurrentPerUser: maxConcurrentTestRunsPerUser,
+    stream: {
         pollInterval: 500,
-        persistFlushMs: 1000,
-        cancelForceReleaseMs: 5000,
         sseConnectionTtlMs: 5 * 60 * 1000,
-        logRetentionMs: 10000,
-        maxEventsPerRun: 2000,
-        maxScreenshotsPerRun: 300,
+    },
+
+    runner: {
+        leaseDurationSeconds: runnerLeaseDurationSeconds,
+        leaseReaperIntervalMs: runnerLeaseReaperIntervalMs,
+        eventRetentionDays: runnerEventRetentionDays,
+        artifactSoftDeleteDays: runnerArtifactSoftDeleteDays,
+        artifactHardDeleteDays: runnerArtifactHardDeleteDays,
+        artifactHardDeleteBatchSize: runnerArtifactHardDeleteBatchSize,
     },
 
     test: {

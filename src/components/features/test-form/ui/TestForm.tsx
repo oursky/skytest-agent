@@ -29,6 +29,7 @@ interface TestFormProps {
     displayId?: string;
     onDisplayIdChange?: (id: string) => void;
     projectId?: string;
+    teamId?: string;
     projectConfigs?: ConfigItem[];
     testCaseConfigs?: ConfigItem[];
     testCaseFiles?: TestCaseFile[];
@@ -53,7 +54,7 @@ const SAMPLE_CONFIGS_TO_ENSURE = [
     { name: SAMPLE_PASSWORD_CONFIG_NAME, type: 'VARIABLE', value: SAMPLE_PASSWORD_CONFIG_VALUE, masked: true },
 ] as const;
 
-export default function TestForm({ onSubmit, isLoading, initialData, showNameInput, readOnly, onExport, onImport, testCaseId, onSaveDraft, onDiscard, isSaving, displayId, onDisplayIdChange, projectId, projectConfigs, testCaseConfigs, testCaseFiles, onTestCaseConfigsChange, onEnsureTestCase }: TestFormProps) {
+export default function TestForm({ onSubmit, isLoading, initialData, showNameInput, readOnly, onExport, onImport, testCaseId, onSaveDraft, onDiscard, isSaving, displayId, onDisplayIdChange, projectId, teamId, projectConfigs, testCaseConfigs, testCaseFiles, onTestCaseConfigsChange, onEnsureTestCase }: TestFormProps) {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
     const [activeTab, setActiveTab] = useState<TestFormTab>('configurations');
@@ -314,6 +315,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
 
                         <ConfigurationsSection
                             projectId={projectId}
+                            teamId={teamId}
                             projectConfigs={projectConfigs || []}
                             testCaseConfigs={testCaseConfigs || []}
                             testCaseId={testCaseId}

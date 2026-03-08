@@ -1,16 +1,13 @@
 import { NextResponse } from 'next/server';
-import { queue } from '@/lib/runtime/queue';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
-import { decrypt } from '@/lib/security/crypto';
 import { validateTargetUrl } from '@/lib/security/url-security';
 import { createLogger } from '@/lib/core/logger';
-import { resolveConfigs } from '@/lib/config/resolver';
+import { getTeamDevicesAvailability } from '@/lib/runners/availability-service';
 import { config as appConfig } from '@/config/app';
-import { listAndroidDeviceInventory } from '@/lib/android/devices';
-import { isAndroidAdbAvailable, isAndroidEmulatorAvailable } from '@/lib/android/sdk';
 import { normalizeAndroidTargetConfig } from '@/lib/android/target-config';
-import type { BrowserConfig, TargetConfig, AndroidTargetConfig, ResolvedConfig, TestStep } from '@/types';
+import { startLocalBrowserRun } from '@/lib/runtime/local-browser-runner';
+import type { BrowserConfig, TargetConfig, AndroidTargetConfig, TestStep } from '@/types';
 
 const logger = createLogger('api:run-test');
 
@@ -23,17 +20,21 @@ interface RunTestRequest {
     prompt?: string;
     steps?: TestStep[];
     browserConfig?: Record<string, BrowserConfig | TargetConfig>;
+    requestedDeviceId?: string;
     testCaseId?: string;
 }
 
-function createConfigurationSnapshot(config: RunTestRequest, resolvedConfigurations?: ResolvedConfig[]) {
+const EMULATOR_PROFILE_DEVICE_PREFIX = 'emulator-profile:';
+
+function buildEmulatorProfileRequestedDeviceId(profileName: string): string {
+    return `${EMULATOR_PROFILE_DEVICE_PREFIX}${profileName}`;
+}
+
+function createConfigurationSnapshot(config: RunTestRequest) {
     const { testCaseId, ...sanitized } = config;
     void testCaseId;
 
-    return {
-        ...sanitized,
-        ...(resolvedConfigurations && resolvedConfigurations.length > 0 ? { resolvedConfigurations } : {})
-    };
+    return sanitized;
 }
 
 function validateConfigUrls(config: RunTestRequest): string | null {
@@ -68,14 +69,27 @@ function hasAndroidTargets(browserConfig: RunTestRequest['browserConfig']): bool
     return Object.values(browserConfig).some(isAndroidTargetConfig);
 }
 
-function hasAndroidEmulatorProfileTargets(browserConfig: RunTestRequest['browserConfig']): boolean {
+function extractRequestedDeviceId(browserConfig: RunTestRequest['browserConfig']): string | null {
     if (!browserConfig || Object.keys(browserConfig).length === 0) {
-        return false;
+        return null;
     }
 
-    return Object.values(browserConfig)
-        .filter(isAndroidTargetConfig)
-        .some((target) => normalizeAndroidTargetConfig(target).deviceSelector.mode === 'emulator-profile');
+    for (const target of Object.values(browserConfig).filter(isAndroidTargetConfig)) {
+        const selector = normalizeAndroidTargetConfig(target).deviceSelector;
+        if (selector.mode === 'connected-device') {
+            return selector.serial;
+        }
+        if (selector.mode === 'emulator-profile' && selector.emulatorProfileName) {
+            return buildEmulatorProfileRequestedDeviceId(selector.emulatorProfileName);
+        }
+    }
+
+    return null;
+}
+
+function isEmulatorProfileInventoryDevice(device: { deviceId: string; metadata: Record<string, unknown> | null }): boolean {
+    return device.deviceId.startsWith(EMULATOR_PROFILE_DEVICE_PREFIX)
+        || device.metadata?.inventoryKind === 'emulator-profile';
 }
 
 async function validateAndroidTargets(
@@ -89,10 +103,6 @@ async function validateAndroidTargets(
     if (androidTargets.length === 0) {
         return null;
     }
-
-    const inventory = await listAndroidDeviceInventory();
-    const availableProfileNames = new Set(inventory.emulatorProfiles.map((profile) => profile.name));
-    const connectedDeviceBySerial = new Map(inventory.connectedDevices.map((device) => [device.serial, device]));
 
     for (const target of androidTargets) {
         const normalizedTarget = normalizeAndroidTargetConfig(target);
@@ -112,21 +122,6 @@ async function validateAndroidTargets(
         }
         if (typeof target.allowAllPermissions !== 'boolean') {
             return 'Android target allowAllPermissions must be a boolean';
-        }
-        if (selector.mode === 'emulator-profile' && !availableProfileNames.has(selector.emulatorProfileName)) {
-            return `Device "${selector.emulatorProfileName}" is not available in current runtime inventory`;
-        }
-        if (selector.mode === 'connected-device') {
-            const connectedDevice = connectedDeviceBySerial.get(selector.serial);
-            if (!connectedDevice) {
-                return `Device "${selector.serial}" is not connected`;
-            }
-            if (connectedDevice.adbState === 'unauthorized') {
-                return `Device "${selector.serial}" is unauthorized. Allow USB debugging on the device and try again.`;
-            }
-            if (connectedDevice.adbState !== 'device') {
-                return `Device "${selector.serial}" is not ready (state: ${connectedDevice.adbState})`;
-            }
         }
     }
 
@@ -193,27 +188,13 @@ export async function POST(request: Request) {
         }
         const requestHasAndroidTargets = hasAndroidTargets(browserConfig);
 
-        if (requestHasAndroidTargets) {
-            if (!isAndroidAdbAvailable()) {
-                return NextResponse.json(
-                    { error: 'Android testing is not available on this server' },
-                    { status: 503 }
-                );
-            }
-            if (hasAndroidEmulatorProfileTargets(browserConfig) && !isAndroidEmulatorAvailable()) {
-                return NextResponse.json(
-                    { error: 'Android emulator testing is not available on this server' },
-                    { status: 503 }
-                );
-            }
-        }
-
         const testCase = await prisma.testCase.findUnique({
             where: { id: testCaseId },
             include: {
                 project: {
                     select: {
                         id: true,
+                        teamId: true,
                         team: {
                             select: {
                                 openRouterKeyEncrypted: true,
@@ -249,30 +230,64 @@ export async function POST(request: Request) {
             );
         }
 
-        let openRouterApiKey: string;
-        try {
-            openRouterApiKey = decrypt(testCase.project.team.openRouterKeyEncrypted);
-        } catch {
-            return NextResponse.json(
-                { error: 'Failed to decrypt team API key. Please re-enter your API key.' },
-                { status: 400 }
-            );
-        }
-
         const files = await prisma.testCaseFile.findMany({
             where: { testCaseId },
             select: { id: true, filename: true, storedName: true, mimeType: true, size: true }
         });
 
-        const resolved = await resolveConfigs(testCase.projectId, testCaseId);
-        const configurationSnapshot = JSON.stringify(createConfigurationSnapshot(config, resolved.allConfigs));
+        const configurationSnapshot = JSON.stringify(createConfigurationSnapshot(config));
+        const requestedDeviceIdInput = typeof config.requestedDeviceId === 'string'
+            ? config.requestedDeviceId.trim()
+            : '';
+
+        if (!requestHasAndroidTargets && requestedDeviceIdInput) {
+            return NextResponse.json(
+                { error: 'requestedDeviceId requires Android targets' },
+                { status: 400 }
+            );
+        }
+
+        const inferredRequestedDeviceId = extractRequestedDeviceId(browserConfig);
+        const requestedDeviceId = requestHasAndroidTargets
+            ? (requestedDeviceIdInput || inferredRequestedDeviceId)
+            : null;
+
+        if (requestHasAndroidTargets && requestedDeviceId) {
+            const availability = await getTeamDevicesAvailability(testCase.project.teamId);
+            const selectedDevice = availability?.devices.find((device) => device.deviceId === requestedDeviceId);
+
+            const emulatorProfileClaimable = selectedDevice
+                && isEmulatorProfileInventoryDevice(selectedDevice)
+                && selectedDevice.isFresh
+                && availability.runnerConnected;
+
+            if (!selectedDevice || (!selectedDevice.isAvailable && !emulatorProfileClaimable)) {
+                return NextResponse.json(
+                    { error: 'Selected device is no longer available. Check Team Settings > Runners and choose an available device.' },
+                    { status: 409 }
+                );
+            }
+        }
 
         const testRun = await prisma.testRun.create({
             data: {
                 testCaseId,
-                status: 'QUEUED',
-                configurationSnapshot
+                status: requestHasAndroidTargets ? 'QUEUED' : 'PREPARING',
+                configurationSnapshot,
+                requiredCapability: requestHasAndroidTargets ? 'ANDROID' : null,
+                requiredRunnerKind: requestHasAndroidTargets ? 'MACOS_AGENT' : null,
+                requestedDeviceId,
             }
+        });
+
+        logger.info('Created test run', {
+            runId: testRun.id,
+            testCaseId,
+            status: testRun.status,
+            requiredCapability: testRun.requiredCapability,
+            requiredRunnerKind: testRun.requiredRunnerKind,
+            requestedDeviceId: testRun.requestedDeviceId,
+            hasAndroidTargets: requestHasAndroidTargets,
         });
 
         if (files && files.length > 0) {
@@ -291,18 +306,19 @@ export async function POST(request: Request) {
             }
         }
 
-        await queue.add(testRun.id, {
-            ...config,
-            userId,
-            openRouterApiKey,
-            testCaseId,
-            projectId: testCase.projectId,
-            files,
-            resolvedVariables: resolved.variables,
-            resolvedFiles: resolved.files,
-        });
+        if (!requestHasAndroidTargets) {
+            startLocalBrowserRun(testRun.id);
+            logger.info('Started local browser execution for run', {
+                runId: testRun.id,
+            });
+        }
 
-        return NextResponse.json({ runId: testRun.id });
+        return NextResponse.json({
+            runId: testRun.id,
+            status: testRun.status,
+            requiredCapability: testRun.requiredCapability,
+            requestedDeviceId: testRun.requestedDeviceId,
+        });
 
     } catch (error) {
         logger.error('Failed to submit test job', error);

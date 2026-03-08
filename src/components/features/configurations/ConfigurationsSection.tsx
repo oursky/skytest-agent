@@ -24,6 +24,7 @@ import {
 
 interface ConfigurationsSectionProps {
     projectId?: string;
+    teamId?: string;
     projectConfigs: ConfigItem[];
     testCaseConfigs: ConfigItem[];
     testCaseId?: string;
@@ -52,6 +53,7 @@ function getNextTargetId(prefix: 'browser' | 'android', existing: BrowserEntry[]
 
 export default function ConfigurationsSection({
     projectId,
+    teamId,
     projectConfigs,
     testCaseConfigs,
     testCaseId,
@@ -82,7 +84,7 @@ export default function ConfigurationsSection({
     }, [testCaseConfigs]);
 
     const androidDeviceOptions = useAndroidDeviceOptions({
-        projectId,
+        teamId,
         readOnly,
         getAccessToken,
     });

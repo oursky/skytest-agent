@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use, useCallback, useRef } from "react";
+import { useState, useEffect, use, useCallback } from "react";
 import { useAuth } from "../../auth-provider";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -12,7 +12,6 @@ import { getStatusBadgeClass } from '@/utils/statusBadge';
 import { isActiveRunStatus } from '@/utils/statusHelpers';
 import { parsePageSize } from '@/utils/pagination';
 import { ProjectConfigs } from '@/components/features/project-configs';
-import { AndroidSetup } from '@/components/features/device-status';
 
 interface TestRun {
     id: string;
@@ -58,11 +57,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     const [currentPage, setCurrentPage] = useState(1);
     const [searchInput, setSearchInput] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
-    const [activeTab, setActiveTab] = useState<'test-cases' | 'configs' | 'android'>('test-cases');
-    const [androidAvailable, setAndroidAvailable] = useState(false);
-
-    const refreshAbortRef = useRef<AbortController | null>(null);
-    const eventSourceRef = useRef<EventSource | null>(null);
+    const [activeTab, setActiveTab] = useState<'test-cases' | 'configs'>('test-cases');
 
     useEffect(() => {
         if (!isAuthLoading && !isLoggedIn) {
@@ -73,12 +68,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     useEffect(() => {
         const tab = searchParams.get('tab');
         if (tab === 'configs') { setActiveTab('configs'); return; }
-        if (tab === 'android' && androidAvailable) { setActiveTab('android'); return; }
         if (tab === 'test-cases') { setActiveTab('test-cases'); }
-        if (tab === 'android' && !androidAvailable) { setActiveTab('test-cases'); }
-    }, [searchParams, androidAvailable]);
+    }, [searchParams]);
 
-    const handleTabChange = useCallback((tab: 'test-cases' | 'configs' | 'android') => {
+    const handleTabChange = useCallback((tab: 'test-cases' | 'configs') => {
         setActiveTab(tab);
 
         const params = new URLSearchParams(searchParams.toString());
@@ -91,27 +84,6 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     const getAuthHeaders = useCallback(async (): Promise<HeadersInit> => {
         const token = await getAccessToken();
         return token ? { 'Authorization': `Bearer ${token}` } : {};
-    }, [getAccessToken]);
-
-    const issueStreamToken = useCallback(async (scope: 'project-events' | 'test-run-events', resourceId: string): Promise<string | null> => {
-        const token = await getAccessToken();
-        if (!token) return null;
-
-        const response = await fetch('/api/stream-tokens', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ scope, resourceId })
-        });
-
-        if (!response.ok) {
-            return null;
-        }
-
-        const data = await response.json() as { streamToken?: string };
-        return typeof data.streamToken === 'string' ? data.streamToken : null;
     }, [getAccessToken]);
 
     const fetchProject = useCallback(async (signal?: AbortSignal) => {
@@ -145,20 +117,6 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         setTestCases(testCasesData);
     }, [resolvedParams.id, getAuthHeaders]);
 
-    const fetchAndroidFeatureFlag = useCallback(async () => {
-        try {
-            const token = await getAccessToken();
-            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const res = await fetch('/api/user/features', { headers });
-            if (res.ok) {
-                const data = await res.json() as { androidAvailable: boolean };
-                setAndroidAvailable(data.androidAvailable);
-            }
-        } catch {
-            // ignore
-        }
-    }, [getAccessToken]);
-
     const fetchData = useCallback(async (silent = false) => {
         if (!resolvedParams.id) return;
 
@@ -177,119 +135,24 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         if (!isLoggedIn || isAuthLoading) return;
         if (!resolvedParams.id) return;
 
-        let disposed = false;
-
-        const closeEventSource = () => {
-            if (eventSourceRef.current) {
-                eventSourceRef.current.close();
-                eventSourceRef.current = null;
-            }
-        };
-
-        const connect = async () => {
-            closeEventSource();
-
-            if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
-
-            const streamToken = await issueStreamToken('project-events', resolvedParams.id);
-            if (disposed) return;
-            if (!streamToken) return;
-
-            const eventsUrl = new URL(`/api/projects/${resolvedParams.id}/events`, window.location.origin);
-            eventsUrl.searchParams.set('streamToken', streamToken);
-
-            const es = new EventSource(eventsUrl.toString());
-            eventSourceRef.current = es;
-
-            es.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data) as {
-                        type?: string;
-                        testCaseId?: string;
-                        runId?: string;
-                        status?: string;
-                    };
-
-                    if (data.type !== 'test-run-status') return;
-
-                    const testCaseId = data.testCaseId;
-                    const runId = data.runId;
-                    const status = data.status;
-                    if (!testCaseId || !runId || !status) return;
-
-                    setTestCases((current) =>
-                        current.map((testCase) => {
-                            if (testCase.id !== testCaseId) return testCase;
-
-                            const latestRun = testCase.testRuns?.[0];
-                            if (!latestRun || latestRun.id !== runId) {
-                                return {
-                                    ...testCase,
-                                    status,
-                                    testRuns: [
-                                        {
-                                            id: runId,
-                                            status,
-                                            createdAt: new Date().toISOString(),
-                                        },
-                                    ],
-                                };
-                            }
-
-                            if (latestRun.status === status) return testCase;
-
-                            return {
-                                ...testCase,
-                                status,
-                                testRuns: [{ ...latestRun, status }],
-                            };
-                        })
-                    );
-                } catch {
-                    // ignore malformed events
-                }
-            };
-
-            es.onerror = () => {
-                if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
-                    closeEventSource();
-                }
-            };
-        };
-
         const refreshTestCases = async () => {
             if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
 
-            refreshAbortRef.current?.abort();
-            const controller = new AbortController();
-            refreshAbortRef.current = controller;
-
             try {
-                await fetchTestCases(controller.signal);
+                await fetchTestCases();
             } catch (err) {
-                if (err instanceof DOMException && err.name === 'AbortError') {
-                    return;
-                }
                 console.error("Error fetching test cases:", err);
             }
         };
 
         fetchData();
-        void connect();
-        void fetchAndroidFeatureFlag();
-
         const onFocus = () => {
-            fetchData(true);
-            void connect();
+            void fetchData(true);
         };
 
         const onVisibilityChange = () => {
             if (document.visibilityState === 'visible') {
-                void connect();
                 void refreshTestCases();
-            } else {
-                closeEventSource();
-                refreshAbortRef.current?.abort();
             }
         };
 
@@ -299,15 +162,11 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         const refreshIntervalId = setInterval(refreshTestCases, 60000);
 
         return () => {
-            disposed = true;
             window.removeEventListener('focus', onFocus);
             document.removeEventListener('visibilitychange', onVisibilityChange);
             clearInterval(refreshIntervalId);
-            closeEventSource();
-            refreshAbortRef.current?.abort();
-            refreshAbortRef.current = null;
         };
-    }, [fetchData, fetchTestCases, fetchAndroidFeatureFlag, issueStreamToken, isLoggedIn, isAuthLoading, resolvedParams.id]);
+    }, [fetchData, fetchTestCases, isLoggedIn, isAuthLoading, resolvedParams.id]);
 
     const handleDeleteTestCase = async () => {
         try {
@@ -384,8 +243,8 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 comparison = a.name.localeCompare(b.name);
                 break;
             case 'status':
-                const statusA = a.status || a.testRuns[0]?.status || '';
-                const statusB = b.status || b.testRuns[0]?.status || '';
+                const statusA = a.testRuns[0]?.status || a.status || '';
+                const statusB = b.testRuns[0]?.status || b.status || '';
                 comparison = statusA.localeCompare(statusB);
                 break;
             case 'updated':
@@ -417,7 +276,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     const handleExportAll = () => {
         const headers = ['ID', 'Name', 'Status', 'Updated'];
         const rows = testCases.map((tc) => {
-            const status = tc.status || tc.testRuns[0]?.status || '';
+            const status = tc.testRuns[0]?.status || tc.status || '';
             return [
                 tc.displayId || '',
                 tc.name,
@@ -510,24 +369,12 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                         >
                             {t('project.tab.configs')}
                         </button>
-                        {androidAvailable && (
-                            <button
-                                type="button"
-                                onClick={() => handleTabChange('android')}
-                                className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'android'
-                                    ? 'border-primary text-primary'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                }`}
-                            >
-                                {t('project.tab.android')}
-                            </button>
-                        )}
                     </nav>
                 </div>
 
                 {activeTab === 'test-cases' && (
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-                        {/* Desktop/Tablet */}
+                        {/* Large Screen/Tablet */}
                         <div className="hidden sm:relative sm:flex items-center gap-2">
                             <input
                                 type="text"
@@ -618,10 +465,6 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     <ProjectConfigs projectId={id} />
                 )}
 
-                {activeTab === 'android' && androidAvailable && (
-                    <AndroidSetup projectId={id} />
-                )}
-
                 <div className={`bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden ${activeTab !== 'test-cases' ? 'hidden' : ''}`}>
                     <div className="hidden md:grid grid-cols-24 gap-4 p-4 border-b border-gray-200 bg-gray-50 text-sm font-medium text-gray-500">
                         <button
@@ -678,7 +521,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                         <>
                         <div className="divide-y divide-gray-100">
                             {paginatedTestCases.map((testCase) => {
-                                const currentStatus = testCase.status || (testCase.testRuns[0]?.status);
+                                const latestRunStatus = testCase.testRuns[0]?.status;
+                                const currentStatus = latestRunStatus && isActiveRunStatus(latestRunStatus)
+                                    ? latestRunStatus
+                                    : testCase.status;
 
                                 return (
                                     <div key={testCase.id} className="flex flex-col md:grid md:grid-cols-24 gap-4 p-4 hover:bg-gray-50 transition-colors group">

@@ -1,13 +1,11 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { prisma } from '@/lib/core/prisma';
-import { queue } from '@/lib/runtime/queue';
 import { parseTestCaseJson, cleanStepsForStorage, normalizeTargetConfigMap } from '@/lib/runtime/test-case-utils';
 import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } from '@/lib/config/sort';
 import { validateConfigName, normalizeConfigName, validateConfigType } from '@/lib/config/validation';
 import { normalizeBrowserConfig } from '@/lib/config/browser-target';
-import { listAndroidDeviceInventory } from '@/lib/android/devices';
-import { resolveAndroidDeviceSelector } from '@/lib/mcp/android-selector';
+import { resolveAndroidDeviceSelector, type AndroidDeviceSelectorInventory } from '@/lib/mcp/android-selector';
 import { ACTIVE_RUN_STATUSES } from '@/utils/statusHelpers';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { ServerRequest, ServerNotification } from '@modelcontextprotocol/sdk/types.js';
@@ -33,6 +31,115 @@ function errorResult(message: string, details?: unknown) {
 
 async function verifyProjectAccess(projectId: string, userId: string): Promise<boolean> {
     return isProjectMember(userId, projectId);
+}
+
+async function cancelRunDurably(runId: string, errorMessage: string): Promise<boolean> {
+    const run = await prisma.testRun.findUnique({
+        where: { id: runId },
+        select: { id: true, status: true, testCaseId: true },
+    });
+
+    if (!run) {
+        return false;
+    }
+    if (['PASS', 'FAIL', 'CANCELLED'].includes(run.status)) {
+        return true;
+    }
+
+    await prisma.testRun.update({
+        where: { id: runId },
+        data: {
+            status: 'CANCELLED',
+            error: errorMessage,
+            completedAt: new Date(),
+            assignedRunnerId: null,
+            leaseExpiresAt: null,
+        },
+    });
+
+    await prisma.testCase.update({
+        where: { id: run.testCaseId },
+        data: { status: 'CANCELLED' },
+    });
+
+    return true;
+}
+
+function readMetadataString(metadata: unknown, field: string): string | undefined {
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+        return undefined;
+    }
+
+    const value = (metadata as Record<string, unknown>)[field];
+    if (typeof value !== 'string') {
+        return undefined;
+    }
+
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+}
+
+async function listRunnerAndroidInventory(projectId: string): Promise<AndroidDeviceSelectorInventory | null> {
+    const project = await prisma.project.findUnique({
+        where: { id: projectId },
+        select: { teamId: true },
+    });
+    if (!project) {
+        return null;
+    }
+
+    const devices = await prisma.runnerDevice.findMany({
+        where: {
+            platform: 'ANDROID',
+            state: 'ONLINE',
+            runner: {
+                teamId: project.teamId,
+                status: 'ONLINE',
+            },
+        },
+        select: {
+            deviceId: true,
+            name: true,
+            metadata: true,
+        },
+    });
+
+    const connectedDevicesBySerial = new Map<string, AndroidDeviceSelectorInventory['connectedDevices'][number]>();
+    const emulatorProfilesByName = new Map<string, AndroidDeviceSelectorInventory['emulatorProfiles'][number]>();
+
+    for (const device of devices) {
+        const serial = device.deviceId.trim();
+        if (!serial) {
+            continue;
+        }
+
+        const metadata = device.metadata;
+        const kind = readMetadataString(metadata, 'kind') === 'emulator' ? 'emulator' : 'physical';
+        const manufacturer = readMetadataString(metadata, 'manufacturer');
+        const model = readMetadataString(metadata, 'model') ?? device.name;
+        const emulatorProfileName = readMetadataString(metadata, 'emulatorProfileName');
+        const emulatorProfileDisplayName = readMetadataString(metadata, 'emulatorProfileDisplayName') ?? emulatorProfileName;
+
+        connectedDevicesBySerial.set(serial, {
+            serial,
+            kind,
+            manufacturer,
+            model,
+            emulatorProfileName,
+        });
+
+        if (kind === 'emulator' && emulatorProfileName) {
+            emulatorProfilesByName.set(emulatorProfileName, {
+                name: emulatorProfileName,
+                displayName: emulatorProfileDisplayName ?? emulatorProfileName,
+            });
+        }
+    }
+
+    return {
+        connectedDevices: Array.from(connectedDevicesBySerial.values()),
+        emulatorProfiles: Array.from(emulatorProfilesByName.values()),
+    };
 }
 
 function buildTargetIdGenerator(existingIds: Set<string>, prefix: 'browser' | 'android') {
@@ -214,7 +321,7 @@ export function createMcpServer(): McpServer {
         const nextBrowserTargetId = buildTargetIdGenerator(targetIds, 'browser');
         const nextAndroidTargetId = buildTargetIdGenerator(targetIds, 'android');
         const androidInventory = Array.isArray(testCase.androidTargets) && testCase.androidTargets.length > 0
-            ? await listAndroidDeviceInventory()
+            ? await listRunnerAndroidInventory(projectId)
             : null;
 
         if (Array.isArray(testCase.browserTargets)) {
@@ -512,7 +619,7 @@ export function createMcpServer(): McpServer {
             }
 
             for (const run of activeRuns) {
-                await queue.cancel(run.id, 'Cancelled to allow MCP test case update');
+                await cancelRunDurably(run.id, 'Cancelled to allow MCP test case update');
             }
         }
 
@@ -696,7 +803,7 @@ export function createMcpServer(): McpServer {
 
         for (const run of activeRuns) {
             try {
-                await queue.cancel(run.id, cancellationReason);
+                await cancelRunDurably(run.id, cancellationReason);
                 cancelledRunIds.push(run.id);
             } catch (error) {
                 failures.push({
@@ -763,7 +870,7 @@ export function createMcpServer(): McpServer {
 
         for (const run of queuedRuns) {
             try {
-                await queue.cancel(run.id, cancellationReason);
+                await cancelRunDurably(run.id, cancellationReason);
                 cancelledRunIds.push(run.id);
             } catch (error) {
                 failures.push({
