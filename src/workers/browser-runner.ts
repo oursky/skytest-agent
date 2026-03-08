@@ -9,6 +9,8 @@ const logger = createLogger('worker:browser-runner');
 const CLAIM_RETRY_INTERVAL_MS = 1_000;
 const LEASE_HEARTBEAT_INTERVAL_MS = Math.max(5_000, Math.floor(appConfig.runner.leaseDurationSeconds * 1000 / 2));
 const runnerId = process.env.BROWSER_RUNNER_ID?.trim() || `browser-runner:${os.hostname()}:${process.pid}`;
+let stopRequested = false;
+let activeRunId: string | null = null;
 
 function sleep(ms: number): Promise<void> {
     return new Promise((resolve) => {
@@ -23,12 +25,16 @@ async function runLoop() {
         leaseHeartbeatIntervalMs: LEASE_HEARTBEAT_INTERVAL_MS,
     });
 
-    while (true) {
+    while (!stopRequested) {
         const claimed = await claimNextBrowserRun({ runnerId });
+        if (stopRequested) {
+            break;
+        }
         if (!claimed) {
             await sleep(CLAIM_RETRY_INTERVAL_MS);
             continue;
         }
+        activeRunId = claimed.runId;
 
         logger.info('Claimed browser run', {
             runId: claimed.runId,
@@ -62,9 +68,32 @@ async function runLoop() {
             });
         } finally {
             clearInterval(leaseTimer);
+            activeRunId = null;
         }
     }
+
+    logger.info('Browser runner worker stopped', { runnerId });
 }
+
+function requestStop(reason: string): void {
+    if (stopRequested) {
+        return;
+    }
+
+    stopRequested = true;
+    logger.info('Browser runner worker shutdown requested', {
+        runnerId,
+        reason,
+        activeRunId,
+    });
+
+    if (activeRunId) {
+        cancelLocalBrowserRun(activeRunId);
+    }
+}
+
+process.on('SIGTERM', () => requestStop('SIGTERM'));
+process.on('SIGINT', () => requestStop('SIGINT'));
 
 void runLoop().catch((error) => {
     logger.error('Browser runner worker crashed', error);

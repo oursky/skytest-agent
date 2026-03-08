@@ -4,6 +4,7 @@ import { prisma } from '@/lib/core/prisma';
 import {
     BROWSER_EXECUTION_CAPABILITY,
     BROWSER_EXECUTION_RUNNER_KIND,
+    LEGACY_BROWSER_EXECUTION_RUNNER_KIND,
 } from '@/lib/runners/constants';
 
 interface ClaimedBrowserRunRow {
@@ -25,7 +26,11 @@ export async function claimNextBrowserRun(input: { runnerId: string }) {
               AND tr."deletedAt" IS NULL
               AND tr."assignedRunnerId" IS NULL
               AND tr."requiredCapability" = ${BROWSER_EXECUTION_CAPABILITY}
-              AND (tr."requiredRunnerKind" IS NULL OR tr."requiredRunnerKind" = ${BROWSER_EXECUTION_RUNNER_KIND})
+              AND (
+                tr."requiredRunnerKind" IS NULL
+                OR tr."requiredRunnerKind" = ${BROWSER_EXECUTION_RUNNER_KIND}
+                OR tr."requiredRunnerKind" = ${LEGACY_BROWSER_EXECUTION_RUNNER_KIND}
+              )
             ORDER BY tr."createdAt" ASC
             FOR UPDATE SKIP LOCKED
             LIMIT 1

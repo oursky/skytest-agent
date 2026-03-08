@@ -54,6 +54,8 @@ export async function POST(
             }
         });
         publishRunUpdate(id);
+        // Best-effort local abort for in-process execution. Worker-based runs
+        // primarily rely on DB state + lease ownership updates.
         cancelLocalBrowserRun(id);
 
         const updated = await prisma.testRun.findUnique({ where: { id }, select: { status: true } });

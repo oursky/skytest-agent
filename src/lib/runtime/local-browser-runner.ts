@@ -322,6 +322,7 @@ async function updateRunStatusWithOwnership(
 }
 
 function buildRunOwnershipWhere(runId: string, options?: LocalBrowserRunOptions) {
+    const now = new Date();
     return {
         id: runId,
         status: {
@@ -330,6 +331,7 @@ function buildRunOwnershipWhere(runId: string, options?: LocalBrowserRunOptions)
         ...(options?.runnerId
             ? {
                 assignedRunnerId: options.runnerId,
+                leaseExpiresAt: { gt: now },
             }
             : {
                 assignedRunnerId: null,

@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/core/prisma';
+import { createLogger } from '@/lib/core/logger';
 
 interface RateLimitWindow {
     count: number;
@@ -9,10 +10,13 @@ interface RateLimitWindow {
 const windows = new Map<string, RateLimitWindow>();
 const RATE_LIMIT_RETENTION_MS = 24 * 60 * 60 * 1000;
 const RATE_LIMIT_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+const RATE_LIMIT_FALLBACK_LOG_DEDUP_MS = 60 * 1000;
+const logger = createLogger('runners:rate-limit');
 
 const globalForRateLimit = global as unknown as {
     rateLimitWindowInit?: Promise<void>;
     rateLimitWindowCleanupAtMs?: number;
+    rateLimitFallbackLogAtMs?: number;
 };
 
 function isRateLimitedInMemory(key: string, input: { limit: number; windowMs: number }): boolean {
@@ -35,6 +39,8 @@ async function ensureRateLimitWindowStore(): Promise<void> {
     }
 
     globalForRateLimit.rateLimitWindowInit = (async () => {
+        // Intentionally managed with raw SQL so the open-source deployment can
+        // adopt distributed rate limiting without requiring an immediate Prisma migration.
         await prisma.$executeRawUnsafe(`
             CREATE TABLE IF NOT EXISTS "RateLimitWindow" (
                 "bucketKey" TEXT NOT NULL,
@@ -87,10 +93,18 @@ export async function isRateLimited(key: string, input: { limit: number; windowM
             RETURNING "count";
         `);
 
-        void cleanupOldRateLimitWindows(nowMs).catch(() => {});
+        void cleanupOldRateLimitWindows(nowMs).catch((cleanupError) => {
+            logger.debug('Failed to cleanup stale rate-limit windows', cleanupError);
+        });
         const count = result[0]?.count ?? 0;
         return count > input.limit;
-    } catch {
+    } catch (error) {
+        const nowMs = Date.now();
+        const lastLogAtMs = globalForRateLimit.rateLimitFallbackLogAtMs ?? 0;
+        if (nowMs - lastLogAtMs >= RATE_LIMIT_FALLBACK_LOG_DEDUP_MS) {
+            globalForRateLimit.rateLimitFallbackLogAtMs = nowMs;
+            logger.warn('Falling back to in-memory rate limiting after DB-backed limiter failure', error);
+        }
         return isRateLimitedInMemory(key, input);
     }
 }

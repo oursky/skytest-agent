@@ -118,7 +118,7 @@ describe('POST /api/run-test', () => {
             data: {
                 status: 'QUEUED',
                 requiredCapability: 'BROWSER',
-                requiredRunnerKind: 'CONTROL_PLANE',
+                requiredRunnerKind: 'BROWSER_WORKER',
             },
         });
         expect(payload).toMatchObject({

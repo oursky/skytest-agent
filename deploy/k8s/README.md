@@ -54,6 +54,7 @@ Optional:
 
 ## Health Endpoints
 
+- Liveness: `/api/health/live` (process up)
 - Readiness: `/api/health/ready` (core app readiness, DB required)
 - Dependency diagnostics: `/api/health/dependencies` (storage check)
 

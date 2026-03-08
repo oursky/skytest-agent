@@ -27,7 +27,8 @@ kubectl -n skytest create secret generic skytest-agent-secrets \
   --from-literal=S3_SECRET_ACCESS_KEY='...' \
   --from-literal=S3_FORCE_PATH_STYLE='false' \
   --from-literal=NEXT_PUBLIC_AUTHGEAR_CLIENT_ID='...' \
-  --from-literal=NEXT_PUBLIC_AUTHGEAR_ENDPOINT='https://...'
+  --from-literal=NEXT_PUBLIC_AUTHGEAR_ENDPOINT='https://...' \
+  --from-literal=NEXT_PUBLIC_AUTHGEAR_REDIRECT_URI='https://your-host/auth-redirect'
 ```
 
 ## Dry Run
@@ -52,3 +53,7 @@ helm upgrade --install skytest deploy/helm \
 - `ingress.enabled` is `false` by default.
 - `autoscaling.enabled` is `true` for control plane by default.
 - Android `MACOS_AGENT` runners are external to this chart and must be paired separately.
+- Health endpoints:
+  - liveness: `/api/health/live`
+  - readiness: `/api/health/ready`
+  - dependency diagnostics: `/api/health/dependencies`

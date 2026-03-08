@@ -34,7 +34,7 @@ controlPlane:
     periodSeconds: 10
     timeoutSeconds: 3
   livenessProbe:
-    path: /api/health/ready
+    path: /api/health/live
     initialDelaySeconds: 30
     periodSeconds: 20
     timeoutSeconds: 3
