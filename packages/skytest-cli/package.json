@@ -1,0 +1,13 @@
+{
+  "name": "@skytest/cli-runner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "skytest": "./src/index.ts"
+  },
+  "scripts": {
+    "skytest": "node --import tsx src/index.ts",
+    "skytest:help": "node --import tsx src/index.ts --help"
+  }
+}

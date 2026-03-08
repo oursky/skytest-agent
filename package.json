@@ -41,7 +41,9 @@
     "playwright:install": "playwright install chromium",
     "test": "vitest --run",
     "runner:maintenance": "tsx src/workers/runner-maintenance.ts",
-    "runner:macos": "npm run --workspace @skytest/macos-runner runner"
+    "runner:macos": "npm run --workspace @skytest/macos-runner runner",
+    "skytest": "npm run --workspace @skytest/cli-runner skytest --",
+    "skytest:help": "npm run --workspace @skytest/cli-runner skytest:help"
   },
   "dependencies": {
     "@authgear/web": "5.0.1",
