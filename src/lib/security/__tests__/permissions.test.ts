@@ -20,11 +20,10 @@ vi.mock('@/lib/core/prisma', () => ({
 }));
 
 const {
-    canManageProject,
-    canCreateProject,
+    isProjectMember,
+    isTeamMember,
     canDeleteProject,
     canDeleteTeam,
-    canRenameTeam,
     getTeamAccess,
 } = await import('@/lib/security/permissions');
 
@@ -34,11 +33,11 @@ describe('team permissions', () => {
         teamMembershipFindUnique.mockReset();
     });
 
-    it('allows team admins to manage their project', async () => {
+    it('allows team members to access their project', async () => {
         projectFindUnique.mockResolvedValueOnce({ teamId: 'org-1' });
-        teamMembershipFindUnique.mockResolvedValueOnce({ role: 'ADMIN' });
+        teamMembershipFindUnique.mockResolvedValueOnce({ role: 'MEMBER' });
 
-        await expect(canManageProject('user-1', 'project-1')).resolves.toBe(true);
+        await expect(isProjectMember('user-1', 'project-1')).resolves.toBe(true);
         expect(teamMembershipFindUnique).toHaveBeenCalledWith({
             where: {
                 teamId_userId: {
@@ -50,10 +49,10 @@ describe('team permissions', () => {
         });
     });
 
-    it('allows team admins to create projects', async () => {
-        teamMembershipFindUnique.mockResolvedValueOnce({ role: 'ADMIN' });
+    it('allows team members to access their team', async () => {
+        teamMembershipFindUnique.mockResolvedValueOnce({ role: 'MEMBER' });
 
-        await expect(canCreateProject('user-1', 'org-1')).resolves.toBe(true);
+        await expect(isTeamMember('user-1', 'org-1')).resolves.toBe(true);
     });
 
     it('allows owners to delete their team', async () => {
@@ -62,11 +61,10 @@ describe('team permissions', () => {
         await expect(canDeleteTeam('user-1', 'org-1')).resolves.toBe(true);
     });
 
-    it('allows members to manage projects', async () => {
-        projectFindUnique.mockResolvedValueOnce({ teamId: 'org-1' });
+    it('prevents members from deleting their team', async () => {
         teamMembershipFindUnique.mockResolvedValueOnce({ role: 'MEMBER' });
 
-        await expect(canManageProject('user-1', 'project-1')).resolves.toBe(true);
+        await expect(canDeleteTeam('user-1', 'org-1')).resolves.toBe(false);
     });
 
     it('only allows owners to delete projects', async () => {
@@ -76,12 +74,6 @@ describe('team permissions', () => {
         await expect(canDeleteProject('user-1', 'project-1')).resolves.toBe(true);
     });
 
-    it('prevents admins from renaming teams', async () => {
-        teamMembershipFindUnique.mockResolvedValueOnce({ role: 'ADMIN' });
-
-        await expect(canRenameTeam('user-1', 'org-1')).resolves.toBe(false);
-    });
-
     it('returns centralized owner capabilities', async () => {
         teamMembershipFindUnique.mockResolvedValueOnce({ role: 'OWNER' });
 
@@ -89,11 +81,7 @@ describe('team permissions', () => {
             teamId: 'org-1',
             role: 'OWNER',
             isMember: true,
-            canManageProjects: true,
             canDeleteProjects: true,
-            canManageMembers: true,
-            canManageApiKey: true,
-            canRenameTeam: true,
             canDeleteTeam: true,
             canTransferOwnership: true,
         });
@@ -106,11 +94,7 @@ describe('team permissions', () => {
             teamId: 'org-1',
             role: null,
             isMember: false,
-            canManageProjects: false,
             canDeleteProjects: false,
-            canManageMembers: false,
-            canManageApiKey: false,
-            canRenameTeam: false,
             canDeleteTeam: false,
             canTransferOwnership: false,
         });

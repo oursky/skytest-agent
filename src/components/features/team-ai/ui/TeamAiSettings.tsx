@@ -12,14 +12,13 @@ interface TeamAiSettingsProps {
 interface TeamAiState {
     hasKey: boolean;
     maskedKey: string | null;
-    canEdit: boolean;
     updatedAt: string | null;
 }
 
 export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
-    const [state, setState] = useState<TeamAiState>({ hasKey: false, maskedKey: null, canEdit: false, updatedAt: null });
+    const [state, setState] = useState<TeamAiState>({ hasKey: false, maskedKey: null, updatedAt: null });
     const [isLoading, setIsLoading] = useState(true);
     const [apiKey, setApiKey] = useState('');
     const [error, setError] = useState<string | null>(null);
@@ -133,17 +132,15 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
                         disabled
                         className="w-48 rounded-md border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-gray-500"
                     />
-                    {state.canEdit && (
-                        <button
-                            type="button"
-                            onClick={() => setIsRemoveConfirmOpen(true)}
-                            className="shrink-0 rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
-                        >
-                            {t('team.ai.remove')}
-                        </button>
-                    )}
+                    <button
+                        type="button"
+                        onClick={() => setIsRemoveConfirmOpen(true)}
+                        className="shrink-0 rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
+                    >
+                        {t('team.ai.remove')}
+                    </button>
                 </div>
-            ) : state.canEdit ? (
+            ) : (
                 <div className="flex max-w-lg items-center gap-3">
                     <input
                         type="password"
@@ -160,10 +157,6 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
                     >
                         {isSaving ? t('team.ai.saving') : t('team.ai.save')}
                     </button>
-                </div>
-            ) : (
-                <div className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                    {t('team.ai.notConfigured')}
                 </div>
             )}
 

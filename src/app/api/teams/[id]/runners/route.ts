@@ -31,7 +31,7 @@ export async function GET(
 
         return NextResponse.json({
             ...overview,
-            canManageRunners: access.role === 'OWNER' || access.role === 'ADMIN',
+            canManageRunners: access.isMember,
         });
     } catch (error) {
         logger.error('Failed to load team runners', error);

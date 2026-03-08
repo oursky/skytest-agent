@@ -11,7 +11,7 @@ export interface Project {
     hasActiveRuns?: boolean;
 }
 
-export type TeamRole = 'OWNER' | 'ADMIN' | 'MEMBER';
+export type TeamRole = 'OWNER' | 'MEMBER';
 
 export interface Team {
     id: string;

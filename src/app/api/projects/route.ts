@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveOrCreateUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
-import { canCreateProject, isTeamMember } from '@/lib/security/permissions';
+import { isTeamMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:projects');
 
@@ -113,8 +113,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const canCreate = await canCreateProject(userId, teamId);
-        if (!canCreate) {
+        if (!await isTeamMember(userId, teamId)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

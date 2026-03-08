@@ -2,11 +2,7 @@ import { prisma } from '@/lib/core/prisma';
 import type { TeamRole } from '@/types';
 
 interface TeamCapabilities {
-    canManageProjects: boolean;
     canDeleteProjects: boolean;
-    canManageMembers: boolean;
-    canManageApiKey: boolean;
-    canRenameTeam: boolean;
     canDeleteTeam: boolean;
     canTransferOwnership: boolean;
 }
@@ -25,40 +21,19 @@ export interface ProjectAccess extends TeamCapabilities {
 }
 
 const DEFAULT_CAPABILITIES: TeamCapabilities = {
-    canManageProjects: false,
     canDeleteProjects: false,
-    canManageMembers: false,
-    canManageApiKey: false,
-    canRenameTeam: false,
     canDeleteTeam: false,
     canTransferOwnership: false,
 };
 
 const TEAM_ROLE_CAPABILITIES: Record<TeamRole, TeamCapabilities> = {
     OWNER: {
-        canManageProjects: true,
         canDeleteProjects: true,
-        canManageMembers: true,
-        canManageApiKey: true,
-        canRenameTeam: true,
         canDeleteTeam: true,
         canTransferOwnership: true,
     },
-    ADMIN: {
-        canManageProjects: true,
-        canDeleteProjects: false,
-        canManageMembers: true,
-        canManageApiKey: true,
-        canRenameTeam: false,
-        canDeleteTeam: false,
-        canTransferOwnership: false,
-    },
     MEMBER: {
-        canManageProjects: true,
         canDeleteProjects: false,
-        canManageMembers: false,
-        canManageApiKey: false,
-        canRenameTeam: false,
         canDeleteTeam: false,
         canTransferOwnership: false,
     },
@@ -142,16 +117,6 @@ export async function isProjectMember(userId: string, projectId: string): Promis
     return isTeamMember(userId, teamId);
 }
 
-export async function canManageProject(userId: string, projectId: string): Promise<boolean> {
-    const access = await getProjectAccess(userId, projectId);
-    return access.canManageProjects;
-}
-
-export async function canCreateProject(userId: string, teamId: string): Promise<boolean> {
-    const access = await getTeamAccess(userId, teamId);
-    return access.canManageProjects;
-}
-
 export async function canDeleteTeam(userId: string, teamId: string): Promise<boolean> {
     const access = await getTeamAccess(userId, teamId);
     return access.canDeleteTeam;
@@ -165,21 +130,6 @@ export async function canDeleteProject(userId: string, projectId: string): Promi
 export async function canTransferTeamOwnership(userId: string, teamId: string): Promise<boolean> {
     const access = await getTeamAccess(userId, teamId);
     return access.canTransferOwnership;
-}
-
-export async function canManageTeamMembers(userId: string, teamId: string): Promise<boolean> {
-    const access = await getTeamAccess(userId, teamId);
-    return access.canManageMembers;
-}
-
-export async function canManageTeamApiKey(userId: string, teamId: string): Promise<boolean> {
-    const access = await getTeamAccess(userId, teamId);
-    return access.canManageApiKey;
-}
-
-export async function canRenameTeam(userId: string, teamId: string): Promise<boolean> {
-    const access = await getTeamAccess(userId, teamId);
-    return access.canRenameTeam;
 }
 
 export async function isTestCaseProjectMember(userId: string, testCaseId: string): Promise<boolean> {
@@ -234,11 +184,7 @@ export async function getProjectAccess(userId: string, projectId: string): Promi
         teamId,
         role: access.role,
         isMember: access.isMember,
-        canManageProjects: access.canManageProjects,
         canDeleteProjects: access.canDeleteProjects,
-        canManageMembers: access.canManageMembers,
-        canManageApiKey: access.canManageApiKey,
-        canRenameTeam: access.canRenameTeam,
         canDeleteTeam: access.canDeleteTeam,
         canTransferOwnership: access.canTransferOwnership,
     };
