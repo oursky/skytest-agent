@@ -5,7 +5,7 @@ import {
 } from '@skytest/runner-protocol';
 import { createLogger } from '@/lib/core/logger';
 import { authenticateRunnerRequest } from '@/lib/runners/auth';
-import { claimNextRunForRunner } from '@/lib/runners/claim-service';
+import { claimNextRunForRunner, diagnoseNoClaimForRunner } from '@/lib/runners/claim-service';
 import { evaluateRunnerCompatibility } from '@/lib/runners/protocol';
 import { getRateLimitKey, isRateLimited } from '@/lib/runners/rate-limit';
 
@@ -57,6 +57,7 @@ export async function POST(request: Request) {
         }
 
         const deadlineMs = Date.now() + CLAIM_LONG_POLL_TIMEOUT_MS;
+        const claimStartedAt = Date.now();
         let claimed = await claimNextRunForRunner({
             runnerId: auth.runnerId,
             teamId: auth.teamId,
@@ -71,6 +72,37 @@ export async function POST(request: Request) {
                 teamId: auth.teamId,
                 runnerKind: auth.runnerKind,
                 capabilities: auth.capabilities,
+            });
+        }
+
+        if (claimed) {
+            logger.info('Runner claim succeeded', {
+                runnerId: auth.runnerId,
+                teamId: auth.teamId,
+                runId: claimed.runId,
+                requestedDeviceId: claimed.requestedDeviceId,
+                requiredCapability: claimed.requiredCapability,
+                leaseExpiresAt: claimed.leaseExpiresAt.toISOString(),
+                elapsedMs: Date.now() - claimStartedAt,
+            });
+        } else {
+            const diagnosis = await diagnoseNoClaimForRunner({
+                runnerId: auth.runnerId,
+                teamId: auth.teamId,
+                runnerKind: auth.runnerKind,
+                capabilities: auth.capabilities,
+            });
+            logger.info('Runner claim returned no job', {
+                runnerId: auth.runnerId,
+                teamId: auth.teamId,
+                elapsedMs: Date.now() - claimStartedAt,
+                reasonCode: diagnosis.reasonCode,
+                queuedAndroidRuns: diagnosis.queuedAndroidRuns,
+                queuedCompatibleKindRuns: diagnosis.queuedCompatibleKindRuns,
+                explicitRequestedRuns: diagnosis.explicitRequestedRuns,
+                explicitRequestedRunsMatchingRunnerDevices: diagnosis.explicitRequestedRunsMatchingRunnerDevices,
+                genericQueuedRuns: diagnosis.genericQueuedRuns,
+                claimableDeviceIds: diagnosis.claimableDeviceIds,
             });
         }
 

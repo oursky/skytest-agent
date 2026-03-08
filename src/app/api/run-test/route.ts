@@ -280,6 +280,16 @@ export async function POST(request: Request) {
             }
         });
 
+        logger.info('Created test run', {
+            runId: testRun.id,
+            testCaseId,
+            status: testRun.status,
+            requiredCapability: testRun.requiredCapability,
+            requiredRunnerKind: testRun.requiredRunnerKind,
+            requestedDeviceId: testRun.requestedDeviceId,
+            hasAndroidTargets: requestHasAndroidTargets,
+        });
+
         if (files && files.length > 0) {
             try {
                 await prisma.testRunFile.createMany({
@@ -298,6 +308,9 @@ export async function POST(request: Request) {
 
         if (!requestHasAndroidTargets) {
             startLocalBrowserRun(testRun.id);
+            logger.info('Started local browser execution for run', {
+                runId: testRun.id,
+            });
         }
 
         return NextResponse.json({

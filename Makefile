@@ -22,6 +22,7 @@ MACOS_RUNNER_LABEL ?= Local macOS Runner
 	db-setup \
 	app \
 	playwright-install \
+	runner-macos-stop \
 	runner-macos \
 	bootstrap \
 	dev \
@@ -57,8 +58,19 @@ app: ## Start the local Next.js control plane
 playwright-install: ## Install Playwright Chromium locally
 	$(NODE_PM) run playwright:install
 
+runner-macos-stop: ## Stop local macOS runner processes
+	@set -eu; \
+	lock_pid=$$(node -e "const fs=require('fs');const p=process.env.HOME+'/.skytest-agent/runner.lock';try{const d=JSON.parse(fs.readFileSync(p,'utf8'));process.stdout.write(String(d.pid||''));}catch{process.stdout.write('');}"); \
+	if [ -n "$$lock_pid" ]; then \
+		kill -TERM "$$lock_pid" >/dev/null 2>&1 || true; \
+		sleep 1; \
+		kill -0 "$$lock_pid" >/dev/null 2>&1 && kill -KILL "$$lock_pid" >/dev/null 2>&1 || true; \
+	fi; \
+	pkill -f "runner/index.ts" >/dev/null 2>&1 || true
+
 runner-macos: ## Start the macOS runner (uses stored credential, MACOS_RUNNER_TOKEN, or MACOS_RUNNER_PAIRING_TOKEN)
 	@set -eu; \
+	$(MAKE) runner-macos-stop; \
 	set -a; [ -f "$(ENV_LOCAL)" ] && . "$(ENV_LOCAL)"; set +a; \
 	RUNNER_CONTROL_PLANE_URL="$(CONTROL_PLANE_URL)" \
 	RUNNER_LABEL="$(MACOS_RUNNER_LABEL)" \
@@ -99,6 +111,7 @@ dev-macos: ## Boot local services, apply schema, start macOS runner, and start t
 			fi; \
 		done; \
 	fi; \
+	$(MAKE) runner-macos-stop; \
 	RUNNER_CONTROL_PLANE_URL="$(CONTROL_PLANE_URL)" RUNNER_LABEL="$(MACOS_RUNNER_LABEL)" RUNNER_TOKEN="$(MACOS_RUNNER_TOKEN)" RUNNER_PAIRING_TOKEN="$(MACOS_RUNNER_PAIRING_TOKEN)" $(NODE_PM) run runner:macos & \
 	runner_pid=$$!; \
 	if [ -n "$${app_pid:-}" ]; then \

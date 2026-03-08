@@ -1,10 +1,13 @@
 import type { RunnerEventInput } from '@skytest/runner-protocol';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/core/prisma';
+import { createLogger } from '@/lib/core/logger';
 import { config as appConfig } from '@/config/app';
 import { publishRunUpdate } from '@/lib/runners/event-bus';
 import { createStoredName, validateAndSanitizeFile, buildRunArtifactObjectKey } from '@/lib/security/file-security';
 import { putObjectBuffer } from '@/lib/storage/object-store-utils';
+
+const logger = createLogger('runners:event-service');
 
 interface OwnedRun {
     id: string;
@@ -210,7 +213,16 @@ export async function completeOwnedRun(input: {
     });
 
     if (completed) {
+        logger.info('Run marked PASS by runner', {
+            runId: input.runId,
+            runnerId: input.runnerId,
+        });
         publishRunUpdate(input.runId);
+    } else {
+        logger.warn('Ignored complete request for non-owned or expired run', {
+            runId: input.runId,
+            runnerId: input.runnerId,
+        });
     }
 
     return completed;
@@ -262,7 +274,16 @@ export async function failOwnedRun(input: {
     });
 
     if (failed) {
+        logger.info('Run marked FAIL by runner', {
+            runId: input.runId,
+            runnerId: input.runnerId,
+        });
         publishRunUpdate(input.runId);
+    } else {
+        logger.warn('Ignored fail request for non-owned or expired run', {
+            runId: input.runId,
+            runnerId: input.runnerId,
+        });
     }
 
     return failed;
