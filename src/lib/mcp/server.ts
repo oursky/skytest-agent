@@ -6,6 +6,8 @@ import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } f
 import { validateConfigName, normalizeConfigName, validateConfigType } from '@/lib/config/validation';
 import { normalizeBrowserConfig } from '@/lib/config/browser-target';
 import { resolveAndroidDeviceSelector, type AndroidDeviceSelectorInventory } from '@/lib/mcp/android-selector';
+import { cancelRunDurably } from '@/lib/mcp/run-cancellation';
+import { deleteObjectKeysBestEffort } from '@/lib/mcp/storage-cleanup';
 import { ACTIVE_RUN_STATUSES } from '@/utils/statusHelpers';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { ServerRequest, ServerNotification } from '@modelcontextprotocol/sdk/types.js';
@@ -31,38 +33,6 @@ function errorResult(message: string, details?: unknown) {
 
 async function verifyProjectAccess(projectId: string, userId: string): Promise<boolean> {
     return isProjectMember(userId, projectId);
-}
-
-async function cancelRunDurably(runId: string, errorMessage: string): Promise<boolean> {
-    const run = await prisma.testRun.findUnique({
-        where: { id: runId },
-        select: { id: true, status: true, testCaseId: true },
-    });
-
-    if (!run) {
-        return false;
-    }
-    if (['PASS', 'FAIL', 'CANCELLED'].includes(run.status)) {
-        return true;
-    }
-
-    await prisma.testRun.update({
-        where: { id: runId },
-        data: {
-            status: 'CANCELLED',
-            error: errorMessage,
-            completedAt: new Date(),
-            assignedRunnerId: null,
-            leaseExpiresAt: null,
-        },
-    });
-
-    await prisma.testCase.update({
-        where: { id: run.testCaseId },
-        data: { status: 'CANCELLED' },
-    });
-
-    return true;
 }
 
 function readMetadataString(metadata: unknown, field: string): string | undefined {
@@ -593,6 +563,8 @@ export function createMcpServer(): McpServer {
             orderBy: { createdAt: 'asc' },
             select: { id: true, status: true, createdAt: true }
         });
+        const cancelledRunIds: string[] = [];
+        const failedCancellations: Array<{ runId: string; error: string }> = [];
 
         if (activeRuns.length > 0) {
             if (!activeRunResolution) {
@@ -619,7 +591,22 @@ export function createMcpServer(): McpServer {
             }
 
             for (const run of activeRuns) {
-                await cancelRunDurably(run.id, 'Cancelled to allow MCP test case update');
+                try {
+                    const cancelled = await cancelRunDurably(run.id, 'Cancelled to allow MCP test case update');
+                    if (cancelled) {
+                        cancelledRunIds.push(run.id);
+                    } else {
+                        failedCancellations.push({
+                            runId: run.id,
+                            error: 'Run is no longer active',
+                        });
+                    }
+                } catch (error) {
+                    failedCancellations.push({
+                        runId: run.id,
+                        error: error instanceof Error ? error.message : 'Unknown error'
+                    });
+                }
             }
         }
 
@@ -751,7 +738,8 @@ export function createMcpServer(): McpServer {
             name: updateResult.updated.name,
             status: updateResult.updated.status,
             changedFields,
-            cancelledRuns: activeRuns.map((run) => run.id),
+            cancelledRuns: cancelledRunIds,
+            failedCancellations,
             configChanges: updateResult.configChanges,
             warnings,
         });
@@ -799,12 +787,20 @@ export function createMcpServer(): McpServer {
 
         const cancelledRunIds: string[] = [];
         const failures: Array<{ runId: string; error: string }> = [];
+        const skippedCancellations: Array<{ runId: string; reason: string }> = [];
         const cancellationReason = reason?.trim() || 'Cancelled by MCP stop_all_runs';
 
         for (const run of activeRuns) {
             try {
-                await cancelRunDurably(run.id, cancellationReason);
-                cancelledRunIds.push(run.id);
+                const cancelled = await cancelRunDurably(run.id, cancellationReason);
+                if (cancelled) {
+                    cancelledRunIds.push(run.id);
+                } else {
+                    skippedCancellations.push({
+                        runId: run.id,
+                        reason: 'Run is no longer active',
+                    });
+                }
             } catch (error) {
                 failures.push({
                     runId: run.id,
@@ -818,7 +814,9 @@ export function createMcpServer(): McpServer {
             requestedActiveRuns: activeRuns.length,
             cancelledRuns: cancelledRunIds.length,
             failedCancellations: failures.length,
+            skippedCancellations: skippedCancellations.length,
             cancelledRunIds,
+            skipped: skippedCancellations,
             failures,
             statusSummary,
         });
@@ -866,12 +864,20 @@ export function createMcpServer(): McpServer {
 
         const cancelledRunIds: string[] = [];
         const failures: Array<{ runId: string; error: string }> = [];
+        const skippedCancellations: Array<{ runId: string; reason: string }> = [];
         const cancellationReason = reason?.trim() || 'Cancelled by MCP stop_all_queues';
 
         for (const run of queuedRuns) {
             try {
-                await cancelRunDurably(run.id, cancellationReason);
-                cancelledRunIds.push(run.id);
+                const cancelled = await cancelRunDurably(run.id, cancellationReason);
+                if (cancelled) {
+                    cancelledRunIds.push(run.id);
+                } else {
+                    skippedCancellations.push({
+                        runId: run.id,
+                        reason: 'Run is no longer active',
+                    });
+                }
             } catch (error) {
                 failures.push({
                     runId: run.id,
@@ -885,7 +891,9 @@ export function createMcpServer(): McpServer {
             requestedQueuedRuns: queuedRuns.length,
             cancelledRuns: cancelledRunIds.length,
             failedCancellations: failures.length,
+            skippedCancellations: skippedCancellations.length,
             cancelledRunIds,
+            skipped: skippedCancellations,
             failures,
             statusSummary,
         });
@@ -899,12 +907,33 @@ export function createMcpServer(): McpServer {
         if (!userId) return errorResult('Unauthorized');
         const tc = await prisma.testCase.findUnique({
             where: { id: testCaseId },
-            select: { id: true }
+            select: {
+                id: true,
+                projectId: true,
+                files: {
+                    select: { storedName: true }
+                },
+                configs: {
+                    where: { type: 'FILE' },
+                    select: { value: true }
+                }
+            }
         });
         if (!tc) return errorResult('Not found');
-        if (!await isTestCaseProjectMember(userId, testCaseId)) return errorResult('Forbidden');
+        if (!await verifyProjectAccess(tc.projectId, userId)) return errorResult('Forbidden');
+
+        const objectKeys = [
+            ...tc.files.map((file) => file.storedName),
+            ...tc.configs.map((config) => config.value),
+        ];
+
         await prisma.testCase.delete({ where: { id: testCaseId } });
-        return textResult({ success: true });
+        const cleanupResult = await deleteObjectKeysBestEffort(objectKeys);
+        return textResult({
+            success: true,
+            deletedObjectCount: cleanupResult.deletedObjectCount,
+            failedObjectKeys: cleanupResult.failedObjectKeys,
+        });
     });
 
     server.registerTool('get_test_run', {

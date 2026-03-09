@@ -43,7 +43,7 @@ This document defines current SkyTest MCP tool behavior for maintainers.
 ### update_test_case
 
 - Scope: one test case ID per call.
-- Allowed mutable fields: `name`, `url`, `prompt`, `steps`, `browserConfig`.
+- Allowed mutable fields: `name`, `url`, `prompt`, `steps`, `browserConfig`, `configs`, `variables`, `removeConfigNames`, `removeVariableNames`.
 - One or more mutable fields may be provided in each call.
 - If active runs exist (`QUEUED`, `PREPARING`, `RUNNING`), caller must choose:
   - `cancel_and_save`
@@ -53,6 +53,7 @@ This document defines current SkyTest MCP tool behavior for maintainers.
 
 - Input: `{ testCaseId }`
 - Deletes the test case and all related data (runs, files, configs) via Prisma cascade.
+- Performs best-effort storage cleanup for uploaded test case files and `FILE` config objects. The response includes `deletedObjectCount` and `failedObjectKeys`.
 
 ### stop_all_runs
 
@@ -61,6 +62,7 @@ This document defines current SkyTest MCP tool behavior for maintainers.
 - Returns:
   - requested active run count
   - successful cancellation count
+  - skipped cancellation count/details (runs that are no longer active at write time)
   - failure count/details
   - status summary before cancellation
 
@@ -71,6 +73,7 @@ This document defines current SkyTest MCP tool behavior for maintainers.
 - Returns:
   - requested queued run count
   - successful cancellation count
+  - skipped cancellation count/details (runs that are no longer active at write time)
   - failure count/details
   - status summary before cancellation
 
@@ -87,5 +90,6 @@ This document defines current SkyTest MCP tool behavior for maintainers.
 ## Runtime Notes
 
 - Always cancel through durable run state updates (`CANCELLED` + lease cleanup), never through in-memory queue paths.
+- Durable cancellation uses an active-status write predicate to avoid overwriting terminal run states during races.
 - Do not add batch update semantics to `update_test_case`; keep one-test-case-per-call behavior.
 - Android device resolution uses runner inventory aliases (serial/name/profile metadata) from team-scoped runner inventory surfaced in `Team Settings -> Runners`. When no match is found, the raw input is used as emulator profile name and a warning is returned.
