@@ -1,8 +1,3 @@
----
-name: review
-description: Structured code review with two-pass approach (spec compliance then code quality). Use when the user asks to review code, review a PR, audit changes, check for security/performance/reliability issues, or run a code quality check.
----
-
 # Code Review
 
 Run a structured, token-efficient code review. Two passes: spec compliance first, then code quality. Stop and report if spec compliance fails before moving to quality.

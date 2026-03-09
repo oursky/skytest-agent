@@ -1,8 +1,3 @@
----
-name: commit
-description: "Plan logical commit units from staged changes only, suggest commit titles, return the plan only, and create commits only after user approval (e.g. \"ok\", \"please commit\"). Use when the user asks to commit changes, plan/split commits, create logical commits, or use a refs footer (e.g. refs: #42)."
----
-
 # Commit Planning and Splitting
 
 When the user wants to commit **staged** changes (optionally with a footer like `refs: #42`), plan logical units from the **staged set only**, suggest titles, and—**only after approval**—create commits in dependency order. Unstaged and untracked files are ignored.

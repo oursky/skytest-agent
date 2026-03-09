@@ -1,8 +1,3 @@
----
-name: debug
-description: Structured debugging workflow — reproduce first, gather evidence, trace root cause, fix with minimal scope. Use when the user asks to debug, investigate, trace, or fix a bug.
----
-
 # Debugging Workflow
 
 Reproduce the issue, gather evidence, trace the root cause, then apply the smallest fix. No guessing, no unrelated changes.

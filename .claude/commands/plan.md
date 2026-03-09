@@ -1,8 +1,3 @@
----
-name: plan
-description: Create an implementation plan for a task — align on intent, identify impacted files, and write a step-by-step plan. Use when the user asks to plan work, design a feature, create an implementation plan, or tackle a non-trivial change.
----
-
 # Implementation Planning
 
 Align on intent before writing code. Shape the design, identify impacted files, and produce a step-by-step plan with validation steps.

@@ -1,8 +1,3 @@
----
-name: pull-request
-description: Plan and prepare pull requests with structured summaries, validation evidence, breaking changes, and risk notes. Use when the user asks to draft, summarize, prepare, or create a PR.
----
-
 # Pull Request
 
 Use this skill when the user wants to prepare or create a pull request.
