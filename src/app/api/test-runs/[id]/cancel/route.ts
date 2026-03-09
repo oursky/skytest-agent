@@ -67,8 +67,7 @@ export async function POST(
             publishRunUpdate(id);
         }
 
-        // Best-effort local abort for in-process execution. Worker-based runs
-        // primarily rely on DB state + lease ownership updates.
+        // Best-effort local abort for on-demand browser execution.
         cancelLocalBrowserRun(id);
 
         logger.info('Cancelled test run', {

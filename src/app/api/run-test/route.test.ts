@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
     testCaseFindUnique: vi.fn(),
     testCaseFileFindMany: vi.fn(),
     testRunCreate: vi.fn(),
+    dispatchBrowserRun: vi.fn(),
 }));
 
 vi.mock('@/lib/security/auth', () => ({
@@ -40,6 +41,10 @@ vi.mock('@/lib/core/prisma', () => ({
     },
 }));
 
+vi.mock('@/lib/runtime/browser-run-dispatcher', () => ({
+    dispatchBrowserRun: mocks.dispatchBrowserRun,
+}));
+
 const { POST } = await import('@/app/api/run-test/route');
 
 describe('POST /api/run-test', () => {
@@ -51,6 +56,7 @@ describe('POST /api/run-test', () => {
         mocks.testCaseFindUnique.mockReset();
         mocks.testCaseFileFindMany.mockReset();
         mocks.testRunCreate.mockReset();
+        mocks.dispatchBrowserRun.mockReset();
 
         mocks.verifyAuth.mockResolvedValue({ sub: 'auth-user' });
         mocks.resolveUserId.mockResolvedValue('user-1');
@@ -85,9 +91,10 @@ describe('POST /api/run-test', () => {
             requiredCapability: data.requiredCapability ?? null,
             requestedDeviceId: data.requestedDeviceId ?? null,
         }));
+        mocks.dispatchBrowserRun.mockResolvedValue(true);
     });
 
-    it('queues browser runs for control-plane browser workers', async () => {
+    it('queues browser runs and dispatches local browser execution', async () => {
         const request = new Request('http://localhost/api/run-test', {
             method: 'POST',
             headers: {
@@ -118,9 +125,10 @@ describe('POST /api/run-test', () => {
             data: {
                 status: 'QUEUED',
                 requiredCapability: 'BROWSER',
-                requiredRunnerKind: 'BROWSER_WORKER',
+                requiredRunnerKind: null,
             },
         });
+        expect(mocks.dispatchBrowserRun).toHaveBeenCalledWith('run-1');
         expect(payload).toMatchObject({
             runId: 'run-1',
             status: 'QUEUED',
@@ -166,6 +174,7 @@ describe('POST /api/run-test', () => {
                 requestedDeviceId: 'emulator-profile:android_profile_a',
             },
         });
+        expect(mocks.dispatchBrowserRun).not.toHaveBeenCalled();
         expect(payload).toMatchObject({
             runId: 'run-1',
             status: 'QUEUED',

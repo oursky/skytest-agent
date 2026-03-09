@@ -53,6 +53,7 @@ interface LocalBrowserRunOptions {
 const logger = createLogger('runtime:local-browser-runner');
 const activeAbortControllers = new Map<string, AbortController>();
 const activeExecutions = new Map<string, Promise<void>>();
+const RUN_STATUS_WATCH_INTERVAL_MS = 1_000;
 
 function createLeaseExpiry(now = new Date()): Date {
     return new Date(now.getTime() + appConfig.runner.leaseDurationSeconds * 1000);
@@ -339,6 +340,14 @@ function buildRunOwnershipWhere(runId: string, options?: LocalBrowserRunOptions)
     };
 }
 
+async function runStillActive(runId: string, options?: LocalBrowserRunOptions): Promise<boolean> {
+    const run = await prisma.testRun.findFirst({
+        where: buildRunOwnershipWhere(runId, options),
+        select: { id: true },
+    });
+    return !!run;
+}
+
 async function completeRun(runId: string, testCaseId: string, result?: string, options?: LocalBrowserRunOptions): Promise<void> {
     const now = new Date();
     const updated = await prisma.testRun.updateMany({
@@ -574,6 +583,21 @@ async function executeLocalBrowserRun(
         });
     };
 
+    const statusWatchTimer = setInterval(() => {
+        void runStillActive(runId, options)
+            .then((active) => {
+                if (!active) {
+                    cancelLocalBrowserRun(runId);
+                }
+            })
+            .catch((error) => {
+                logger.warn('Failed to poll local run status', {
+                    runId,
+                    error: error instanceof Error ? error.message : String(error),
+                });
+            });
+    }, RUN_STATUS_WATCH_INTERVAL_MS);
+
     try {
         const result = await runTest({
             runId,
@@ -628,6 +652,8 @@ async function executeLocalBrowserRun(
         await flushEvents();
         const errorMessage = error instanceof Error ? error.message : String(error);
         await failRun(runId, details.testCaseId, errorMessage, undefined, options);
+    } finally {
+        clearInterval(statusWatchTimer);
     }
 }
 

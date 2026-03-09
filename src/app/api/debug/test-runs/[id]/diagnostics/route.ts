@@ -3,6 +3,7 @@ import { createLogger } from '@/lib/core/logger';
 import { prisma } from '@/lib/core/prisma';
 import { getTeamRunnersOverview } from '@/lib/runners/availability-service';
 import { diagnoseNoClaimForRunner } from '@/lib/runners/claim-service';
+import { BROWSER_EXECUTION_CAPABILITY } from '@/lib/runners/constants';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { isTestRunProjectMember } from '@/lib/security/permissions';
 
@@ -178,6 +179,7 @@ export async function GET(
         let claimableNow = true;
         let matchingRequestedDeviceRunnerIds: string[] = [];
         const requestedDeviceId = run.requestedDeviceId;
+        const isBrowserRun = run.requiredCapability === BROWSER_EXECUTION_CAPABILITY;
 
         if (run.status !== 'QUEUED') {
             claimabilityReasonCode = 'RUN_NOT_QUEUED';
@@ -185,6 +187,9 @@ export async function GET(
         } else if (hasActiveAssignmentLease) {
             claimabilityReasonCode = 'RUN_ASSIGNED_WITH_ACTIVE_LEASE';
             claimableNow = false;
+        } else if (isBrowserRun) {
+            claimabilityReasonCode = 'CLAIMABLE_NOW';
+            claimableNow = true;
         } else if (eligibleRunners.length === 0) {
             claimabilityReasonCode = 'NO_ELIGIBLE_FRESH_RUNNERS';
             claimableNow = false;

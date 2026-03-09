@@ -10,8 +10,8 @@ import {
     ANDROID_EXECUTION_CAPABILITY,
     ANDROID_EXECUTION_RUNNER_KIND,
     BROWSER_EXECUTION_CAPABILITY,
-    BROWSER_EXECUTION_RUNNER_KIND,
 } from '@/lib/runners/constants';
+import { dispatchBrowserRun } from '@/lib/runtime/browser-run-dispatcher';
 import type { BrowserConfig, TargetConfig, AndroidTargetConfig, TestStep } from '@/types';
 
 const logger = createLogger('api:run-test');
@@ -284,7 +284,7 @@ export async function POST(request: Request) {
                     : BROWSER_EXECUTION_CAPABILITY,
                 requiredRunnerKind: requestHasAndroidTargets
                     ? ANDROID_EXECUTION_RUNNER_KIND
-                    : BROWSER_EXECUTION_RUNNER_KIND,
+                    : null,
                 requestedDeviceId,
             }
         });
@@ -312,6 +312,18 @@ export async function POST(request: Request) {
                 });
             } catch (e) {
                 logger.warn('Failed to snapshot run files', e);
+            }
+        }
+
+        if (!requestHasAndroidTargets) {
+            const dispatched = await dispatchBrowserRun(testRun.id);
+            if (!dispatched) {
+                logger.warn('Browser run dispatch skipped because run was not claimable', {
+                    runId: testRun.id,
+                    status: testRun.status,
+                    requiredCapability: testRun.requiredCapability,
+                    requiredRunnerKind: testRun.requiredRunnerKind,
+                });
             }
         }
 
