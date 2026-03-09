@@ -8,6 +8,8 @@ const contentSecurityPolicy = [
     "img-src 'self' data: blob: https: http:",
     "style-src 'self' 'unsafe-inline'",
     "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+    "worker-src 'self' blob:",
+    "child-src 'self' blob:",
     "connect-src 'self' https: http: ws: wss:"
 ].join('; ');
 

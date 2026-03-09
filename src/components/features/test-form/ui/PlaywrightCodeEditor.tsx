@@ -1,8 +1,11 @@
 'use client';
 
-import Editor, { OnMount } from '@monaco-editor/react';
+import Editor, { OnMount, loader } from '@monaco-editor/react';
+import * as monaco from 'monaco-editor';
 import { useCallback, useEffect, useRef } from 'react';
 import { useI18n } from '@/i18n';
+
+loader.config({ monaco });
 
 interface CodeInsertRequest {
     id: string;
@@ -135,7 +138,7 @@ export default function PlaywrightCodeEditor({
 
         monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
             noSemanticValidation: true,
-            noSyntaxValidation: false,
+            noSyntaxValidation: true,
         });
     };
 
