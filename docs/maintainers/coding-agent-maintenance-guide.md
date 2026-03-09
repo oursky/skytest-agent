@@ -90,3 +90,16 @@ When changing runner runtime behavior, update docs in the same PR/commit series:
 - Bypassing lease ownership checks on runner write-back endpoints
 - Re-introducing long-lived dedicated browser worker loops
 - Changing operator-visible runner/device behavior without updating setup/runbook docs
+
+## Browser Failure Triage (Blank Page / Selector Not Found)
+
+Use this sequence before changing test steps:
+
+1. Inspect run events for runtime guard blocks:
+   - `Blocked request to <host>: <reason>`
+   - `Network guard summary: {...}`
+2. From the same runtime host, verify DNS and HTTP:
+   - `node -e "require('node:dns').promises.lookup('<host>', { all: true, verbatim: true }).then(console.log).catch(console.error)"`
+   - `curl -I https://<host>/<path>`
+3. If requests are blocked by runtime guard, fix network/policy first; do not tweak selectors yet.
+4. Only debug Playwright selectors/assertions after network guard errors are resolved.

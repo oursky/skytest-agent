@@ -8,7 +8,7 @@ import { substituteAll } from '@/lib/config/resolver';
 import { createLogger as createServerLogger } from '@/lib/core/logger';
 import { withMidsceneApiKey } from '@/lib/runtime/midscene-env';
 import { validateTargetUrl } from '@/lib/security/url-security';
-import { validateRuntimeRequestUrl } from '@/lib/security/url-security-runtime';
+import { createBrowserNetworkGuard, type BrowserNetworkGuard } from '@/lib/runtime/browser-network-guard';
 import { androidDeviceManager, type AndroidDeviceLease } from '@/lib/android/device-manager';
 import { normalizeAndroidTargetConfig } from '@/lib/android/target-config';
 import { normalizeBrowserConfig } from '@/lib/config/browser-target';
@@ -374,6 +374,7 @@ interface ExecutionTargets {
     pages: Map<string, Page>;
     agents: Map<string, PlaywrightAgent | AndroidAgent>;
     androidDeviceLeases: Map<string, AndroidDeviceLease>;
+    browserNetworkGuards: Map<string, BrowserNetworkGuard>;
 }
 
 function createLogger(onEvent: EventHandler) {
@@ -511,6 +512,7 @@ async function setupExecutionTargets(
     const pages = new Map<string, Page>();
     const agents = new Map<string, PlaywrightAgent | AndroidAgent>();
     const androidDeviceLeases = new Map<string, AndroidDeviceLease>();
+    const browserNetworkGuards = new Map<string, BrowserNetworkGuard>();
 
     const browserTargetIds = Object.keys(targetConfigs).filter(id => !isAndroidTarget(targetConfigs[id]));
     const androidTargetIds = Object.keys(targetConfigs).filter(id => isAndroidTarget(targetConfigs[id]));
@@ -776,38 +778,15 @@ async function setupExecutionTargets(
                     }
                 });
 
-                const blockedRequestLogDedup = new Map<string, number>();
+                const networkGuard = createBrowserNetworkGuard({
+                    targetId: browserId,
+                    targetLabel,
+                    log,
+                    signal,
+                });
+                browserNetworkGuards.set(browserId, networkGuard);
                 await context.route('**/*', async (route) => {
-                    if (signal?.aborted) {
-                        await route.abort('aborted');
-                        return;
-                    }
-
-                    const requestUrl = route.request().url();
-                    const validation = await validateRuntimeRequestUrl(requestUrl);
-                    if (!validation.valid) {
-                        try {
-                            const { hostname } = new URL(requestUrl);
-                            const key = `${hostname}:${validation.error ?? 'blocked'}`;
-                            const now = Date.now();
-                            const last = blockedRequestLogDedup.get(key) ?? 0;
-                            if (now - last > config.test.security.blockedRequestLogDedupMs) {
-                                blockedRequestLogDedup.set(key, now);
-                                log(
-                                    `[${targetLabel}] Blocked request to ${hostname}: ${validation.error ?? 'not allowed'}`,
-                                    'error',
-                                    browserId
-                                );
-                            }
-                        } catch {
-                            log(`[${targetLabel}] Blocked request: ${validation.error ?? 'not allowed'}`, 'error', browserId);
-                        }
-
-                        await route.abort('blockedbyclient');
-                        return;
-                    }
-
-                    await route.continue();
+                    await networkGuard.handleRoute(route);
                 });
 
                 const page = await context.newPage();
@@ -862,10 +841,10 @@ async function setupExecutionTargets(
             log('All browser instances ready', 'success');
         }
 
-        return { browser, contexts, pages, agents, androidDeviceLeases };
+        return { browser, contexts, pages, agents, androidDeviceLeases, browserNetworkGuards };
     } catch (error) {
         try {
-            await cleanupTargets({ browser, contexts, pages, agents, androidDeviceLeases });
+            await cleanupTargets({ browser, contexts, pages, agents, androidDeviceLeases, browserNetworkGuards });
         } catch (cleanupError) {
             serverLogger.warn('Failed to cleanup partially initialized targets', cleanupError);
         }
@@ -1543,6 +1522,32 @@ async function captureErrorScreenshots(
     }
 }
 
+function emitBrowserNetworkGuardSummaries(
+    targets: ExecutionTargets,
+    onEvent: EventHandler
+): void {
+    const log = createLogger(onEvent);
+    for (const [browserId, networkGuard] of targets.browserNetworkGuards) {
+        const summary = networkGuard.getSummary();
+        if (summary.blockedRequestCount === 0) {
+            continue;
+        }
+
+        const targetLabel = getBrowserNiceName(browserId);
+        const level = summary.dnsLookupFailureCount > 0 ? 'error' : 'info';
+        log(
+            `[${targetLabel}] Network guard summary: ${JSON.stringify({
+                blockedRequestCount: summary.blockedRequestCount,
+                dnsLookupFailureCount: summary.dnsLookupFailureCount,
+                blockedByReason: summary.blockedByReason,
+                blockedByHostname: summary.blockedByHostname,
+            })}`,
+            level,
+            browserId
+        );
+    }
+}
+
 async function cleanupTargets(targets: ExecutionTargets): Promise<void> {
     try {
         if (targets.browser) await targets.browser.close();
@@ -1705,6 +1710,7 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
             clearTimeout(timeoutHandle);
             signal?.removeEventListener('abort', abortFromParent);
             if (executionTargets) {
+                emitBrowserNetworkGuardSummaries(executionTargets, onEvent);
                 await cleanupExecutionTargets(executionTargets);
             }
             await materializedExecutionFiles.cleanup();
