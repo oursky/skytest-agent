@@ -5,6 +5,7 @@ import "./globals.css";
 
 import { AuthProvider } from "./auth-provider";
 import { Header } from "@/components/layout";
+import { DevRuntimeErrorLogger } from "@/components/layout/DevRuntimeErrorLogger";
 import { I18nProvider } from "@/i18n";
 import { LOCALE_META, type Locale } from "@/i18n/messages";
 
@@ -33,6 +34,7 @@ export default async function RootLayout({
       <body className={`${inter.className} antialiased`}>
         <I18nProvider initialLocale={initialLocale}>
           <AuthProvider>
+            <DevRuntimeErrorLogger />
             <Header />
             {children}
           </AuthProvider>
