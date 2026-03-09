@@ -1,3 +1,9 @@
+const ANSI_ESCAPE_SEQUENCE_PATTERN = /\u001B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g;
+
+function sanitizeErrorText(value: string): string {
+    return value.replace(ANSI_ESCAPE_SEQUENCE_PATTERN, '');
+}
+
 export class TestExecutionError extends Error {
     constructor(
         message: string,
@@ -35,7 +41,7 @@ export class PlaywrightCodeError extends Error {
 }
 
 export function getErrorMessage(error: unknown): string {
-    const errorString = String(error);
+    const errorString = sanitizeErrorText(String(error));
 
     if (errorString && !errorString.includes('[object Object]')) {
         return errorString.replace(/^Error:\s*/, '');
@@ -44,13 +50,13 @@ export function getErrorMessage(error: unknown): string {
     if (error instanceof Error) {
         const midsceneError = error as Error & { reason?: string };
         if (midsceneError.reason) {
-            return `${error.message}\nReason: ${midsceneError.reason}`;
+            return `${sanitizeErrorText(error.message)}\nReason: ${sanitizeErrorText(midsceneError.reason)}`;
         }
-        return error.message;
+        return sanitizeErrorText(error.message);
     }
 
     if (error && typeof error === 'object' && 'message' in error) {
-        return String((error as { message: unknown }).message);
+        return sanitizeErrorText(String((error as { message: unknown }).message));
     }
 
     return errorString;
