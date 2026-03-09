@@ -15,6 +15,7 @@ import { normalizeBrowserConfig } from '@/lib/config/browser-target';
 import { ReliableAdb } from '@/lib/android/adb-reliable';
 import { resolveAndroidToolPath } from '@/lib/android/sdk';
 import { createSafePage, validatePlaywrightCode } from '@/lib/runtime/playwright-code-sandbox';
+import { splitPlaywrightCodeStatements, summarizePlaywrightCodeStatement } from '@/lib/runtime/playwright-code-trace';
 import { createTempDirectory, materializeObjectToFile, removeTempDirectory } from '@/lib/storage/object-store-utils';
 import { Script, createContext } from 'node:vm';
 import path from 'node:path';
@@ -977,6 +978,11 @@ async function executePlaywrightCode(
     }
 
     validatePlaywrightCode(code, stepIndex);
+    const statements = splitPlaywrightCodeStatements(trimmedCode);
+    if (statements.length === 0) {
+        log(`[Step ${stepIndex + 1}] No executable statements found`, 'info', browserId);
+        return;
+    }
 
     const safePage = createSafePage(page, stepIndex, code, {
         allowedFilePaths: stepContext?.allowedFilePaths ?? new Set<string>(),
@@ -1044,30 +1050,57 @@ async function executePlaywrightCode(
     log(`[Step ${stepIndex + 1}] Executing Playwright code block...`, 'info', browserId);
 
     const timeoutSeconds = Math.ceil(timeoutMs / 1000);
-    let timerHandle: TimeoutHandle | null = null;
-    const timeoutPromise = new Promise<never>((_, reject) => {
-        timerHandle = setTimeoutWrapped(
-            () => reject(new Error(`Playwright code execution timed out (${timeoutSeconds}s)`)),
-            timeoutMs
-        );
-    });
 
     try {
-        const script = new Script(`(async () => { ${trimmedCode} })()`);
-        const result = script.runInContext(context, { timeout: syncTimeoutMs }) as Promise<unknown>;
-        await Promise.race([result, timeoutPromise]);
-        await captureScreenshot(
-            page,
-            `[${targetLabel}] Step ${stepIndex + 1}: Playwright code complete`,
-            onEvent,
-            log,
-            browserId
-        );
+        for (const statement of statements) {
+            const lineLabel = statement.lineStart === statement.lineEnd
+                ? `line ${statement.lineStart}`
+                : `lines ${statement.lineStart}-${statement.lineEnd}`;
+            const statementSummary = summarizePlaywrightCodeStatement(statement.code);
+
+            log(
+                `[Step ${stepIndex + 1}] Executing Playwright ${lineLabel}: ${statementSummary}`,
+                'info',
+                browserId
+            );
+
+            let timerHandle: TimeoutHandle | null = null;
+            const timeoutPromise = new Promise<never>((_, reject) => {
+                timerHandle = setTimeoutWrapped(
+                    () => reject(new Error(`Playwright code execution timed out (${timeoutSeconds}s)`)),
+                    timeoutMs
+                );
+            });
+
+            try {
+                const script = new Script(`(async () => { ${statement.code} })()`);
+                const result = script.runInContext(context, { timeout: syncTimeoutMs }) as Promise<unknown>;
+                await Promise.race([result, timeoutPromise]);
+                await captureScreenshot(
+                    page,
+                    `[${targetLabel}] Step ${stepIndex + 1} ${lineLabel}`,
+                    onEvent,
+                    log,
+                    browserId
+                );
+            } finally {
+                if (timerHandle) {
+                    clearTimeoutWrapped(timerHandle);
+                }
+            }
+        }
     } catch (error) {
         const errorMessage = getErrorMessage(error);
         log(
             `[Step ${stepIndex + 1}] Playwright code error: ${errorMessage}`,
             'error',
+            browserId
+        );
+        await captureScreenshot(
+            page,
+            `[${targetLabel}] Step ${stepIndex + 1} Error`,
+            onEvent,
+            log,
             browserId
         );
         throw new PlaywrightCodeError(
@@ -1077,9 +1110,6 @@ async function executePlaywrightCode(
             error instanceof Error ? error : undefined
         );
     } finally {
-        if (timerHandle) {
-            clearTimeoutWrapped(timerHandle);
-        }
         cleanupTimers();
     }
 }
