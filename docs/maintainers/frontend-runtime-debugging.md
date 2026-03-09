@@ -36,6 +36,10 @@ If the error value is an object/event, log structured fields:
 - `type`, `filename`, `lineno`, `colno`
 - rejection `reason` shape
 
+For editor/runtime incidents, prefer reproducing on the dedicated route first:
+
+- `/debug/playwright-editor` (development only)
+
 ## 3. Layered Triage Order
 
 Use this order to reduce search space fast:
