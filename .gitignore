@@ -52,8 +52,7 @@ yarn-error.log*
 # IDE / editor
 .vscode/
 .idea/
-.claude/*
-!.claude/commands/
+.claude/
 *.swp
 *.swo
 *~
