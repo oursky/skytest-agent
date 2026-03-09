@@ -31,8 +31,6 @@ It is self-hosted, open source, and uses your own API key.
 - **Custom Playwright code** - Mix AI-driven steps with your own Playwright scripts when you need precise control.
 - **Android Support** — Run cross-platform tests on web and Android apps with a single test suite.
 - **MCP & Agent SKill** — Use MCP to let AI coding agents generate test cases from your specs.
-- **Parallel execution** - Run tests concurrently for faster feedback.
-- **Project management** - Organize test cases and configurations by project with a built-in web UI.
 - **Bring Your Own Key** - Use your own OpenRouter API key. You pay only your LLM costs.
 
 **Example test case:**
@@ -46,6 +44,8 @@ It is self-hosted, open source, and uses your own API key.
 [Watch the demo on YouTube](https://www.youtube.com/watch?v=qYlzKr8LWL8)
 
 ## Quick Start
+
+Start Docker, then run:
 
 ```bash
 npm install
@@ -63,35 +63,18 @@ Don't want to self-host? We're building a managed version of SkyTest.
 
 <a href="https://skytest.ai/#waitlist"><img src="https://img.shields.io/badge/Join_the_Waitlist-orange?style=for-the-badge" alt="Join Waitlist"></a>
 
-## Configuration
+## Advanced Setup
 
-See `.env.example` for all available options. Required:
+- **Environment Variables**: See `.env.example` for required configs like database and storage. Users provide their own OpenRouter keys in the app settings.
+- **Local Development**: Check the [Local Dev Guide](./docs/operators/local-dev.md) for running the CLI runner or resetting state.
+- **Android Testing**: See the [macOS Android Emulator Guide](./docs/operators/mac-android-emulator-guide.md) to configure cross-platform testing.
+- **Kubernetes**: Reference Helm charts are available in `deploy/helm`.
 
-- `DATABASE_URL` - PostgreSQL connection string for the application database
-- `S3_*` - S3-compatible object storage credentials and bucket settings. Use local MinIO in development and hosted object storage in production.
-- `ENCRYPTION_SECRET` - Random 32+ char string for API key encryption
-- `NEXT_PUBLIC_AUTHGEAR_*` - Authgear credentials from [portal.authgear.com](https://portal.authgear.com/)
+### Quick Troubleshooting
 
-Users provide their own [OpenRouter](https://openrouter.ai/) API keys via the app settings.
-
-## Kubernetes
-
-- Helm chart: `deploy/helm`
-- Baseline manifests (reference): `deploy/k8s`
-- Quick validation:
-  - `make helm-lint`
-  - `make helm-template`
-
-## Troubleshooting
-
-- **Browsers not found**: `npm run playwright:install`
+- **Browsers not found**: Run `npm run playwright:install`
 - **Database errors**: Verify `DATABASE_URL`, then run `npx prisma db push`
-- **Object storage errors**: Verify the `S3_*` variables and confirm the bucket exists in MinIO/S3
-- **View database**: `npm run db:studio`
-- **Auth redirect issues**: Check Authgear redirect URI matches your domain
-- **Production process model**: run the control plane, browser runner worker (`npm run runner:browser`), and maintenance worker (`RUNNER_MAINTENANCE_ONCE=true npm run runner:maintenance`) as separate processes
-- **Android devices (Local macOS Only)**: See [macOS Android Emulator Guide](https://github.com/oursky/skytest-agent/blob/main/docs/operators/mac-android-emulator-guide.md)
-- **Local development + CLI runner setup/reset**: See [Local Development Guide](./docs/operators/local-dev.md)
+- **Object storage errors**: Verify `S3_*` variables and your bucket in MinIO/S3
 
 ## Community & Contributing
 
