@@ -71,6 +71,8 @@ export interface TestRun {
     status: TestStatus;
     result?: string;
     error?: string;
+    errorCode?: TestFailureCode;
+    errorCategory?: TestFailureCategory;
     createdAt: string;
     events?: TestEvent[];
 }
@@ -127,5 +129,5 @@ export interface TestRunEventRow {
     createdAt: string;
 }
 
-import type { TestStep, BrowserConfig, TestStatus } from './test';
+import type { TestStep, BrowserConfig, TestStatus, TestFailureCode, TestFailureCategory } from './test';
 import type { TestEvent } from './events';

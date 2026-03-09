@@ -146,6 +146,8 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
         if (meta?.projectName) lines.push(`Project Name: ${meta.projectName}`);
         lines.push(`Status: ${result.status}`);
         if (result.error) lines.push(`Error: ${result.error}`);
+        if (result.errorCode) lines.push(`Error Code: ${result.errorCode}`);
+        if (result.errorCategory) lines.push(`Error Category: ${result.errorCategory}`);
         lines.push(`Events: ${result.events.length}`);
         lines.push('');
         if (meta?.config) {
@@ -322,6 +324,8 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
                             <ResultStatus
                                 status={result.status}
                                 error={result.error}
+                                errorCode={result.errorCode}
+                                errorCategory={result.errorCategory}
                                 eventCount={events.length}
                                 hasAndroidTargets={hasAndroidTargets}
                             />

@@ -6,6 +6,7 @@ import { isProjectMember } from '@/lib/security/permissions';
 import { isTestEvent } from '@/lib/runtime/test-events';
 import { objectStore } from '@/lib/storage/object-store';
 import { isScreenshotData, type TestEvent, type LogLevel } from '@/types';
+import { parseTestResultMetadata } from '@/lib/runtime/test-result-metadata';
 
 const logger = createLogger('api:test-runs:id');
 
@@ -132,6 +133,7 @@ export async function GET(
             },
         });
         const events: TestEvent[] = await Promise.all(eventRows.map((eventRow) => mapRunEventToUiEvent(eventRow)));
+        const resultMetadata = parseTestResultMetadata(testRun.result);
 
         return NextResponse.json({
             id: testRun.id,
@@ -139,6 +141,8 @@ export async function GET(
             result: testRun.result,
             logs: testRun.logs,
             error: testRun.error,
+            errorCode: resultMetadata.errorCode,
+            errorCategory: resultMetadata.errorCategory,
             configurationSnapshot: testRun.configurationSnapshot,
             startedAt: testRun.startedAt,
             completedAt: testRun.completedAt,

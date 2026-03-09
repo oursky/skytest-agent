@@ -454,6 +454,9 @@ export const MESSAGES: Record<Locale, Messages> = {
     'results.cancelled.bodyNoEvents': 'The test was stopped before any results were captured.',
     'results.fail.title': 'Test Failed',
     'results.fail.copyError': 'Copy Error',
+    'results.fail.errorCode': 'Error Code',
+    'results.fail.infrastructure.title': 'Infrastructure Network Failure',
+    'results.fail.infrastructure.body': 'This failure was caused by environment/network conditions (for example DNS resolution or blocked requests), not necessarily by product behavior.',
     'results.fail.errorDetails': 'Error Details:',
     'results.fail.bodyNoError': 'The test encountered an error during execution. Check the logs above for details.',
 
@@ -1065,6 +1068,9 @@ export const MESSAGES: Record<Locale, Messages> = {
     'results.cancelled.bodyNoEvents': '測試在尚未取得任何結果前被停止。',
     'results.fail.title': '測試失敗',
     'results.fail.copyError': '複製錯誤',
+    'results.fail.errorCode': '錯誤代碼',
+    'results.fail.infrastructure.title': '基礎設施網路失敗',
+    'results.fail.infrastructure.body': '此失敗由環境／網路條件造成（例如 DNS 解析或請求被阻擋），不一定是產品行為回歸。',
     'results.fail.errorDetails': '錯誤詳情：',
     'results.fail.bodyNoError': '測試執行時發生錯誤，請查看上方日誌了解詳情。',
 
@@ -1676,6 +1682,9 @@ export const MESSAGES: Record<Locale, Messages> = {
     'results.cancelled.bodyNoEvents': '测试在尚未获取任何结果前被停止。',
     'results.fail.title': '测试失败',
     'results.fail.copyError': '复制错误',
+    'results.fail.errorCode': '错误代码',
+    'results.fail.infrastructure.title': '基础设施网络失败',
+    'results.fail.infrastructure.body': '此失败由环境/网络条件导致（例如 DNS 解析或请求被拦截），不一定是产品行为回归。',
     'results.fail.errorDetails': '错误详情：',
     'results.fail.bodyNoError': '测试执行时发生错误，请查看上方日志了解详情。',
 

@@ -32,7 +32,6 @@ const runnerArtifactHardDeleteBatchSize = Number.isFinite(runnerArtifactHardDele
     : 50;
 const midsceneGenerateReport = process.env.SKYTEST_MIDSCENE_GENERATE_REPORT === 'true';
 const midsceneAutoPrintReportMsg = process.env.SKYTEST_MIDSCENE_AUTO_PRINT_REPORT_MSG === 'true';
-const dnsLookupFailOpen = process.env.DNS_LOOKUP_FAIL_OPEN !== 'false';
 
 export const config = {
     app: {
@@ -119,7 +118,8 @@ export const config = {
             ],
             blockedIpv6Prefixes: ['::1', 'fc', 'fd'],
             dnsLookupTimeoutMs: 5000,
-            dnsLookupFailOpen,
+            dnsLookupRetryAttempts: 3,
+            dnsLookupRetryDelayMs: 200,
             dnsCacheTtlMs: 5 * 60 * 1000,
             blockedRequestLogDedupMs: 10000,
             playwrightCodeBlockedTokens: [

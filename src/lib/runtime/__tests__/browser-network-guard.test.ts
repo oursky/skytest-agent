@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/security/url-security-runtime', () => ({
     validateRuntimeRequestUrl: mocks.validateRuntimeRequestUrl,
+    DNS_RESOLUTION_FAILED_CODE: 'DNS_RESOLUTION_FAILED',
 }));
 
 const { createBrowserNetworkGuard } = await import('@/lib/runtime/browser-network-guard');
@@ -54,7 +55,11 @@ describe('createBrowserNetworkGuard', () => {
     });
 
     it('aborts blocked requests and emits deduplicated log entries', async () => {
-        mocks.validateRuntimeRequestUrl.mockResolvedValue({ valid: false, error: 'DNS lookup failed' });
+        mocks.validateRuntimeRequestUrl.mockResolvedValue({
+            valid: false,
+            error: 'DNS lookup failed',
+            code: 'DNS_RESOLUTION_FAILED'
+        });
 
         const logs: string[] = [];
         const guard = createBrowserNetworkGuard({
@@ -79,6 +84,9 @@ describe('createBrowserNetworkGuard', () => {
             targetId: 'browser_a',
             blockedRequestCount: 2,
             dnsLookupFailureCount: 2,
+            blockedByCode: {
+                DNS_RESOLUTION_FAILED: 2,
+            },
             blockedByReason: {
                 'DNS lookup failed': 2,
             },

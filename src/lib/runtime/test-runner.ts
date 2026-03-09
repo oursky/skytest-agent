@@ -8,7 +8,7 @@ import { substituteAll } from '@/lib/config/resolver';
 import { createLogger as createServerLogger } from '@/lib/core/logger';
 import { withMidsceneApiKey } from '@/lib/runtime/midscene-env';
 import { validateTargetUrl } from '@/lib/security/url-security';
-import { createBrowserNetworkGuard, type BrowserNetworkGuard } from '@/lib/runtime/browser-network-guard';
+import { createBrowserNetworkGuard, type BrowserNetworkGuard, type BrowserNetworkGuardSummary } from '@/lib/runtime/browser-network-guard';
 import { androidDeviceManager, type AndroidDeviceLease } from '@/lib/android/device-manager';
 import { normalizeAndroidTargetConfig } from '@/lib/android/target-config';
 import { normalizeBrowserConfig } from '@/lib/config/browser-target';
@@ -16,7 +16,9 @@ import { ReliableAdb } from '@/lib/android/adb-reliable';
 import { resolveAndroidToolPath } from '@/lib/android/sdk';
 import { createSafePage, validatePlaywrightCode } from '@/lib/runtime/playwright-code-sandbox';
 import { splitPlaywrightCodeStatements, summarizePlaywrightCodeStatement } from '@/lib/runtime/playwright-code-trace';
+import { classifyRunFailure } from '@/lib/runtime/run-failure-classifier';
 import { createTempDirectory, materializeObjectToFile, removeTempDirectory } from '@/lib/storage/object-store-utils';
+import { validateRuntimeRequestUrl } from '@/lib/security/url-security-runtime';
 import { Script, createContext } from 'node:vm';
 import path from 'node:path';
 
@@ -806,6 +808,13 @@ async function setupExecutionTargets(
                 pages.set(browserId, page);
 
                 if (browserConfig.url) {
+                    const preflight = await validateRuntimeRequestUrl(browserConfig.url);
+                    if (!preflight.valid) {
+                        const code = preflight.code ? `[${preflight.code}] ` : '';
+                        const reason = preflight.error ?? 'URL is not allowed';
+                        throw new ConfigurationError(`${targetLabel} preflight check failed: ${code}${reason}`, 'url');
+                    }
+
                     log(`[${targetLabel}] Navigating to ${browserConfig.url}...`, 'info', browserId);
                     await page.goto(browserConfig.url, {
                         timeout: config.test.browser.timeout,
@@ -1552,13 +1561,16 @@ async function captureErrorScreenshots(
     }
 }
 
+function collectBrowserNetworkGuardSummaries(targets: ExecutionTargets): BrowserNetworkGuardSummary[] {
+    return Array.from(targets.browserNetworkGuards.values(), (networkGuard) => networkGuard.getSummary());
+}
+
 function emitBrowserNetworkGuardSummaries(
     targets: ExecutionTargets,
     onEvent: EventHandler
 ): void {
     const log = createLogger(onEvent);
-    for (const [browserId, networkGuard] of targets.browserNetworkGuards) {
-        const summary = networkGuard.getSummary();
+    for (const [browserId, summary] of Array.from(targets.browserNetworkGuards.entries(), ([id, guard]) => [id, guard.getSummary()] as const)) {
         if (summary.blockedRequestCount === 0) {
             continue;
         }
@@ -1569,6 +1581,7 @@ function emitBrowserNetworkGuardSummaries(
             `[${targetLabel}] Network guard summary: ${JSON.stringify({
                 blockedRequestCount: summary.blockedRequestCount,
                 dnsLookupFailureCount: summary.dnsLookupFailureCount,
+                blockedByCode: summary.blockedByCode,
                 blockedByReason: summary.blockedByReason,
                 blockedByHostname: summary.blockedByHostname,
             })}`,
@@ -1600,7 +1613,12 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
     const log = createLogger(onEvent);
 
     if (!openRouterApiKey) {
-        return { status: 'FAIL', error: 'OpenRouter API key is required. Please configure it in API Key & Usage settings.' };
+        return {
+            status: 'FAIL',
+            error: 'OpenRouter API key is required. Please configure it in API Key & Usage settings.',
+            errorCode: 'CONFIGURATION_ERROR',
+            errorCategory: 'CONFIGURATION',
+        };
     }
 
     return await withMidsceneApiKey(openRouterApiKey, async () => {
@@ -1720,21 +1738,41 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
                 if (executionTargets) {
                     await captureErrorScreenshots(executionTargets, onEvent);
                 }
-                return { status: 'FAIL', error: timeoutMessage, actionCount: actionCounter.count };
+                return {
+                    status: 'FAIL',
+                    error: timeoutMessage,
+                    errorCode: 'TEST_TIMEOUT',
+                    errorCategory: 'TIMEOUT',
+                    actionCount: actionCounter.count
+                };
             }
 
             if (signal?.aborted || runSignal.aborted || (error instanceof Error && error.message === 'Aborted')) {
                 return { status: 'CANCELLED', error: 'Test was cancelled by user', actionCount: actionCounter.count };
             }
 
+            const networkGuardSummaries = executionTargets
+                ? collectBrowserNetworkGuardSummaries(executionTargets)
+                : [];
+            const failureClassification = classifyRunFailure(error, { networkGuardSummaries });
             const msg = getErrorMessage(error);
+            log(
+                `Failure classified as ${failureClassification.code} (${failureClassification.category})`,
+                'error'
+            );
             log(`❌ Test failed: ${msg}`, 'error');
 
             if (executionTargets) {
                 await captureErrorScreenshots(executionTargets, onEvent);
             }
 
-            return { status: 'FAIL', error: msg, actionCount: actionCounter.count };
+            return {
+                status: 'FAIL',
+                error: msg,
+                errorCode: failureClassification.code,
+                errorCategory: failureClassification.category,
+                actionCount: actionCounter.count
+            };
 
         } finally {
             clearTimeout(timeoutHandle);

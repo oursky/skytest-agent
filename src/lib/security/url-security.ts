@@ -4,6 +4,7 @@ import { isIP } from 'node:net';
 export interface UrlValidationResult {
     valid: boolean;
     error?: string;
+    code?: string;
 }
 
 interface CidrRange {

@@ -10,24 +10,43 @@ vi.mock('node:dns/promises', () => ({
 
 const { validateRuntimeRequestUrl } = await import('@/lib/security/url-security-runtime');
 const { config } = await import('@/config/app');
-const securityConfig = config.test.security as { dnsLookupFailOpen: boolean };
-const defaultDnsLookupFailOpen = securityConfig.dnsLookupFailOpen;
+const securityConfig = config.test.security as {
+    dnsLookupRetryAttempts: number;
+    dnsLookupRetryDelayMs: number;
+};
+const defaultDnsLookupRetryAttempts = securityConfig.dnsLookupRetryAttempts;
+const defaultDnsLookupRetryDelayMs = securityConfig.dnsLookupRetryDelayMs;
 
 describe('validateRuntimeRequestUrl', () => {
     beforeEach(() => {
         mocks.lookup.mockReset();
+        securityConfig.dnsLookupRetryAttempts = 3;
+        securityConfig.dnsLookupRetryDelayMs = 0;
     });
 
     afterEach(() => {
-        securityConfig.dnsLookupFailOpen = defaultDnsLookupFailOpen;
+        securityConfig.dnsLookupRetryAttempts = defaultDnsLookupRetryAttempts;
+        securityConfig.dnsLookupRetryDelayMs = defaultDnsLookupRetryDelayMs;
     });
 
-    it('allows request when DNS lookup fails in fail-open mode', async () => {
-        mocks.lookup.mockRejectedValueOnce(new Error('lookup failed'));
+    it('returns DNS resolution failure code when all lookup attempts fail', async () => {
+        mocks.lookup.mockRejectedValue(new Error('lookup failed'));
 
-        const result = await validateRuntimeRequestUrl('https://example.com/path');
+        const result = await validateRuntimeRequestUrl('https://failure.example.com/path');
+
+        expect(result).toEqual({ valid: false, error: 'DNS lookup failed', code: 'DNS_RESOLUTION_FAILED' });
+        expect(mocks.lookup).toHaveBeenCalledTimes(3);
+    });
+
+    it('retries lookup failures and succeeds when a later attempt resolves', async () => {
+        mocks.lookup
+            .mockRejectedValueOnce(new Error('lookup failed'))
+            .mockResolvedValueOnce([{ address: '93.184.216.34', family: 4 }]);
+
+        const result = await validateRuntimeRequestUrl('https://retry.example.com/path');
 
         expect(result).toEqual({ valid: true });
+        expect(mocks.lookup).toHaveBeenCalledTimes(2);
     });
 
     it('reuses cached valid DNS result for repeated host validation', async () => {
@@ -39,14 +58,5 @@ describe('validateRuntimeRequestUrl', () => {
         expect(first).toEqual({ valid: true });
         expect(second).toEqual({ valid: true });
         expect(mocks.lookup).toHaveBeenCalledTimes(1);
-    });
-
-    it('blocks request when DNS lookup fails in strict mode', async () => {
-        securityConfig.dnsLookupFailOpen = false;
-        mocks.lookup.mockRejectedValueOnce(new Error('lookup failed'));
-
-        const result = await validateRuntimeRequestUrl('https://example.net/path');
-
-        expect(result).toEqual({ valid: false, error: 'DNS lookup failed' });
     });
 });
