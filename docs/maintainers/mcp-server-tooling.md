@@ -87,9 +87,42 @@ This document defines current SkyTest MCP tool behavior for maintainers.
 - Input: `{ projectId }`
 - Returns: `total` test case count and `byStatus` breakdown.
 
+### run_test_case
+
+- Input: `{ testCaseId, overrides? }`
+- Queues one test run for the test case.
+- Optional `overrides` fields: `url`, `prompt`, `steps`, `browserConfig`, `requestedDeviceId`.
+- Uses durable queue path and returns: `runId`, `status`, `requiredCapability`, `requestedDeviceId`.
+
+### list_test_runs
+
+- Input: `{ projectId?, testCaseId?, status?, from?, to?, limit?, cursor?, include? }`
+- Returns paginated runs visible to the authenticated user (`deletedAt IS NULL`).
+- `include` supports:
+  - `events`: per-run event list (up to 100 events per run).
+  - `artifacts`: run file snapshots and event artifact keys with signed URLs when available.
+
+### manage_project_configs
+
+- Input: `{ projectId, upsert?, remove? }`
+- Upserts project configs by normalized config name and removes configs in the same call.
+- `FILE` upserts are skipped with warnings (upload unsupported in MCP).
+- Removing existing `FILE` configs triggers best-effort object-store cleanup.
+- Returns created/updated/removed counts, warnings, cleanup result, and sorted latest configs.
+
+### list_runner_inventory
+
+- Input: `{ projectId }`
+- Returns team-scoped runner overview and device inventory for the project.
+- Includes Android selector-ready options:
+  - `connectedDevices` (serial selector)
+  - `emulatorProfiles` (profile selector)
+- Used by agents to ask users for concrete device/profile selection before create/run.
+
 ## Runtime Notes
 
 - Always cancel through durable run state updates (`CANCELLED` + lease cleanup), never through in-memory queue paths.
 - Durable cancellation uses an active-status write predicate to avoid overwriting terminal run states during races.
 - Do not add batch update semantics to `update_test_case`; keep one-test-case-per-call behavior.
+- `run_test_case` shares the same queue semantics as `/api/run-test` (capability selection, requested device checks, and file snapshot copy).
 - Android device resolution uses runner inventory aliases (serial/name/profile metadata) from team-scoped runner inventory surfaced in `Team Settings -> Runners`. When no match is found, the raw input is used as emulator profile name and a warning is returned.

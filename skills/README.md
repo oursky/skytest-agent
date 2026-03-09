@@ -8,7 +8,7 @@ SkyTest generation/maintenance skill for MCP-capable agents.
 
 | Skill | Command | Description |
 |-------|---------|-------------|
-| [skytest-generate](./skytest-skills/skytest-generate/SKILL.md) | `/skytest-generate` | Generate and maintain test cases from feature descriptions, screenshots, or user flows via MCP |
+| [skytest-generate](./skytest-skills/skytest-generate/SKILL.md) | `/skytest-generate` | Generate, run, and maintain test cases from feature descriptions, screenshots, or user flows via MCP (includes run query, project config management, and runner inventory guidance) |
 
 ## For Linear Integration
 
