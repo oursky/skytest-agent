@@ -7,7 +7,9 @@ description: >
   from it. Triggers on phrases like "create a test from this bug", "regression test for
   SKY-123", "convert this bug to SkyTest", "make a test case for this bug ticket", or when
   a Linear bug link is shared alongside testing intent. This skill is designed for bug reports
-  specifically — not for feature tasks, user stories, or development requirements.
+  specifically — not for feature tasks, user stories, or development requirements. Supports
+  create/update, direct run trigger, run querying, project config management, and runner
+  inventory lookup through SkyTest MCP tools.
 ---
 
 # Linear Bug → SkyTest Regression Test Skill
@@ -59,6 +61,10 @@ SkyTest can only automate what happens inside a **clean browser session** or an 
 | `list_test_cases` | List test cases (check for existing regression tests) |
 | `get_test_case` | Full case: steps, configs, last 5 runs |
 | `create_test_case` | Create exactly one test case per call |
+| `run_test_case` | Queue one run for a test case with optional overrides |
+| `list_test_runs` | List runs with filters and optional events/artifacts |
+| `manage_project_configs` | Upsert/remove project-level configs in one call |
+| `list_runner_inventory` | List runner/device inventory and Android selector options |
 
 **Linear tools (read-only):**
 
@@ -182,6 +188,10 @@ new one anyway, or update the existing one?"
 
 Batch all missing-info questions into one prompt.
 
+If project-level variables are missing and the user provides values, use `manage_project_configs`
+to store/reuse them (for example `BASE_URL`, `LOGIN_EMAIL`, `LOGIN_PASSWORD`, `APP_ID`) instead
+of duplicating the same values across many test cases.
+
 ### Step 3: Understand Authentication and the User Flow
 
 Before writing any test steps, establish the full user flow from entry point to the bug.
@@ -199,6 +209,9 @@ its own authentication. So before designing the regression steps:
 
 If auth is needed, the test case begins with login steps, followed by navigation to the
 relevant page, then the regression-specific steps.
+
+For Android targets, call `list_runner_inventory` and ask the user to choose a specific
+connected device serial or emulator profile name before drafting the target selector.
 
 #### Study the complete flow
 
@@ -385,6 +398,9 @@ Verify *consequences*, not just appearance:
 - After error fix → verify the correct behavior matches the bug's expected result exactly
 
 After creating, share the test case ID with the user.
+
+If the user wants immediate verification, run the case via `run_test_case` and use
+`list_test_runs` with `include: ["events", "artifacts"]` to summarize pass/fail evidence.
 
 ### Step 7: Final Summary
 

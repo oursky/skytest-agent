@@ -17,27 +17,27 @@ function getBearerToken(request: Request): string | null {
     return authHeader.split(' ')[1] ?? null;
 }
 
-function unauthorizedResponse(description: string): Response {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json', 'WWW-Authenticate': `Bearer error="invalid_token", error_description="${description}"` }
+function authRejectedResponse(description: string): Response {
+    return new Response(JSON.stringify({ error: 'Forbidden', message: description }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' }
     });
 }
 
 async function handleMcpRequest(request: Request): Promise<Response> {
     const token = getBearerToken(request);
     if (!token || !isApiKeyFormat(token)) {
-        return unauthorizedResponse('MCP requires an Agent API key token');
+        return authRejectedResponse('MCP requires an Agent API key token');
     }
 
     const authPayload = await verifyAuth(request);
     if (!authPayload) {
-        return unauthorizedResponse('Missing or invalid access token');
+        return authRejectedResponse('Missing or invalid access token');
     }
 
     const userId = await resolveUserId(authPayload);
     if (!userId) {
-        return unauthorizedResponse('Access token does not map to a valid user');
+        return authRejectedResponse('Access token does not map to a valid user');
     }
 
     try {

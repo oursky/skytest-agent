@@ -1,6 +1,6 @@
 ---
 name: skytest-generate
-description: Generate and maintain SkyTest test cases from feature descriptions, screenshots, or user flow documentation. Creates draft test cases with complete steps, targets, and variables. Supports MCP create (single-create mode), update (one test case per call), stop-all runs/queues, and delete. Use when the user asks to generate, create, update, or manage test cases for a feature or user flow.
+description: Generate and maintain SkyTest test cases from feature descriptions, screenshots, or user flow documentation. Creates draft test cases with complete steps, targets, and variables. Supports MCP create/update, direct run trigger, run querying, project config management, inventory lookup, stop-all runs/queues, and delete. Use when the user asks to generate, create, update, run, or manage test cases for a feature or user flow.
 ---
 
 # SkyTest Generate Skill
@@ -50,7 +50,11 @@ SkyTest can only automate what happens inside a **clean browser session** or an 
 | `get_test_case` | Full case: steps, configs, last 5 runs |
 | `create_test_case` | Create exactly one test case per call |
 | `update_test_case` | Update one test case per call |
+| `run_test_case` | Queue one run for a test case with optional overrides |
+| `list_test_runs` | List runs with filters and optional events/artifacts |
 | `delete_test_case` | Delete a test case and all related data |
+| `manage_project_configs` | Upsert/remove project-level configs in one call |
+| `list_runner_inventory` | List runner/device inventory and Android selector options |
 | `stop_all_runs` | Cancel QUEUED + PREPARING + RUNNING runs |
 | `stop_all_queues` | Cancel QUEUED runs only |
 | `get_test_run` | Run status and result |
@@ -68,6 +72,9 @@ Collect from the user:
 **Required identifiers — do not proceed without these:**
 - Browser flow requires the **base URL** (e.g., `https://myapp.com`)
 - Android flow requires the **Android app ID** (e.g., `com.example.app`)
+
+For Android flows, call `list_runner_inventory` before drafting targets. Present available
+connected devices and emulator profiles to the user, then confirm which selector to use.
 
 **Reuse existing project configs.** Call `get_project` on the chosen project to retrieve
 project-level variables. If `BASE_URL`, `LOGIN_EMAIL`, `LOGIN_PASSWORD`, or other variables
@@ -199,6 +206,13 @@ If active runs exist, include `activeRunResolution`:
 - `stop_all_queues` — cancels QUEUED only
 - Both require `projectId`
 
+### 7. Run and Diagnose
+
+- Trigger execution with `run_test_case` after create/update confirmation.
+- Use `list_test_runs` with `include: ["events", "artifacts"]` to monitor failures and collect evidence.
+- For repeated environment variable changes (e.g., base URL or credentials), use
+  `manage_project_configs` instead of duplicating per-test-case variables.
+
 ## Step Writing Rules
 
 Steps default to `type: "ai-action"` — natural language executed by Midscene AI.
@@ -270,6 +284,10 @@ Never use "test123", "foo@bar.com", or "Lorem ipsum". For error paths, use reali
 Pass the device name the user provides in the `device` field (e.g., `"Pixel 8"`, `"Medium Phone"`). The server resolves it against the device inventory using profile names, display names, and connected device labels.
 
 If the server response includes a warning that the device was not found in inventory, **stop and confirm with the user** before running the test. Ask which device to use — do not silently proceed with an unresolved device name.
+
+When inventory is available, prefer explicit selectors from `list_runner_inventory`:
+- Connected device selector: `{ mode: "connected-device", serial: "<serial>" }`
+- Emulator profile selector: `{ mode: "emulator-profile", emulatorProfileName: "<profile>" }`
 
 ## Create Call Checklist
 

@@ -6,6 +6,12 @@ import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } f
 import { validateConfigName, normalizeConfigName, validateConfigType } from '@/lib/config/validation';
 import { normalizeBrowserConfig } from '@/lib/config/browser-target';
 import { resolveAndroidDeviceSelector, type AndroidDeviceSelectorInventory } from '@/lib/mcp/android-selector';
+import { cancelRunDurably } from '@/lib/mcp/run-cancellation';
+import { deleteObjectKeysBestEffort } from '@/lib/mcp/storage-cleanup';
+import { queueTestCaseRun } from '@/lib/mcp/run-execution';
+import { listTestRuns } from '@/lib/mcp/run-query';
+import { manageProjectConfigs } from '@/lib/mcp/project-config-manager';
+import { getProjectRunnerInventory } from '@/lib/mcp/runner-inventory';
 import { ACTIVE_RUN_STATUSES } from '@/utils/statusHelpers';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { ServerRequest, ServerNotification } from '@modelcontextprotocol/sdk/types.js';
@@ -31,38 +37,6 @@ function errorResult(message: string, details?: unknown) {
 
 async function verifyProjectAccess(projectId: string, userId: string): Promise<boolean> {
     return isProjectMember(userId, projectId);
-}
-
-async function cancelRunDurably(runId: string, errorMessage: string): Promise<boolean> {
-    const run = await prisma.testRun.findUnique({
-        where: { id: runId },
-        select: { id: true, status: true, testCaseId: true },
-    });
-
-    if (!run) {
-        return false;
-    }
-    if (['PASS', 'FAIL', 'CANCELLED'].includes(run.status)) {
-        return true;
-    }
-
-    await prisma.testRun.update({
-        where: { id: runId },
-        data: {
-            status: 'CANCELLED',
-            error: errorMessage,
-            completedAt: new Date(),
-            assignedRunnerId: null,
-            leaseExpiresAt: null,
-        },
-    });
-
-    await prisma.testCase.update({
-        where: { id: run.testCaseId },
-        data: { status: 'CANCELLED' },
-    });
-
-    return true;
 }
 
 function readMetadataString(metadata: unknown, field: string): string | undefined {
@@ -206,6 +180,14 @@ const mcpCreateTestCaseSchema = z.object({
 
 type McpCreateTestCaseInput = z.infer<typeof mcpCreateTestCaseSchema>;
 
+const mcpRunOverridesSchema = z.object({
+    url: z.string().optional().describe('Override URL for this run'),
+    prompt: z.string().optional().describe('Override prompt for this run'),
+    steps: z.array(mcpStepSchema).optional().describe('Override steps for this run'),
+    browserConfig: z.record(z.string(), z.unknown()).optional().describe('Override browser/android target config for this run'),
+    requestedDeviceId: z.string().optional().describe('Optional explicit requested device id for Android runs'),
+});
+
 export function createMcpServer(): McpServer {
     const server = new McpServer(
         { name: 'skytest-agent', version: '1.0.0' },
@@ -287,6 +269,125 @@ export function createMcpServer(): McpServer {
             ...c, value: c.masked ? '' : c.value
         }));
         return textResult({ ...parsed, configs: sortedConfigs, testRuns });
+    });
+
+    server.registerTool('run_test_case', {
+        description: 'Queue one test run for a test case with optional per-run overrides.',
+        inputSchema: {
+            testCaseId: z.string().describe('Test case ID'),
+            overrides: mcpRunOverridesSchema.optional().describe('Optional runtime overrides'),
+        },
+    }, async ({ testCaseId, overrides }, extra) => {
+        const userId = getUserId(extra);
+        if (!userId) return errorResult('Unauthorized');
+        try {
+            const runResult = await queueTestCaseRun(userId, testCaseId, overrides ? {
+                url: overrides.url,
+                prompt: overrides.prompt,
+                steps: overrides.steps as TestStep[] | undefined,
+                browserConfig: overrides.browserConfig as Record<string, BrowserConfig | TargetConfig> | undefined,
+                requestedDeviceId: overrides.requestedDeviceId,
+            } : undefined);
+
+            if (!runResult.ok) {
+                return errorResult(runResult.failure.error, runResult.failure.details);
+            }
+
+            return textResult(runResult.data);
+        } catch {
+            return errorResult('Failed to queue test run');
+        }
+    });
+
+    server.registerTool('list_test_runs', {
+        description: 'List test runs with filters and optional included events/artifacts.',
+        inputSchema: {
+            projectId: z.string().optional().describe('Optional project ID filter'),
+            testCaseId: z.string().optional().describe('Optional test case ID filter'),
+            status: z.string().optional().describe('Optional run status filter'),
+            from: z.string().optional().describe('Optional ISO datetime lower bound for createdAt'),
+            to: z.string().optional().describe('Optional ISO datetime upper bound for createdAt'),
+            limit: z.number().optional().describe('Result size per page (default 20, max 50)'),
+            cursor: z.string().optional().describe('Pagination cursor (previous response nextCursor)'),
+            include: z.array(z.enum(['events', 'artifacts'])).optional().describe('Optional expansions'),
+        },
+    }, async ({ projectId, testCaseId, status, from, to, limit, cursor, include }, extra) => {
+        const userId = getUserId(extra);
+        if (!userId) return errorResult('Unauthorized');
+        try {
+            const listResult = await listTestRuns(userId, {
+                projectId,
+                testCaseId,
+                status,
+                from,
+                to,
+                limit,
+                cursor,
+                include,
+            });
+
+            if (!listResult.ok) {
+                return errorResult(listResult.failure.error, listResult.failure.details);
+            }
+
+            return textResult(listResult.data);
+        } catch {
+            return errorResult('Failed to list test runs');
+        }
+    });
+
+    server.registerTool('manage_project_configs', {
+        description: 'Upsert and remove project-level configs in one call. FILE uploads are not supported via MCP.',
+        inputSchema: {
+            projectId: z.string().describe('Project ID'),
+            upsert: z.array(mcpConfigSchema).optional().describe('Configs to create or update by normalized name'),
+            remove: z.array(z.string()).optional().describe('Config names to remove'),
+        },
+    }, async ({ projectId, upsert, remove }, extra) => {
+        const userId = getUserId(extra);
+        if (!userId) return errorResult('Unauthorized');
+        if (!await verifyProjectAccess(projectId, userId)) return errorResult('Forbidden');
+
+        if ((!upsert || upsert.length === 0) && (!remove || remove.length === 0)) {
+            return errorResult('At least one upsert or remove change is required.', {
+                code: 'NO_CHANGES_PROVIDED',
+                allowedFields: ['upsert', 'remove'],
+            });
+        }
+
+        try {
+            const result = await manageProjectConfigs({
+                projectId,
+                upsert: upsert ?? [],
+                remove: remove ?? [],
+            });
+
+            return textResult(result);
+        } catch {
+            return errorResult('Failed to manage project configs');
+        }
+    });
+
+    server.registerTool('list_runner_inventory', {
+        description: 'List team runner and Android device inventory scoped by project.',
+        inputSchema: {
+            projectId: z.string().describe('Project ID'),
+        },
+    }, async ({ projectId }, extra) => {
+        const userId = getUserId(extra);
+        if (!userId) return errorResult('Unauthorized');
+        if (!await verifyProjectAccess(projectId, userId)) return errorResult('Forbidden');
+
+        try {
+            const inventory = await getProjectRunnerInventory(projectId);
+            if (!inventory) {
+                return errorResult('Project not found');
+            }
+
+            return textResult(inventory);
+        } catch {
+            return errorResult('Failed to list runner inventory');
+        }
     });
 
     const createTestCaseInputSchema = {
@@ -593,6 +694,8 @@ export function createMcpServer(): McpServer {
             orderBy: { createdAt: 'asc' },
             select: { id: true, status: true, createdAt: true }
         });
+        const cancelledRunIds: string[] = [];
+        const failedCancellations: Array<{ runId: string; error: string }> = [];
 
         if (activeRuns.length > 0) {
             if (!activeRunResolution) {
@@ -619,7 +722,22 @@ export function createMcpServer(): McpServer {
             }
 
             for (const run of activeRuns) {
-                await cancelRunDurably(run.id, 'Cancelled to allow MCP test case update');
+                try {
+                    const cancelled = await cancelRunDurably(run.id, 'Cancelled to allow MCP test case update');
+                    if (cancelled) {
+                        cancelledRunIds.push(run.id);
+                    } else {
+                        failedCancellations.push({
+                            runId: run.id,
+                            error: 'Run is no longer active',
+                        });
+                    }
+                } catch (error) {
+                    failedCancellations.push({
+                        runId: run.id,
+                        error: error instanceof Error ? error.message : 'Unknown error'
+                    });
+                }
             }
         }
 
@@ -751,7 +869,8 @@ export function createMcpServer(): McpServer {
             name: updateResult.updated.name,
             status: updateResult.updated.status,
             changedFields,
-            cancelledRuns: activeRuns.map((run) => run.id),
+            cancelledRuns: cancelledRunIds,
+            failedCancellations,
             configChanges: updateResult.configChanges,
             warnings,
         });
@@ -799,12 +918,20 @@ export function createMcpServer(): McpServer {
 
         const cancelledRunIds: string[] = [];
         const failures: Array<{ runId: string; error: string }> = [];
+        const skippedCancellations: Array<{ runId: string; reason: string }> = [];
         const cancellationReason = reason?.trim() || 'Cancelled by MCP stop_all_runs';
 
         for (const run of activeRuns) {
             try {
-                await cancelRunDurably(run.id, cancellationReason);
-                cancelledRunIds.push(run.id);
+                const cancelled = await cancelRunDurably(run.id, cancellationReason);
+                if (cancelled) {
+                    cancelledRunIds.push(run.id);
+                } else {
+                    skippedCancellations.push({
+                        runId: run.id,
+                        reason: 'Run is no longer active',
+                    });
+                }
             } catch (error) {
                 failures.push({
                     runId: run.id,
@@ -818,7 +945,9 @@ export function createMcpServer(): McpServer {
             requestedActiveRuns: activeRuns.length,
             cancelledRuns: cancelledRunIds.length,
             failedCancellations: failures.length,
+            skippedCancellations: skippedCancellations.length,
             cancelledRunIds,
+            skipped: skippedCancellations,
             failures,
             statusSummary,
         });
@@ -866,12 +995,20 @@ export function createMcpServer(): McpServer {
 
         const cancelledRunIds: string[] = [];
         const failures: Array<{ runId: string; error: string }> = [];
+        const skippedCancellations: Array<{ runId: string; reason: string }> = [];
         const cancellationReason = reason?.trim() || 'Cancelled by MCP stop_all_queues';
 
         for (const run of queuedRuns) {
             try {
-                await cancelRunDurably(run.id, cancellationReason);
-                cancelledRunIds.push(run.id);
+                const cancelled = await cancelRunDurably(run.id, cancellationReason);
+                if (cancelled) {
+                    cancelledRunIds.push(run.id);
+                } else {
+                    skippedCancellations.push({
+                        runId: run.id,
+                        reason: 'Run is no longer active',
+                    });
+                }
             } catch (error) {
                 failures.push({
                     runId: run.id,
@@ -885,7 +1022,9 @@ export function createMcpServer(): McpServer {
             requestedQueuedRuns: queuedRuns.length,
             cancelledRuns: cancelledRunIds.length,
             failedCancellations: failures.length,
+            skippedCancellations: skippedCancellations.length,
             cancelledRunIds,
+            skipped: skippedCancellations,
             failures,
             statusSummary,
         });
@@ -899,12 +1038,33 @@ export function createMcpServer(): McpServer {
         if (!userId) return errorResult('Unauthorized');
         const tc = await prisma.testCase.findUnique({
             where: { id: testCaseId },
-            select: { id: true }
+            select: {
+                id: true,
+                projectId: true,
+                files: {
+                    select: { storedName: true }
+                },
+                configs: {
+                    where: { type: 'FILE' },
+                    select: { value: true }
+                }
+            }
         });
         if (!tc) return errorResult('Not found');
-        if (!await isTestCaseProjectMember(userId, testCaseId)) return errorResult('Forbidden');
+        if (!await verifyProjectAccess(tc.projectId, userId)) return errorResult('Forbidden');
+
+        const objectKeys = [
+            ...tc.files.map((file) => file.storedName),
+            ...tc.configs.map((config) => config.value),
+        ];
+
         await prisma.testCase.delete({ where: { id: testCaseId } });
-        return textResult({ success: true });
+        const cleanupResult = await deleteObjectKeysBestEffort(objectKeys);
+        return textResult({
+            success: true,
+            deletedObjectCount: cleanupResult.deletedObjectCount,
+            failedObjectKeys: cleanupResult.failedObjectKeys,
+        });
     });
 
     server.registerTool('get_test_run', {
