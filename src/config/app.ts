@@ -118,6 +118,8 @@ export const config = {
             ],
             blockedIpv6Prefixes: ['::1', 'fc', 'fd'],
             dnsLookupTimeoutMs: 5000,
+            dnsLookupRetryAttempts: 3,
+            dnsLookupRetryDelayMs: 200,
             dnsCacheTtlMs: 5 * 60 * 1000,
             blockedRequestLogDedupMs: 10000,
             playwrightCodeBlockedTokens: [

@@ -59,7 +59,7 @@ Key invariants:
 
 ## Control Plane Constraints
 
-- Browser execution is worker-owned (`src/workers/browser-runner.ts`) and run state persists in Postgres leases.
+- Browser execution is dispatched per run from API/MCP queueing paths and must not depend on a long-lived hosted browser worker.
 - Android execution stays runner-owned and must not move into web request handlers.
 - Team-facing device visibility must come from runner-published inventory, not host-local inspection.
 - Do not re-introduce project-scoped device inventory surfaces; active UI is `Team Settings -> Runners`.
@@ -88,5 +88,18 @@ When changing runner runtime behavior, update docs in the same PR/commit series:
 - Changing Excel import parser compatibility paths without updating `docs/maintainers/test-case-excel-format.md`
 - Breaking runner protocol request/response shapes without updating `packages/runner-protocol`
 - Bypassing lease ownership checks on runner write-back endpoints
-- Re-introducing in-memory control-plane execution ownership
+- Re-introducing long-lived dedicated browser worker loops
 - Changing operator-visible runner/device behavior without updating setup/runbook docs
+
+## Browser Failure Triage (Blank Page / Selector Not Found)
+
+Use this sequence before changing test steps:
+
+1. Inspect run events for runtime guard blocks:
+   - `Blocked request to <host>: <reason>`
+   - `Network guard summary: {...}`
+2. From the same runtime host, verify DNS and HTTP:
+   - `node -e "require('node:dns').promises.lookup('<host>', { all: true, verbatim: true }).then(console.log).catch(console.error)"`
+   - `curl -I https://<host>/<path>`
+3. If requests are blocked by runtime guard, fix network/policy first; do not tweak selectors yet.
+4. Only debug Playwright selectors/assertions after network guard errors are resolved.

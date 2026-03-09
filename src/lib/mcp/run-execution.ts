@@ -6,8 +6,8 @@ import {
     ANDROID_EXECUTION_CAPABILITY,
     ANDROID_EXECUTION_RUNNER_KIND,
     BROWSER_EXECUTION_CAPABILITY,
-    BROWSER_EXECUTION_RUNNER_KIND,
 } from '@/lib/runners/constants';
+import { dispatchBrowserRun } from '@/lib/runtime/browser-run-dispatcher';
 import { normalizeAndroidTargetConfig } from '@/lib/android/target-config';
 import type { BrowserConfig, TargetConfig, AndroidTargetConfig, TestStep } from '@/types';
 
@@ -268,7 +268,7 @@ export async function queueTestCaseRun(
                 : BROWSER_EXECUTION_CAPABILITY,
             requiredRunnerKind: requestHasAndroidTargets
                 ? ANDROID_EXECUTION_RUNNER_KIND
-                : BROWSER_EXECUTION_RUNNER_KIND,
+                : null,
             requestedDeviceId,
         }
     });
@@ -283,6 +283,10 @@ export async function queueTestCaseRun(
                 size: file.size,
             }))
         });
+    }
+
+    if (!requestHasAndroidTargets) {
+        await dispatchBrowserRun(testRun.id);
     }
 
     return {

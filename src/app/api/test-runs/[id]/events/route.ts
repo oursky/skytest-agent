@@ -8,6 +8,7 @@ import { isTestRunProjectMember } from '@/lib/security/permissions';
 import { subscribeRunUpdates } from '@/lib/runners/event-bus';
 import { objectStore } from '@/lib/storage/object-store';
 import { isScreenshotData, type TestEvent, type LogLevel } from '@/types';
+import { parseTestResultMetadata } from '@/lib/runtime/test-result-metadata';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +17,7 @@ const logger = createLogger('api:test-runs:events');
 interface RunStatusRow {
     status: string;
     error: string | null;
+    result: string | null;
     deletedAt: Date | null;
 }
 
@@ -167,6 +169,7 @@ async function fetchRunStatus(runId: string): Promise<RunStatusRow | null> {
         select: {
             status: true,
             error: true,
+            result: true,
             deletedAt: true,
         },
     });
@@ -280,7 +283,14 @@ export async function GET(
                     }
 
                     if (statusRow.status !== lastStatus) {
-                        safeEnqueue({ type: 'status', status: statusRow.status, error: statusRow.error });
+                        const metadata = parseTestResultMetadata(statusRow.result);
+                        safeEnqueue({
+                            type: 'status',
+                            status: statusRow.status,
+                            error: statusRow.error,
+                            errorCode: metadata.errorCode,
+                            errorCategory: metadata.errorCategory,
+                        });
                         lastStatus = statusRow.status;
                     }
 
@@ -301,7 +311,14 @@ export async function GET(
                 }
             };
 
-            safeEnqueue({ type: 'status', status: currentRun.status, error: currentRun.error });
+            const initialMetadata = parseTestResultMetadata(currentRun.result);
+            safeEnqueue({
+                type: 'status',
+                status: currentRun.status,
+                error: currentRun.error,
+                errorCode: initialMetadata.errorCode,
+                errorCategory: initialMetadata.errorCategory,
+            });
             lastStatus = currentRun.status;
             void flushFromDb();
 

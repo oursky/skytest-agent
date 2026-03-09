@@ -8,14 +8,17 @@ import { substituteAll } from '@/lib/config/resolver';
 import { createLogger as createServerLogger } from '@/lib/core/logger';
 import { withMidsceneApiKey } from '@/lib/runtime/midscene-env';
 import { validateTargetUrl } from '@/lib/security/url-security';
-import { validateRuntimeRequestUrl } from '@/lib/security/url-security-runtime';
+import { createBrowserNetworkGuard, type BrowserNetworkGuard, type BrowserNetworkGuardSummary } from '@/lib/runtime/browser-network-guard';
 import { androidDeviceManager, type AndroidDeviceLease } from '@/lib/android/device-manager';
 import { normalizeAndroidTargetConfig } from '@/lib/android/target-config';
 import { normalizeBrowserConfig } from '@/lib/config/browser-target';
 import { ReliableAdb } from '@/lib/android/adb-reliable';
 import { resolveAndroidToolPath } from '@/lib/android/sdk';
 import { createSafePage, validatePlaywrightCode } from '@/lib/runtime/playwright-code-sandbox';
+import { splitPlaywrightCodeStatements, summarizePlaywrightCodeStatement } from '@/lib/runtime/playwright-code-trace';
+import { classifyRunFailure } from '@/lib/runtime/run-failure-classifier';
 import { createTempDirectory, materializeObjectToFile, removeTempDirectory } from '@/lib/storage/object-store-utils';
+import { validateRuntimeRequestUrl } from '@/lib/security/url-security-runtime';
 import { Script, createContext } from 'node:vm';
 import path from 'node:path';
 
@@ -374,6 +377,7 @@ interface ExecutionTargets {
     pages: Map<string, Page>;
     agents: Map<string, PlaywrightAgent | AndroidAgent>;
     androidDeviceLeases: Map<string, AndroidDeviceLease>;
+    browserNetworkGuards: Map<string, BrowserNetworkGuard>;
 }
 
 function createLogger(onEvent: EventHandler) {
@@ -511,6 +515,7 @@ async function setupExecutionTargets(
     const pages = new Map<string, Page>();
     const agents = new Map<string, PlaywrightAgent | AndroidAgent>();
     const androidDeviceLeases = new Map<string, AndroidDeviceLease>();
+    const browserNetworkGuards = new Map<string, BrowserNetworkGuard>();
 
     const browserTargetIds = Object.keys(targetConfigs).filter(id => !isAndroidTarget(targetConfigs[id]));
     const androidTargetIds = Object.keys(targetConfigs).filter(id => isAndroidTarget(targetConfigs[id]));
@@ -776,38 +781,15 @@ async function setupExecutionTargets(
                     }
                 });
 
-                const blockedRequestLogDedup = new Map<string, number>();
+                const networkGuard = createBrowserNetworkGuard({
+                    targetId: browserId,
+                    targetLabel,
+                    log,
+                    signal,
+                });
+                browserNetworkGuards.set(browserId, networkGuard);
                 await context.route('**/*', async (route) => {
-                    if (signal?.aborted) {
-                        await route.abort('aborted');
-                        return;
-                    }
-
-                    const requestUrl = route.request().url();
-                    const validation = await validateRuntimeRequestUrl(requestUrl);
-                    if (!validation.valid) {
-                        try {
-                            const { hostname } = new URL(requestUrl);
-                            const key = `${hostname}:${validation.error ?? 'blocked'}`;
-                            const now = Date.now();
-                            const last = blockedRequestLogDedup.get(key) ?? 0;
-                            if (now - last > config.test.security.blockedRequestLogDedupMs) {
-                                blockedRequestLogDedup.set(key, now);
-                                log(
-                                    `[${targetLabel}] Blocked request to ${hostname}: ${validation.error ?? 'not allowed'}`,
-                                    'error',
-                                    browserId
-                                );
-                            }
-                        } catch {
-                            log(`[${targetLabel}] Blocked request: ${validation.error ?? 'not allowed'}`, 'error', browserId);
-                        }
-
-                        await route.abort('blockedbyclient');
-                        return;
-                    }
-
-                    await route.continue();
+                    await networkGuard.handleRoute(route);
                 });
 
                 const page = await context.newPage();
@@ -826,6 +808,13 @@ async function setupExecutionTargets(
                 pages.set(browserId, page);
 
                 if (browserConfig.url) {
+                    const preflight = await validateRuntimeRequestUrl(browserConfig.url);
+                    if (!preflight.valid) {
+                        const code = preflight.code ? `[${preflight.code}] ` : '';
+                        const reason = preflight.error ?? 'URL is not allowed';
+                        throw new ConfigurationError(`${targetLabel} preflight check failed: ${code}${reason}`, 'url');
+                    }
+
                     log(`[${targetLabel}] Navigating to ${browserConfig.url}...`, 'info', browserId);
                     await page.goto(browserConfig.url, {
                         timeout: config.test.browser.timeout,
@@ -862,10 +851,10 @@ async function setupExecutionTargets(
             log('All browser instances ready', 'success');
         }
 
-        return { browser, contexts, pages, agents, androidDeviceLeases };
+        return { browser, contexts, pages, agents, androidDeviceLeases, browserNetworkGuards };
     } catch (error) {
         try {
-            await cleanupTargets({ browser, contexts, pages, agents, androidDeviceLeases });
+            await cleanupTargets({ browser, contexts, pages, agents, androidDeviceLeases, browserNetworkGuards });
         } catch (cleanupError) {
             serverLogger.warn('Failed to cleanup partially initialized targets', cleanupError);
         }
@@ -998,6 +987,11 @@ async function executePlaywrightCode(
     }
 
     validatePlaywrightCode(code, stepIndex);
+    const statements = splitPlaywrightCodeStatements(trimmedCode);
+    if (statements.length === 0) {
+        log(`[Step ${stepIndex + 1}] No executable statements found`, 'info', browserId);
+        return;
+    }
 
     const safePage = createSafePage(page, stepIndex, code, {
         allowedFilePaths: stepContext?.allowedFilePaths ?? new Set<string>(),
@@ -1065,30 +1059,57 @@ async function executePlaywrightCode(
     log(`[Step ${stepIndex + 1}] Executing Playwright code block...`, 'info', browserId);
 
     const timeoutSeconds = Math.ceil(timeoutMs / 1000);
-    let timerHandle: TimeoutHandle | null = null;
-    const timeoutPromise = new Promise<never>((_, reject) => {
-        timerHandle = setTimeoutWrapped(
-            () => reject(new Error(`Playwright code execution timed out (${timeoutSeconds}s)`)),
-            timeoutMs
-        );
-    });
 
     try {
-        const script = new Script(`(async () => { ${trimmedCode} })()`);
-        const result = script.runInContext(context, { timeout: syncTimeoutMs }) as Promise<unknown>;
-        await Promise.race([result, timeoutPromise]);
-        await captureScreenshot(
-            page,
-            `[${targetLabel}] Step ${stepIndex + 1}: Playwright code complete`,
-            onEvent,
-            log,
-            browserId
-        );
+        for (const statement of statements) {
+            const lineLabel = statement.lineStart === statement.lineEnd
+                ? `line ${statement.lineStart}`
+                : `lines ${statement.lineStart}-${statement.lineEnd}`;
+            const statementSummary = summarizePlaywrightCodeStatement(statement.code);
+
+            log(
+                `[Step ${stepIndex + 1}] Executing Playwright ${lineLabel}: ${statementSummary}`,
+                'info',
+                browserId
+            );
+
+            let timerHandle: TimeoutHandle | null = null;
+            const timeoutPromise = new Promise<never>((_, reject) => {
+                timerHandle = setTimeoutWrapped(
+                    () => reject(new Error(`Playwright code execution timed out (${timeoutSeconds}s)`)),
+                    timeoutMs
+                );
+            });
+
+            try {
+                const script = new Script(`(async () => { ${statement.code} })()`);
+                const result = script.runInContext(context, { timeout: syncTimeoutMs }) as Promise<unknown>;
+                await Promise.race([result, timeoutPromise]);
+                await captureScreenshot(
+                    page,
+                    `[${targetLabel}] Step ${stepIndex + 1} ${lineLabel}`,
+                    onEvent,
+                    log,
+                    browserId
+                );
+            } finally {
+                if (timerHandle) {
+                    clearTimeoutWrapped(timerHandle);
+                }
+            }
+        }
     } catch (error) {
         const errorMessage = getErrorMessage(error);
         log(
             `[Step ${stepIndex + 1}] Playwright code error: ${errorMessage}`,
             'error',
+            browserId
+        );
+        await captureScreenshot(
+            page,
+            `[${targetLabel}] Step ${stepIndex + 1} Error`,
+            onEvent,
+            log,
             browserId
         );
         throw new PlaywrightCodeError(
@@ -1098,9 +1119,6 @@ async function executePlaywrightCode(
             error instanceof Error ? error : undefined
         );
     } finally {
-        if (timerHandle) {
-            clearTimeoutWrapped(timerHandle);
-        }
         cleanupTimers();
     }
 }
@@ -1543,6 +1561,36 @@ async function captureErrorScreenshots(
     }
 }
 
+function collectBrowserNetworkGuardSummaries(targets: ExecutionTargets): BrowserNetworkGuardSummary[] {
+    return Array.from(targets.browserNetworkGuards.values(), (networkGuard) => networkGuard.getSummary());
+}
+
+function emitBrowserNetworkGuardSummaries(
+    targets: ExecutionTargets,
+    onEvent: EventHandler
+): void {
+    const log = createLogger(onEvent);
+    for (const [browserId, summary] of Array.from(targets.browserNetworkGuards.entries(), ([id, guard]) => [id, guard.getSummary()] as const)) {
+        if (summary.blockedRequestCount === 0) {
+            continue;
+        }
+
+        const targetLabel = getBrowserNiceName(browserId);
+        const level = summary.dnsLookupFailureCount > 0 ? 'error' : 'info';
+        log(
+            `[${targetLabel}] Network guard summary: ${JSON.stringify({
+                blockedRequestCount: summary.blockedRequestCount,
+                dnsLookupFailureCount: summary.dnsLookupFailureCount,
+                blockedByCode: summary.blockedByCode,
+                blockedByReason: summary.blockedByReason,
+                blockedByHostname: summary.blockedByHostname,
+            })}`,
+            level,
+            browserId
+        );
+    }
+}
+
 async function cleanupTargets(targets: ExecutionTargets): Promise<void> {
     try {
         if (targets.browser) await targets.browser.close();
@@ -1565,7 +1613,12 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
     const log = createLogger(onEvent);
 
     if (!openRouterApiKey) {
-        return { status: 'FAIL', error: 'OpenRouter API key is required. Please configure it in API Key & Usage settings.' };
+        return {
+            status: 'FAIL',
+            error: 'OpenRouter API key is required. Please configure it in API Key & Usage settings.',
+            errorCode: 'CONFIGURATION_ERROR',
+            errorCategory: 'CONFIGURATION',
+        };
     }
 
     return await withMidsceneApiKey(openRouterApiKey, async () => {
@@ -1685,26 +1738,47 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
                 if (executionTargets) {
                     await captureErrorScreenshots(executionTargets, onEvent);
                 }
-                return { status: 'FAIL', error: timeoutMessage, actionCount: actionCounter.count };
+                return {
+                    status: 'FAIL',
+                    error: timeoutMessage,
+                    errorCode: 'TEST_TIMEOUT',
+                    errorCategory: 'TIMEOUT',
+                    actionCount: actionCounter.count
+                };
             }
 
             if (signal?.aborted || runSignal.aborted || (error instanceof Error && error.message === 'Aborted')) {
                 return { status: 'CANCELLED', error: 'Test was cancelled by user', actionCount: actionCounter.count };
             }
 
+            const networkGuardSummaries = executionTargets
+                ? collectBrowserNetworkGuardSummaries(executionTargets)
+                : [];
+            const failureClassification = classifyRunFailure(error, { networkGuardSummaries });
             const msg = getErrorMessage(error);
+            log(
+                `Failure classified as ${failureClassification.code} (${failureClassification.category})`,
+                'error'
+            );
             log(`❌ Test failed: ${msg}`, 'error');
 
             if (executionTargets) {
                 await captureErrorScreenshots(executionTargets, onEvent);
             }
 
-            return { status: 'FAIL', error: msg, actionCount: actionCounter.count };
+            return {
+                status: 'FAIL',
+                error: msg,
+                errorCode: failureClassification.code,
+                errorCategory: failureClassification.category,
+                actionCount: actionCounter.count
+            };
 
         } finally {
             clearTimeout(timeoutHandle);
             signal?.removeEventListener('abort', abortFromParent);
             if (executionTargets) {
+                emitBrowserNetworkGuardSummaries(executionTargets, onEvent);
                 await cleanupExecutionTargets(executionTargets);
             }
             await materializedExecutionFiles.cleanup();

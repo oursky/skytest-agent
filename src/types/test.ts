@@ -92,9 +92,28 @@ export interface RunTestOptions {
     onRunning?: () => Promise<void>;
 }
 
+export type TestFailureCategory =
+    | 'INFRA_NETWORK'
+    | 'TEST_ASSERTION'
+    | 'TEST_SCRIPT'
+    | 'CONFIGURATION'
+    | 'TIMEOUT'
+    | 'UNKNOWN';
+
+export type TestFailureCode =
+    | 'DNS_RESOLUTION_FAILED'
+    | 'NETWORK_REQUEST_BLOCKED'
+    | 'PLAYWRIGHT_ASSERTION_FAILED'
+    | 'PLAYWRIGHT_CODE_FAILED'
+    | 'CONFIGURATION_ERROR'
+    | 'TEST_TIMEOUT'
+    | 'UNKNOWN_ERROR';
+
 export interface TestResult {
     status: 'PASS' | 'FAIL' | 'CANCELLED';
     error?: string;
+    errorCode?: TestFailureCode;
+    errorCategory?: TestFailureCategory;
     actionCount?: number;
 }
 

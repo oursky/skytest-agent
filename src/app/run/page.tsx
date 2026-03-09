@@ -6,7 +6,7 @@ import { useAuth } from "../auth-provider";
 import { TestForm } from "@/components/features/test-form";
 import { ResultViewer } from "@/components/features/result-viewer";
 import { Breadcrumbs } from "@/components/layout";
-import { TestStep, BrowserConfig, TargetConfig, TestEvent, TestCaseFile, ConfigItem } from "@/types";
+import { TestStep, BrowserConfig, TargetConfig, TestEvent, TestCaseFile, ConfigItem, TestFailureCode, TestFailureCategory } from "@/types";
 import { exportToExcelArrayBuffer, parseTestCaseExcel } from "@/utils/testCaseExcel";
 import { useI18n } from "@/i18n";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
@@ -32,6 +32,8 @@ interface TestResult {
     status: 'IDLE' | 'RUNNING' | 'PASS' | 'FAIL' | 'CANCELLED' | 'QUEUED' | 'PREPARING';
     events: TestEvent[];
     error?: string;
+    errorCode?: TestFailureCode;
+    errorCategory?: TestFailureCategory;
 }
 
 function RunPageContent() {
@@ -452,7 +454,10 @@ function RunPageContent() {
         setResult(prev => ({
             ...prev,
             status: (prev.status === 'IDLE') ? 'QUEUED' : prev.status,
-            events: []
+            events: [],
+            error: undefined,
+            errorCode: undefined,
+            errorCategory: undefined,
         }));
         setCurrentRunId(runId);
 
@@ -488,7 +493,13 @@ function RunPageContent() {
                             eventSourceRef.current = null;
                             setIsLoading(false);
                         }
-                        return { ...prev, status: data.status, error: data.error };
+                        return {
+                            ...prev,
+                            status: data.status,
+                            error: data.error,
+                            errorCode: data.errorCode,
+                            errorCategory: data.errorCategory,
+                        };
                     });
                 } else if (data.type === 'log' || data.type === 'screenshot') {
                     const streamEvent = data as TestEvent;
@@ -585,7 +596,7 @@ function RunPageContent() {
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
             const resp = await fetch(`/api/test-runs/${currentRunId}/cancel`, { method: 'POST', headers });
             if (!resp.ok) throw new Error(t('run.error.failedToStop'));
-            setResult(prev => ({ ...prev, status: 'CANCELLED', error: t('run.error.testStopped') }));
+            setResult(prev => ({ ...prev, status: 'CANCELLED', error: t('run.error.testStopped'), errorCode: undefined, errorCategory: undefined }));
             setTestCaseStatus('CANCELLED');
             setActiveRunId(null);
             setCurrentRunId(null);
@@ -646,6 +657,9 @@ function RunPageContent() {
         setResult({
             status: 'IDLE',
             events: [],
+            error: undefined,
+            errorCode: undefined,
+            errorCategory: undefined,
         });
 
         let activeTestCaseId: string | null;
@@ -654,13 +668,13 @@ function RunPageContent() {
             activeTestCaseId = await saveTestCase(data);
         } catch (error) {
             console.error("Failed to save test case", error);
-            setResult({ status: 'FAIL', events: [], error: t('run.error.failedToSave') });
+            setResult({ status: 'FAIL', events: [], error: t('run.error.failedToSave'), errorCode: undefined, errorCategory: undefined });
             setIsLoading(false);
             return;
         }
 
         if (!activeTestCaseId) {
-            setResult({ status: 'FAIL', events: [], error: t('run.error.selectOrCreate') });
+            setResult({ status: 'FAIL', events: [], error: t('run.error.selectOrCreate'), errorCode: undefined, errorCategory: undefined });
             setIsLoading(false);
             return;
         }
@@ -688,7 +702,7 @@ function RunPageContent() {
 
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
-            setResult(prev => ({ ...prev, status: 'FAIL', error: errorMessage }));
+            setResult(prev => ({ ...prev, status: 'FAIL', error: errorMessage, errorCode: undefined, errorCategory: undefined }));
             setIsLoading(false);
         }
     }, [saveTestCase, getAccessToken, t, connectToRun]);

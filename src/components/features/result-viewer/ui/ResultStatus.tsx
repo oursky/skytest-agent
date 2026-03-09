@@ -1,17 +1,29 @@
 import { useState } from 'react';
-import { TestStatus } from '@/types';
+import { TestStatus, TestFailureCode, TestFailureCategory } from '@/types';
 import { useI18n } from '@/i18n';
 
 interface ResultStatusProps {
     status: TestStatus;
     error?: string;
+    errorCode?: TestFailureCode;
+    errorCategory?: TestFailureCategory;
     eventCount: number;
     hasAndroidTargets?: boolean;
 }
 
-export default function ResultStatus({ status, error, eventCount, hasAndroidTargets = false }: ResultStatusProps) {
+export default function ResultStatus({
+    status,
+    error,
+    errorCode,
+    errorCategory,
+    eventCount,
+    hasAndroidTargets = false
+}: ResultStatusProps) {
     const { t } = useI18n();
     const [copied, setCopied] = useState(false);
+    const isInfraNetworkFailure = errorCategory === 'INFRA_NETWORK'
+        || errorCode === 'DNS_RESOLUTION_FAILED'
+        || errorCode === 'NETWORK_REQUEST_BLOCKED';
 
     const copyErrorToClipboard = async (errorText: string) => {
         try {
@@ -104,6 +116,17 @@ export default function ResultStatus({ status, error, eventCount, hasAndroidTarg
                         </div>
                         {error ? (
                             <div className="space-y-1">
+                                {isInfraNetworkFailure && (
+                                    <div className="mb-3 rounded-md border border-amber-300 bg-amber-100 p-3">
+                                        <p className="text-xs font-semibold text-amber-900">{t('results.fail.infrastructure.title')}</p>
+                                        <p className="mt-1 text-xs leading-relaxed text-amber-900">{t('results.fail.infrastructure.body')}</p>
+                                    </div>
+                                )}
+                                {errorCode && (
+                                    <p className="text-xs text-red-700 font-medium">
+                                        {t('results.fail.errorCode')}: <span className="font-mono">{errorCode}</span>
+                                    </p>
+                                )}
                                 <p className="text-xs text-red-700 font-medium">{t('results.fail.errorDetails')}</p>
                                 <p className="text-sm text-red-800 leading-relaxed bg-red-100 p-3 rounded-md border border-red-200 break-words whitespace-pre-wrap max-h-[300px] overflow-y-auto">
                                     {error}
