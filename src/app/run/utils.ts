@@ -1,4 +1,54 @@
-import type { ConfigItem, TestEvent } from '@/types';
+import type { ConfigItem, TestEvent, TestFailureCategory, TestFailureCode } from '@/types';
+
+export type RunViewerStatus = 'IDLE' | 'RUNNING' | 'PASS' | 'FAIL' | 'CANCELLED' | 'QUEUED' | 'PREPARING';
+
+export interface RunViewerResult {
+    status: RunViewerStatus;
+    events: TestEvent[];
+    error?: string;
+    errorCode?: TestFailureCode;
+    errorCategory?: TestFailureCategory;
+}
+
+export interface RunStreamStatusUpdate {
+    type: 'status';
+    status: RunViewerStatus;
+    error?: string;
+    errorCode?: TestFailureCode;
+    errorCategory?: TestFailureCategory;
+}
+
+export interface RunStreamUpdateResult {
+    next: RunViewerResult;
+    shouldStopLoading: boolean;
+}
+
+export function applyRunStreamStatusUpdate(
+    previous: RunViewerResult,
+    update: RunStreamStatusUpdate
+): RunStreamUpdateResult {
+    const shouldStopLoading = update.status === 'PASS' || update.status === 'FAIL' || update.status === 'CANCELLED';
+    return {
+        next: {
+            ...previous,
+            status: update.status,
+            error: update.error,
+            errorCode: update.errorCode,
+            errorCategory: update.errorCategory,
+        },
+        shouldStopLoading,
+    };
+}
+
+export function appendRunStreamEvent(
+    previous: RunViewerResult,
+    event: TestEvent
+): RunViewerResult {
+    return {
+        ...previous,
+        events: [...previous.events, event],
+    };
+}
 
 export function buildEventKey(event: TestEvent): string {
     const browserId = event.browserId || '';

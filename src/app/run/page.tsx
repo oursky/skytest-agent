@@ -6,17 +6,20 @@ import { useAuth } from "../auth-provider";
 import { TestForm } from "@/components/features/test-form";
 import { ResultViewer } from "@/components/features/result-viewer";
 import { Breadcrumbs } from "@/components/layout";
-import { TestStep, BrowserConfig, TargetConfig, TestEvent, TestCaseFile, ConfigItem, TestFailureCode, TestFailureCategory } from "@/types";
+import { TestStep, BrowserConfig, TargetConfig, TestEvent, TestCaseFile, ConfigItem } from "@/types";
 import { exportToExcelArrayBuffer, parseTestCaseExcel } from "@/utils/testCaseExcel";
 import { useI18n } from "@/i18n";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import {
+    appendRunStreamEvent,
+    applyRunStreamStatusUpdate,
     buildEventKey,
     buildExcelBaseName,
     downloadBlob,
     extractFileName,
     isExcelFilename,
     isSupportedVariableConfig,
+    RunViewerResult,
 } from "./utils";
 
 interface TestData {
@@ -28,13 +31,7 @@ interface TestData {
     browserConfig?: Record<string, BrowserConfig | TargetConfig>;
 }
 
-interface TestResult {
-    status: 'IDLE' | 'RUNNING' | 'PASS' | 'FAIL' | 'CANCELLED' | 'QUEUED' | 'PREPARING';
-    events: TestEvent[];
-    error?: string;
-    errorCode?: TestFailureCode;
-    errorCategory?: TestFailureCategory;
-}
+type TestResult = RunViewerResult;
 
 function RunPageContent() {
     const searchParams = useSearchParams();
@@ -488,18 +485,11 @@ function RunPageContent() {
 
                 if (data.type === 'status') {
                     setResult(prev => {
-                        if (['PASS', 'FAIL', 'CANCELLED'].includes(data.status)) {
-                            es.close();
-                            eventSourceRef.current = null;
+                        const { next, shouldStopLoading } = applyRunStreamStatusUpdate(prev, data);
+                        if (shouldStopLoading) {
                             setIsLoading(false);
                         }
-                        return {
-                            ...prev,
-                            status: data.status,
-                            error: data.error,
-                            errorCode: data.errorCode,
-                            errorCategory: data.errorCategory,
-                        };
+                        return next;
                     });
                 } else if (data.type === 'log' || data.type === 'screenshot') {
                     const streamEvent = data as TestEvent;
@@ -510,8 +500,7 @@ function RunPageContent() {
                     eventKeySetRef.current.add(eventKey);
 
                     setResult(prev => ({
-                        ...prev,
-                        events: [...prev.events, streamEvent]
+                        ...appendRunStreamEvent(prev, streamEvent)
                     }));
                 }
             } catch (e) {
