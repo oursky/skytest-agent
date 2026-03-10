@@ -3,6 +3,7 @@ import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveOrCreateUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { isTeamMember } from '@/lib/security/permissions';
+import { config as appConfig } from '@/config/app';
 
 const logger = createLogger('api:projects');
 
@@ -84,6 +85,7 @@ export async function GET(request: Request) {
             ...project,
             hasActiveRuns: activeProjectIds.has(project.id),
             currentUserRole: project.team.memberships[0]?.role ?? null,
+            maxConcurrentRunsLimit: appConfig.runner.maxProjectConcurrentRuns,
             team: undefined,
         }));
 
@@ -104,6 +106,7 @@ export async function POST(request: Request) {
         const body = await request.json();
         const name = typeof body.name === 'string' ? body.name.trim() : '';
         const teamId = typeof body.teamId === 'string' ? body.teamId.trim() : '';
+        const maxConcurrentRunsInput = body.maxConcurrentRuns;
 
         if (!name) {
             return NextResponse.json({ error: 'Valid project name is required' }, { status: 400 });
@@ -122,15 +125,30 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
+        let maxConcurrentRuns = 1;
+        if (maxConcurrentRunsInput !== undefined) {
+            if (typeof maxConcurrentRunsInput !== 'number' || !Number.isInteger(maxConcurrentRunsInput)) {
+                return NextResponse.json({ error: 'maxConcurrentRuns must be an integer' }, { status: 400 });
+            }
+            if (maxConcurrentRunsInput < 1 || maxConcurrentRunsInput > appConfig.runner.maxProjectConcurrentRuns) {
+                return NextResponse.json({
+                    error: `maxConcurrentRuns must be between 1 and ${appConfig.runner.maxProjectConcurrentRuns}`,
+                }, { status: 400 });
+            }
+            maxConcurrentRuns = maxConcurrentRunsInput;
+        }
+
         const project = await prisma.project.create({
             data: {
                 name,
                 teamId,
                 createdByUserId: userId,
+                maxConcurrentRuns,
             },
             select: {
                 id: true,
                 name: true,
+                maxConcurrentRuns: true,
                 teamId: true,
                 createdByUserId: true,
                 createdAt: true,
@@ -138,7 +156,10 @@ export async function POST(request: Request) {
             }
         });
 
-        return NextResponse.json(project);
+        return NextResponse.json({
+            ...project,
+            maxConcurrentRunsLimit: appConfig.runner.maxProjectConcurrentRuns,
+        });
     } catch (error) {
         logger.error('Failed to create project', error);
         return NextResponse.json({ error: 'Failed to create project' }, { status: 500 });

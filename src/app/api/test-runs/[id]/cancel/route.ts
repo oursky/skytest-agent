@@ -5,6 +5,7 @@ import { createLogger } from '@/lib/core/logger';
 import { isProjectMember } from '@/lib/security/permissions';
 import { publishRunUpdate } from '@/lib/runners/event-bus';
 import { cancelLocalBrowserRun } from '@/lib/runtime/local-browser-runner';
+import { dispatchNextQueuedBrowserRun } from '@/lib/runtime/browser-run-dispatcher';
 import { ACTIVE_RUN_STATUSES } from '@/utils/statusHelpers';
 
 const logger = createLogger('api:test-runs:cancel');
@@ -69,6 +70,14 @@ export async function POST(
 
         // Best-effort local abort for on-demand browser execution.
         cancelLocalBrowserRun(id);
+        if (finalStatus === 'CANCELLED') {
+            void dispatchNextQueuedBrowserRun().catch((dispatchError) => {
+                logger.warn('Failed to dispatch queued browser run after cancellation', {
+                    runId: id,
+                    error: dispatchError instanceof Error ? dispatchError.message : String(dispatchError),
+                });
+            });
+        }
 
         logger.info('Cancelled test run', {
             runId: id,

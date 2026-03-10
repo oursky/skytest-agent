@@ -36,6 +36,8 @@ interface ProjectPageProps {
 interface Project {
     id: string;
     name: string;
+    maxConcurrentRuns: number;
+    maxConcurrentRunsLimit?: number;
     canManageProject?: boolean;
 }
 
@@ -58,7 +60,11 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     const [currentPage, setCurrentPage] = useState(1);
     const [searchInput, setSearchInput] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
-    const [activeTab, setActiveTab] = useState<'test-cases' | 'configs'>('test-cases');
+    const [activeTab, setActiveTab] = useState<'test-cases' | 'configs' | 'settings'>('test-cases');
+    const [maxConcurrentRunsInput, setMaxConcurrentRunsInput] = useState('1');
+    const [settingsError, setSettingsError] = useState('');
+    const [settingsSuccess, setSettingsSuccess] = useState('');
+    const [isSavingSettings, setIsSavingSettings] = useState(false);
     const [editingDisplayIdTestCaseId, setEditingDisplayIdTestCaseId] = useState<string | null>(null);
     const [editingDisplayIdValue, setEditingDisplayIdValue] = useState('');
     const [savingDisplayIdTestCaseId, setSavingDisplayIdTestCaseId] = useState<string | null>(null);
@@ -74,6 +80,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     useEffect(() => {
         const tab = searchParams.get('tab');
         if (tab === 'configs') { setActiveTab('configs'); return; }
+        if (tab === 'settings') { setActiveTab('settings'); return; }
         if (tab === 'test-cases') { setActiveTab('test-cases'); }
     }, [searchParams]);
 
@@ -84,7 +91,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         }
     }, [editingDisplayIdTestCaseId]);
 
-    const handleTabChange = useCallback((tab: 'test-cases' | 'configs') => {
+    const handleTabChange = useCallback((tab: 'test-cases' | 'configs' | 'settings') => {
         setActiveTab(tab);
 
         const params = new URLSearchParams(searchParams.toString());
@@ -111,8 +118,11 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             throw new Error("Failed to fetch project data");
         }
 
-        const projectData = await projectRes.json();
+        const projectData = await projectRes.json() as Project;
         setProject(projectData);
+        setMaxConcurrentRunsInput(String(projectData.maxConcurrentRuns));
+        setSettingsError('');
+        setSettingsSuccess('');
     }, [resolvedParams.id, getAuthHeaders]);
 
     const fetchTestCases = useCallback(async (signal?: AbortSignal) => {
@@ -195,6 +205,60 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             }
         } catch (error) {
             console.error("Failed to delete test case", error);
+        }
+    };
+
+    const handleSaveProjectSettings = async () => {
+        if (!project) {
+            return;
+        }
+
+        const parsedValue = Number.parseInt(maxConcurrentRunsInput, 10);
+        const maxLimit = project.maxConcurrentRunsLimit ?? 5;
+
+        if (!Number.isInteger(parsedValue)) {
+            setSettingsError(t('project.settings.error.invalidInteger'));
+            setSettingsSuccess('');
+            return;
+        }
+        if (parsedValue < 1 || parsedValue > maxLimit) {
+            setSettingsError(t('project.settings.error.outOfRange', { max: maxLimit }));
+            setSettingsSuccess('');
+            return;
+        }
+
+        try {
+            setIsSavingSettings(true);
+            setSettingsError('');
+            setSettingsSuccess('');
+
+            const token = await getAccessToken();
+            const response = await fetch(`/api/projects/${project.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                },
+                body: JSON.stringify({
+                    maxConcurrentRuns: parsedValue,
+                }),
+            });
+
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({ error: t('project.settings.error.save') }));
+                setSettingsError(typeof data.error === 'string' ? data.error : t('project.settings.error.save'));
+                return;
+            }
+
+            const updatedProject = await response.json() as Project;
+            setProject(updatedProject);
+            setMaxConcurrentRunsInput(String(updatedProject.maxConcurrentRuns));
+            setSettingsSuccess(t('project.settings.saved'));
+        } catch (error) {
+            console.error('Failed to update project settings', error);
+            setSettingsError(t('project.settings.error.save'));
+        } finally {
+            setIsSavingSettings(false);
         }
     };
 
@@ -432,6 +496,16 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                         >
                             {t('project.tab.configs')}
                         </button>
+                        <button
+                            type="button"
+                            onClick={() => handleTabChange('settings')}
+                            className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'settings'
+                                ? 'border-primary text-primary'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }`}
+                        >
+                            {t('project.tab.settings')}
+                        </button>
                     </nav>
                 </div>
 
@@ -526,6 +600,51 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
                 {activeTab === 'configs' && (
                     <ProjectConfigs projectId={id} />
+                )}
+
+                {activeTab === 'settings' && project && (
+                    <div className="max-w-2xl rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+                        <h2 className="text-lg font-semibold text-gray-900">{t('project.settings.title')}</h2>
+                        <p className="mt-1 text-sm text-gray-500">{t('project.settings.description')}</p>
+                        <div className="mt-6 space-y-2">
+                            <label htmlFor="max-concurrent-runs" className="block text-sm font-medium text-gray-700">
+                                {t('project.settings.concurrentRuns.label')}
+                            </label>
+                            <input
+                                id="max-concurrent-runs"
+                                type="number"
+                                inputMode="numeric"
+                                min={1}
+                                max={project.maxConcurrentRunsLimit ?? 5}
+                                value={maxConcurrentRunsInput}
+                                onChange={(event) => {
+                                    setMaxConcurrentRunsInput(event.target.value);
+                                    setSettingsError('');
+                                    setSettingsSuccess('');
+                                }}
+                                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
+                            />
+                            <p className="text-xs text-gray-500">
+                                {t('project.settings.concurrentRuns.help', { max: project.maxConcurrentRunsLimit ?? 5 })}
+                            </p>
+                        </div>
+                        {settingsError && (
+                            <p className="mt-3 text-sm text-red-600">{settingsError}</p>
+                        )}
+                        {settingsSuccess && (
+                            <p className="mt-3 text-sm text-green-600">{settingsSuccess}</p>
+                        )}
+                        <div className="mt-4">
+                            <button
+                                type="button"
+                                onClick={handleSaveProjectSettings}
+                                disabled={isSavingSettings || !project.canManageProject}
+                                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                {isSavingSettings ? t('project.settings.saving') : t('project.settings.save')}
+                            </button>
+                        </div>
+                    </div>
                 )}
 
                 <div className={`bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden ${activeTab !== 'test-cases' ? 'hidden' : ''}`}>

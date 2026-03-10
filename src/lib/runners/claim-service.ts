@@ -26,6 +26,7 @@ export interface ClaimNoCandidateDiagnosis {
 }
 
 const EMULATOR_PROFILE_DEVICE_PREFIX = 'emulator-profile:';
+const ACTIVE_RUN_STATUSES = ['PREPARING', 'RUNNING'] as const;
 
 function hasAndroidCapability(capabilities: string[]): boolean {
     return capabilities.includes('ANDROID');
@@ -73,6 +74,20 @@ async function claimExplicitDeviceRun(input: {
               AND p."teamId" = ${input.teamId}
               AND tr."requiredCapability" = 'ANDROID'
               AND (tr."requiredRunnerKind" IS NULL OR tr."requiredRunnerKind" = ${input.runnerKind})
+              AND (
+                  SELECT COUNT(*)
+                  FROM "TestRun" activeTr
+                  WHERE activeTr."deletedAt" IS NULL
+                    AND activeTr.status IN (${Prisma.join(ACTIVE_RUN_STATUSES)})
+              ) < ${appConfig.runner.maxConcurrentRuns}
+              AND (
+                  SELECT COUNT(*)
+                  FROM "TestRun" activeTr
+                  INNER JOIN "TestCase" activeTc ON activeTc.id = activeTr."testCaseId"
+                  WHERE activeTr."deletedAt" IS NULL
+                    AND activeTr.status IN (${Prisma.join(ACTIVE_RUN_STATUSES)})
+                    AND activeTc."projectId" = tc."projectId"
+              ) < p."maxConcurrentRuns"
               AND EXISTS (
                   SELECT 1
                   FROM "RunnerDevice" rd
@@ -121,6 +136,20 @@ async function claimGenericRun(input: {
               AND p."teamId" = ${input.teamId}
               AND tr."requiredCapability" = 'ANDROID'
               AND (tr."requiredRunnerKind" IS NULL OR tr."requiredRunnerKind" = ${input.runnerKind})
+              AND (
+                  SELECT COUNT(*)
+                  FROM "TestRun" activeTr
+                  WHERE activeTr."deletedAt" IS NULL
+                    AND activeTr.status IN (${Prisma.join(ACTIVE_RUN_STATUSES)})
+              ) < ${appConfig.runner.maxConcurrentRuns}
+              AND (
+                  SELECT COUNT(*)
+                  FROM "TestRun" activeTr
+                  INNER JOIN "TestCase" activeTc ON activeTc.id = activeTr."testCaseId"
+                  WHERE activeTr."deletedAt" IS NULL
+                    AND activeTr.status IN (${Prisma.join(ACTIVE_RUN_STATUSES)})
+                    AND activeTc."projectId" = tc."projectId"
+              ) < p."maxConcurrentRuns"
             ORDER BY tr."createdAt" ASC
             FOR UPDATE SKIP LOCKED
             LIMIT 1
