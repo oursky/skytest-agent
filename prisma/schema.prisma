@@ -43,7 +43,7 @@ model UsageRecord {
   type        String   // "TEST_RUN"
   description String?  // e.g., "Project Name - Test Case Name"
   aiActions   Int      // Exact number of AI actions executed
-  testRunId   String?  // Reference to test run for linking
+  testRunId   String?  @unique // Reference to test run for linking
   testRun     TestRun? @relation(fields: [testRunId], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now())
 

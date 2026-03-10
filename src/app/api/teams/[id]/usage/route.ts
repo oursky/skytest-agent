@@ -4,6 +4,7 @@ import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { isTeamMember } from '@/lib/security/permissions';
 import { parseActionCountFromResult } from '@/lib/runtime/usage';
+import { UsageService } from '@/lib/runtime/usage';
 
 const logger = createLogger('api:teams:usage');
 
@@ -48,23 +49,44 @@ async function backfillTeamUsageRecords(teamId: string, projectId?: string) {
             continue;
         }
 
-        const existing = await prisma.usageRecord.findFirst({
-            where: { testRunId: run.id },
-            select: { id: true },
-        });
-        if (existing) {
-            continue;
-        }
+        await UsageService.recordUsage(
+            run.testCase.project.createdByUserId,
+            run.testCase.project.id,
+            actionCount,
+            `${run.testCase.project.name} - ${run.testCase.name}`,
+            run.id
+        );
+    }
 
-        await prisma.usageRecord.create({
-            data: {
-                actorUserId: run.testCase.project.createdByUserId,
-                projectId: run.testCase.project.id,
-                type: 'TEST_RUN',
-                description: `${run.testCase.project.name} - ${run.testCase.name}`,
-                aiActions: actionCount,
-                testRunId: run.id,
+    const completedRunsWhere = {
+        status: { in: ['PASS', 'FAIL', 'CANCELLED'] },
+        testCase: {
+            project: {
+                teamId,
+                ...(projectId ? { id: projectId } : {}),
+            },
+        }
+    };
+
+    const [completedRunsCount, linkedUsageCount] = await Promise.all([
+        prisma.testRun.count({ where: completedRunsWhere }),
+        prisma.usageRecord.count({
+            where: {
+                testRunId: { not: null },
+                project: {
+                    teamId,
+                    ...(projectId ? { id: projectId } : {}),
+                },
             }
+        }),
+    ]);
+
+    if (completedRunsCount >= 5 && linkedUsageCount < Math.floor(completedRunsCount * 0.8)) {
+        logger.warn('Team usage coverage gap detected', {
+            teamId,
+            projectId: projectId ?? null,
+            completedRunsCount,
+            linkedUsageCount,
         });
     }
 }

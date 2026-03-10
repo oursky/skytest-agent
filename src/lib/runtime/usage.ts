@@ -54,6 +54,27 @@ export class UsageService {
             return;
         }
 
+        if (testRunId) {
+            return await prisma.usageRecord.upsert({
+                where: { testRunId },
+                update: {
+                    actorUserId: user.id,
+                    projectId: project.id,
+                    type: 'TEST_RUN',
+                    description,
+                    aiActions,
+                },
+                create: {
+                    actorUserId: user.id,
+                    projectId: project.id,
+                    type: 'TEST_RUN',
+                    description,
+                    aiActions,
+                    testRunId
+                }
+            });
+        }
+
         return await prisma.usageRecord.create({
             data: {
                 actorUserId: user.id,
