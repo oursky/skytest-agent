@@ -17,39 +17,35 @@ function getBearerToken(request: Request): string | null {
     return authHeader.split(' ')[1] ?? null;
 }
 
-function authRejectedResponse(description: string): Response {
-    return new Response(JSON.stringify({ error: 'Forbidden', message: description }), {
-        status: 403,
-        headers: { 'Content-Type': 'application/json' }
-    });
-}
-
-async function handleMcpRequest(request: Request): Promise<Response> {
+async function resolveAuthenticatedUserId(request: Request): Promise<string | null> {
     const token = getBearerToken(request);
     if (!token || !isApiKeyFormat(token)) {
-        return authRejectedResponse('MCP requires an Agent API key token');
+        return null;
     }
 
     const authPayload = await verifyAuth(request);
     if (!authPayload) {
-        return authRejectedResponse('Missing or invalid access token');
+        return null;
     }
 
-    const userId = await resolveUserId(authPayload);
-    if (!userId) {
-        return authRejectedResponse('Access token does not map to a valid user');
-    }
+    return resolveUserId(authPayload);
+}
 
+async function handleMcpRequest(request: Request): Promise<Response> {
     try {
+        const userId = await resolveAuthenticatedUserId(request);
         const server = createMcpServer();
         const transport = new WebStandardStreamableHTTPServerTransport({
             sessionIdGenerator: undefined,
             enableJsonResponse: true,
         });
         await server.connect(transport);
-        const response = await transport.handleRequest(request, {
-            authInfo: { token: 'api-key', clientId: userId, scopes: [] }
-        });
+        const response = await transport.handleRequest(
+            request,
+            userId
+                ? { authInfo: { token: 'api-key', clientId: userId, scopes: [] } }
+                : {}
+        );
         return response;
     } catch (error) {
         logger.error('MCP request failed', error);
