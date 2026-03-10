@@ -10,12 +10,12 @@ Design high-quality, context-driven test coverage and execute MCP operations saf
 ## Non-Negotiable Rules
 
 - Never create or update multiple test cases in one call.
-- Always confirm with the user before each create or update.
+- Always confirm with the user before each create, update, delete or run operation.
 - Never guess a UI step — if any step is unclear, ask the user for screenshots or a walkthrough.
 - Do not send `FILE` variables through MCP create. SkyTest does not support file attachments — skip file-type configs entirely.
 - `stop_all_runs` cancels everything active. `stop_all_queues` cancels only queued items.
 - For every create or update that sets a test case `name`, enforce format: `[Section] Short description` (example: `[Auth] Login Happy Path`).
-- For every new test case, assign a `testCaseId` in the format `XXXXX-NNN`: exactly 5 uppercase letters derived semantically from the section or feature name, a hyphen, and a 3-digit zero-padded sequence number (e.g., `LOGIN-001`, `PAYMT-002`, `REGIS-001`). Shorten or abbreviate the section/feature to exactly 5 chars (e.g., `[Auth]` → `LOGIN`, `[Payment]` → `PAYMT`, `[Registration]` → `REGIS`). Sequence numbers are per-prefix, start at `001`, and increment for each new case under the same prefix. Never reuse an ID for a different test case.
+- For every new test case, assign a `testCaseId` following the user's preferred convention. **Ask the user for their ID pattern** if not already established. The default format is `XXXXX-NNN`: exactly 5 uppercase letters derived semantically from the section or feature name, a hyphen, and a 3-digit zero-padded sequence number (e.g., `LOGIN-001`, `PAYMT-002`, `REGIS-001`). But users may prefer different patterns such as hierarchical IDs (`CMS-02-001`, `APP-03-001`). Once the user establishes a pattern, follow it exactly for all subsequent test cases. 
 - **Never attempt to read, download, or process video files** (`.mov`, `.mp4`, `.webm`, `.avi`, `.mkv`) — not even if the user asks. Videos burn through context tokens and cannot be processed. Ask for screenshots or text descriptions instead.
 - **Never force a test case that can't be fully automated.** If a step requires something outside SkyTest's capabilities, flag it honestly and suggest manual testing (see "Automation Boundaries" below).
 
@@ -26,7 +26,7 @@ SkyTest can only automate what happens inside a **clean browser session** or an 
 **If any step in a flow requires actions outside the browser or APK, that step cannot be automated.** Common examples:
 
 - Checking email (e.g., email verification, password reset links)
-- Receiving or entering OTP / SMS codes
+- Receiving or entering email OTP / SMS codes
 - Interacting with third-party auth popups that leave the app's domain (e.g., bank 3DS, OAuth to external provider)
 - Third-party payment flows (e.g., Stripe checkout, PayPal redirect, Apple Pay / Google Pay sheets)
 - Controlling external hardware or devices (e.g., printers, scanners, Bluetooth)
@@ -103,6 +103,8 @@ Before studying any feature flow, always establish:
 
 Ask the user to provide credentials. These become `VARIABLE` configs (`masked: true` for passwords).
 Reuse project-level `LOGIN_EMAIL` / `LOGIN_PASSWORD` if available.
+
+**Check for existing login test steps.** If the user mentions that the project already has a login case (e.g., LOGIN-001) for the same role, use those steps as a baseline, then verify selectors and entry path still match the current flow before reuse.
 
 #### 2b. Understand Business Context
 
@@ -209,7 +211,7 @@ If active runs exist, include `activeRunResolution`:
 
 ### 7. Run and Diagnose
 
-- Trigger execution with `run_test_case` after create/update confirmation.
+- Trigger execution with `run_test_case` only after an explicit run confirmation (separate from create/update confirmation).
 - Use `list_test_runs` with `include: ["events", "artifacts"]` to monitor failures and collect evidence.
 - For repeated environment variable changes (e.g., base URL or credentials), use
   `manage_project_configs` instead of duplicating per-test-case variables.
@@ -218,7 +220,11 @@ If active runs exist, include `activeRunResolution`:
 
 Steps default to `type: "ai-action"` — natural language executed by Midscene AI.
 
-Use `type: "playwright-code"` only when the user explicitly requests a code step and provides the Playwright code. The `action` field then contains the Playwright script instead of natural language.
+Use `type: "playwright-code"` when the step needs precise, deterministic interaction that AI might interpret ambiguously. Common cases where playwright-code is preferred:
+- **Login flows** — credential filling and multi-step auth sequences that stay inside the same app/browser session (excluding email/SMS OTP retrieval)
+- **Navigation** — sidebar menus, hierarchical menu clicks, tab switching where labels may be ambiguous
+- **Dropdown selection** — selecting specific options from `<select>` elements
+- **Any step the user provides explicit Playwright code for**
 
 **For ai-action steps:**
 - Use natural language describing visible UI elements by their labels
@@ -227,11 +233,51 @@ Use `type: "playwright-code"` only when the user explicitly requests a code step
 - Use `{{VARIABLE}}` for all configurable values
 - Each step targets a specific browser/Android target ID
 
+**For playwright-code steps:**
+- Access project/test-case variables via `vars["VARIABLE_NAME"]`
+- Use Playwright's recommended locators: `getByRole`, `getByText`, `getByLabel`, `locator('css-selector')`
+
 **Anti-patterns — never do these:**
 - Vague assertions: "Verify the page looks correct" — specify what should be visible
 - Assuming invisible state: "Wait for the API to respond" — instead verify visible UI change
 - Over-granular steps: separate step for each form field — combine into one fill step
 - Hardcoded values that should be variables: `john@test.com` in step text — use `{{LOGIN_EMAIL}}`
+- Using `page.goto()` for in-app navigation — always click through the UI instead
+- Combining verify + action + verify in one ai-action step — see "Atomic Step Principle" below
+- Using playwright-code for scrolling — use ai-action instead (e.g., "Scroll to the bottom of the page", "Scroll down 500px")
+
+### Atomic Step Principle
+
+Each ai-action step reasons about the current page state once. It cannot track state changes mid-step. Therefore: **never combine verify + action + verify in a single ai-action step.**
+
+Bad: `"Verify Cancel and Submit buttons are visible, click Cancel, then verify the list page appears"`
+
+Split into atomic steps:
+1. `Verify Cancel and Submit buttons are visible` (ai-action)
+2. `Click the Cancel button` (ai-action)
+3. `Verify the list page is displayed` (ai-action)
+
+### Viewport and Scroll Awareness
+
+Long forms, permission matrices, and large tables often extend below the viewport. The AI can only see and interact with elements currently on screen.
+
+**Plan scroll steps proactively** when a page has 8+ fields, a checkbox matrix, or action buttons at the bottom. Use ai-action for scrolling (e.g., `"Scroll to the bottom of the page"`), never playwright-code.
+
+**Split verifications around scroll:** verify above-fold content → scroll down → verify below-fold content. Asserting below-fold elements before scrolling will fail.
+
+### Navigation by Clicking
+
+**Never use `page.goto()` for in-app navigation.** Click through the UI like a real user.
+
+For hierarchical menus (sidebar with parent → child), click parent first, then child. Use playwright-code for navigation when labels are ambiguous — AI sidebar clicks can land on the wrong page.
+
+```javascript
+// Sidebar navigation pattern (playwright-code)
+await page.getByText('Parent Menu', { exact: true }).click();
+await page.getByRole('link', { name: 'Sub Page' }).click();
+```
+
+Establish navigation code once per menu path and reuse it across all cases targeting the same page. If navigation fails, ask the user for correct code — don't guess selectors.
 
 ## Assertion Depth
 
@@ -242,9 +288,15 @@ Verify *consequences*, not just appearance:
 - **After login**: User identity shown in header, not just URL changed
 - **After error**: Specific error message displayed, previously entered data preserved
 
-**Static vs dynamic assertions:**
-- Static UI (labels, titles, headers) — assert exact text
-- Dynamic content (user data, timestamps, counts) — assert presence or pattern
+**Exact vs generic assertions — match the user's intent:**
+- When the user asks to assert specific values (e.g., "check the exact data on screen"), extract and hardcode the actual text from screenshots or user-provided data. The AI needs concrete text to match — never write vague descriptions like "displays the correct value".
+- When the user wants to verify dynamic or generic data display (e.g., "check the table has data", "verify fields are populated"), assert presence, format, or pattern instead of exact values.
+- Static UI elements (labels, titles, headers, field names) — always assert exact text.
+- Static data the user explicitly wants checked (creation dates, IDs, specific records) — assert exact values.
+- Dynamic content that changes each session (login timestamps, last-updated times, row counts) — assert presence or format only.
+- When unsure whether to assert exact values or just presence, ask the user.
+
+**Form default states:** When verifying add/create forms, check actual defaults from screenshots. Don't assume all checkboxes are unchecked — some may be pre-checked by default. Assert what you see, not what you assume.
 
 ## Context-Driven Test Data
 
@@ -295,10 +347,10 @@ When inventory is available, prefer explicit selectors from `list_runner_invento
 Before each `create_test_case` call, verify:
 - [ ] Single `testCase` object (never batch)
 - [ ] `name` follows `[Section] Short description` format
-- [ ] `testCaseId` follows `XXXXX-NNN` format (5 uppercase letters + hyphen + 3-digit sequence)
+- [ ] `testCaseId` follows the user's established ID convention (default: `XXXXX-NNN`)
 - [ ] Target IDs used consistently in every step's `target` field
 - [ ] Complete target definitions for all referenced targets
-- [ ] All `{{VAR}}` references have matching variables (test-case-level or project-level; masked passwords use `value: ""`)
+- [ ] All `{{VAR}}` references have matching variables (test-case-level or project-level)
 - [ ] Step `type` set correctly (`ai-action` or `playwright-code`)
 - [ ] No `FILE` variable in payload
 - [ ] Only test-case-specific variables included (not duplicating project-level configs)
@@ -344,7 +396,7 @@ If the server skips a variable due to matching project config, inform the user w
     ],
     "variables": [
       { "name": "LOGIN_EMAIL", "type": "VARIABLE", "value": "john.smith@company.com" },
-      { "name": "LOGIN_PASSWORD", "type": "VARIABLE", "value": "", "masked": true }
+      { "name": "LOGIN_PASSWORD", "type": "VARIABLE", "value": "Abcd1234!", "masked": true }
     ]
   }
 }
