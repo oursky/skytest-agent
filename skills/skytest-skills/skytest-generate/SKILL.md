@@ -14,7 +14,8 @@ Design high-quality, context-driven test coverage and execute MCP operations saf
 - Never guess a UI step — if any step is unclear, ask the user for screenshots or a walkthrough.
 - Do not send `FILE` variables through MCP create. SkyTest does not support file attachments — skip file-type configs entirely.
 - `stop_all_runs` cancels everything active. `stop_all_queues` cancels only queued items.
-- For every create or update that sets a test case `name`, enforce format: `[Section] Short description` (example: `[CanOutage] Screen Load & Display`).
+- For every create or update that sets a test case `name`, enforce format: `[Section] Short description` (example: `[Auth] Login Happy Path`).
+- For every new test case, assign a `testCaseId` in the format `XXXXX-NNN`: exactly 5 uppercase letters derived semantically from the section or feature name, a hyphen, and a 3-digit zero-padded sequence number (e.g., `LOGIN-001`, `PAYMT-002`, `REGIS-001`). Shorten or abbreviate the section/feature to exactly 5 chars (e.g., `[Auth]` → `LOGIN`, `[Payment]` → `PAYMT`, `[Registration]` → `REGIS`). Sequence numbers are per-prefix, start at `001`, and increment for each new case under the same prefix. Never reuse an ID for a different test case.
 - **Never attempt to read, download, or process video files** (`.mov`, `.mp4`, `.webm`, `.avi`, `.mkv`) — not even if the user asks. Videos burn through context tokens and cannot be processed. Ask for screenshots or text descriptions instead.
 - **Never force a test case that can't be fully automated.** If a step requires something outside SkyTest's capabilities, flag it honestly and suggest manual testing (see "Automation Boundaries" below).
 
@@ -294,6 +295,7 @@ When inventory is available, prefer explicit selectors from `list_runner_invento
 Before each `create_test_case` call, verify:
 - [ ] Single `testCase` object (never batch)
 - [ ] `name` follows `[Section] Short description` format
+- [ ] `testCaseId` follows `XXXXX-NNN` format (5 uppercase letters + hyphen + 3-digit sequence)
 - [ ] Target IDs used consistently in every step's `target` field
 - [ ] Complete target definitions for all referenced targets
 - [ ] All `{{VAR}}` references have matching variables (test-case-level or project-level; masked passwords use `value: ""`)
