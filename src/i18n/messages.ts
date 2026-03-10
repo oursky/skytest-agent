@@ -291,6 +291,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'run.error.noProjectSelected': 'No project selected',
     'run.error.failedCreateTestCaseUpload': 'Failed to create test case for file uploads. Please ensure required fields are filled (URL and a prompt or steps).',
     'run.error.nameRequired': 'Test case name is required',
+    'run.error.testCaseIdRequired': 'Test case ID is required',
     'run.unsavedChangesWarning': 'You have unsaved changes. Are you sure you want to leave?',
 
     // History page
@@ -905,6 +906,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'run.error.noProjectSelected': '尚未選擇專案',
     'run.error.failedCreateTestCaseUpload': '建立用於上傳檔案的測試案例失敗。請確認必填欄位已填寫（URL 以及 prompt 或 steps）。',
     'run.error.nameRequired': '測試案例名稱為必填',
+    'run.error.testCaseIdRequired': '測試案例 ID 為必填',
     'run.unsavedChangesWarning': '您有未儲存的變更。確定要離開嗎？',
 
     // History page
@@ -1519,6 +1521,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     'run.error.noProjectSelected': '未选择项目',
     'run.error.failedCreateTestCaseUpload': '为上传文件创建测试用例失败。请确保必填字段已填写（URL 以及 prompt 或 steps）。',
     'run.error.nameRequired': '测试用例名称为必填',
+    'run.error.testCaseIdRequired': '测试用例 ID 为必填',
     'run.unsavedChangesWarning': '您有未保存的更改。确定要离开吗？',
 
     // History page

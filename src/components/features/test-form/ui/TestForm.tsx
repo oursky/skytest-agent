@@ -188,8 +188,14 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
         displayId
     );
 
+    const hasMissingRequiredTestCaseId = showNameInput && !readOnly && !displayId?.trim();
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        if (hasMissingRequiredTestCaseId) {
+            setActiveTab('configurations');
+            return;
+        }
         if (hasMissingRequiredEntryPointFields(browsers)) {
             setActiveTab('configurations');
             return;
@@ -197,7 +203,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
         onSubmit(getCurrentData());
     };
 
-    const runDisabled = isLoading || hasMissingRequiredEntryPointFields(browsers);
+    const runDisabled = isLoading || hasMissingRequiredTestCaseId || hasMissingRequiredEntryPointFields(browsers);
 
     return (
         <form onSubmit={handleSubmit} className="glass-panel h-[800px] flex flex-col">
@@ -300,11 +306,12 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                         {showNameInput && (onDisplayIdChange || readOnly) && (
                             <div className="space-y-2">
                                 <label className="block text-sm font-medium text-foreground">
-                                    {t('testForm.testCaseId')}
+                                    {t('testForm.testCaseId')} {!readOnly && <span className="text-red-500">*</span>}
                                 </label>
                                 <input
                                     type="text"
                                     className="input-field"
+                                    required={!readOnly}
                                     placeholder={t('testForm.testCaseId.placeholder')}
                                     value={displayId || ''}
                                     onChange={(e) => onDisplayIdChange?.(e.target.value)}
@@ -365,7 +372,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                                         const data = getCurrentData();
                                         onSaveDraft(data);
                                     }}
-                                    disabled={isSaving || !name.trim()}
+                                    disabled={isSaving || !name.trim() || hasMissingRequiredTestCaseId}
                                     className="flex-1 px-4 py-2.5 bg-primary/20 text-primary rounded-lg hover:bg-primary/30 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
                                 >
                                     {isSaving ? (

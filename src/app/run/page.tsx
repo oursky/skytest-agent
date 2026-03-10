@@ -600,7 +600,11 @@ function RunPageContent() {
     const saveTestCase = useCallback(async (data: TestData, options?: { saveDraft?: boolean }): Promise<string | null> => {
         const effectiveTestCaseId = testCaseId || currentTestCaseId;
         const effectiveProjectId = projectId || projectIdFromTestCase;
-        const finalDisplayId = data.displayId ?? displayId;
+        const finalDisplayId = (data.displayId ?? displayId ?? '').trim();
+
+        if (!finalDisplayId) {
+            throw new Error(t('run.error.testCaseIdRequired'));
+        }
 
         const token = await getAccessToken();
         const headers: HeadersInit = {
@@ -639,7 +643,7 @@ function RunPageContent() {
             setIsDirty(false);
             return newTestCase.id;
         }
-    }, [testCaseId, currentTestCaseId, projectId, projectIdFromTestCase, displayId, getAccessToken]);
+    }, [testCaseId, currentTestCaseId, projectId, projectIdFromTestCase, displayId, getAccessToken, t]);
 
     const handleRunTest = useCallback(async (data: TestData) => {
         setIsLoading(true);
@@ -657,7 +661,8 @@ function RunPageContent() {
             activeTestCaseId = await saveTestCase(data);
         } catch (error) {
             console.error("Failed to save test case", error);
-            setResult({ status: 'FAIL', events: [], error: t('run.error.failedToSave'), errorCode: undefined, errorCategory: undefined });
+            const errorMessage = error instanceof Error ? error.message : t('run.error.failedToSave');
+            setResult({ status: 'FAIL', events: [], error: errorMessage, errorCode: undefined, errorCategory: undefined });
             setIsLoading(false);
             return;
         }
@@ -699,6 +704,10 @@ function RunPageContent() {
     const handleSaveDraft = useCallback(async (data: TestData) => {
         if (!data.name?.trim()) {
             alert(t('run.error.nameRequired'));
+            return;
+        }
+        if (!data.displayId?.trim()) {
+            alert(t('run.error.testCaseIdRequired'));
             return;
         }
 
@@ -748,6 +757,11 @@ function RunPageContent() {
             alert(t('run.error.selectProjectUpload'));
             throw new Error(t('run.error.noProjectSelected'));
         }
+        const normalizedDisplayId = (data.displayId ?? displayId ?? '').trim();
+        if (!normalizedDisplayId) {
+            alert(t('run.error.testCaseIdRequired'));
+            throw new Error(t('run.error.testCaseIdRequired'));
+        }
 
         try {
             const token = await getAccessToken();
@@ -762,6 +776,7 @@ function RunPageContent() {
             const payload: TestData = {
                 ...data,
                 name: !usedPlaceholderName ? data.name : untitledName,
+                displayId: normalizedDisplayId,
             };
             if (!payload.url || payload.url.trim() === '') {
                 payload.url = 'about:blank';

@@ -100,9 +100,13 @@ export async function POST(
         const hasSteps = Array.isArray(steps) && steps.length > 0;
         const hasBrowserConfig = !!browserConfig && typeof browserConfig === 'object' && !Array.isArray(browserConfig) && Object.keys(browserConfig as Record<string, unknown>).length > 0;
         const cleanedSteps = hasSteps ? cleanStepsForStorage(steps as TestStep[]) : undefined;
+        const normalizedDisplayId = typeof displayId === 'string' ? displayId.trim() : '';
 
         if (!name) {
             return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+        }
+        if (!normalizedDisplayId) {
+            return NextResponse.json({ error: 'Test case ID is required' }, { status: 400 });
         }
         if (!saveDraft && ((!url && !hasBrowserConfig) || (!prompt && !hasSteps))) {
             return NextResponse.json({ error: 'Name, and either URL or BrowserConfig, and either Prompt or Steps are required' }, { status: 400 });
@@ -116,7 +120,7 @@ export async function POST(
                 steps: cleanedSteps ? JSON.stringify(cleanedSteps) : undefined,
                 browserConfig: hasBrowserConfig ? JSON.stringify(browserConfig) : undefined,
                 projectId: id,
-                displayId: displayId || undefined,
+                displayId: normalizedDisplayId,
                 status: 'DRAFT',
             },
         });

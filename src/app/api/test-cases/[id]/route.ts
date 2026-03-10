@@ -70,6 +70,7 @@ export async function PUT(
         const { id } = await params;
         const body = await request.json();
         const { name, url, prompt, steps, browserConfig, displayId } = body;
+        const normalizedDisplayId = typeof displayId === 'string' ? displayId.trim() : '';
 
         const existingTestCase = await prisma.testCase.findUnique({
             where: { id },
@@ -94,6 +95,9 @@ export async function PUT(
         if (!await isProjectMember(userId, existingTestCase.projectId)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
+        if (!normalizedDisplayId) {
+            return NextResponse.json({ error: 'Test case ID is required' }, { status: 400 });
+        }
 
         const hasSteps = steps && Array.isArray(steps) && steps.length > 0;
         const hasBrowserConfig = browserConfig && Object.keys(browserConfig).length > 0;
@@ -108,11 +112,8 @@ export async function PUT(
             prompt,
             steps: cleanedSteps ? JSON.stringify(cleanedSteps) : undefined,
             browserConfig: normalizedBrowserConfig ? JSON.stringify(normalizedBrowserConfig) : undefined,
+            displayId: normalizedDisplayId,
         };
-
-        if (displayId !== undefined) {
-            updateData.displayId = displayId || null;
-        }
 
         updateData.status = 'DRAFT';
 
