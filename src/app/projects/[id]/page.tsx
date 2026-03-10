@@ -12,6 +12,7 @@ import { getStatusBadgeClass } from '@/utils/statusBadge';
 import { isActiveRunStatus } from '@/utils/statusHelpers';
 import { parsePageSize } from '@/utils/pagination';
 import { ProjectConfigs } from '@/components/features/project-configs';
+import { buildExportRowsSortedByIdAsc } from './export-utils';
 
 interface TestRun {
     id: string;
@@ -345,15 +346,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
     const handleExportAll = () => {
         const headers = ['ID', 'Name', 'Status', 'Updated'];
-        const rows = testCases.map((tc) => {
-            const status = tc.testRuns[0]?.status || tc.status || '';
-            return [
-                tc.displayId || '',
-                tc.name,
-                status,
-                tc.updatedAt,
-            ];
-        });
+        const rows = buildExportRowsSortedByIdAsc(testCases);
 
         const csvContent = [
             headers.join(','),
