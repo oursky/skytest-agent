@@ -7,6 +7,8 @@ import { isTestEvent } from '@/lib/runtime/test-events';
 import { objectStore } from '@/lib/storage/object-store';
 import { isScreenshotData, type TestEvent, type LogLevel } from '@/types';
 import { parseTestResultMetadata } from '@/lib/runtime/test-result-metadata';
+import { loadMaskedVariableValuesForTestCase } from '@/lib/runtime/masked-variables';
+import { createExactValueMasker, maskEventForViewer, maskNullableText } from '@/lib/runtime/log-masking';
 
 const logger = createLogger('api:test-runs:id');
 
@@ -27,26 +29,33 @@ function resolveArtifactFilename(artifactKey: string): string {
     return segments[segments.length - 1] || 'artifact.bin';
 }
 
-function createArtifactUnavailableLogEvent(row: RunEventRow): TestEvent {
+function createArtifactUnavailableLogEvent(
+    row: RunEventRow,
+    maskText: (text: string) => string
+): TestEvent {
     return {
         type: 'log',
         data: {
-            message: row.message || `Screenshot artifact unavailable: ${row.artifactKey ?? 'unknown artifact'}`,
+            message: maskText(row.message || `Screenshot artifact unavailable: ${row.artifactKey ?? 'unknown artifact'}`),
             level: 'error',
         },
         timestamp: row.createdAt.getTime(),
     };
 }
 
-async function mapRunEventToUiEvent(row: RunEventRow): Promise<TestEvent> {
+async function mapRunEventToUiEvent(
+    row: RunEventRow,
+    maskText: (text: string) => string
+): Promise<TestEvent> {
     if (isTestEvent(row.payload)) {
+        const maskedPayload = maskEventForViewer(row.payload, maskText);
         if (
-            row.payload.type === 'screenshot'
-            && isScreenshotData(row.payload.data)
-            && row.payload.data.src.startsWith('artifact:')
+            maskedPayload.type === 'screenshot'
+            && isScreenshotData(maskedPayload.data)
+            && maskedPayload.data.src.startsWith('artifact:')
         ) {
             if (!row.artifactKey) {
-                return createArtifactUnavailableLogEvent(row);
+                return createArtifactUnavailableLogEvent(row, maskText);
             }
 
             try {
@@ -57,26 +66,26 @@ async function mapRunEventToUiEvent(row: RunEventRow): Promise<TestEvent> {
                 });
 
                 return {
-                    ...row.payload,
+                    ...maskedPayload,
                     data: {
-                        ...row.payload.data,
+                        ...maskedPayload.data,
                         src: signedUrl,
                     },
                 };
             } catch (error) {
                 logger.warn('Failed to resolve signed artifact URL for history run event', error);
-                return createArtifactUnavailableLogEvent(row);
+                return createArtifactUnavailableLogEvent(row, maskText);
             }
         }
 
-        return row.payload;
+        return maskedPayload;
     }
 
     const level: LogLevel = row.kind.toLowerCase().includes('error') ? 'error' : 'info';
     return {
         type: 'log',
         data: {
-            message: row.message || (row.artifactKey ? `Artifact uploaded: ${row.artifactKey}` : row.kind),
+            message: maskText(row.message || (row.artifactKey ? `Artifact uploaded: ${row.artifactKey}` : row.kind)),
             level: isLogLevel(level) ? level : 'info',
         },
         timestamp: row.createdAt.getTime(),
@@ -120,6 +129,12 @@ export async function GET(
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
+        const maskedVariableValues = await loadMaskedVariableValuesForTestCase(
+            testRun.testCase.projectId,
+            testRun.testCaseId
+        );
+        const maskText = createExactValueMasker(maskedVariableValues);
+
         const files = testRun.files || [];
         const eventRows = await prisma.testRunEvent.findMany({
             where: { runId: id },
@@ -132,15 +147,17 @@ export async function GET(
                 createdAt: true,
             },
         });
-        const events: TestEvent[] = await Promise.all(eventRows.map((eventRow) => mapRunEventToUiEvent(eventRow)));
+        const events: TestEvent[] = await Promise.all(
+            eventRows.map((eventRow) => mapRunEventToUiEvent(eventRow, maskText))
+        );
         const resultMetadata = parseTestResultMetadata(testRun.result);
 
         return NextResponse.json({
             id: testRun.id,
             status: testRun.status,
-            result: testRun.result,
-            logs: testRun.logs,
-            error: testRun.error,
+            result: maskNullableText(testRun.result, maskText),
+            logs: maskNullableText(testRun.logs, maskText),
+            error: maskNullableText(testRun.error, maskText),
             errorCode: resultMetadata.errorCode,
             errorCategory: resultMetadata.errorCategory,
             configurationSnapshot: testRun.configurationSnapshot,

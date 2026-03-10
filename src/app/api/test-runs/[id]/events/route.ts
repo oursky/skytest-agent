@@ -9,6 +9,8 @@ import { subscribeRunUpdates } from '@/lib/runners/event-bus';
 import { objectStore } from '@/lib/storage/object-store';
 import { isScreenshotData, type TestEvent, type LogLevel } from '@/types';
 import { parseTestResultMetadata } from '@/lib/runtime/test-result-metadata';
+import { loadMaskedVariableValuesForRun } from '@/lib/runtime/masked-variables';
+import { createExactValueMasker, maskEventForViewer, maskNullableText } from '@/lib/runtime/log-masking';
 
 export const dynamic = 'force-dynamic';
 
@@ -98,21 +100,25 @@ async function getCachedSignedArtifactUrl(artifactKey: string): Promise<string> 
     return signedUrl;
 }
 
-async function mapRunEventToUiEvent(row: RunEventRow): Promise<TestEvent> {
+async function mapRunEventToUiEvent(
+    row: RunEventRow,
+    maskText: (text: string) => string
+): Promise<TestEvent> {
     if (isUiTestEvent(row.payload)) {
+        const maskedPayload = maskEventForViewer(row.payload, maskText);
         if (
-            row.payload.type === 'screenshot'
+            maskedPayload.type === 'screenshot'
             && row.artifactKey
-            && isScreenshotData(row.payload.data)
-            && row.payload.data.src.startsWith('artifact:')
+            && isScreenshotData(maskedPayload.data)
+            && maskedPayload.data.src.startsWith('artifact:')
         ) {
             try {
                 const signedUrl = await getCachedSignedArtifactUrl(row.artifactKey);
 
                 return {
-                    ...row.payload,
+                    ...maskedPayload,
                     data: {
-                        ...row.payload.data,
+                        ...maskedPayload.data,
                         src: signedUrl,
                     },
                 };
@@ -121,12 +127,13 @@ async function mapRunEventToUiEvent(row: RunEventRow): Promise<TestEvent> {
             }
         }
 
-        return row.payload;
+        return maskedPayload;
     }
 
     const level: LogLevel = row.kind.toLowerCase().includes('error') ? 'error' : 'info';
-    const message = row.message
-        || (row.artifactKey ? `Artifact uploaded: ${row.artifactKey}` : row.kind);
+    const message = maskText(
+        row.message || (row.artifactKey ? `Artifact uploaded: ${row.artifactKey}` : row.kind)
+    );
 
     return {
         type: 'log',
@@ -220,6 +227,9 @@ export async function GET(
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    const maskedVariableValues = await loadMaskedVariableValuesForRun(runId);
+    const maskText = createExactValueMasker(maskedVariableValues);
+
     let streamClosed = false;
     let pollInterval: ReturnType<typeof setInterval> | null = null;
     let ttlTimer: ReturnType<typeof setTimeout> | null = null;
@@ -287,7 +297,7 @@ export async function GET(
                         safeEnqueue({
                             type: 'status',
                             status: statusRow.status,
-                            error: statusRow.error,
+                            error: maskNullableText(statusRow.error, maskText),
                             errorCode: metadata.errorCode,
                             errorCategory: metadata.errorCategory,
                         });
@@ -296,7 +306,7 @@ export async function GET(
 
                     const events = await fetchRunEventsAfter(runId, lastSequence);
                     for (const row of events) {
-                        safeEnqueue(await mapRunEventToUiEvent(row));
+                        safeEnqueue(await mapRunEventToUiEvent(row, maskText));
                         lastSequence = row.sequence;
                     }
 
@@ -315,7 +325,7 @@ export async function GET(
             safeEnqueue({
                 type: 'status',
                 status: currentRun.status,
-                error: currentRun.error,
+                error: maskNullableText(currentRun.error, maskText),
                 errorCode: initialMetadata.errorCode,
                 errorCategory: initialMetadata.errorCategory,
             });
