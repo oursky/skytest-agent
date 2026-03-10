@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use, useCallback } from "react";
+import { useState, useEffect, use, useCallback, useRef } from "react";
 import { useAuth } from "../../auth-provider";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -52,12 +52,17 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     const [testCases, setTestCases] = useState<TestCase[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; testCaseId: string; testCaseName: string }>({ isOpen: false, testCaseId: "", testCaseName: "" });
-    const [sortColumn, setSortColumn] = useState<'id' | 'name' | 'status' | 'updated'>('updated');
-    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+    const [sortColumn, setSortColumn] = useState<'id' | 'name' | 'status' | 'updated'>('id');
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
     const [currentPage, setCurrentPage] = useState(1);
     const [searchInput, setSearchInput] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTab, setActiveTab] = useState<'test-cases' | 'configs'>('test-cases');
+    const [editingDisplayIdTestCaseId, setEditingDisplayIdTestCaseId] = useState<string | null>(null);
+    const [editingDisplayIdValue, setEditingDisplayIdValue] = useState('');
+    const [savingDisplayIdTestCaseId, setSavingDisplayIdTestCaseId] = useState<string | null>(null);
+    const displayIdInputRef = useRef<HTMLInputElement | null>(null);
+    const skipBlurSaveRef = useRef(false);
 
     useEffect(() => {
         if (!isAuthLoading && !isLoggedIn) {
@@ -70,6 +75,13 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         if (tab === 'configs') { setActiveTab('configs'); return; }
         if (tab === 'test-cases') { setActiveTab('test-cases'); }
     }, [searchParams]);
+
+    useEffect(() => {
+        if (editingDisplayIdTestCaseId) {
+            displayIdInputRef.current?.focus();
+            displayIdInputRef.current?.select();
+        }
+    }, [editingDisplayIdTestCaseId]);
 
     const handleTabChange = useCallback((tab: 'test-cases' | 'configs') => {
         setActiveTab(tab);
@@ -201,6 +213,64 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             console.error("Failed to clone test case", error);
         }
     };
+
+    const startDisplayIdEdit = (testCase: TestCase) => {
+        setEditingDisplayIdTestCaseId(testCase.id);
+        setEditingDisplayIdValue(testCase.displayId || '');
+    };
+
+    const clearDisplayIdEditState = useCallback(() => {
+        setEditingDisplayIdTestCaseId(null);
+        setEditingDisplayIdValue('');
+        setSavingDisplayIdTestCaseId(null);
+    }, []);
+
+    const saveDisplayId = useCallback(async (testCase: TestCase) => {
+        const normalizedDisplayId = editingDisplayIdValue.trim();
+        const existingDisplayId = (testCase.displayId || '').trim();
+
+        if (!normalizedDisplayId || normalizedDisplayId === existingDisplayId) {
+            clearDisplayIdEditState();
+            return;
+        }
+
+        try {
+            setSavingDisplayIdTestCaseId(testCase.id);
+            const token = await getAccessToken();
+            const response = await fetch(`/api/test-cases/${testCase.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                },
+                body: JSON.stringify({
+                    displayId: normalizedDisplayId,
+                    preserveStatus: true
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to update test case ID (${response.status})`);
+            }
+
+            const updatedTestCase = await response.json() as { displayId?: string; updatedAt?: string };
+            setTestCases((prev) => prev.map((item) => {
+                if (item.id !== testCase.id) {
+                    return item;
+                }
+
+                return {
+                    ...item,
+                    displayId: updatedTestCase.displayId ?? normalizedDisplayId,
+                    updatedAt: typeof updatedTestCase.updatedAt === 'string' ? updatedTestCase.updatedAt : item.updatedAt,
+                };
+            }));
+        } catch (error) {
+            console.error('Failed to update test case ID', error);
+        } finally {
+            clearDisplayIdEditState();
+        }
+    }, [clearDisplayIdEditState, editingDisplayIdValue, getAccessToken]);
 
     const handleSort = (column: 'id' | 'name' | 'status' | 'updated') => {
         if (sortColumn === column) {
@@ -525,14 +595,58 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                                 const currentStatus = latestRunStatus && isActiveRunStatus(latestRunStatus)
                                     ? latestRunStatus
                                     : testCase.status;
+                                const isEditingDisplayId = editingDisplayIdTestCaseId === testCase.id;
+                                const isSavingDisplayId = savingDisplayIdTestCaseId === testCase.id;
 
                                 return (
                                     <div key={testCase.id} className="flex flex-col md:grid md:grid-cols-24 gap-4 p-4 hover:bg-gray-50 transition-colors group">
                                         <div className="md:col-span-3 flex items-center">
-                                            {testCase.displayId ? (
-                                                <span className="text-xs text-gray-500 font-mono">{testCase.displayId}</span>
+                                            {isEditingDisplayId ? (
+                                                <input
+                                                    ref={displayIdInputRef}
+                                                    type="text"
+                                                    value={editingDisplayIdValue}
+                                                    onChange={(event) => setEditingDisplayIdValue(event.target.value)}
+                                                    onBlur={() => {
+                                                        if (skipBlurSaveRef.current) {
+                                                            skipBlurSaveRef.current = false;
+                                                            clearDisplayIdEditState();
+                                                            return;
+                                                        }
+
+                                                        void saveDisplayId(testCase);
+                                                    }}
+                                                    onKeyDown={(event) => {
+                                                        if (event.key === 'Enter') {
+                                                            event.currentTarget.blur();
+                                                        }
+
+                                                        if (event.key === 'Escape') {
+                                                            skipBlurSaveRef.current = true;
+                                                            event.currentTarget.blur();
+                                                        }
+                                                    }}
+                                                    className="w-full rounded-md border border-primary/40 bg-white px-2 py-1 text-xs font-mono text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                                                    aria-label={t('project.table.id')}
+                                                />
+                                            ) : testCase.displayId ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => startDisplayIdEdit(testCase)}
+                                                    disabled={isSavingDisplayId}
+                                                    className="text-xs text-gray-500 font-mono hover:text-primary transition-colors disabled:opacity-60"
+                                                >
+                                                    {testCase.displayId}
+                                                </button>
                                             ) : (
-                                                <span className="text-gray-400 text-sm">-</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => startDisplayIdEdit(testCase)}
+                                                    disabled={isSavingDisplayId}
+                                                    className="text-gray-400 text-sm hover:text-primary transition-colors disabled:opacity-60"
+                                                >
+                                                    -
+                                                </button>
                                             )}
                                         </div>
                                         <div className="md:col-span-9 flex items-center">
