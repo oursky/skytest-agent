@@ -3,10 +3,93 @@ import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { isTeamMember } from '@/lib/security/permissions';
+import { parseActionCountFromResult } from '@/lib/runtime/usage';
+import { UsageService } from '@/lib/runtime/usage';
 
 const logger = createLogger('api:teams:usage');
 
 export const dynamic = 'force-dynamic';
+
+async function backfillTeamUsageRecords(teamId: string, projectId?: string) {
+    const runsWithoutUsage = await prisma.testRun.findMany({
+        where: {
+            status: { in: ['PASS', 'FAIL', 'CANCELLED'] },
+            result: { not: null },
+            usageRecords: { none: {} },
+            testCase: {
+                project: {
+                    teamId,
+                    ...(projectId ? { id: projectId } : {})
+                }
+            }
+        },
+        orderBy: { completedAt: 'desc' },
+        take: 200,
+        select: {
+            id: true,
+            result: true,
+            testCase: {
+                select: {
+                    name: true,
+                    project: {
+                        select: {
+                            id: true,
+                            name: true,
+                            createdByUserId: true,
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    for (const run of runsWithoutUsage) {
+        const actionCount = parseActionCountFromResult(run.result ?? undefined);
+        if (actionCount <= 0) {
+            continue;
+        }
+
+        await UsageService.recordUsage(
+            run.testCase.project.createdByUserId,
+            run.testCase.project.id,
+            actionCount,
+            `${run.testCase.project.name} - ${run.testCase.name}`,
+            run.id
+        );
+    }
+
+    const completedRunsWhere = {
+        status: { in: ['PASS', 'FAIL', 'CANCELLED'] },
+        testCase: {
+            project: {
+                teamId,
+                ...(projectId ? { id: projectId } : {}),
+            },
+        }
+    };
+
+    const [completedRunsCount, linkedUsageCount] = await Promise.all([
+        prisma.testRun.count({ where: completedRunsWhere }),
+        prisma.usageRecord.count({
+            where: {
+                testRunId: { not: null },
+                project: {
+                    teamId,
+                    ...(projectId ? { id: projectId } : {}),
+                },
+            }
+        }),
+    ]);
+
+    if (completedRunsCount >= 5 && linkedUsageCount < Math.floor(completedRunsCount * 0.8)) {
+        logger.warn('Team usage coverage gap detected', {
+            teamId,
+            projectId: projectId ?? null,
+            completedRunsCount,
+            linkedUsageCount,
+        });
+    }
+}
 
 export async function GET(
     request: Request,
@@ -34,6 +117,8 @@ export async function GET(
         const projectId = searchParams.get('projectId')?.trim() || undefined;
         const from = searchParams.get('from')?.trim() || undefined;
         const to = searchParams.get('to')?.trim() || undefined;
+
+        await backfillTeamUsageRecords(id, projectId);
 
         const where = {
             project: {

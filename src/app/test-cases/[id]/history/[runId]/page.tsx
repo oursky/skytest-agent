@@ -241,13 +241,16 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
             snapshotTestCaseConfigs: [] as ConfigItem[],
         };
     })();
+    const runPageHref = projectId
+        ? `/run?testCaseId=${id}&projectId=${projectId}`
+        : `/run?testCaseId=${id}`;
 
     return (
         <main className="min-h-screen bg-gray-50 p-8">
             <div className="max-w-7xl mx-auto">
                 <Breadcrumbs items={[
                     { label: projectName, href: projectId ? `/projects/${projectId}` : undefined },
-                    { label: testData?.name || testCase?.name || t('runDetail.breadcrumb.testCaseFallback'), href: `/test-cases/${id}/history` },
+                    { label: testData?.name || testCase?.name || t('runDetail.breadcrumb.testCaseFallback'), href: runPageHref },
                     { label: t('runDetail.breadcrumb.runPrefix', { time: formatDateTime(testRun.createdAt) }) }
                 ]} />
 

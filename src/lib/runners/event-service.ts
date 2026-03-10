@@ -6,6 +6,7 @@ import { config as appConfig } from '@/config/app';
 import { publishRunUpdate } from '@/lib/runners/event-bus';
 import { createStoredName, validateAndSanitizeFile, buildRunArtifactObjectKey } from '@/lib/security/file-security';
 import { putObjectBuffer } from '@/lib/storage/object-store-utils';
+import { UsageService } from '@/lib/runtime/usage';
 
 const logger = createLogger('runners:event-service');
 
@@ -33,7 +34,7 @@ function shouldPromoteRunToRunning(events: RunnerEventInput[]): boolean {
     });
 }
 
-function ensureRunOwnership(run: OwnedRun | null, runnerId: string): OwnedRun | null {
+function ensureRunOwnership<T extends OwnedRun>(run: T | null, runnerId: string): T | null {
     if (!run) {
         return null;
     }
@@ -68,6 +69,42 @@ async function findOwnedRun(runId: string, runnerId: string): Promise<OwnedRun |
     });
 
     return ensureRunOwnership(run, runnerId);
+}
+
+async function recordRunUsageIfAvailable(input: {
+    testCaseId: string;
+    runId: string;
+    result?: string;
+}) {
+    try {
+        const testCase = await prisma.testCase.findUnique({
+            where: { id: input.testCaseId },
+            select: {
+                name: true,
+                project: {
+                    select: {
+                        id: true,
+                        name: true,
+                        createdByUserId: true,
+                    }
+                }
+            }
+        });
+
+        if (!testCase) {
+            return;
+        }
+
+        await UsageService.recordRunUsageFromResult({
+            actorUserId: testCase.project.createdByUserId,
+            projectId: testCase.project.id,
+            result: input.result,
+            description: `${testCase.project.name} - ${testCase.name}`,
+            testRunId: input.runId,
+        });
+    } catch {
+        // Ignore usage recording failures to avoid blocking run state transitions.
+    }
 }
 
 export async function appendRunEvents(input: {
@@ -236,10 +273,19 @@ export async function completeOwnedRun(input: {
             data: { status: 'PASS' },
         });
 
-        return { runId: input.runId, status: 'PASS' as const };
+        return {
+            runId: input.runId,
+            status: 'PASS' as const,
+            testCaseId: ownedRun.testCaseId,
+        };
     });
 
     if (completed) {
+        await recordRunUsageIfAvailable({
+            testCaseId: completed.testCaseId,
+            runId: completed.runId,
+            result: input.result,
+        });
         logger.info('Run marked PASS by runner', {
             runId: input.runId,
             runnerId: input.runnerId,
@@ -252,7 +298,11 @@ export async function completeOwnedRun(input: {
         });
     }
 
-    return completed;
+    if (!completed) {
+        return null;
+    }
+
+    return { runId: completed.runId, status: completed.status };
 }
 
 export async function failOwnedRun(input: {
@@ -298,10 +348,19 @@ export async function failOwnedRun(input: {
             data: { status: 'FAIL' },
         });
 
-        return { runId: input.runId, status: 'FAIL' as const };
+        return {
+            runId: input.runId,
+            status: 'FAIL' as const,
+            testCaseId: ownedRun.testCaseId,
+        };
     });
 
     if (failed) {
+        await recordRunUsageIfAvailable({
+            testCaseId: failed.testCaseId,
+            runId: failed.runId,
+            result: input.result,
+        });
         logger.info('Run marked FAIL by runner', {
             runId: input.runId,
             runnerId: input.runnerId,
@@ -314,5 +373,9 @@ export async function failOwnedRun(input: {
         });
     }
 
-    return failed;
+    if (!failed) {
+        return null;
+    }
+
+    return { runId: failed.runId, status: failed.status };
 }
