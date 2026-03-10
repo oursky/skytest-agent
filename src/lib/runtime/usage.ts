@@ -3,6 +3,34 @@ import { createLogger } from '@/lib/core/logger';
 
 const logger = createLogger('usage');
 
+interface ParsedRunResult {
+    actionCount?: unknown;
+}
+
+interface RecordRunUsageFromResultInput {
+    actorUserId: string;
+    projectId: string;
+    result?: string;
+    description?: string;
+    testRunId: string;
+}
+
+export function parseActionCountFromResult(result?: string): number {
+    if (!result) {
+        return 0;
+    }
+
+    try {
+        const parsed = JSON.parse(result) as ParsedRunResult;
+        if (typeof parsed.actionCount !== 'number' || !Number.isFinite(parsed.actionCount)) {
+            return 0;
+        }
+        return Math.max(0, Math.floor(parsed.actionCount));
+    } catch {
+        return 0;
+    }
+}
+
 export class UsageService {
     static async recordUsage(
         actorUserId: string,
@@ -36,5 +64,20 @@ export class UsageService {
                 testRunId
             }
         });
+    }
+
+    static async recordRunUsageFromResult(input: RecordRunUsageFromResultInput) {
+        const actionCount = parseActionCountFromResult(input.result);
+        if (actionCount <= 0) {
+            return;
+        }
+
+        return await UsageService.recordUsage(
+            input.actorUserId,
+            input.projectId,
+            actionCount,
+            input.description,
+            input.testRunId
+        );
     }
 }

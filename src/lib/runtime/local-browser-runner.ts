@@ -8,6 +8,7 @@ import { publishRunUpdate } from '@/lib/runners/event-bus';
 import { config as appConfig } from '@/config/app';
 import { createStoredName, validateAndSanitizeFile, buildRunArtifactObjectKey } from '@/lib/security/file-security';
 import { putObjectBuffer } from '@/lib/storage/object-store-utils';
+import { UsageService } from '@/lib/runtime/usage';
 import { isScreenshotData, type BrowserConfig, type TargetConfig, type TestCaseFile, type TestEvent, type TestStep } from '@/types';
 
 interface SnapshotPayload {
@@ -21,6 +22,10 @@ interface LoadedRunConfig {
     runId: string;
     testCaseId: string;
     projectId: string;
+    usage: {
+        actorUserId: string;
+        description: string;
+    };
     config: {
         url?: string;
         prompt?: string;
@@ -142,6 +147,7 @@ async function loadRunConfig(runId: string, options?: LocalBrowserRunOptions): P
             testCase: {
                 select: {
                     id: true,
+                    name: true,
                     url: true,
                     prompt: true,
                     steps: true,
@@ -149,6 +155,8 @@ async function loadRunConfig(runId: string, options?: LocalBrowserRunOptions): P
                     projectId: true,
                     project: {
                         select: {
+                            name: true,
+                            createdByUserId: true,
                             team: {
                                 select: {
                                     openRouterKeyEncrypted: true,
@@ -192,6 +200,10 @@ async function loadRunConfig(runId: string, options?: LocalBrowserRunOptions): P
         runId: run.id,
         testCaseId: run.testCase.id,
         projectId: run.testCase.projectId,
+        usage: {
+            actorUserId: run.testCase.project.createdByUserId,
+            description: `${run.testCase.project.name} - ${run.testCase.name}`,
+        },
         config: {
             url: snapshot.url ?? run.testCase.url,
             prompt: snapshot.prompt ?? run.testCase.prompt ?? undefined,
@@ -348,7 +360,13 @@ async function runStillActive(runId: string, options?: LocalBrowserRunOptions): 
     return !!run;
 }
 
-async function completeRun(runId: string, testCaseId: string, result?: string, options?: LocalBrowserRunOptions): Promise<void> {
+async function completeRun(
+    runId: string,
+    testCaseId: string,
+    usage: LoadedRunConfig['usage'] & { projectId: string },
+    result?: string,
+    options?: LocalBrowserRunOptions
+): Promise<void> {
     const now = new Date();
     const updated = await prisma.testRun.updateMany({
         where: buildRunOwnershipWhere(runId, options),
@@ -366,11 +384,32 @@ async function completeRun(runId: string, testCaseId: string, result?: string, o
             where: { id: testCaseId },
             data: { status: 'PASS' },
         });
+        try {
+            await UsageService.recordRunUsageFromResult({
+                actorUserId: usage.actorUserId,
+                projectId: usage.projectId,
+                result,
+                description: usage.description,
+                testRunId: runId,
+            });
+        } catch (error) {
+            logger.warn('Failed to record usage for completed run', {
+                runId,
+                error: error instanceof Error ? error.message : String(error),
+            });
+        }
         publishRunUpdate(runId);
     }
 }
 
-async function failRun(runId: string, testCaseId: string, error: string, result?: string, options?: LocalBrowserRunOptions): Promise<void> {
+async function failRun(
+    runId: string,
+    testCaseId: string,
+    usage: LoadedRunConfig['usage'] & { projectId: string },
+    error: string,
+    result?: string,
+    options?: LocalBrowserRunOptions
+): Promise<void> {
     const now = new Date();
     const updated = await prisma.testRun.updateMany({
         where: buildRunOwnershipWhere(runId, options),
@@ -389,6 +428,20 @@ async function failRun(runId: string, testCaseId: string, error: string, result?
             where: { id: testCaseId },
             data: { status: 'FAIL' },
         });
+        try {
+            await UsageService.recordRunUsageFromResult({
+                actorUserId: usage.actorUserId,
+                projectId: usage.projectId,
+                result,
+                description: usage.description,
+                testRunId: runId,
+            });
+        } catch (usageError) {
+            logger.warn('Failed to record usage for failed run', {
+                runId,
+                error: usageError instanceof Error ? usageError.message : String(usageError),
+            });
+        }
         publishRunUpdate(runId);
     }
 }
@@ -411,7 +464,13 @@ async function failRunWithoutTestCase(runId: string, error: string, options?: Lo
     }
 }
 
-async function cancelRun(runId: string, testCaseId: string, options?: LocalBrowserRunOptions): Promise<void> {
+async function cancelRun(
+    runId: string,
+    testCaseId: string,
+    usage: LoadedRunConfig['usage'] & { projectId: string },
+    result?: string,
+    options?: LocalBrowserRunOptions
+): Promise<void> {
     const now = new Date();
     const updated = await prisma.testRun.updateMany({
         where: buildRunOwnershipWhere(runId, options),
@@ -429,6 +488,20 @@ async function cancelRun(runId: string, testCaseId: string, options?: LocalBrows
             where: { id: testCaseId },
             data: { status: 'CANCELLED' },
         });
+        try {
+            await UsageService.recordRunUsageFromResult({
+                actorUserId: usage.actorUserId,
+                projectId: usage.projectId,
+                result,
+                description: usage.description,
+                testRunId: runId,
+            });
+        } catch (usageError) {
+            logger.warn('Failed to record usage for cancelled run', {
+                runId,
+                error: usageError instanceof Error ? usageError.message : String(usageError),
+            });
+        }
         publishRunUpdate(runId);
     }
 }
@@ -638,20 +711,62 @@ async function executeLocalBrowserRun(
 
         const resultSummary = JSON.stringify(result);
         if (result.status === 'PASS') {
-            await completeRun(runId, details.testCaseId, resultSummary, options);
+            await completeRun(
+                runId,
+                details.testCaseId,
+                {
+                    actorUserId: details.usage.actorUserId,
+                    projectId: details.projectId,
+                    description: details.usage.description,
+                },
+                resultSummary,
+                options
+            );
             return;
         }
         if (result.status === 'CANCELLED') {
-            await cancelRun(runId, details.testCaseId, options);
+            await cancelRun(
+                runId,
+                details.testCaseId,
+                {
+                    actorUserId: details.usage.actorUserId,
+                    projectId: details.projectId,
+                    description: details.usage.description,
+                },
+                resultSummary,
+                options
+            );
             return;
         }
 
-        await failRun(runId, details.testCaseId, result.error ?? 'Run failed', resultSummary, options);
+        await failRun(
+            runId,
+            details.testCaseId,
+            {
+                actorUserId: details.usage.actorUserId,
+                projectId: details.projectId,
+                description: details.usage.description,
+            },
+            result.error ?? 'Run failed',
+            resultSummary,
+            options
+        );
     } catch (error) {
         await Promise.allSettled(Array.from(pendingArtifactUploads));
         await flushEvents();
         const errorMessage = error instanceof Error ? error.message : String(error);
-        await failRun(runId, details.testCaseId, errorMessage, undefined, options);
+        await failRun(
+            runId,
+            details.testCaseId,
+            {
+                actorUserId: details.usage.actorUserId,
+                projectId: details.projectId,
+                description: details.usage.description,
+            },
+            errorMessage,
+            undefined,
+            options
+        );
     } finally {
         clearInterval(statusWatchTimer);
     }

@@ -51,6 +51,10 @@ interface ProjectOption {
     name: string;
 }
 
+function isAbortError(error: unknown): boolean {
+    return error instanceof DOMException && error.name === 'AbortError';
+}
+
 export default function TeamUsage({ teamId }: TeamUsageProps) {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
@@ -66,26 +70,60 @@ export default function TeamUsage({ teamId }: TeamUsageProps) {
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
+        setProjects([]);
+        setSelectedProjectId('');
+        setPage(1);
+        setPagination(null);
+        setRecords([]);
+        setError(null);
+    }, [teamId]);
+
+    useEffect(() => {
+        const controller = new AbortController();
         const loadProjects = async () => {
             try {
                 const token = await getAccessToken();
                 const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
-                const response = await fetch(`/api/projects?teamId=${teamId}`, { headers });
+                const response = await fetch(`/api/projects?teamId=${teamId}`, {
+                    headers,
+                    signal: controller.signal
+                });
                 if (!response.ok) {
                     return;
                 }
 
                 const data = await response.json() as ProjectOption[];
                 setProjects(data.map((project) => ({ id: project.id, name: project.name })));
-            } catch {
+            } catch (error) {
+                if (isAbortError(error)) {
+                    return;
+                }
                 // ignore
             }
         };
 
         void loadProjects();
+
+        return () => {
+            controller.abort();
+        };
     }, [getAccessToken, teamId]);
 
     useEffect(() => {
+        if (!selectedProjectId) {
+            return;
+        }
+
+        if (projects.some((project) => project.id === selectedProjectId)) {
+            return;
+        }
+
+        setSelectedProjectId('');
+        setPage(1);
+    }, [projects, selectedProjectId]);
+
+    useEffect(() => {
+        const controller = new AbortController();
         const loadUsage = async () => {
             try {
                 setIsLoading(true);
@@ -107,7 +145,10 @@ export default function TeamUsage({ teamId }: TeamUsageProps) {
                     url.searchParams.set('to', inclusiveEnd.toISOString());
                 }
 
-                const response = await fetch(url.toString(), { headers });
+                const response = await fetch(url.toString(), {
+                    headers,
+                    signal: controller.signal
+                });
                 if (!response.ok) {
                     throw new Error('Failed to load usage');
                 }
@@ -116,14 +157,23 @@ export default function TeamUsage({ teamId }: TeamUsageProps) {
                 setRecords(data.records);
                 setPagination(data.pagination);
                 setError(null);
-            } catch {
+            } catch (error) {
+                if (isAbortError(error)) {
+                    return;
+                }
                 setError(t('team.usage.error.load'));
             } finally {
-                setIsLoading(false);
+                if (!controller.signal.aborted) {
+                    setIsLoading(false);
+                }
             }
         };
 
         void loadUsage();
+
+        return () => {
+            controller.abort();
+        };
     }, [fromDate, getAccessToken, limit, teamId, page, selectedProjectId, t, toDate]);
 
     const projectOptions = useMemo(
