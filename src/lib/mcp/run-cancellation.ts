@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/core/prisma';
+import { dispatchNextQueuedBrowserRun } from '@/lib/runtime/browser-run-dispatcher';
 import { ACTIVE_RUN_STATUSES } from '@/utils/statusHelpers';
 
 const TERMINAL_RUN_STATUSES = new Set(['PASS', 'FAIL', 'CANCELLED']);
@@ -44,6 +45,8 @@ export async function cancelRunDurably(runId: string, errorMessage: string): Pro
         where: { id: run.testCaseId },
         data: { status: 'CANCELLED' },
     });
+
+    void dispatchNextQueuedBrowserRun().catch(() => {});
 
     return true;
 }

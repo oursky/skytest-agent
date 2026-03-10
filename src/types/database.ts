@@ -1,10 +1,12 @@
 export interface Project {
     id: string;
     name: string;
+    maxConcurrentRuns: number;
     teamId: string;
     createdByUserId: string;
     createdAt: string;
     updatedAt: string;
+    maxConcurrentRunsLimit?: number;
     _count?: {
         testCases: number;
     };

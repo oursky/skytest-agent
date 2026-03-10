@@ -10,6 +10,14 @@ const runnerLeaseDurationSecondsValue = Number.parseInt(process.env.RUNNER_LEASE
 const runnerLeaseDurationSeconds = Number.isFinite(runnerLeaseDurationSecondsValue) && runnerLeaseDurationSecondsValue > 0
     ? runnerLeaseDurationSecondsValue
     : 120;
+const runnerMaxConcurrentRunsValue = Number.parseInt(process.env.RUNNER_MAX_CONCURRENT_RUNS ?? '', 10);
+const runnerMaxConcurrentRuns = Number.isFinite(runnerMaxConcurrentRunsValue) && runnerMaxConcurrentRunsValue > 0
+    ? runnerMaxConcurrentRunsValue
+    : 10;
+const projectMaxConcurrentRunsMaxValue = Number.parseInt(process.env.PROJECT_MAX_CONCURRENT_RUNS_MAX ?? '', 10);
+const projectMaxConcurrentRunsMax = Number.isFinite(projectMaxConcurrentRunsMaxValue) && projectMaxConcurrentRunsMaxValue > 0
+    ? projectMaxConcurrentRunsMaxValue
+    : 5;
 const runnerLeaseReaperIntervalMsValue = Number.parseInt(process.env.RUNNER_LEASE_REAPER_INTERVAL_MS ?? '', 10);
 const runnerLeaseReaperIntervalMs = Number.isFinite(runnerLeaseReaperIntervalMsValue) && runnerLeaseReaperIntervalMsValue > 0
     ? runnerLeaseReaperIntervalMsValue
@@ -64,6 +72,8 @@ export const config = {
 
     runner: {
         leaseDurationSeconds: runnerLeaseDurationSeconds,
+        maxConcurrentRuns: runnerMaxConcurrentRuns,
+        maxProjectConcurrentRuns: projectMaxConcurrentRunsMax,
         leaseReaperIntervalMs: runnerLeaseReaperIntervalMs,
         eventRetentionDays: runnerEventRetentionDays,
         artifactSoftDeleteDays: runnerArtifactSoftDeleteDays,

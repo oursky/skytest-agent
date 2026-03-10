@@ -4,6 +4,7 @@ import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { deleteObjectIfExists } from '@/lib/storage/object-store-utils';
 import { canDeleteProject, isProjectMember } from '@/lib/security/permissions';
+import { config as appConfig } from '@/config/app';
 
 const logger = createLogger('api:projects:id');
 
@@ -28,6 +29,7 @@ export async function GET(
             select: {
                 id: true,
                 name: true,
+                maxConcurrentRuns: true,
                 teamId: true,
                 createdByUserId: true,
                 createdAt: true,
@@ -46,6 +48,7 @@ export async function GET(
 
         return NextResponse.json({
             ...project,
+            maxConcurrentRunsLimit: appConfig.runner.maxProjectConcurrentRuns,
             canManageProject: true,
             canDeleteProject: await canDeleteProject(userId, id),
         });
@@ -86,19 +89,61 @@ export async function PUT(
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const body = await request.json();
-        const { name } = body;
+        const body = await request.json() as {
+            name?: unknown;
+            maxConcurrentRuns?: unknown;
+        };
+        const hasName = body.name !== undefined;
+        const hasMaxConcurrentRuns = body.maxConcurrentRuns !== undefined;
 
-        if (!name) {
-            return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+        if (!hasName && !hasMaxConcurrentRuns) {
+            return NextResponse.json({ error: 'No updatable fields provided' }, { status: 400 });
+        }
+
+        const data: {
+            name?: string;
+            maxConcurrentRuns?: number;
+        } = {};
+
+        if (hasName) {
+            const name = typeof body.name === 'string' ? body.name.trim() : '';
+            if (!name) {
+                return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+            }
+            data.name = name;
+        }
+
+        if (hasMaxConcurrentRuns) {
+            const maxConcurrentRunsInput = body.maxConcurrentRuns;
+            if (typeof maxConcurrentRunsInput !== 'number' || !Number.isInteger(maxConcurrentRunsInput)) {
+                return NextResponse.json({ error: 'maxConcurrentRuns must be an integer' }, { status: 400 });
+            }
+            if (maxConcurrentRunsInput < 1 || maxConcurrentRunsInput > appConfig.runner.maxProjectConcurrentRuns) {
+                return NextResponse.json({
+                    error: `maxConcurrentRuns must be between 1 and ${appConfig.runner.maxProjectConcurrentRuns}`,
+                }, { status: 400 });
+            }
+            data.maxConcurrentRuns = maxConcurrentRunsInput;
         }
 
         const project = await prisma.project.update({
             where: { id },
-            data: { name },
+            data,
+            select: {
+                id: true,
+                name: true,
+                maxConcurrentRuns: true,
+                teamId: true,
+                createdByUserId: true,
+                createdAt: true,
+                updatedAt: true,
+            },
         });
 
-        return NextResponse.json(project);
+        return NextResponse.json({
+            ...project,
+            maxConcurrentRunsLimit: appConfig.runner.maxProjectConcurrentRuns,
+        });
     } catch (error) {
         logger.error('Failed to update project', error);
         return NextResponse.json({ error: 'Failed to update project' }, { status: 500 });

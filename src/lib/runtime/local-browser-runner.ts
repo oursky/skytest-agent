@@ -60,6 +60,18 @@ const activeAbortControllers = new Map<string, AbortController>();
 const activeExecutions = new Map<string, Promise<void>>();
 const RUN_STATUS_WATCH_INTERVAL_MS = 1_000;
 
+function triggerQueuedBrowserDispatch(reason: string, runId: string): void {
+    void import('@/lib/runtime/browser-run-dispatcher')
+        .then(({ dispatchNextQueuedBrowserRun }) => dispatchNextQueuedBrowserRun())
+        .catch((error) => {
+            logger.warn('Failed to dispatch queued browser run', {
+                runId,
+                reason,
+                error: error instanceof Error ? error.message : String(error),
+            });
+        });
+}
+
 function createLeaseExpiry(now = new Date()): Date {
     return new Date(now.getTime() + appConfig.runner.leaseDurationSeconds * 1000);
 }
@@ -399,6 +411,7 @@ async function completeRun(
             });
         }
         publishRunUpdate(runId);
+        triggerQueuedBrowserDispatch('complete', runId);
     }
 }
 
@@ -443,6 +456,7 @@ async function failRun(
             });
         }
         publishRunUpdate(runId);
+        triggerQueuedBrowserDispatch('fail', runId);
     }
 }
 
@@ -461,6 +475,7 @@ async function failRunWithoutTestCase(runId: string, error: string, options?: Lo
 
     if (updated.count > 0) {
         publishRunUpdate(runId);
+        triggerQueuedBrowserDispatch('fail_without_test_case', runId);
     }
 }
 
@@ -503,6 +518,7 @@ async function cancelRun(
             });
         }
         publishRunUpdate(runId);
+        triggerQueuedBrowserDispatch('cancel', runId);
     }
 }
 
