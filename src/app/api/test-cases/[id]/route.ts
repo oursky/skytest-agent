@@ -69,7 +69,15 @@ export async function PUT(
     try {
         const { id } = await params;
         const body = await request.json();
-        const { name, url, prompt, steps, browserConfig, displayId } = body;
+        const { name, url, prompt, steps, browserConfig, displayId, preserveStatus } = body as {
+            name?: string;
+            url?: string;
+            prompt?: string;
+            steps?: unknown;
+            browserConfig?: unknown;
+            displayId?: string;
+            preserveStatus?: boolean;
+        };
         const normalizedDisplayId = typeof displayId === 'string' ? displayId.trim() : '';
 
         const existingTestCase = await prisma.testCase.findUnique({
@@ -115,7 +123,9 @@ export async function PUT(
             displayId: normalizedDisplayId,
         };
 
-        updateData.status = 'DRAFT';
+        if (preserveStatus !== true) {
+            updateData.status = 'DRAFT';
+        }
 
         const testCase = await prisma.testCase.update({
             where: { id },
