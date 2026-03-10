@@ -260,7 +260,16 @@ export default function TeamUsage({ teamId }: TeamUsageProps) {
                                     <tr key={record.id} className="hover:bg-gray-50/50">
                                         <td className="px-4 py-3 align-top">{record.project.name}</td>
                                         <td className="px-4 py-3 align-top font-medium text-gray-900">
-                                            {record.testRun?.testCase?.displayId || '-'}
+                                            {record.testRun?.testCase ? (
+                                                <Link
+                                                    href={`/test-cases/${record.testRun.testCase.id}/history/${record.testRun.id}`}
+                                                    className="text-primary hover:underline"
+                                                >
+                                                    {record.testRun.testCase.displayId || '-'}
+                                                </Link>
+                                            ) : (
+                                                '-'
+                                            )}
                                         </td>
                                         <td className="px-4 py-3 align-top">
                                             {record.testRun?.testCase?.name || t('team.usage.table.noTestCase')}
