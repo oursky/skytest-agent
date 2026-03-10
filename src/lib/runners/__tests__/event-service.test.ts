@@ -5,7 +5,11 @@ const {
     updateManyRun,
     createManyEvents,
     updateRun,
+    findUniqueTestCase,
     updateTestCase,
+    findUniqueUser,
+    findUniqueProject,
+    upsertUsageRecord,
     createRunFile,
     transaction,
     putObjectBuffer,
@@ -14,7 +18,11 @@ const {
     updateManyRun: vi.fn(),
     createManyEvents: vi.fn(),
     updateRun: vi.fn(),
+    findUniqueTestCase: vi.fn(),
     updateTestCase: vi.fn(),
+    findUniqueUser: vi.fn(),
+    findUniqueProject: vi.fn(),
+    upsertUsageRecord: vi.fn(),
     createRunFile: vi.fn(),
     transaction: vi.fn(),
     putObjectBuffer: vi.fn(),
@@ -27,6 +35,19 @@ vi.mock('@/lib/core/prisma', () => ({
             findUnique: findUniqueRun,
             update: updateRun,
         },
+        testCase: {
+            findUnique: findUniqueTestCase,
+        },
+        user: {
+            findUnique: findUniqueUser,
+        },
+        project: {
+            findUnique: findUniqueProject,
+        },
+        usageRecord: {
+            upsert: upsertUsageRecord,
+            create: vi.fn(),
+        },
         testRunFile: {
             create: createRunFile,
         },
@@ -37,7 +58,7 @@ vi.mock('@/lib/storage/object-store-utils', () => ({
     putObjectBuffer,
 }));
 
-const { appendRunEvents, completeOwnedRun } = await import('@/lib/runners/event-service');
+const { appendRunEvents, completeOwnedRun, failOwnedRun } = await import('@/lib/runners/event-service');
 
 describe('event-service', () => {
     beforeEach(() => {
@@ -45,7 +66,11 @@ describe('event-service', () => {
         updateManyRun.mockReset();
         createManyEvents.mockReset();
         updateRun.mockReset();
+        findUniqueTestCase.mockReset();
         updateTestCase.mockReset();
+        findUniqueUser.mockReset();
+        findUniqueProject.mockReset();
+        upsertUsageRecord.mockReset();
         createRunFile.mockReset();
         transaction.mockReset();
         putObjectBuffer.mockReset();
@@ -76,6 +101,17 @@ describe('event-service', () => {
             },
         }));
         updateManyRun.mockResolvedValue({ count: 1 });
+        findUniqueTestCase.mockResolvedValue({
+            name: 'Checkout flow',
+            project: {
+                id: 'project-1',
+                name: 'Shop',
+                createdByUserId: 'user-1',
+            }
+        });
+        findUniqueUser.mockResolvedValue({ id: 'user-1' });
+        findUniqueProject.mockResolvedValue({ id: 'project-1' });
+        upsertUsageRecord.mockResolvedValue({ id: 'usage-1' });
     });
 
     it('appends events with reserved sequence numbers', async () => {
@@ -213,14 +249,14 @@ describe('event-service', () => {
         const result = await completeOwnedRun({
             runId: 'run-1',
             runnerId: 'runner-1',
-            result: '{"ok":true}',
+            result: '{"ok":true,"actionCount":3}',
         });
 
         expect(updateRun).toHaveBeenCalledWith({
             where: { id: 'run-1' },
             data: {
                 status: 'PASS',
-                result: '{"ok":true}',
+                result: '{"ok":true,"actionCount":3}',
                 completedAt: expect.any(Date),
                 assignedRunnerId: null,
                 leaseExpiresAt: null,
@@ -230,6 +266,77 @@ describe('event-service', () => {
             where: { id: 'tc-1' },
             data: { status: 'PASS' },
         });
+        expect(upsertUsageRecord).toHaveBeenCalledWith({
+            where: { testRunId: 'run-1' },
+            update: {
+                actorUserId: 'user-1',
+                projectId: 'project-1',
+                type: 'TEST_RUN',
+                description: 'Shop - Checkout flow',
+                aiActions: 3,
+            },
+            create: {
+                actorUserId: 'user-1',
+                projectId: 'project-1',
+                type: 'TEST_RUN',
+                description: 'Shop - Checkout flow',
+                aiActions: 3,
+                testRunId: 'run-1',
+            }
+        });
         expect(result).toEqual({ runId: 'run-1', status: 'PASS' });
+    });
+
+    it('records usage when owned runs fail', async () => {
+        findUniqueRun.mockResolvedValueOnce({
+            id: 'run-1',
+            testCaseId: 'tc-1',
+            status: 'RUNNING',
+            assignedRunnerId: 'runner-1',
+            leaseExpiresAt: new Date(Date.now() + 10_000),
+            nextEventSequence: 1,
+        });
+
+        const result = await failOwnedRun({
+            runId: 'run-1',
+            runnerId: 'runner-1',
+            error: 'Step failed',
+            result: '{"status":"FAIL","actionCount":2}',
+        });
+
+        expect(updateRun).toHaveBeenCalledWith({
+            where: { id: 'run-1' },
+            data: {
+                status: 'FAIL',
+                error: 'Step failed',
+                result: '{"status":"FAIL","actionCount":2}',
+                completedAt: expect.any(Date),
+                assignedRunnerId: null,
+                leaseExpiresAt: null,
+            },
+        });
+        expect(updateTestCase).toHaveBeenCalledWith({
+            where: { id: 'tc-1' },
+            data: { status: 'FAIL' },
+        });
+        expect(upsertUsageRecord).toHaveBeenCalledWith({
+            where: { testRunId: 'run-1' },
+            update: {
+                actorUserId: 'user-1',
+                projectId: 'project-1',
+                type: 'TEST_RUN',
+                description: 'Shop - Checkout flow',
+                aiActions: 2,
+            },
+            create: {
+                actorUserId: 'user-1',
+                projectId: 'project-1',
+                type: 'TEST_RUN',
+                description: 'Shop - Checkout flow',
+                aiActions: 2,
+                testRunId: 'run-1',
+            }
+        });
+        expect(result).toEqual({ runId: 'run-1', status: 'FAIL' });
     });
 });
