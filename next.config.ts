@@ -60,6 +60,7 @@ function resolveImageRemotePatterns(): ImageRemotePattern[] {
 }
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ['@silvia-odwyer/photon-node'],
   images: {
     dangerouslyAllowLocalIP: isDevelopment,
     remotePatterns: resolveImageRemotePatterns(),
