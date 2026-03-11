@@ -203,7 +203,7 @@ export default function TeamMembers({ teamId, onMembersChanged }: TeamMembersPro
                                     <th className="px-4 py-2.5">{t('team.members.table.person')}</th>
                                     <th className="px-4 py-2.5">{t('team.members.table.role')}</th>
                                     <th className="px-4 py-2.5">{t('team.members.table.dateAdded')}</th>
-                                    <th className="px-4 py-2.5 text-right">{t('team.members.table.actions')}</th>
+                                    <th className="w-32 px-4 py-2.5 text-right">{t('team.members.table.actions')}</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100 text-gray-700">
@@ -227,21 +227,19 @@ export default function TeamMembers({ teamId, onMembersChanged }: TeamMembersPro
                                         <td className="px-4 py-3 align-middle text-sm text-gray-500">
                                             {formatDateTimeCompact(member.createdAt)}
                                         </td>
-                                        <td className="px-4 py-3 align-middle">
-                                            <div className="flex min-h-8 items-center justify-end gap-2">
-                                                {member.role === 'OWNER' ? (
-                                                    <span className="text-xs text-gray-400">{t('team.members.readOnly')}</span>
-                                                ) : canManage ? (
-                                                    <DangerTextButton
-                                                        onClick={() => setMemberToRemove(member)}
-                                                        size="sm"
-                                                    >
-                                                        {t('common.remove')}
-                                                    </DangerTextButton>
-                                                ) : (
-                                                    <span className="text-xs text-gray-400">{t('team.members.readOnly')}</span>
-                                                )}
-                                            </div>
+                                        <td className="w-32 px-4 py-3 align-middle text-right whitespace-nowrap">
+                                            {member.role === 'OWNER' ? (
+                                                <span className="text-sm font-normal text-gray-400">{t('team.members.readOnly')}</span>
+                                            ) : canManage ? (
+                                                <DangerTextButton
+                                                    onClick={() => setMemberToRemove(member)}
+                                                    size="sm"
+                                                >
+                                                    {t('common.remove')}
+                                                </DangerTextButton>
+                                            ) : (
+                                                <span className="text-sm font-normal text-gray-400">{t('team.members.readOnly')}</span>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}

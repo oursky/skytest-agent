@@ -52,7 +52,7 @@ export default function RunnerInventoryTables({
                                     <th className="px-4 py-3 text-left">{t('team.runners.table.devices')}</th>
                                     <th className="px-4 py-3 text-left">{t('team.runners.table.lastSeen')}</th>
                                     {runners.canManageRunners && (
-                                        <th className="px-4 py-3 text-left">{t('team.runners.table.actions')}</th>
+                                        <th className="w-28 px-4 py-3 text-right">{t('team.runners.table.actions')}</th>
                                     )}
                                 </tr>
                             </thead>
@@ -72,7 +72,7 @@ export default function RunnerInventoryTables({
                                         <td className="px-4 py-3">{runner.availableDeviceCount} / {runner.deviceCount}</td>
                                         <td className="px-4 py-3">{new Date(runner.lastSeenAt).toLocaleString()}</td>
                                         {runners.canManageRunners && (
-                                            <td className="px-4 py-3">
+                                            <td className="w-28 px-4 py-3 text-right whitespace-nowrap">
                                                 <DangerTextButton
                                                     onClick={() => onRequestUnpair(runner)}
                                                     disabled={pendingUnpairRunnerId !== null}

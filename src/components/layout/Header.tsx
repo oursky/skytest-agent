@@ -124,7 +124,7 @@ export default function Header() {
                         <div className="flex items-center gap-4">
                             <button
                                 onClick={handleBrandClick}
-                                className="text-xl font-bold text-blue-600 hover:text-blue-700 transition-colors"
+                                className="cursor-pointer text-xl font-bold text-blue-600 transition-colors hover:text-blue-700"
                             >
                                 SkyTest Agent
                             </button>
