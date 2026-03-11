@@ -615,7 +615,6 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
                 <p className="mt-1 text-sm text-gray-500">{t('team.runners.troubleshooting.subtitle')}</p>
 
                 <div className="mt-4 space-y-4">
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{t('team.runners.troubleshooting.referenceTitle')}</p>
                     {[
                         { key: 'get-runners', label: t('team.runners.troubleshooting.listRunners'), command: 'skytest get runners' },
                         { key: 'pair-runner', label: t('team.runners.troubleshooting.pairRunner'), command: buildPairCommand(null) },
