@@ -94,29 +94,38 @@ From source (local development), run:
 
 ```bash
 npm run skytest -- pair runner "<pairing-token>" \
-  --control-plane-url "http://127.0.0.1:3000" \
+  --url "http://127.0.0.1:3000" \
   --label "Local macOS Runner"
 ```
 
 This creates a local runner definition, stores credential metadata, and auto-starts the runner.
 
-List paired runners and copy the local runner ID:
+List paired runners:
 
 ```bash
 npm run skytest -- get runners
 ```
 
-Restart an existing runner:
+Start or restart a runner:
 
 ```bash
-npm run skytest -- start runner <local-runner-id>
+npm run skytest -- start runner <runner-id>
 ```
 
 Stop it:
 
 ```bash
-npm run skytest -- stop runner <local-runner-id>
+npm run skytest -- stop runner <runner-id>
 ```
+
+Check logs or unpair when needed:
+
+```bash
+npm run skytest -- logs runner <runner-id> --tail 200
+npm run skytest -- unpair runner <runner-id>
+```
+
+`<runner-id>` can be the local 6-character runner ID or the runner ID shown in `Team Settings -> Runners`.
 
 If you installed via Homebrew, run the same commands directly with `skytest ...` instead of `npm run skytest -- ...`.
 Upgrade Homebrew users with `brew upgrade <tap>/skytest`.
@@ -170,7 +179,7 @@ If the runner was unpaired from web portal, local CLI entries are cleaned up aut
 
 ### Selected device cannot run
 
-- Device may have become stale/disconnected between selection and claim.
+- Device may have become offline/disconnected between selection and claim.
 - Refresh `Team Settings -> Runners`, re-check availability, and rerun.
 
 ### Need to reset local runner state and credentials
