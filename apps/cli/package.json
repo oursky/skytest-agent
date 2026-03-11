@@ -1,5 +1,5 @@
 {
-  "name": "@skytest/cli-runner",
+  "name": "@skytest/cli",
   "version": "0.1.0",
   "private": true,
   "type": "module",

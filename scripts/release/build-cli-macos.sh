@@ -12,13 +12,13 @@ ARCHIVE_PATH="${RELEASE_DIR}/${PACKAGE_DIR_NAME}.tar.gz"
 
 rm -rf "${PACKAGE_DIR}"
 mkdir -p "${PACKAGE_DIR}"
+mkdir -p "${PACKAGE_DIR}/apps"
 
 cp "${ROOT_DIR}/package.json" "${PACKAGE_DIR}/package.json"
 cp "${ROOT_DIR}/package-lock.json" "${PACKAGE_DIR}/package-lock.json"
-cp "${ROOT_DIR}/tsconfig.json" "${PACKAGE_DIR}/tsconfig.json"
 cp -R "${ROOT_DIR}/packages" "${PACKAGE_DIR}/packages"
-cp -R "${ROOT_DIR}/cli-runner" "${PACKAGE_DIR}/cli-runner"
-cp -R "${ROOT_DIR}/src" "${PACKAGE_DIR}/src"
+cp -R "${ROOT_DIR}/apps/macos-runner" "${PACKAGE_DIR}/apps/macos-runner"
+cp -R "${ROOT_DIR}/apps/cli" "${PACKAGE_DIR}/apps/cli"
 
 mkdir -p "${PACKAGE_DIR}/bin"
 cat > "${PACKAGE_DIR}/bin/skytest" <<'EOF'
@@ -29,7 +29,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 INSTALL_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-exec node --import tsx "${INSTALL_ROOT}/packages/cli-runner/src/index.ts" "$@"
+exec node --import tsx "${INSTALL_ROOT}/apps/cli/src/index.ts" "$@"
 EOF
 chmod +x "${PACKAGE_DIR}/bin/skytest"
 

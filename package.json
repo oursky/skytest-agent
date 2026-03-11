@@ -4,8 +4,7 @@
   "private": true,
   "workspaces": [
     "apps/*",
-    "packages/*",
-    "cli-runner"
+    "packages/*"
   ],
   "overrides": {
     "@hono/node-server": "1.19.11",
@@ -43,7 +42,7 @@
     "playwright:install": "npm run --workspace @skytest/web playwright:install",
     "test": "npm run --workspace @skytest/web test",
     "runner:maintenance": "npm run --workspace @skytest/web runner:maintenance",
-    "skytest": "npm run --workspace @skytest/cli-runner skytest --",
-    "skytest:help": "npm run --workspace @skytest/cli-runner skytest:help"
+    "skytest": "npm run --workspace @skytest/cli skytest --",
+    "skytest:help": "npm run --workspace @skytest/cli skytest:help"
   }
 }

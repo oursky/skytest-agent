@@ -302,7 +302,7 @@ export async function startRunner(runnerIdentifier: string): Promise<StartRunner
         await clearRunnerPid(localRunnerId);
     }
 
-    const entryScriptPath = path.join(resolveRepoRoot(), 'cli-runner', 'runner', 'index.ts');
+    const entryScriptPath = path.join(resolveRepoRoot(), 'apps', 'macos-runner', 'runner', 'index.ts');
     const loadedEnv = await loadLocalRunnerEnv();
     const pid = startDetachedRunnerProcess({
         entryScriptPath,

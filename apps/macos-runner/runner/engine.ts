@@ -87,7 +87,7 @@ const isScreenshotData = requireModuleExport<IsScreenshotDataFn>(
 );
 
 type RunnerLogger = ReturnType<CreateLoggerFn>;
-const baseLogger = createLogger('runner:cli-runner');
+const baseLogger = createLogger('runner:macos-runner');
 const quietMode = process.env.SKYTEST_RUNNER_QUIET === '1';
 const logger: RunnerLogger = quietMode
     ? {
