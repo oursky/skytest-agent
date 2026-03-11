@@ -226,7 +226,7 @@ export default function McpPage() {
                         <button
                             onClick={handleGenerateAgentKey}
                             disabled={isGenerating || !newKeyName.trim()}
-                            className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                            className="cursor-pointer px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                             {t('usage.agentKeys.generate')}
                         </button>
@@ -258,7 +258,7 @@ export default function McpPage() {
                                             <td className="px-4 py-3 text-right">
                                                 <button
                                                     onClick={() => { setKeyToRevoke(key); setIsRevokeModalOpen(true); }}
-                                                    className="text-sm text-red-600 hover:text-red-800"
+                                                    className="cursor-pointer text-sm text-red-600 hover:text-red-800"
                                                 >
                                                     {t('usage.agentKeys.revoke')}
                                                 </button>

@@ -135,7 +135,7 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
                     <button
                         type="button"
                         onClick={() => setIsRemoveConfirmOpen(true)}
-                        className="shrink-0 rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
+                        className="cursor-pointer shrink-0 rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
                     >
                         {t('team.ai.remove')}
                     </button>

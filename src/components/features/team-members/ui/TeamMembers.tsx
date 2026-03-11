@@ -184,7 +184,7 @@ export default function TeamMembers({ teamId, onMembersChanged }: TeamMembersPro
                     <button
                         type="button"
                         onClick={() => setIsAddModalOpen(true)}
-                        className="shrink-0 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+                        className="cursor-pointer shrink-0 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
                     >
                         {t('team.members.add.open')}
                     </button>
@@ -234,7 +234,7 @@ export default function TeamMembers({ teamId, onMembersChanged }: TeamMembersPro
                                                     <button
                                                         type="button"
                                                         onClick={() => setMemberToRemove(member)}
-                                                        className="text-sm font-medium text-red-600 hover:text-red-700"
+                                                        className="cursor-pointer text-sm font-medium text-red-600 hover:text-red-700"
                                                     >
                                                         {t('common.remove')}
                                                     </button>

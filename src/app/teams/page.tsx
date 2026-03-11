@@ -464,7 +464,7 @@ export default function TeamsPage() {
                                                 <button
                                                     type="button"
                                                     onClick={() => setIsEditingSettings(true)}
-                                                    className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                                    className="cursor-pointer rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                                                 >
                                                     {t('team.page.settings.edit')}
                                                 </button>
@@ -499,7 +499,7 @@ export default function TeamsPage() {
                                             type="button"
                                             onClick={openTransferDialog}
                                             disabled={eligibleTransferCandidates.length === 0}
-                                            className="mt-3 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                                            className="cursor-pointer mt-3 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                                         >
                                             {t('team.page.transfer.confirm')}
                                         </button>
@@ -516,7 +516,7 @@ export default function TeamsPage() {
                                         <button
                                             type="button"
                                             onClick={() => setIsDeleteOpen(true)}
-                                            className="mt-4 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                                            className="cursor-pointer mt-4 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
                                         >
                                             {t('team.page.delete.open')}
                                         </button>

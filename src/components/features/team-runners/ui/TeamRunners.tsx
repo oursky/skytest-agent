@@ -483,7 +483,7 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
                         <button
                             type="button"
                             onClick={() => setIsPairingModalOpen(true)}
-                            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+                            className="cursor-pointer rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
                         >
                             {t('team.runners.add')}
                         </button>
@@ -549,7 +549,7 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
                                                                         setUnpairCandidate(runner);
                                                                     }}
                                                                     disabled={pendingUnpairRunnerId !== null}
-                                                                    className="text-sm font-medium text-red-600 hover:text-red-700 disabled:cursor-not-allowed disabled:text-red-300"
+                                                                    className="cursor-pointer text-sm font-medium text-red-600 hover:text-red-700 disabled:cursor-not-allowed disabled:text-red-300"
                                                                 >
                                                                     {pendingUnpairRunnerId === runner.id
                                                                         ? t('team.runners.unpair.loading')

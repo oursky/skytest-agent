@@ -97,7 +97,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     const [activeTab, setActiveTab] = useState<'test-cases' | 'configs' | 'settings'>('test-cases');
     const [maxConcurrentRunsInput, setMaxConcurrentRunsInput] = useState('1');
     const [settingsError, setSettingsError] = useState('');
-    const [settingsSuccess, setSettingsSuccess] = useState('');
+    const [isEditingProjectSettings, setIsEditingProjectSettings] = useState(false);
     const [isSavingSettings, setIsSavingSettings] = useState(false);
     const [editingDisplayIdTestCaseId, setEditingDisplayIdTestCaseId] = useState<string | null>(null);
     const [editingDisplayIdValue, setEditingDisplayIdValue] = useState('');
@@ -175,7 +175,6 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         setProject(projectData);
         setMaxConcurrentRunsInput(String(projectData.maxConcurrentRuns));
         setSettingsError('');
-        setSettingsSuccess('');
     }, [resolvedParams.id, getAuthHeaders]);
 
     const fetchTestCases = useCallback(async (signal?: AbortSignal) => {
@@ -261,7 +260,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         }
     };
 
-    const handleSaveProjectSettings = async () => {
+    const handleSaveProjectSettings = useCallback(async () => {
         if (!project) {
             return;
         }
@@ -271,12 +270,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
         if (!Number.isInteger(parsedValue)) {
             setSettingsError(t('project.settings.error.invalidInteger'));
-            setSettingsSuccess('');
             return;
         }
         if (parsedValue < 1 || parsedValue > maxLimit) {
             setSettingsError(t('project.settings.error.outOfRange', { max: maxLimit }));
-            setSettingsSuccess('');
             return;
         }
         if (parsedValue === project.maxConcurrentRuns) {
@@ -286,7 +283,6 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         try {
             setIsSavingSettings(true);
             setSettingsError('');
-            setSettingsSuccess('');
 
             const token = await getAccessToken();
             const response = await fetch(`/api/projects/${project.id}`, {
@@ -309,14 +305,15 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             const updatedProject = await response.json() as Project;
             setProject(updatedProject);
             setMaxConcurrentRunsInput(String(updatedProject.maxConcurrentRuns));
-            setSettingsSuccess(t('project.settings.saved'));
+            await fetchProject();
+            setIsEditingProjectSettings(false);
         } catch (error) {
             console.error('Failed to update project settings', error);
             setSettingsError(t('project.settings.error.save'));
         } finally {
             setIsSavingSettings(false);
         }
-    };
+    }, [fetchProject, getAccessToken, maxConcurrentRunsInput, project, t]);
 
     const handleCloneTestCase = async (testCaseId: string) => {
         try {
@@ -636,12 +633,31 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         );
     }
 
+    const handleStartProjectSettingsEdit = () => {
+        if (!project?.canManageProject) {
+            return;
+        }
+
+        setMaxConcurrentRunsInput(String(project.maxConcurrentRuns));
+        setSettingsError('');
+        setIsEditingProjectSettings(true);
+    };
+
+    const handleCancelProjectSettingsEdit = () => {
+        if (project) {
+            setMaxConcurrentRunsInput(String(project.maxConcurrentRuns));
+        }
+        setSettingsError('');
+        setIsEditingProjectSettings(false);
+    };
+
     const parsedMaxConcurrentRunsInput = Number.parseInt(maxConcurrentRunsInput, 10);
     const isMaxConcurrentRunsUnchanged = project
         ? Number.isInteger(parsedMaxConcurrentRunsInput)
             && parsedMaxConcurrentRunsInput === project.maxConcurrentRuns
         : false;
     const isProjectSettingsSaveDisabled = isSavingSettings
+        || !isEditingProjectSettings
         || !project?.canManageProject
         || isMaxConcurrentRunsUnchanged;
 
@@ -844,26 +860,57 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                             <label htmlFor="max-concurrent-runs" className="block text-sm font-medium text-gray-700">
                                 {t('project.settings.concurrentRuns.label')}
                             </label>
-                            <input
-                                id="max-concurrent-runs"
-                                type="number"
-                                inputMode="numeric"
-                                min={1}
-                                max={project.maxConcurrentRunsLimit ?? 5}
-                                value={maxConcurrentRunsInput}
-                                onChange={(event) => {
-                                    setMaxConcurrentRunsInput(event.target.value);
-                                    setSettingsError('');
-                                    setSettingsSuccess('');
-                                }}
-                                onKeyDown={(event) => {
-                                    if (event.key === 'Enter' && !isProjectSettingsSaveDisabled) {
-                                        event.preventDefault();
-                                        void handleSaveProjectSettings();
-                                    }
-                                }}
-                                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
-                            />
+                            <div className="flex flex-wrap items-center gap-3">
+                                <input
+                                    id="max-concurrent-runs"
+                                    type="number"
+                                    inputMode="numeric"
+                                    min={1}
+                                    max={project.maxConcurrentRunsLimit ?? 5}
+                                    value={maxConcurrentRunsInput}
+                                    onChange={(event) => {
+                                        setMaxConcurrentRunsInput(event.target.value);
+                                        setSettingsError('');
+                                    }}
+                                    onKeyDown={(event) => {
+                                        if (event.key === 'Enter' && !isProjectSettingsSaveDisabled) {
+                                            event.preventDefault();
+                                            void handleSaveProjectSettings();
+                                        }
+                                    }}
+                                    disabled={!project.canManageProject || !isEditingProjectSettings}
+                                    className="h-10 w-full max-w-sm rounded-md border border-gray-300 px-4 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:bg-gray-50"
+                                />
+                                {project.canManageProject && (
+                                    isEditingProjectSettings ? (
+                                        <div className="flex gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => void handleSaveProjectSettings()}
+                                                disabled={isProjectSettingsSaveDisabled}
+                                                className="cursor-pointer rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                                            >
+                                                {isSavingSettings ? t('project.settings.saving') : t('common.save')}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleCancelProjectSettingsEdit}
+                                                className="cursor-pointer rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                            >
+                                                {t('common.cancel')}
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            onClick={handleStartProjectSettingsEdit}
+                                            className="cursor-pointer rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                        >
+                                            {t('common.edit')}
+                                        </button>
+                                    )
+                                )}
+                            </div>
                             <p className="text-xs text-gray-500">
                                 {t('project.settings.concurrentRuns.help', { max: project.maxConcurrentRunsLimit ?? 5 })}
                             </p>
@@ -871,19 +918,6 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                         {settingsError && (
                             <p className="mt-3 text-sm text-red-600">{settingsError}</p>
                         )}
-                        {settingsSuccess && (
-                            <p className="mt-3 text-sm text-green-600">{settingsSuccess}</p>
-                        )}
-                        <div className="mt-4">
-                            <button
-                                type="button"
-                                onClick={handleSaveProjectSettings}
-                                disabled={isProjectSettingsSaveDisabled}
-                                className="cursor-pointer rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                                {isSavingSettings ? t('project.settings.saving') : t('project.settings.save')}
-                            </button>
-                        </div>
                     </div>
                 )}
 
@@ -1079,7 +1113,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                                                 </Link>
                                                 <button
                                                     onClick={() => handleCloneTestCase(testCase.id)}
-                                                    className="p-2 text-gray-500 hover:text-primary hover:bg-primary/10 rounded-md transition-colors inline-flex items-center justify-center"
+                                                    className="cursor-pointer p-2 text-gray-500 hover:text-primary hover:bg-primary/10 rounded-md transition-colors inline-flex items-center justify-center"
                                                     title={t('project.tooltip.clone')}
                                                     aria-label={t('project.tooltip.clone')}
                                                 >
@@ -1092,7 +1126,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                                                     disabled={testCase.testRuns[0] && isActiveRunStatus(testCase.testRuns[0].status)}
                                                     className={`p-2 rounded-md transition-colors inline-flex items-center justify-center ${testCase.testRuns[0] && isActiveRunStatus(testCase.testRuns[0].status)
                                                         ? 'text-gray-300 cursor-not-allowed'
-                                                        : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
+                                                        : 'cursor-pointer text-gray-400 hover:text-red-600 hover:bg-red-50'
                                                         }`}
                                                     title={testCase.testRuns[0] && isActiveRunStatus(testCase.testRuns[0].status)
                                                         ? t('project.tooltip.cannotDeleteRunning')
