@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/auth-provider';
 import { CustomSelect, Modal } from '@/components/shared';
 import { LOCALE_META, Locale, useI18n } from '@/i18n';
-import { dispatchTeamsChanged, useTeams } from '@/hooks/useTeams';
+import { useTeams } from '@/hooks/useTeams';
 import { useCurrentTeam } from '@/hooks/useCurrentTeam';
+import { useCreateTeam } from '@/hooks/useCreateTeam';
 
 export default function Header() {
     const { isLoggedIn, isLoading: isAuthLoading, user, logout, openSettings, login, getAccessToken } = useAuth();
@@ -20,7 +21,11 @@ export default function Header() {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isCreateTeamOpen, setIsCreateTeamOpen] = useState(false);
     const [newTeamName, setNewTeamName] = useState('');
-    const [isCreateTeamSubmitting, setIsCreateTeamSubmitting] = useState(false);
+    const { createTeam, isSubmitting: isCreateTeamSubmitting } = useCreateTeam({
+        getAccessToken,
+        refreshTeams,
+        setCurrentTeam,
+    });
 
     useEffect(() => {
         const closeDropdown = () => {
@@ -47,40 +52,21 @@ export default function Header() {
         }
     };
 
-    const createTeam = async (event: FormEvent<HTMLFormElement>) => {
+    const handleCreateTeamSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         if (!newTeamName.trim()) {
             return;
         }
 
-        try {
-            setIsCreateTeamSubmitting(true);
-            const token = await getAccessToken();
-            const response = await fetch('/api/teams', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                },
-                body: JSON.stringify({ name: newTeamName }),
-            });
-
-            const data = await response.json().catch(() => null);
-            if (!response.ok || !data || typeof data.id !== 'string') {
-                throw new Error('Failed to create team');
-            }
-
-            dispatchTeamsChanged();
-            await refreshTeams();
-            await setCurrentTeam(data.id);
-            setNewTeamName('');
-            setIsCreateTeamOpen(false);
-            router.push(`/projects?teamId=${encodeURIComponent(data.id)}`);
-        } catch (error) {
-            console.error('Failed to create team', error);
-        } finally {
-            setIsCreateTeamSubmitting(false);
+        const result = await createTeam(newTeamName, 'Failed to create team');
+        if (!result.teamId) {
+            console.error(result.error ?? 'Failed to create team');
+            return;
         }
+
+        setNewTeamName('');
+        setIsCreateTeamOpen(false);
+        router.push(`/projects?teamId=${encodeURIComponent(result.teamId)}`);
     };
 
     return (
@@ -96,7 +82,7 @@ export default function Header() {
                 showFooter={false}
                 panelClassName="max-w-lg"
             >
-                <form onSubmit={createTeam} className="space-y-4">
+                <form onSubmit={handleCreateTeamSubmit} className="space-y-4">
                     <label className="block space-y-2">
                         <span className="text-sm font-medium text-gray-700">{t('team.page.settings.name')}</span>
                         <input

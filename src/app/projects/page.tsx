@@ -4,12 +4,13 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../auth-provider";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Modal } from "@/components/shared";
+import { LoadingSpinner, Modal } from "@/components/shared";
 import { formatDateTime } from "@/utils/dateFormatter";
 import { useProjects } from "@/hooks/useProjects";
-import { dispatchTeamsChanged, useTeams } from "@/hooks/useTeams";
+import { useTeams } from "@/hooks/useTeams";
 import { useCurrentTeam } from "@/hooks/useCurrentTeam";
 import { useI18n } from "@/i18n";
+import { useCreateTeam } from "@/hooks/useCreateTeam";
 
 export default function ProjectsPage() {
     const { isLoggedIn, isLoading: isAuthLoading, getAccessToken } = useAuth();
@@ -23,6 +24,11 @@ export default function ProjectsPage() {
         loading: isCurrentTeamLoading,
         setCurrentTeam,
     } = useCurrentTeam(getAccessToken, isLoggedIn);
+    const { createTeam } = useCreateTeam({
+        getAccessToken,
+        refreshTeams,
+        setCurrentTeam,
+    });
     const requestedTeamId = searchParams.get('teamId')?.trim() || '';
     const hasRequestedTeam = requestedTeamId.length > 0 && teams.some((team) => team.id === requestedTeamId);
     const effectiveTeamId = selectedTeam?.id || (hasRequestedTeam ? requestedTeamId : '');
@@ -111,32 +117,14 @@ export default function ProjectsPage() {
         e.preventDefault();
         if (!newTeamName.trim()) return;
 
-        try {
-            const token = await getAccessToken();
-            const response = await fetch('/api/teams', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(token ? { Authorization: `Bearer ${token}` } : {})
-                },
-                body: JSON.stringify({ name: newTeamName })
-            });
-
-            if (!response.ok) {
-                const data = await response.json().catch(() => ({ error: t('projects.team.createError') }));
-                setTeamError(data.error || t('projects.team.createError'));
-                return;
-            }
-
-            const team = await response.json() as { id: string };
-            dispatchTeamsChanged();
-            await refreshTeams();
-            await setCurrentTeam(team.id);
-            setNewTeamName('');
-            setTeamError('');
-        } catch {
-            setTeamError(t('projects.team.createError'));
+        const result = await createTeam(newTeamName, t('projects.team.createError'));
+        if (!result.teamId) {
+            setTeamError(result.error || t('projects.team.createError'));
+            return;
         }
+
+        setNewTeamName('');
+        setTeamError('');
     };
 
     const handleDeleteProject = async () => {
@@ -202,7 +190,7 @@ export default function ProjectsPage() {
     if (isPageLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                <LoadingSpinner size={32} />
             </div>
         );
     }
