@@ -70,37 +70,6 @@ Don't want to self-host? We're building a managed version of SkyTest.
 - **Android Testing**: See the [macOS Android Emulator Guide](./docs/operators/mac-android-emulator-guide.md) to configure cross-platform testing.
 - **Kubernetes**: Reference Helm charts are available in `infra/helm`.
 
-## Repository Architecture
-
-- `apps/web`: Next.js control plane (frontend + backend + MCP server).
-- `apps/cli`: operator CLI for local runner lifecycle.
-- `apps/macos-runner`: long-running Android execution agent.
-- `packages/runner-protocol`: shared wire contracts.
-- `infra/*`: deployment/runtime infrastructure assets.
-- `tools/*`: contributor/operator tooling scripts.
-
-### Runtime Relationship
-
-- `apps/cli` supervises runner lifecycle (pair/start/stop/logs/reset).
-- `apps/macos-runner` executes Android jobs and reports status/events/artifacts.
-- `apps/web` owns APIs, queueing, scheduling, and MCP tooling.
-
-### System Boundaries
-
-- Frontend: `apps/web/src/app/**` + `apps/web/src/components/**`.
-- Backend: `apps/web/src/app/api/**` + `apps/web/src/lib/**` + `apps/web/src/workers/**`.
-- MCP backend: `apps/web/src/app/api/mcp/route.ts` + `apps/web/src/lib/mcp/**`.
-
-### Naming Governance Checklist
-
-Before adding new folders, validate:
-
-- Is it a runnable service? Put it in `apps/*`.
-- Is it reused cross-app logic? Put it in `packages/*`.
-- Is it deployment/runtime infra? Put it in `infra/*`.
-- Is it contributor/operator tooling? Put it in `tools/*`.
-- Does the name describe ownership/capability clearly and avoid overloaded terms?
-
 ### Quick Troubleshooting
 
 - **Browsers not found**: Run `npm run playwright:install`
