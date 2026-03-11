@@ -127,42 +127,67 @@ export default function ConfigInlineEditorForm({
                     </>
                 ) : (
                     <>
-                        <div className={`flex gap-2 ${autoFocus ? 'items-center' : 'items-start'}`}>
-                            <input
-                                type="text"
-                                value={editState.name}
-                                onChange={(event) => onChange({ ...editState, name: event.target.value })}
-                                onKeyDown={onKeyDown}
-                                placeholder={t('configs.name.placeholder.enter')}
-                                className="flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                                autoFocus={autoFocus}
-                            />
-                            <div className="relative flex-[2]">
-                                {type === 'RANDOM_STRING' && renderRandomStringControl
-                                    ? renderRandomStringControl(editState.value)
-                                    : (
-                                        <input
-                                            type="text"
-                                            value={editState.value}
-                                            onChange={(event) => onChange({ ...editState, value: event.target.value })}
-                                            onKeyDown={onKeyDown}
-                                            placeholder={type === 'URL' ? t('configs.url.placeholder') : t('configs.value.placeholder')}
-                                            className="w-full rounded border border-gray-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                                        />
-                                    )}
-                            </div>
-                            {renderActionButtons(variant, onSave, onCancel, t)}
-                        </div>
-                        {isGroupableConfigType(type) && (
-                            <div className="mt-2">
-                                <GroupSelectInput
-                                    value={editState.group}
-                                    onChange={(group) => onChange({ ...editState, group })}
-                                    options={groupOptions}
-                                    onRemoveOption={onRemoveGroup}
-                                    placeholder={t('configs.group.select')}
-                                    inputClassName="h-8"
+                        {isGroupableConfigType(type) ? (
+                            <>
+                                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                                    <GroupSelectInput
+                                        value={editState.group}
+                                        onChange={(group) => onChange({ ...editState, group })}
+                                        options={groupOptions}
+                                        onRemoveOption={onRemoveGroup}
+                                        placeholder={t('configs.group.select')}
+                                        inputClassName="h-8"
+                                    />
+                                    <input
+                                        type="text"
+                                        value={editState.name}
+                                        onChange={(event) => onChange({ ...editState, name: event.target.value })}
+                                        onKeyDown={onKeyDown}
+                                        placeholder={t('configs.name.placeholder.enter')}
+                                        className="h-8 w-full rounded border border-gray-300 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                                        autoFocus={autoFocus}
+                                    />
+                                </div>
+                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                    <div className="relative min-w-[220px] flex-1">
+                                        {type === 'RANDOM_STRING' && renderRandomStringControl
+                                            ? renderRandomStringControl(editState.value)
+                                            : (
+                                                <input
+                                                    type="text"
+                                                    value={editState.value}
+                                                    onChange={(event) => onChange({ ...editState, value: event.target.value })}
+                                                    onKeyDown={onKeyDown}
+                                                    placeholder={type === 'URL' ? t('configs.url.placeholder') : t('configs.value.placeholder')}
+                                                    className="w-full rounded border border-gray-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                                                />
+                                            )}
+                                    </div>
+                                    {renderActionButtons(variant, onSave, onCancel, t)}
+                                </div>
+                            </>
+                        ) : (
+                            <div className={`flex gap-2 ${autoFocus ? 'items-center' : 'items-start'}`}>
+                                <input
+                                    type="text"
+                                    value={editState.name}
+                                    onChange={(event) => onChange({ ...editState, name: event.target.value })}
+                                    onKeyDown={onKeyDown}
+                                    placeholder={t('configs.name.placeholder.enter')}
+                                    className="flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                                    autoFocus={autoFocus}
                                 />
+                                <div className="relative flex-[2]">
+                                    <input
+                                        type="text"
+                                        value={editState.value}
+                                        onChange={(event) => onChange({ ...editState, value: event.target.value })}
+                                        onKeyDown={onKeyDown}
+                                        placeholder={type === 'URL' ? t('configs.url.placeholder') : t('configs.value.placeholder')}
+                                        className="w-full rounded border border-gray-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                                    />
+                                </div>
+                                {renderActionButtons(variant, onSave, onCancel, t)}
                             </div>
                         )}
                     </>

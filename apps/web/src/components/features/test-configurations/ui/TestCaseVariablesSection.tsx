@@ -306,16 +306,27 @@ export default function TestCaseVariablesSection({
 
                 {fileUploadDraft && (
                     <div className="p-2 bg-blue-50/50 rounded">
-                        <div className="flex gap-2 items-center">
+                        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                            <GroupSelectInput
+                                value={fileUploadDraft.group}
+                                onChange={(group) => setFileUploadDraft({ ...fileUploadDraft, group })}
+                                options={testCaseGroupOptions}
+                                onRemoveOption={onRemoveGroup}
+                                placeholder={t('configs.group.select')}
+                                containerClassName="relative w-full"
+                                inputClassName="h-8"
+                            />
                             <input
                                 type="text"
                                 value={fileUploadDraft.name}
                                 onChange={(e) => setFileUploadDraft({ ...fileUploadDraft, name: e.target.value })}
                                 placeholder={t('configs.name.placeholder.enter')}
-                                className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                                className="h-8 w-full rounded border border-gray-300 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
                                 autoFocus
                             />
-                            <div className="flex-[2]">
+                        </div>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <div className="min-w-[220px] flex-1">
                                 <input
                                     type="file"
                                     onChange={(e) => {
@@ -326,7 +337,7 @@ export default function TestCaseVariablesSection({
                                             void onFileUploadSave(nextDraft);
                                         }
                                     }}
-                                    className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-primary file:mr-2 file:px-2 file:py-1 file:border-0 file:rounded file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
+                                    className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary file:mr-2 file:border-0 file:rounded file:bg-gray-100 file:px-2 file:py-1 file:text-gray-700 hover:file:bg-gray-200"
                                 />
                             </div>
                             <button
@@ -339,17 +350,6 @@ export default function TestCaseVariablesSection({
                             >
                                 {t('common.cancel')}
                             </button>
-                        </div>
-                        <div className="mt-2">
-                            <GroupSelectInput
-                                value={fileUploadDraft.group}
-                                onChange={(group) => setFileUploadDraft({ ...fileUploadDraft, group })}
-                                options={testCaseGroupOptions}
-                                onRemoveOption={onRemoveGroup}
-                                placeholder={t('configs.group.select')}
-                                containerClassName="relative w-full"
-                                inputClassName="h-8"
-                            />
                         </div>
                         {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
                     </div>
