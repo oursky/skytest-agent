@@ -116,19 +116,22 @@ function buildDeviceStatusLabel(device: TeamDeviceItem, t: (key: string) => stri
     return t('device.state.offline');
 }
 
-function buildRunnerTroubleshootingCommands(runnerId: string): string {
-    const cliRunnerId = runnerId.length > 6 ? runnerId.slice(0, 6) : runnerId;
-    const escapedRunnerId = cliRunnerId.replace(/'/g, '\'\\\'\'');
+function resolveRunnerDisplayId(runner: Pick<TeamRunnerItem, 'id' | 'label'>): string {
+    const labelIdMatch = runner.label.match(/-([a-z0-9]{6})$/i);
+    if (labelIdMatch) {
+        return labelIdMatch[1].toLowerCase();
+    }
+    return runner.id.length > 6 ? runner.id.slice(0, 6) : runner.id;
+}
+
+function buildRunnerTroubleshootingCommands(runnerDisplayId: string): string {
+    const escapedRunnerId = runnerDisplayId.replace(/'/g, '\'\\\'\'');
     return [
         `skytest start runner '${escapedRunnerId}'`,
         `skytest logs runner '${escapedRunnerId}' --tail 200`,
         `skytest stop runner '${escapedRunnerId}'`,
         `skytest unpair runner '${escapedRunnerId}'`,
     ].join('\n');
-}
-
-function resolveTroubleshootingRunnerId(runnerId: string): string {
-    return runnerId.length > 6 ? runnerId.slice(0, 6) : runnerId;
 }
 
 function buildCommonTroubleshootingCommands(): string {
@@ -451,39 +454,45 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-100 text-gray-700">
-                                            {runners.runners.map((runner) => (
-                                                <tr key={runner.id}>
-                                                    <td className="px-4 py-3">
-                                                        <p className="font-medium text-gray-900">{runner.label}</p>
-                                                        <p className="text-xs text-gray-500">{runner.runnerVersion}</p>
-                                                    </td>
-                                                    <td className="px-4 py-3">{resolveRunnerKindLabel(runner.kind)}</td>
-                                                    <td className="px-4 py-3">
-                                                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs ${buildRunnerStatusClass(runner)}`}>
-                                                            {buildRunnerStatusLabel(runner, t)}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-4 py-3">{runner.availableDeviceCount} / {runner.deviceCount}</td>
-                                                    <td className="px-4 py-3">{new Date(runner.lastSeenAt).toLocaleString()}</td>
-                                                    {runners.canManageRunners && (
+                                            {runners.runners.map((runner) => {
+                                                const runnerDisplayId = resolveRunnerDisplayId(runner);
+                                                return (
+                                                    <tr key={runner.id}>
                                                         <td className="px-4 py-3">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    setError(null);
-                                                                    setUnpairCandidate(runner);
-                                                                }}
-                                                                disabled={pendingUnpairRunnerId !== null}
-                                                                className="text-sm font-medium text-red-600 hover:text-red-700 disabled:cursor-not-allowed disabled:text-red-300"
-                                                            >
-                                                                {pendingUnpairRunnerId === runner.id
-                                                                    ? t('team.runners.unpair.loading')
-                                                                    : t('team.runners.unpair')}
-                                                            </button>
+                                                            <p className="font-medium text-gray-900">{runner.label}</p>
+                                                            <p className="text-xs text-gray-500">
+                                                                {t('team.runners.table.runnerId', { id: runnerDisplayId })}
+                                                            </p>
+                                                            <p className="text-xs text-gray-500">{runner.runnerVersion}</p>
                                                         </td>
-                                                    )}
-                                                </tr>
-                                            ))}
+                                                        <td className="px-4 py-3">{resolveRunnerKindLabel(runner.kind)}</td>
+                                                        <td className="px-4 py-3">
+                                                            <span className={`inline-flex rounded-full px-2 py-0.5 text-xs ${buildRunnerStatusClass(runner)}`}>
+                                                                {buildRunnerStatusLabel(runner, t)}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-3">{runner.availableDeviceCount} / {runner.deviceCount}</td>
+                                                        <td className="px-4 py-3">{new Date(runner.lastSeenAt).toLocaleString()}</td>
+                                                        {runners.canManageRunners && (
+                                                            <td className="px-4 py-3">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setError(null);
+                                                                        setUnpairCandidate(runner);
+                                                                    }}
+                                                                    disabled={pendingUnpairRunnerId !== null}
+                                                                    className="text-sm font-medium text-red-600 hover:text-red-700 disabled:cursor-not-allowed disabled:text-red-300"
+                                                                >
+                                                                    {pendingUnpairRunnerId === runner.id
+                                                                        ? t('team.runners.unpair.loading')
+                                                                        : t('team.runners.unpair')}
+                                                                </button>
+                                                            </td>
+                                                        )}
+                                                    </tr>
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>
@@ -554,7 +563,8 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
                 ) : (
                     <div className="mt-4 space-y-4">
                         {offlineRunners.map((runner) => {
-                            const runnerCommands = buildRunnerTroubleshootingCommands(runner.id);
+                            const runnerDisplayId = resolveRunnerDisplayId(runner);
+                            const runnerCommands = buildRunnerTroubleshootingCommands(runnerDisplayId);
                             return (
                                 <div
                                     key={runner.id}
@@ -564,7 +574,7 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
                                         <div>
                                             <p className="text-sm font-medium text-gray-900">{runner.label}</p>
                                             <p className="text-xs text-gray-600">
-                                                {t('team.runners.troubleshooting.runnerId', { id: resolveTroubleshootingRunnerId(runner.id) })}
+                                                {t('team.runners.troubleshooting.runnerId', { id: runnerDisplayId })}
                                             </p>
                                         </div>
                                         <button
