@@ -318,6 +318,7 @@ export async function startRunner(runnerIdentifier: string): Promise<StartRunner
             SKYTEST_RUNNER_STATE_DIR: runnerPaths.runtimeStateDir,
             SKYTEST_RUNNER_DISABLE_KEYCHAIN: '1',
             SKYTEST_RUNNER_QUIET: '1',
+            TSX_TSCONFIG_PATH: path.join(resolveRepoRoot(), 'apps', 'web', 'tsconfig.json'),
         },
     });
 

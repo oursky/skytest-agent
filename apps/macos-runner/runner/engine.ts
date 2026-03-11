@@ -24,20 +24,20 @@ import {
     type RunnerEventInput,
     type RunnerTransportMetadata,
 } from '@skytest/runner-protocol';
-import * as loggerModule from '../../src/lib/core/logger';
-import * as testRunnerModule from '../../src/lib/runtime/test-runner';
-import * as deviceDisplayModule from '../../src/lib/android/device-display';
-import * as devicesModule from '../../src/lib/android/devices';
-import * as eventsModule from '../../src/types/events';
-import type { ConnectedAndroidDeviceInfo } from '../../src/lib/android/device-display';
-import type { BrowserConfig, TargetConfig, TestCaseFile, TestEvent, TestStep } from '../../src/types';
+import * as loggerModule from '../../web/src/lib/core/logger';
+import * as testRunnerModule from '../../web/src/lib/runtime/test-runner';
+import * as deviceDisplayModule from '../../web/src/lib/android/device-display';
+import * as devicesModule from '../../web/src/lib/android/devices';
+import * as eventsModule from '../../web/src/types/events';
+import type { ConnectedAndroidDeviceInfo } from '../../web/src/lib/android/device-display';
+import type { BrowserConfig, TargetConfig, TestCaseFile, TestEvent, TestStep } from '../../web/src/types';
 import { loadStoredRunnerCredential, saveRunnerCredential, type StoredRunnerCredential } from './credential-store';
 
-type CreateLoggerFn = typeof import('../../src/lib/core/logger').createLogger;
-type RunTestFn = typeof import('../../src/lib/runtime/test-runner').runTest;
-type FormatAndroidDeviceDisplayNameFn = typeof import('../../src/lib/android/device-display').formatAndroidDeviceDisplayName;
-type ListAndroidDeviceInventoryFn = typeof import('../../src/lib/android/devices').listAndroidDeviceInventory;
-type IsScreenshotDataFn = typeof import('../../src/types/events').isScreenshotData;
+type CreateLoggerFn = typeof import('../../web/src/lib/core/logger').createLogger;
+type RunTestFn = typeof import('../../web/src/lib/runtime/test-runner').runTest;
+type FormatAndroidDeviceDisplayNameFn = typeof import('../../web/src/lib/android/device-display').formatAndroidDeviceDisplayName;
+type ListAndroidDeviceInventoryFn = typeof import('../../web/src/lib/android/devices').listAndroidDeviceInventory;
+type IsScreenshotDataFn = typeof import('../../web/src/types/events').isScreenshotData;
 
 function resolveModuleExport<T>(module: Record<string, unknown>, key: string): T | null {
     if (key in module) {
@@ -63,27 +63,27 @@ function requireModuleExport<T>(module: Record<string, unknown>, key: string, so
 const createLogger = requireModuleExport<CreateLoggerFn>(
     loggerModule as unknown as Record<string, unknown>,
     'createLogger',
-    '../../src/lib/core/logger'
+    '../../web/src/lib/core/logger'
 );
 const runTest = requireModuleExport<RunTestFn>(
     testRunnerModule as unknown as Record<string, unknown>,
     'runTest',
-    '../../src/lib/runtime/test-runner'
+    '../../web/src/lib/runtime/test-runner'
 );
 const formatAndroidDeviceDisplayName = requireModuleExport<FormatAndroidDeviceDisplayNameFn>(
     deviceDisplayModule as unknown as Record<string, unknown>,
     'formatAndroidDeviceDisplayName',
-    '../../src/lib/android/device-display'
+    '../../web/src/lib/android/device-display'
 );
 const listAndroidDeviceInventory = requireModuleExport<ListAndroidDeviceInventoryFn>(
     devicesModule as unknown as Record<string, unknown>,
     'listAndroidDeviceInventory',
-    '../../src/lib/android/devices'
+    '../../web/src/lib/android/devices'
 );
 const isScreenshotData = requireModuleExport<IsScreenshotDataFn>(
     eventsModule as unknown as Record<string, unknown>,
     'isScreenshotData',
-    '../../src/types/events'
+    '../../web/src/types/events'
 );
 
 type RunnerLogger = ReturnType<CreateLoggerFn>;
@@ -175,7 +175,7 @@ function isRunOwnershipArtifactError(error: unknown): boolean {
 }
 
 async function loadAndroidDeviceManager(): Promise<AndroidDeviceManagerRuntime> {
-    const deviceManagerModule = await import('../../src/lib/android/device-manager');
+    const deviceManagerModule = await import('../../web/src/lib/android/device-manager');
     const candidate = deviceManagerModule as {
         androidDeviceManager?: AndroidDeviceManagerRuntime;
         default?: { androidDeviceManager?: AndroidDeviceManagerRuntime };
@@ -183,7 +183,7 @@ async function loadAndroidDeviceManager(): Promise<AndroidDeviceManagerRuntime> 
 
     const manager = candidate.androidDeviceManager ?? candidate.default?.androidDeviceManager;
     if (!manager) {
-        throw new Error('Failed to load androidDeviceManager from ../../src/lib/android/device-manager');
+        throw new Error('Failed to load androidDeviceManager from ../../web/src/lib/android/device-manager');
     }
 
     return manager;
