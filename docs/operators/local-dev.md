@@ -99,7 +99,7 @@ Reset local services and data:
 
 ```bash
 make services-down
-docker compose -f docker-compose.local.yml down -v
+docker compose -f infra/docker/docker-compose.local.yml down -v
 make services-up
 npm run db:generate
 npx prisma db push
@@ -127,14 +127,14 @@ Confirm bucket `skytest-agent` exists.
 
 ### Port already in use
 
-If `5432`, `9000`, or `9001` is in use, stop the conflicting process or adjust `docker-compose.local.yml` host port mappings.
+If `5432`, `9000`, or `9001` is in use, stop the conflicting process or adjust `infra/docker/docker-compose.local.yml` host port mappings.
 
 ### Bucket not created
 
 Run:
 
 ```bash
-docker compose -f docker-compose.local.yml run --rm createbuckets
+docker compose -f infra/docker/docker-compose.local.yml run --rm createbuckets
 ```
 
 ### Runner shows 401 after unpair from web portal

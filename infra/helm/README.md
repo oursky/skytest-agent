@@ -34,14 +34,14 @@ kubectl -n skytest create secret generic skytest-agent-secrets \
 ## Dry Run
 
 ```bash
-helm lint deploy/helm
-helm template skytest deploy/helm
+helm lint infra/helm
+helm template skytest infra/helm
 ```
 
 ## Install / Upgrade
 
 ```bash
-helm upgrade --install skytest deploy/helm \
+helm upgrade --install skytest infra/helm \
   --namespace skytest \
   --create-namespace \
   --set image.repository=ghcr.io/oursky/skytest-agent \

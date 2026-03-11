@@ -1,6 +1,6 @@
 # Kubernetes Deployment Blueprint (Reference)
 
-Prefer `deploy/helm` for active deployment packaging. This folder remains as a plain-manifest reference.
+Prefer `infra/helm` for active deployment packaging. This folder remains as a plain-manifest reference.
 
 This folder contains a production-oriented baseline for deploying SkyTest Agent with separated control-plane and browser-execution workers.
 

@@ -2,7 +2,7 @@ SHELL := /bin/sh
 
 NODE_PM ?= npm
 COMPOSE ?= docker compose
-COMPOSE_FILE ?= docker-compose.local.yml
+COMPOSE_FILE ?= infra/docker/docker-compose.local.yml
 CONTROL_PLANE_PORT ?= 3000
 CONTROL_PLANE_HOST ?= 127.0.0.1
 CONTROL_PLANE_URL ?= http://$(CONTROL_PLANE_HOST):$(CONTROL_PLANE_PORT)
@@ -56,10 +56,10 @@ maintenance: ## Start the runner maintenance worker loop
 	RUNNER_MAINTENANCE_ONCE=false $(NODE_PM) run runner:maintenance
 
 helm-lint: ## Lint Helm chart for Kubernetes deployment
-	helm lint deploy/helm
+	helm lint infra/helm
 
 helm-template: ## Render Helm chart templates locally
-	helm template skytest deploy/helm
+	helm template skytest infra/helm
 
 playwright-install: ## Install Playwright Chromium locally
 	$(NODE_PM) run playwright:install
