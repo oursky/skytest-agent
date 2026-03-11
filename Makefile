@@ -2,7 +2,7 @@ SHELL := /bin/sh
 
 NODE_PM ?= npm
 COMPOSE ?= docker compose
-COMPOSE_FILE ?= docker-compose.local.yml
+COMPOSE_FILE ?= infra/docker/docker-compose.local.yml
 CONTROL_PLANE_PORT ?= 3000
 CONTROL_PLANE_HOST ?= 127.0.0.1
 CONTROL_PLANE_URL ?= http://$(CONTROL_PLANE_HOST):$(CONTROL_PLANE_PORT)
@@ -45,7 +45,7 @@ db-generate: ## Generate Prisma client
 	$(NODE_PM) run db:generate
 
 db-push: ## Apply Prisma schema to the configured database
-	npx prisma db push
+	$(NODE_PM) run db:push
 
 db-setup: db-generate db-push ## Generate Prisma client and apply schema
 
@@ -56,15 +56,15 @@ maintenance: ## Start the runner maintenance worker loop
 	RUNNER_MAINTENANCE_ONCE=false $(NODE_PM) run runner:maintenance
 
 helm-lint: ## Lint Helm chart for Kubernetes deployment
-	helm lint deploy/helm
+	helm lint infra/helm
 
 helm-template: ## Render Helm chart templates locally
-	helm template skytest deploy/helm
+	helm template skytest infra/helm
 
 playwright-install: ## Install Playwright Chromium locally
 	$(NODE_PM) run playwright:install
 
-runner-reset: ## Stop all local runner processes and remove local CLI runner state
+runner-reset: ## Stop all local runner processes and remove local runner state
 	$(NODE_PM) run skytest -- reset --force
 
 bootstrap: ## Install deps, start local services, and apply the database schema

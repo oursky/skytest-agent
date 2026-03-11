@@ -50,12 +50,12 @@ Retention behavior:
 ## Runtime Behavior
 
 - Browser runs are queued and claimed by the browser runner worker.
-- Android runs require a paired CLI runner process.
+- Android runs require a paired runner process.
 
 Runner environment and model configuration:
-- [CLI Runner Environment Configuration](./cli-runner-env.md)
+- [macOS Runner Environment Configuration](./macos-runner-env.md)
 
-## CLI Runner Lifecycle (Source)
+## Runner Lifecycle (Source)
 
 Pair and manage from this repo:
 
@@ -70,7 +70,7 @@ npm run skytest -- unpair runner <runner-id>
 
 `<runner-id>` can be the local 6-character runner ID, the full runner ID from `Team Settings -> Runners`, or a unique prefix of either.
 
-## CLI Runner Lifecycle (Homebrew)
+## Runner Lifecycle (Homebrew)
 
 ```bash
 brew install <tap>/skytest
@@ -99,7 +99,7 @@ Reset local services and data:
 
 ```bash
 make services-down
-docker compose -f docker-compose.local.yml down -v
+docker compose -f infra/docker/docker-compose.local.yml down -v
 make services-up
 npm run db:generate
 npx prisma db push
@@ -127,14 +127,14 @@ Confirm bucket `skytest-agent` exists.
 
 ### Port already in use
 
-If `5432`, `9000`, or `9001` is in use, stop the conflicting process or adjust `docker-compose.local.yml` host port mappings.
+If `5432`, `9000`, or `9001` is in use, stop the conflicting process or adjust `infra/docker/docker-compose.local.yml` host port mappings.
 
 ### Bucket not created
 
 Run:
 
 ```bash
-docker compose -f docker-compose.local.yml run --rm createbuckets
+docker compose -f infra/docker/docker-compose.local.yml run --rm createbuckets
 ```
 
 ### Runner shows 401 after unpair from web portal

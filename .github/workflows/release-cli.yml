@@ -36,8 +36,8 @@ jobs:
 
       - name: Build CLI archive
         run: |
-          chmod +x scripts/release/build-cli-macos.sh
-          scripts/release/build-cli-macos.sh "${CLI_VERSION}" "x86_64"
+          chmod +x tools/release/build-cli-macos.sh
+          tools/release/build-cli-macos.sh "${CLI_VERSION}" "x86_64"
 
       - name: Resolve archive metadata
         id: archive
@@ -54,7 +54,7 @@ jobs:
             -e "s|__ARCHIVE_URL__|${ARCHIVE_URL}|g" \
             -e "s|__ARCHIVE_SHA256__|${{ steps.archive.outputs.sha256 }}|g" \
             -e "s|__VERSION__|${CLI_VERSION}|g" \
-            scripts/release/homebrew-formula-template.rb > "skytest.rb"
+            tools/release/homebrew-formula-template.rb > "skytest.rb"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4

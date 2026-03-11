@@ -4,8 +4,8 @@ This document defines current SkyTest MCP tool behavior for maintainers.
 
 ## Source of Truth
 
-- MCP server implementation: `src/lib/mcp/server.ts`
-- HTTP transport endpoint: `src/app/api/mcp/route.ts`
+- MCP server implementation: `apps/web/src/lib/mcp/server.ts`
+- HTTP transport endpoint: `apps/web/src/app/api/mcp/route.ts`
 
 ## Tool Contracts
 
@@ -124,5 +124,5 @@ This document defines current SkyTest MCP tool behavior for maintainers.
 - Always cancel through durable run state updates (`CANCELLED` + lease cleanup), never through in-memory queue paths.
 - Durable cancellation uses an active-status write predicate to avoid overwriting terminal run states during races.
 - Do not add batch update semantics to `update_test_case`; keep one-test-case-per-call behavior.
-- `run_test_case` shares the same queue semantics as `/api/run-test` (capability selection, requested device checks, and file snapshot copy).
+- `run_test_case` shares the same queue semantics as `/api/test-runs/dispatch` (capability selection, requested device checks, and file snapshot copy).
 - Android device resolution uses runner inventory aliases (serial/name/profile metadata) from team-scoped runner inventory surfaced in `Team Settings -> Runners`. When no match is found, the raw input is used as emulator profile name and a warning is returned.

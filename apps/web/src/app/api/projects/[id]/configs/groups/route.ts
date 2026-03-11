@@ -1,0 +1,77 @@
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/core/prisma';
+import { verifyAuth, resolveUserId } from '@/lib/security/auth';
+import { GROUPABLE_CONFIG_TYPES, normalizeConfigGroup } from '@/lib/test-config/sort';
+import { createLogger } from '@/lib/core/logger';
+import { isProjectMember } from '@/lib/security/permissions';
+
+const logger = createLogger('api:projects:config-groups');
+
+export async function DELETE(
+    request: Request,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    const authPayload = await verifyAuth(request);
+    if (!authPayload) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    try {
+        const { id } = await params;
+        const userId = await resolveUserId(authPayload);
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+        const body = await request.json().catch(() => ({} as { group?: string | null }));
+        const normalizedGroup = normalizeConfigGroup(body.group);
+
+        if (!normalizedGroup) {
+            return NextResponse.json({ error: 'Group is required' }, { status: 400 });
+        }
+
+        const project = await prisma.project.findUnique({
+            where: { id },
+            select: { id: true }
+        });
+
+        if (!project) {
+            return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+        }
+
+        if (!await isProjectMember(userId, id)) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+
+        const groupableConfigs = await prisma.projectConfig.findMany({
+            where: {
+                projectId: id,
+                type: { in: GROUPABLE_CONFIG_TYPES },
+                group: { not: null },
+            },
+            select: {
+                id: true,
+                group: true,
+            }
+        });
+
+        const matchingConfigIds = groupableConfigs
+            .filter((config) => normalizeConfigGroup(config.group) === normalizedGroup)
+            .map((config) => config.id);
+
+        const result = matchingConfigIds.length > 0
+            ? await prisma.projectConfig.updateMany({
+                where: {
+                    id: { in: matchingConfigIds },
+                },
+                data: {
+                    group: null,
+                }
+            })
+            : { count: 0 };
+
+        return NextResponse.json({ success: true, updated: result.count });
+    } catch (error) {
+        logger.error('Failed to remove project config group', error);
+        return NextResponse.json({ error: 'Failed to remove group' }, { status: 500 });
+    }
+}

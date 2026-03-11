@@ -2,7 +2,7 @@
 
 ## Project Map
 ```
-src/
+apps/web/src/
 ├── lib/                    # Backend domain modules + singletons
 │   ├── runtime/            # Run lifecycle and execution
 │   │   ├── test-runner.ts  # Playwright/Midscene execution engine
@@ -10,7 +10,7 @@ src/
 │   ├── android/            # Android devices/emulators runtime
 │   ├── core/               # Shared core modules (prisma/logger/errors)
 │   ├── security/           # Authentication + security helpers
-│   ├── config/             # Config parsing/validation/sorting
+│   ├── test-config/        # Test config parsing/validation/sorting
 │   └── mcp/                # MCP server/tooling
 │
 ├── app/                    # Next.js App Router
@@ -41,9 +41,9 @@ src/
 │   │   │   └── hooks/
 │   │   ├── files/          # File upload/list widgets
 │   │   │   └── ui/
-│   │   └── device-status/  # Android device status presentation
-│   │       ├── ui/
-│   │       └── model/
+│   │   ├── team-runners/   # Runner inventory + troubleshooting UI
+│   │   │   ├── ui/
+│   │   │   └── model/
 │   ├── shared/             # Cross-feature reusable UI
 │   └── layout/             # Page-level layout primitives
 │
@@ -57,15 +57,15 @@ src/
 
 | Task | Start Here | Related Files |
 |------|------------|---------------|
-| Fix test execution | `src/lib/runtime/test-runner.ts` | `src/lib/runtime/local-browser-runner.ts`, `cli-runner/runner/index.ts` |
-| Fix run scheduling/claiming | `src/lib/runners/claim-service.ts` | `src/app/api/runners/v1/jobs/claim/route.ts` |
-| Fix SSE/real-time updates | `src/app/api/test-runs/[id]/events/route.ts` | `src/components/features/result-viewer/ui/ResultViewer.tsx` |
-| Fix test case CRUD | `src/app/api/test-cases/` | `src/types/test.ts` |
-| Fix project CRUD | `src/app/api/projects/` | `src/lib/core/prisma.ts` |
-| Fix authentication | `src/lib/security/auth.ts` | `src/app/api/` |
-| Fix UI components | `src/components/` | component-specific |
-| Add new API endpoint | `src/app/api/` | `src/types/`, `src/lib/core/prisma.ts` |
-| Change DB schema | `prisma/schema.prisma` | `src/types/` |
+| Fix test execution | `apps/web/src/lib/runtime/test-runner.ts` | `apps/web/src/lib/runtime/local-browser-runner.ts`, `apps/macos-runner/runner/index.ts` |
+| Fix run scheduling/claiming | `apps/web/src/lib/runners/claim-service.ts` | `apps/web/src/app/api/runners/v1/jobs/claim/route.ts` |
+| Fix SSE/real-time updates | `apps/web/src/app/api/test-runs/[id]/events/route.ts` | `apps/web/src/components/features/run-results/ui/ResultViewer.tsx` |
+| Fix test case CRUD | `apps/web/src/app/api/test-cases/` | `apps/web/src/types/test.ts` |
+| Fix project CRUD | `apps/web/src/app/api/projects/` | `apps/web/src/lib/core/prisma.ts` |
+| Fix authentication | `apps/web/src/lib/security/auth.ts` | `apps/web/src/app/api/` |
+| Fix UI components | `apps/web/src/components/` | component-specific |
+| Add new API endpoint | `apps/web/src/app/api/` | `apps/web/src/types/`, `apps/web/src/lib/core/prisma.ts` |
+| Change DB schema | `apps/web/prisma/schema.prisma` | `apps/web/src/types/` |
 
 ## Tech Stack
 - Next.js 16 (App Router), React 19, TailwindCSS 4
@@ -73,9 +73,9 @@ src/
 - Playwright 1.57, Midscene.js
 
 ## Rules
-1. **No `any`** - All types in `src/types/index.ts`
-2. **Singletons only** - Use `src/lib/core/prisma.ts`, never create new Prisma instances
-3. **No hardcoding** - Use `src/config/app.ts`
+1. **No `any`** - All types in `apps/web/src/types/index.ts`
+2. **Singletons only** - Use `apps/web/src/lib/core/prisma.ts`, never create new Prisma instances
+3. **No hardcoding** - Use `apps/web/src/config/app.ts`
 4. **Minimal diffs** - Change only what's necessary
 5. **Match existing style** - No reformatting unrelated code
 6. **No destructive git operations without explicit confirmation**
@@ -101,8 +101,8 @@ src/
 - `npm run lint` - Run ESLint and TypeScript compile checks
 - `npm run audit` - Audit lockfile dependencies for moderate/high/critical vulnerabilities
 - `npm run verify` - Run lint and audit checks
-- `npx prisma studio` - Open DB GUI
-- `npx prisma db push` - Apply schema changes
+- `npx prisma studio --schema apps/web/prisma/schema.prisma` - Open DB GUI
+- `npx prisma db push --schema apps/web/prisma/schema.prisma` - Apply schema changes
 
 ## Common Patterns
 
@@ -185,10 +185,10 @@ return NextResponse.json({
 ```
 
 ### Adding a Database Field
-1. Edit `prisma/schema.prisma`
-2. Run `npx prisma db push`
-3. Update types in `src/types/` if needed
-4. Re-export from `src/types/index.ts`
+1. Edit `apps/web/prisma/schema.prisma`
+2. Run `npx prisma db push --schema apps/web/prisma/schema.prisma`
+3. Update types in `apps/web/src/types/` if needed
+4. Re-export from `apps/web/src/types/index.ts`
 
 ## Security Checklist
 - [ ] `verifyAuth(request)` called at route start
@@ -200,19 +200,19 @@ return NextResponse.json({
 
 | Type | Location |
 |------|----------|
-| API endpoint | `src/app/api/<resource>/route.ts` |
-| Page | `src/app/<path>/page.tsx` |
-| Feature component | `src/components/features/<feature>/ui/<Name>.tsx` |
-| Feature hooks/model | `src/components/features/<feature>/{hooks,model}/<module>.ts` |
-| Shared/Layout component | `src/components/{shared,layout}/<Name>.tsx` |
-| Shared logic | `src/lib/<domain>/<module>.ts` |
-| Types | `src/types/<category>.ts` + re-export in `index.ts` |
-| Config | `src/config/app.ts` |
-| i18n messages | `src/i18n/messages.ts` (all three locales: en, zh-Hant, zh-Hans) |
+| API endpoint | `apps/web/src/app/api/<resource>/route.ts` |
+| Page | `apps/web/src/app/<path>/page.tsx` |
+| Feature component | `apps/web/src/components/features/<feature>/ui/<Name>.tsx` |
+| Feature hooks/model | `apps/web/src/components/features/<feature>/{hooks,model}/<module>.ts` |
+| Shared/Layout component | `apps/web/src/components/{shared,layout}/<Name>.tsx` |
+| Shared logic | `apps/web/src/lib/<domain>/<module>.ts` |
+| Types | `apps/web/src/types/<category>.ts` + re-export in `index.ts` |
+| Config | `apps/web/src/config/app.ts` |
+| i18n messages | `apps/web/src/i18n/messages.ts` (all three locales: en, zh-Hant, zh-Hans) |
 
 ## i18n Guidelines
 - All user-facing text must use i18n keys via `t('key.path')`
-- Add keys to all three locales in `src/i18n/messages.ts`
+- Add keys to all three locales in `apps/web/src/i18n/messages.ts`
 - Keep translations concise; avoid duplicate keys for minor variations
 - Use interpolation for dynamic values: `t('key', { name: value })`
 

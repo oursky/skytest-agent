@@ -57,15 +57,13 @@ Current development practice for this repo:
 | [review](./development-skills/review/SKILL.md) | `/review` | Two-pass code review (spec compliance then code quality) |
 | [plan](./development-skills/plan/SKILL.md) | `/plan` | Align on intent and create step-by-step implementation plans |
 | [debug](./development-skills/debug/SKILL.md) | `/debug` | Structured debugging: reproduce, trace root cause, minimal fix |
-| [runner-integration](./development-skills/runner-integration/SKILL.md) | `/runner-integration` | Implement control-plane browser execution, macOS runners, durable claiming, and execution/event boundaries |
-| [team-product-flow](./development-skills/team-product-flow/SKILL.md) | `/team-product-flow` | Implement org/project membership, invites, project AI keys, usage UX, and permission-aligned flows |
 | [pull-request](./development-skills/pull-request/SKILL.md) | `/pull-request` | Draft and prepare PRs with the repo's epic-branch workflow, validation summary, breaking changes, and rollout notes |
 
 ### Installation
 
 ```bash
 mkdir -p ~/.agents/skills ~/.claude/skills
-for s in commit review plan debug runner-integration team-product-flow pull-request; do
+for s in commit review plan debug pull-request; do
   cp -r skills/development-skills/$s ~/.agents/skills/$s
   ln -sf ~/.agents/skills/$s ~/.claude/skills/$s
 done

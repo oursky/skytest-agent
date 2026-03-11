@@ -37,7 +37,7 @@ This endpoint is intended for operator debugging and support workflows.
 ## Lifecycle logs
 
 Additional logs were added at key transitions:
-- run creation (`POST /api/run-test`)
-- local browser execution start (`POST /api/run-test`)
-- run completion/failure by runner (`src/lib/runners/event-service.ts`)
+- run creation (`POST /api/test-runs/dispatch`)
+- local browser execution start (`POST /api/test-runs/dispatch`)
+- run completion/failure by runner (`apps/web/src/lib/runners/event-service.ts`)
 - run cancellation (`POST /api/test-runs/:id/cancel`)
