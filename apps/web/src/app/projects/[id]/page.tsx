@@ -49,7 +49,7 @@ interface BatchImportResponse extends TestCaseImportReviewData {
     mode: 'validate' | 'import-valid';
 }
 
-type ProjectTab = 'test-cases' | 'configs' | 'settings';
+type ProjectTab = 'test-cases' | 'variables' | 'settings';
 
 function extractFilenameFromContentDisposition(headerValue: string | null, fallbackName: string): string {
     if (!headerValue) {
@@ -123,7 +123,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
     useEffect(() => {
         const tab = searchParams.get('tab');
-        if (tab === 'configs') { setActiveTab('configs'); return; }
+        if (tab === 'variables' || tab === 'configs') { setActiveTab('variables'); return; }
         if (tab === 'settings') { setActiveTab('settings'); return; }
         if (tab === 'test-cases') { setActiveTab('test-cases'); }
     }, [searchParams]);
@@ -662,7 +662,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         || isMaxConcurrentRunsUnchanged;
     const projectTabs = [
         { id: 'test-cases' as const, label: t('project.tab.testCases') },
-        { id: 'configs' as const, label: t('project.tab.configs') },
+        { id: 'variables' as const, label: t('project.tab.configs') },
         { id: 'settings' as const, label: t('project.tab.settings') },
     ];
 
@@ -725,7 +725,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     />
                 )}
 
-                {activeTab === 'configs' && (
+                {activeTab === 'variables' && (
                     <ProjectConfigs projectId={id} />
                 )}
 
