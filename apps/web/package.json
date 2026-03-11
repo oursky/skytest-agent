@@ -10,6 +10,7 @@
     "audit": "npm audit --audit-level=moderate --package-lock-only",
     "verify": "npm run lint && npm run audit",
     "db:generate": "prisma generate",
+    "db:push": "prisma db push",
     "db:studio": "prisma studio",
     "playwright:install": "playwright install chromium",
     "test": "vitest --run",

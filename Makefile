@@ -45,7 +45,7 @@ db-generate: ## Generate Prisma client
 	$(NODE_PM) run db:generate
 
 db-push: ## Apply Prisma schema to the configured database
-	npx prisma db push
+	$(NODE_PM) run db:push
 
 db-setup: db-generate db-push ## Generate Prisma client and apply schema
 
