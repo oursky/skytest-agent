@@ -43,7 +43,7 @@ export default function ProjectVariablesSummary({
                 <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('configs.section.projectVariables')}</span>
                 {!readOnly && projectId && (
                     <Link
-                        href={`/projects/${projectId}?tab=configs`}
+                        href={`/projects/${projectId}?tab=variables`}
                         className="text-xs text-primary hover:text-primary/80"
                     >
                         {t('configs.manage')} →

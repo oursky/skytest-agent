@@ -169,28 +169,39 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                             )}
 
                             {isAddingFileForType && fileUploadDraft && (
-                                <div className="p-4 bg-white space-y-2">
-                                    <div className="flex gap-3 items-center">
+                                <div className="p-4 bg-white">
+                                    <div className="flex flex-wrap items-center gap-3 md:flex-nowrap">
+                                        <GroupSelectInput
+                                            value={fileUploadDraft.group}
+                                            onChange={(group) => setFileUploadDraft({ ...fileUploadDraft, group })}
+                                            options={groupOptions}
+                                            onRemoveOption={handleRemoveGroup}
+                                            placeholder={t('configs.group.select')}
+                                            containerClassName="relative w-full md:w-56"
+                                            inputClassName="h-9 text-sm"
+                                        />
                                         <input
                                             type="text"
                                             value={fileUploadDraft.name}
                                             onChange={(event) => setFileUploadDraft({ ...fileUploadDraft, name: event.target.value })}
                                             placeholder={t('configs.name.placeholder.enter')}
-                                            className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                                            className="h-9 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary md:w-56"
                                             autoFocus
                                         />
-                                        <input
-                                            type="file"
-                                            onChange={(event) => {
-                                                const selectedFile = event.target.files?.[0] || null;
-                                                const nextDraft = { ...fileUploadDraft, file: selectedFile };
-                                                setFileUploadDraft(nextDraft);
-                                                if (selectedFile) {
-                                                    void handleFileUploadSave(nextDraft);
-                                                }
-                                            }}
-                                            className="flex-[2] px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent file:mr-3 file:px-3 file:py-1.5 file:border-0 file:rounded file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
-                                        />
+                                        <div className="w-full md:flex-1">
+                                            <input
+                                                type="file"
+                                                onChange={(event) => {
+                                                    const selectedFile = event.target.files?.[0] || null;
+                                                    const nextDraft = { ...fileUploadDraft, file: selectedFile };
+                                                    setFileUploadDraft(nextDraft);
+                                                    if (selectedFile) {
+                                                        void handleFileUploadSave(nextDraft);
+                                                    }
+                                                }}
+                                                className="min-h-[38px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm leading-5 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary file:mr-3 file:h-6 file:border-0 file:rounded file:bg-gray-100 file:px-3 file:py-0 file:text-sm file:leading-6 file:text-gray-700 hover:file:bg-gray-200"
+                                            />
+                                        </div>
                                         <button
                                             type="button"
                                             onClick={() => {
@@ -202,15 +213,6 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                             {t('common.cancel')}
                                         </button>
                                     </div>
-                                    <GroupSelectInput
-                                        value={fileUploadDraft.group}
-                                        onChange={(group) => setFileUploadDraft({ ...fileUploadDraft, group })}
-                                        options={groupOptions}
-                                        onRemoveOption={handleRemoveGroup}
-                                        placeholder={t('configs.group.select')}
-                                        containerClassName="relative w-full"
-                                        inputClassName="min-h-[38px] text-sm"
-                                    />
                                     {error && <p className="text-xs text-red-500">{error}</p>}
                                 </div>
                             )}
