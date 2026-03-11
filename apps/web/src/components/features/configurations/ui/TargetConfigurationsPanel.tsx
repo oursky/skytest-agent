@@ -2,7 +2,7 @@ import { MutableRefObject } from 'react';
 import { useI18n } from '@/i18n';
 import type { AndroidTargetConfig, BrowserConfig, ConfigItem } from '@/types';
 import { normalizeAndroidTargetConfig } from '@/lib/android/target-config';
-import { normalizeBrowserConfig } from '@/lib/config/browser-target';
+import { normalizeBrowserConfig } from '@/lib/test-config/browser-target';
 import {
     AndroidDeviceOption,
     getAndroidDeviceSelectorLabel,

@@ -1,5 +1,5 @@
 import Image from 'next/image';
-import { formatTime } from '@/utils/dateFormatter';
+import { formatTime } from '@/utils/time/dateFormatter';
 import { TestEvent } from '@/types';
 import { useI18n } from '@/i18n';
 

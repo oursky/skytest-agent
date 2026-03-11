@@ -6,10 +6,10 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CenteredLoading, Modal, Pagination } from "@/components/shared";
 import { Breadcrumbs } from "@/components/layout";
-import { formatDateTime } from "@/utils/dateFormatter";
+import { formatDateTime } from "@/utils/time/dateFormatter";
 import { useI18n } from "@/i18n";
-import { getStatusBadgeClass } from '@/utils/statusBadge';
-import { parsePageSize } from '@/utils/pagination';
+import { getStatusBadgeClass } from '@/utils/status/statusBadge';
+import { parsePageSize } from '@/utils/pagination/pagination';
 
 interface TestRun {
     id: string;

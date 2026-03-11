@@ -1,6 +1,6 @@
 import type { KeyboardEvent, ReactNode } from 'react';
 import type { ConfigType } from '@/types';
-import { isGroupableConfigType } from '@/lib/config/sort';
+import { isGroupableConfigType } from '@/lib/test-config/sort';
 import { Button } from '@/components/shared';
 import GroupSelectInput from './GroupSelectInput';
 import MaskedIcon from './MaskedIcon';

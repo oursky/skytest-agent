@@ -7,7 +7,7 @@ import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { isProjectMember } from '@/lib/security/permissions';
 import { parseTestCaseJson } from '@/lib/runtime/test-case-utils';
 import { buildContentDisposition } from '@/lib/security/http-headers';
-import { exportToExcelBuffer } from '@/utils/testCaseExcel';
+import { exportToExcelBuffer } from '@/utils/excel/testCaseExcel';
 
 const logger = createLogger('api:projects:test-cases:export-selected');
 

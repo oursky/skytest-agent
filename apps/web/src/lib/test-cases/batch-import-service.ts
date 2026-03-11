@@ -1,9 +1,9 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/core/prisma';
 import { cleanStepsForStorage, normalizeTargetConfigMap } from '@/lib/runtime/test-case-utils';
-import { normalizeConfigName } from '@/lib/config/validation';
-import { isGroupableConfigType, normalizeConfigGroup } from '@/lib/config/sort';
-import { parseTestCaseExcel, type TestCaseExcelIssue } from '@/utils/testCaseExcel';
+import { normalizeConfigName } from '@/lib/test-config/validation';
+import { isGroupableConfigType, normalizeConfigGroup } from '@/lib/test-config/sort';
+import { parseTestCaseExcel, type TestCaseExcelIssue } from '@/utils/excel/testCaseExcel';
 import type { ConfigType } from '@/types';
 
 type SupportedImportConfigType = Extract<ConfigType, 'URL' | 'APP_ID' | 'VARIABLE' | 'RANDOM_STRING'>;

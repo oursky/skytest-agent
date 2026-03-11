@@ -1,6 +1,6 @@
 'use client';
 
-import { compareByGroupThenName } from '@/lib/config/sort';
+import { compareByGroupThenName } from '@/lib/test-config/sort';
 import { useI18n } from '@/i18n';
 import type { ConfigItem, ConfigType } from '@/types';
 import { CenteredLoading } from '@/components/shared';

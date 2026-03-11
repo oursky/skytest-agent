@@ -2,9 +2,9 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { buildTestCaseConfigObjectKey, validateAndSanitizeFile } from '@/lib/security/file-security';
-import { validateConfigName, normalizeConfigName } from '@/lib/config/validation';
+import { validateConfigName, normalizeConfigName } from '@/lib/test-config/validation';
 import { createLogger } from '@/lib/core/logger';
-import { normalizeConfigGroup } from '@/lib/config/sort';
+import { normalizeConfigGroup } from '@/lib/test-config/sort';
 import { putObjectBuffer } from '@/lib/storage/object-store-utils';
 import { isProjectMember } from '@/lib/security/permissions';
 

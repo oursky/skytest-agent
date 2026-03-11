@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/app/auth-provider';
 import { CustomSelect, Pagination } from '@/components/shared';
 import { useI18n } from '@/i18n';
-import { formatDateTimeCompact } from '@/utils/dateFormatter';
+import { formatDateTimeCompact } from '@/utils/time/dateFormatter';
 
 interface TeamUsageProps {
     teamId: string;

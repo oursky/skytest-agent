@@ -1,7 +1,7 @@
 import type { Prisma } from '@prisma/client';
 import { runTest } from '@/lib/runtime/test-runner';
 import { prisma } from '@/lib/core/prisma';
-import { resolveConfigs } from '@/lib/config/resolver';
+import { resolveConfigs } from '@/lib/test-config/resolver';
 import { decrypt } from '@/lib/security/crypto';
 import { createLogger } from '@/lib/core/logger';
 import { publishRunUpdate } from '@/lib/runners/event-bus';

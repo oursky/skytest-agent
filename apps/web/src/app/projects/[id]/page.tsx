@@ -6,11 +6,11 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CenteredLoading, Modal, Pagination, UnderlineTabs } from "@/components/shared";
 import { Breadcrumbs } from "@/components/layout";
-import { formatDateTimeCompact } from "@/utils/dateFormatter";
+import { formatDateTimeCompact } from "@/utils/time/dateFormatter";
 import { useI18n } from "@/i18n";
-import { getStatusBadgeClass } from '@/utils/statusBadge';
-import { isActiveRunStatus } from '@/utils/statusHelpers';
-import { parsePageSize } from '@/utils/pagination';
+import { getStatusBadgeClass } from '@/utils/status/statusBadge';
+import { isActiveRunStatus } from '@/utils/status/statusHelpers';
+import { parsePageSize } from '@/utils/pagination/pagination';
 import { ProjectConfigs } from '@/components/features/project-configs';
 import ProjectSettingsPanel from '@/components/features/projects/ui/ProjectSettingsPanel';
 import TestCaseImportReviewDialog, {

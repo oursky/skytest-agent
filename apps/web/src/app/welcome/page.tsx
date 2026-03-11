@@ -4,10 +4,10 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/auth-provider';
 import { Button, CenteredLoading } from '@/components/shared';
-import { useTeams } from '@/hooks/useTeams';
-import { useCurrentTeam } from '@/hooks/useCurrentTeam';
+import { useTeams } from '@/hooks/team/useTeams';
+import { useCurrentTeam } from '@/hooks/team/useCurrentTeam';
 import { useI18n } from '@/i18n';
-import { useCreateTeam } from '@/hooks/useCreateTeam';
+import { useCreateTeam } from '@/hooks/team/useCreateTeam';
 
 export default function WelcomePage() {
     const { isLoggedIn, isLoading: isAuthLoading, getAccessToken } = useAuth();

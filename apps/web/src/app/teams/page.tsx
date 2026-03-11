@@ -8,8 +8,8 @@ import TeamAiSettings from '@/components/features/team-ai/ui/TeamAiSettings';
 import TeamMembers from '@/components/features/team-members/ui/TeamMembers';
 import TeamUsage from '@/components/features/team-usage/ui/TeamUsage';
 import { TeamRunners } from '@/components/features/team-runners';
-import { useCurrentTeam } from '@/hooks/useCurrentTeam';
-import { dispatchTeamsChanged, useTeams } from '@/hooks/useTeams';
+import { useCurrentTeam } from '@/hooks/team/useCurrentTeam';
+import { dispatchTeamsChanged, useTeams } from '@/hooks/team/useTeams';
 import { useI18n } from '@/i18n';
 
 interface TeamDetails {

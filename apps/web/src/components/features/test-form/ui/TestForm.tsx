@@ -12,7 +12,7 @@ import { useTestFormState } from '../hooks/useTestFormState';
 import { buildCurrentData as buildTestData, createStepId, hasMissingRequiredTestingTargetFields } from '../model/state-utils';
 import { useI18n } from '@/i18n';
 import { useAuth } from '@/app/auth-provider';
-import { normalizeBrowserConfig } from '@/lib/config/browser-target';
+import { normalizeBrowserConfig } from '@/lib/test-config/browser-target';
 
 interface TestFormProps {
     onSubmit: (data: TestData) => void;

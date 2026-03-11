@@ -5,7 +5,7 @@ import { createLogger } from '@/lib/core/logger';
 import { parseTestCaseJson } from '@/lib/runtime/test-case-utils';
 import { buildContentDisposition } from '@/lib/security/http-headers';
 import { readObjectBuffer } from '@/lib/storage/object-store-utils';
-import { exportToExcelBuffer } from '@/utils/testCaseExcel';
+import { exportToExcelBuffer } from '@/utils/excel/testCaseExcel';
 import archiver from 'archiver';
 import path from 'path';
 import { PassThrough } from 'stream';

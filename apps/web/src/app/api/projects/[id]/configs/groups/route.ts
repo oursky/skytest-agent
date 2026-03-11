@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
-import { GROUPABLE_CONFIG_TYPES, normalizeConfigGroup } from '@/lib/config/sort';
+import { GROUPABLE_CONFIG_TYPES, normalizeConfigGroup } from '@/lib/test-config/sort';
 import { createLogger } from '@/lib/core/logger';
 import { isProjectMember } from '@/lib/security/permissions';
 

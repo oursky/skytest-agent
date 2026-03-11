@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/auth-provider';
 import { Button, CustomSelect, Modal } from '@/components/shared';
 import { LOCALE_META, Locale, useI18n } from '@/i18n';
-import { useTeams } from '@/hooks/useTeams';
-import { useCurrentTeam } from '@/hooks/useCurrentTeam';
-import { useCreateTeam } from '@/hooks/useCreateTeam';
+import { useTeams } from '@/hooks/team/useTeams';
+import { useCurrentTeam } from '@/hooks/team/useCurrentTeam';
+import { useCreateTeam } from '@/hooks/team/useCreateTeam';
 
 export default function Header() {
     const { isLoggedIn, isLoading: isAuthLoading, user, logout, openSettings, login, getAccessToken } = useAuth();

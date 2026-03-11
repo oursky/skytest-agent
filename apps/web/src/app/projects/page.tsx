@@ -5,12 +5,12 @@ import { useAuth } from "../auth-provider";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button, CenteredLoading, Modal } from "@/components/shared";
-import { formatDateTime } from "@/utils/dateFormatter";
-import { useProjects } from "@/hooks/useProjects";
-import { useTeams } from "@/hooks/useTeams";
-import { useCurrentTeam } from "@/hooks/useCurrentTeam";
+import { formatDateTime } from "@/utils/time/dateFormatter";
+import { useProjects } from "@/hooks/project/useProjects";
+import { useTeams } from "@/hooks/team/useTeams";
+import { useCurrentTeam } from "@/hooks/team/useCurrentTeam";
 import { useI18n } from "@/i18n";
-import { useCreateTeam } from "@/hooks/useCreateTeam";
+import { useCreateTeam } from "@/hooks/team/useCreateTeam";
 
 export default function ProjectsPage() {
     const { isLoggedIn, isLoading: isAuthLoading, getAccessToken } = useAuth();

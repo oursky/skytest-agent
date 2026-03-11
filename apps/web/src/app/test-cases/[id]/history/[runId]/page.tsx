@@ -7,7 +7,7 @@ import { ResultViewer } from "@/components/features/result-viewer";
 import { TestForm } from "@/components/features/test-form";
 import { Breadcrumbs } from "@/components/layout";
 import { CenteredLoading } from "@/components/shared";
-import { formatDateTime } from "@/utils/dateFormatter";
+import { formatDateTime } from "@/utils/time/dateFormatter";
 import { useI18n } from "@/i18n";
 import { parseStoredEvents } from "@/lib/runtime/test-events";
 

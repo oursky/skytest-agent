@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/core/prisma';
-import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } from '@/lib/config/sort';
-import { validateConfigName, normalizeConfigName, validateConfigType } from '@/lib/config/validation';
+import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } from '@/lib/test-config/sort';
+import { validateConfigName, normalizeConfigName, validateConfigType } from '@/lib/test-config/validation';
 import { deleteObjectKeysBestEffort } from '@/lib/mcp/storage-cleanup';
 import type { ConfigType } from '@/types';
 

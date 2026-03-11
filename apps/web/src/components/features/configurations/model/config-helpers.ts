@@ -1,5 +1,5 @@
 import type { ConfigItem, ConfigType } from '@/types';
-import { compareByGroupThenName } from '@/lib/config/sort';
+import { compareByGroupThenName } from '@/lib/test-config/sort';
 
 export const TYPE_ORDER: ConfigType[] = ['URL', 'APP_ID', 'VARIABLE', 'FILE', 'RANDOM_STRING'];
 export const ADDABLE_TEST_CASE_CONFIG_TYPES: ConfigType[] = ['URL', 'APP_ID', 'VARIABLE', 'RANDOM_STRING', 'FILE'];

@@ -1,7 +1,7 @@
 import type { KeyboardEvent, MutableRefObject } from 'react';
 import { useI18n } from '@/i18n';
 import type { ConfigItem, ConfigType } from '@/types';
-import { compareByGroupThenName } from '@/lib/config/sort';
+import { compareByGroupThenName } from '@/lib/test-config/sort';
 import { getConfigTypeTitleKey } from '@/components/features/configurations/model/config-utils';
 import GroupSelectInput from '@/components/features/configurations/ui/GroupSelectInput';
 import { ADDABLE_TEST_CASE_CONFIG_TYPES, RANDOM_STRING_GENERATION_TYPES, TYPE_ORDER, randomStringGenerationLabel } from '../model/config-helpers';

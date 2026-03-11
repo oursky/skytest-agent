@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../auth-provider';
 import { Button, CopyableCodeBlock, DangerTextButton, LoadingSpinner, Modal } from '@/components/shared';
 import { useI18n } from '@/i18n';
-import { formatDateTime } from '@/utils/dateFormatter';
+import { formatDateTime } from '@/utils/time/dateFormatter';
 
 interface AgentApiKey {
     id: string;

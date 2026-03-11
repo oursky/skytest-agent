@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback, useMemo, type Dispatch, type Keyboard
 import { useAuth } from '@/app/auth-provider';
 import { useI18n } from '@/i18n';
 import type { ConfigItem, ConfigType } from '@/types';
-import { isGroupableConfigType, normalizeConfigGroup } from '@/lib/config/sort';
-import { normalizeConfigName } from '@/lib/config/validation';
+import { isGroupableConfigType, normalizeConfigGroup } from '@/lib/test-config/sort';
+import { normalizeConfigName } from '@/lib/test-config/validation';
 import type { ProjectConfigEditState, ProjectConfigFileUploadDraft } from '../model/types';
 import {
     buildAuthHeaders,

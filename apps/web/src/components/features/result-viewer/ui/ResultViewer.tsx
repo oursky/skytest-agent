@@ -1,16 +1,16 @@
 'use client';
 
 import Image from 'next/image';
-import { getStatusBadgeClass } from '@/utils/statusBadge';
+import { getStatusBadgeClass } from '@/utils/status/statusBadge';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { TestRun, TestEvent, TestCaseFile, TestData, BrowserConfig, TargetConfig, AndroidTargetConfig } from '@/types';
-import { formatTime } from '@/utils/dateFormatter';
+import { formatTime } from '@/utils/time/dateFormatter';
 import TimelineEvent from './TimelineEvent';
 import ResultStatus from './ResultStatus';
 import { useI18n } from '@/i18n';
 import { normalizeAndroidTargetConfig } from '@/lib/android/target-config';
 import { formatAndroidDeviceSelectorDisplay } from '@/lib/android/device-selector-display';
-import { normalizeBrowserConfig } from '@/lib/config/browser-target';
+import { normalizeBrowserConfig } from '@/lib/test-config/browser-target';
 
 interface ResultViewerMeta {
     runId?: string | null;

@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/core/prisma';
 import { dispatchNextQueuedBrowserRun } from '@/lib/runtime/browser-run-dispatcher';
-import { ACTIVE_RUN_STATUSES } from '@/utils/statusHelpers';
+import { ACTIVE_RUN_STATUSES } from '@/utils/status/statusHelpers';
 
 const TERMINAL_RUN_STATUSES = new Set(['PASS', 'FAIL', 'CANCELLED']);
 

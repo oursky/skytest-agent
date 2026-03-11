@@ -13,7 +13,7 @@ vi.mock('@/lib/core/prisma', () => ({
     },
 }));
 
-vi.mock('@/lib/config/resolver', () => ({
+vi.mock('@/lib/test-config/resolver', () => ({
     resolveConfigs,
 }));
 

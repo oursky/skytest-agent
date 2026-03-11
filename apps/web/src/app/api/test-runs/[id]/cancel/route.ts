@@ -6,7 +6,7 @@ import { isProjectMember } from '@/lib/security/permissions';
 import { publishRunUpdate } from '@/lib/runners/event-bus';
 import { cancelLocalBrowserRun } from '@/lib/runtime/local-browser-runner';
 import { dispatchNextQueuedBrowserRun } from '@/lib/runtime/browser-run-dispatcher';
-import { ACTIVE_RUN_STATUSES } from '@/utils/statusHelpers';
+import { ACTIVE_RUN_STATUSES } from '@/utils/status/statusHelpers';
 
 const logger = createLogger('api:test-runs:cancel');
 

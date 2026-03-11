@@ -1,5 +1,5 @@
 import type { BrowserConfig, TargetConfig, TestStep } from '@/types';
-import { normalizeBrowserConfig } from '@/lib/config/browser-target';
+import { normalizeBrowserConfig } from '@/lib/test-config/browser-target';
 import type { BrowserEntry } from '@/components/features/configurations/model/types';
 import type { TestData } from './types';
 

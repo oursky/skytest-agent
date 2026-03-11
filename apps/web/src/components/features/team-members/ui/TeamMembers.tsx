@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/app/auth-provider';
 import { Button, DangerTextButton, LoadingSpinner, Modal } from '@/components/shared';
 import { useI18n } from '@/i18n';
-import { formatDateTimeCompact } from '@/utils/dateFormatter';
+import { formatDateTimeCompact } from '@/utils/time/dateFormatter';
 
 interface TeamMembersProps {
     teamId: string;

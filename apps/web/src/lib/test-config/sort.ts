@@ -1,5 +1,5 @@
 import type { ConfigType } from '@/types';
-import { normalizeConfigName } from '@/lib/config/validation';
+import { normalizeConfigName } from '@/lib/test-config/validation';
 
 export interface GroupSortableConfig {
     name: string;

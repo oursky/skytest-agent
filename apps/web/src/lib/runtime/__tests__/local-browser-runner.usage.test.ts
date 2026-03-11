@@ -19,7 +19,7 @@ vi.mock('@/lib/runtime/test-runner', () => ({
     runTest: mocks.runTest,
 }));
 
-vi.mock('@/lib/config/resolver', () => ({
+vi.mock('@/lib/test-config/resolver', () => ({
     resolveConfigs: mocks.resolveConfigs,
 }));
 

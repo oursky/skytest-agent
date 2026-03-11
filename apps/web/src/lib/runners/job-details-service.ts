@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/core/prisma';
-import { resolveConfigs } from '@/lib/config/resolver';
+import { resolveConfigs } from '@/lib/test-config/resolver';
 import { decrypt } from '@/lib/security/crypto';
 import type { BrowserConfig, TargetConfig, TestStep } from '@/types';
 

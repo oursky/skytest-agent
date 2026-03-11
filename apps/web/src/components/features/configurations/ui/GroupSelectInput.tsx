@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useI18n } from '@/i18n';
-import { normalizeConfigGroup } from '@/lib/config/sort';
+import { normalizeConfigGroup } from '@/lib/test-config/sort';
 
 interface GroupSelectInputProps {
     value: string;

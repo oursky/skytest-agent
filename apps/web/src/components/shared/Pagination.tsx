@@ -1,7 +1,7 @@
 "use client";
 
 import { useI18n } from "@/i18n";
-import { PAGE_SIZE_OPTIONS } from "@/utils/pagination";
+import { PAGE_SIZE_OPTIONS } from "@/utils/pagination/pagination";
 import CustomSelect from "./CustomSelect";
 
 interface PaginationProps {

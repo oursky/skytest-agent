@@ -1,5 +1,5 @@
 import type { ConfigItem, ConfigType } from '@/types';
-import { isGroupableConfigType, normalizeConfigGroup } from '@/lib/config/sort';
+import { isGroupableConfigType, normalizeConfigGroup } from '@/lib/test-config/sort';
 
 export type ConfigScope = {
     kind: 'project' | 'test-case';
