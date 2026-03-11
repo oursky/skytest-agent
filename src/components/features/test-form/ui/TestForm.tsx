@@ -9,7 +9,7 @@ import { buildAuthHeaders, buildConfigsEndpoint } from '@/components/features/co
 import type { BrowserEntry } from '@/components/features/configurations/model/types';
 import type { TestData } from '../model/types';
 import { useTestFormState } from '../hooks/useTestFormState';
-import { buildCurrentData as buildTestData, createStepId, hasMissingRequiredEntryPointFields } from '../model/state-utils';
+import { buildCurrentData as buildTestData, createStepId, hasMissingRequiredTestingTargetFields } from '../model/state-utils';
 import { useI18n } from '@/i18n';
 import { useAuth } from '@/app/auth-provider';
 import { normalizeBrowserConfig } from '@/lib/config/browser-target';
@@ -196,14 +196,14 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
             setActiveTab('configurations');
             return;
         }
-        if (hasMissingRequiredEntryPointFields(browsers)) {
+        if (hasMissingRequiredTestingTargetFields(browsers)) {
             setActiveTab('configurations');
             return;
         }
         onSubmit(getCurrentData());
     };
 
-    const runDisabled = isLoading || hasMissingRequiredTestCaseId || hasMissingRequiredEntryPointFields(browsers);
+    const runDisabled = isLoading || hasMissingRequiredTestCaseId || hasMissingRequiredTestingTargetFields(browsers);
 
     return (
         <form onSubmit={handleSubmit} className="glass-panel h-[800px] flex flex-col">

@@ -12,7 +12,9 @@ import { getStatusBadgeClass } from '@/utils/statusBadge';
 import { isActiveRunStatus } from '@/utils/statusHelpers';
 import { parsePageSize } from '@/utils/pagination';
 import { ProjectConfigs } from '@/components/features/project-configs';
-import { buildExportRowsSortedByIdAsc } from './export-utils';
+import TestCaseImportReviewDialog, {
+    type TestCaseImportReviewData,
+} from '@/components/features/test-cases/ui/TestCaseImportReviewDialog';
 
 interface TestRun {
     id: string;
@@ -39,6 +41,38 @@ interface Project {
     maxConcurrentRuns: number;
     maxConcurrentRunsLimit?: number;
     canManageProject?: boolean;
+}
+
+interface BatchImportResponse extends TestCaseImportReviewData {
+    mode: 'validate' | 'import-valid';
+}
+
+function extractFilenameFromContentDisposition(headerValue: string | null, fallbackName: string): string {
+    if (!headerValue) {
+        return fallbackName;
+    }
+    const utf8Match = headerValue.match(/filename\*=UTF-8''([^;]+)/i);
+    if (utf8Match?.[1]) {
+        try {
+            return decodeURIComponent(utf8Match[1].replace(/["']/g, '').trim());
+        } catch {
+            return utf8Match[1].replace(/["']/g, '').trim();
+        }
+    }
+    const asciiMatch = headerValue.match(/filename="?([^";]+)"?/i);
+    if (!asciiMatch?.[1]) {
+        return fallbackName;
+    }
+    return asciiMatch[1].trim();
+}
+
+function downloadBlob(blob: Blob, filename: string): void {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
 }
 
 export default function ProjectPage({ params }: ProjectPageProps) {
@@ -68,7 +102,13 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     const [editingDisplayIdTestCaseId, setEditingDisplayIdTestCaseId] = useState<string | null>(null);
     const [editingDisplayIdValue, setEditingDisplayIdValue] = useState('');
     const [savingDisplayIdTestCaseId, setSavingDisplayIdTestCaseId] = useState<string | null>(null);
+    const [selectedTestCaseIds, setSelectedTestCaseIds] = useState<Set<string>>(new Set());
+    const [isExportingSelected, setIsExportingSelected] = useState(false);
+    const [isBatchImportProcessing, setIsBatchImportProcessing] = useState(false);
+    const [batchImportReviewData, setBatchImportReviewData] = useState<BatchImportResponse | null>(null);
+    const [pendingBatchImportFiles, setPendingBatchImportFiles] = useState<File[]>([]);
     const displayIdInputRef = useRef<HTMLInputElement | null>(null);
+    const batchImportInputRef = useRef<HTMLInputElement | null>(null);
     const skipBlurSaveRef = useRef(false);
 
     useEffect(() => {
@@ -90,6 +130,19 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             displayIdInputRef.current?.select();
         }
     }, [editingDisplayIdTestCaseId]);
+
+    useEffect(() => {
+        const validIds = new Set(testCases.map((item) => item.id));
+        setSelectedTestCaseIds((prev) => {
+            const next = new Set<string>();
+            prev.forEach((idValue) => {
+                if (validIds.has(idValue)) {
+                    next.add(idValue);
+                }
+            });
+            return next;
+        });
+    }, [testCases]);
 
     const handleTabChange = useCallback((tab: 'test-cases' | 'configs' | 'settings') => {
         setActiveTab(tab);
@@ -408,22 +461,149 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
     };
 
-    const handleExportAll = () => {
-        const headers = ['ID', 'Name', 'Status', 'Updated'];
-        const rows = buildExportRowsSortedByIdAsc(testCases);
+    const selectedCount = selectedTestCaseIds.size;
+    const allFilteredSelected = sortedTestCases.length > 0
+        && sortedTestCases.every((testCase) => selectedTestCaseIds.has(testCase.id));
 
-        const csvContent = [
-            headers.join(','),
-            ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
-        ].join('\n');
+    const handleToggleSelectAllFiltered = () => {
+        setSelectedTestCaseIds((prev) => {
+            const next = new Set(prev);
+            if (allFilteredSelected) {
+                sortedTestCases.forEach((testCase) => next.delete(testCase.id));
+            } else {
+                sortedTestCases.forEach((testCase) => next.add(testCase.id));
+            }
+            return next;
+        });
+    };
 
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `${project?.name || 'test-cases'}-export.csv`;
-        link.click();
-        URL.revokeObjectURL(url);
+    const handleToggleSelectTestCase = (testCaseId: string) => {
+        setSelectedTestCaseIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(testCaseId)) {
+                next.delete(testCaseId);
+            } else {
+                next.add(testCaseId);
+            }
+            return next;
+        });
+    };
+
+    const runBatchImportRequest = useCallback(async (
+        files: File[],
+        mode: 'validate' | 'import-valid'
+    ): Promise<BatchImportResponse | null> => {
+        const token = await getAccessToken();
+        const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+        const formData = new FormData();
+        formData.append('mode', mode);
+        files.forEach((file) => formData.append('files', file));
+        const response = await fetch(`/api/projects/${id}/test-cases/batch-import`, {
+            method: 'POST',
+            headers,
+            body: formData,
+        });
+
+        if (!response.ok) {
+            throw new Error(`Batch import request failed (${response.status})`);
+        }
+        return await response.json() as BatchImportResponse;
+    }, [getAccessToken, id]);
+
+    const handleBatchImportSelectedFiles = useCallback(async (files: File[]) => {
+        if (files.length === 0) {
+            return;
+        }
+
+        setIsBatchImportProcessing(true);
+        try {
+            const validationResult = await runBatchImportRequest(files, 'validate');
+            if (!validationResult) {
+                return;
+            }
+
+            const hasErrors = validationResult.files.some((file) => file.issues.some((issue) => issue.severity === 'error'));
+            const hasWarnings = validationResult.files.some((file) => file.issues.some((issue) => issue.severity === 'warning'));
+
+            if (!hasErrors && !hasWarnings) {
+                await runBatchImportRequest(files, 'import-valid');
+                await fetchTestCases();
+                setBatchImportReviewData(null);
+                setPendingBatchImportFiles([]);
+                return;
+            }
+
+            setBatchImportReviewData(validationResult);
+            setPendingBatchImportFiles(files);
+        } catch (error) {
+            console.error('Failed to validate batch import', error);
+        } finally {
+            setIsBatchImportProcessing(false);
+        }
+    }, [fetchTestCases, runBatchImportRequest]);
+
+    const handleBatchImportInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(event.target.files || []).filter((file) => file.name.toLowerCase().endsWith('.xlsx'));
+        await handleBatchImportSelectedFiles(files);
+        event.target.value = '';
+    };
+
+    const handleProceedBatchImport = async () => {
+        if (pendingBatchImportFiles.length === 0) {
+            setBatchImportReviewData(null);
+            return;
+        }
+        setIsBatchImportProcessing(true);
+        try {
+            await runBatchImportRequest(pendingBatchImportFiles, 'import-valid');
+            await fetchTestCases();
+            setBatchImportReviewData(null);
+            setPendingBatchImportFiles([]);
+        } catch (error) {
+            console.error('Failed to import valid batch records', error);
+        } finally {
+            setIsBatchImportProcessing(false);
+        }
+    };
+
+    const handleDiscardBatchImport = () => {
+        setBatchImportReviewData(null);
+        setPendingBatchImportFiles([]);
+    };
+
+    const handleExportSelected = async () => {
+        if (selectedTestCaseIds.size === 0 || isExportingSelected) {
+            return;
+        }
+
+        setIsExportingSelected(true);
+        try {
+            const token = await getAccessToken();
+            const headers: HeadersInit = {
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            };
+            const response = await fetch(`/api/projects/${id}/test-cases/export`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ testCaseIds: Array.from(selectedTestCaseIds) }),
+            });
+
+            if (!response.ok) {
+                throw new Error(`Export request failed (${response.status})`);
+            }
+
+            const blob = await response.blob();
+            const filename = extractFilenameFromContentDisposition(
+                response.headers.get('Content-Disposition'),
+                `${project?.name || 'project'}_selected_test_cases.zip`
+            );
+            downloadBlob(blob, filename);
+        } catch (error) {
+            console.error('Failed to export selected test cases', error);
+        } finally {
+            setIsExportingSelected(false);
+        }
     };
 
     const SortIcon = ({ column }: { column: 'id' | 'name' | 'status' | 'updated' }) => {
@@ -467,6 +647,21 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     {t('project.deleteTestCase.body', { name: deleteModal.testCaseName })}
                 </p>
             </Modal>
+            <TestCaseImportReviewDialog
+                isOpen={batchImportReviewData !== null}
+                data={batchImportReviewData}
+                isProcessing={isBatchImportProcessing}
+                onProceed={handleProceedBatchImport}
+                onDiscard={handleDiscardBatchImport}
+            />
+            <input
+                ref={batchImportInputRef}
+                type="file"
+                multiple
+                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                className="hidden"
+                onChange={handleBatchImportInputChange}
+            />
 
             <div className="max-w-7xl mx-auto px-8 py-8">
                 <Breadcrumbs items={[{ label: project?.name || t('common.project') }]} />
@@ -533,14 +728,28 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                         </div>
                         <div className="hidden sm:flex items-center gap-2">
                             <button
-                                onClick={handleExportAll}
-                                className="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-2 cursor-pointer"
-                                title={t('project.exportAll')}
+                                type="button"
+                                onClick={() => batchImportInputRef.current?.click()}
+                                disabled={isBatchImportProcessing}
+                                className="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                title={t('project.batchImport.button')}
+                            >
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                </svg>
+                                <span className="hidden md:inline">{t('project.batchImport.button')}</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleExportSelected}
+                                disabled={selectedCount === 0 || isExportingSelected}
+                                className="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                title={t('project.exportSelected')}
                             >
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                                 </svg>
-                                <span className="hidden md:inline">{t('project.exportAll')}</span>
+                                <span className="hidden md:inline">{t('project.exportSelected')}</span>
                             </button>
                             <Link
                                 href={`/run?projectId=${id}`}
@@ -576,13 +785,26 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                             </div>
                             <div className="flex gap-2">
                                 <button
-                                    onClick={handleExportAll}
-                                    className="flex-1 px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                                    type="button"
+                                    onClick={() => batchImportInputRef.current?.click()}
+                                    disabled={isBatchImportProcessing}
+                                    className="flex-1 px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                    </svg>
+                                    {t('project.batchImport.button')}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleExportSelected}
+                                    disabled={selectedCount === 0 || isExportingSelected}
+                                    className="flex-1 px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                                     </svg>
-                                    {t('project.exportAll')}
+                                    {t('project.exportSelected')}
                                 </button>
                                 <Link
                                     href={`/run?projectId=${id}`}
@@ -649,6 +871,15 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
                 <div className={`bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden ${activeTab !== 'test-cases' ? 'hidden' : ''}`}>
                     <div className="hidden md:grid grid-cols-24 gap-4 p-4 border-b border-gray-200 bg-gray-50 text-sm font-medium text-gray-500">
+                        <div className="col-span-1 flex items-center">
+                            <input
+                                type="checkbox"
+                                checked={allFilteredSelected}
+                                onChange={handleToggleSelectAllFiltered}
+                                aria-label={t('project.table.selectAll')}
+                                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                            />
+                        </div>
                         <button
                             onClick={() => handleSort('id')}
                             className="col-span-3 flex items-center gap-1 hover:text-gray-700 transition-colors text-left"
@@ -658,7 +889,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                         </button>
                         <button
                             onClick={() => handleSort('name')}
-                            className="col-span-9 flex items-center gap-1 hover:text-gray-700 transition-colors text-left"
+                            className="col-span-8 flex items-center gap-1 hover:text-gray-700 transition-colors text-left"
                         >
                             {t('project.table.name')}
                             <SortIcon column="name" />
@@ -712,6 +943,15 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
                                 return (
                                     <div key={testCase.id} className="flex flex-col md:grid md:grid-cols-24 gap-4 p-4 hover:bg-gray-50 transition-colors group">
+                                        <div className="md:col-span-1 flex items-center">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedTestCaseIds.has(testCase.id)}
+                                                onChange={() => handleToggleSelectTestCase(testCase.id)}
+                                                aria-label={t('project.table.selectOne', { name: testCase.name })}
+                                                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                            />
+                                        </div>
                                         <div className="md:col-span-3 flex items-center">
                                             {isEditingDisplayId ? (
                                                 <input
@@ -761,7 +1001,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                                                 </button>
                                             )}
                                         </div>
-                                        <div className="md:col-span-9 flex items-center">
+                                        <div className="md:col-span-8 flex items-center">
                                             <Link
                                                 href={`/run?testCaseId=${testCase.id}&projectId=${id}`}
                                                 className="font-medium text-gray-900 hover:text-primary transition-colors"

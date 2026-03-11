@@ -16,8 +16,8 @@ import {
 } from './testCaseExcel-helpers';
 
 type SupportedVariableType = Extract<ConfigType, 'URL' | 'APP_ID' | 'VARIABLE' | 'RANDOM_STRING' | 'FILE'>;
-const BROWSER_TARGET_SHEET_NAMES = ['Browser Targets', 'Browsers'] as const;
-const ANDROID_TARGET_SHEET_NAMES = ['Android Targets', 'Android'] as const;
+const BROWSER_TARGET_SHEET_NAMES = ['Browser Targets'] as const;
+const ANDROID_TARGET_SHEET_NAMES = ['Android Targets'] as const;
 
 interface ExcelProjectVariable {
     name: string;
@@ -63,9 +63,40 @@ export interface ParsedTestCaseExcel {
     files: ExcelFileEntry[];
 }
 
-interface ParseResult {
+export type TestCaseExcelIssueSeverity = 'warning' | 'error';
+
+export interface TestCaseExcelIssue {
+    code:
+    | 'INVALID_EXCEL'
+    | 'MISSING_NAME'
+    | 'INVALID_VARIABLE_TYPE'
+    | 'FILE_VARIABLE_NOT_IMPORTABLE'
+    | 'INVALID_RANDOM_STRING_TYPE'
+    | 'MISSING_VALUE'
+    | 'MISSING_FILENAME'
+    | 'MISSING_BROWSER_URL'
+    | 'MISSING_STEP_ACTION'
+    | 'FILE_ATTACHMENT_MANUAL_UPLOAD_REQUIRED';
+    severity: TestCaseExcelIssueSeverity;
+    sheet: 'Configurations' | 'Browser Targets' | 'Android Targets' | 'Test Steps' | 'Workbook';
+    row?: number;
+    reason: string;
+    filename?: string;
+}
+
+export interface ParseResult {
     data: ParsedTestCaseExcel;
     warnings: string[];
+    issues: TestCaseExcelIssue[];
+}
+
+function addParseIssue(
+    warnings: string[],
+    issues: TestCaseExcelIssue[],
+    issue: TestCaseExcelIssue
+): void {
+    issues.push(issue);
+    warnings.push(issue.reason);
 }
 
 export async function exportToExcelBuffer(data: TestCaseExcelExportData): Promise<Buffer> {
@@ -89,6 +120,7 @@ export async function exportToExcelArrayBuffer(data: TestCaseExcelExportData): P
 
 export async function parseTestCaseExcel(content: ArrayBuffer): Promise<ParseResult> {
     const warnings: string[] = [];
+    const issues: TestCaseExcelIssue[] = [];
     const emptyData: ParsedTestCaseExcel = {
         testData: {
             url: '',
@@ -106,17 +138,22 @@ export async function parseTestCaseExcel(content: ArrayBuffer): Promise<ParseRes
         await workbook.xlsx.load(workbookInput);
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Invalid Excel file';
-        warnings.push(`Failed to parse Excel: ${errorMessage}`);
-        return { data: emptyData, warnings };
+        addParseIssue(warnings, issues, {
+            code: 'INVALID_EXCEL',
+            severity: 'error',
+            sheet: 'Workbook',
+            reason: `Failed to parse Excel: ${errorMessage}`,
+        });
+        return { data: emptyData, warnings, issues };
     }
 
     const configurationsRows = readSheetRows(workbook, 'Configurations');
     const browserRows = readSheetRows(workbook, BROWSER_TARGET_SHEET_NAMES);
     const androidRows = readSheetRows(workbook, ANDROID_TARGET_SHEET_NAMES);
     const stepRows = readSheetRows(workbook, 'Test Steps');
-    const parsedConfigurations = parseConfigurationsRows(configurationsRows, warnings);
-    const parsedBrowserTargets = parseBrowserTargetRows(browserRows, warnings);
-    const parsedAndroidTargets = parseAndroidTargetRows(androidRows, warnings);
+    const parsedConfigurations = parseConfigurationsRows(configurationsRows, warnings, issues);
+    const parsedBrowserTargets = parseBrowserTargetRows(browserRows, warnings, issues);
+    const parsedAndroidTargets = parseAndroidTargetRows(androidRows, warnings, issues);
     const hasDedicatedTargetSheets = browserRows.length > 0 || androidRows.length > 0;
 
     const parsedTestCase = parsedConfigurations.testCase;
@@ -138,7 +175,7 @@ export async function parseTestCaseExcel(content: ArrayBuffer): Promise<ParseRes
     const firstBrowserEntry = targetEntries.find((entry) => !('type' in entry.config && entry.config.type === 'android'));
     const fallbackTargetId = targetEntries[0]?.id || 'browser_a';
     const validTargetIds = new Set(targetEntries.map((entry) => entry.id));
-    const steps = parseStepRows(stepRows, validTargetIds, targetAliases, fallbackTargetId, warnings);
+    const steps = parseStepRows(stepRows, validTargetIds, targetAliases, fallbackTargetId, warnings, issues);
 
     return {
         data: {
@@ -156,6 +193,7 @@ export async function parseTestCaseExcel(content: ArrayBuffer): Promise<ParseRes
             files,
         },
         warnings,
+        issues,
     };
 }
 
@@ -203,6 +241,17 @@ function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
             Masked: item.masked ? 'Y' : '',
         }));
 
+    const testFileRows = (data.files || []).map((file) => ({
+        Section: 'File',
+        Type: 'Test File',
+        Name: file.filename,
+        Value: '',
+        Group: '',
+        Masked: '',
+        'Mime Type': file.mimeType || '',
+        Size: file.size || '',
+    }));
+
     const stepRows = (data.steps || []).map((step, index) => ({
         'Step No': index + 1,
         Browser: targetDisplayById.get(step.target) || step.target,
@@ -215,6 +264,7 @@ function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
         { Section: 'Basic Info', Type: 'Test Case ID', Name: data.testCaseId || '', Value: '' },
         ...projectVariableRows,
         ...testCaseVariableRows,
+        ...testFileRows,
     ];
     const browserTargetRows: Array<Record<string, string>> = targetEntries.flatMap((entry) => {
         if ('type' in entry.config && entry.config.type === 'android') {
@@ -246,7 +296,12 @@ function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
         }];
     });
 
-    appendRowsAsWorksheet(workbook, 'Configurations', configurationsRows, ['Section', 'Type', 'Name', 'Value', 'Group', 'Masked']);
+    appendRowsAsWorksheet(
+        workbook,
+        'Configurations',
+        configurationsRows,
+        ['Section', 'Type', 'Name', 'Value', 'Group', 'Masked', 'Mime Type', 'Size']
+    );
     if (browserTargetRows.length > 0) {
         appendRowsAsWorksheet(workbook, 'Browser Targets', browserTargetRows, ['Target', 'Name', 'URL', 'Width', 'Height']);
     }
@@ -292,7 +347,8 @@ function appendRowsAsWorksheet(
 
 function parseConfigurationsRows(
     rows: Array<Record<string, unknown>>,
-    warnings: string[]
+    warnings: string[],
+    issues: TestCaseExcelIssue[]
 ): {
     testCase: { name?: string; testCaseId?: string; primaryUrl?: string };
     projectVariables: ExcelProjectVariable[];
@@ -309,6 +365,7 @@ function parseConfigurationsRows(
     const files: ExcelFileEntry[] = [];
 
     rows.forEach((row, index) => {
+        const rowNumber = index + 2;
         const section = normalizeHeader(getRowValue(row, ['section']) || '');
         if (!section) {
             return;
@@ -337,21 +394,47 @@ function parseConfigurationsRows(
             const rawGroup = getRowValue(row, ['group']);
             const masked = parseMaskedCell(getRowValue(row, ['masked']));
             if (!rawName) {
-                warnings.push(`Missing name in Configurations row ${index + 1}`);
+                addParseIssue(warnings, issues, {
+                    code: 'MISSING_NAME',
+                    severity: 'error',
+                    sheet: 'Configurations',
+                    row: rowNumber,
+                    reason: `Missing name in Configurations row ${rowNumber}`,
+                });
                 return;
             }
             if (!type) {
-                warnings.push(`Invalid variable type in Configurations row ${index + 1}`);
+                addParseIssue(warnings, issues, {
+                    code: 'INVALID_VARIABLE_TYPE',
+                    severity: 'error',
+                    sheet: 'Configurations',
+                    row: rowNumber,
+                    reason: `Invalid variable type in Configurations row ${rowNumber}`,
+                });
                 return;
             }
             if (type === 'FILE') {
-                warnings.push(`file_type_skipped:${rawName.trim().toUpperCase()}`);
+                const normalizedName = rawName.trim().toUpperCase();
+                addParseIssue(warnings, issues, {
+                    code: 'FILE_VARIABLE_NOT_IMPORTABLE',
+                    severity: 'warning',
+                    sheet: 'Configurations',
+                    row: rowNumber,
+                    filename: normalizedName,
+                    reason: `File variable "${normalizedName}" in Configurations row ${rowNumber} cannot be imported. Upload files manually after import.`,
+                });
                 return;
             }
             if (type === 'RANDOM_STRING') {
                 const normalizedGenType = normalizeRandomStringValue(value);
                 if (!normalizedGenType) {
-                    warnings.push(`Invalid random string type in Configurations row ${index + 1}. Expected: Timestamp (Datetime), Timestamp (Unix), or UUID`);
+                    addParseIssue(warnings, issues, {
+                        code: 'INVALID_RANDOM_STRING_TYPE',
+                        severity: 'error',
+                        sheet: 'Configurations',
+                        row: rowNumber,
+                        reason: `Invalid random string type in Configurations row ${rowNumber}. Expected: Timestamp (Datetime), Timestamp (Unix), or UUID`,
+                    });
                     return;
                 }
                 const name = rawName.trim().toUpperCase();
@@ -367,7 +450,13 @@ function parseConfigurationsRows(
                 return;
             }
             if (!value) {
-                warnings.push(`Missing value in Configurations row ${index + 1}`);
+                addParseIssue(warnings, issues, {
+                    code: 'MISSING_VALUE',
+                    severity: 'error',
+                    sheet: 'Configurations',
+                    row: rowNumber,
+                    reason: `Missing value in Configurations row ${rowNumber}`,
+                });
                 return;
             }
             const name = rawName.trim().toUpperCase();
@@ -383,15 +472,7 @@ function parseConfigurationsRows(
             return;
         }
 
-        if (
-            section === 'entrypoint'
-            || section === 'entrypoints'
-            || section === 'browserentrypoint'
-            || section === 'browserentrypoints'
-            || section === 'browser'
-            || section === 'testingtarget'
-            || section === 'testingtargets'
-        ) {
+        if (section === 'testingtarget' || section === 'testingtargets') {
             const type = normalizeHeader(getRowValue(row, ['type']) || '');
             if (type === 'browser') {
                 const name = getRowValue(row, ['name', 'key']) || '';
@@ -449,7 +530,13 @@ function parseConfigurationsRows(
         if (section === 'file') {
             const filename = getRowValue(row, ['name', 'key', 'filename', 'file name']);
             if (!filename) {
-                warnings.push(`Missing filename in Configurations row ${index + 1}`);
+                addParseIssue(warnings, issues, {
+                    code: 'MISSING_FILENAME',
+                    severity: 'error',
+                    sheet: 'Configurations',
+                    row: rowNumber,
+                    reason: `Missing filename in Configurations row ${rowNumber}`,
+                });
                 return;
             }
             const sizeRaw = getRowValue(row, ['size']);
@@ -458,6 +545,14 @@ function parseConfigurationsRows(
                 filename,
                 mimeType: getRowValue(row, ['mimetype', 'mime type', 'type']),
                 size: Number.isFinite(size) ? size : undefined,
+            });
+            addParseIssue(warnings, issues, {
+                code: 'FILE_ATTACHMENT_MANUAL_UPLOAD_REQUIRED',
+                severity: 'warning',
+                sheet: 'Configurations',
+                row: rowNumber,
+                filename,
+                reason: `Test file "${filename}" in Configurations row ${rowNumber} must be uploaded manually after import.`,
             });
         }
     });
@@ -478,7 +573,8 @@ function parseConfigurationsRows(
 
 function parseBrowserTargetRows(
     rows: Array<Record<string, unknown>>,
-    warnings: string[]
+    warnings: string[],
+    issues: TestCaseExcelIssue[]
 ): {
     targetEntries: ExcelTargetEntry[];
     targetAliases: Record<string, string>;
@@ -487,13 +583,20 @@ function parseBrowserTargetRows(
     const targetAliases: Record<string, string> = {};
 
     rows.forEach((row, index) => {
+        const rowNumber = index + 2;
         const url = getRowValue(row, ['url', 'value']);
         const name = getRowValue(row, ['name', 'key']) || '';
         const width = parseDimensionValue(getRowValue(row, ['width']));
         const height = parseDimensionValue(getRowValue(row, ['height']));
         const rawTarget = getRowValue(row, ['target']);
         if (!url) {
-            warnings.push(`Missing URL in Browsers row ${index + 1}`);
+            addParseIssue(warnings, issues, {
+                code: 'MISSING_BROWSER_URL',
+                severity: 'error',
+                sheet: 'Browser Targets',
+                row: rowNumber,
+                reason: `Missing URL in Browser Targets row ${rowNumber}`,
+            });
             return;
         }
 
@@ -514,12 +617,14 @@ function parseBrowserTargetRows(
 
 function parseAndroidTargetRows(
     rows: Array<Record<string, unknown>>,
-    warnings: string[]
+    warnings: string[],
+    issues: TestCaseExcelIssue[]
 ): {
     targetEntries: ExcelTargetEntry[];
     targetAliases: Record<string, string>;
 } {
     void warnings;
+    void issues;
     const targetEntries: ExcelTargetEntry[] = [];
     const targetAliases: Record<string, string> = {};
 
@@ -664,12 +769,20 @@ function parseStepRows(
     validBrowserIds: Set<string>,
     browserAliases: Record<string, string>,
     fallbackTarget: string,
-    warnings: string[]
+    warnings: string[],
+    issues: TestCaseExcelIssue[]
 ): TestStep[] {
     return rows.flatMap((row, index) => {
+        const rowNumber = index + 2;
         const action = getRowMultilineValue(row, ['action', 'step']);
         if (!action) {
-            warnings.push(`Missing action in Test Steps row ${index + 1}`);
+            addParseIssue(warnings, issues, {
+                code: 'MISSING_STEP_ACTION',
+                severity: 'error',
+                sheet: 'Test Steps',
+                row: rowNumber,
+                reason: `Missing action in Test Steps row ${rowNumber}`,
+            });
             return [];
         }
 

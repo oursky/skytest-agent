@@ -26,7 +26,7 @@ export function buildBrowsers(data?: TestData): BrowserEntry[] {
     }];
 }
 
-export function hasMissingRequiredEntryPointFields(browsers: BrowserEntry[]): boolean {
+export function hasMissingRequiredTestingTargetFields(browsers: BrowserEntry[]): boolean {
     return browsers.some(({ config }) => {
         if ('type' in config && config.type === 'android') {
             return !config.appId?.trim();

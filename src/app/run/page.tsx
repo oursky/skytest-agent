@@ -6,8 +6,9 @@ import { useAuth } from "../auth-provider";
 import { TestForm } from "@/components/features/test-form";
 import { ResultViewer } from "@/components/features/result-viewer";
 import { Breadcrumbs } from "@/components/layout";
+import TestCaseImportReviewDialog, { type TestCaseImportReviewData } from "@/components/features/test-cases/ui/TestCaseImportReviewDialog";
 import { TestStep, BrowserConfig, TargetConfig, TestEvent, TestCaseFile, ConfigItem } from "@/types";
-import { exportToExcelArrayBuffer, parseTestCaseExcel } from "@/utils/testCaseExcel";
+import { exportToExcelArrayBuffer, parseTestCaseExcel, type ParsedTestCaseExcel } from "@/utils/testCaseExcel";
 import { useI18n } from "@/i18n";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import {
@@ -67,6 +68,9 @@ function RunPageContent() {
     const [testCaseStatus, setTestCaseStatus] = useState<string | null>(null);
     const [projectConfigs, setProjectConfigs] = useState<ConfigItem[]>([]);
     const [testCaseConfigs, setTestCaseConfigs] = useState<ConfigItem[]>([]);
+    const [pendingImportData, setPendingImportData] = useState<ParsedTestCaseExcel | null>(null);
+    const [importReviewData, setImportReviewData] = useState<TestCaseImportReviewData | null>(null);
+    const [isImportReviewProcessing, setIsImportReviewProcessing] = useState(false);
     const refreshFilesRef = useRef<string | null>(null);
     useUnsavedChanges(isDirty, t('run.unsavedChangesWarning'));
 
@@ -80,7 +84,7 @@ function RunPageContent() {
 
         let targetTestCaseId = testCaseId || currentTestCaseId || refreshFilesRef.current || null;
         if (!targetTestCaseId) {
-            targetTestCaseId = await ensureTestCaseFromData(sourceData);
+            targetTestCaseId = await ensureTestCaseFromData(sourceData, { suppressAlert: true });
         }
         if (!targetTestCaseId) return null;
 
@@ -118,6 +122,49 @@ function RunPageContent() {
 
         await fetchTestCaseConfigs(targetTestCaseId);
         return targetTestCaseId;
+    };
+
+    const importVariablesToProject = async (
+        variables: Array<{ name: string; type: 'URL' | 'APP_ID' | 'VARIABLE' | 'RANDOM_STRING'; value: string; masked?: boolean; group?: string | null }>
+    ): Promise<void> => {
+        const targetProjectId = projectId || projectIdFromTestCase;
+        if (!targetProjectId || variables.length === 0) {
+            return;
+        }
+
+        const token = await getAccessToken();
+        const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+        const jsonHeaders: HeadersInit = {
+            'Content-Type': 'application/json',
+            ...headers,
+        };
+
+        const existingResponse = await fetch(`/api/projects/${targetProjectId}/configs`, { headers });
+        const existingConfigs: ConfigItem[] = existingResponse.ok ? await existingResponse.json() : [];
+        const existingByName = new Map(existingConfigs.map((config) => [config.name, config]));
+
+        for (const variable of variables) {
+            const existing = existingByName.get(variable.name);
+            try {
+                if (!existing) {
+                    await fetch(`/api/projects/${targetProjectId}/configs`, {
+                        method: 'POST',
+                        headers: jsonHeaders,
+                        body: JSON.stringify(variable),
+                    });
+                } else {
+                    await fetch(`/api/projects/${targetProjectId}/configs/${existing.id}`, {
+                        method: 'PUT',
+                        headers: jsonHeaders,
+                        body: JSON.stringify(variable),
+                    });
+                }
+            } catch {
+                // silently skip failed variables
+            }
+        }
+
+        await fetchProjectConfigs(targetProjectId);
     };
 
     const handleExport = async (data: TestData) => {
@@ -220,6 +267,85 @@ function RunPageContent() {
         downloadBlob(blob, `${buildExcelBaseName(exportData.displayId, exportData.name)}.xlsx`);
     };
 
+    const applyImportedExcelData = async (data: ParsedTestCaseExcel) => {
+        setInitialData(data.testData);
+        if (data.testCaseId) {
+            setDisplayId(data.testCaseId);
+        }
+        setIsDirty(true);
+
+        const supportedProjectVariables = data.projectVariables.filter((variable): variable is {
+            name: string;
+            type: 'URL' | 'APP_ID' | 'VARIABLE' | 'RANDOM_STRING';
+            value: string;
+            masked?: boolean;
+            group?: string | null;
+        } => (
+            variable.type === 'URL' || variable.type === 'APP_ID' || variable.type === 'VARIABLE' || variable.type === 'RANDOM_STRING'
+        ));
+
+        const supportedTestCaseVariables = data.testCaseVariables.filter((variable): variable is {
+            name: string;
+            type: 'URL' | 'APP_ID' | 'VARIABLE' | 'RANDOM_STRING';
+            value: string;
+            masked?: boolean;
+            group?: string | null;
+        } => (
+            variable.type === 'URL' || variable.type === 'APP_ID' || variable.type === 'VARIABLE' || variable.type === 'RANDOM_STRING'
+        ));
+
+        await importVariablesToProject(supportedProjectVariables);
+        await importVariablesToTestCase(supportedTestCaseVariables, data.testData);
+    };
+
+    const buildImportReviewData = (
+        filename: string,
+        issues: Array<{ code: string; severity: 'warning' | 'error'; reason: string; sheet?: string; row?: number; }>
+    ): TestCaseImportReviewData => {
+        const hasErrors = issues.some((issue) => issue.severity === 'error');
+        const hasWarnings = issues.some((issue) => issue.severity === 'warning');
+        return {
+            summary: {
+                totalFiles: 1,
+                validFiles: hasErrors ? 0 : 1,
+                invalidFiles: hasErrors ? 1 : 0,
+                warningFiles: hasWarnings ? 1 : 0,
+                importedFiles: 0,
+                skippedFiles: 0,
+            },
+            files: [{
+                filename,
+                status: hasErrors ? 'invalid' : 'valid',
+                issues: issues.map((issue) => ({
+                    ...issue,
+                    filename,
+                })),
+            }],
+        };
+    };
+
+    const handleProceedImportReview = async () => {
+        if (!pendingImportData) {
+            setImportReviewData(null);
+            return;
+        }
+        setIsImportReviewProcessing(true);
+        try {
+            await applyImportedExcelData(pendingImportData);
+            setImportReviewData(null);
+            setPendingImportData(null);
+        } catch (error) {
+            console.error('Failed to import test case', error);
+        } finally {
+            setIsImportReviewProcessing(false);
+        }
+    };
+
+    const handleDiscardImportReview = () => {
+        setImportReviewData(null);
+        setPendingImportData(null);
+    };
+
     const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
@@ -227,23 +353,13 @@ function RunPageContent() {
             if (!isExcelFilename(file.name)) return;
 
             const fileBuffer = await file.arrayBuffer();
-            const { data, warnings } = await parseTestCaseExcel(fileBuffer);
-            if (warnings.length > 0) {
-                console.warn('Import warnings:', warnings);
+            const parsed = await parseTestCaseExcel(fileBuffer);
+            if (parsed.issues.length > 0) {
+                setPendingImportData(parsed.data);
+                setImportReviewData(buildImportReviewData(file.name, parsed.issues));
+            } else {
+                await applyImportedExcelData(parsed.data);
             }
-
-            setInitialData(data.testData);
-            if (data.testCaseId) {
-                setDisplayId(data.testCaseId);
-            }
-            setIsDirty(true);
-
-            await importVariablesToTestCase(
-                data.testCaseVariables.filter((variable): variable is { name: string; type: 'URL' | 'APP_ID' | 'VARIABLE' | 'RANDOM_STRING'; value: string; masked?: boolean; group?: string | null } => (
-                    variable.type === 'URL' || variable.type === 'APP_ID' || variable.type === 'VARIABLE' || variable.type === 'RANDOM_STRING'
-                )),
-                data.testData
-            );
         } catch (error) {
             console.error('Failed to import test case', error);
         }
@@ -748,18 +864,26 @@ function RunPageContent() {
         setIsDirty(true);
     }, []);
 
-    const ensureTestCaseFromData = async (data: TestData): Promise<string> => {
+    const ensureTestCaseFromData = async (
+        data: TestData,
+        options?: { suppressAlert?: boolean }
+    ): Promise<string> => {
+        const suppressAlert = options?.suppressAlert === true;
         if (testCaseId) return testCaseId;
         if (currentTestCaseId) return currentTestCaseId;
 
         const effectiveProjectId = projectId || projectIdFromTestCase;
         if (!effectiveProjectId) {
-            alert(t('run.error.selectProjectUpload'));
+            if (!suppressAlert) {
+                alert(t('run.error.selectProjectUpload'));
+            }
             throw new Error(t('run.error.noProjectSelected'));
         }
         const normalizedDisplayId = (data.displayId ?? displayId ?? '').trim();
         if (!normalizedDisplayId) {
-            alert(t('run.error.testCaseIdRequired'));
+            if (!suppressAlert) {
+                alert(t('run.error.testCaseIdRequired'));
+            }
             throw new Error(t('run.error.testCaseIdRequired'));
         }
 
@@ -809,7 +933,9 @@ function RunPageContent() {
             return newTestCase.id as string;
         } catch (error) {
             console.error('Failed to create test case for upload', error);
-            alert(t('run.error.failedCreateTestCaseUpload'));
+            if (!suppressAlert) {
+                alert(t('run.error.failedCreateTestCaseUpload'));
+            }
             throw error;
         }
     };
@@ -832,6 +958,14 @@ function RunPageContent() {
                     { label: testCaseId ? t('run.breadcrumb.runTest') : t('run.breadcrumb.newRun') }
                 ]} />
             )}
+
+            <TestCaseImportReviewDialog
+                isOpen={importReviewData !== null}
+                data={importReviewData}
+                isProcessing={isImportReviewProcessing}
+                onProceed={handleProceedImportReview}
+                onDiscard={handleDiscardImportReview}
+            />
 
             <input
                 type="file"

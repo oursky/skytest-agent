@@ -10,17 +10,17 @@ Related docs:
 
 ## Compatibility Policy
 
-- Current export format uses dedicated target sheets: `Browsers` and `Android`.
+- Current export format uses dedicated target sheets: `Browser Targets` and `Android Targets`.
 - Import supports both:
-  - current multi-sheet target format (`Browsers` + `Android`)
+  - current multi-sheet target format (`Browser Targets` + `Android Targets`)
   - target rows embedded in `Configurations` (fallback compatibility path)
 - Layouts outside those parser paths are unsupported.
 
 ## Sheets (Current Export)
 
 - `Configurations`
-- `Browsers`
-- `Android`
+- `Browser Targets`
+- `Android Targets`
 - `Test Steps`
 
 ## Configurations Sheet
@@ -30,7 +30,7 @@ The `Configurations` sheet is a row-based table with sections such as:
 - `Basic Info` / `Test Case`
 - `Project Variable`
 - `Test Case Variable`
-- `Entry Point` (import fallback path; current exports use dedicated target sheets)
+- `Testing Target` (current term for fallback import path)
 - `File`
 
 Variable rows use these columns:
@@ -42,17 +42,17 @@ Variable rows use these columns:
 - `Group` (for `Variable`, `Random String`, `File`)
 - `Masked` (`Y` when a `Variable` is masked)
 
-### Entry Points (Configurations Fallback Import)
+### Testing Targets (Configurations Fallback Import)
 
-- One row per entry point.
-- Browser entry points:
+- One row per testing target.
+- Browser testing targets:
   - `Type = Browser`
   - `Name` (optional label)
   - `Value` (URL)
-- Android entry points:
+- Android testing targets:
   - `Type = Android`
   - `Name` (optional label)
-  - `Device` / `Emulator` / `AVD` (parser accepts aliases)
+- `Device` / `Emulator` / `AVD`
   - `Value` (App ID)
   - `Clear App Data` (boolean)
   - `Allow All Permissions` (boolean)
@@ -63,16 +63,16 @@ Notes:
   - emulator profile name (for `emulator-profile` targets)
   - `serial:<adb-serial>` (for `connected-device` targets)
 - `URL` and `App ID` dedicated columns are not used in this fallback path.
-- Entry point values must be read from the shared `Value` column.
+- Testing target values must be read from the shared `Value` column.
 
-## Browsers Sheet (Current Export)
+## Browser Targets Sheet (Current Export)
 
 - Columns: `Target`, `Name`, `URL`, `Width`, `Height`
 - `Target` labels are generated (for example `Browser A`, `Browser B`)
 - `Name` is optional display label
 - `Width` and `Height` define per-target browser viewport size
 
-## Android Sheet (Current Export)
+## Android Targets Sheet (Current Export)
 
 - Columns:
   - `Target`
@@ -92,8 +92,8 @@ Notes:
 - Steps include action text and target mapping.
 - Export currently uses the `Browser` column name for target labels (historical naming), even when a step targets Android.
 - Import resolves target labels/aliases from either:
-  - `Browsers` + `Android` sheets (current format), or
-  - `Configurations` entry-point rows (fallback path)
+  - `Browser Targets` + `Android Targets` sheets (current format), or
+  - `Configurations` testing target rows (fallback path)
 
 ## Import Behavior (Current Product Policy)
 
@@ -102,6 +102,7 @@ Import does:
 - import test case metadata (name, test case ID)
 - import targets (browser + Android, including connected-device selectors)
 - import test steps
+- import project variables (supported non-file types)
 - import test case variables (supported non-file types)
   - `Masked` flag on `Variable` rows
   - `Group` values for groupable variable types
@@ -109,15 +110,18 @@ Import does:
 
 Import does not:
 
-- import project variables
 - import file variables
-- import attached files from export zip bundles (run-page import is Excel-only)
+- import attached test files
 - import `Secret` variable type rows (unsupported)
 
-Warnings may still be produced during parsing for invalid/unsupported rows.
+Warnings are produced for:
+
+- invalid/unsupported rows
+- `File` rows exported from test case attachments (manual upload required in current product flow)
 
 ## Export Behavior
 
-- Export includes `Configurations`, `Browsers`, `Android`, and `Test Steps`.
+- Export includes `Configurations`, `Browser Targets`, `Android Targets`, and `Test Steps`.
 - Android targets are exported with device selector, app ID, and toggles.
-- Some export surfaces may support zipped attachments for download, but run-page import is designed for Excel workbook import.
+- Export writes test case attachment metadata as `Configurations` rows with `Section = File`.
+- Current import flow does not upload these file attachments automatically; users must upload files manually after import.
