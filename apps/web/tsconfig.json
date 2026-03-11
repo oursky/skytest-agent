@@ -20,8 +20,7 @@
     ],
     "paths": {
       "@/*": ["./src/*"],
-      "@skytest/runner-protocol": ["./packages/runner-protocol/src/index.ts"],
-      "@skytest/execution-core": ["./packages/execution-core/src/index.ts"]
+      "@skytest/runner-protocol": ["../../packages/runner-protocol/src/index.ts"]
     }
   },
   "include": [

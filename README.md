@@ -91,6 +91,16 @@ Don't want to self-host? We're building a managed version of SkyTest.
 - Backend: `apps/web/src/app/api/**` + `apps/web/src/lib/**` + `apps/web/src/workers/**`.
 - MCP backend: `apps/web/src/app/api/mcp/route.ts` + `apps/web/src/lib/mcp/**`.
 
+### Naming Governance Checklist
+
+Before adding new folders, validate:
+
+- Is it a runnable service? Put it in `apps/*`.
+- Is it reused cross-app logic? Put it in `packages/*`.
+- Is it deployment/runtime infra? Put it in `infra/*`.
+- Is it contributor/operator tooling? Put it in `tools/*`.
+- Does the name describe ownership/capability clearly and avoid overloaded terms?
+
 ### Quick Troubleshooting
 
 - **Browsers not found**: Run `npm run playwright:install`
