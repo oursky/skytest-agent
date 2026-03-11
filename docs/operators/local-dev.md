@@ -50,7 +50,7 @@ Retention behavior:
 ## Runtime Behavior
 
 - Browser runs are queued and claimed by the browser runner worker.
-- Android runs require a paired CLI runner process.
+- Android runs require a paired runner process.
 
 Runner environment and model configuration:
 - [macOS Runner Environment Configuration](./macos-runner-env.md)

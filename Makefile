@@ -64,7 +64,7 @@ helm-template: ## Render Helm chart templates locally
 playwright-install: ## Install Playwright Chromium locally
 	$(NODE_PM) run playwright:install
 
-runner-reset: ## Stop all local runner processes and remove local CLI runner state
+runner-reset: ## Stop all local runner processes and remove local runner state
 	$(NODE_PM) run skytest -- reset --force
 
 bootstrap: ## Install deps, start local services, and apply the database schema

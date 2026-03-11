@@ -1,5 +1,5 @@
 class Skytest < Formula
-  desc "SkyTest CLI runner manager"
+  desc "SkyTest runner management CLI"
   homepage "https://github.com/oursky/skytest-agent"
   url "__ARCHIVE_URL__"
   sha256 "__ARCHIVE_SHA256__"

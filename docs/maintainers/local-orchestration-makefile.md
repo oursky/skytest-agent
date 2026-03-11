@@ -14,7 +14,7 @@ The repo uses a top-level `Makefile` for local environment orchestration.
 - `make dev` starts local services, applies the schema, and runs:
   - Next.js control plane
   - runner maintenance worker loop
-- `make runner-reset` clears local CLI runner state between development cycles.
+- `make runner-reset` clears local runner state between development cycles.
 
 ## Core Variables
 
