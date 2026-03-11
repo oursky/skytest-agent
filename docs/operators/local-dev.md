@@ -68,7 +68,7 @@ npm run skytest -- logs runner <runner-id> --tail 200
 npm run skytest -- unpair runner <runner-id>
 ```
 
-`<runner-id>` can be the local 6-character runner ID or the runner ID shown in `Team Settings -> Runners`.
+`<runner-id>` can be the local 6-character runner ID, the full runner ID from `Team Settings -> Runners`, or a unique prefix of either.
 
 ## CLI Runner Lifecycle (Homebrew)
 

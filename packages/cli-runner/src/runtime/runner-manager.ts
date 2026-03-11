@@ -152,6 +152,26 @@ async function resolveLocalRunnerId(runnerIdentifier: string): Promise<string> {
         }
     }
 
+    const prefixMatches: string[] = [];
+    for (const localRunnerId of localRunnerIds) {
+        const metadata = await readRunnerMetadata(localRunnerId);
+        if (!metadata) {
+            continue;
+        }
+
+        if (localRunnerId.startsWith(normalizedIdentifier) || metadata.serverRunnerId.startsWith(normalizedIdentifier)) {
+            prefixMatches.push(localRunnerId);
+        }
+    }
+
+    if (prefixMatches.length === 1) {
+        return prefixMatches[0];
+    }
+
+    if (prefixMatches.length > 1) {
+        throw new Error(`Runner identifier '${runnerIdentifier}' is ambiguous. Use \`skytest get runners\` and provide a more specific ID.`);
+    }
+
     throw new Error(`Runner '${runnerIdentifier}' is not paired.`);
 }
 

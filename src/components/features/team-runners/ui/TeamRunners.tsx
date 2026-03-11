@@ -117,13 +117,18 @@ function buildDeviceStatusLabel(device: TeamDeviceItem, t: (key: string) => stri
 }
 
 function buildRunnerTroubleshootingCommands(runnerId: string): string {
-    const escapedRunnerId = runnerId.replace(/'/g, '\'\\\'\'');
+    const cliRunnerId = runnerId.length > 6 ? runnerId.slice(0, 6) : runnerId;
+    const escapedRunnerId = cliRunnerId.replace(/'/g, '\'\\\'\'');
     return [
         `skytest start runner '${escapedRunnerId}'`,
         `skytest logs runner '${escapedRunnerId}' --tail 200`,
         `skytest stop runner '${escapedRunnerId}'`,
         `skytest unpair runner '${escapedRunnerId}'`,
     ].join('\n');
+}
+
+function resolveTroubleshootingRunnerId(runnerId: string): string {
+    return runnerId.length > 6 ? runnerId.slice(0, 6) : runnerId;
 }
 
 function buildCommonTroubleshootingCommands(): string {
@@ -559,7 +564,7 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
                                         <div>
                                             <p className="text-sm font-medium text-gray-900">{runner.label}</p>
                                             <p className="text-xs text-gray-600">
-                                                {t('team.runners.troubleshooting.runnerId', { id: runner.id })}
+                                                {t('team.runners.troubleshooting.runnerId', { id: resolveTroubleshootingRunnerId(runner.id) })}
                                             </p>
                                         </div>
                                         <button

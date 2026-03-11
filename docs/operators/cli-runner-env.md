@@ -92,4 +92,4 @@ skytest unpair runner <runner-id>
 skytest reset --force
 ```
 
-`<runner-id>` can be the local 6-character runner ID or the runner ID shown in `Team Settings -> Runners`.
+`<runner-id>` can be the local 6-character runner ID, the full runner ID shown in `Team Settings -> Runners`, or a unique prefix of either.
