@@ -106,11 +106,11 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                 return (
                                     <div key={item.id} className="flex items-center justify-between px-4 py-3 hover:bg-gray-50">
                                         <div className="flex items-center gap-3 min-w-0 flex-1">
-                                            <code className="text-sm font-mono text-gray-800 font-medium">{item.name}</code>
-                                            <span className="text-sm text-gray-500 truncate">{buildConfigDisplayValue(item)}</span>
                                             {item.group && (
                                                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 uppercase">{item.group}</span>
                                             )}
+                                            <code className="text-sm font-mono text-gray-800 font-medium">{item.name}</code>
+                                            <span className="text-sm text-gray-500 truncate">{buildConfigDisplayValue(item)}</span>
                                         </div>
                                         <div className="flex items-center gap-1">
                                             {type === 'FILE' ? (
