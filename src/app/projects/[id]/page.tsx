@@ -4,7 +4,7 @@ import { useState, useEffect, use, useCallback, useRef } from "react";
 import { useAuth } from "../../auth-provider";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Button, CenteredLoading, Modal, Pagination, UnderlineTabs } from "@/components/shared";
+import { CenteredLoading, Modal, Pagination, UnderlineTabs } from "@/components/shared";
 import { Breadcrumbs } from "@/components/layout";
 import { formatDateTimeCompact } from "@/utils/dateFormatter";
 import { useI18n } from "@/i18n";
@@ -12,9 +12,11 @@ import { getStatusBadgeClass } from '@/utils/statusBadge';
 import { isActiveRunStatus } from '@/utils/statusHelpers';
 import { parsePageSize } from '@/utils/pagination';
 import { ProjectConfigs } from '@/components/features/project-configs';
+import ProjectSettingsPanel from '@/components/features/projects/ui/ProjectSettingsPanel';
 import TestCaseImportReviewDialog, {
     type TestCaseImportReviewData,
 } from '@/components/features/test-cases/ui/TestCaseImportReviewDialog';
+import ProjectTestCasesToolbar from '@/components/features/test-cases/ui/ProjectTestCasesToolbar';
 
 interface TestRun {
     id: string;
@@ -708,119 +710,19 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 </div>
 
                 {activeTab === 'test-cases' && (
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-                        {/* Large Screen/Tablet */}
-                        <div className="hidden sm:relative sm:flex items-center gap-2">
-                            <input
-                                type="text"
-                                value={searchInput}
-                                onChange={(e) => setSearchInput(e.target.value)}
-                                onKeyDown={handleSearchKeyDown}
-                                placeholder={t('project.search.placeholder')}
-                                className="w-64 pl-3 pr-8 py-2 bg-white border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                            />
-                            <button
-                                onClick={handleSearch}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600 transition-colors"
-                                aria-label={t('project.search.button')}
-                            >
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                </svg>
-                            </button>
-                        </div>
-                        <div className="hidden sm:flex items-center gap-2">
-                            <button
-                                type="button"
-                                onClick={() => batchImportInputRef.current?.click()}
-                                disabled={isBatchImportProcessing}
-                                className="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                                title={t('project.batchImport.button')}
-                            >
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                                </svg>
-                                <span className="hidden md:inline">{t('project.batchImport.button')}</span>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleExportSelected}
-                                disabled={selectedCount === 0 || isExportingSelected}
-                                className="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                                title={t('project.exportSelected')}
-                            >
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                </svg>
-                                <span className="hidden md:inline">{t('project.exportSelected')}</span>
-                            </button>
-                            <Link
-                                href={`/run?projectId=${id}`}
-                                className="px-3 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors flex items-center gap-2"
-                                title={t('project.startNewRun')}
-                            >
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                </svg>
-                                <span className="hidden md:inline">{t('project.startNewRun')}</span>
-                            </Link>
-                        </div>
-                        {/* Mobile: full-width search, then half-width buttons */}
-                        <div className="flex flex-col gap-2 sm:hidden">
-                            <div className="relative">
-                                <input
-                                    type="text"
-                                    value={searchInput}
-                                    onChange={(e) => setSearchInput(e.target.value)}
-                                    onKeyDown={handleSearchKeyDown}
-                                    placeholder={t('project.search.placeholder')}
-                                    className="w-full pl-3 pr-10 py-2 bg-white border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                                />
-                                <button
-                                    onClick={handleSearch}
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors"
-                                    aria-label={t('project.search.button')}
-                                >
-                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                    </svg>
-                                </button>
-                            </div>
-                            <div className="flex gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => batchImportInputRef.current?.click()}
-                                    disabled={isBatchImportProcessing}
-                                    className="flex-1 px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                                    </svg>
-                                    {t('project.batchImport.button')}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={handleExportSelected}
-                                    disabled={selectedCount === 0 || isExportingSelected}
-                                    className="flex-1 px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                    </svg>
-                                    {t('project.exportSelected')}
-                                </button>
-                                <Link
-                                    href={`/run?projectId=${id}`}
-                                    className="flex-1 px-3 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
-                                >
-                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                    </svg>
-                                    {t('project.startNewRun')}
-                                </Link>
-                            </div>
-                        </div>
-                    </div>
+                    <ProjectTestCasesToolbar
+                        projectId={id}
+                        searchInput={searchInput}
+                        onSearchInputChange={setSearchInput}
+                        onSearchKeyDown={handleSearchKeyDown}
+                        onSearch={handleSearch}
+                        onOpenBatchImport={() => batchImportInputRef.current?.click()}
+                        onExportSelected={handleExportSelected}
+                        isBatchImportProcessing={isBatchImportProcessing}
+                        isExportingSelected={isExportingSelected}
+                        selectedCount={selectedCount}
+                        t={t}
+                    />
                 )}
 
                 {activeTab === 'configs' && (
@@ -828,75 +730,28 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 )}
 
                 {activeTab === 'settings' && project && (
-                    <div className="max-w-2xl rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-                        <h2 className="text-lg font-semibold text-gray-900">{t('project.settings.title')}</h2>
-                        <p className="mt-1 text-sm text-gray-500">{t('project.settings.description')}</p>
-                        <div className="mt-6 space-y-2">
-                            <label htmlFor="max-concurrent-runs" className="block text-sm font-medium text-gray-700">
-                                {t('project.settings.concurrentRuns.label')}
-                            </label>
-                            <div className="flex flex-wrap items-center gap-3">
-                                <input
-                                    id="max-concurrent-runs"
-                                    type="number"
-                                    inputMode="numeric"
-                                    min={1}
-                                    max={project.maxConcurrentRunsLimit ?? 5}
-                                    value={maxConcurrentRunsInput}
-                                    onChange={(event) => {
-                                        setMaxConcurrentRunsInput(event.target.value);
-                                        setSettingsError('');
-                                    }}
-                                    onKeyDown={(event) => {
-                                        if (event.key === 'Enter' && !isProjectSettingsSaveDisabled) {
-                                            event.preventDefault();
-                                            void handleSaveProjectSettings();
-                                        }
-                                    }}
-                                    disabled={!project.canManageProject || !isEditingProjectSettings}
-                                    className="h-10 w-full max-w-sm rounded-md border border-gray-300 px-4 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:bg-gray-50"
-                                />
-                                {project.canManageProject && (
-                                    isEditingProjectSettings ? (
-                                        <div className="flex gap-2">
-                                            <Button
-                                                type="button"
-                                                onClick={() => void handleSaveProjectSettings()}
-                                                disabled={isProjectSettingsSaveDisabled}
-                                                variant="primary"
-                                                size="sm"
-                                            >
-                                                {isSavingSettings ? t('project.settings.saving') : t('common.save')}
-                                            </Button>
-                                            <Button
-                                                type="button"
-                                                onClick={handleCancelProjectSettingsEdit}
-                                                variant="secondary"
-                                                size="sm"
-                                            >
-                                                {t('common.cancel')}
-                                            </Button>
-                                        </div>
-                                    ) : (
-                                        <Button
-                                            type="button"
-                                            onClick={handleStartProjectSettingsEdit}
-                                            variant="secondary"
-                                            size="sm"
-                                        >
-                                            {t('common.edit')}
-                                        </Button>
-                                    )
-                                )}
-                            </div>
-                            <p className="text-xs text-gray-500">
-                                {t('project.settings.concurrentRuns.help', { max: project.maxConcurrentRunsLimit ?? 5 })}
-                            </p>
-                        </div>
-                        {settingsError && (
-                            <p className="mt-3 text-sm text-red-600">{settingsError}</p>
-                        )}
-                    </div>
+                    <ProjectSettingsPanel
+                        canManageProject={Boolean(project.canManageProject)}
+                        maxConcurrentRunsLimit={project.maxConcurrentRunsLimit}
+                        maxConcurrentRunsInput={maxConcurrentRunsInput}
+                        isEditing={isEditingProjectSettings}
+                        isSaving={isSavingSettings}
+                        isSaveDisabled={isProjectSettingsSaveDisabled}
+                        settingsError={settingsError}
+                        onInputChange={(value) => {
+                            setMaxConcurrentRunsInput(value);
+                            setSettingsError('');
+                        }}
+                        onEnterSave={() => {
+                            void handleSaveProjectSettings();
+                        }}
+                        onSave={() => {
+                            void handleSaveProjectSettings();
+                        }}
+                        onCancel={handleCancelProjectSettingsEdit}
+                        onStartEdit={handleStartProjectSettingsEdit}
+                        t={t}
+                    />
                 )}
 
                 <div className={`bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden ${activeTab !== 'test-cases' ? 'hidden' : ''}`}>
