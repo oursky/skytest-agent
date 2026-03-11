@@ -11,7 +11,7 @@ import { useI18n } from "@/i18n";
 import { getStatusBadgeClass } from '@/utils/status/statusBadge';
 import { isActiveRunStatus } from '@/utils/status/statusHelpers';
 import { parsePageSize } from '@/utils/pagination/pagination';
-import { ProjectConfigs } from '@/components/features/project-configs';
+import { ProjectConfigs } from '@/components/features/project-configurations';
 import ProjectSettingsPanel from '@/components/features/projects/ui/ProjectSettingsPanel';
 import TestCaseImportReviewDialog, {
     type TestCaseImportReviewData,

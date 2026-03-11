@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { useI18n } from '@/i18n';
 import type { ConfigItem, ConfigType } from '@/types';
 import { compareByGroupThenName } from '@/lib/test-config/sort';
-import { getConfigTypeTitleKey } from '@/components/features/configurations/model/config-utils';
+import { getConfigTypeTitleKey } from '@/components/features/test-configurations/model/config-utils';
 import { randomStringGenerationLabel, TYPE_ORDER } from '../model/config-helpers';
 
 interface ProjectVariablesSummaryProps {

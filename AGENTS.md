@@ -59,7 +59,7 @@ apps/web/src/
 |------|------------|---------------|
 | Fix test execution | `apps/web/src/lib/runtime/test-runner.ts` | `apps/web/src/lib/runtime/local-browser-runner.ts`, `apps/macos-runner/runner/index.ts` |
 | Fix run scheduling/claiming | `apps/web/src/lib/runners/claim-service.ts` | `apps/web/src/app/api/runners/v1/jobs/claim/route.ts` |
-| Fix SSE/real-time updates | `apps/web/src/app/api/test-runs/[id]/events/route.ts` | `apps/web/src/components/features/result-viewer/ui/ResultViewer.tsx` |
+| Fix SSE/real-time updates | `apps/web/src/app/api/test-runs/[id]/events/route.ts` | `apps/web/src/components/features/run-results/ui/ResultViewer.tsx` |
 | Fix test case CRUD | `apps/web/src/app/api/test-cases/` | `apps/web/src/types/test.ts` |
 | Fix project CRUD | `apps/web/src/app/api/projects/` | `apps/web/src/lib/core/prisma.ts` |
 | Fix authentication | `apps/web/src/lib/security/auth.ts` | `apps/web/src/app/api/` |

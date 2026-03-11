@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { buildAuthHeaders } from '@/components/features/configurations/model/config-utils';
+import { buildAuthHeaders } from '@/components/features/test-configurations/model/config-utils';
 import { AndroidDeviceOption } from '../model/device-utils';
 
 interface UseAndroidDeviceOptionsParams {

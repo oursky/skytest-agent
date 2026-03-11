@@ -3,8 +3,8 @@
 import { useState, useEffect, Suspense, useRef, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth } from "../auth-provider";
-import { TestForm } from "@/components/features/test-form";
-import { ResultViewer } from "@/components/features/result-viewer";
+import { TestForm } from "@/components/features/test-builder";
+import { ResultViewer } from "@/components/features/run-results";
 import { Breadcrumbs } from "@/components/layout";
 import TestCaseImportReviewDialog, { type TestCaseImportReviewData } from "@/components/features/test-cases/ui/TestCaseImportReviewDialog";
 import { TestStep, BrowserConfig, TargetConfig, TestEvent, TestCaseFile, ConfigItem } from "@/types";

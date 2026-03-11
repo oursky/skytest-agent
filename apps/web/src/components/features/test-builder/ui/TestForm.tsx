@@ -3,10 +3,10 @@
 import { useState } from 'react';
 import { TestStep, BrowserConfig, TargetConfig, ConfigItem, TestCaseFile } from '@/types';
 import BuilderForm from './BuilderForm';
-import ConfigurationsSection from '@/components/features/configurations/ConfigurationsSection';
-import ConfigHints from '@/components/features/configurations/ui/ConfigHints';
-import { buildAuthHeaders, buildConfigsEndpoint } from '@/components/features/configurations/model/config-utils';
-import type { BrowserEntry } from '@/components/features/configurations/model/types';
+import ConfigurationsSection from '@/components/features/test-configurations/ConfigurationsSection';
+import ConfigHints from '@/components/features/test-configurations/ui/ConfigHints';
+import { buildAuthHeaders, buildConfigsEndpoint } from '@/components/features/test-configurations/model/config-utils';
+import type { BrowserEntry } from '@/components/features/test-configurations/model/types';
 import type { TestData } from '../model/types';
 import { useTestFormState } from '../hooks/useTestFormState';
 import { buildCurrentData as buildTestData, createStepId, hasMissingRequiredTestingTargetFields } from '../model/state-utils';

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { TestStep } from '@/types';
-import type { BrowserEntry } from '@/components/features/configurations/model/types';
+import type { BrowserEntry } from '@/components/features/test-configurations/model/types';
 import type { TestData } from '../model/types';
 import { buildBrowsers, buildSteps, createStepId } from '../model/state-utils';
 

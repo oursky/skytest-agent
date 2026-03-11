@@ -1,7 +1,7 @@
 import type { KeyboardEvent } from 'react';
 import type { ConfigType } from '@/types';
 import { useI18n } from '@/i18n';
-import ConfigInlineEditorForm from '@/components/features/configurations/ui/ConfigInlineEditorForm';
+import ConfigInlineEditorForm from '@/components/features/test-configurations/ui/ConfigInlineEditorForm';
 import type { ProjectConfigEditState } from '../model/types';
 
 interface ConfigInlineEditorProps {

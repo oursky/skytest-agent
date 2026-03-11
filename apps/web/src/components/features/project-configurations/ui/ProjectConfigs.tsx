@@ -4,14 +4,14 @@ import { compareByGroupThenName } from '@/lib/test-config/sort';
 import { useI18n } from '@/i18n';
 import type { ConfigItem, ConfigType } from '@/types';
 import { CenteredLoading } from '@/components/shared';
-import GroupSelectInput from '@/components/features/configurations/ui/GroupSelectInput';
-import ConfigHints from '@/components/features/configurations/ui/ConfigHints';
+import GroupSelectInput from '@/components/features/test-configurations/ui/GroupSelectInput';
+import ConfigHints from '@/components/features/test-configurations/ui/ConfigHints';
 import ConfigInlineEditor from './ConfigInlineEditor';
 import { useProjectConfigs } from '../hooks/useProjectConfigs';
 import {
     buildConfigDisplayValue,
     getConfigTypeTitleKey,
-} from '@/components/features/configurations/model/config-utils';
+} from '@/components/features/test-configurations/model/config-utils';
 
 interface ProjectConfigsProps {
     projectId: string;

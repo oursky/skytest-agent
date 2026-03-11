@@ -20,11 +20,11 @@ When a non-UI file is used by multiple features, move it to `apps/web/src/lib/`.
 
 ## Current feature map
 
-- `features/test-form`: test case authoring UI and state logic.
-- `features/result-viewer`: run result presentation and timeline rendering.
-- `features/configurations`: config editing UI and config helper utilities.
-- `features/project-configs`: project-level config CRUD UI and hook logic.
-- `features/files`: file list/upload UI.
+- `features/test-builder`: test case authoring UI and state logic.
+- `features/run-results`: run result presentation and timeline rendering.
+- `features/test-configurations`: config editing UI and config helper utilities.
+- `features/project-configurations`: project-level config CRUD UI and hook logic.
+- `features/test-files`: file list/upload UI.
 - `features/projects`: project settings and page-level project UI.
 - `features/test-cases`: test case list/import/export UI helpers.
 - `features/team-ai`: team AI key settings UI.
@@ -35,7 +35,7 @@ When a non-UI file is used by multiple features, move it to `apps/web/src/lib/`.
 ## Placement rules
 
 - Put cross-feature components like `Modal` and `Pagination` in `shared/`.
-- Put configuration-domain components in `features/configurations/ui/` or `features/configurations/model/`.
+- Put configuration-domain components in `features/test-configurations/ui/` or `features/test-configurations/model/`.
 - Put `Header`, `Breadcrumbs`, and shell-specific blocks in `layout/`.
 - Do not place new feature files at `apps/web/src/components` root.
 - Keep imports explicit by folder role:
