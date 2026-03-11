@@ -60,13 +60,15 @@ Runner environment and model configuration:
 Pair and manage from this repo:
 
 ```bash
-npm run skytest -- pair runner "<pairing-token>" --control-plane-url "http://127.0.0.1:3000"
+npm run skytest -- pair runner "<pairing-token>" --url "http://127.0.0.1:3000"
 npm run skytest -- get runners
-npm run skytest -- start runner <local-runner-id>
-npm run skytest -- stop runner <local-runner-id>
-npm run skytest -- logs runner <local-runner-id> --tail 200
-npm run skytest -- unpair runner <local-runner-id>
+npm run skytest -- start runner <runner-id>
+npm run skytest -- stop runner <runner-id>
+npm run skytest -- logs runner <runner-id> --tail 200
+npm run skytest -- unpair runner <runner-id>
 ```
+
+`<runner-id>` can be the local 6-character runner ID, the full runner ID from `Team Settings -> Runners`, or a unique prefix of either.
 
 ## CLI Runner Lifecycle (Homebrew)
 

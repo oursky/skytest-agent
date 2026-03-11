@@ -13,7 +13,7 @@ describe('parseSkytestCliCommand', () => {
             'token-123',
             '--label',
             'QA Runner',
-            '--control-plane-url',
+            '--url',
             'http://127.0.0.1:3000',
             '--no-start',
         ])).toEqual({
@@ -23,6 +23,16 @@ describe('parseSkytestCliCommand', () => {
             controlPlaneBaseUrl: 'http://127.0.0.1:3000',
             autoStart: false,
         });
+    });
+
+    it('rejects legacy --control-plane-url option', () => {
+        expect(() => parseSkytestCliCommand([
+            'pair',
+            'runner',
+            'token-123',
+            '--control-plane-url',
+            'http://127.0.0.1:3000',
+        ])).toThrow('Unknown option for `pair runner`: --control-plane-url');
     });
 
     it('parses get runners with json format', () => {

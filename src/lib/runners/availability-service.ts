@@ -39,6 +39,7 @@ export interface TeamDevicesAvailability {
 
 export interface TeamRunnerRow {
     id: string;
+    displayId: string;
     label: string;
     kind: string;
     status: string;
@@ -120,6 +121,7 @@ function dedupeRunnerDevices(devices: ReadonlyArray<TeamRunnerWithDevices['devic
 
 interface TeamRunnerWithDevices {
     id: string;
+    displayId: string;
     label: string;
     kind: string;
     status: string;
@@ -142,6 +144,7 @@ async function loadTeamRunners(teamId: string): Promise<TeamRunnerWithDevices[]>
         where: { teamId },
         select: {
             id: true,
+            displayId: true,
             label: true,
             kind: true,
             status: true,
@@ -260,6 +263,7 @@ export async function getTeamRunnersOverview(teamId: string): Promise<TeamRunner
 
         return {
             id: runner.id,
+            displayId: runner.displayId,
             label: runner.label,
             kind: runner.kind,
             status: runner.status,

@@ -237,6 +237,7 @@ model TestCaseConfig {
 
 model Runner {
   id              String       @id @default(cuid())
+  displayId       String
   teamId          String
   team            Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
   label           String

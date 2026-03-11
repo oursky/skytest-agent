@@ -11,6 +11,7 @@ interface TeamRunnersProps {
 
 interface TeamRunnerItem {
     id: string;
+    displayId: string;
     label: string;
     kind: string;
     status: string;
@@ -74,18 +75,12 @@ function buildRunnerStatusClass(runner: TeamRunnerItem): string {
     if (runner.status === 'ONLINE' && runner.isFresh) {
         return 'bg-green-100 text-green-700';
     }
-    if (runner.status === 'ONLINE' && !runner.isFresh) {
-        return 'bg-amber-100 text-amber-700';
-    }
     return 'bg-gray-100 text-gray-700';
 }
 
 function buildRunnerStatusLabel(runner: TeamRunnerItem, t: (key: string) => string): string {
     if (runner.status === 'ONLINE' && runner.isFresh) {
         return t('device.state.online');
-    }
-    if (runner.status === 'ONLINE' && !runner.isFresh) {
-        return t('device.state.stale');
     }
     return t('device.state.offline');
 }
@@ -98,7 +93,7 @@ function buildDeviceStatusClass(device: TeamDeviceItem): string {
         return 'bg-gray-100 text-gray-700';
     }
     if (device.state === 'ONLINE' && !device.isFresh) {
-        return 'bg-amber-100 text-amber-700';
+        return 'bg-gray-100 text-gray-700';
     }
     if (device.state === 'UNAVAILABLE') {
         return 'bg-red-100 text-red-700';
@@ -114,12 +109,27 @@ function buildDeviceStatusLabel(device: TeamDeviceItem, t: (key: string) => stri
         return t('device.state.notRunning');
     }
     if (device.state === 'ONLINE' && !device.isFresh) {
-        return t('device.state.stale');
+        return t('device.state.offline');
     }
     if (device.state === 'UNAVAILABLE') {
         return t('device.state.unavailable');
     }
     return t('device.state.offline');
+}
+
+function resolveRunnerDisplayId(runner: Pick<TeamRunnerItem, 'id' | 'displayId'>): string {
+    return runner.displayId;
+}
+
+function buildPairCommand(token: string | null): string {
+    const tokenPart = token ?? '<pairing-token>';
+    const serverUrl = typeof window !== 'undefined' ? window.location.origin : '<server-url>';
+    return `skytest pair runner "${tokenPart}" --url "${serverUrl}"`;
+}
+
+function buildStartRunnerCommand(runnerDisplayId: string): string {
+    const escaped = runnerDisplayId.replace(/'/g, '\'\\\'\'');
+    return `skytest start runner '${escaped}'`;
 }
 
 export default function TeamRunners({ teamId }: TeamRunnersProps) {
@@ -134,6 +144,8 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
     const [pairingExpiresAt, setPairingExpiresAt] = useState<string | null>(null);
     const [isGeneratingToken, setIsGeneratingToken] = useState(false);
     const [isCopying, setIsCopying] = useState(false);
+    const [isCopyingPairCommand, setIsCopyingPairCommand] = useState(false);
+    const [copiedCommandKey, setCopiedCommandKey] = useState<string | null>(null);
     const [unpairCandidate, setUnpairCandidate] = useState<TeamRunnerItem | null>(null);
     const [pendingUnpairRunnerId, setPendingUnpairRunnerId] = useState<string | null>(null);
     const pollRef = useRef<NodeJS.Timeout | null>(null);
@@ -248,7 +260,6 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
             const payload = await response.json() as PairingTokenResponse;
             setPairingToken(payload.token);
             setPairingExpiresAt(payload.expiresAt);
-            setIsPairingModalOpen(true);
         } catch (generationError) {
             const message = generationError instanceof Error
                 ? generationError.message
@@ -311,40 +322,133 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
         }
     }, [fetchData, getAccessToken, pendingUnpairRunnerId, teamId, t, unpairCandidate]);
 
+    const offlineRunners = runners?.runners.filter((runner) => (
+        runner.status !== 'ONLINE' || !runner.isFresh
+    )) ?? [];
+
+    const copyCommand = useCallback(async (key: string, text: string) => {
+        await navigator.clipboard.writeText(text);
+        setCopiedCommandKey(key);
+        setTimeout(() => setCopiedCommandKey((current) => (current === key ? null : current)), 1200);
+    }, []);
+
+    const copyPairCommand = useCallback(async () => {
+        if (isCopyingPairCommand) {
+            return;
+        }
+        setIsCopyingPairCommand(true);
+        try {
+            await navigator.clipboard.writeText(buildPairCommand(pairingToken));
+        } finally {
+            setTimeout(() => setIsCopyingPairCommand(false), 1200);
+        }
+    }, [pairingToken, isCopyingPairCommand]);
+
     return (
         <div className="space-y-6">
             <Modal
                 isOpen={isPairingModalOpen}
-                onClose={() => setIsPairingModalOpen(false)}
+                onClose={() => {
+                    setIsPairingModalOpen(false);
+                    setPairingToken(null);
+                    setPairingExpiresAt(null);
+                }}
                 title={t('team.runners.pairing.title')}
                 showFooter={false}
                 panelClassName="max-w-xl"
             >
-                <div className="space-y-4">
-                    <p className="text-sm text-gray-600">{t('team.runners.pairing.subtitle')}</p>
-                    <div className="rounded-md border border-gray-200 bg-gray-50 p-4">
-                        <p className="text-xs font-medium text-gray-500">{t('team.runners.pairing.token')}</p>
-                        <div className="mt-2 break-all font-mono text-sm text-gray-900">{pairingToken}</div>
+                <div className="space-y-5">
+                    <div>
+                        <p className="text-sm font-medium text-gray-900">{t('team.runners.pairing.token')}</p>
+                        {pairingToken ? (
+                            <div className="mt-2 space-y-2">
+                                <div className="rounded-md border border-gray-200 bg-gray-50 px-4 py-3">
+                                    <p className="break-all font-mono text-sm text-gray-900">{pairingToken}</p>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <p className="text-xs text-gray-500">
+                                        {pairingExpiresAt
+                                            ? t('team.runners.pairing.expiresAt', { time: new Date(pairingExpiresAt).toLocaleString() })
+                                            : ''}
+                                    </p>
+                                    <div className="flex gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => void copyPairingToken()}
+                                            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                                        >
+                                            {isCopying ? t('common.copied') : t('common.copy')}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => void createPairingToken()}
+                                            disabled={isGeneratingToken}
+                                            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                                        >
+                                            {isGeneratingToken ? t('team.runners.add.loading') : t('team.runners.pairing.regenerate')}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="mt-2 space-y-3">
+                                <p className="text-sm text-gray-500">{t('team.runners.pairing.step1.description')}</p>
+                                <button
+                                    type="button"
+                                    onClick={() => void createPairingToken()}
+                                    disabled={isGeneratingToken}
+                                    className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
+                                >
+                                    {isGeneratingToken ? t('team.runners.add.loading') : t('team.runners.pairing.generate')}
+                                </button>
+                            </div>
+                        )}
                     </div>
-                    <p className="text-xs text-gray-500">
-                        {pairingExpiresAt
-                            ? t('team.runners.pairing.expiresAt', { time: new Date(pairingExpiresAt).toLocaleString() })
-                            : ''}
-                    </p>
-                    <div className="flex justify-end gap-2">
+
+                    <div className="border-t border-gray-100" />
+
+                    <div>
+                        <p className="text-sm font-medium text-gray-900">{t('team.runners.pairing.pairTitle')}</p>
+                        <p className="mt-1 text-sm text-gray-500">{t('team.runners.pairing.pairDescription')}</p>
+                        <div className="mt-3">
+                            <p className="text-xs font-medium text-gray-500 mb-1.5">{t('team.runners.pairing.commandLabel')}</p>
+                            <div className="relative">
+                                <button
+                                    type="button"
+                                    onClick={() => void copyPairCommand()}
+                                    aria-label={isCopyingPairCommand ? t('common.copied') : t('common.copy')}
+                                    title={isCopyingPairCommand ? t('common.copied') : t('common.copy')}
+                                    className="absolute top-2 right-2 z-10 h-7 w-7 flex items-center justify-center text-gray-600 bg-white border border-gray-300 rounded hover:bg-gray-100"
+                                >
+                                    {isCopyingPairCommand ? (
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                    ) : (
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                            <rect x="9" y="9" width="10" height="10" rx="2" strokeWidth="2" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 15H6a2 2 0 01-2-2V6a2 2 0 012-2h7a2 2 0 012 2v1" />
+                                        </svg>
+                                    )}
+                                </button>
+                                <pre className="bg-gray-50 text-gray-800 text-xs rounded border border-gray-200 p-3 pr-10 overflow-x-auto">
+                                    <code>{buildPairCommand(pairingToken)}</code>
+                                </pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-end border-t border-gray-100 pt-4">
                         <button
                             type="button"
-                            onClick={() => void copyPairingToken()}
-                            className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                            onClick={() => {
+                                setIsPairingModalOpen(false);
+                                setPairingToken(null);
+                                setPairingExpiresAt(null);
+                            }}
+                            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
                         >
-                            {isCopying ? t('common.copied') : t('common.copy')}
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setIsPairingModalOpen(false)}
-                            className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary/90"
-                        >
-                            {t('common.confirm')}
+                            {t('common.done')}
                         </button>
                     </div>
                 </div>
@@ -378,11 +482,10 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
                     {runners?.canManageRunners && (
                         <button
                             type="button"
-                            onClick={() => void createPairingToken()}
-                            disabled={isGeneratingToken}
-                            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
+                            onClick={() => setIsPairingModalOpen(true)}
+                            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
                         >
-                            {isGeneratingToken ? t('team.runners.add.loading') : t('team.runners.add')}
+                            {t('team.runners.add')}
                         </button>
                     )}
                 </div>
@@ -422,23 +525,23 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-100 text-gray-700">
-                                            {runners.runners.map((runner) => (
-                                                <tr key={runner.id}>
-                                                    <td className="px-4 py-3">
-                                                        <p className="font-medium text-gray-900">{runner.label}</p>
-                                                        <p className="text-xs text-gray-500">{runner.runnerVersion}</p>
-                                                    </td>
-                                                    <td className="px-4 py-3">{resolveRunnerKindLabel(runner.kind)}</td>
-                                                    <td className="px-4 py-3">
-                                                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs ${buildRunnerStatusClass(runner)}`}>
-                                                            {buildRunnerStatusLabel(runner, t)}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-4 py-3">{runner.availableDeviceCount} / {runner.deviceCount}</td>
-                                                    <td className="px-4 py-3">{new Date(runner.lastSeenAt).toLocaleString()}</td>
-                                                    {runners.canManageRunners && (
+                                            {runners.runners.map((runner) => {
+                                                return (
+                                                    <tr key={runner.id}>
                                                         <td className="px-4 py-3">
-                                                            {runner.status === 'ONLINE' && runner.isFresh ? (
+                                                            <p className="font-medium text-gray-900">{runner.label}</p>
+                                                            <p className="text-xs text-gray-500">{runner.runnerVersion}</p>
+                                                        </td>
+                                                        <td className="px-4 py-3">{resolveRunnerKindLabel(runner.kind)}</td>
+                                                        <td className="px-4 py-3">
+                                                            <span className={`inline-flex rounded-full px-2 py-0.5 text-xs ${buildRunnerStatusClass(runner)}`}>
+                                                                {buildRunnerStatusLabel(runner, t)}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-3">{runner.availableDeviceCount} / {runner.deviceCount}</td>
+                                                        <td className="px-4 py-3">{new Date(runner.lastSeenAt).toLocaleString()}</td>
+                                                        {runners.canManageRunners && (
+                                                            <td className="px-4 py-3">
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => {
@@ -452,13 +555,11 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
                                                                         ? t('team.runners.unpair.loading')
                                                                         : t('team.runners.unpair')}
                                                                 </button>
-                                                            ) : (
-                                                                <span className="text-xs text-gray-400">-</span>
-                                                            )}
-                                                        </td>
-                                                    )}
-                                                </tr>
-                                            ))}
+                                                            </td>
+                                                        )}
+                                                    </tr>
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>
@@ -505,6 +606,94 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
                                 </div>
                             )}
                         </div>
+                    </div>
+                )}
+            </section>
+
+            <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+                <h2 className="text-base font-semibold text-gray-900">{t('team.runners.troubleshooting.title')}</h2>
+                <p className="mt-1 text-sm text-gray-500">{t('team.runners.troubleshooting.subtitle')}</p>
+
+                <div className="mt-4 space-y-4">
+                    {[
+                        { key: 'get-runners', label: t('team.runners.troubleshooting.listRunners'), command: 'skytest get runners' },
+                        { key: 'pair-runner', label: t('team.runners.troubleshooting.pairRunner'), command: buildPairCommand(null) },
+                        { key: 'start-runner', label: t('team.runners.troubleshooting.start'), command: "skytest start runner '<runner-id>'" },
+                        { key: 'stop-runner', label: t('team.runners.troubleshooting.stop'), command: "skytest stop runner '<runner-id>'" },
+                        { key: 'logs-runner', label: t('team.runners.troubleshooting.logs'), command: "skytest logs runner '<runner-id>' --tail 200" },
+                        { key: 'unpair-runner', label: t('team.runners.troubleshooting.unpairRunner'), command: "skytest unpair runner '<runner-id>'" },
+                    ].map(({ key, label, command }) => (
+                        <div key={key}>
+                            <p className="text-xs font-medium text-gray-700 mb-1.5">{label}</p>
+                            <div className="relative">
+                                <button
+                                    type="button"
+                                    onClick={() => void copyCommand(key, command)}
+                                    aria-label={copiedCommandKey === key ? t('common.copied') : t('common.copy')}
+                                    title={copiedCommandKey === key ? t('common.copied') : t('common.copy')}
+                                    className="absolute top-2 right-2 z-10 h-7 w-7 flex items-center justify-center text-gray-600 bg-white border border-gray-300 rounded hover:bg-gray-100"
+                                >
+                                    {copiedCommandKey === key ? (
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                    ) : (
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                            <rect x="9" y="9" width="10" height="10" rx="2" strokeWidth="2" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 15H6a2 2 0 01-2-2V6a2 2 0 012-2h7a2 2 0 012 2v1" />
+                                        </svg>
+                                    )}
+                                </button>
+                                <pre className="bg-gray-50 text-gray-800 text-xs rounded border border-gray-200 p-3 pr-10 overflow-x-auto">
+                                    <code>{command}</code>
+                                </pre>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                {!isLoading && runners && offlineRunners.length > 0 && (
+                    <div className="mt-6 space-y-3">
+                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{t('team.runners.troubleshooting.offlineTitle')}</p>
+                        {offlineRunners.map((runner) => {
+                            const runnerDisplayId = resolveRunnerDisplayId(runner);
+                            const startCommand = buildStartRunnerCommand(runnerDisplayId);
+                            const commandKey = `${runner.id}-start`;
+                            return (
+                                <div key={runner.id} className="rounded-md border border-amber-200 bg-amber-50 p-4">
+                                    <div className="mb-3">
+                                        <p className="text-sm font-medium text-gray-900">{runner.label}</p>
+                                        <p className="text-xs text-gray-500">
+                                            {t('team.runners.troubleshooting.runnerId', { id: runnerDisplayId })}
+                                        </p>
+                                    </div>
+                                    <p className="text-xs font-medium text-gray-700 mb-1.5">{t('team.runners.troubleshooting.start')}</p>
+                                    <div className="relative">
+                                        <button
+                                            type="button"
+                                            onClick={() => void copyCommand(commandKey, startCommand)}
+                                            aria-label={copiedCommandKey === commandKey ? t('common.copied') : t('common.copy')}
+                                            title={copiedCommandKey === commandKey ? t('common.copied') : t('common.copy')}
+                                            className="absolute top-2 right-2 z-10 h-7 w-7 flex items-center justify-center text-gray-600 bg-white border border-gray-300 rounded hover:bg-gray-100"
+                                        >
+                                            {copiedCommandKey === commandKey ? (
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                </svg>
+                                            ) : (
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                                    <rect x="9" y="9" width="10" height="10" rx="2" strokeWidth="2" />
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 15H6a2 2 0 01-2-2V6a2 2 0 012-2h7a2 2 0 012 2v1" />
+                                                </svg>
+                                            )}
+                                        </button>
+                                        <pre className="bg-gray-50 text-gray-800 text-xs rounded border border-gray-200 p-3 pr-10 overflow-x-auto">
+                                            <code>{startCommand}</code>
+                                        </pre>
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
             </section>

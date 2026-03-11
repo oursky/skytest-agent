@@ -14,8 +14,8 @@ This runtime is managed by the `skytest` CLI and is not started directly in norm
 ## Start
 
 ```bash
-npm run skytest -- pair runner "<pairing-token>" --control-plane-url "http://127.0.0.1:3000"
+npm run skytest -- pair runner "<pairing-token>" --url "http://127.0.0.1:3000"
 ```
 
-Use `npm run skytest -- get runners` and `npm run skytest -- start runner <local-runner-id>`
-for lifecycle operations.
+Use `npm run skytest -- get runners` and `npm run skytest -- start runner <runner-id>`
+for lifecycle operations. `<runner-id>` can be the local 6-character runner ID or the runner ID shown in `Team Settings -> Runners`.

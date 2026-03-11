@@ -41,6 +41,7 @@ export async function createPairingToken(input: {
 
 export async function exchangePairingToken(input: {
     pairingToken: string;
+    displayId: string;
     label: string;
     kind: RunnerKind;
     capabilities: RunnerCapability[];
@@ -93,6 +94,7 @@ export async function exchangePairingToken(input: {
 
         const runner = await tx.runner.create({
             data: {
+                displayId: input.displayId,
                 teamId: pairing.teamId,
                 label: input.label,
                 kind: input.kind,

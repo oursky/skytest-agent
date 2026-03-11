@@ -85,10 +85,10 @@ function parsePairRunnerArguments(args: string[]): {
             continue;
         }
 
-        if (token === '--control-plane-url') {
+        if (token === '--url') {
             const value = args[index + 1];
             if (!value) {
-                throw new Error('Missing value for `--control-plane-url`.');
+                throw new Error('Missing value for `--url`.');
             }
             controlPlaneBaseUrl = value;
             index += 1;

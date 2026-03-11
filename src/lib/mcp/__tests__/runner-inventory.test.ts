@@ -43,6 +43,7 @@ describe('getProjectRunnerInventory', () => {
             refreshedAt: '2026-03-09T00:00:00.000Z',
             runners: [{
                 id: 'runner-1',
+                displayId: 'run001',
                 label: 'Runner 1',
                 kind: 'MACOS_AGENT',
                 status: 'ONLINE',

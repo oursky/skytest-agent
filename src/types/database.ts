@@ -81,6 +81,7 @@ export interface TestRun {
 
 export interface Runner {
     id: string;
+    displayId: string;
     teamId: string;
     label: string;
     kind: string;

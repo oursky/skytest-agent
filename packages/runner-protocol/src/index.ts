@@ -12,6 +12,7 @@ export const runnerDeviceStateSchema = z.enum(['ONLINE', 'OFFLINE', 'UNAVAILABLE
 export const runnerProtocolVersionSchema = z.string().trim().min(1).max(40);
 export const runnerVersionSchema = z.string().trim().min(1).max(40);
 export const runnerLabelSchema = z.string().trim().min(1).max(120);
+export const runnerDisplayIdSchema = z.string().trim().regex(/^[a-z0-9]{6}$/);
 export const runnerCapabilitiesSchema = z.array(runnerCapabilitySchema).max(8).default([]);
 
 export const compatibilityMetadataSchema = z.object({
@@ -56,6 +57,19 @@ export const heartbeatRunnerResponseSchema = z.object({
     rotationRequired: z.boolean(),
 });
 
+export const shutdownRunnerRequestSchema = z.object({
+    protocolVersion: runnerProtocolVersionSchema,
+    runnerVersion: runnerVersionSchema,
+    reason: z.string().trim().min(1).max(200).optional(),
+});
+
+export const shutdownRunnerResponseSchema = z.object({
+    runnerId: z.string().min(1),
+    status: z.literal('OFFLINE'),
+    compatibility: compatibilityMetadataSchema,
+    rotationRequired: z.boolean(),
+});
+
 export const createPairingTokenResponseSchema = z.object({
     token: z.string().min(1),
     expiresAt: z.string().datetime(),
@@ -67,6 +81,7 @@ export const pairingExchangeRequestSchema = z.object({
     pairingToken: z.string().trim().min(1),
     protocolVersion: runnerProtocolVersionSchema,
     runnerVersion: runnerVersionSchema,
+    displayId: runnerDisplayIdSchema,
     label: runnerLabelSchema,
     kind: runnerKindSchema,
     capabilities: runnerCapabilitiesSchema,
@@ -214,6 +229,8 @@ export type RegisterRunnerRequest = z.infer<typeof registerRunnerRequestSchema>;
 export type RegisterRunnerResponse = z.infer<typeof registerRunnerResponseSchema>;
 export type HeartbeatRunnerRequest = z.infer<typeof heartbeatRunnerRequestSchema>;
 export type HeartbeatRunnerResponse = z.infer<typeof heartbeatRunnerResponseSchema>;
+export type ShutdownRunnerRequest = z.infer<typeof shutdownRunnerRequestSchema>;
+export type ShutdownRunnerResponse = z.infer<typeof shutdownRunnerResponseSchema>;
 export type CreatePairingTokenResponse = z.infer<typeof createPairingTokenResponseSchema>;
 export type PairingExchangeRequest = z.infer<typeof pairingExchangeRequestSchema>;
 export type PairingExchangeResponse = z.infer<typeof pairingExchangeResponseSchema>;

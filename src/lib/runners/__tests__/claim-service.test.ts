@@ -50,6 +50,8 @@ describe('claimNextRunForRunner', () => {
         expect(queryRaw).toHaveBeenCalledTimes(1);
         const [firstQuery] = queryRaw.mock.calls[0];
         expect(firstQuery.strings.join('')).toContain('"RunnerDevice"');
+        expect(firstQuery.strings.join('')).toContain('"Runner" r');
+        expect(firstQuery.strings.join('')).toContain("r.status = 'ONLINE'");
         expect(firstQuery.strings.join('')).toContain('LIKE');
         expect(firstQuery.strings.join('')).toContain(`'OFFLINE'`);
     });

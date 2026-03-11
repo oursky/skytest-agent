@@ -1,5 +1,6 @@
 import type { RunnerCapability, RunnerKind } from '@skytest/runner-protocol';
 import { prisma } from '@/lib/core/prisma';
+import { invalidateTeamAvailabilityCache } from '@/lib/runners/availability-service';
 
 export async function registerRunner(input: {
     runnerId: string;
@@ -51,4 +52,25 @@ export async function heartbeatRunner(input: {
             lastSeenAt: true,
         },
     });
+}
+
+export async function shutdownRunner(input: {
+    runnerId: string;
+}) {
+    const runner = await prisma.runner.update({
+        where: { id: input.runnerId },
+        data: {
+            status: 'OFFLINE',
+            lastSeenAt: new Date(),
+        },
+        select: {
+            id: true,
+            teamId: true,
+            status: true,
+            lastSeenAt: true,
+        },
+    });
+
+    invalidateTeamAvailabilityCache(runner.teamId);
+    return runner;
 }

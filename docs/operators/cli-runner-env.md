@@ -67,13 +67,13 @@ SKYTEST_MIDSCENE_MODEL_TEMPERATURE=0.2
 Then run:
 
 ```bash
-skytest pair runner "<pairing-token>" --control-plane-url "http://127.0.0.1:3000"
+skytest pair runner "<pairing-token>" --url "http://127.0.0.1:3000"
 ```
 
 If you want a different config path:
 
 ```bash
-SKYTEST_RUNNER_ENV_FILE=/path/to/runner.env skytest start runner <local-runner-id>
+SKYTEST_RUNNER_ENV_FILE=/path/to/runner.env skytest start runner <runner-id>
 ```
 
 ## Cleanup / Reset
@@ -81,13 +81,15 @@ SKYTEST_RUNNER_ENV_FILE=/path/to/runner.env skytest start runner <local-runner-i
 Source:
 
 ```bash
-npm run skytest -- unpair runner <local-runner-id>
+npm run skytest -- unpair runner <runner-id>
 npm run skytest -- reset --force
 ```
 
 Homebrew:
 
 ```bash
-skytest unpair runner <local-runner-id>
+skytest unpair runner <runner-id>
 skytest reset --force
 ```
+
+`<runner-id>` can be the local 6-character runner ID, the full runner ID shown in `Team Settings -> Runners`, or a unique prefix of either.

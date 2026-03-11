@@ -71,6 +71,12 @@ async function claimExplicitDeviceRun(input: {
               AND tr."deletedAt" IS NULL
               AND tr."assignedRunnerId" IS NULL
               AND tr."requestedDeviceId" IS NOT NULL
+              AND EXISTS (
+                  SELECT 1
+                  FROM "Runner" r
+                  WHERE r.id = ${input.runnerId}
+                    AND r.status = 'ONLINE'
+              )
               AND p."teamId" = ${input.teamId}
               AND tr."requiredCapability" = 'ANDROID'
               AND (tr."requiredRunnerKind" IS NULL OR tr."requiredRunnerKind" = ${input.runnerKind})
@@ -133,6 +139,12 @@ async function claimGenericRun(input: {
               AND tr."deletedAt" IS NULL
               AND tr."assignedRunnerId" IS NULL
               AND tr."requestedDeviceId" IS NULL
+              AND EXISTS (
+                  SELECT 1
+                  FROM "Runner" r
+                  WHERE r.id = ${input.runnerId}
+                    AND r.status = 'ONLINE'
+              )
               AND p."teamId" = ${input.teamId}
               AND tr."requiredCapability" = 'ANDROID'
               AND (tr."requiredRunnerKind" IS NULL OR tr."requiredRunnerKind" = ${input.runnerKind})
