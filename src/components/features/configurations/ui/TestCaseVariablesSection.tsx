@@ -1,9 +1,10 @@
 import type { KeyboardEvent, MutableRefObject } from 'react';
 import { useI18n } from '@/i18n';
 import type { ConfigItem, ConfigType } from '@/types';
+import { compareByGroupThenName } from '@/lib/config/sort';
 import { getConfigTypeTitleKey } from '@/components/features/configurations/model/config-utils';
 import GroupSelectInput from '@/components/features/configurations/ui/GroupSelectInput';
-import { ADDABLE_TEST_CASE_CONFIG_TYPES, RANDOM_STRING_GENERATION_TYPES, randomStringGenerationLabel, sortConfigs } from '../model/config-helpers';
+import { ADDABLE_TEST_CASE_CONFIG_TYPES, RANDOM_STRING_GENERATION_TYPES, TYPE_ORDER, randomStringGenerationLabel } from '../model/config-helpers';
 import type { EditState, FileUploadDraft } from '../model/config-types';
 import TestCaseConfigInlineEditor from './TestCaseConfigInlineEditor';
 
@@ -71,20 +72,14 @@ export default function TestCaseVariablesSection({
     onConfigEditorKeyDown,
 }: TestCaseVariablesSectionProps) {
     const { t } = useI18n();
-    const sortedTestCaseConfigs = sortConfigs(testCaseConfigs);
-
-    const renderConfigsByType = (configs: ConfigItem[], renderItem: (config: ConfigItem, type: ConfigType) => React.ReactNode) => {
-        let lastType: ConfigType | null = null;
-        const elements: React.ReactNode[] = [];
-        for (const config of configs) {
-            if (config.type !== lastType) {
-                elements.push(<TypeSubHeader key={`header-${config.type}-${config.id}`} type={config.type} t={t} />);
-                lastType = config.type;
-            }
-            elements.push(renderItem(config, config.type));
-        }
-        return elements;
-    };
+    const groupedByType = TYPE_ORDER
+        .map((type) => ({
+            type,
+            items: testCaseConfigs
+                .filter((config) => config.type === type)
+                .sort(compareByGroupThenName),
+        }))
+        .filter((group) => group.items.length > 0);
 
     const renderRandomStringDropdown = (dropdownKey: string, value: string) => (
         <div
@@ -184,102 +179,110 @@ export default function TestCaseVariablesSection({
             </div>
 
             <div className="space-y-0.5">
-                {renderConfigsByType(sortedTestCaseConfigs, (config) => {
-                    const isEditingThis = editState?.id === config.id;
-                    const overridesProject = projectConfigs.some((pc) => pc.name === config.name);
+                {groupedByType.map(({ type, items }) => (
+                    <div key={type}>
+                        <TypeSubHeader type={type as ConfigType} t={t} />
+                        {items.map((config) => {
+                            const isEditingThis = editState?.id === config.id;
+                            const overridesProject = projectConfigs.some((pc) => pc.name === config.name);
 
-                    if (isEditingThis && editState) {
-                        const randomDropdownKey = `existing-${config.id}`;
-                        return (
-                            <TestCaseConfigInlineEditor
-                                key={config.id}
-                                type={config.type}
-                                editState={editState}
-                                error={error}
-                                groupOptions={testCaseGroupOptions}
-                                onChange={setEditState}
-                                onSave={onSave}
-                                onCancel={() => {
-                                    setEditState(null);
-                                    setError(null);
-                                    setRandomStringDropdownOpen(null);
-                                }}
-                                onRemoveGroup={onRemoveGroup}
-                                onKeyDown={onConfigEditorKeyDown}
-                                renderRandomStringControl={(value) => renderRandomStringDropdown(randomDropdownKey, value)}
-                            />
-                        );
-                    }
+                            if (isEditingThis && editState) {
+                                const randomDropdownKey = `existing-${config.id}`;
+                                return (
+                                    <TestCaseConfigInlineEditor
+                                        key={config.id}
+                                        type={config.type}
+                                        editState={editState}
+                                        error={error}
+                                        groupOptions={testCaseGroupOptions}
+                                        onChange={setEditState}
+                                        onSave={onSave}
+                                        onCancel={() => {
+                                            setEditState(null);
+                                            setError(null);
+                                            setRandomStringDropdownOpen(null);
+                                        }}
+                                        onRemoveGroup={onRemoveGroup}
+                                        onKeyDown={onConfigEditorKeyDown}
+                                        renderRandomStringControl={(value) => renderRandomStringDropdown(randomDropdownKey, value)}
+                                    />
+                                );
+                            }
 
-                    if (config.type === 'FILE') {
-                        return (
-                            <div key={config.id} className="flex items-center gap-2 px-2 py-1.5 rounded text-sm group hover:bg-gray-50">
-                                <code className="font-mono text-gray-800 text-xs">{config.name}</code>
-                                <span className="text-gray-400 text-xs truncate">{config.filename || config.value}</span>
-                                {!readOnly && (
-                                    <div className="ml-auto flex gap-1">
-                                        <button
-                                            type="button"
-                                            onClick={() => onDownload(config)}
-                                            className="p-1 text-gray-400 hover:text-gray-600"
-                                            title={t('common.download')}
-                                        >
-                                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                            </svg>
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => onDelete(config.id)}
-                                            className="p-1 text-gray-400 hover:text-red-500"
-                                        >
-                                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                        </button>
+                            if (config.type === 'FILE') {
+                                return (
+                                    <div key={config.id} className="group flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-50">
+                                        {config.group && (
+                                            <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase text-gray-600">{config.group}</span>
+                                        )}
+                                        <code className="font-mono text-xs text-gray-800">{config.name}</code>
+                                        <span className="truncate text-xs text-gray-400">{config.filename || config.value}</span>
+                                        {!readOnly && (
+                                            <div className="ml-auto flex gap-1">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onDownload(config)}
+                                                    className="p-1 text-gray-400 hover:text-gray-600"
+                                                    title={t('common.download')}
+                                                >
+                                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                                    </svg>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onDelete(config.id)}
+                                                    className="p-1 text-gray-400 hover:text-red-500"
+                                                >
+                                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
-                                )}
-                            </div>
-                        );
-                    }
+                                );
+                            }
 
-                    return (
-                        <div key={config.id} className="flex items-center gap-2 px-2 py-1.5 rounded text-sm group hover:bg-gray-50">
-                            <code className="font-mono text-gray-800 text-xs">{config.name}</code>
-                            <span className="text-gray-400 text-xs truncate">
-                                {config.masked ? '••••••' : config.type === 'RANDOM_STRING' ? randomStringGenerationLabel(config.value, t) : config.value}
-                            </span>
-                            {config.group && (
-                                <span className="text-[10px] text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded uppercase">{config.group}</span>
-                            )}
-                            {overridesProject && (
-                                <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">{t('configs.override')}</span>
-                            )}
-                            {!readOnly && (
-                                <div className="ml-auto flex gap-1">
-                                    <button
-                                        type="button"
-                                        onClick={() => onEdit(config)}
-                                        className="p-1 text-gray-400 hover:text-gray-600"
-                                    >
-                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                        </svg>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => onDelete(config.id)}
-                                        className="p-1 text-gray-400 hover:text-red-500"
-                                    >
-                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                        </svg>
-                                    </button>
+                            return (
+                                <div key={config.id} className="group flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-50">
+                                    {config.group && (
+                                        <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase text-gray-600">{config.group}</span>
+                                    )}
+                                    <code className="font-mono text-xs text-gray-800">{config.name}</code>
+                                    <span className="truncate text-xs text-gray-400">
+                                        {config.masked ? '••••••' : config.type === 'RANDOM_STRING' ? randomStringGenerationLabel(config.value, t) : config.value}
+                                    </span>
+                                    {overridesProject && (
+                                        <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-600">{t('configs.override')}</span>
+                                    )}
+                                    {!readOnly && (
+                                        <div className="ml-auto flex gap-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => onEdit(config)}
+                                                className="p-1 text-gray-400 hover:text-gray-600"
+                                            >
+                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                </svg>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => onDelete(config.id)}
+                                                className="p-1 text-gray-400 hover:text-red-500"
+                                            >
+                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
-                            )}
-                        </div>
-                    );
-                })}
+                            );
+                        })}
+                    </div>
+                ))}
 
                 {editState && !editState.id && (
                     <TestCaseConfigInlineEditor
