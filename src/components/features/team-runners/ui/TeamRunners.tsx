@@ -74,18 +74,12 @@ function buildRunnerStatusClass(runner: TeamRunnerItem): string {
     if (runner.status === 'ONLINE' && runner.isFresh) {
         return 'bg-green-100 text-green-700';
     }
-    if (runner.status === 'ONLINE' && !runner.isFresh) {
-        return 'bg-amber-100 text-amber-700';
-    }
     return 'bg-gray-100 text-gray-700';
 }
 
 function buildRunnerStatusLabel(runner: TeamRunnerItem, t: (key: string) => string): string {
     if (runner.status === 'ONLINE' && runner.isFresh) {
         return t('device.state.online');
-    }
-    if (runner.status === 'ONLINE' && !runner.isFresh) {
-        return t('device.state.stale');
     }
     return t('device.state.offline');
 }
@@ -98,7 +92,7 @@ function buildDeviceStatusClass(device: TeamDeviceItem): string {
         return 'bg-gray-100 text-gray-700';
     }
     if (device.state === 'ONLINE' && !device.isFresh) {
-        return 'bg-amber-100 text-amber-700';
+        return 'bg-gray-100 text-gray-700';
     }
     if (device.state === 'UNAVAILABLE') {
         return 'bg-red-100 text-red-700';
@@ -114,12 +108,29 @@ function buildDeviceStatusLabel(device: TeamDeviceItem, t: (key: string) => stri
         return t('device.state.notRunning');
     }
     if (device.state === 'ONLINE' && !device.isFresh) {
-        return t('device.state.stale');
+        return t('device.state.offline');
     }
     if (device.state === 'UNAVAILABLE') {
         return t('device.state.unavailable');
     }
     return t('device.state.offline');
+}
+
+function buildRunnerTroubleshootingCommands(runnerId: string): string {
+    const escapedRunnerId = runnerId.replace(/'/g, '\'\\\'\'');
+    return [
+        `skytest start runner '${escapedRunnerId}'`,
+        `skytest logs runner '${escapedRunnerId}' --tail 200`,
+        `skytest stop runner '${escapedRunnerId}'`,
+        `skytest unpair runner '${escapedRunnerId}'`,
+    ].join('\n');
+}
+
+function buildCommonTroubleshootingCommands(): string {
+    return [
+        'skytest get runners',
+        'skytest pair runner "<pairing-token>" --url "http://127.0.0.1:3000"',
+    ].join('\n');
 }
 
 export default function TeamRunners({ teamId }: TeamRunnersProps) {
@@ -134,6 +145,7 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
     const [pairingExpiresAt, setPairingExpiresAt] = useState<string | null>(null);
     const [isGeneratingToken, setIsGeneratingToken] = useState(false);
     const [isCopying, setIsCopying] = useState(false);
+    const [copiedTroubleshootingRunnerId, setCopiedTroubleshootingRunnerId] = useState<string | null>(null);
     const [unpairCandidate, setUnpairCandidate] = useState<TeamRunnerItem | null>(null);
     const [pendingUnpairRunnerId, setPendingUnpairRunnerId] = useState<string | null>(null);
     const pollRef = useRef<NodeJS.Timeout | null>(null);
@@ -311,6 +323,18 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
         }
     }, [fetchData, getAccessToken, pendingUnpairRunnerId, teamId, t, unpairCandidate]);
 
+    const offlineRunners = runners?.runners.filter((runner) => (
+        runner.status !== 'ONLINE' || !runner.isFresh
+    )) ?? [];
+
+    const copyTroubleshootingCommands = useCallback(async (runnerId: string, commands: string) => {
+        await navigator.clipboard.writeText(commands);
+        setCopiedTroubleshootingRunnerId(runnerId);
+        setTimeout(() => setCopiedTroubleshootingRunnerId((current) => (
+            current === runnerId ? null : current
+        )), 1200);
+    }, []);
+
     return (
         <div className="space-y-6">
             <Modal
@@ -438,23 +462,19 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
                                                     <td className="px-4 py-3">{new Date(runner.lastSeenAt).toLocaleString()}</td>
                                                     {runners.canManageRunners && (
                                                         <td className="px-4 py-3">
-                                                            {runner.status === 'ONLINE' && runner.isFresh ? (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        setError(null);
-                                                                        setUnpairCandidate(runner);
-                                                                    }}
-                                                                    disabled={pendingUnpairRunnerId !== null}
-                                                                    className="text-sm font-medium text-red-600 hover:text-red-700 disabled:cursor-not-allowed disabled:text-red-300"
-                                                                >
-                                                                    {pendingUnpairRunnerId === runner.id
-                                                                        ? t('team.runners.unpair.loading')
-                                                                        : t('team.runners.unpair')}
-                                                                </button>
-                                                            ) : (
-                                                                <span className="text-xs text-gray-400">-</span>
-                                                            )}
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setError(null);
+                                                                    setUnpairCandidate(runner);
+                                                                }}
+                                                                disabled={pendingUnpairRunnerId !== null}
+                                                                className="text-sm font-medium text-red-600 hover:text-red-700 disabled:cursor-not-allowed disabled:text-red-300"
+                                                            >
+                                                                {pendingUnpairRunnerId === runner.id
+                                                                    ? t('team.runners.unpair.loading')
+                                                                    : t('team.runners.unpair')}
+                                                            </button>
                                                         </td>
                                                     )}
                                                 </tr>
@@ -505,6 +525,60 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
                                 </div>
                             )}
                         </div>
+                    </div>
+                )}
+            </section>
+
+            <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+                <h2 className="text-base font-semibold text-gray-900">{t('team.runners.troubleshooting.title')}</h2>
+                <p className="mt-1 text-sm text-gray-500">{t('team.runners.troubleshooting.subtitle')}</p>
+                <p className="mt-4 text-xs font-medium text-gray-700">{t('team.runners.troubleshooting.commonTitle')}</p>
+                <pre className="mt-2 overflow-x-auto rounded-md bg-gray-900 px-3 py-2 text-xs text-gray-100">
+                    {buildCommonTroubleshootingCommands()}
+                </pre>
+
+                {isLoading || !runners ? (
+                    <div className="mt-4 flex items-center gap-3 rounded-md bg-gray-50 px-4 py-3 text-sm text-gray-600">
+                        <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-primary"></div>
+                        <span>{t('common.loading')}</span>
+                    </div>
+                ) : offlineRunners.length === 0 ? (
+                    <p className="mt-4 rounded-md bg-gray-50 px-4 py-3 text-sm text-gray-500">
+                        {t('team.runners.troubleshooting.noOffline')}
+                    </p>
+                ) : (
+                    <div className="mt-4 space-y-4">
+                        {offlineRunners.map((runner) => {
+                            const runnerCommands = buildRunnerTroubleshootingCommands(runner.id);
+                            return (
+                                <div
+                                    key={runner.id}
+                                    className="rounded-md border border-amber-200 bg-amber-50 p-4"
+                                >
+                                    <div className="flex flex-wrap items-start justify-between gap-3">
+                                        <div>
+                                            <p className="text-sm font-medium text-gray-900">{runner.label}</p>
+                                            <p className="text-xs text-gray-600">
+                                                {t('team.runners.troubleshooting.runnerId', { id: runner.id })}
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => void copyTroubleshootingCommands(runner.id, runnerCommands)}
+                                            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                                        >
+                                            {copiedTroubleshootingRunnerId === runner.id ? t('common.copied') : t('common.copy')}
+                                        </button>
+                                    </div>
+                                    <p className="mt-3 text-xs font-medium text-gray-700">
+                                        {t('team.runners.troubleshooting.runnerCommandsTitle')}
+                                    </p>
+                                    <pre className="mt-2 overflow-x-auto rounded-md bg-gray-900 px-3 py-2 text-xs text-gray-100">
+                                        {runnerCommands}
+                                    </pre>
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
             </section>
