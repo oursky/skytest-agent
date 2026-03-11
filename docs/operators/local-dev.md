@@ -53,9 +53,9 @@ Retention behavior:
 - Android runs require a paired CLI runner process.
 
 Runner environment and model configuration:
-- [CLI Runner Environment Configuration](./cli-runner-env.md)
+- [macOS Runner Environment Configuration](./macos-runner-env.md)
 
-## CLI Runner Lifecycle (Source)
+## Runner Lifecycle (Source)
 
 Pair and manage from this repo:
 
@@ -70,7 +70,7 @@ npm run skytest -- unpair runner <runner-id>
 
 `<runner-id>` can be the local 6-character runner ID, the full runner ID from `Team Settings -> Runners`, or a unique prefix of either.
 
-## CLI Runner Lifecycle (Homebrew)
+## Runner Lifecycle (Homebrew)
 
 ```bash
 brew install <tap>/skytest

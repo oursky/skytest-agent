@@ -1,4 +1,4 @@
-# CLI Runner Environment Configuration
+# macOS Runner Environment Configuration
 
 This guide explains how runner configuration is resolved for source development and Homebrew users.
 
