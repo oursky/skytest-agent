@@ -133,6 +133,28 @@ async function requireRunnerCredential(localRunnerId: string): Promise<LocalRunn
     return credential;
 }
 
+async function resolveLocalRunnerId(runnerIdentifier: string): Promise<string> {
+    const normalizedIdentifier = runnerIdentifier.trim();
+    if (normalizedIdentifier.length === 0) {
+        throw new Error('Runner ID is required.');
+    }
+
+    const directMatch = await readRunnerMetadata(normalizedIdentifier);
+    if (directMatch) {
+        return normalizedIdentifier;
+    }
+
+    const localRunnerIds = await listLocalRunnerIds();
+    for (const localRunnerId of localRunnerIds) {
+        const metadata = await readRunnerMetadata(localRunnerId);
+        if (metadata?.serverRunnerId === normalizedIdentifier) {
+            return localRunnerId;
+        }
+    }
+
+    throw new Error(`Runner '${runnerIdentifier}' is not paired.`);
+}
+
 async function determineRunnerStatus(localRunnerId: string): Promise<{ pid: number | null; status: 'RUNNING' | 'STOPPED' }> {
     const pid = await readRunnerPid(localRunnerId);
     if (!pid) {
@@ -237,7 +259,8 @@ export interface StartRunnerResult {
     logPath: string;
 }
 
-export async function startRunner(localRunnerId: string): Promise<StartRunnerResult> {
+export async function startRunner(runnerIdentifier: string): Promise<StartRunnerResult> {
+    const localRunnerId = await resolveLocalRunnerId(runnerIdentifier);
     const metadata = await requireRunnerMetadata(localRunnerId);
     const credential = await requireRunnerCredential(localRunnerId);
     const runnerPaths = resolveRunnerPaths(localRunnerId);
@@ -292,7 +315,8 @@ export async function startRunner(localRunnerId: string): Promise<StartRunnerRes
     };
 }
 
-export async function stopRunner(localRunnerId: string): Promise<{ localRunnerId: string; stopped: boolean; pid: number | null }> {
+export async function stopRunner(runnerIdentifier: string): Promise<{ localRunnerId: string; stopped: boolean; pid: number | null }> {
+    const localRunnerId = await resolveLocalRunnerId(runnerIdentifier);
     const metadata = await requireRunnerMetadata(localRunnerId);
     const pid = await readRunnerPid(localRunnerId);
 
@@ -355,7 +379,8 @@ export async function getRunners(): Promise<LocalRunnerDescriptor[]> {
     return descriptors;
 }
 
-export async function describeRunner(localRunnerId: string): Promise<LocalRunnerDescriptor & { maskedRunnerToken: string }> {
+export async function describeRunner(runnerIdentifier: string): Promise<LocalRunnerDescriptor & { maskedRunnerToken: string }> {
+    const localRunnerId = await resolveLocalRunnerId(runnerIdentifier);
     const metadata = await requireRunnerMetadata(localRunnerId);
     const credential = await requireRunnerCredential(localRunnerId);
     const runtime = await determineRunnerStatus(localRunnerId);
@@ -370,7 +395,14 @@ export async function describeRunner(localRunnerId: string): Promise<LocalRunner
     };
 }
 
-export async function unpairRunner(localRunnerId: string): Promise<{ localRunnerId: string; removed: boolean }> {
+export async function unpairRunner(runnerIdentifier: string): Promise<{ localRunnerId: string; removed: boolean }> {
+    let localRunnerId: string;
+    try {
+        localRunnerId = await resolveLocalRunnerId(runnerIdentifier);
+    } catch {
+        return { localRunnerId: runnerIdentifier, removed: false };
+    }
+
     const metadata = await readRunnerMetadata(localRunnerId);
     if (!metadata) {
         return { localRunnerId, removed: false };
@@ -401,7 +433,8 @@ export async function resetAllRunners(force: boolean): Promise<{ removedRunners:
     return { removedRunners: localRunnerIds.length };
 }
 
-export async function readRunnerLog(localRunnerId: string): Promise<string> {
+export async function readRunnerLog(runnerIdentifier: string): Promise<string> {
+    const localRunnerId = await resolveLocalRunnerId(runnerIdentifier);
     await requireRunnerMetadata(localRunnerId);
     const logPath = resolveRunnerPaths(localRunnerId).logPath;
     try {

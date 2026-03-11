@@ -25,6 +25,21 @@ describe('parseSkytestCliCommand', () => {
         });
     });
 
+    it('parses pair runner with --url alias', () => {
+        expect(parseSkytestCliCommand([
+            'pair',
+            'runner',
+            'token-123',
+            '--url',
+            'http://127.0.0.1:3000',
+        ])).toEqual({
+            kind: 'pair-runner',
+            pairingToken: 'token-123',
+            controlPlaneBaseUrl: 'http://127.0.0.1:3000',
+            autoStart: true,
+        });
+    });
+
     it('parses get runners with json format', () => {
         expect(parseSkytestCliCommand(['get', 'runners', '--json'])).toEqual({
             kind: 'get-runners',

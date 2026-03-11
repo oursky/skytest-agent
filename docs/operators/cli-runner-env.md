@@ -67,7 +67,7 @@ SKYTEST_MIDSCENE_MODEL_TEMPERATURE=0.2
 Then run:
 
 ```bash
-skytest pair runner "<pairing-token>" --control-plane-url "http://127.0.0.1:3000"
+skytest pair runner "<pairing-token>" --url "http://127.0.0.1:3000"
 ```
 
 If you want a different config path:
