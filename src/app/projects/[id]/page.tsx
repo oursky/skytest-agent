@@ -279,6 +279,9 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             setSettingsSuccess('');
             return;
         }
+        if (parsedValue === project.maxConcurrentRuns) {
+            return;
+        }
 
         try {
             setIsSavingSettings(true);
@@ -633,6 +636,15 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         );
     }
 
+    const parsedMaxConcurrentRunsInput = Number.parseInt(maxConcurrentRunsInput, 10);
+    const isMaxConcurrentRunsUnchanged = project
+        ? Number.isInteger(parsedMaxConcurrentRunsInput)
+            && parsedMaxConcurrentRunsInput === project.maxConcurrentRuns
+        : false;
+    const isProjectSettingsSaveDisabled = isSavingSettings
+        || !project?.canManageProject
+        || isMaxConcurrentRunsUnchanged;
+
     return (
         <main className="min-h-screen bg-gray-50">
             <Modal
@@ -845,7 +857,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                                     setSettingsSuccess('');
                                 }}
                                 onKeyDown={(event) => {
-                                    if (event.key === 'Enter' && project.canManageProject && !isSavingSettings) {
+                                    if (event.key === 'Enter' && !isProjectSettingsSaveDisabled) {
                                         event.preventDefault();
                                         void handleSaveProjectSettings();
                                     }
@@ -866,8 +878,8 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                             <button
                                 type="button"
                                 onClick={handleSaveProjectSettings}
-                                disabled={isSavingSettings || !project.canManageProject}
-                                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                                disabled={isProjectSettingsSaveDisabled}
+                                className="cursor-pointer rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 {isSavingSettings ? t('project.settings.saving') : t('project.settings.save')}
                             </button>
