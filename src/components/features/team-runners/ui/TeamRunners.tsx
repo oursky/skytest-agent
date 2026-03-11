@@ -455,14 +455,10 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
                                         </thead>
                                         <tbody className="divide-y divide-gray-100 text-gray-700">
                                             {runners.runners.map((runner) => {
-                                                const runnerDisplayId = resolveRunnerDisplayId(runner);
                                                 return (
                                                     <tr key={runner.id}>
                                                         <td className="px-4 py-3">
                                                             <p className="font-medium text-gray-900">{runner.label}</p>
-                                                            <p className="text-xs text-gray-500">
-                                                                {t('team.runners.table.runnerId', { id: runnerDisplayId })}
-                                                            </p>
                                                             <p className="text-xs text-gray-500">{runner.runnerVersion}</p>
                                                         </td>
                                                         <td className="px-4 py-3">{resolveRunnerKindLabel(runner.kind)}</td>
