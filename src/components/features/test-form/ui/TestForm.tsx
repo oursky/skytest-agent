@@ -216,7 +216,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                                 <button
                                     type="button"
                                     onClick={onImport}
-                                    className="px-3 py-1.5 bg-white text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-1.5 text-sm"
+                                    className="cursor-pointer px-3 py-1.5 bg-white text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-1.5 text-sm"
                                     title={t('testForm.importTitle')}
                                 >
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -229,7 +229,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                                 <button
                                     type="button"
                                     onClick={() => onExport(getCurrentData())}
-                                    className="px-3 py-1.5 bg-white text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-1.5 text-sm"
+                                    className="cursor-pointer px-3 py-1.5 bg-white text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-1.5 text-sm"
                                     title={t('testForm.exportTitle')}
                                 >
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -360,7 +360,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                                 <button
                                     type="button"
                                     onClick={onDiscard}
-                                    className="flex-1 px-4 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                                    className="cursor-pointer flex-1 px-4 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
                                 >
                                     {t('testForm.discard')}
                                 </button>
@@ -373,7 +373,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                                         onSaveDraft(data);
                                     }}
                                     disabled={isSaving || !name.trim() || hasMissingRequiredTestCaseId}
-                                    className="flex-1 px-4 py-2.5 bg-primary/20 text-primary rounded-lg hover:bg-primary/30 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+                                    className="cursor-pointer flex-1 px-4 py-2.5 bg-primary/20 text-primary rounded-lg hover:bg-primary/30 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
                                 >
                                     {isSaving ? (
                                         <>

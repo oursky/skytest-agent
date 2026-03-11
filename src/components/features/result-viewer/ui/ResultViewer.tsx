@@ -262,7 +262,7 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
                         <button
                             onClick={handleCopyLogs}
                             type="button"
-                            className="h-8 px-2.5 py-0 bg-gray-100 border border-gray-200 rounded-md text-xs font-medium text-muted-foreground relative inline-flex items-center justify-center"
+                            className="cursor-pointer h-8 px-2.5 py-0 bg-gray-100 border border-gray-200 rounded-md text-xs font-medium text-muted-foreground relative inline-flex items-center justify-center hover:bg-gray-200/70 transition-colors"
                             title={t('results.copyLogs')}
                         >
                             <span className="invisible inline-block leading-none">{t('results.copyLogs')}</span>
@@ -270,7 +270,7 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
                                 {copied ? t('results.copied') : t('results.copyLogs')}
                             </span>
                         </button>
-                        <div className="h-8 px-2.5 py-0 bg-gray-100 border border-gray-200 rounded-md inline-flex items-center">
+                        <div className="h-8 px-2.5 py-0 bg-gray-100 border border-gray-200 rounded-md inline-flex items-center cursor-default select-none">
                             <span className="text-xs text-muted-foreground font-medium">
                                 {t('results.eventsCount', { count: events.length })}
                             </span>
