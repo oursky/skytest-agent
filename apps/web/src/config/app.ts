@@ -61,7 +61,7 @@ export const config = {
             PROJECTS: '/api/projects',
             TEST_CASES: '/api/test-cases',
             TEST_RUNS: '/api/test-runs',
-            RUN_TEST: '/api/run-test',
+            TEST_RUNS_DISPATCH: '/api/test-runs/dispatch',
         },
     },
 

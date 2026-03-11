@@ -14,7 +14,7 @@ import {
 import { dispatchBrowserRun } from '@/lib/runtime/browser-run-dispatcher';
 import type { BrowserConfig, TargetConfig, AndroidTargetConfig, TestStep } from '@/types';
 
-const logger = createLogger('api:run-test');
+const logger = createLogger('api:test-runs-dispatch');
 
 export const dynamic = 'force-dynamic';
 

@@ -791,7 +791,7 @@ function RunPageContent() {
 
         try {
             const token = await getAccessToken();
-            const response = await fetch('/api/run-test', {
+            const response = await fetch('/api/test-runs/dispatch', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

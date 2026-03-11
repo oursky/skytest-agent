@@ -45,9 +45,9 @@ vi.mock('@/lib/runtime/browser-run-dispatcher', () => ({
     dispatchBrowserRun: mocks.dispatchBrowserRun,
 }));
 
-const { POST } = await import('@/app/api/run-test/route');
+const { POST } = await import('@/app/api/test-runs/dispatch/route');
 
-describe('POST /api/run-test', () => {
+describe('POST /api/test-runs/dispatch', () => {
     beforeEach(() => {
         mocks.verifyAuth.mockReset();
         mocks.resolveUserId.mockReset();
@@ -95,7 +95,7 @@ describe('POST /api/run-test', () => {
     });
 
     it('queues browser runs and dispatches local browser execution', async () => {
-        const request = new Request('http://localhost/api/run-test', {
+        const request = new Request('http://localhost/api/test-runs/dispatch', {
             method: 'POST',
             headers: {
                 'content-type': 'application/json',
@@ -137,7 +137,7 @@ describe('POST /api/run-test', () => {
     });
 
     it('queues emulator-profile Android runs with deterministic requested device id', async () => {
-        const request = new Request('http://localhost/api/run-test', {
+        const request = new Request('http://localhost/api/test-runs/dispatch', {
             method: 'POST',
             headers: {
                 'content-type': 'application/json',
