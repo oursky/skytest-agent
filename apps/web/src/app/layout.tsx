@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
-import { Inter } from "next/font/google";
 import "./globals.css";
 
 import { AuthProvider } from "./auth-provider";
@@ -8,8 +7,6 @@ import { Header } from "@/components/layout";
 import { DevRuntimeErrorLogger } from "@/components/layout/DevRuntimeErrorLogger";
 import { I18nProvider } from "@/i18n";
 import { LOCALE_META, type Locale } from "@/i18n/messages";
-
-const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "SkyTest Agent",
@@ -31,7 +28,7 @@ export default async function RootLayout({
 
   return (
     <html lang={LOCALE_META[initialLocale].htmlLang}>
-      <body className={`${inter.className} antialiased`}>
+      <body className="antialiased">
         <I18nProvider initialLocale={initialLocale}>
           <AuthProvider>
             <DevRuntimeErrorLogger />
