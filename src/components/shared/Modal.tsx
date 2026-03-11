@@ -3,6 +3,7 @@
 import { useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useI18n } from '@/i18n';
+import Button from './Button';
 
 interface ModalProps {
     isOpen: boolean;
@@ -104,24 +105,22 @@ export default function Modal({
 
                 {showFooter && (
                     <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
-                        <button
+                        <Button
                             onClick={onClose}
-                            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                            variant="secondary"
+                            size="sm"
                         >
                             {effectiveCancelText}
-                        </button>
+                        </Button>
                         {onConfirm && (
-                            <button
+                            <Button
                                 onClick={handleConfirm}
                                 disabled={confirmDisabled}
-                                className={`px-4 py-2 text-sm font-medium text-white rounded-md transition-colors ${
-                                    confirmVariant === 'danger'
-                                        ? 'bg-red-600 hover:bg-red-700'
-                                        : 'bg-primary hover:bg-primary/90'
-                                } disabled:cursor-not-allowed disabled:opacity-50`}
+                                variant={confirmVariant === 'danger' ? 'danger' : 'primary'}
+                                size="sm"
                             >
                                 {effectiveConfirmText}
-                            </button>
+                            </Button>
                         )}
                     </div>
                 )}
