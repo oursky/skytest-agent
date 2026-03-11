@@ -8,7 +8,7 @@
   ],
   "overrides": {
     "@hono/node-server": "1.19.11",
-    "@modelcontextprotocol/sdk": "$@modelcontextprotocol/sdk",
+    "@modelcontextprotocol/sdk": "1.27.1",
     "dompurify": "3.3.2",
     "hono": "4.12.7",
     "appium-adb": "12.13.0",
