@@ -19,7 +19,7 @@ import {
     writeRunnerPid,
 } from '../state/store';
 import { generateLocalRunnerId } from '../state/id';
-import { exchangePairingToken } from './control-plane';
+import { exchangePairingToken, notifyRunnerShutdown } from './control-plane';
 import { isProcessAlive, startDetachedRunnerProcess, stopProcessWithTimeout } from './process';
 
 const DEFAULT_CONTROL_PLANE_URL = process.env.RUNNER_CONTROL_PLANE_URL ?? 'http://127.0.0.1:3000';
@@ -336,9 +336,28 @@ export async function startRunner(runnerIdentifier: string): Promise<StartRunner
     };
 }
 
-export async function stopRunner(runnerIdentifier: string): Promise<{ localRunnerId: string; stopped: boolean; pid: number | null }> {
+export async function stopRunner(runnerIdentifier: string): Promise<{
+    localRunnerId: string;
+    stopped: boolean;
+    pid: number | null;
+    serverMarkedOffline: boolean;
+}> {
     const localRunnerId = await resolveLocalRunnerId(runnerIdentifier);
     const metadata = await requireRunnerMetadata(localRunnerId);
+    const credential = await requireRunnerCredential(localRunnerId);
+    let serverMarkedOffline = false;
+
+    try {
+        await notifyRunnerShutdown({
+            controlPlaneBaseUrl: metadata.controlPlaneBaseUrl,
+            runnerToken: credential.runnerToken,
+            runnerVersion: DEFAULT_RUNNER_VERSION,
+            reason: 'CLI stop command',
+        });
+        serverMarkedOffline = true;
+    } catch {
+    }
+
     const pid = await readRunnerPid(localRunnerId);
 
     if (!pid) {
@@ -346,6 +365,7 @@ export async function stopRunner(runnerIdentifier: string): Promise<{ localRunne
             localRunnerId,
             stopped: false,
             pid: null,
+            serverMarkedOffline,
         };
     }
 
@@ -364,6 +384,7 @@ export async function stopRunner(runnerIdentifier: string): Promise<{ localRunne
         localRunnerId,
         stopped: true,
         pid,
+        serverMarkedOffline,
     };
 }
 

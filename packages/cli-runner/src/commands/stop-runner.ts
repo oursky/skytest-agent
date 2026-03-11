@@ -12,5 +12,6 @@ export async function runStopRunnerCommand(options: StopRunnerOptions): Promise<
         localRunnerId: stopped.localRunnerId,
         stopped: stopped.stopped,
         pid: stopped.pid,
+        serverMarkedOffline: stopped.serverMarkedOffline,
     }, 'text');
 }
