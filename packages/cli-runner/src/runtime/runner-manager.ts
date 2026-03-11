@@ -224,6 +224,7 @@ export async function pairRunner(options: PairRunnerOptions): Promise<PairRunner
     const exchanged = await exchangePairingToken({
         pairingToken: options.pairingToken,
         controlPlaneBaseUrl,
+        displayId: localRunnerId,
         label,
         runnerVersion: DEFAULT_RUNNER_VERSION,
     });

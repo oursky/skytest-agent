@@ -12,6 +12,7 @@ export const runnerDeviceStateSchema = z.enum(['ONLINE', 'OFFLINE', 'UNAVAILABLE
 export const runnerProtocolVersionSchema = z.string().trim().min(1).max(40);
 export const runnerVersionSchema = z.string().trim().min(1).max(40);
 export const runnerLabelSchema = z.string().trim().min(1).max(120);
+export const runnerDisplayIdSchema = z.string().trim().regex(/^[a-z0-9]{6}$/);
 export const runnerCapabilitiesSchema = z.array(runnerCapabilitySchema).max(8).default([]);
 
 export const compatibilityMetadataSchema = z.object({
@@ -67,6 +68,7 @@ export const pairingExchangeRequestSchema = z.object({
     pairingToken: z.string().trim().min(1),
     protocolVersion: runnerProtocolVersionSchema,
     runnerVersion: runnerVersionSchema,
+    displayId: runnerDisplayIdSchema,
     label: runnerLabelSchema,
     kind: runnerKindSchema,
     capabilities: runnerCapabilitiesSchema,

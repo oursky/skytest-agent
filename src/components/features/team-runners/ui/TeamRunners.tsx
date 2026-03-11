@@ -11,6 +11,7 @@ interface TeamRunnersProps {
 
 interface TeamRunnerItem {
     id: string;
+    displayId: string;
     label: string;
     kind: string;
     status: string;
@@ -116,12 +117,8 @@ function buildDeviceStatusLabel(device: TeamDeviceItem, t: (key: string) => stri
     return t('device.state.offline');
 }
 
-function resolveRunnerDisplayId(runner: Pick<TeamRunnerItem, 'id' | 'label'>): string {
-    const labelIdMatch = runner.label.match(/-([a-z0-9]{6})$/i);
-    if (labelIdMatch) {
-        return labelIdMatch[1].toLowerCase();
-    }
-    return runner.id.length > 6 ? runner.id.slice(0, 6) : runner.id;
+function resolveRunnerDisplayId(runner: Pick<TeamRunnerItem, 'id' | 'displayId'>): string {
+    return runner.displayId;
 }
 
 function buildRunnerTroubleshootingCommands(runnerDisplayId: string): string {
