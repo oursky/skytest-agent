@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { useI18n } from '@/i18n';
 import type { ConfigItem, ConfigType } from '@/types';
+import { compareByGroupThenName } from '@/lib/config/sort';
 import { getConfigTypeTitleKey } from '@/components/features/configurations/model/config-utils';
-import { randomStringGenerationLabel, sortConfigs } from '../model/config-helpers';
+import { randomStringGenerationLabel, TYPE_ORDER } from '../model/config-helpers';
 
 interface ProjectVariablesSummaryProps {
     projectId?: string;
@@ -27,20 +28,14 @@ export default function ProjectVariablesSummary({
 }: ProjectVariablesSummaryProps) {
     const { t } = useI18n();
     const overriddenNames = new Set(testCaseConfigs.map((config) => config.name));
-    const sortedProjectConfigs = sortConfigs(projectConfigs);
-
-    const renderConfigsByType = (configs: ConfigItem[], renderItem: (config: ConfigItem, type: ConfigType) => React.ReactNode) => {
-        let lastType: ConfigType | null = null;
-        const elements: React.ReactNode[] = [];
-        for (const config of configs) {
-            if (config.type !== lastType) {
-                elements.push(<TypeSubHeader key={`header-${config.type}-${config.id}`} type={config.type} t={t} />);
-                lastType = config.type;
-            }
-            elements.push(renderItem(config, config.type));
-        }
-        return elements;
-    };
+    const groupedByType = TYPE_ORDER
+        .map((type) => ({
+            type,
+            items: projectConfigs
+                .filter((config) => config.type === type)
+                .sort(compareByGroupThenName),
+        }))
+        .filter((group) => group.items.length > 0);
 
     return (
         <div className="px-4 py-3">
@@ -57,18 +52,29 @@ export default function ProjectVariablesSummary({
             </div>
             {projectConfigs.length > 0 ? (
                 <div className="space-y-0.5">
-                    {renderConfigsByType(sortedProjectConfigs, (config) => (
-                        <div
-                            key={config.id}
-                            className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm ${overriddenNames.has(config.name) ? 'opacity-50 line-through' : ''}`}
-                        >
-                            <code className="font-mono text-gray-800 text-xs">{config.name}</code>
-                            <span className="text-gray-400 text-xs truncate">
-                                {config.masked ? '••••••' : config.type === 'FILE' ? (config.filename || config.value) : config.type === 'RANDOM_STRING' ? randomStringGenerationLabel(config.value, t) : config.value}
-                            </span>
-                            {config.group && (
-                                <span className="text-[10px] text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded uppercase">{config.group}</span>
-                            )}
+                    {groupedByType.map(({ type, items }) => (
+                        <div key={type}>
+                            <TypeSubHeader type={type as ConfigType} t={t} />
+                            {items.map((config) => (
+                                <div
+                                    key={config.id}
+                                    className={`flex items-center gap-2 rounded px-2 py-1.5 text-sm ${overriddenNames.has(config.name) ? 'opacity-50 line-through' : ''}`}
+                                >
+                                    {config.group && (
+                                        <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase text-gray-600">{config.group}</span>
+                                    )}
+                                    <code className="font-mono text-xs text-gray-800">{config.name}</code>
+                                    <span className="truncate text-xs text-gray-400">
+                                        {config.masked
+                                            ? '••••••'
+                                            : config.type === 'FILE'
+                                                ? (config.filename || config.value)
+                                                : config.type === 'RANDOM_STRING'
+                                                    ? randomStringGenerationLabel(config.value, t)
+                                                    : config.value}
+                                    </span>
+                                </div>
+                            ))}
                         </div>
                     ))}
                 </div>

@@ -3,6 +3,7 @@
 import { compareByGroupThenName } from '@/lib/config/sort';
 import { useI18n } from '@/i18n';
 import type { ConfigItem, ConfigType } from '@/types';
+import { CenteredLoading } from '@/components/shared';
 import GroupSelectInput from '@/components/features/configurations/ui/GroupSelectInput';
 import ConfigHints from '@/components/features/configurations/ui/ConfigHints';
 import ConfigInlineEditor from './ConfigInlineEditor';
@@ -45,11 +46,7 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
     } = useProjectConfigs(projectId);
 
     if (isLoading) {
-        return (
-            <div className="flex items-center justify-center py-16">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        );
+        return <CenteredLoading className="py-16" />;
     }
 
     return (
@@ -109,11 +106,11 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                 return (
                                     <div key={item.id} className="flex items-center justify-between px-4 py-3 hover:bg-gray-50">
                                         <div className="flex items-center gap-3 min-w-0 flex-1">
-                                            <code className="text-sm font-mono text-gray-800 font-medium">{item.name}</code>
-                                            <span className="text-sm text-gray-500 truncate">{buildConfigDisplayValue(item)}</span>
                                             {item.group && (
                                                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 uppercase">{item.group}</span>
                                             )}
+                                            <code className="text-sm font-mono text-gray-800 font-medium">{item.name}</code>
+                                            <span className="text-sm text-gray-500 truncate">{buildConfigDisplayValue(item)}</span>
                                         </div>
                                         <div className="flex items-center gap-1">
                                             {type === 'FILE' ? (

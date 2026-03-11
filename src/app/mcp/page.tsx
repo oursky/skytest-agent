@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../auth-provider';
-import { Modal } from '@/components/shared';
+import { Button, CopyableCodeBlock, DangerTextButton, LoadingSpinner, Modal } from '@/components/shared';
 import { useI18n } from '@/i18n';
 import { formatDateTime } from '@/utils/dateFormatter';
 
@@ -163,7 +163,11 @@ export default function McpPage() {
 }`, [mcpEndpoint]);
 
     if (isAuthLoading || isLoading) {
-        return <div className="min-h-screen flex items-center justify-center text-gray-500">{t('common.loading')}</div>;
+        return (
+            <div className="min-h-screen flex items-center justify-center text-gray-500">
+                <LoadingSpinner size={24} />
+            </div>
+        );
     }
 
     return (
@@ -199,12 +203,13 @@ export default function McpPage() {
                             <p className="text-xs text-yellow-700 mb-2">{t('usage.agentKeys.created.warning')}</p>
                             <div className="flex items-center gap-2">
                                 <code className="flex-1 text-xs text-gray-800 bg-white border border-yellow-300 px-3 py-2 rounded break-all">{generatedKey}</code>
-                                <button
+                                <Button
                                     onClick={handleCopyGeneratedKey}
-                                    className="shrink-0 px-3 py-2 text-xs bg-yellow-600 text-white rounded hover:bg-yellow-700"
+                                    size="xs"
+                                    className="shrink-0 border-0 bg-yellow-600 text-white hover:bg-yellow-700"
                                 >
                                     {isGeneratedKeyCopied ? t('usage.agentKeys.created.copied') : t('common.copy')}
-                                </button>
+                                </Button>
                             </div>
                         </div>
                     )}
@@ -214,17 +219,24 @@ export default function McpPage() {
                             type="text"
                             value={newKeyName}
                             onChange={(e) => setNewKeyName(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === 'Enter') handleGenerateAgentKey(); }}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    void handleGenerateAgentKey();
+                                }
+                            }}
                             placeholder={t('usage.agentKeys.name.placeholder')}
                             className="w-72 px-3 py-2 text-sm bg-white border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
-                        <button
+                        <Button
                             onClick={handleGenerateAgentKey}
                             disabled={isGenerating || !newKeyName.trim()}
-                            className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                            variant="primary"
+                            size="sm"
+                            className="bg-blue-600 hover:bg-blue-700"
                         >
                             {t('usage.agentKeys.generate')}
-                        </button>
+                        </Button>
                     </div>
 
                     {agentKeys.length === 0 ? (
@@ -251,12 +263,13 @@ export default function McpPage() {
                                             </td>
                                             <td className="px-4 py-3 text-sm text-gray-500">{formatDateTime(key.createdAt)}</td>
                                             <td className="px-4 py-3 text-right">
-                                                <button
+                                                <DangerTextButton
                                                     onClick={() => { setKeyToRevoke(key); setIsRevokeModalOpen(true); }}
-                                                    className="text-sm text-red-600 hover:text-red-800"
+                                                    size="sm"
+                                                    tone="strong"
                                                 >
                                                     {t('usage.agentKeys.revoke')}
-                                                </button>
+                                                </DangerTextButton>
                                             </td>
                                         </tr>
                                     ))}
@@ -279,56 +292,27 @@ export default function McpPage() {
                     </div>
 
                     <p className="text-sm text-gray-500 mb-2">{t('mcp.connection.aiAgent.configExample')}</p>
-                    <div className="relative">
-                        <button
-                            onClick={handleCopyConfigExample}
-                            aria-label={isConfigCopied ? t('usage.agentKeys.created.copied') : t('common.copy')}
-                            title={isConfigCopied ? t('usage.agentKeys.created.copied') : t('common.copy')}
-                            className="absolute top-2 right-2 z-10 h-7 w-7 flex items-center justify-center text-gray-600 bg-white border border-gray-300 rounded hover:bg-gray-100"
-                        >
-                            {isConfigCopied ? (
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                </svg>
-                            ) : (
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                                    <rect x="9" y="9" width="10" height="10" rx="2" strokeWidth="2" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 15H6a2 2 0 01-2-2V6a2 2 0 012-2h7a2 2 0 012 2v1" />
-                                </svg>
-                            )}
-                        </button>
-                        <pre className="bg-gray-50 text-gray-800 text-xs rounded border border-gray-200 p-3 overflow-x-auto">
-                            <code>{configExample}</code>
-                        </pre>
-                    </div>
+                    <CopyableCodeBlock
+                        code={configExample}
+                        copied={isConfigCopied}
+                        onCopy={() => void handleCopyConfigExample()}
+                        copyLabel={t('common.copy')}
+                        copiedLabel={t('usage.agentKeys.created.copied')}
+                    />
 
                 </div>
 
                 <div className="mt-6 bg-white rounded-lg border border-gray-200 p-5 space-y-3">
                     <h2 className="text-lg font-semibold text-gray-800 mb-4">{t('mcp.connection.skillInstall.title')}</h2>
                     <p className="text-sm text-gray-600">{t('mcp.connection.skillInstall.summary')}</p>
-                    <div className="relative">
-                        <button
-                            onClick={handleCopyInstallPrompt}
-                            aria-label={isInstallCommandCopied ? t('usage.agentKeys.created.copied') : t('common.copy')}
-                            title={isInstallCommandCopied ? t('usage.agentKeys.created.copied') : t('common.copy')}
-                            className="absolute top-2 right-2 z-10 h-7 w-7 flex items-center justify-center text-gray-600 bg-white border border-gray-300 rounded hover:bg-gray-100"
-                        >
-                            {isInstallCommandCopied ? (
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                </svg>
-                            ) : (
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                                    <rect x="9" y="9" width="10" height="10" rx="2" strokeWidth="2" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 15H6a2 2 0 01-2-2V6a2 2 0 012-2h7a2 2 0 012 2v1" />
-                                </svg>
-                            )}
-                        </button>
-                        <pre className="bg-gray-50 text-gray-800 text-xs rounded border border-gray-200 p-3 whitespace-pre-wrap break-words">
-                            <code>{skillInstallPrompt}</code>
-                        </pre>
-                    </div>
+                    <CopyableCodeBlock
+                        code={skillInstallPrompt}
+                        copied={isInstallCommandCopied}
+                        onCopy={() => void handleCopyInstallPrompt()}
+                        copyLabel={t('common.copy')}
+                        copiedLabel={t('usage.agentKeys.created.copied')}
+                        preClassName="whitespace-pre-wrap break-words"
+                    />
                 </div>
             </div>
         </main>

@@ -38,7 +38,7 @@ interface UseProjectConfigsResult {
     handleDelete: (configId: string) => Promise<void>;
     handleDownload: (config: ConfigItem) => Promise<void>;
     handleFileUploadSave: (draft?: ProjectConfigFileUploadDraft | null) => Promise<void>;
-    handleConfigEditorKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
+    handleConfigEditorKeyDown: (event: KeyboardEvent<HTMLInputElement | HTMLSelectElement>) => void;
     startAdd: (type: ConfigType) => void;
     startEdit: (config: ConfigItem) => void;
 }
@@ -256,7 +256,7 @@ export function useProjectConfigs(projectId: string): UseProjectConfigsResult {
         }
     }, [configs, fileUploadDraft, fetchConfigs, getAccessToken, projectId, t]);
 
-    const handleConfigEditorKeyDown = useCallback((event: KeyboardEvent<HTMLInputElement>) => {
+    const handleConfigEditorKeyDown = useCallback((event: KeyboardEvent<HTMLInputElement | HTMLSelectElement>) => {
         if (event.key !== 'Enter') {
             return;
         }

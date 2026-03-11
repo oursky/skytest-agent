@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from './auth-provider';
 import { useI18n } from '@/i18n';
+import { Button, CenteredLoading } from '@/components/shared';
 
 export default function Home() {
   const { login, isLoggedIn, isLoading } = useAuth();
@@ -17,11 +18,7 @@ export default function Home() {
   }, [isLoggedIn, isLoading, router]);
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
+    return <CenteredLoading className="min-h-screen" />;
   }
 
   if (isLoggedIn) {
@@ -39,12 +36,14 @@ export default function Home() {
           <p className="text-xl text-gray-600 mb-6 max-w-2xl mx-auto">
             {t('landing.subtitle')}
           </p>
-          <button
+          <Button
             onClick={() => login()}
-            className="px-8 py-3 text-base font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+            variant="primary"
+            size="md"
+            className="h-auto rounded-lg px-8 py-3 text-base"
           >
             {t('landing.loginToStart')}
-          </button>
+          </Button>
         </div>
       </section>
 
@@ -186,12 +185,14 @@ export default function Home() {
             {t('landing.cta.title')}
           </h2>
           <p className="text-gray-600 mb-6">{t('landing.cta.subtitle')}</p>
-          <button
+          <Button
             onClick={() => login()}
-            className="px-8 py-3 text-base font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+            variant="primary"
+            size="md"
+            className="h-auto rounded-lg px-8 py-3 text-base"
           >
             {t('landing.cta.getStarted')}
-          </button>
+          </Button>
         </div>
       </section>
 

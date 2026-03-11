@@ -4,12 +4,13 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../auth-provider";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Modal } from "@/components/shared";
+import { Button, CenteredLoading, Modal } from "@/components/shared";
 import { formatDateTime } from "@/utils/dateFormatter";
 import { useProjects } from "@/hooks/useProjects";
-import { dispatchTeamsChanged, useTeams } from "@/hooks/useTeams";
+import { useTeams } from "@/hooks/useTeams";
 import { useCurrentTeam } from "@/hooks/useCurrentTeam";
 import { useI18n } from "@/i18n";
+import { useCreateTeam } from "@/hooks/useCreateTeam";
 
 export default function ProjectsPage() {
     const { isLoggedIn, isLoading: isAuthLoading, getAccessToken } = useAuth();
@@ -23,6 +24,11 @@ export default function ProjectsPage() {
         loading: isCurrentTeamLoading,
         setCurrentTeam,
     } = useCurrentTeam(getAccessToken, isLoggedIn);
+    const { createTeam } = useCreateTeam({
+        getAccessToken,
+        refreshTeams,
+        setCurrentTeam,
+    });
     const requestedTeamId = searchParams.get('teamId')?.trim() || '';
     const hasRequestedTeam = requestedTeamId.length > 0 && teams.some((team) => team.id === requestedTeamId);
     const effectiveTeamId = selectedTeam?.id || (hasRequestedTeam ? requestedTeamId : '');
@@ -111,32 +117,14 @@ export default function ProjectsPage() {
         e.preventDefault();
         if (!newTeamName.trim()) return;
 
-        try {
-            const token = await getAccessToken();
-            const response = await fetch('/api/teams', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(token ? { Authorization: `Bearer ${token}` } : {})
-                },
-                body: JSON.stringify({ name: newTeamName })
-            });
-
-            if (!response.ok) {
-                const data = await response.json().catch(() => ({ error: t('projects.team.createError') }));
-                setTeamError(data.error || t('projects.team.createError'));
-                return;
-            }
-
-            const team = await response.json() as { id: string };
-            dispatchTeamsChanged();
-            await refreshTeams();
-            await setCurrentTeam(team.id);
-            setNewTeamName('');
-            setTeamError('');
-        } catch {
-            setTeamError(t('projects.team.createError'));
+        const result = await createTeam(newTeamName, t('projects.team.createError'));
+        if (!result.teamId) {
+            setTeamError(result.error || t('projects.team.createError'));
+            return;
         }
+
+        setNewTeamName('');
+        setTeamError('');
     };
 
     const handleDeleteProject = async () => {
@@ -200,11 +188,7 @@ export default function ProjectsPage() {
         || (shouldLoadProjects && isProjectsLoading);
 
     if (isPageLoading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        );
+        return <CenteredLoading className="min-h-screen" />;
     }
 
     return (
@@ -277,24 +261,26 @@ export default function ProjectsPage() {
                     </label>
                     {createError && <p className="text-sm text-red-600">{createError}</p>}
                     <div className="flex justify-end gap-3 pt-4">
-                        <button
+                        <Button
                             type="button"
                             onClick={() => {
                                 setIsCreating(false);
                                 setNewProjectName("");
                                 setCreateError("");
                             }}
-                            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                            variant="secondary"
+                            size="sm"
                         >
                             {t('projects.cancel')}
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                             type="submit"
                             disabled={!newProjectName.trim() || !effectiveTeamId}
-                            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
+                            variant="primary"
+                            size="sm"
                         >
                             {t('projects.create')}
-                        </button>
+                        </Button>
                     </div>
                 </form>
             </Modal>
@@ -303,12 +289,13 @@ export default function ProjectsPage() {
                 <div className="flex justify-between items-center mb-8">
                     <h1 className="text-3xl font-bold text-gray-900">{t('projects.title')}</h1>
                     {teams.length > 0 && canManageProjects && (
-                        <button
+                        <Button
                             onClick={() => setIsCreating(true)}
-                            className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
+                            variant="primary"
+                            size="sm"
                         >
                             {t('projects.newProject')}
-                        </button>
+                        </Button>
                     )}
                 </div>
 
@@ -324,13 +311,14 @@ export default function ProjectsPage() {
                                 placeholder={t('projects.team.placeholder')}
                                 className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50"
                             />
-                            <button
+                            <Button
                                 type="submit"
                                 disabled={!newTeamName.trim()}
-                                className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 disabled:opacity-50"
+                                variant="primary"
+                                size="sm"
                             >
                                 {t('projects.team.create')}
-                            </button>
+                            </Button>
                         </form>
                         {teamError && <p className="text-red-500 text-sm mt-2">{teamError}</p>}
                     </div>
@@ -410,15 +398,17 @@ export default function ProjectsPage() {
                         <h3 className="text-lg font-semibold text-gray-900 mb-2">{t('projects.noProjects.title')}</h3>
                         <p className="text-gray-500 mb-6">{t('projects.noProjects.subtitle')}</p>
                         {canManageProjects && (
-                            <button
+                            <Button
                                 onClick={() => setIsCreating(true)}
-                                className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors inline-flex items-center gap-2"
+                                variant="primary"
+                                size="sm"
+                                className="inline-flex items-center gap-2"
                             >
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                                 </svg>
                                 {t('projects.noProjects.create')}
-                            </button>
+                            </Button>
                         )}
                     </div>
                 )}

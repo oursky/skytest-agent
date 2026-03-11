@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/app/auth-provider';
-import { Modal } from '@/components/shared';
+import { Button, CenteredLoading, Modal, UnderlineTabs } from '@/components/shared';
 import TeamAiSettings from '@/components/features/team-ai/ui/TeamAiSettings';
 import TeamMembers from '@/components/features/team-members/ui/TeamMembers';
 import TeamUsage from '@/components/features/team-usage/ui/TeamUsage';
@@ -135,6 +135,12 @@ export default function TeamsPage() {
     const visibleTab = activeTab === 'settings' && !canAccessSettings
         ? 'api'
         : activeTab;
+    const tabItems = [
+        { id: 'api' as const, label: t('team.page.tab.api') },
+        { id: 'members' as const, label: t('team.page.tab.members') },
+        { id: 'runners' as const, label: t('team.page.tab.runners') },
+        { id: 'settings' as const, label: t('team.page.tab.settings'), hidden: !canAccessSettings },
+    ];
 
     const handleTabChange = useCallback((tab: TeamTab) => {
         const params = new URLSearchParams(searchParams.toString());
@@ -282,11 +288,7 @@ export default function TeamsPage() {
     }, [currentTeam, loadTeamDetails, refreshTeams]);
 
     if (isAuthLoading || areTeamsLoading || isCurrentTeamLoading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center">
-                <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary"></div>
-            </div>
-        );
+        return <CenteredLoading className="min-h-screen" />;
     }
 
     return (
@@ -356,51 +358,12 @@ export default function TeamsPage() {
 
                 {currentTeam && teamDetails?.id === currentTeam.id && (
                     <>
-                        <div className="border-b border-gray-200 mb-6">
-                            <nav className="flex gap-6 -mb-px">
-                                <button
-                                    type="button"
-                                    onClick={() => handleTabChange('api')}
-                                    className={`pb-3 text-sm font-medium border-b-2 transition-colors ${visibleTab === 'api'
-                                        ? 'border-primary text-primary'
-                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                    }`}
-                                >
-                                    {t('team.page.tab.api')}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => handleTabChange('members')}
-                                    className={`pb-3 text-sm font-medium border-b-2 transition-colors ${visibleTab === 'members'
-                                        ? 'border-primary text-primary'
-                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                    }`}
-                                >
-                                    {t('team.page.tab.members')}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => handleTabChange('runners')}
-                                    className={`pb-3 text-sm font-medium border-b-2 transition-colors ${visibleTab === 'runners'
-                                        ? 'border-primary text-primary'
-                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                    }`}
-                                >
-                                    {t('team.page.tab.runners')}
-                                </button>
-                                {canAccessSettings && (
-                                    <button
-                                        type="button"
-                                        onClick={() => handleTabChange('settings')}
-                                        className={`pb-3 text-sm font-medium border-b-2 transition-colors ${visibleTab === 'settings'
-                                            ? 'border-primary text-primary'
-                                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                        }`}
-                                    >
-                                        {t('team.page.tab.settings')}
-                                    </button>
-                                )}
-                            </nav>
+                        <div className="mb-6">
+                            <UnderlineTabs
+                                tabs={tabItems}
+                                activeTab={visibleTab}
+                                onChange={handleTabChange}
+                            />
                         </div>
 
                         {visibleTab === 'api' && (
@@ -430,38 +393,44 @@ export default function TeamsPage() {
                                             type="text"
                                             value={renameValue}
                                             onChange={(event) => setRenameValue(event.target.value)}
+                                            onKeyDown={(event) => {
+                                                if (event.key === 'Enter' && isEditingSettings && teamDetails.canRename) {
+                                                    event.preventDefault();
+                                                    void renameTeam();
+                                                }
+                                            }}
                                             disabled={!teamDetails.canRename || !isEditingSettings}
                                             className="h-10 w-full max-w-sm rounded-md border border-gray-300 px-4 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:bg-gray-50"
                                         />
                                         {teamDetails.canRename && (
                                             isEditingSettings ? (
                                                 <div className="flex gap-2">
-                                                    <button
-                                                        type="button"
+                                                    <Button
                                                         onClick={() => void renameTeam()}
-                                                        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+                                                        variant="primary"
+                                                        size="sm"
                                                     >
                                                         {t('team.page.settings.save')}
-                                                    </button>
-                                                    <button
-                                                        type="button"
+                                                    </Button>
+                                                    <Button
                                                         onClick={() => {
                                                             setRenameValue(teamDetails.name);
                                                             setIsEditingSettings(false);
                                                         }}
-                                                        className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                                        variant="secondary"
+                                                        size="sm"
                                                     >
                                                         {t('common.cancel')}
-                                                    </button>
+                                                    </Button>
                                                 </div>
                                             ) : (
-                                                <button
-                                                    type="button"
+                                                <Button
                                                     onClick={() => setIsEditingSettings(true)}
-                                                    className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                                    variant="secondary"
+                                                    size="sm"
                                                 >
                                                     {t('team.page.settings.edit')}
-                                                </button>
+                                                </Button>
                                             )
                                         )}
                                     </div>
@@ -489,14 +458,15 @@ export default function TeamsPage() {
                                                 <p className="text-sm text-red-600">{transferEmailError}</p>
                                             )}
                                         </div>
-                                        <button
-                                            type="button"
+                                        <Button
                                             onClick={openTransferDialog}
                                             disabled={eligibleTransferCandidates.length === 0}
-                                            className="mt-3 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                                            variant="danger"
+                                            size="sm"
+                                            className="mt-3"
                                         >
                                             {t('team.page.transfer.confirm')}
-                                        </button>
+                                        </Button>
                                         {eligibleTransferCandidates.length === 0 && (
                                             <p className="mt-2 text-sm text-gray-500">{t('team.page.transfer.noEligibleMembers')}</p>
                                         )}
@@ -507,13 +477,14 @@ export default function TeamsPage() {
                                     <section className="rounded-lg border border-red-200 bg-red-50 p-6 shadow-sm">
                                         <h2 className="text-base font-semibold text-red-700">{t('team.page.delete.zoneTitle')}</h2>
                                         <p className="mt-1 text-sm text-red-600">{t('team.page.delete.zoneSubtitle')}</p>
-                                        <button
-                                            type="button"
+                                        <Button
                                             onClick={() => setIsDeleteOpen(true)}
-                                            className="mt-4 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                                            variant="danger"
+                                            size="sm"
+                                            className="mt-4"
                                         >
                                             {t('team.page.delete.open')}
-                                        </button>
+                                        </Button>
                                     </section>
                                 )}
                             </div>

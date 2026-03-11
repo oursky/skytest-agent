@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/app/auth-provider';
-import { Modal } from '@/components/shared';
+import { Button, DangerTextButton, LoadingSpinner, Modal } from '@/components/shared';
 import { useI18n } from '@/i18n';
 import { formatDateTimeCompact } from '@/utils/dateFormatter';
 
@@ -132,7 +132,7 @@ export default function TeamMembers({ teamId, onMembersChanged }: TeamMembersPro
     if (isLoading) {
         return (
             <div className="flex items-center justify-center py-16">
-                <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary"></div>
+                <LoadingSpinner size={32} />
             </div>
         );
     }
@@ -181,13 +181,14 @@ export default function TeamMembers({ teamId, onMembersChanged }: TeamMembersPro
                     <p className="mt-1 text-sm text-gray-500">{t('team.members.subtitle')}</p>
                 </div>
                 {canManage && (
-                    <button
-                        type="button"
+                    <Button
                         onClick={() => setIsAddModalOpen(true)}
-                        className="shrink-0 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+                        variant="primary"
+                        size="sm"
+                        className="shrink-0"
                     >
                         {t('team.members.add.open')}
-                    </button>
+                    </Button>
                 )}
             </div>
 
@@ -202,7 +203,7 @@ export default function TeamMembers({ teamId, onMembersChanged }: TeamMembersPro
                                     <th className="px-4 py-2.5">{t('team.members.table.person')}</th>
                                     <th className="px-4 py-2.5">{t('team.members.table.role')}</th>
                                     <th className="px-4 py-2.5">{t('team.members.table.dateAdded')}</th>
-                                    <th className="px-4 py-2.5 text-right">{t('team.members.table.actions')}</th>
+                                    <th className="w-32 px-4 py-2.5 text-right">{t('team.members.table.actions')}</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100 text-gray-700">
@@ -226,22 +227,19 @@ export default function TeamMembers({ teamId, onMembersChanged }: TeamMembersPro
                                         <td className="px-4 py-3 align-middle text-sm text-gray-500">
                                             {formatDateTimeCompact(member.createdAt)}
                                         </td>
-                                        <td className="px-4 py-3 align-middle">
-                                            <div className="flex min-h-8 items-center justify-end gap-2">
-                                                {member.role === 'OWNER' ? (
-                                                    <span className="text-xs text-gray-400">{t('team.members.readOnly')}</span>
-                                                ) : canManage ? (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setMemberToRemove(member)}
-                                                        className="text-sm font-medium text-red-600 hover:text-red-700"
-                                                    >
-                                                        {t('common.remove')}
-                                                    </button>
-                                                ) : (
-                                                    <span className="text-xs text-gray-400">{t('team.members.readOnly')}</span>
-                                                )}
-                                            </div>
+                                        <td className="w-32 px-4 py-3 align-middle text-right whitespace-nowrap">
+                                            {member.role === 'OWNER' ? (
+                                                <span className="text-sm font-normal text-gray-400">{t('team.members.readOnly')}</span>
+                                            ) : canManage ? (
+                                                <DangerTextButton
+                                                    onClick={() => setMemberToRemove(member)}
+                                                    size="sm"
+                                                >
+                                                    {t('common.remove')}
+                                                </DangerTextButton>
+                                            ) : (
+                                                <span className="text-sm font-normal text-gray-400">{t('team.members.readOnly')}</span>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}

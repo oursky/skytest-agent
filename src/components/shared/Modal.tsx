@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useI18n } from '@/i18n';
+import Button from './Button';
 
 interface ModalProps {
     isOpen: boolean;
@@ -38,25 +39,42 @@ export default function Modal({
     contentClassName = '',
 }: ModalProps) {
     const { t } = useI18n();
-    const modalRef = useRef<HTMLDivElement>(null);
+    const handleConfirm = useCallback(() => {
+        if (!onConfirm || confirmDisabled) {
+            return;
+        }
+
+        onConfirm();
+        if (closeOnConfirm) {
+            onClose();
+        }
+    }, [closeOnConfirm, confirmDisabled, onClose, onConfirm]);
 
     useEffect(() => {
-        const handleEscape = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' && isOpen) {
-                onClose();
+        const handleEnterToConfirm = (e: KeyboardEvent) => {
+            if (
+                e.key === 'Enter'
+                && isOpen
+                && confirmVariant === 'primary'
+                && !e.defaultPrevented
+                && !e.isComposing
+                && e.target instanceof HTMLInputElement
+            ) {
+                e.preventDefault();
+                handleConfirm();
             }
         };
 
         if (isOpen) {
-            document.addEventListener('keydown', handleEscape);
+            document.addEventListener('keydown', handleEnterToConfirm);
             document.body.style.overflow = 'hidden';
         }
 
         return () => {
-            document.removeEventListener('keydown', handleEscape);
+            document.removeEventListener('keydown', handleEnterToConfirm);
             document.body.style.overflow = 'unset';
         };
-    }, [isOpen, onClose]);
+    }, [confirmVariant, handleConfirm, isOpen, onClose]);
 
     const effectiveCancelText = cancelText ?? t('common.cancel');
     const effectiveConfirmText = confirmText ?? t('common.confirm');
@@ -66,14 +84,8 @@ export default function Modal({
     return createPortal(
         <div
             className={`fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-fade-in ${overlayClassName}`}
-            onClick={(e) => {
-                if (e.target === e.currentTarget) {
-                    onClose();
-                }
-            }}
         >
             <div
-                ref={modalRef}
                 className={`flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-lg bg-white shadow-xl ${panelClassName}`}
                 role="dialog"
                 aria-modal="true"
@@ -93,32 +105,22 @@ export default function Modal({
 
                 {showFooter && (
                     <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
-                        <button
+                        <Button
                             onClick={onClose}
-                            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                            variant="secondary"
+                            size="sm"
                         >
                             {effectiveCancelText}
-                        </button>
+                        </Button>
                         {onConfirm && (
-                            <button
-                                onClick={() => {
-                                    if (confirmDisabled) {
-                                        return;
-                                    }
-                                    onConfirm();
-                                    if (closeOnConfirm) {
-                                        onClose();
-                                    }
-                                }}
+                            <Button
+                                onClick={handleConfirm}
                                 disabled={confirmDisabled}
-                                className={`px-4 py-2 text-sm font-medium text-white rounded-md transition-colors ${
-                                    confirmVariant === 'danger'
-                                        ? 'bg-red-600 hover:bg-red-700'
-                                        : 'bg-primary hover:bg-primary/90'
-                                } disabled:cursor-not-allowed disabled:opacity-50`}
+                                variant={confirmVariant === 'danger' ? 'danger' : 'primary'}
+                                size="sm"
                             >
                                 {effectiveConfirmText}
-                            </button>
+                            </Button>
                         )}
                     </div>
                 )}

@@ -3,10 +3,11 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/auth-provider';
-import { CustomSelect, Modal } from '@/components/shared';
+import { Button, CustomSelect, Modal } from '@/components/shared';
 import { LOCALE_META, Locale, useI18n } from '@/i18n';
-import { dispatchTeamsChanged, useTeams } from '@/hooks/useTeams';
+import { useTeams } from '@/hooks/useTeams';
 import { useCurrentTeam } from '@/hooks/useCurrentTeam';
+import { useCreateTeam } from '@/hooks/useCreateTeam';
 
 export default function Header() {
     const { isLoggedIn, isLoading: isAuthLoading, user, logout, openSettings, login, getAccessToken } = useAuth();
@@ -20,7 +21,11 @@ export default function Header() {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isCreateTeamOpen, setIsCreateTeamOpen] = useState(false);
     const [newTeamName, setNewTeamName] = useState('');
-    const [isCreateTeamSubmitting, setIsCreateTeamSubmitting] = useState(false);
+    const { createTeam, isSubmitting: isCreateTeamSubmitting } = useCreateTeam({
+        getAccessToken,
+        refreshTeams,
+        setCurrentTeam,
+    });
 
     useEffect(() => {
         const closeDropdown = () => {
@@ -47,40 +52,21 @@ export default function Header() {
         }
     };
 
-    const createTeam = async (event: FormEvent<HTMLFormElement>) => {
+    const handleCreateTeamSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         if (!newTeamName.trim()) {
             return;
         }
 
-        try {
-            setIsCreateTeamSubmitting(true);
-            const token = await getAccessToken();
-            const response = await fetch('/api/teams', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                },
-                body: JSON.stringify({ name: newTeamName }),
-            });
-
-            const data = await response.json().catch(() => null);
-            if (!response.ok || !data || typeof data.id !== 'string') {
-                throw new Error('Failed to create team');
-            }
-
-            dispatchTeamsChanged();
-            await refreshTeams();
-            await setCurrentTeam(data.id);
-            setNewTeamName('');
-            setIsCreateTeamOpen(false);
-            router.push(`/projects?teamId=${encodeURIComponent(data.id)}`);
-        } catch (error) {
-            console.error('Failed to create team', error);
-        } finally {
-            setIsCreateTeamSubmitting(false);
+        const result = await createTeam(newTeamName, 'Failed to create team');
+        if (!result.teamId) {
+            console.error(result.error ?? 'Failed to create team');
+            return;
         }
+
+        setNewTeamName('');
+        setIsCreateTeamOpen(false);
+        router.push(`/projects?teamId=${encodeURIComponent(result.teamId)}`);
     };
 
     return (
@@ -96,7 +82,7 @@ export default function Header() {
                 showFooter={false}
                 panelClassName="max-w-lg"
             >
-                <form onSubmit={createTeam} className="space-y-4">
+                <form onSubmit={handleCreateTeamSubmit} className="space-y-4">
                     <label className="block space-y-2">
                         <span className="text-sm font-medium text-gray-700">{t('team.page.settings.name')}</span>
                         <input
@@ -109,23 +95,25 @@ export default function Header() {
                         />
                     </label>
                     <div className="flex justify-end gap-3 pt-4">
-                        <button
+                        <Button
                             type="button"
                             onClick={() => {
                                 setIsCreateTeamOpen(false);
                                 setNewTeamName('');
                             }}
-                            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                            variant="secondary"
+                            size="sm"
                         >
                             {t('common.cancel')}
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                             type="submit"
                             disabled={isCreateTeamSubmitting || !newTeamName.trim()}
-                            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
+                            variant="primary"
+                            size="sm"
                         >
                             {t('team.page.create.confirm')}
-                        </button>
+                        </Button>
                     </div>
                 </form>
             </Modal>
@@ -136,7 +124,7 @@ export default function Header() {
                         <div className="flex items-center gap-4">
                             <button
                                 onClick={handleBrandClick}
-                                className="text-xl font-bold text-blue-600 hover:text-blue-700 transition-colors"
+                                className="cursor-pointer text-xl font-bold text-blue-600 transition-colors hover:text-blue-700"
                             >
                                 SkyTest Agent
                             </button>
@@ -239,13 +227,15 @@ export default function Header() {
                                     </div>
                                 </div>
                             ) : (
-                                <button
+                                <Button
                                     onClick={() => login()}
                                     disabled={isAuthLoading}
-                                    className="h-9 px-3 text-sm font-medium text-blue-600 border border-blue-200 rounded-md hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    variant="secondary"
+                                    size="sm"
+                                    className="border-blue-200 text-blue-600 hover:bg-blue-50"
                                 >
                                     {t('landing.loginToStart')}
-                                </button>
+                                </Button>
                             )}
                         </div>
                     </div>
