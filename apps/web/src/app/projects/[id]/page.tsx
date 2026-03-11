@@ -123,7 +123,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
     useEffect(() => {
         const tab = searchParams.get('tab');
-        if (tab === 'variables' || tab === 'configs') { setActiveTab('variables'); return; }
+        if (tab === 'variables') { setActiveTab('variables'); return; }
         if (tab === 'settings') { setActiveTab('settings'); return; }
         if (tab === 'test-cases') { setActiveTab('test-cases'); }
     }, [searchParams]);
