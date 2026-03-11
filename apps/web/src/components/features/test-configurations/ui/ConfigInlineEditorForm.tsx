@@ -214,14 +214,25 @@ export default function ConfigInlineEditorForm({
                     {renderActionButtons(variant, onSave, onCancel, t)}
                 </div>
             ) : (
-                <div className={`flex gap-3 ${rowAlign}`}>
+                <div className={`flex flex-wrap gap-3 md:flex-nowrap ${rowAlign}`}>
+                    {isGroupableConfigType(type) && (
+                        <GroupSelectInput
+                            value={editState.group}
+                            onChange={(group) => onChange({ ...editState, group })}
+                            options={groupOptions}
+                            onRemoveOption={onRemoveGroup}
+                            placeholder={t('configs.group.select')}
+                            containerClassName="relative w-full md:w-56"
+                            inputClassName="h-9 text-sm"
+                        />
+                    )}
                     <input
                         type="text"
                         value={editState.name}
                         onChange={(event) => onChange({ ...editState, name: event.target.value })}
                         onKeyDown={onKeyDown}
                         placeholder={t('configs.name.placeholder.enter')}
-                        className="flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary"
+                        className={`${isGroupableConfigType(type) ? 'h-9 w-full md:w-56' : 'h-9 flex-1'} rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary`}
                         autoFocus={autoFocus}
                     />
                     <input
@@ -230,20 +241,10 @@ export default function ConfigInlineEditorForm({
                         onChange={(event) => onChange({ ...editState, value: event.target.value })}
                         onKeyDown={onKeyDown}
                         placeholder={type === 'URL' ? t('configs.url.placeholder') : t('configs.value.placeholder')}
-                        className="flex-[2] rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary"
+                        className={`${isGroupableConfigType(type) ? 'h-9 min-w-[220px] flex-1' : 'h-9 flex-[2]'} rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary`}
                     />
                     {renderActionButtons(variant, onSave, onCancel, t)}
                 </div>
-            )}
-            {isGroupableConfigType(type) && type !== 'VARIABLE' && (
-                <GroupSelectInput
-                    value={editState.group}
-                    onChange={(group) => onChange({ ...editState, group })}
-                    options={groupOptions}
-                    onRemoveOption={onRemoveGroup}
-                    placeholder={t('configs.group.select')}
-                    inputClassName="h-9"
-                />
             )}
             {error && <p className="text-xs text-red-500">{error}</p>}
         </div>
