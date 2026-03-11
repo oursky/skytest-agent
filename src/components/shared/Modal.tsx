@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useI18n } from '@/i18n';
 
@@ -38,7 +38,6 @@ export default function Modal({
     contentClassName = '',
 }: ModalProps) {
     const { t } = useI18n();
-    const modalRef = useRef<HTMLDivElement>(null);
     const handleConfirm = useCallback(() => {
         if (!onConfirm || confirmDisabled) {
             return;
@@ -51,12 +50,7 @@ export default function Modal({
     }, [closeOnConfirm, confirmDisabled, onClose, onConfirm]);
 
     useEffect(() => {
-        const handleEscape = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' && isOpen) {
-                onClose();
-                return;
-            }
-
+        const handleEnterToConfirm = (e: KeyboardEvent) => {
             if (
                 e.key === 'Enter'
                 && isOpen
@@ -71,12 +65,12 @@ export default function Modal({
         };
 
         if (isOpen) {
-            document.addEventListener('keydown', handleEscape);
+            document.addEventListener('keydown', handleEnterToConfirm);
             document.body.style.overflow = 'hidden';
         }
 
         return () => {
-            document.removeEventListener('keydown', handleEscape);
+            document.removeEventListener('keydown', handleEnterToConfirm);
             document.body.style.overflow = 'unset';
         };
     }, [confirmVariant, handleConfirm, isOpen, onClose]);
@@ -89,14 +83,8 @@ export default function Modal({
     return createPortal(
         <div
             className={`fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-fade-in ${overlayClassName}`}
-            onClick={(e) => {
-                if (e.target === e.currentTarget) {
-                    onClose();
-                }
-            }}
         >
             <div
-                ref={modalRef}
                 className={`flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-lg bg-white shadow-xl ${panelClassName}`}
                 role="dialog"
                 aria-modal="true"
