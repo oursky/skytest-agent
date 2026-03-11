@@ -12,7 +12,7 @@ It complements `AGENTS.md` with project-specific runtime invariants for the curr
 
 ## High-Risk Runtime Areas
 
-### 1. Runner Orchestration (`src/lib/runners/*`, `src/app/api/runners/v1/*`)
+### 1. Runner Orchestration (`apps/web/src/lib/runners/*`, `apps/web/src/app/api/runners/v1/*`)
 
 Responsibilities:
 
@@ -20,7 +20,7 @@ Responsibilities:
 - claim/lease ownership for queued runs
 - runner heartbeat/device sync
 - ordered event ingestion and terminal run transitions
-- retention and lease maintenance (`src/workers/runner-maintenance.ts`)
+- retention and lease maintenance (`apps/web/src/workers/runner-maintenance.ts`)
 
 Key invariants:
 
@@ -29,7 +29,7 @@ Key invariants:
 - stream token scope checks must remain strict per run/resource
 - maintenance tasks should stay out of Next.js request lifecycle
 
-### 2. Runner Client (`cli-runner/runner/index.ts`)
+### 2. Runner Client (`apps/macos-runner/runner/index.ts`)
 
 Responsibilities:
 
@@ -44,7 +44,7 @@ Key invariants:
 - runner token rotation/expiry behavior must not be bypassed
 - runners must not mutate app installation state automatically
 
-### 3. Execution Engine (`src/lib/runtime/test-runner.ts`)
+### 3. Execution Engine (`apps/web/src/lib/runtime/test-runner.ts`)
 
 Responsibilities:
 
@@ -56,6 +56,24 @@ Key invariants:
 - cleanup must stay idempotent when cancellation races run completion
 - Android device handles must be released via `androidDeviceManager.release(...)`
 - `clearAppState` and permission behavior must remain stable
+
+## Runtime Relationship
+
+- `apps/cli`: operator control plane from terminal (`pair/start/stop/logs/reset`).
+- `apps/macos-runner`: long-running Android execution worker process.
+- `apps/web`: web UI + API control plane + MCP server.
+
+The CLI supervises local runner lifecycle; the macOS runner executes jobs.
+
+## Backend / Frontend / MCP Boundaries
+
+| Boundary | Location | Responsibilities |
+|---|---|---|
+| Frontend | `apps/web/src/app/**`, `apps/web/src/components/**` | App Router pages, UI rendering, client hooks |
+| Web backend | `apps/web/src/app/api/**`, `apps/web/src/lib/**`, `apps/web/src/workers/**` | API auth, queueing, scheduling, persistence, maintenance loops |
+| MCP backend | `apps/web/src/app/api/mcp/route.ts`, `apps/web/src/lib/mcp/**` | MCP transport, tool contracts, tool execution |
+| Operator backend | `apps/cli/**` | Human-operated runtime control commands |
+| Runner backend | `apps/macos-runner/**` | Runner register/heartbeat/claim/execute/event/artifact flows |
 
 ## Control Plane Constraints
 

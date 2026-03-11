@@ -70,7 +70,7 @@ For connected physical devices, the same app-specific cleanup toggle semantics a
 
 - Control plane stores runs as `QUEUED` and runners claim with long-poll.
 - Explicit-device runs can be claimed only by the runner that currently owns/publishes that device.
-- Lease expiry recovery, event retention, and run artifact soft/hard retention run in `src/workers/runner-maintenance.ts`.
+- Lease expiry recovery, event retention, and run artifact soft/hard retention run in `apps/web/src/workers/runner-maintenance.ts`.
 
 ## Copy Log Behavior
 
