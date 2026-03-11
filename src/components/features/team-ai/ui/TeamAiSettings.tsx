@@ -146,6 +146,12 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
                         type="password"
                         value={apiKey}
                         onChange={(event) => setApiKey(event.target.value)}
+                        onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                                event.preventDefault();
+                                void saveKey();
+                            }
+                        }}
                         placeholder={t('team.ai.placeholder')}
                         className="min-w-0 flex-1 rounded-md border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
                     />

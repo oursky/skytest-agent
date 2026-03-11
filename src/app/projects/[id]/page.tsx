@@ -844,6 +844,12 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                                     setSettingsError('');
                                     setSettingsSuccess('');
                                 }}
+                                onKeyDown={(event) => {
+                                    if (event.key === 'Enter' && project.canManageProject && !isSavingSettings) {
+                                        event.preventDefault();
+                                        void handleSaveProjectSettings();
+                                    }
+                                }}
                                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
                             />
                             <p className="text-xs text-gray-500">

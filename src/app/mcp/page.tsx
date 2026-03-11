@@ -214,7 +214,12 @@ export default function McpPage() {
                             type="text"
                             value={newKeyName}
                             onChange={(e) => setNewKeyName(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === 'Enter') handleGenerateAgentKey(); }}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    void handleGenerateAgentKey();
+                                }
+                            }}
                             placeholder={t('usage.agentKeys.name.placeholder')}
                             className="w-72 px-3 py-2 text-sm bg-white border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />

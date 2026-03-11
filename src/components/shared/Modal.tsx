@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useI18n } from '@/i18n';
 
@@ -39,11 +39,34 @@ export default function Modal({
 }: ModalProps) {
     const { t } = useI18n();
     const modalRef = useRef<HTMLDivElement>(null);
+    const handleConfirm = useCallback(() => {
+        if (!onConfirm || confirmDisabled) {
+            return;
+        }
+
+        onConfirm();
+        if (closeOnConfirm) {
+            onClose();
+        }
+    }, [closeOnConfirm, confirmDisabled, onClose, onConfirm]);
 
     useEffect(() => {
         const handleEscape = (e: KeyboardEvent) => {
             if (e.key === 'Escape' && isOpen) {
                 onClose();
+                return;
+            }
+
+            if (
+                e.key === 'Enter'
+                && isOpen
+                && confirmVariant === 'primary'
+                && !e.defaultPrevented
+                && !e.isComposing
+                && e.target instanceof HTMLInputElement
+            ) {
+                e.preventDefault();
+                handleConfirm();
             }
         };
 
@@ -56,7 +79,7 @@ export default function Modal({
             document.removeEventListener('keydown', handleEscape);
             document.body.style.overflow = 'unset';
         };
-    }, [isOpen, onClose]);
+    }, [confirmVariant, handleConfirm, isOpen, onClose]);
 
     const effectiveCancelText = cancelText ?? t('common.cancel');
     const effectiveConfirmText = confirmText ?? t('common.confirm');
@@ -101,15 +124,7 @@ export default function Modal({
                         </button>
                         {onConfirm && (
                             <button
-                                onClick={() => {
-                                    if (confirmDisabled) {
-                                        return;
-                                    }
-                                    onConfirm();
-                                    if (closeOnConfirm) {
-                                        onClose();
-                                    }
-                                }}
+                                onClick={handleConfirm}
                                 disabled={confirmDisabled}
                                 className={`px-4 py-2 text-sm font-medium text-white rounded-md transition-colors ${
                                     confirmVariant === 'danger'

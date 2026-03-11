@@ -430,6 +430,12 @@ export default function TeamsPage() {
                                             type="text"
                                             value={renameValue}
                                             onChange={(event) => setRenameValue(event.target.value)}
+                                            onKeyDown={(event) => {
+                                                if (event.key === 'Enter' && isEditingSettings && teamDetails.canRename) {
+                                                    event.preventDefault();
+                                                    void renameTeam();
+                                                }
+                                            }}
                                             disabled={!teamDetails.canRename || !isEditingSettings}
                                             className="h-10 w-full max-w-sm rounded-md border border-gray-300 px-4 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:bg-gray-50"
                                         />
