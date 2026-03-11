@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, use } from "react";
 import { useAuth } from "../../../auth-provider";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Modal, Pagination } from "@/components/shared";
+import { CenteredLoading, Modal, Pagination } from "@/components/shared";
 import { Breadcrumbs } from "@/components/layout";
 import { formatDateTime } from "@/utils/dateFormatter";
 import { useI18n } from "@/i18n";
@@ -161,11 +161,7 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
     };
 
     if (isAuthLoading || isLoading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        );
+        return <CenteredLoading className="min-h-screen" />;
     }
 
     const isRunningOrQueued = ['RUNNING', 'QUEUED', 'PREPARING'].includes(deleteModal.status || '');

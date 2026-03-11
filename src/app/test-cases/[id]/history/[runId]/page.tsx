@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ResultViewer } from "@/components/features/result-viewer";
 import { TestForm } from "@/components/features/test-form";
 import { Breadcrumbs } from "@/components/layout";
+import { CenteredLoading } from "@/components/shared";
 import { formatDateTime } from "@/utils/dateFormatter";
 import { useI18n } from "@/i18n";
 import { parseStoredEvents } from "@/lib/runtime/test-events";
@@ -117,11 +118,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
     }, [fetchRunDetails, fetchTestCase, runId, id, isLoggedIn, isAuthLoading]);
 
     if (isAuthLoading || isLoading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        );
+        return <CenteredLoading className="min-h-screen" />;
     }
 
     if (!testRun) {

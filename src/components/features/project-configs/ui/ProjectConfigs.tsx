@@ -3,6 +3,7 @@
 import { compareByGroupThenName } from '@/lib/config/sort';
 import { useI18n } from '@/i18n';
 import type { ConfigItem, ConfigType } from '@/types';
+import { CenteredLoading } from '@/components/shared';
 import GroupSelectInput from '@/components/features/configurations/ui/GroupSelectInput';
 import ConfigHints from '@/components/features/configurations/ui/ConfigHints';
 import ConfigInlineEditor from './ConfigInlineEditor';
@@ -45,11 +46,7 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
     } = useProjectConfigs(projectId);
 
     if (isLoading) {
-        return (
-            <div className="flex items-center justify-center py-16">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        );
+        return <CenteredLoading className="py-16" />;
     }
 
     return (

@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/auth-provider';
-import { CustomSelect, Modal } from '@/components/shared';
+import { Button, CustomSelect, Modal } from '@/components/shared';
 import { LOCALE_META, Locale, useI18n } from '@/i18n';
 import { useTeams } from '@/hooks/useTeams';
 import { useCurrentTeam } from '@/hooks/useCurrentTeam';
@@ -95,23 +95,25 @@ export default function Header() {
                         />
                     </label>
                     <div className="flex justify-end gap-3 pt-4">
-                        <button
+                        <Button
                             type="button"
                             onClick={() => {
                                 setIsCreateTeamOpen(false);
                                 setNewTeamName('');
                             }}
-                            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                            variant="secondary"
+                            size="sm"
                         >
                             {t('common.cancel')}
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                             type="submit"
                             disabled={isCreateTeamSubmitting || !newTeamName.trim()}
-                            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
+                            variant="primary"
+                            size="sm"
                         >
                             {t('team.page.create.confirm')}
-                        </button>
+                        </Button>
                     </div>
                 </form>
             </Modal>
@@ -225,13 +227,15 @@ export default function Header() {
                                     </div>
                                 </div>
                             ) : (
-                                <button
+                                <Button
                                     onClick={() => login()}
                                     disabled={isAuthLoading}
-                                    className="h-9 px-3 text-sm font-medium text-blue-600 border border-blue-200 rounded-md hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    variant="secondary"
+                                    size="sm"
+                                    className="border-blue-200 text-blue-600 hover:bg-blue-50"
                                 >
                                     {t('landing.loginToStart')}
-                                </button>
+                                </Button>
                             )}
                         </div>
                     </div>
