@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/app/auth-provider';
-import { Button, LoadingSpinner, Modal } from '@/components/shared';
+import { Button, DangerTextButton, LoadingSpinner, Modal } from '@/components/shared';
 import { useI18n } from '@/i18n';
 import { formatDateTimeCompact } from '@/utils/dateFormatter';
 
@@ -232,14 +232,12 @@ export default function TeamMembers({ teamId, onMembersChanged }: TeamMembersPro
                                                 {member.role === 'OWNER' ? (
                                                     <span className="text-xs text-gray-400">{t('team.members.readOnly')}</span>
                                                 ) : canManage ? (
-                                                    <Button
+                                                    <DangerTextButton
                                                         onClick={() => setMemberToRemove(member)}
-                                                        variant="ghost"
-                                                        size="xs"
-                                                        className="h-auto p-0 text-sm text-red-600 hover:bg-transparent hover:text-red-700"
+                                                        size="sm"
                                                     >
                                                         {t('common.remove')}
-                                                    </Button>
+                                                    </DangerTextButton>
                                                 ) : (
                                                     <span className="text-xs text-gray-400">{t('team.members.readOnly')}</span>
                                                 )}

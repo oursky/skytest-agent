@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../auth-provider';
-import { Button, CopyableCodeBlock, LoadingSpinner, Modal } from '@/components/shared';
+import { Button, CopyableCodeBlock, DangerTextButton, LoadingSpinner, Modal } from '@/components/shared';
 import { useI18n } from '@/i18n';
 import { formatDateTime } from '@/utils/dateFormatter';
 
@@ -263,14 +263,13 @@ export default function McpPage() {
                                             </td>
                                             <td className="px-4 py-3 text-sm text-gray-500">{formatDateTime(key.createdAt)}</td>
                                             <td className="px-4 py-3 text-right">
-                                                <Button
+                                                <DangerTextButton
                                                     onClick={() => { setKeyToRevoke(key); setIsRevokeModalOpen(true); }}
-                                                    variant="ghost"
-                                                    size="xs"
-                                                    className="h-auto p-0 text-sm text-red-600 hover:bg-transparent hover:text-red-800"
+                                                    size="sm"
+                                                    tone="strong"
                                                 >
                                                     {t('usage.agentKeys.revoke')}
-                                                </Button>
+                                                </DangerTextButton>
                                             </td>
                                         </tr>
                                     ))}

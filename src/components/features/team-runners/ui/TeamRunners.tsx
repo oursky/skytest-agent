@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/app/auth-provider';
-import { Button, CopyableCodeBlock, LoadingSpinner, Modal } from '@/components/shared';
+import { Button, CopyableCodeBlock, DangerTextButton, LoadingSpinner, Modal } from '@/components/shared';
 import { useI18n } from '@/i18n';
 
 interface TeamRunnersProps {
@@ -529,20 +529,19 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
                                                         <td className="px-4 py-3">{new Date(runner.lastSeenAt).toLocaleString()}</td>
                                                         {runners.canManageRunners && (
                                                             <td className="px-4 py-3">
-                                                                <Button
+                                                                <DangerTextButton
                                                                     onClick={() => {
                                                                         setError(null);
                                                                         setUnpairCandidate(runner);
                                                                     }}
                                                                     disabled={pendingUnpairRunnerId !== null}
-                                                                    variant="ghost"
-                                                                    size="xs"
-                                                                    className="h-auto p-0 text-sm text-red-600 hover:bg-transparent hover:text-red-700 disabled:text-red-300"
+                                                                    size="sm"
+                                                                    className="disabled:text-red-300"
                                                                 >
                                                                     {pendingUnpairRunnerId === runner.id
                                                                         ? t('team.runners.unpair.loading')
                                                                         : t('team.runners.unpair')}
-                                                                </Button>
+                                                                </DangerTextButton>
                                                             </td>
                                                         )}
                                                     </tr>
