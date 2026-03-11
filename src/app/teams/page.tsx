@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/app/auth-provider';
-import { Modal } from '@/components/shared';
+import { Button, LoadingSpinner, Modal } from '@/components/shared';
 import TeamAiSettings from '@/components/features/team-ai/ui/TeamAiSettings';
 import TeamMembers from '@/components/features/team-members/ui/TeamMembers';
 import TeamUsage from '@/components/features/team-usage/ui/TeamUsage';
@@ -284,7 +284,7 @@ export default function TeamsPage() {
     if (isAuthLoading || areTeamsLoading || isCurrentTeamLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
-                <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary"></div>
+                <LoadingSpinner size={32} />
             </div>
         );
     }
@@ -442,32 +442,32 @@ export default function TeamsPage() {
                                         {teamDetails.canRename && (
                                             isEditingSettings ? (
                                                 <div className="flex gap-2">
-                                                    <button
-                                                        type="button"
+                                                    <Button
                                                         onClick={() => void renameTeam()}
-                                                        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+                                                        variant="primary"
+                                                        size="sm"
                                                     >
                                                         {t('team.page.settings.save')}
-                                                    </button>
-                                                    <button
-                                                        type="button"
+                                                    </Button>
+                                                    <Button
                                                         onClick={() => {
                                                             setRenameValue(teamDetails.name);
                                                             setIsEditingSettings(false);
                                                         }}
-                                                        className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                                        variant="secondary"
+                                                        size="sm"
                                                     >
                                                         {t('common.cancel')}
-                                                    </button>
+                                                    </Button>
                                                 </div>
                                             ) : (
-                                                <button
-                                                    type="button"
+                                                <Button
                                                     onClick={() => setIsEditingSettings(true)}
-                                                    className="cursor-pointer rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                                    variant="secondary"
+                                                    size="sm"
                                                 >
                                                     {t('team.page.settings.edit')}
-                                                </button>
+                                                </Button>
                                             )
                                         )}
                                     </div>
@@ -495,14 +495,15 @@ export default function TeamsPage() {
                                                 <p className="text-sm text-red-600">{transferEmailError}</p>
                                             )}
                                         </div>
-                                        <button
-                                            type="button"
+                                        <Button
                                             onClick={openTransferDialog}
                                             disabled={eligibleTransferCandidates.length === 0}
-                                            className="cursor-pointer mt-3 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                            variant="danger"
+                                            size="sm"
+                                            className="mt-3"
                                         >
                                             {t('team.page.transfer.confirm')}
-                                        </button>
+                                        </Button>
                                         {eligibleTransferCandidates.length === 0 && (
                                             <p className="mt-2 text-sm text-gray-500">{t('team.page.transfer.noEligibleMembers')}</p>
                                         )}
@@ -513,13 +514,14 @@ export default function TeamsPage() {
                                     <section className="rounded-lg border border-red-200 bg-red-50 p-6 shadow-sm">
                                         <h2 className="text-base font-semibold text-red-700">{t('team.page.delete.zoneTitle')}</h2>
                                         <p className="mt-1 text-sm text-red-600">{t('team.page.delete.zoneSubtitle')}</p>
-                                        <button
-                                            type="button"
+                                        <Button
                                             onClick={() => setIsDeleteOpen(true)}
-                                            className="cursor-pointer mt-4 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                                            variant="danger"
+                                            size="sm"
+                                            className="mt-4"
                                         >
                                             {t('team.page.delete.open')}
-                                        </button>
+                                        </Button>
                                     </section>
                                 )}
                             </div>

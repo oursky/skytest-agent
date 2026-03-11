@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/app/auth-provider';
-import { Modal } from '@/components/shared';
+import { Button, LoadingSpinner, Modal } from '@/components/shared';
 import { useI18n } from '@/i18n';
 import { formatDateTimeCompact } from '@/utils/dateFormatter';
 
@@ -132,7 +132,7 @@ export default function TeamMembers({ teamId, onMembersChanged }: TeamMembersPro
     if (isLoading) {
         return (
             <div className="flex items-center justify-center py-16">
-                <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary"></div>
+                <LoadingSpinner size={32} />
             </div>
         );
     }
@@ -181,13 +181,14 @@ export default function TeamMembers({ teamId, onMembersChanged }: TeamMembersPro
                     <p className="mt-1 text-sm text-gray-500">{t('team.members.subtitle')}</p>
                 </div>
                 {canManage && (
-                    <button
-                        type="button"
+                    <Button
                         onClick={() => setIsAddModalOpen(true)}
-                        className="cursor-pointer shrink-0 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+                        variant="primary"
+                        size="sm"
+                        className="shrink-0"
                     >
                         {t('team.members.add.open')}
-                    </button>
+                    </Button>
                 )}
             </div>
 
@@ -231,13 +232,14 @@ export default function TeamMembers({ teamId, onMembersChanged }: TeamMembersPro
                                                 {member.role === 'OWNER' ? (
                                                     <span className="text-xs text-gray-400">{t('team.members.readOnly')}</span>
                                                 ) : canManage ? (
-                                                    <button
-                                                        type="button"
+                                                    <Button
                                                         onClick={() => setMemberToRemove(member)}
-                                                        className="cursor-pointer text-sm font-medium text-red-600 hover:text-red-700"
+                                                        variant="ghost"
+                                                        size="xs"
+                                                        className="h-auto p-0 text-sm text-red-600 hover:bg-transparent hover:text-red-700"
                                                     >
                                                         {t('common.remove')}
-                                                    </button>
+                                                    </Button>
                                                 ) : (
                                                     <span className="text-xs text-gray-400">{t('team.members.readOnly')}</span>
                                                 )}

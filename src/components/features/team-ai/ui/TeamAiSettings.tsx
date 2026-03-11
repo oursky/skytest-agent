@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/app/auth-provider';
-import { Modal } from '@/components/shared';
+import { Button, LoadingSpinner, Modal } from '@/components/shared';
 import { useI18n } from '@/i18n';
 
 interface TeamAiSettingsProps {
@@ -121,7 +121,7 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
 
             {isLoading ? (
                 <div className="flex items-center gap-3 rounded-md bg-gray-50 px-4 py-3 text-sm text-gray-600">
-                    <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-primary"></div>
+                    <LoadingSpinner size={16} />
                     <span>{t('common.loading')}</span>
                 </div>
             ) : state.hasKey ? (
@@ -132,13 +132,14 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
                         disabled
                         className="w-48 rounded-md border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-gray-500"
                     />
-                    <button
-                        type="button"
+                    <Button
                         onClick={() => setIsRemoveConfirmOpen(true)}
-                        className="cursor-pointer shrink-0 rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
+                        variant="secondary"
+                        size="sm"
+                        className="shrink-0 border-red-200 text-red-700 hover:bg-red-50"
                     >
                         {t('team.ai.remove')}
-                    </button>
+                    </Button>
                 </div>
             ) : (
                 <div className="flex max-w-lg items-center gap-3">
@@ -155,14 +156,15 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
                         placeholder={t('team.ai.placeholder')}
                         className="min-w-0 flex-1 rounded-md border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
                     />
-                    <button
-                        type="button"
+                    <Button
                         onClick={saveKey}
                         disabled={isSaving}
-                        className="shrink-0 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
+                        variant="primary"
+                        size="sm"
+                        className="shrink-0"
                     >
                         {isSaving ? t('team.ai.saving') : t('team.ai.save')}
-                    </button>
+                    </Button>
                 </div>
             )}
 
