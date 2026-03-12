@@ -57,6 +57,8 @@ describe('claimNextRunForRunner', () => {
         expect(firstQuery.strings.join('')).toContain('"requestedRunnerId"');
         expect(firstQuery.strings.join('')).toContain('LIKE');
         expect(firstQuery.strings.join('')).toContain(`'OFFLINE'`);
+        expect(firstQuery.strings.join('')).toContain('NOT EXISTS');
+        expect(firstQuery.strings.join('')).toContain('activeTr."requestedDeviceId" = tr."requestedDeviceId"');
     });
 
     it('falls back to generic Android jobs when no explicit-device job is claimable', async () => {

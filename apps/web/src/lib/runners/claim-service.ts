@@ -82,6 +82,25 @@ async function claimExplicitDeviceRun(input: {
               AND tr."requiredCapability" = 'ANDROID'
               AND (tr."requiredRunnerKind" IS NULL OR tr."requiredRunnerKind" = ${input.runnerKind})
               AND (tr."requestedRunnerId" IS NULL OR tr."requestedRunnerId" = ${input.runnerId})
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM "TestRun" activeTr
+                  INNER JOIN "TestCase" activeTc ON activeTc.id = activeTr."testCaseId"
+                  INNER JOIN "Project" activeP ON activeP.id = activeTc."projectId"
+                  WHERE activeTr."deletedAt" IS NULL
+                    AND activeTr.status IN (${Prisma.join(ACTIVE_RUN_STATUSES)})
+                    AND activeP."teamId" = p."teamId"
+                    AND activeTr."requestedDeviceId" = tr."requestedDeviceId"
+                    AND (
+                        (
+                            activeTr."requestedRunnerId" IS NOT NULL
+                            AND tr."requestedRunnerId" IS NOT NULL
+                            AND activeTr."requestedRunnerId" = tr."requestedRunnerId"
+                        )
+                        OR activeTr."requestedRunnerId" IS NULL
+                        OR tr."requestedRunnerId" IS NULL
+                    )
+              )
               AND (
                   SELECT COUNT(*)
                   FROM "TestRun" activeTr
