@@ -92,6 +92,9 @@ This document defines current SkyTest MCP tool behavior for maintainers.
 - Input: `{ testCaseId, overrides? }`
 - Queues one test run for the test case.
 - Optional `overrides` fields: `url`, `prompt`, `steps`, `browserConfig`, `requestedDeviceId`.
+- Validation:
+  - `requestedDeviceId` is allowed only when Android targets exist.
+  - `requestedDeviceId` must match one of the Android target device selectors in the final run configuration.
 - Uses durable queue path and returns: `runId`, `status`, `requiredCapability`, `requestedDeviceId`.
 
 ### list_test_runs
