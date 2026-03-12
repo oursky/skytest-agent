@@ -28,6 +28,8 @@ async function runMaintenanceCycle() {
     ) {
         logger.info('Runner maintenance cycle completed', {
             recoveredRuns: leaseResult.recoveredRuns,
+            requeuedRuns: leaseResult.requeuedRuns,
+            failedRuns: leaseResult.failedRuns,
             deletedEvents: retentionResult.deletedEvents,
             retentionCutoff: retentionResult.cutoff.toISOString(),
             softDeletedRuns: runRetentionResult.softDeletedRuns,

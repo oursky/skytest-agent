@@ -14,36 +14,70 @@ export async function reapExpiredRunnerLeases(now = new Date()) {
         select: {
             id: true,
             testCaseId: true,
+            status: true,
         },
     });
 
     if (expiredRuns.length === 0) {
-        return { recoveredRuns: 0 };
+        return { recoveredRuns: 0, requeuedRuns: 0, failedRuns: 0 };
     }
 
-    const runIds = expiredRuns.map((run) => run.id);
-    await prisma.testRun.updateMany({
-        where: {
-            id: { in: runIds },
-        },
-        data: {
-            status: 'FAIL',
-            error: 'Runner lease expired before completion',
-            assignedRunnerId: null,
-            leaseExpiresAt: null,
-            completedAt: now,
-        },
-    });
+    const preparingRuns = expiredRuns.filter((run) => run.status === 'PREPARING');
+    const runningRuns = expiredRuns.filter((run) => run.status === 'RUNNING');
 
-    const testCaseIds = [...new Set(expiredRuns.map((run) => run.testCaseId))];
-    if (testCaseIds.length > 0) {
+    if (preparingRuns.length > 0) {
+        await prisma.testRun.updateMany({
+            where: {
+                id: { in: preparingRuns.map((run) => run.id) },
+                status: 'PREPARING',
+            },
+            data: {
+                status: 'QUEUED',
+                error: 'Runner lease expired during preparation; run re-queued',
+                assignedRunnerId: null,
+                leaseExpiresAt: null,
+                startedAt: null,
+            },
+        });
+    }
+
+    if (runningRuns.length > 0) {
+        await prisma.testRun.updateMany({
+            where: {
+                id: { in: runningRuns.map((run) => run.id) },
+                status: 'RUNNING',
+            },
+            data: {
+                status: 'FAIL',
+                error: 'Runner lease expired before completion',
+                assignedRunnerId: null,
+                leaseExpiresAt: null,
+                completedAt: now,
+            },
+        });
+    }
+
+    const preparingTestCaseIds = [...new Set(preparingRuns.map((run) => run.testCaseId))];
+    if (preparingTestCaseIds.length > 0) {
         await prisma.testCase.updateMany({
-            where: { id: { in: testCaseIds } },
+            where: { id: { in: preparingTestCaseIds } },
+            data: { status: 'QUEUED' },
+        });
+    }
+
+    const runningTestCaseIds = [...new Set(runningRuns.map((run) => run.testCaseId))];
+    if (runningTestCaseIds.length > 0) {
+        await prisma.testCase.updateMany({
+            where: { id: { in: runningTestCaseIds } },
             data: { status: 'FAIL' },
         });
     }
 
     void dispatchQueuedBrowserRuns(expiredRuns.length).catch(() => {});
 
-    return { recoveredRuns: expiredRuns.length };
+    return {
+        recoveredRuns: expiredRuns.length,
+        requeuedRuns: preparingRuns.length,
+        failedRuns: runningRuns.length,
+    };
 }
