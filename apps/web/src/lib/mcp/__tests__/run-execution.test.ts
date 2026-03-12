@@ -301,7 +301,7 @@ describe('queueTestCaseRun', () => {
         });
     });
 
-    it('does not infer requestedDeviceId when Android targets include multiple selectors', async () => {
+    it('returns failure when multiple selectors prevent requestedDeviceId resolution', async () => {
         mocks.testCaseFindUnique.mockResolvedValueOnce({
             id: 'tc-1',
             url: '',
@@ -344,21 +344,15 @@ describe('queueTestCaseRun', () => {
 
         const result = await queueTestCaseRun('user-1', 'tc-1');
 
-        expect(result.ok).toBe(true);
-        if (!result.ok) {
-            throw new Error('Expected run queue success');
+        expect(result.ok).toBe(false);
+        if (result.ok) {
+            throw new Error('Expected run queue failure');
         }
         expect(mocks.getTeamDevicesAvailability).not.toHaveBeenCalled();
-        expect(mocks.testRunCreate).toHaveBeenCalledWith({
-            data: expect.objectContaining({
-                requestedDeviceId: null,
-                requestedRunnerId: 'runner-1',
-            }),
-        });
-        expect(result.data).toMatchObject({
-            requestedDeviceId: null,
-            requestedRunnerId: 'runner-1',
-        });
+        expect(mocks.testRunCreate).not.toHaveBeenCalled();
+        expect(result.failure.error).toBe(
+            'Android runs require a single requestedDeviceId. Align Android target selectors or provide requestedDeviceId override.'
+        );
     });
 
     it('returns failure when Android targets have ambiguous runner scope inference', async () => {
@@ -402,7 +396,7 @@ describe('queueTestCaseRun', () => {
             throw new Error('Expected run queue failure');
         }
         expect(result.failure.error).toBe(
-            'Android targets specify multiple runner scopes; provide requestedRunnerId override or align target runnerScope values'
+            'Android runs require a single requestedDeviceId. Align Android target selectors or provide requestedDeviceId override.'
         );
         expect(mocks.getTeamDevicesAvailability).not.toHaveBeenCalled();
         expect(mocks.testRunCreate).not.toHaveBeenCalled();

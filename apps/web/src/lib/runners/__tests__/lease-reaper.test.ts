@@ -90,10 +90,19 @@ describe('reapExpiredRunnerLeases', () => {
         });
         expect(deleteManyLocks).toHaveBeenCalledWith({
             where: {
-                runId: { in: ['run-1', 'run-2'] },
-                run: {
-                    status: { notIn: ['PREPARING', 'RUNNING'] },
-                },
+                OR: [
+                    { leaseExpiresAt: { lte: now } },
+                    {
+                        run: {
+                            deletedAt: { not: null },
+                        },
+                    },
+                    {
+                        run: {
+                            status: { notIn: ['PREPARING', 'RUNNING'] },
+                        },
+                    },
+                ],
             },
         });
         expect(dispatchQueuedBrowserRuns).toHaveBeenCalledWith(2);
@@ -101,13 +110,30 @@ describe('reapExpiredRunnerLeases', () => {
     });
 
     it('does nothing when no expired runs are found', async () => {
+        const now = new Date('2026-03-07T05:00:00.000Z');
         findMany.mockResolvedValueOnce([]);
 
-        const result = await reapExpiredRunnerLeases();
+        const result = await reapExpiredRunnerLeases(now);
 
         expect(updateManyRuns).not.toHaveBeenCalled();
         expect(updateManyTestCases).not.toHaveBeenCalled();
-        expect(deleteManyLocks).not.toHaveBeenCalled();
+        expect(deleteManyLocks).toHaveBeenCalledWith({
+            where: {
+                OR: [
+                    { leaseExpiresAt: { lte: now } },
+                    {
+                        run: {
+                            deletedAt: { not: null },
+                        },
+                    },
+                    {
+                        run: {
+                            status: { notIn: ['PREPARING', 'RUNNING'] },
+                        },
+                    },
+                ],
+            },
+        });
         expect(dispatchQueuedBrowserRuns).not.toHaveBeenCalled();
         expect(result).toEqual({ recoveredRuns: 0, requeuedRuns: 0, failedRuns: 0 });
     });

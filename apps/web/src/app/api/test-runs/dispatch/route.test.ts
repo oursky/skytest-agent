@@ -228,7 +228,7 @@ describe('POST /api/test-runs/dispatch', () => {
         });
     });
 
-    it('does not infer requestedDeviceId when Android targets include multiple selectors', async () => {
+    it('rejects Android runs when multiple selectors prevent requestedDeviceId resolution', async () => {
         const request = new Request('http://localhost/api/test-runs/dispatch', {
             method: 'POST',
             headers: {
@@ -273,17 +273,11 @@ describe('POST /api/test-runs/dispatch', () => {
         const response = await POST(request);
         const payload = await response.json();
 
-        expect(response.status).toBe(200);
+        expect(response.status).toBe(400);
         expect(mocks.getTeamDevicesAvailability).not.toHaveBeenCalled();
-        expect(mocks.testRunCreate).toHaveBeenCalledWith({
-            data: expect.objectContaining({
-                requestedDeviceId: null,
-                requestedRunnerId: 'runner-1',
-            }),
-        });
+        expect(mocks.testRunCreate).not.toHaveBeenCalled();
         expect(payload).toMatchObject({
-            requestedDeviceId: null,
-            requestedRunnerId: 'runner-1',
+            error: 'Android runs require a single requestedDeviceId. Align Android target selectors or provide requestedDeviceId override.',
         });
     });
 
@@ -335,7 +329,7 @@ describe('POST /api/test-runs/dispatch', () => {
         expect(response.status).toBe(400);
         expect(mocks.testRunCreate).not.toHaveBeenCalled();
         expect(payload).toMatchObject({
-            error: 'Android targets specify multiple runner scopes; provide requestedRunnerId override or align target runnerScope values',
+            error: 'Android runs require a single requestedDeviceId. Align Android target selectors or provide requestedDeviceId override.',
         });
     });
 

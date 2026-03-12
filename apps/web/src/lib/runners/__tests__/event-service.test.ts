@@ -13,6 +13,7 @@ const {
     createRunFile,
     updateManyLock,
     deleteManyLock,
+    countLocks,
     transaction,
     putObjectBuffer,
 } = vi.hoisted(() => ({
@@ -28,6 +29,7 @@ const {
     createRunFile: vi.fn(),
     updateManyLock: vi.fn(),
     deleteManyLock: vi.fn(),
+    countLocks: vi.fn(),
     transaction: vi.fn(),
     putObjectBuffer: vi.fn(),
 }));
@@ -78,6 +80,7 @@ describe('event-service', () => {
         createRunFile.mockReset();
         updateManyLock.mockReset();
         deleteManyLock.mockReset();
+        countLocks.mockReset();
         transaction.mockReset();
         putObjectBuffer.mockReset();
 
@@ -90,6 +93,7 @@ describe('event-service', () => {
             androidResourceLock: {
                 updateMany: typeof updateManyLock;
                 deleteMany: typeof deleteManyLock;
+                count: typeof countLocks;
             };
             testRunEvent: {
                 createMany: typeof createManyEvents;
@@ -106,6 +110,7 @@ describe('event-service', () => {
             androidResourceLock: {
                 updateMany: updateManyLock,
                 deleteMany: deleteManyLock,
+                count: countLocks,
             },
             testRunEvent: {
                 createMany: createManyEvents,
@@ -117,6 +122,7 @@ describe('event-service', () => {
         updateManyRun.mockResolvedValue({ count: 1 });
         updateManyLock.mockResolvedValue({ count: 1 });
         deleteManyLock.mockResolvedValue({ count: 1 });
+        countLocks.mockResolvedValue(1);
         findUniqueTestCase.mockResolvedValue({
             name: 'Checkout flow',
             project: {
@@ -249,6 +255,29 @@ describe('event-service', () => {
             leaseExpiresAt: new Date(Date.now() + 10_000),
             nextEventSequence: 1,
         });
+
+        const result = await appendRunEvents({
+            runId: 'run-1',
+            runnerId: 'runner-1',
+            events: [{ kind: 'STEP' }],
+        });
+
+        expect(result).toBeNull();
+        expect(updateManyRun).not.toHaveBeenCalled();
+        expect(createManyEvents).not.toHaveBeenCalled();
+    });
+
+    it('rejects appending for explicit-device run when resource lock is missing', async () => {
+        findUniqueRun.mockResolvedValueOnce({
+            id: 'run-1',
+            testCaseId: 'tc-1',
+            status: 'RUNNING',
+            requestedDeviceId: 'device-a',
+            assignedRunnerId: 'runner-1',
+            leaseExpiresAt: new Date(Date.now() + 10_000),
+            nextEventSequence: 1,
+        });
+        countLocks.mockResolvedValueOnce(0);
 
         const result = await appendRunEvents({
             runId: 'run-1',
