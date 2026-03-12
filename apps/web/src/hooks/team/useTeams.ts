@@ -23,13 +23,15 @@ export function useTeams(
     enabled = true
 ) {
     const [teams, setTeams] = useState<TeamOption[]>([]);
-    const [loading, setLoading] = useState(enabled);
+    const [loading, setLoading] = useState(false);
+    const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const fetchTeams = useCallback(async () => {
         if (!enabled) {
             setTeams([]);
             setLoading(false);
+            setHasLoadedOnce(false);
             return;
         }
 
@@ -56,6 +58,7 @@ export function useTeams(
             setError('Failed to load teams');
         } finally {
             setLoading(false);
+            setHasLoadedOnce(true);
         }
     }, [enabled, getAccessToken]);
 
@@ -80,7 +83,7 @@ export function useTeams(
 
     return {
         teams,
-        loading,
+        loading: loading || (enabled && !hasLoadedOnce),
         error,
         refresh: fetchTeams,
         setTeams,

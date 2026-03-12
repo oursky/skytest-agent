@@ -24,13 +24,15 @@ export function useCurrentTeam(
     enabled = true
 ) {
     const [currentTeam, setCurrentTeam] = useState<CurrentTeam | null>(null);
-    const [loading, setLoading] = useState(enabled);
+    const [loading, setLoading] = useState(false);
+    const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const fetchCurrentTeam = useCallback(async () => {
         if (!enabled) {
             setLoading(false);
             setCurrentTeam(null);
+            setHasLoadedOnce(false);
             return;
         }
 
@@ -62,6 +64,7 @@ export function useCurrentTeam(
             setError('Failed to load current team');
         } finally {
             setLoading(false);
+            setHasLoadedOnce(true);
         }
     }, [enabled, getAccessToken]);
 
@@ -115,7 +118,7 @@ export function useCurrentTeam(
 
     return {
         currentTeam,
-        loading,
+        loading: loading || (enabled && !hasLoadedOnce),
         error,
         refresh: fetchCurrentTeam,
         setCurrentTeam: persistCurrentTeam,

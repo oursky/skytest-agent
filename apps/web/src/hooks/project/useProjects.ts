@@ -9,13 +9,15 @@ export function useProjects(
     enabled = true
 ) {
     const [projects, setProjects] = useState<Project[]>([]);
-    const [loading, setLoading] = useState(enabled);
+    const [loading, setLoading] = useState(false);
+    const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const fetchProjects = useCallback(async () => {
         if (!enabled) {
             setProjects([]);
             setLoading(false);
+            setHasLoadedOnce(false);
             return;
         }
 
@@ -49,6 +51,7 @@ export function useProjects(
             setError('Failed to load projects');
         } finally {
             setLoading(false);
+            setHasLoadedOnce(true);
         }
     }, [enabled, getAccessToken, teamId]);
 
@@ -72,5 +75,13 @@ export function useProjects(
         setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
     };
 
-    return { projects, loading, error, refresh, addProject, removeProject, updateProject };
+    return {
+        projects,
+        loading: loading || (enabled && !hasLoadedOnce),
+        error,
+        refresh,
+        addProject,
+        removeProject,
+        updateProject
+    };
 }
