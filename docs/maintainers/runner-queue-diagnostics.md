@@ -12,6 +12,7 @@ This project now includes structured diagnostics to troubleshoot runs stuck in `
 - Empty-claim log includes:
   - `reasonCode`
   - queue counters (`queuedAndroidRuns`, `queuedCompatibleKindRuns`, `explicitRequestedRuns`, `genericQueuedRuns`)
+  - host-lock counters (`explicitRequestedRunsBlockedByHostLocks`, `blockedHostResourceKeys`)
   - `claimableDeviceIds`
 
 Use these logs to quickly identify whether the issue is:
@@ -29,7 +30,7 @@ Response includes:
 - run assignment/lease state,
 - team runner snapshots (`status`, `capabilities`, `isFresh`, claimable device IDs),
 - published runner devices,
-- run claimability analysis (`reasonCode`, `eligibleRunnerIds`, `matchingRequestedDeviceRunnerIds`),
+- run claimability analysis (`reasonCode`, `eligibleRunnerIds`, `matchingRequestedDeviceRunnerIds`, `requestedResourceKey`, `activeResourceLocks`),
 - per-runner no-claim diagnostics from claim service.
 
 This endpoint is intended for operator debugging and support workflows.

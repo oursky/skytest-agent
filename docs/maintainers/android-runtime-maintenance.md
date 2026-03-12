@@ -69,7 +69,12 @@ For connected physical devices, the same app-specific cleanup toggle semantics a
 ## Scheduling and Capacity Behavior
 
 - Control plane stores runs as `QUEUED` and runners claim with long-poll.
+- Android runs are queued only when a deterministic single `requestedDeviceId` is resolved.
 - Explicit-device runs can be claimed only by the runner that currently owns/publishes that device.
+- Device contention is enforced by host-scoped resource locks in DB:
+  - `connected-device:<serial>` for physical devices
+  - `emulator-profile:<profileName>` for emulator profiles
+  - lock identity key is `(hostFingerprint, resourceKey)`
 - Lease expiry recovery, event retention, and run artifact soft/hard retention run in `apps/web/src/workers/runner-maintenance.ts`.
 
 ## Copy Log Behavior
