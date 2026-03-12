@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../auth-provider';
 import { Button, CopyableCodeBlock, DangerTextButton, LoadingSpinner, Modal } from '@/components/shared';
 import { useI18n } from '@/i18n';
+import { runOnEnterKey } from '@/utils/keyboard/enterKey';
 import { formatDateTime } from '@/utils/time/dateFormatter';
 
 interface AgentApiKey {
@@ -220,10 +221,9 @@ export default function McpPage() {
                             value={newKeyName}
                             onChange={(e) => setNewKeyName(e.target.value)}
                             onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    e.preventDefault();
+                                runOnEnterKey(e, () => {
                                     void handleGenerateAgentKey();
-                                }
+                                });
                             }}
                             placeholder={t('usage.agentKeys.name.placeholder')}
                             className="w-72 px-3 py-2 text-sm bg-white border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"

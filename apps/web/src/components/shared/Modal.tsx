@@ -39,6 +39,8 @@ export default function Modal({
     contentClassName = '',
 }: ModalProps) {
     const { t } = useI18n();
+    const shouldHandleEnterToConfirm = isOpen && showFooter && !!onConfirm && confirmVariant === 'primary';
+
     const handleConfirm = useCallback(() => {
         if (!onConfirm || confirmDisabled) {
             return;
@@ -54,8 +56,6 @@ export default function Modal({
         const handleEnterToConfirm = (e: KeyboardEvent) => {
             if (
                 e.key === 'Enter'
-                && isOpen
-                && confirmVariant === 'primary'
                 && !e.defaultPrevented
                 && !e.isComposing
                 && e.target instanceof HTMLInputElement
@@ -65,7 +65,7 @@ export default function Modal({
             }
         };
 
-        if (isOpen) {
+        if (shouldHandleEnterToConfirm) {
             document.addEventListener('keydown', handleEnterToConfirm);
             document.body.style.overflow = 'hidden';
         }
@@ -74,7 +74,7 @@ export default function Modal({
             document.removeEventListener('keydown', handleEnterToConfirm);
             document.body.style.overflow = 'unset';
         };
-    }, [confirmVariant, handleConfirm, isOpen, onClose]);
+    }, [handleConfirm, shouldHandleEnterToConfirm]);
 
     const effectiveCancelText = cancelText ?? t('common.cancel');
     const effectiveConfirmText = confirmText ?? t('common.confirm');
