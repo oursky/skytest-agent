@@ -281,6 +281,8 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             return;
         }
         if (parsedValue === project.maxConcurrentRuns) {
+            setSettingsError('');
+            setIsEditingProjectSettings(false);
             return;
         }
 
@@ -309,8 +311,8 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             const updatedProject = await response.json() as Project;
             setProject(updatedProject);
             setMaxConcurrentRunsInput(String(updatedProject.maxConcurrentRuns));
-            await fetchProject();
             setIsEditingProjectSettings(false);
+            await fetchProject();
         } catch (error) {
             console.error('Failed to update project settings', error);
             setSettingsError(t('project.settings.error.save'));
@@ -651,15 +653,9 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         setIsEditingProjectSettings(false);
     };
 
-    const parsedMaxConcurrentRunsInput = Number.parseInt(maxConcurrentRunsInput, 10);
-    const isMaxConcurrentRunsUnchanged = project
-        ? Number.isInteger(parsedMaxConcurrentRunsInput)
-            && parsedMaxConcurrentRunsInput === project.maxConcurrentRuns
-        : false;
     const isProjectSettingsSaveDisabled = isSavingSettings
         || !isEditingProjectSettings
-        || !project?.canManageProject
-        || isMaxConcurrentRunsUnchanged;
+        || !project?.canManageProject;
     const projectTabs = [
         { id: 'test-cases' as const, label: t('project.tab.testCases') },
         { id: 'variables' as const, label: t('project.tab.configs') },

@@ -172,6 +172,7 @@ export default function TeamsPage() {
                 return;
             }
 
+            setIsEditingSettings(false);
             dispatchTeamsChanged();
             await refreshTeams();
             setError(null);
