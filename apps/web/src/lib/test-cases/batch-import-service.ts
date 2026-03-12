@@ -307,15 +307,13 @@ function validateAndroidTargetBindings(
         const requestedRunnerRaw = normalizedTarget.runnerScope?.runnerId?.trim() || '';
 
         if (!requestedRunnerRaw) {
-            if (devicesForSelector.length > 1) {
-                issues.push({
-                    code: 'ANDROID_DEVICE_AMBIGUOUS_RUNNER_REQUIRED',
-                    severity: 'error',
-                    reason: `Android target "${targetLabel}" maps to multiple runners for device "${requestedDeviceId}". Provide Runner ID to disambiguate.`,
-                    filename,
-                    sheet: 'Android Targets',
-                });
-            }
+            issues.push({
+                code: 'ANDROID_RUNNER_REQUIRED',
+                severity: 'error',
+                reason: `Android target "${targetLabel}" requires Runner ID.`,
+                filename,
+                sheet: 'Android Targets',
+            });
             continue;
         }
 

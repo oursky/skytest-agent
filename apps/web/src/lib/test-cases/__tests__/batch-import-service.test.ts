@@ -92,7 +92,7 @@ describe('processProjectBatchImport Android runner/device validation', () => {
         mocks.testCaseFindMany.mockResolvedValue([]);
     });
 
-    it('keeps legacy import valid when device selector maps uniquely without runner id', async () => {
+    it('marks Android target invalid when runner id is missing even if selector maps uniquely', async () => {
         mocks.getTeamDevicesAvailability.mockResolvedValue({
             devices: [{ runnerId: 'runner-1', deviceId: 'emulator-profile:android_profile_a' }],
         });
@@ -108,12 +108,18 @@ describe('processProjectBatchImport Android runner/device validation', () => {
             files: [{ filename: 'case.xlsx', content: new Uint8Array([1]).buffer }],
         });
 
-        expect(result.summary.validFiles).toBe(1);
-        expect(result.summary.invalidFiles).toBe(0);
-        expect(result.files[0].issues).toEqual([]);
+        expect(result.summary.invalidFiles).toBe(1);
+        expect(result.files[0].issues).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    code: 'ANDROID_RUNNER_REQUIRED',
+                    severity: 'error',
+                }),
+            ])
+        );
     });
 
-    it('marks ambiguous duplicate device selectors invalid when runner id is missing', async () => {
+    it('marks Android target invalid when runner id is missing and selector is duplicated', async () => {
         mocks.getTeamDevicesAvailability.mockResolvedValue({
             devices: [
                 { runnerId: 'runner-1', deviceId: 'emulator-profile:android_profile_a' },
@@ -136,7 +142,7 @@ describe('processProjectBatchImport Android runner/device validation', () => {
         expect(result.files[0].issues).toEqual(
             expect.arrayContaining([
                 expect.objectContaining({
-                    code: 'ANDROID_DEVICE_AMBIGUOUS_RUNNER_REQUIRED',
+                    code: 'ANDROID_RUNNER_REQUIRED',
                     severity: 'error',
                 }),
             ])
