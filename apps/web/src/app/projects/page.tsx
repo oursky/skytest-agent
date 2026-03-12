@@ -222,12 +222,6 @@ export default function ProjectsPage() {
                         type="text"
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                                e.preventDefault();
-                                void handleEditProject();
-                            }
-                        }}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50"
                         placeholder={t('projects.enterProjectName')}
                         autoFocus
@@ -254,17 +248,6 @@ export default function ProjectsPage() {
                             type="text"
                             value={newProjectName}
                             onChange={(e) => setNewProjectName(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key !== 'Enter' || e.nativeEvent.isComposing) {
-                                    return;
-                                }
-                                if (!newProjectName.trim() || !effectiveTeamId) {
-                                    return;
-                                }
-
-                                e.preventDefault();
-                                e.currentTarget.form?.requestSubmit();
-                            }}
                             placeholder={t('projects.newProject.formPlaceholder')}
                             className="w-full rounded-md border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
                             autoFocus

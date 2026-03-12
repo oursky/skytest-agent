@@ -11,6 +11,7 @@ import { TeamRunners } from '@/components/features/team-runners';
 import { useCurrentTeam } from '@/hooks/team/useCurrentTeam';
 import { dispatchTeamsChanged, useTeams } from '@/hooks/team/useTeams';
 import { useI18n } from '@/i18n';
+import { runOnEnterKey } from '@/utils/keyboard/enterKey';
 
 interface TeamDetails {
     id: string;
@@ -395,10 +396,11 @@ export default function TeamsPage() {
                                             value={renameValue}
                                             onChange={(event) => setRenameValue(event.target.value)}
                                             onKeyDown={(event) => {
-                                                if (event.key === 'Enter' && isEditingSettings && teamDetails.canRename) {
-                                                    event.preventDefault();
+                                                runOnEnterKey(event, () => {
                                                     void renameTeam();
-                                                }
+                                                }, {
+                                                    enabled: isEditingSettings && teamDetails.canRename,
+                                                });
                                             }}
                                             disabled={!teamDetails.canRename || !isEditingSettings}
                                             className="h-10 w-full max-w-sm rounded-md border border-gray-300 px-4 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:bg-gray-50"

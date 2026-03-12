@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@/components/shared';
+import { runOnEnterKey } from '@/utils/keyboard/enterKey';
 
 interface ProjectSettingsPanelProps {
     canManageProject: boolean;
@@ -52,10 +53,7 @@ export default function ProjectSettingsPanel({
                         value={maxConcurrentRunsInput}
                         onChange={(event) => onInputChange(event.target.value)}
                         onKeyDown={(event) => {
-                            if (event.key === 'Enter' && !isSaveDisabled) {
-                                event.preventDefault();
-                                onEnterSave();
-                            }
+                            runOnEnterKey(event, onEnterSave, { enabled: !isSaveDisabled });
                         }}
                         disabled={!canManageProject || !isEditing}
                         className="h-10 w-full max-w-sm rounded-md border border-gray-300 px-4 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:bg-gray-50"
