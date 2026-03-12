@@ -113,6 +113,37 @@ function collectAndroidRequestedDeviceIds(browserConfig: RunTestRequest['browser
     return requestedDeviceIds;
 }
 
+function extractRequestedRunnerId(browserConfig: RunTestRequest['browserConfig']): string | null {
+    if (!browserConfig || Object.keys(browserConfig).length === 0) {
+        return null;
+    }
+
+    for (const target of Object.values(browserConfig).filter(isAndroidTargetConfig)) {
+        const runnerId = target.runnerScope?.runnerId;
+        if (typeof runnerId === 'string' && runnerId.trim().length > 0) {
+            return runnerId.trim();
+        }
+    }
+
+    return null;
+}
+
+function collectAndroidRequestedRunnerIds(browserConfig: RunTestRequest['browserConfig']): Set<string> {
+    const requestedRunnerIds = new Set<string>();
+    if (!browserConfig || Object.keys(browserConfig).length === 0) {
+        return requestedRunnerIds;
+    }
+
+    for (const target of Object.values(browserConfig).filter(isAndroidTargetConfig)) {
+        const runnerId = target.runnerScope?.runnerId;
+        if (typeof runnerId === 'string' && runnerId.trim().length > 0) {
+            requestedRunnerIds.add(runnerId.trim());
+        }
+    }
+
+    return requestedRunnerIds;
+}
+
 function isEmulatorProfileInventoryDevice(device: { deviceId: string; metadata: Record<string, unknown> | null }): boolean {
     return device.deviceId.startsWith(EMULATOR_PROFILE_DEVICE_PREFIX)
         || device.metadata?.inventoryKind === 'emulator-profile';
@@ -285,11 +316,13 @@ export async function POST(request: Request) {
 
         const inferredRequestedDeviceId = extractRequestedDeviceId(browserConfig);
         const androidRequestedDeviceIds = collectAndroidRequestedDeviceIds(browserConfig);
+        const inferredRequestedRunnerId = extractRequestedRunnerId(browserConfig);
+        const androidRequestedRunnerIds = collectAndroidRequestedRunnerIds(browserConfig);
         const requestedDeviceId = requestHasAndroidTargets
             ? (requestedDeviceIdInput || inferredRequestedDeviceId)
             : null;
         const requestedRunnerId = requestHasAndroidTargets
-            ? (requestedRunnerIdInput || null)
+            ? (requestedRunnerIdInput || inferredRequestedRunnerId || null)
             : null;
 
         if (
@@ -299,6 +332,18 @@ export async function POST(request: Request) {
         ) {
             return NextResponse.json(
                 { error: 'requestedDeviceId must match an Android target device selector' },
+                { status: 400 }
+            );
+        }
+
+        if (
+            requestHasAndroidTargets
+            && requestedRunnerIdInput
+            && androidRequestedRunnerIds.size > 0
+            && !androidRequestedRunnerIds.has(requestedRunnerIdInput)
+        ) {
+            return NextResponse.json(
+                { error: 'requestedRunnerId must match an Android target runner scope' },
                 { status: 400 }
             );
         }

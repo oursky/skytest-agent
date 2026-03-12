@@ -185,6 +185,49 @@ describe('POST /api/test-runs/dispatch', () => {
         });
     });
 
+    it('infers requestedRunnerId from Android target runnerScope when override is omitted', async () => {
+        const request = new Request('http://localhost/api/test-runs/dispatch', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                testCaseId: 'tc-1',
+                steps: [{ id: 'step-1', target: 'android_a', action: 'Open app', type: 'ai-action' }],
+                browserConfig: {
+                    android_a: {
+                        type: 'android',
+                        name: 'Pixel 8 target',
+                        deviceSelector: {
+                            mode: 'emulator-profile',
+                            emulatorProfileName: 'android_profile_a',
+                        },
+                        runnerScope: {
+                            runnerId: 'runner-1',
+                        },
+                        appId: 'com.example.app',
+                        clearAppState: true,
+                        allowAllPermissions: true,
+                    },
+                },
+            }),
+        });
+
+        const response = await POST(request);
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(mocks.testRunCreate).toHaveBeenCalledWith({
+            data: expect.objectContaining({
+                requestedDeviceId: 'emulator-profile:android_profile_a',
+                requestedRunnerId: 'runner-1',
+            }),
+        });
+        expect(payload).toMatchObject({
+            requestedRunnerId: 'runner-1',
+        });
+    });
+
     it('rejects requestedDeviceId that does not match Android target selectors', async () => {
         const request = new Request('http://localhost/api/test-runs/dispatch', {
             method: 'POST',
@@ -256,6 +299,46 @@ describe('POST /api/test-runs/dispatch', () => {
         expect(mocks.testRunCreate).not.toHaveBeenCalled();
         expect(payload).toMatchObject({
             error: 'Selected device is no longer available. Check Team Settings > Runners and choose an available device.',
+        });
+    });
+
+    it('rejects requestedRunnerId override that conflicts with Android target runnerScope', async () => {
+        const request = new Request('http://localhost/api/test-runs/dispatch', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                testCaseId: 'tc-1',
+                steps: [{ id: 'step-1', target: 'android_a', action: 'Open app', type: 'ai-action' }],
+                requestedDeviceId: 'emulator-profile:android_profile_a',
+                requestedRunnerId: 'runner-2',
+                browserConfig: {
+                    android_a: {
+                        type: 'android',
+                        name: 'Pixel 8 target',
+                        deviceSelector: {
+                            mode: 'emulator-profile',
+                            emulatorProfileName: 'android_profile_a',
+                        },
+                        runnerScope: {
+                            runnerId: 'runner-1',
+                        },
+                        appId: 'com.example.app',
+                        clearAppState: true,
+                        allowAllPermissions: true,
+                    },
+                },
+            }),
+        });
+
+        const response = await POST(request);
+        const payload = await response.json();
+
+        expect(response.status).toBe(400);
+        expect(mocks.testRunCreate).not.toHaveBeenCalled();
+        expect(payload).toMatchObject({
+            error: 'requestedRunnerId must match an Android target runner scope',
         });
     });
 });

@@ -29,10 +29,15 @@ export interface AndroidConnectedDeviceSelector {
 
 export type AndroidDeviceSelector = AndroidEmulatorProfileSelector | AndroidConnectedDeviceSelector;
 
+export interface AndroidRunnerScope {
+    runnerId: string;
+}
+
 export interface AndroidTargetConfig {
     type: 'android';
     name?: string;
     deviceSelector: AndroidDeviceSelector;
+    runnerScope?: AndroidRunnerScope;
     appId: string;
     clearAppState: boolean;
     allowAllPermissions: boolean;

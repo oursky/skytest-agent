@@ -164,6 +164,7 @@ const mcpCreateTestCaseSchema = z.object({
     androidTargets: z.array(z.object({
         id: z.string().optional().describe('Optional target ID'),
         name: z.string().optional().describe('Display name'),
+        runnerId: z.string().optional().describe('Optional runner scope for this Android target'),
         device: z.string().optional().describe('Device selector text (e.g. serial:emulator-5554, profile name, or display name such as "Pixel 8")'),
         deviceSelector: z.object({
             mode: z.enum(['emulator-profile', 'connected-device']),
@@ -499,6 +500,7 @@ export function createMcpServer(): McpServer {
                     type: 'android',
                     name: target.name?.trim() || undefined,
                     deviceSelector,
+                    runnerScope: target.runnerId ? { runnerId: target.runnerId.trim() } : undefined,
                     appId: target.appId || '',
                     clearAppState: target.clearAppState ?? true,
                     allowAllPermissions: target.allowAllPermissions ?? true,

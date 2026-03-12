@@ -238,4 +238,106 @@ describe('queueTestCaseRun', () => {
         expect(result.failure.error).toContain('Selected device is no longer available');
         expect(mocks.testRunCreate).not.toHaveBeenCalled();
     });
+
+    it('infers requestedRunnerId from Android target runnerScope when override is omitted', async () => {
+        mocks.testCaseFindUnique.mockResolvedValueOnce({
+            id: 'tc-1',
+            url: '',
+            prompt: 'Open app',
+            steps: JSON.stringify([{ id: 'step_1', target: 'android_a', action: 'Open app' }]),
+            browserConfig: JSON.stringify({
+                android_a: {
+                    type: 'android',
+                    deviceSelector: { mode: 'emulator-profile', emulatorProfileName: 'android_profile_a' },
+                    runnerScope: { runnerId: 'runner-1' },
+                    appId: 'com.example.app',
+                    clearAppState: true,
+                    allowAllPermissions: true,
+                }
+            }),
+            files: [],
+            project: {
+                teamId: 'team-1',
+                team: {
+                    openRouterKeyEncrypted: 'encrypted-key',
+                    memberships: [{ id: 'm-1' }],
+                },
+            },
+        });
+        mocks.getTeamDevicesAvailability.mockResolvedValueOnce({
+            teamId: 'team-1',
+            runnerConnected: true,
+            availableDeviceCount: 1,
+            staleDeviceCount: 0,
+            refreshedAt: new Date().toISOString(),
+            devices: [{
+                id: 'device-1',
+                runnerId: 'runner-1',
+                deviceId: 'emulator-profile:android_profile_a',
+                metadata: { inventoryKind: 'emulator-profile', emulatorProfileName: 'android_profile_a' },
+                isAvailable: true,
+                isFresh: true,
+            }],
+        });
+        mocks.testRunCreate.mockResolvedValueOnce({
+            id: 'run-android-1',
+            status: 'QUEUED',
+            requiredCapability: 'ANDROID',
+            requestedDeviceId: 'emulator-profile:android_profile_a',
+            requestedRunnerId: 'runner-1',
+        });
+
+        const result = await queueTestCaseRun('user-1', 'tc-1');
+
+        expect(result.ok).toBe(true);
+        if (!result.ok) {
+            throw new Error('Expected run queue success');
+        }
+        expect(result.data.requestedRunnerId).toBe('runner-1');
+        expect(mocks.testRunCreate).toHaveBeenCalledWith({
+            data: expect.objectContaining({
+                requestedRunnerId: 'runner-1',
+            }),
+        });
+    });
+
+    it('returns failure when requestedRunnerId override conflicts with Android target runnerScope', async () => {
+        mocks.testCaseFindUnique.mockResolvedValueOnce({
+            id: 'tc-1',
+            url: '',
+            prompt: 'Open app',
+            steps: JSON.stringify([{ id: 'step_1', target: 'android_a', action: 'Open app' }]),
+            browserConfig: JSON.stringify({
+                android_a: {
+                    type: 'android',
+                    deviceSelector: { mode: 'emulator-profile', emulatorProfileName: 'android_profile_a' },
+                    runnerScope: { runnerId: 'runner-1' },
+                    appId: 'com.example.app',
+                    clearAppState: true,
+                    allowAllPermissions: true,
+                }
+            }),
+            files: [],
+            project: {
+                teamId: 'team-1',
+                team: {
+                    openRouterKeyEncrypted: 'encrypted-key',
+                    memberships: [{ id: 'm-1' }],
+                },
+            },
+        });
+
+        const result = await queueTestCaseRun('user-1', 'tc-1', {
+            requestedDeviceId: 'emulator-profile:android_profile_a',
+            requestedRunnerId: 'runner-2',
+        });
+
+        expect(result.ok).toBe(false);
+        if (result.ok) {
+            throw new Error('Expected run queue failure');
+        }
+        expect(result.failure.error).toBe('requestedRunnerId must match an Android target runner scope');
+        expect(mocks.getTeamDevicesAvailability).not.toHaveBeenCalled();
+        expect(mocks.testRunCreate).not.toHaveBeenCalled();
+    });
 });
