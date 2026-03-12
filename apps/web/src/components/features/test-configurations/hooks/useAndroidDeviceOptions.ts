@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { buildAuthHeaders } from '@/components/features/test-configurations/model/config-utils';
+import { config as appConfig } from '@/config/app';
 import { AndroidDeviceOption } from '../model/device-utils';
 
 interface UseAndroidDeviceOptionsParams {
@@ -88,40 +89,60 @@ export function useAndroidDeviceOptions({
             return;
         }
 
+        let disposed = false;
+        let fetching = false;
         const fetchTeamDevices = async () => {
-            const token = await getAccessToken();
-            const res = await fetch(
-                `/api/teams/${encodeURIComponent(teamId)}/devices`,
-                { headers: buildAuthHeaders(token) }
-            );
-            if (!res.ok) {
+            if (disposed || fetching) {
                 return;
             }
+            fetching = true;
+            try {
+                const token = await getAccessToken();
+                const res = await fetch(
+                    `/api/teams/${encodeURIComponent(teamId)}/devices`,
+                    { headers: buildAuthHeaders(token) }
+                );
+                if (!res.ok) {
+                    return;
+                }
 
-            const payload = await res.json() as TeamDevicesResponse;
-            const options: AndroidDeviceOption[] = payload.devices.map((device) => {
-                const statusMeta = buildStatusMeta(device);
-                const emulatorProfileName = resolveEmulatorProfileName(device);
-                const isEmulatorProfile = isEmulatorProfileInventory(device) && Boolean(emulatorProfileName);
+                const payload = await res.json() as TeamDevicesResponse;
+                const options: AndroidDeviceOption[] = payload.devices.map((device) => {
+                    const statusMeta = buildStatusMeta(device);
+                    const emulatorProfileName = resolveEmulatorProfileName(device);
+                    const isEmulatorProfile = isEmulatorProfileInventory(device) && Boolean(emulatorProfileName);
 
-                return {
-                    id: `android:${device.id}`,
-                    selector: isEmulatorProfile && emulatorProfileName
-                        ? { mode: 'emulator-profile', emulatorProfileName }
-                        : { mode: 'connected-device', serial: device.deviceId },
-                    label: device.name,
-                    detail: isEmulatorProfile && emulatorProfileName ? emulatorProfileName : device.deviceId,
-                    statusKey: statusMeta.statusKey,
-                    statusColorClass: statusMeta.statusColorClass,
-                    disabled: statusMeta.disabled,
-                    group: isEmulatorProfile ? 'emulator' : 'physical',
-                };
-            });
+                    return {
+                        id: `android:${device.id}`,
+                        selector: isEmulatorProfile && emulatorProfileName
+                            ? { mode: 'emulator-profile', emulatorProfileName }
+                            : { mode: 'connected-device', serial: device.deviceId },
+                        label: device.name,
+                        detail: isEmulatorProfile && emulatorProfileName ? emulatorProfileName : device.deviceId,
+                        statusKey: statusMeta.statusKey,
+                        statusColorClass: statusMeta.statusColorClass,
+                        disabled: statusMeta.disabled,
+                        group: isEmulatorProfile ? 'emulator' : 'physical',
+                    };
+                });
 
-            setAndroidDeviceOptions(options);
+                if (!disposed) {
+                    setAndroidDeviceOptions(options);
+                }
+            } finally {
+                fetching = false;
+            }
         };
 
         void fetchTeamDevices().catch(() => {});
+        const timerId = window.setInterval(() => {
+            void fetchTeamDevices().catch(() => {});
+        }, appConfig.ui.deviceStatusPollIntervalMs);
+
+        return () => {
+            disposed = true;
+            window.clearInterval(timerId);
+        };
     }, [teamId, getAccessToken, readOnly]);
 
     if (readOnly || !teamId) {
