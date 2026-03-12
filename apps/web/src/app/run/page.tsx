@@ -1015,6 +1015,7 @@ function RunPageContent() {
                         <TestForm
                             onSubmit={handleRunTest}
                             isLoading={isLoading || (!!activeRunId && activeRunId === currentRunId)}
+                            submitOnEnter={false}
                             initialData={initialData}
                             showNameInput={true}
                             readOnly={isRunInProgress}

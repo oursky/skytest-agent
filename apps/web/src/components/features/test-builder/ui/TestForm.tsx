@@ -17,6 +17,7 @@ import { normalizeBrowserConfig } from '@/lib/test-config/browser-target';
 interface TestFormProps {
     onSubmit: (data: TestData) => void;
     isLoading: boolean;
+    submitOnEnter?: boolean;
     initialData?: TestData;
     showNameInput?: boolean;
     readOnly?: boolean;
@@ -54,7 +55,7 @@ const SAMPLE_CONFIGS_TO_ENSURE = [
     { name: SAMPLE_PASSWORD_CONFIG_NAME, type: 'VARIABLE', value: SAMPLE_PASSWORD_CONFIG_VALUE, masked: true },
 ] as const;
 
-export default function TestForm({ onSubmit, isLoading, initialData, showNameInput, readOnly, onExport, onImport, testCaseId, onSaveDraft, onDiscard, isSaving, displayId, onDisplayIdChange, projectId, teamId, projectConfigs, testCaseConfigs, testCaseFiles, onTestCaseConfigsChange, onEnsureTestCase }: TestFormProps) {
+export default function TestForm({ onSubmit, isLoading, submitOnEnter = true, initialData, showNameInput, readOnly, onExport, onImport, testCaseId, onSaveDraft, onDiscard, isSaving, displayId, onDisplayIdChange, projectId, teamId, projectConfigs, testCaseConfigs, testCaseFiles, onTestCaseConfigsChange, onEnsureTestCase }: TestFormProps) {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
     const [activeTab, setActiveTab] = useState<TestFormTab>('configurations');
@@ -190,8 +191,7 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
 
     const hasMissingRequiredTestCaseId = showNameInput && !readOnly && !displayId?.trim();
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
+    const submitRun = () => {
         if (hasMissingRequiredTestCaseId) {
             setActiveTab('configurations');
             return;
@@ -201,6 +201,14 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
             return;
         }
         onSubmit(getCurrentData());
+    };
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!submitOnEnter) {
+            return;
+        }
+        submitRun();
     };
 
     const runDisabled = isLoading || hasMissingRequiredTestCaseId || hasMissingRequiredTestingTargetFields(browsers);
@@ -391,7 +399,8 @@ export default function TestForm({ onSubmit, isLoading, initialData, showNameInp
                         </div>
                     )}
                     <button
-                        type="submit"
+                        type={submitOnEnter ? 'submit' : 'button'}
+                        onClick={submitOnEnter ? undefined : submitRun}
                         disabled={runDisabled}
                         className="btn-primary w-full flex justify-center items-center gap-2 h-11 text-base shadow-lg hover:shadow-xl transition-all"
                     >

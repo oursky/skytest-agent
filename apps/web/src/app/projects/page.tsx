@@ -85,7 +85,8 @@ export default function ProjectsPage() {
     const handleCreateProject = async (e: React.FormEvent) => {
         e.preventDefault();
         const teamId = effectiveTeamId;
-        if (!newProjectName.trim() || !teamId) return;
+        const trimmedProjectName = newProjectName.trim();
+        if (!trimmedProjectName || !teamId) return;
 
         try {
             const token = await getAccessToken();
@@ -95,7 +96,7 @@ export default function ProjectsPage() {
                     "Content-Type": "application/json",
                     ...(token ? { "Authorization": `Bearer ${token}` } : {})
                 },
-                body: JSON.stringify({ name: newProjectName, teamId }),
+                body: JSON.stringify({ name: trimmedProjectName, teamId }),
             });
 
             if (response.ok) {
@@ -225,7 +226,6 @@ export default function ProjectsPage() {
                             if (e.key === 'Enter') {
                                 e.preventDefault();
                                 void handleEditProject();
-                                closeEditModal();
                             }
                         }}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50"
