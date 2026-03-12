@@ -11,6 +11,8 @@ const {
     findUniqueProject,
     upsertUsageRecord,
     createRunFile,
+    updateManyLock,
+    deleteManyLock,
     transaction,
     putObjectBuffer,
 } = vi.hoisted(() => ({
@@ -24,6 +26,8 @@ const {
     findUniqueProject: vi.fn(),
     upsertUsageRecord: vi.fn(),
     createRunFile: vi.fn(),
+    updateManyLock: vi.fn(),
+    deleteManyLock: vi.fn(),
     transaction: vi.fn(),
     putObjectBuffer: vi.fn(),
 }));
@@ -72,6 +76,8 @@ describe('event-service', () => {
         findUniqueProject.mockReset();
         upsertUsageRecord.mockReset();
         createRunFile.mockReset();
+        updateManyLock.mockReset();
+        deleteManyLock.mockReset();
         transaction.mockReset();
         putObjectBuffer.mockReset();
 
@@ -80,6 +86,10 @@ describe('event-service', () => {
                 findUnique: typeof findUniqueRun;
                 updateMany: typeof updateManyRun;
                 update: typeof updateRun;
+            };
+            androidResourceLock: {
+                updateMany: typeof updateManyLock;
+                deleteMany: typeof deleteManyLock;
             };
             testRunEvent: {
                 createMany: typeof createManyEvents;
@@ -93,6 +103,10 @@ describe('event-service', () => {
                 updateMany: updateManyRun,
                 update: updateRun,
             },
+            androidResourceLock: {
+                updateMany: updateManyLock,
+                deleteMany: deleteManyLock,
+            },
             testRunEvent: {
                 createMany: createManyEvents,
             },
@@ -101,6 +115,8 @@ describe('event-service', () => {
             },
         }));
         updateManyRun.mockResolvedValue({ count: 1 });
+        updateManyLock.mockResolvedValue({ count: 1 });
+        deleteManyLock.mockResolvedValue({ count: 1 });
         findUniqueTestCase.mockResolvedValue({
             name: 'Checkout flow',
             project: {
@@ -150,6 +166,15 @@ describe('event-service', () => {
                 expect.objectContaining({ runId: 'run-1', sequence: 4, kind: 'STEP' }),
                 expect.objectContaining({ runId: 'run-1', sequence: 5, kind: 'STEP' }),
             ],
+        });
+        expect(updateManyLock).toHaveBeenCalledWith({
+            where: {
+                runId: 'run-1',
+                runnerId: 'runner-1',
+            },
+            data: {
+                leaseExpiresAt: expect.any(Date),
+            },
         });
         expect(result).toEqual({ accepted: 2, nextSequence: 6 });
     });
@@ -262,6 +287,11 @@ describe('event-service', () => {
                 leaseExpiresAt: null,
             },
         });
+        expect(deleteManyLock).toHaveBeenCalledWith({
+            where: {
+                runId: 'run-1',
+            },
+        });
         expect(updateTestCase).toHaveBeenCalledWith({
             where: { id: 'tc-1' },
             data: { status: 'PASS' },
@@ -313,6 +343,11 @@ describe('event-service', () => {
                 completedAt: expect.any(Date),
                 assignedRunnerId: null,
                 leaseExpiresAt: null,
+            },
+        });
+        expect(deleteManyLock).toHaveBeenCalledWith({
+            where: {
+                runId: 'run-1',
             },
         });
         expect(updateTestCase).toHaveBeenCalledWith({

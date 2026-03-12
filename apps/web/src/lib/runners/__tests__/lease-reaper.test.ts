@@ -4,11 +4,13 @@ const {
     findMany,
     updateManyRuns,
     updateManyTestCases,
+    deleteManyLocks,
     dispatchQueuedBrowserRuns,
 } = vi.hoisted(() => ({
     findMany: vi.fn(),
     updateManyRuns: vi.fn(),
     updateManyTestCases: vi.fn(),
+    deleteManyLocks: vi.fn(),
     dispatchQueuedBrowserRuns: vi.fn(),
 }));
 
@@ -20,6 +22,9 @@ vi.mock('@/lib/core/prisma', () => ({
         },
         testCase: {
             updateMany: updateManyTestCases,
+        },
+        androidResourceLock: {
+            deleteMany: deleteManyLocks,
         },
     },
 }));
@@ -35,6 +40,7 @@ describe('reapExpiredRunnerLeases', () => {
         findMany.mockReset();
         updateManyRuns.mockReset();
         updateManyTestCases.mockReset();
+        deleteManyLocks.mockReset();
         dispatchQueuedBrowserRuns.mockReset();
         dispatchQueuedBrowserRuns.mockResolvedValue(0);
     });
@@ -82,6 +88,14 @@ describe('reapExpiredRunnerLeases', () => {
             where: { id: { in: ['tc-2'] } },
             data: { status: 'FAIL' },
         });
+        expect(deleteManyLocks).toHaveBeenCalledWith({
+            where: {
+                runId: { in: ['run-1', 'run-2'] },
+                run: {
+                    status: { notIn: ['PREPARING', 'RUNNING'] },
+                },
+            },
+        });
         expect(dispatchQueuedBrowserRuns).toHaveBeenCalledWith(2);
         expect(result).toEqual({ recoveredRuns: 2, requeuedRuns: 1, failedRuns: 1 });
     });
@@ -93,6 +107,7 @@ describe('reapExpiredRunnerLeases', () => {
 
         expect(updateManyRuns).not.toHaveBeenCalled();
         expect(updateManyTestCases).not.toHaveBeenCalled();
+        expect(deleteManyLocks).not.toHaveBeenCalled();
         expect(dispatchQueuedBrowserRuns).not.toHaveBeenCalled();
         expect(result).toEqual({ recoveredRuns: 0, requeuedRuns: 0, failedRuns: 0 });
     });

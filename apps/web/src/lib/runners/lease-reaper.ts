@@ -57,6 +57,15 @@ export async function reapExpiredRunnerLeases(now = new Date()) {
         });
     }
 
+    await prisma.androidResourceLock.deleteMany({
+        where: {
+            runId: { in: expiredRuns.map((run) => run.id) },
+            run: {
+                status: { notIn: [...ACTIVE_RUN_STATUSES] },
+            },
+        },
+    });
+
     const preparingTestCaseIds = [...new Set(preparingRuns.map((run) => run.testCaseId))];
     if (preparingTestCaseIds.length > 0) {
         await prisma.testCase.updateMany({

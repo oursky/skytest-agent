@@ -23,28 +23,41 @@ export async function cancelRunDurably(runId: string, errorMessage: string): Pro
     }
 
     const completedAt = new Date();
-    const updateResult = await prisma.testRun.updateMany({
-        where: {
-            id: runId,
-            status: { in: [...ACTIVE_RUN_STATUSES] },
-        },
-        data: {
-            status: 'CANCELLED',
-            error: errorMessage,
-            completedAt,
-            assignedRunnerId: null,
-            leaseExpiresAt: null,
-        },
-    });
+    const cancelled = await prisma.$transaction(async (tx) => {
+        const updateResult = await tx.testRun.updateMany({
+            where: {
+                id: runId,
+                status: { in: [...ACTIVE_RUN_STATUSES] },
+            },
+            data: {
+                status: 'CANCELLED',
+                error: errorMessage,
+                completedAt,
+                assignedRunnerId: null,
+                leaseExpiresAt: null,
+            },
+        });
 
-    if (updateResult.count === 0) {
+        if (updateResult.count === 0) {
+            return false;
+        }
+
+        await tx.testCase.update({
+            where: { id: run.testCaseId },
+            data: { status: 'CANCELLED' },
+        });
+
+        await tx.androidResourceLock.deleteMany({
+            where: {
+                runId,
+            },
+        });
+
+        return true;
+    });
+    if (!cancelled) {
         return false;
     }
-
-    await prisma.testCase.update({
-        where: { id: run.testCaseId },
-        data: { status: 'CANCELLED' },
-    });
 
     void dispatchNextQueuedBrowserRun().catch(() => {});
 

@@ -134,10 +134,11 @@ export async function appendRunEvents(input: {
         }
 
         const startSequence = ownedRun.nextEventSequence;
+        const nextLeaseExpiresAt = createLeaseExpiry(now);
         const runUpdateData: Prisma.TestRunUpdateManyMutationInput = {
             nextEventSequence: startSequence + input.events.length,
             lastEventAt: now,
-            leaseExpiresAt: createLeaseExpiry(now),
+            leaseExpiresAt: nextLeaseExpiresAt,
         };
         if (ownedRun.status === 'PREPARING' && shouldPromoteRunToRunning(input.events)) {
             runUpdateData.status = 'RUNNING';
@@ -155,6 +156,16 @@ export async function appendRunEvents(input: {
         if (updateResult.count !== 1) {
             throw new Error('Failed to reserve event sequence');
         }
+
+        await tx.androidResourceLock.updateMany({
+            where: {
+                runId: input.runId,
+                runnerId: input.runnerId,
+            },
+            data: {
+                leaseExpiresAt: nextLeaseExpiresAt,
+            },
+        });
 
         await tx.testRunEvent.createMany({
             data: input.events.map((event, index) => ({
@@ -269,6 +280,12 @@ export async function completeOwnedRun(input: {
             },
         });
 
+        await tx.androidResourceLock.deleteMany({
+            where: {
+                runId: input.runId,
+            },
+        });
+
         await tx.testCase.update({
             where: { id: ownedRun.testCaseId },
             data: { status: 'PASS' },
@@ -347,6 +364,12 @@ export async function failOwnedRun(input: {
                 completedAt: now,
                 assignedRunnerId: null,
                 leaseExpiresAt: null,
+            },
+        });
+
+        await tx.androidResourceLock.deleteMany({
+            where: {
+                runId: input.runId,
             },
         });
 

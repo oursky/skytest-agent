@@ -76,6 +76,12 @@ export async function POST(
                     data: { status: 'CANCELLED' }
                 });
 
+                await tx.androidResourceLock.deleteMany({
+                    where: {
+                        runId: id,
+                    },
+                });
+
                 return 'CANCELLED';
             });
 

@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
     testRunFindUnique: vi.fn(),
     testRunUpdateMany: vi.fn(),
     testCaseUpdate: vi.fn(),
+    androidResourceLockDeleteMany: vi.fn(),
     transaction: vi.fn(),
 }));
 
@@ -56,6 +57,7 @@ describe('POST /api/test-runs/[id]/cancel', () => {
         mocks.testRunFindUnique.mockReset();
         mocks.testRunUpdateMany.mockReset();
         mocks.testCaseUpdate.mockReset();
+        mocks.androidResourceLockDeleteMany.mockReset();
         mocks.transaction.mockReset();
 
         mocks.verifyAuth.mockResolvedValue({ sub: 'auth-user' });
@@ -77,15 +79,18 @@ describe('POST /api/test-runs/[id]/cancel', () => {
                 findUnique: typeof mocks.testRunFindUnique;
             };
             testCase: { update: typeof mocks.testCaseUpdate };
+            androidResourceLock: { deleteMany: typeof mocks.androidResourceLockDeleteMany };
         }) => Promise<unknown>) => callback({
             testRun: {
                 updateMany: mocks.testRunUpdateMany,
                 findUnique: mocks.testRunFindUnique,
             },
             testCase: { update: mocks.testCaseUpdate },
+            androidResourceLock: { deleteMany: mocks.androidResourceLockDeleteMany },
         }));
         mocks.testRunUpdateMany.mockResolvedValue({ count: 1 });
         mocks.testCaseUpdate.mockResolvedValue({ id: 'tc-1', status: 'CANCELLED' });
+        mocks.androidResourceLockDeleteMany.mockResolvedValue({ count: 1 });
         mocks.dispatchNextQueuedBrowserRun.mockResolvedValue(true);
     });
 
@@ -113,6 +118,11 @@ describe('POST /api/test-runs/[id]/cancel', () => {
         expect(mocks.testCaseUpdate).toHaveBeenCalledWith({
             where: { id: 'tc-1' },
             data: { status: 'CANCELLED' },
+        });
+        expect(mocks.androidResourceLockDeleteMany).toHaveBeenCalledWith({
+            where: {
+                runId: 'run-1',
+            },
         });
         expect(mocks.publishRunUpdate).toHaveBeenCalledWith('run-1');
         expect(mocks.cancelLocalBrowserRun).toHaveBeenCalledWith('run-1');
