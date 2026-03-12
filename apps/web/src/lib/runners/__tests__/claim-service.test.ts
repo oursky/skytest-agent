@@ -186,7 +186,7 @@ describe('claimNextRunForRunner', () => {
         expect(updateManyRun).not.toHaveBeenCalled();
     });
 
-    it('returns null when explicit-device resource lock is not acquired', async () => {
+    it('blocks connected-device claim when same-host lock is already held by another team runner', async () => {
         queryRaw.mockResolvedValueOnce([{
             id: 'run-1',
             testCaseId: 'test-case-1',
@@ -197,6 +197,36 @@ describe('claimNextRunForRunner', () => {
             resourceKey: 'connected-device:device-a',
             resourceType: 'CONNECTED_DEVICE',
         }]);
+        // Simulate ON CONFLICT from an existing lock held by another team on the same host resource.
+        executeRaw
+            .mockResolvedValueOnce(0)
+            .mockResolvedValueOnce(0);
+
+        const result = await claimNextRunForRunner({
+            runnerId: 'runner-2',
+            teamId: 'team-1',
+            runnerKind: 'MACOS_AGENT',
+            capabilities: ['ANDROID'],
+        });
+
+        expect(result).toBeNull();
+        expect(queryRaw).toHaveBeenCalledTimes(1);
+        expect(executeRaw).toHaveBeenCalledTimes(2);
+        expect(updateManyRun).not.toHaveBeenCalled();
+    });
+
+    it('blocks emulator-profile claim when same-host lock is already held by another team runner', async () => {
+        queryRaw.mockResolvedValueOnce([{
+            id: 'run-emu',
+            testCaseId: 'test-case-emu',
+            requiredCapability: 'ANDROID',
+            requestedDeviceId: 'emulator-profile:Pixel_8',
+            requestedRunnerId: 'runner-2',
+            hostFingerprint: 'host-fp-a',
+            resourceKey: 'emulator-profile:Pixel_8',
+            resourceType: 'EMULATOR_PROFILE',
+        }]);
+        // Simulate ON CONFLICT from an existing lock held by another team on the same host resource.
         executeRaw
             .mockResolvedValueOnce(0)
             .mockResolvedValueOnce(0);
