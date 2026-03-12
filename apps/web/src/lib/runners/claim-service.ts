@@ -1,6 +1,11 @@
 import { Prisma } from '@prisma/client';
 import { config as appConfig } from '@/config/app';
 import { prisma } from '@/lib/core/prisma';
+import {
+    ACTIVE_LOCKED_RUN_STATUSES,
+    CONNECTED_DEVICE_RESOURCE_PREFIX,
+    EMULATOR_PROFILE_DEVICE_PREFIX,
+} from '@/lib/runners/android-resource-lock';
 
 interface ClaimedRunRow {
     id: string;
@@ -28,18 +33,19 @@ export interface ClaimNoCandidateDiagnosis {
         | 'NO_QUEUED_RUNS'
         | 'RUNNER_KIND_MISMATCH'
         | 'REQUESTED_DEVICE_UNAVAILABLE'
+        | 'RUN_BLOCKED_BY_HOST_RESOURCE_LOCK'
         | 'RUN_AVAILABLE_BUT_LOCKED';
     queuedAndroidRuns: number;
     queuedCompatibleKindRuns: number;
     explicitRequestedRuns: number;
     explicitRequestedRunsMatchingRunnerDevices: number;
+    explicitRequestedRunsBlockedByHostLocks: number;
+    blockedHostResourceKeys: string[];
     genericQueuedRuns: number;
     claimableDeviceIds: string[];
 }
 
-const EMULATOR_PROFILE_DEVICE_PREFIX = 'emulator-profile:';
-const CONNECTED_DEVICE_RESOURCE_PREFIX = 'connected-device:';
-const ACTIVE_RUN_STATUSES = ['PREPARING', 'RUNNING'] as const;
+const ACTIVE_RUN_STATUSES = ACTIVE_LOCKED_RUN_STATUSES;
 
 function hasAndroidCapability(capabilities: string[]): boolean {
     return capabilities.includes('ANDROID');
@@ -253,65 +259,6 @@ async function claimExplicitDeviceRun(input: {
     };
 }
 
-async function claimGenericRun(input: {
-    tx: Prisma.TransactionClient;
-    runnerId: string;
-    teamId: string;
-    runnerKind: string;
-    leaseExpiresAt: Date;
-}): Promise<ClaimedRunRow | null> {
-    const rows = await input.tx.$queryRaw<ClaimedRunRow[]>(Prisma.sql`
-        WITH candidate AS (
-            SELECT tr.id
-            FROM "TestRun" tr
-            INNER JOIN "TestCase" tc ON tc.id = tr."testCaseId"
-            INNER JOIN "Project" p ON p.id = tc."projectId"
-            WHERE tr.status = 'QUEUED'
-              AND tr."deletedAt" IS NULL
-              AND tr."assignedRunnerId" IS NULL
-              AND tr."requestedDeviceId" IS NULL
-              AND EXISTS (
-                  SELECT 1
-                  FROM "Runner" r
-                  WHERE r.id = ${input.runnerId}
-                    AND r.status = 'ONLINE'
-              )
-              AND p."teamId" = ${input.teamId}
-              AND tr."requiredCapability" = 'ANDROID'
-              AND (tr."requiredRunnerKind" IS NULL OR tr."requiredRunnerKind" = ${input.runnerKind})
-              AND (tr."requestedRunnerId" IS NULL OR tr."requestedRunnerId" = ${input.runnerId})
-              AND (
-                  SELECT COUNT(*)
-                  FROM "TestRun" activeTr
-                  WHERE activeTr."deletedAt" IS NULL
-                    AND activeTr.status IN (${Prisma.join(ACTIVE_RUN_STATUSES)})
-              ) < ${appConfig.runner.maxConcurrentRuns}
-              AND (
-                  SELECT COUNT(*)
-                  FROM "TestRun" activeTr
-                  INNER JOIN "TestCase" activeTc ON activeTc.id = activeTr."testCaseId"
-                  WHERE activeTr."deletedAt" IS NULL
-                    AND activeTr.status IN (${Prisma.join(ACTIVE_RUN_STATUSES)})
-                    AND activeTc."projectId" = tc."projectId"
-              ) < p."maxConcurrentRuns"
-            ORDER BY tr."createdAt" ASC
-            FOR UPDATE SKIP LOCKED
-            LIMIT 1
-        )
-        UPDATE "TestRun" tr
-        SET
-            "assignedRunnerId" = ${input.runnerId},
-            "leaseExpiresAt" = ${input.leaseExpiresAt},
-            "status" = 'PREPARING',
-            "startedAt" = COALESCE(tr."startedAt", NOW())
-        FROM candidate
-        WHERE tr.id = candidate.id
-        RETURNING tr.id, tr."testCaseId", tr."requiredCapability", tr."requestedDeviceId", tr."requestedRunnerId", tr."leaseExpiresAt";
-    `);
-
-    return rows[0] ?? null;
-}
-
 export async function claimNextRunForRunner(input: {
     runnerId: string;
     teamId: string;
@@ -336,13 +283,7 @@ export async function claimNextRunForRunner(input: {
             return explicit;
         }
 
-        return claimGenericRun({
-            tx,
-            runnerId: input.runnerId,
-            teamId: input.teamId,
-            runnerKind: input.runnerKind,
-            leaseExpiresAt,
-        });
+        return null;
     });
 
     if (!claimed) {
@@ -372,6 +313,8 @@ export async function diagnoseNoClaimForRunner(input: {
             queuedCompatibleKindRuns: 0,
             explicitRequestedRuns: 0,
             explicitRequestedRunsMatchingRunnerDevices: 0,
+            explicitRequestedRunsBlockedByHostLocks: 0,
+            blockedHostResourceKeys: [],
             genericQueuedRuns: 0,
             claimableDeviceIds: [],
         };
@@ -502,6 +445,78 @@ export async function diagnoseNoClaimForRunner(input: {
         },
     });
 
+    const runnerContext = await prisma.runner.findUnique({
+        where: { id: input.runnerId },
+        select: { hostFingerprint: true },
+    });
+
+    let explicitRequestedRunsBlockedByHostLocks = 0;
+    let blockedHostResourceKeys: string[] = [];
+
+    if (runnerContext?.hostFingerprint) {
+        const blockedRows = await prisma.$queryRaw<Array<{ blockedRunCount: number; resourceKeys: string[] | null }>>(Prisma.sql`
+            WITH blocked_runs AS (
+                SELECT
+                    tr.id,
+                    CASE
+                        WHEN tr."requestedDeviceId" LIKE ${`${EMULATOR_PROFILE_DEVICE_PREFIX}%`}
+                            THEN tr."requestedDeviceId"
+                        ELSE ${CONNECTED_DEVICE_RESOURCE_PREFIX} || tr."requestedDeviceId"
+                    END AS "resourceKey"
+                FROM "TestRun" tr
+                INNER JOIN "TestCase" tc ON tc.id = tr."testCaseId"
+                INNER JOIN "Project" p ON p.id = tc."projectId"
+                WHERE tr.status = 'QUEUED'
+                  AND tr."deletedAt" IS NULL
+                  AND tr."assignedRunnerId" IS NULL
+                  AND tr."requiredCapability" = 'ANDROID'
+                  AND (tr."requiredRunnerKind" IS NULL OR tr."requiredRunnerKind" = ${input.runnerKind})
+                  AND (tr."requestedRunnerId" IS NULL OR tr."requestedRunnerId" = ${input.runnerId})
+                  AND tr."requestedDeviceId" IS NOT NULL
+                  AND p."teamId" = ${input.teamId}
+                  AND EXISTS (
+                      SELECT 1
+                      FROM "RunnerDevice" rd
+                      WHERE rd."runnerId" = ${input.runnerId}
+                        AND rd."deviceId" = tr."requestedDeviceId"
+                        AND (
+                            (tr."requestedDeviceId" LIKE ${`${EMULATOR_PROFILE_DEVICE_PREFIX}%`} AND rd."state" IN ('ONLINE', 'OFFLINE'))
+                            OR (tr."requestedDeviceId" NOT LIKE ${`${EMULATOR_PROFILE_DEVICE_PREFIX}%`} AND rd."state" = 'ONLINE')
+                        )
+                  )
+                  AND EXISTS (
+                      SELECT 1
+                      FROM "AndroidResourceLock" arl
+                      WHERE arl."hostFingerprint" = ${runnerContext.hostFingerprint}
+                        AND arl."resourceKey" = (
+                            CASE
+                                WHEN tr."requestedDeviceId" LIKE ${`${EMULATOR_PROFILE_DEVICE_PREFIX}%`}
+                                    THEN tr."requestedDeviceId"
+                                ELSE ${CONNECTED_DEVICE_RESOURCE_PREFIX} || tr."requestedDeviceId"
+                            END
+                        )
+                        AND arl."runId" <> tr.id
+                        AND arl."leaseExpiresAt" > NOW()
+                        AND EXISTS (
+                            SELECT 1
+                            FROM "TestRun" lockRun
+                            WHERE lockRun.id = arl."runId"
+                              AND lockRun."deletedAt" IS NULL
+                              AND lockRun.status IN (${Prisma.join(ACTIVE_RUN_STATUSES)})
+                        )
+                  )
+            )
+            SELECT
+                COUNT(*)::int AS "blockedRunCount",
+                COALESCE(ARRAY(SELECT DISTINCT br."resourceKey" FROM blocked_runs br ORDER BY br."resourceKey" LIMIT 20), ARRAY[]::text[]) AS "resourceKeys"
+            FROM blocked_runs;
+        `);
+
+        const blockedSummary = blockedRows[0];
+        explicitRequestedRunsBlockedByHostLocks = blockedSummary?.blockedRunCount ?? 0;
+        blockedHostResourceKeys = blockedSummary?.resourceKeys ?? [];
+    }
+
     let reasonCode: ClaimNoCandidateDiagnosis['reasonCode'] = 'RUN_AVAILABLE_BUT_LOCKED';
     if (queuedAndroidRuns === 0) {
         reasonCode = 'NO_QUEUED_RUNS';
@@ -509,6 +524,8 @@ export async function diagnoseNoClaimForRunner(input: {
         reasonCode = 'RUNNER_KIND_MISMATCH';
     } else if (explicitRequestedRuns > 0 && explicitRequestedRunsMatchingRunnerDevices === 0) {
         reasonCode = 'REQUESTED_DEVICE_UNAVAILABLE';
+    } else if (explicitRequestedRunsBlockedByHostLocks > 0) {
+        reasonCode = 'RUN_BLOCKED_BY_HOST_RESOURCE_LOCK';
     }
 
     return {
@@ -517,6 +534,8 @@ export async function diagnoseNoClaimForRunner(input: {
         queuedCompatibleKindRuns,
         explicitRequestedRuns,
         explicitRequestedRunsMatchingRunnerDevices,
+        explicitRequestedRunsBlockedByHostLocks,
+        blockedHostResourceKeys,
         genericQueuedRuns,
         claimableDeviceIds,
     };

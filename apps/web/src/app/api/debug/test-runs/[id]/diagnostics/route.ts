@@ -4,6 +4,7 @@ import { prisma } from '@/lib/core/prisma';
 import { getTeamRunnersOverview } from '@/lib/runners/availability-service';
 import { diagnoseNoClaimForRunner } from '@/lib/runners/claim-service';
 import { BROWSER_EXECUTION_CAPABILITY } from '@/lib/runners/constants';
+import { ACTIVE_LOCKED_RUN_STATUSES, buildHostResourceKey } from '@/lib/runners/android-resource-lock';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { isTestRunProjectMember } from '@/lib/security/permissions';
 
@@ -16,6 +17,7 @@ type RunClaimabilityReasonCode =
     | 'RUN_NOT_QUEUED'
     | 'RUN_ASSIGNED_WITH_ACTIVE_LEASE'
     | 'NO_ELIGIBLE_FRESH_RUNNERS'
+    | 'REQUESTED_DEVICE_LOCKED_ON_HOST'
     | 'REQUESTED_DEVICE_NOT_CLAIMABLE'
     | 'CLAIMABLE_NOW';
 
@@ -102,6 +104,7 @@ export async function GET(
                 select: {
                     id: true,
                     label: true,
+                    hostFingerprint: true,
                     kind: true,
                     status: true,
                     lastSeenAt: true,
@@ -135,6 +138,7 @@ export async function GET(
             return {
                 id: runner.id,
                 label: runner.label,
+                hostFingerprint: runner.hostFingerprint,
                 kind: runner.kind,
                 status: runner.status,
                 capabilities: runner.capabilities,
@@ -168,6 +172,48 @@ export async function GET(
             && runnerSupportsRequiredKind(runner.kind, run.requiredRunnerKind)
             && runnerSupportsRequiredCapability(runner.capabilities, run.requiredCapability)
         ));
+        const requestedDeviceId = run.requestedDeviceId;
+        const requestedRunnerId = run.requestedRunnerId;
+        const eligibleRunnersWithinRequestedScope = requestedRunnerId
+            ? eligibleRunners.filter((runner) => runner.id === requestedRunnerId)
+            : eligibleRunners;
+
+        const requestedResourceKey = requestedDeviceId ? buildHostResourceKey(requestedDeviceId) : null;
+        const activeResourceLocks = requestedResourceKey
+            ? await prisma.androidResourceLock.findMany({
+                where: {
+                    resourceKey: requestedResourceKey,
+                    leaseExpiresAt: { gt: new Date() },
+                    runner: { teamId },
+                    run: {
+                        deletedAt: null,
+                        status: { in: [...ACTIVE_LOCKED_RUN_STATUSES] },
+                    },
+                },
+                select: {
+                    hostFingerprint: true,
+                    resourceKey: true,
+                    resourceType: true,
+                    runId: true,
+                    runnerId: true,
+                    leaseExpiresAt: true,
+                    runner: {
+                        select: {
+                            label: true,
+                            displayId: true,
+                        },
+                    },
+                    run: {
+                        select: {
+                            status: true,
+                            requestedDeviceId: true,
+                            requestedRunnerId: true,
+                        },
+                    },
+                },
+                orderBy: { leaseExpiresAt: 'desc' },
+            })
+            : [];
 
         const nowMs = Date.now();
         const hasActiveAssignmentLease = Boolean(
@@ -179,8 +225,6 @@ export async function GET(
         let claimabilityReasonCode: RunClaimabilityReasonCode = 'CLAIMABLE_NOW';
         let claimableNow = true;
         let matchingRequestedDeviceRunnerIds: string[] = [];
-        const requestedDeviceId = run.requestedDeviceId;
-        const requestedRunnerId = run.requestedRunnerId;
         const isBrowserRun = run.requiredCapability === BROWSER_EXECUTION_CAPABILITY;
 
         if (run.status !== 'QUEUED') {
@@ -196,13 +240,23 @@ export async function GET(
             claimabilityReasonCode = 'NO_ELIGIBLE_FRESH_RUNNERS';
             claimableNow = false;
         } else if (requestedDeviceId) {
-            matchingRequestedDeviceRunnerIds = eligibleRunners
+            matchingRequestedDeviceRunnerIds = eligibleRunnersWithinRequestedScope
                 .filter((runner) => (
                     runner.claimableDeviceIds.includes(requestedDeviceId)
-                    && (!requestedRunnerId || runner.id === requestedRunnerId)
                 ))
                 .map((runner) => runner.id);
-            if (matchingRequestedDeviceRunnerIds.length === 0) {
+            const candidateHostFingerprints = new Set(
+                eligibleRunnersWithinRequestedScope
+                    .filter((runner) => runner.claimableDeviceIds.includes(requestedDeviceId))
+                    .map((runner) => runner.hostFingerprint)
+                    .filter((fingerprint): fingerprint is string => Boolean(fingerprint))
+            );
+            const blockingLocks = activeResourceLocks.filter((lock) => candidateHostFingerprints.has(lock.hostFingerprint));
+
+            if (blockingLocks.length > 0) {
+                claimabilityReasonCode = 'REQUESTED_DEVICE_LOCKED_ON_HOST';
+                claimableNow = false;
+            } else if (matchingRequestedDeviceRunnerIds.length === 0) {
                 claimabilityReasonCode = 'REQUESTED_DEVICE_NOT_CLAIMABLE';
                 claimableNow = false;
             }
@@ -274,6 +328,8 @@ export async function GET(
                 eligibleRunnerCount: eligibleRunners.length,
                 eligibleRunnerIds: eligibleRunners.map((runner) => runner.id),
                 matchingRequestedDeviceRunnerIds,
+                requestedResourceKey,
+                activeResourceLocks,
                 hasActiveAssignmentLease,
             },
             queueSnapshot: {

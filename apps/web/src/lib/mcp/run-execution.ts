@@ -285,6 +285,15 @@ export async function queueTestCaseRun(
         ? (requestedRunnerIdInput || inferredRequestedRunnerId || null)
         : null;
 
+    if (requestHasAndroidTargets && !requestedDeviceId) {
+        return {
+            ok: false,
+            failure: {
+                error: 'Android runs require a single requestedDeviceId. Align Android target selectors or provide requestedDeviceId override.'
+            },
+        };
+    }
+
     if (
         requestHasAndroidTargets
         && requestedDeviceIdInput

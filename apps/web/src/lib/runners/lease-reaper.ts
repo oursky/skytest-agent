@@ -4,6 +4,24 @@ import { dispatchQueuedBrowserRuns } from '@/lib/runtime/browser-run-dispatcher'
 const ACTIVE_RUN_STATUSES = ['PREPARING', 'RUNNING'] as const;
 
 export async function reapExpiredRunnerLeases(now = new Date()) {
+    await prisma.androidResourceLock.deleteMany({
+        where: {
+            OR: [
+                { leaseExpiresAt: { lte: now } },
+                {
+                    run: {
+                        deletedAt: { not: null },
+                    },
+                },
+                {
+                    run: {
+                        status: { notIn: [...ACTIVE_RUN_STATUSES] },
+                    },
+                },
+            ],
+        },
+    });
+
     const expiredRuns = await prisma.testRun.findMany({
         where: {
             status: { in: [...ACTIVE_RUN_STATUSES] },
@@ -56,15 +74,6 @@ export async function reapExpiredRunnerLeases(now = new Date()) {
             },
         });
     }
-
-    await prisma.androidResourceLock.deleteMany({
-        where: {
-            runId: { in: expiredRuns.map((run) => run.id) },
-            run: {
-                status: { notIn: [...ACTIVE_RUN_STATUSES] },
-            },
-        },
-    });
 
     const preparingTestCaseIds = [...new Set(preparingRuns.map((run) => run.testCaseId))];
     if (preparingTestCaseIds.length > 0) {

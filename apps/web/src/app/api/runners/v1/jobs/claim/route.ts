@@ -107,6 +107,8 @@ export async function POST(request: Request) {
                 logMeta.queuedCompatibleKindRuns = diagnosis.queuedCompatibleKindRuns;
                 logMeta.explicitRequestedRuns = diagnosis.explicitRequestedRuns;
                 logMeta.explicitRequestedRunsMatchingRunnerDevices = diagnosis.explicitRequestedRunsMatchingRunnerDevices;
+                logMeta.explicitRequestedRunsBlockedByHostLocks = diagnosis.explicitRequestedRunsBlockedByHostLocks;
+                logMeta.blockedHostResourceKeys = diagnosis.blockedHostResourceKeys;
                 logMeta.genericQueuedRuns = diagnosis.genericQueuedRuns;
                 logMeta.claimableDeviceIds = diagnosis.claimableDeviceIds;
             }

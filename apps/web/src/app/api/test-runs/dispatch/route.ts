@@ -308,6 +308,13 @@ export async function POST(request: Request) {
             ? (requestedRunnerIdInput || inferredRequestedRunnerId || null)
             : null;
 
+        if (requestHasAndroidTargets && !requestedDeviceId) {
+            return NextResponse.json(
+                { error: 'Android runs require a single requestedDeviceId. Align Android target selectors or provide requestedDeviceId override.' },
+                { status: 400 }
+            );
+        }
+
         if (
             requestHasAndroidTargets
             && requestedDeviceIdInput

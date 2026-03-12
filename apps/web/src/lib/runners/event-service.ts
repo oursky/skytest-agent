@@ -15,6 +15,7 @@ interface OwnedRun {
     id: string;
     testCaseId: string;
     status: string;
+    requestedDeviceId: string | null;
     deletedAt: Date | null;
     assignedRunnerId: string | null;
     leaseExpiresAt: Date | null;
@@ -62,6 +63,7 @@ async function findOwnedRun(runId: string, runnerId: string): Promise<OwnedRun |
             id: true,
             testCaseId: true,
             status: true,
+            requestedDeviceId: true,
             deletedAt: true,
             assignedRunnerId: true,
             leaseExpiresAt: true,
@@ -122,6 +124,7 @@ export async function appendRunEvents(input: {
                 id: true,
                 testCaseId: true,
                 status: true,
+                requestedDeviceId: true,
                 deletedAt: true,
                 assignedRunnerId: true,
                 leaseExpiresAt: true,
@@ -131,6 +134,19 @@ export async function appendRunEvents(input: {
         const ownedRun = ensureRunOwnership(run, input.runnerId);
         if (!ownedRun) {
             return null;
+        }
+
+        if (ownedRun.requestedDeviceId) {
+            const lockCount = await tx.androidResourceLock.count({
+                where: {
+                    runId: input.runId,
+                    runnerId: input.runnerId,
+                    leaseExpiresAt: { gt: now },
+                },
+            });
+            if (lockCount === 0) {
+                return null;
+            }
         }
 
         const startSequence = ownedRun.nextEventSequence;
@@ -258,6 +274,7 @@ export async function completeOwnedRun(input: {
                 id: true,
                 testCaseId: true,
                 status: true,
+                requestedDeviceId: true,
                 deletedAt: true,
                 assignedRunnerId: true,
                 leaseExpiresAt: true,
@@ -344,6 +361,7 @@ export async function failOwnedRun(input: {
                 id: true,
                 testCaseId: true,
                 status: true,
+                requestedDeviceId: true,
                 deletedAt: true,
                 assignedRunnerId: true,
                 leaseExpiresAt: true,
