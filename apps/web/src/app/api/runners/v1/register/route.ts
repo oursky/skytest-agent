@@ -52,6 +52,7 @@ export async function POST(request: Request) {
 
         const runner = await registerRunner({
             runnerId: auth.runnerId,
+            hostFingerprint: parsed.data.hostFingerprint,
             label: parsed.data.label,
             kind: parsed.data.kind,
             capabilities: parsed.data.capabilities,

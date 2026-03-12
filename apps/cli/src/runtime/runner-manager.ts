@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import crypto from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -108,6 +109,21 @@ function normalizeBaseUrl(baseUrl: string): string {
 function defaultRunnerLabel(localRunnerId: string): string {
     const host = os.hostname().trim() || 'host';
     return `${host}-${localRunnerId}`;
+}
+
+function resolveHostFingerprint(): string {
+    const interfaces = os.networkInterfaces();
+    const macs = Object.values(interfaces)
+        .flatMap((items) => items ?? [])
+        .map((entry) => entry.mac?.trim().toLowerCase() ?? '')
+        .filter((mac) => mac.length > 0 && mac !== '00:00:00:00:00:00')
+        .sort();
+    const host = os.hostname().trim().toLowerCase() || 'host';
+    const digest = crypto
+        .createHash('sha256')
+        .update(JSON.stringify({ host, macs }))
+        .digest('hex');
+    return `host-${digest.slice(0, 40)}`;
 }
 
 function maskRunnerToken(runnerToken: string): string {
@@ -224,6 +240,7 @@ export async function pairRunner(options: PairRunnerOptions): Promise<PairRunner
     const exchanged = await exchangePairingToken({
         pairingToken: options.pairingToken,
         controlPlaneBaseUrl,
+        hostFingerprint: resolveHostFingerprint(),
         displayId: localRunnerId,
         label,
         runnerVersion: DEFAULT_RUNNER_VERSION,
@@ -314,6 +331,8 @@ export async function startRunner(runnerIdentifier: string): Promise<StartRunner
             RUNNER_CONTROL_PLANE_URL: metadata.controlPlaneBaseUrl,
             RUNNER_VERSION: DEFAULT_RUNNER_VERSION,
             RUNNER_LABEL: metadata.label,
+            RUNNER_DISPLAY_ID: metadata.localRunnerId,
+            RUNNER_HOST_FINGERPRINT: resolveHostFingerprint(),
             RUNNER_TOKEN: credential.runnerToken,
             SKYTEST_RUNNER_STATE_DIR: runnerPaths.runtimeStateDir,
             SKYTEST_RUNNER_DISABLE_KEYCHAIN: '1',

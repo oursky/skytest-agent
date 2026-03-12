@@ -51,6 +51,7 @@ export async function POST(request: Request) {
 
         const runner = await heartbeatRunner({
             runnerId: auth.runnerId,
+            hostFingerprint: parsed.data.hostFingerprint,
             protocolVersion: parsed.data.protocolVersion,
             runnerVersion: parsed.data.runnerVersion,
         });

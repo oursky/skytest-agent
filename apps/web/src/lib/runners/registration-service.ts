@@ -4,6 +4,7 @@ import { invalidateTeamAvailabilityCache } from '@/lib/runners/availability-serv
 
 export async function registerRunner(input: {
     runnerId: string;
+    hostFingerprint: string;
     label: string;
     kind: RunnerKind;
     capabilities: RunnerCapability[];
@@ -15,6 +16,7 @@ export async function registerRunner(input: {
     return prisma.runner.update({
         where: { id: input.runnerId },
         data: {
+            hostFingerprint: input.hostFingerprint,
             label: input.label,
             kind: input.kind,
             capabilities: input.capabilities,
@@ -34,12 +36,14 @@ export async function registerRunner(input: {
 
 export async function heartbeatRunner(input: {
     runnerId: string;
+    hostFingerprint: string;
     protocolVersion: string;
     runnerVersion: string;
 }) {
     return prisma.runner.update({
         where: { id: input.runnerId },
         data: {
+            hostFingerprint: input.hostFingerprint,
             protocolVersion: input.protocolVersion,
             runnerVersion: input.runnerVersion,
             status: 'ONLINE',

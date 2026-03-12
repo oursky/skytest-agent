@@ -1,4 +1,5 @@
 import { mkdir, open, readFile, rm, writeFile } from 'node:fs/promises';
+import crypto from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import {
@@ -102,6 +103,7 @@ const controlPlaneBaseUrl = process.env.RUNNER_CONTROL_PLANE_URL ?? 'http://127.
 const pairingToken = process.env.RUNNER_PAIRING_TOKEN?.trim() || null;
 const envRunnerToken = process.env.RUNNER_TOKEN?.trim() || null;
 const runnerLabel = process.env.RUNNER_LABEL ?? 'macOS Runner';
+const runnerDisplayId = (process.env.RUNNER_DISPLAY_ID?.trim() || '').toLowerCase();
 const capabilities = ['ANDROID'] as const;
 const EMULATOR_PROFILE_DEVICE_PREFIX = 'emulator-profile:';
 const runnerStateRoot = process.env.SKYTEST_RUNNER_STATE_DIR?.trim() || path.join(os.homedir(), '.skytest-agent');
@@ -113,6 +115,32 @@ const DEFAULT_TRANSPORT: RunnerTransportMetadata = {
     claimLongPollTimeoutSeconds: 15,
     deviceSyncIntervalSeconds: 20,
 };
+
+function buildRunnerDisplayId(seed: string): string {
+    return crypto.createHash('sha256').update(seed).digest('hex').slice(0, 6);
+}
+
+function resolveHostFingerprint(): string {
+    const configured = process.env.RUNNER_HOST_FINGERPRINT?.trim();
+    if (configured) {
+        return configured;
+    }
+
+    const interfaces = os.networkInterfaces();
+    const macs = Object.values(interfaces)
+        .flatMap((items) => items ?? [])
+        .map((entry) => entry.mac?.trim().toLowerCase() ?? '')
+        .filter((mac) => mac.length > 0 && mac !== '00:00:00:00:00:00')
+        .sort();
+    const host = os.hostname().trim().toLowerCase() || 'host';
+    const digest = crypto
+        .createHash('sha256')
+        .update(JSON.stringify({ host, macs }))
+        .digest('hex');
+    return `host-${digest.slice(0, 40)}`;
+}
+
+const hostFingerprint = resolveHostFingerprint();
 
 const JSON_HEADERS = {
     'Content-Type': 'application/json',
@@ -309,6 +337,8 @@ async function exchangePairingCredential(): Promise<RunnerAuthState> {
         pairingToken,
         protocolVersion: RUNNER_PROTOCOL_CURRENT_VERSION,
         runnerVersion,
+        hostFingerprint,
+        displayId: runnerDisplayId || buildRunnerDisplayId(`${runnerLabel}:${os.hostname()}:${runnerVersion}`),
         label: runnerLabel,
         kind: 'MACOS_AGENT',
         capabilities,
@@ -361,6 +391,7 @@ async function registerRunner(): Promise<void> {
     const payload = registerRunnerRequestSchema.parse({
         protocolVersion: RUNNER_PROTOCOL_CURRENT_VERSION,
         runnerVersion,
+        hostFingerprint,
         label: runnerLabel,
         kind: 'MACOS_AGENT',
         capabilities,
@@ -387,6 +418,7 @@ async function sendHeartbeat() {
     const payload = heartbeatRunnerRequestSchema.parse({
         protocolVersion: RUNNER_PROTOCOL_CURRENT_VERSION,
         runnerVersion,
+        hostFingerprint,
     });
     const response = await postRunnerApi('/api/runners/v1/heartbeat', payload);
     const parsed = heartbeatRunnerResponseSchema.parse(response);
