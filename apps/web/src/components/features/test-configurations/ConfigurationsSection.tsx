@@ -84,6 +84,7 @@ export default function ConfigurationsSection({
     }, [testCaseConfigs]);
 
     const androidDeviceOptions = useAndroidDeviceOptions({
+        projectId,
         teamId,
         readOnly,
         getAccessToken,

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/core/prisma';
 const DEVICE_FRESHNESS_WINDOW_MS = 45_000;
 const TEAM_AVAILABILITY_CACHE_TTL_MS = 5_000;
 const EMULATOR_PROFILE_DEVICE_PREFIX = 'emulator-profile:';
+const ACTIVE_RUN_STATUSES = ['PREPARING', 'RUNNING'] as const;
 
 interface CachedTeamDevices {
     expiresAtMs: number;
@@ -17,6 +18,7 @@ interface CachedTeamRunners {
 interface TeamDeviceRow {
     id: string;
     runnerId: string;
+    runnerDisplayId: string;
     runnerLabel: string;
     deviceId: string;
     name: string;
@@ -26,6 +28,10 @@ interface TeamDeviceRow {
     lastSeenAt: string;
     isFresh: boolean;
     isAvailable: boolean;
+    activeRunId: string | null;
+    activeProjectId: string | null;
+    activeProjectName: string | null;
+    inUseByAnotherTeam: boolean;
 }
 
 export interface TeamDevicesAvailability {
@@ -139,6 +145,15 @@ interface TeamRunnerWithDevices {
     }>;
 }
 
+interface ActiveDeviceRunProjection {
+    runId: string;
+    runnerId: string;
+    requestedDeviceId: string;
+    projectId: string;
+    projectName: string;
+    teamId: string;
+}
+
 async function loadTeamRunners(teamId: string): Promise<TeamRunnerWithDevices[]> {
     return prisma.runner.findMany({
         where: { teamId },
@@ -174,6 +189,68 @@ export async function getTeamDevicesAvailability(teamId: string): Promise<TeamDe
     }
 
     const runners = await loadTeamRunners(teamId);
+    const teamRunnerIds = new Set(runners.map((runner) => runner.id));
+    const teamDeviceIds = new Set<string>();
+    for (const runner of runners) {
+        const dedupedDevices = dedupeRunnerDevices(runner.devices);
+        for (const device of dedupedDevices) {
+            teamDeviceIds.add(device.deviceId);
+        }
+    }
+
+    const activeDeviceRuns: ActiveDeviceRunProjection[] = teamDeviceIds.size > 0
+        ? (await prisma.testRun.findMany({
+            where: {
+                status: { in: [...ACTIVE_RUN_STATUSES] },
+                assignedRunnerId: { not: null },
+                requestedDeviceId: { in: Array.from(teamDeviceIds) },
+            },
+            orderBy: { createdAt: 'desc' },
+            select: {
+                id: true,
+                assignedRunnerId: true,
+                requestedDeviceId: true,
+                testCase: {
+                    select: {
+                        projectId: true,
+                        project: {
+                            select: {
+                                name: true,
+                                teamId: true,
+                            },
+                        },
+                    },
+                },
+            },
+        })).flatMap((run) => {
+            if (!run.assignedRunnerId || !run.requestedDeviceId) {
+                return [];
+            }
+            return [{
+                runId: run.id,
+                runnerId: run.assignedRunnerId,
+                requestedDeviceId: run.requestedDeviceId,
+                projectId: run.testCase.projectId,
+                projectName: run.testCase.project.name,
+                teamId: run.testCase.project.teamId,
+            }];
+        })
+        : [];
+
+    const activeRunByRunnerAndDevice = new Map<string, ActiveDeviceRunProjection>();
+    const inUseByOtherTeamDeviceIds = new Set<string>();
+    for (const run of activeDeviceRuns) {
+        if (run.teamId === teamId && teamRunnerIds.has(run.runnerId)) {
+            const key = `${run.runnerId}:${run.requestedDeviceId}`;
+            if (!activeRunByRunnerAndDevice.has(key)) {
+                activeRunByRunnerAndDevice.set(key, run);
+            }
+            continue;
+        }
+        if (run.teamId !== teamId) {
+            inUseByOtherTeamDeviceIds.add(run.requestedDeviceId);
+        }
+    }
 
     const staleThresholdMs = nowMs - DEVICE_FRESHNESS_WINDOW_MS;
     const devices: TeamDeviceRow[] = [];
@@ -191,6 +268,8 @@ export async function getTeamDevicesAvailability(teamId: string): Promise<TeamDe
         for (const device of dedupedDevices) {
             const deviceFresh = device.lastSeenAt.getTime() >= staleThresholdMs;
             const isAvailable = runnerFresh && deviceFresh && device.state === 'ONLINE';
+            const occupancyKey = `${runner.id}:${device.deviceId}`;
+            const activeRun = activeRunByRunnerAndDevice.get(occupancyKey);
 
             if (isAvailable) {
                 availableDeviceCount += 1;
@@ -201,6 +280,7 @@ export async function getTeamDevicesAvailability(teamId: string): Promise<TeamDe
             devices.push({
                 id: device.id,
                 runnerId: runner.id,
+                runnerDisplayId: runner.displayId,
                 runnerLabel: runner.label,
                 deviceId: device.deviceId,
                 name: device.name,
@@ -210,6 +290,11 @@ export async function getTeamDevicesAvailability(teamId: string): Promise<TeamDe
                 lastSeenAt: device.lastSeenAt.toISOString(),
                 isFresh: deviceFresh,
                 isAvailable,
+                activeRunId: activeRun?.runId ?? null,
+                activeProjectId: activeRun?.projectId ?? null,
+                activeProjectName: activeRun?.projectName ?? null,
+                inUseByAnotherTeam: !activeRun
+                    && inUseByOtherTeamDeviceIds.has(device.deviceId),
             });
         }
     }

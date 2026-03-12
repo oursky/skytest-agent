@@ -4,6 +4,7 @@ import { config as appConfig } from '@/config/app';
 import { AndroidDeviceOption } from '../model/device-utils';
 
 interface UseAndroidDeviceOptionsParams {
+    projectId?: string;
     teamId?: string;
     readOnly?: boolean;
     getAccessToken: () => Promise<string | null>;
@@ -11,11 +12,18 @@ interface UseAndroidDeviceOptionsParams {
 
 interface TeamDevice {
     id: string;
+    runnerId: string;
+    runnerDisplayId?: string;
+    runnerLabel: string;
     deviceId: string;
     name: string;
     state: string;
     isFresh: boolean;
     isAvailable: boolean;
+    activeRunId?: string | null;
+    activeProjectId?: string | null;
+    activeProjectName?: string | null;
+    inUseByAnotherTeam?: boolean;
     metadata?: Record<string, unknown> | null;
 }
 
@@ -37,7 +45,27 @@ function resolveEmulatorProfileName(device: TeamDevice): string | null {
     return normalized.length > 0 ? normalized : null;
 }
 
-function buildStatusMeta(device: TeamDevice): { statusKey: string; statusColorClass: string; disabled: boolean } {
+function buildStatusMeta(
+    device: TeamDevice,
+    projectId?: string
+): { statusKey: string; statusColorClass: string; disabled: boolean } {
+    if (device.activeRunId) {
+        const isCurrentProject = Boolean(projectId && device.activeProjectId === projectId);
+        return {
+            statusKey: isCurrentProject ? 'device.inUseCurrentProject' : 'device.inUseOtherProject',
+            statusColorClass: 'bg-amber-100 text-amber-700',
+            disabled: false,
+        };
+    }
+
+    if (device.inUseByAnotherTeam) {
+        return {
+            statusKey: 'device.inUseAnotherTeam',
+            statusColorClass: 'bg-red-100 text-red-700',
+            disabled: false,
+        };
+    }
+
     if (device.isAvailable) {
         return {
             statusKey: 'device.state.online',
@@ -78,6 +106,7 @@ function buildStatusMeta(device: TeamDevice): { statusKey: string; statusColorCl
 }
 
 export function useAndroidDeviceOptions({
+    projectId,
     teamId,
     readOnly,
     getAccessToken,
@@ -108,17 +137,31 @@ export function useAndroidDeviceOptions({
 
                 const payload = await res.json() as TeamDevicesResponse;
                 const options: AndroidDeviceOption[] = payload.devices.map((device) => {
-                    const statusMeta = buildStatusMeta(device);
+                    const statusMeta = buildStatusMeta(device, projectId);
                     const emulatorProfileName = resolveEmulatorProfileName(device);
                     const isEmulatorProfile = isEmulatorProfileInventory(device) && Boolean(emulatorProfileName);
+                    const baseDetail = isEmulatorProfile && emulatorProfileName ? emulatorProfileName : device.deviceId;
+                    const runnerDisplayId = typeof device.runnerDisplayId === 'string'
+                        ? device.runnerDisplayId.trim()
+                        : '';
+                    const runnerIdentity = runnerDisplayId.length > 0
+                        ? runnerDisplayId
+                        : device.runnerLabel;
+                    const detailSegments = [baseDetail, `Runner ${runnerIdentity}`];
+                    if (device.activeRunId && device.activeProjectName) {
+                        detailSegments.push(device.activeProjectName);
+                    }
 
                     return {
                         id: `android:${device.id}`,
+                        runnerId: device.runnerId,
+                        runnerLabel: device.runnerLabel,
+                        runnerDisplayId,
                         selector: isEmulatorProfile && emulatorProfileName
                             ? { mode: 'emulator-profile', emulatorProfileName }
                             : { mode: 'connected-device', serial: device.deviceId },
                         label: device.name,
-                        detail: isEmulatorProfile && emulatorProfileName ? emulatorProfileName : device.deviceId,
+                        detail: detailSegments.join(' · '),
                         statusKey: statusMeta.statusKey,
                         statusColorClass: statusMeta.statusColorClass,
                         disabled: statusMeta.disabled,
@@ -143,7 +186,7 @@ export function useAndroidDeviceOptions({
             disposed = true;
             window.clearInterval(timerId);
         };
-    }, [teamId, getAccessToken, readOnly]);
+    }, [projectId, teamId, getAccessToken, readOnly]);
 
     if (readOnly || !teamId) {
         return [];

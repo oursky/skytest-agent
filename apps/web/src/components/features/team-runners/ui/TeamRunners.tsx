@@ -48,6 +48,12 @@ function buildRunnerStatusLabel(runner: TeamRunnerItem, t: (key: string) => stri
 }
 
 function buildDeviceStatusClass(device: TeamDeviceItem): string {
+    if (device.activeRunId) {
+        return 'bg-amber-100 text-amber-700';
+    }
+    if (device.inUseByAnotherTeam) {
+        return 'bg-red-100 text-red-700';
+    }
     if (device.isAvailable) {
         return 'bg-green-100 text-green-700';
     }
@@ -64,6 +70,12 @@ function buildDeviceStatusClass(device: TeamDeviceItem): string {
 }
 
 function buildDeviceStatusLabel(device: TeamDeviceItem, t: (key: string) => string): string {
+    if (device.activeRunId) {
+        return t('device.inUseOtherProject');
+    }
+    if (device.inUseByAnotherTeam) {
+        return t('device.inUseAnotherTeam');
+    }
     if (device.isAvailable) {
         return t('device.state.online');
     }

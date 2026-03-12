@@ -3,6 +3,9 @@ import type { AndroidDeviceSelector } from '@/types';
 export interface AndroidDeviceOption {
     id: string;
     selector: AndroidDeviceSelector;
+    runnerId: string;
+    runnerLabel: string;
+    runnerDisplayId: string;
     label: string;
     detail: string;
     statusKey: string;
