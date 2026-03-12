@@ -30,6 +30,7 @@ describe('claimNextRunForRunner', () => {
                 testCaseId: 'test-case-1',
                 requiredCapability: 'ANDROID',
                 requestedDeviceId: 'emulator-profile:android_profile_a',
+                requestedRunnerId: null,
                 leaseExpiresAt,
             }]);
 
@@ -45,6 +46,7 @@ describe('claimNextRunForRunner', () => {
             testCaseId: 'test-case-1',
             requiredCapability: 'ANDROID',
             requestedDeviceId: 'emulator-profile:android_profile_a',
+            requestedRunnerId: null,
             leaseExpiresAt,
         });
         expect(queryRaw).toHaveBeenCalledTimes(1);
@@ -52,6 +54,7 @@ describe('claimNextRunForRunner', () => {
         expect(firstQuery.strings.join('')).toContain('"RunnerDevice"');
         expect(firstQuery.strings.join('')).toContain('"Runner" r');
         expect(firstQuery.strings.join('')).toContain("r.status = 'ONLINE'");
+        expect(firstQuery.strings.join('')).toContain('"requestedRunnerId"');
         expect(firstQuery.strings.join('')).toContain('LIKE');
         expect(firstQuery.strings.join('')).toContain(`'OFFLINE'`);
     });
@@ -65,6 +68,7 @@ describe('claimNextRunForRunner', () => {
                 testCaseId: 'test-case-2',
                 requiredCapability: 'ANDROID',
                 requestedDeviceId: null,
+                requestedRunnerId: null,
                 leaseExpiresAt,
             }]);
 
@@ -80,6 +84,7 @@ describe('claimNextRunForRunner', () => {
             testCaseId: 'test-case-2',
             requiredCapability: 'ANDROID',
             requestedDeviceId: null,
+            requestedRunnerId: null,
             leaseExpiresAt,
         });
         expect(queryRaw).toHaveBeenCalledTimes(2);

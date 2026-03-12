@@ -78,6 +78,7 @@ describe('POST /api/test-runs/dispatch', () => {
             devices: [
                 {
                     id: 'device-1',
+                    runnerId: 'runner-1',
                     deviceId: 'emulator-profile:android_profile_a',
                     metadata: { inventoryKind: 'emulator-profile', emulatorProfileName: 'android_profile_a' },
                     isAvailable: false,
@@ -90,6 +91,7 @@ describe('POST /api/test-runs/dispatch', () => {
             status: String(data.status),
             requiredCapability: data.requiredCapability ?? null,
             requestedDeviceId: data.requestedDeviceId ?? null,
+            requestedRunnerId: data.requestedRunnerId ?? null,
         }));
         mocks.dispatchBrowserRun.mockResolvedValue(true);
     });
@@ -217,6 +219,43 @@ describe('POST /api/test-runs/dispatch', () => {
         expect(mocks.dispatchBrowserRun).not.toHaveBeenCalled();
         expect(payload).toMatchObject({
             error: 'requestedDeviceId must match an Android target device selector',
+        });
+    });
+
+    it('rejects requestedRunnerId when runner-device pair is not available', async () => {
+        const request = new Request('http://localhost/api/test-runs/dispatch', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                testCaseId: 'tc-1',
+                steps: [{ id: 'step-1', target: 'android_a', action: 'Open app', type: 'ai-action' }],
+                requestedDeviceId: 'emulator-profile:android_profile_a',
+                requestedRunnerId: 'runner-2',
+                browserConfig: {
+                    android_a: {
+                        type: 'android',
+                        name: 'Pixel 8 target',
+                        deviceSelector: {
+                            mode: 'emulator-profile',
+                            emulatorProfileName: 'android_profile_a',
+                        },
+                        appId: 'com.example.app',
+                        clearAppState: true,
+                        allowAllPermissions: true,
+                    },
+                },
+            }),
+        });
+
+        const response = await POST(request);
+        const payload = await response.json();
+
+        expect(response.status).toBe(409);
+        expect(mocks.testRunCreate).not.toHaveBeenCalled();
+        expect(payload).toMatchObject({
+            error: 'Selected device is no longer available. Check Team Settings > Runners and choose an available device.',
         });
     });
 });

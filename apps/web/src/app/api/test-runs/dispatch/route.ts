@@ -26,6 +26,7 @@ interface RunTestRequest {
     steps?: TestStep[];
     browserConfig?: Record<string, BrowserConfig | TargetConfig>;
     requestedDeviceId?: string;
+    requestedRunnerId?: string;
     testCaseId?: string;
 }
 
@@ -264,6 +265,9 @@ export async function POST(request: Request) {
         const requestedDeviceIdInput = typeof config.requestedDeviceId === 'string'
             ? config.requestedDeviceId.trim()
             : '';
+        const requestedRunnerIdInput = typeof config.requestedRunnerId === 'string'
+            ? config.requestedRunnerId.trim()
+            : '';
 
         if (!requestHasAndroidTargets && requestedDeviceIdInput) {
             return NextResponse.json(
@@ -272,10 +276,20 @@ export async function POST(request: Request) {
             );
         }
 
+        if (!requestHasAndroidTargets && requestedRunnerIdInput) {
+            return NextResponse.json(
+                { error: 'requestedRunnerId requires Android targets' },
+                { status: 400 }
+            );
+        }
+
         const inferredRequestedDeviceId = extractRequestedDeviceId(browserConfig);
         const androidRequestedDeviceIds = collectAndroidRequestedDeviceIds(browserConfig);
         const requestedDeviceId = requestHasAndroidTargets
             ? (requestedDeviceIdInput || inferredRequestedDeviceId)
+            : null;
+        const requestedRunnerId = requestHasAndroidTargets
+            ? (requestedRunnerIdInput || null)
             : null;
 
         if (
@@ -291,7 +305,11 @@ export async function POST(request: Request) {
 
         if (requestHasAndroidTargets && requestedDeviceId) {
             const availability = await getTeamDevicesAvailability(testCase.project.teamId);
-            const selectedDevice = availability?.devices.find((device) => device.deviceId === requestedDeviceId);
+            const selectedDevice = requestedRunnerId
+                ? availability?.devices.find((device) => (
+                    device.deviceId === requestedDeviceId && device.runnerId === requestedRunnerId
+                ))
+                : availability?.devices.find((device) => device.deviceId === requestedDeviceId);
 
             const emulatorProfileClaimable = selectedDevice
                 && isEmulatorProfileInventoryDevice(selectedDevice)
@@ -318,6 +336,7 @@ export async function POST(request: Request) {
                     ? ANDROID_EXECUTION_RUNNER_KIND
                     : null,
                 requestedDeviceId,
+                requestedRunnerId,
             }
         });
 
@@ -328,6 +347,7 @@ export async function POST(request: Request) {
             requiredCapability: testRun.requiredCapability,
             requiredRunnerKind: testRun.requiredRunnerKind,
             requestedDeviceId: testRun.requestedDeviceId,
+            requestedRunnerId: testRun.requestedRunnerId,
             hasAndroidTargets: requestHasAndroidTargets,
         });
 
@@ -364,6 +384,7 @@ export async function POST(request: Request) {
             status: testRun.status,
             requiredCapability: testRun.requiredCapability,
             requestedDeviceId: testRun.requestedDeviceId,
+            requestedRunnerId: testRun.requestedRunnerId,
         });
 
     } catch (error) {

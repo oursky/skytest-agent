@@ -66,6 +66,7 @@ export interface TestRun {
     requiredCapability?: string | null;
     requiredRunnerKind?: string | null;
     requestedDeviceId?: string | null;
+    requestedRunnerId?: string | null;
     assignedRunnerId?: string | null;
     leaseExpiresAt?: string | null;
     lastEventAt?: string | null;

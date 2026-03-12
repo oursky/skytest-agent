@@ -52,6 +52,7 @@ describe('queueTestCaseRun', () => {
             status: 'QUEUED',
             requiredCapability: 'BROWSER',
             requestedDeviceId: null,
+            requestedRunnerId: null,
         });
         mocks.testRunFileCreateMany.mockResolvedValue({ count: 0 });
         mocks.dispatchBrowserRun.mockResolvedValue(true);
@@ -87,6 +88,7 @@ describe('queueTestCaseRun', () => {
             status: 'QUEUED',
             requiredCapability: 'BROWSER',
             requestedDeviceId: null,
+            requestedRunnerId: null,
         });
         expect(mocks.testRunCreate).toHaveBeenCalledWith({
             data: expect.objectContaining({
@@ -181,6 +183,59 @@ describe('queueTestCaseRun', () => {
         }
         expect(result.failure.error).toBe('requestedDeviceId must match an Android target device selector');
         expect(mocks.getTeamDevicesAvailability).not.toHaveBeenCalled();
+        expect(mocks.testRunCreate).not.toHaveBeenCalled();
+    });
+
+    it('returns failure when requestedRunnerId does not match available runner-device pair', async () => {
+        mocks.testCaseFindUnique.mockResolvedValueOnce({
+            id: 'tc-1',
+            url: '',
+            prompt: 'Open app',
+            steps: JSON.stringify([{ id: 'step_1', target: 'android_a', action: 'Open app' }]),
+            browserConfig: JSON.stringify({
+                android_a: {
+                    type: 'android',
+                    deviceSelector: { mode: 'emulator-profile', emulatorProfileName: 'android_profile_a' },
+                    appId: 'com.example.app',
+                    clearAppState: true,
+                    allowAllPermissions: true,
+                }
+            }),
+            files: [],
+            project: {
+                teamId: 'team-1',
+                team: {
+                    openRouterKeyEncrypted: 'encrypted-key',
+                    memberships: [{ id: 'm-1' }],
+                },
+            },
+        });
+        mocks.getTeamDevicesAvailability.mockResolvedValueOnce({
+            teamId: 'team-1',
+            runnerConnected: true,
+            availableDeviceCount: 1,
+            staleDeviceCount: 0,
+            refreshedAt: new Date().toISOString(),
+            devices: [{
+                id: 'device-1',
+                runnerId: 'runner-1',
+                deviceId: 'emulator-profile:android_profile_a',
+                metadata: { inventoryKind: 'emulator-profile', emulatorProfileName: 'android_profile_a' },
+                isAvailable: true,
+                isFresh: true,
+            }],
+        });
+
+        const result = await queueTestCaseRun('user-1', 'tc-1', {
+            requestedDeviceId: 'emulator-profile:android_profile_a',
+            requestedRunnerId: 'runner-2',
+        });
+
+        expect(result.ok).toBe(false);
+        if (result.ok) {
+            throw new Error('Expected run queue failure');
+        }
+        expect(result.failure.error).toContain('Selected device is no longer available');
         expect(mocks.testRunCreate).not.toHaveBeenCalled();
     });
 });

@@ -7,6 +7,7 @@ interface ClaimedRunRow {
     testCaseId: string;
     requiredCapability: string | null;
     requestedDeviceId: string | null;
+    requestedRunnerId: string | null;
     leaseExpiresAt: Date;
 }
 
@@ -80,6 +81,7 @@ async function claimExplicitDeviceRun(input: {
               AND p."teamId" = ${input.teamId}
               AND tr."requiredCapability" = 'ANDROID'
               AND (tr."requiredRunnerKind" IS NULL OR tr."requiredRunnerKind" = ${input.runnerKind})
+              AND (tr."requestedRunnerId" IS NULL OR tr."requestedRunnerId" = ${input.runnerId})
               AND (
                   SELECT COUNT(*)
                   FROM "TestRun" activeTr
@@ -116,7 +118,7 @@ async function claimExplicitDeviceRun(input: {
             "startedAt" = COALESCE(tr."startedAt", NOW())
         FROM candidate
         WHERE tr.id = candidate.id
-        RETURNING tr.id, tr."testCaseId", tr."requiredCapability", tr."requestedDeviceId", tr."leaseExpiresAt";
+        RETURNING tr.id, tr."testCaseId", tr."requiredCapability", tr."requestedDeviceId", tr."requestedRunnerId", tr."leaseExpiresAt";
     `);
 
     return rows[0] ?? null;
@@ -148,6 +150,7 @@ async function claimGenericRun(input: {
               AND p."teamId" = ${input.teamId}
               AND tr."requiredCapability" = 'ANDROID'
               AND (tr."requiredRunnerKind" IS NULL OR tr."requiredRunnerKind" = ${input.runnerKind})
+              AND (tr."requestedRunnerId" IS NULL OR tr."requestedRunnerId" = ${input.runnerId})
               AND (
                   SELECT COUNT(*)
                   FROM "TestRun" activeTr
@@ -174,7 +177,7 @@ async function claimGenericRun(input: {
             "startedAt" = COALESCE(tr."startedAt", NOW())
         FROM candidate
         WHERE tr.id = candidate.id
-        RETURNING tr.id, tr."testCaseId", tr."requiredCapability", tr."requestedDeviceId", tr."leaseExpiresAt";
+        RETURNING tr.id, tr."testCaseId", tr."requiredCapability", tr."requestedDeviceId", tr."requestedRunnerId", tr."leaseExpiresAt";
     `);
 
     return rows[0] ?? null;
@@ -222,6 +225,7 @@ export async function claimNextRunForRunner(input: {
         testCaseId: claimed.testCaseId,
         requiredCapability: claimed.requiredCapability,
         requestedDeviceId: claimed.requestedDeviceId,
+        requestedRunnerId: claimed.requestedRunnerId,
         leaseExpiresAt: claimed.leaseExpiresAt,
     };
 }
@@ -270,6 +274,14 @@ export async function diagnoseNoClaimForRunner(input: {
                 { requiredRunnerKind: null },
                 { requiredRunnerKind: input.runnerKind },
             ],
+            AND: [
+                {
+                    OR: [
+                        { requestedRunnerId: null },
+                        { requestedRunnerId: input.runnerId },
+                    ],
+                },
+            ],
             testCase: {
                 project: {
                     teamId: input.teamId,
@@ -284,13 +296,21 @@ export async function diagnoseNoClaimForRunner(input: {
             deletedAt: null,
             assignedRunnerId: null,
             requiredCapability: 'ANDROID',
-            OR: [
-                { requiredRunnerKind: null },
-                { requiredRunnerKind: input.runnerKind },
-            ],
-            requestedDeviceId: { not: null },
-            testCase: {
-                project: {
+                OR: [
+                    { requiredRunnerKind: null },
+                    { requiredRunnerKind: input.runnerKind },
+                ],
+                AND: [
+                    {
+                        OR: [
+                            { requestedRunnerId: null },
+                            { requestedRunnerId: input.runnerId },
+                        ],
+                    },
+                ],
+                requestedDeviceId: { not: null },
+                testCase: {
+                    project: {
                     teamId: input.teamId,
                 },
             },
@@ -307,6 +327,14 @@ export async function diagnoseNoClaimForRunner(input: {
                 OR: [
                     { requiredRunnerKind: null },
                     { requiredRunnerKind: input.runnerKind },
+                ],
+                AND: [
+                    {
+                        OR: [
+                            { requestedRunnerId: null },
+                            { requestedRunnerId: input.runnerId },
+                        ],
+                    },
                 ],
                 requestedDeviceId: { in: claimableDeviceIds },
                 testCase: {
@@ -327,6 +355,14 @@ export async function diagnoseNoClaimForRunner(input: {
             OR: [
                 { requiredRunnerKind: null },
                 { requiredRunnerKind: input.runnerKind },
+            ],
+            AND: [
+                {
+                    OR: [
+                        { requestedRunnerId: null },
+                        { requestedRunnerId: input.runnerId },
+                    ],
+                },
             ],
             requestedDeviceId: null,
             testCase: {

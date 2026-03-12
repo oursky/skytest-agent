@@ -139,6 +139,7 @@ function createConfigurationSnapshot(config: {
     steps?: TestStep[];
     browserConfig?: Record<string, BrowserConfig | TargetConfig>;
     requestedDeviceId?: string | null;
+    requestedRunnerId?: string | null;
 }) {
     return config;
 }
@@ -149,6 +150,7 @@ export interface RunTestOverrides {
     steps?: TestStep[];
     browserConfig?: Record<string, BrowserConfig | TargetConfig>;
     requestedDeviceId?: string;
+    requestedRunnerId?: string;
 }
 
 export interface QueueTestCaseRunResult {
@@ -156,6 +158,7 @@ export interface QueueTestCaseRunResult {
     status: string;
     requiredCapability: string | null;
     requestedDeviceId: string | null;
+    requestedRunnerId: string | null;
 }
 
 export interface QueueTestCaseRunFailure {
@@ -243,15 +246,25 @@ export async function queueTestCaseRun(
     const requestedDeviceIdInput = typeof overrides?.requestedDeviceId === 'string'
         ? overrides.requestedDeviceId.trim()
         : '';
+    const requestedRunnerIdInput = typeof overrides?.requestedRunnerId === 'string'
+        ? overrides.requestedRunnerId.trim()
+        : '';
 
     if (!requestHasAndroidTargets && requestedDeviceIdInput) {
         return { ok: false, failure: { error: 'requestedDeviceId requires Android targets' } };
+    }
+
+    if (!requestHasAndroidTargets && requestedRunnerIdInput) {
+        return { ok: false, failure: { error: 'requestedRunnerId requires Android targets' } };
     }
 
     const inferredRequestedDeviceId = extractRequestedDeviceId(normalizedBrowserConfig);
     const androidRequestedDeviceIds = collectAndroidRequestedDeviceIds(normalizedBrowserConfig);
     const requestedDeviceId = requestHasAndroidTargets
         ? (requestedDeviceIdInput || inferredRequestedDeviceId)
+        : null;
+    const requestedRunnerId = requestHasAndroidTargets
+        ? (requestedRunnerIdInput || null)
         : null;
 
     if (
@@ -264,7 +277,11 @@ export async function queueTestCaseRun(
 
     if (requestHasAndroidTargets && requestedDeviceId) {
         const availability = await getTeamDevicesAvailability(testCase.project.teamId);
-        const selectedDevice = availability.devices.find((device) => device.deviceId === requestedDeviceId);
+        const selectedDevice = requestedRunnerId
+            ? availability.devices.find((device) => (
+                device.deviceId === requestedDeviceId && device.runnerId === requestedRunnerId
+            ))
+            : availability.devices.find((device) => device.deviceId === requestedDeviceId);
 
         const emulatorProfileClaimable = selectedDevice
             && isEmulatorProfileInventoryDevice(selectedDevice)
@@ -287,6 +304,7 @@ export async function queueTestCaseRun(
         steps: normalizedSteps,
         browserConfig: normalizedBrowserConfig,
         requestedDeviceId,
+        requestedRunnerId,
     }));
 
     const testRun = await prisma.testRun.create({
@@ -301,6 +319,7 @@ export async function queueTestCaseRun(
                 ? ANDROID_EXECUTION_RUNNER_KIND
                 : null,
             requestedDeviceId,
+            requestedRunnerId,
         }
     });
 
@@ -327,6 +346,7 @@ export async function queueTestCaseRun(
             status: testRun.status,
             requiredCapability: testRun.requiredCapability,
             requestedDeviceId: testRun.requestedDeviceId,
+            requestedRunnerId: testRun.requestedRunnerId,
         }
     };
 }

@@ -186,6 +186,7 @@ const mcpRunOverridesSchema = z.object({
     steps: z.array(mcpStepSchema).optional().describe('Override steps for this run'),
     browserConfig: z.record(z.string(), z.unknown()).optional().describe('Override browser/android target config for this run'),
     requestedDeviceId: z.string().optional().describe('Optional explicit requested device id for Android runs'),
+    requestedRunnerId: z.string().optional().describe('Optional explicit requested runner id for Android runs'),
 });
 
 export function createMcpServer(): McpServer {
@@ -287,6 +288,7 @@ export function createMcpServer(): McpServer {
                 steps: overrides.steps as TestStep[] | undefined,
                 browserConfig: overrides.browserConfig as Record<string, BrowserConfig | TargetConfig> | undefined,
                 requestedDeviceId: overrides.requestedDeviceId,
+                requestedRunnerId: overrides.requestedRunnerId,
             } : undefined);
 
             if (!runResult.ok) {

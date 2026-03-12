@@ -145,6 +145,7 @@ model TestRun {
   requiredCapability      String?
   requiredRunnerKind      String?
   requestedDeviceId       String?
+  requestedRunnerId       String?
   assignedRunnerId        String?
   assignedRunner          Runner?  @relation("AssignedRunnerRuns", fields: [assignedRunnerId], references: [id], onDelete: SetNull)
   leaseExpiresAt          DateTime?
@@ -168,6 +169,7 @@ model TestRun {
   @@index([status, requiredCapability, createdAt(sort: Asc)])
   @@index([assignedRunnerId, leaseExpiresAt])
   @@index([requestedDeviceId])
+  @@index([requestedRunnerId])
   @@index([deletedAt, completedAt(sort: Asc)])
 }
 

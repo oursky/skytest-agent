@@ -67,6 +67,7 @@ export async function GET(
                 requiredCapability: true,
                 requiredRunnerKind: true,
                 requestedDeviceId: true,
+                requestedRunnerId: true,
                 assignedRunnerId: true,
                 leaseExpiresAt: true,
                 startedAt: true,
@@ -179,6 +180,7 @@ export async function GET(
         let claimableNow = true;
         let matchingRequestedDeviceRunnerIds: string[] = [];
         const requestedDeviceId = run.requestedDeviceId;
+        const requestedRunnerId = run.requestedRunnerId;
         const isBrowserRun = run.requiredCapability === BROWSER_EXECUTION_CAPABILITY;
 
         if (run.status !== 'QUEUED') {
@@ -195,7 +197,10 @@ export async function GET(
             claimableNow = false;
         } else if (requestedDeviceId) {
             matchingRequestedDeviceRunnerIds = eligibleRunners
-                .filter((runner) => runner.claimableDeviceIds.includes(requestedDeviceId))
+                .filter((runner) => (
+                    runner.claimableDeviceIds.includes(requestedDeviceId)
+                    && (!requestedRunnerId || runner.id === requestedRunnerId)
+                ))
                 .map((runner) => runner.id);
             if (matchingRequestedDeviceRunnerIds.length === 0) {
                 claimabilityReasonCode = 'REQUESTED_DEVICE_NOT_CLAIMABLE';
@@ -238,6 +243,7 @@ export async function GET(
                     requiredCapability: run.requiredCapability,
                     requiredRunnerKind: run.requiredRunnerKind,
                     requestedDeviceId: run.requestedDeviceId,
+                    requestedRunnerId: run.requestedRunnerId,
                     testCase: {
                         project: {
                             teamId,
@@ -254,6 +260,7 @@ export async function GET(
                 requiredCapability: run.requiredCapability,
                 requiredRunnerKind: run.requiredRunnerKind,
                 requestedDeviceId: run.requestedDeviceId,
+                requestedRunnerId: run.requestedRunnerId,
                 assignedRunnerId: run.assignedRunnerId,
                 leaseExpiresAt: run.leaseExpiresAt?.toISOString() ?? null,
                 startedAt: run.startedAt?.toISOString() ?? null,
