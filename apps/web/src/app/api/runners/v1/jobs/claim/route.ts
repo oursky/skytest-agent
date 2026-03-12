@@ -82,6 +82,7 @@ export async function POST(request: Request) {
                 teamId: auth.teamId,
                 runId: claimed.runId,
                 requestedDeviceId: claimed.requestedDeviceId,
+                requestedRunnerId: claimed.requestedRunnerId,
                 requiredCapability: claimed.requiredCapability,
                 leaseExpiresAt: claimed.leaseExpiresAt.toISOString(),
                 elapsedMs: Date.now() - claimStartedAt,
