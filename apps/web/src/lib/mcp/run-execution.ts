@@ -47,6 +47,28 @@ function extractRequestedDeviceId(browserConfig: Record<string, BrowserConfig | 
     return null;
 }
 
+function collectAndroidRequestedDeviceIds(
+    browserConfig: Record<string, BrowserConfig | TargetConfig> | undefined
+): Set<string> {
+    const requestedDeviceIds = new Set<string>();
+    if (!browserConfig || Object.keys(browserConfig).length === 0) {
+        return requestedDeviceIds;
+    }
+
+    for (const target of Object.values(browserConfig).filter(isAndroidTargetConfig)) {
+        const selector = normalizeAndroidTargetConfig(target).deviceSelector;
+        if (selector.mode === 'connected-device' && selector.serial) {
+            requestedDeviceIds.add(selector.serial);
+            continue;
+        }
+        if (selector.mode === 'emulator-profile' && selector.emulatorProfileName) {
+            requestedDeviceIds.add(buildEmulatorProfileRequestedDeviceId(selector.emulatorProfileName));
+        }
+    }
+
+    return requestedDeviceIds;
+}
+
 function isEmulatorProfileInventoryDevice(device: { deviceId: string; metadata: Record<string, unknown> | null }): boolean {
     return device.deviceId.startsWith(EMULATOR_PROFILE_DEVICE_PREFIX)
         || device.metadata?.inventoryKind === 'emulator-profile';
@@ -227,9 +249,18 @@ export async function queueTestCaseRun(
     }
 
     const inferredRequestedDeviceId = extractRequestedDeviceId(normalizedBrowserConfig);
+    const androidRequestedDeviceIds = collectAndroidRequestedDeviceIds(normalizedBrowserConfig);
     const requestedDeviceId = requestHasAndroidTargets
         ? (requestedDeviceIdInput || inferredRequestedDeviceId)
         : null;
+
+    if (
+        requestHasAndroidTargets
+        && requestedDeviceIdInput
+        && !androidRequestedDeviceIds.has(requestedDeviceIdInput)
+    ) {
+        return { ok: false, failure: { error: 'requestedDeviceId must match an Android target device selector' } };
+    }
 
     if (requestHasAndroidTargets && requestedDeviceId) {
         const availability = await getTeamDevicesAvailability(testCase.project.teamId);

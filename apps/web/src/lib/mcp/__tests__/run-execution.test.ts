@@ -145,4 +145,42 @@ describe('queueTestCaseRun', () => {
         expect(mocks.testRunCreate).not.toHaveBeenCalled();
         expect(mocks.dispatchBrowserRun).not.toHaveBeenCalled();
     });
+
+    it('returns failure when requestedDeviceId does not match Android target selectors', async () => {
+        mocks.testCaseFindUnique.mockResolvedValueOnce({
+            id: 'tc-1',
+            url: '',
+            prompt: 'Open app',
+            steps: JSON.stringify([{ id: 'step_1', target: 'android_a', action: 'Open app' }]),
+            browserConfig: JSON.stringify({
+                android_a: {
+                    type: 'android',
+                    deviceSelector: { mode: 'emulator-profile', emulatorProfileName: 'android_profile_a' },
+                    appId: 'com.example.app',
+                    clearAppState: true,
+                    allowAllPermissions: true,
+                }
+            }),
+            files: [],
+            project: {
+                teamId: 'team-1',
+                team: {
+                    openRouterKeyEncrypted: 'encrypted-key',
+                    memberships: [{ id: 'm-1' }],
+                },
+            },
+        });
+
+        const result = await queueTestCaseRun('user-1', 'tc-1', {
+            requestedDeviceId: 'emulator-profile:android_profile_b',
+        });
+
+        expect(result.ok).toBe(false);
+        if (result.ok) {
+            throw new Error('Expected run queue failure');
+        }
+        expect(result.failure.error).toBe('requestedDeviceId must match an Android target device selector');
+        expect(mocks.getTeamDevicesAvailability).not.toHaveBeenCalled();
+        expect(mocks.testRunCreate).not.toHaveBeenCalled();
+    });
 });

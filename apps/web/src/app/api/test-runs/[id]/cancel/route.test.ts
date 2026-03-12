@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
     isProjectMember: vi.fn(),
     publishRunUpdate: vi.fn(),
     cancelLocalBrowserRun: vi.fn(),
+    dispatchNextQueuedBrowserRun: vi.fn(),
     testRunFindUnique: vi.fn(),
     testRunUpdateMany: vi.fn(),
     testCaseUpdate: vi.fn(),
@@ -29,6 +30,10 @@ vi.mock('@/lib/runtime/local-browser-runner', () => ({
     cancelLocalBrowserRun: mocks.cancelLocalBrowserRun,
 }));
 
+vi.mock('@/lib/runtime/browser-run-dispatcher', () => ({
+    dispatchNextQueuedBrowserRun: mocks.dispatchNextQueuedBrowserRun,
+}));
+
 vi.mock('@/lib/core/prisma', () => ({
     prisma: {
         testRun: {
@@ -47,6 +52,7 @@ describe('POST /api/test-runs/[id]/cancel', () => {
         mocks.isProjectMember.mockReset();
         mocks.publishRunUpdate.mockReset();
         mocks.cancelLocalBrowserRun.mockReset();
+        mocks.dispatchNextQueuedBrowserRun.mockReset();
         mocks.testRunFindUnique.mockReset();
         mocks.testRunUpdateMany.mockReset();
         mocks.testCaseUpdate.mockReset();
@@ -80,6 +86,7 @@ describe('POST /api/test-runs/[id]/cancel', () => {
         }));
         mocks.testRunUpdateMany.mockResolvedValue({ count: 1 });
         mocks.testCaseUpdate.mockResolvedValue({ id: 'tc-1', status: 'CANCELLED' });
+        mocks.dispatchNextQueuedBrowserRun.mockResolvedValue(true);
     });
 
     it('cancels active runs and updates test case status to CANCELLED', async () => {
@@ -109,6 +116,7 @@ describe('POST /api/test-runs/[id]/cancel', () => {
         });
         expect(mocks.publishRunUpdate).toHaveBeenCalledWith('run-1');
         expect(mocks.cancelLocalBrowserRun).toHaveBeenCalledWith('run-1');
+        expect(mocks.dispatchNextQueuedBrowserRun).toHaveBeenCalledTimes(1);
         expect(payload).toMatchObject({
             success: true,
             id: 'run-1',
@@ -137,6 +145,7 @@ describe('POST /api/test-runs/[id]/cancel', () => {
         expect(mocks.transaction).not.toHaveBeenCalled();
         expect(mocks.publishRunUpdate).not.toHaveBeenCalled();
         expect(mocks.cancelLocalBrowserRun).toHaveBeenCalledWith('run-1');
+        expect(mocks.dispatchNextQueuedBrowserRun).not.toHaveBeenCalled();
         expect(payload).toMatchObject({
             success: true,
             id: 'run-1',
@@ -170,6 +179,7 @@ describe('POST /api/test-runs/[id]/cancel', () => {
         expect(mocks.testCaseUpdate).not.toHaveBeenCalled();
         expect(mocks.publishRunUpdate).not.toHaveBeenCalled();
         expect(mocks.cancelLocalBrowserRun).toHaveBeenCalledWith('run-1');
+        expect(mocks.dispatchNextQueuedBrowserRun).not.toHaveBeenCalled();
         expect(payload).toMatchObject({
             success: true,
             id: 'run-1',
