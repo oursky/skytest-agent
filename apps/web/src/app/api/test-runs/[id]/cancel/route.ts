@@ -48,9 +48,12 @@ export async function POST(
         let finalStatus = testRun.status;
         if (ACTIVE_RUN_STATUSES.includes(testRun.status)) {
             const completedAt = new Date();
-            await prisma.$transaction(async (tx) => {
-                await tx.testRun.update({
-                    where: { id },
+            finalStatus = await prisma.$transaction(async (tx) => {
+                const updateResult = await tx.testRun.updateMany({
+                    where: {
+                        id,
+                        status: { in: [...ACTIVE_RUN_STATUSES] },
+                    },
                     data: {
                         status: 'CANCELLED',
                         error: 'Cancelled by user',
@@ -59,13 +62,26 @@ export async function POST(
                         leaseExpiresAt: null,
                     }
                 });
+
+                if (updateResult.count !== 1) {
+                    const latestRun = await tx.testRun.findUnique({
+                        where: { id },
+                        select: { status: true },
+                    });
+                    return latestRun?.status ?? testRun.status;
+                }
+
                 await tx.testCase.update({
                     where: { id: testRun.testCaseId },
                     data: { status: 'CANCELLED' }
                 });
+
+                return 'CANCELLED';
             });
-            finalStatus = 'CANCELLED';
-            publishRunUpdate(id);
+
+            if (finalStatus === 'CANCELLED') {
+                publishRunUpdate(id);
+            }
         }
 
         // Best-effort local abort for on-demand browser execution.

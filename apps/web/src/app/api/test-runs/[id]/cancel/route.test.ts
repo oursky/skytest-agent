@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
     publishRunUpdate: vi.fn(),
     cancelLocalBrowserRun: vi.fn(),
     testRunFindUnique: vi.fn(),
-    testRunUpdate: vi.fn(),
+    testRunUpdateMany: vi.fn(),
     testCaseUpdate: vi.fn(),
     transaction: vi.fn(),
 }));
@@ -48,7 +48,7 @@ describe('POST /api/test-runs/[id]/cancel', () => {
         mocks.publishRunUpdate.mockReset();
         mocks.cancelLocalBrowserRun.mockReset();
         mocks.testRunFindUnique.mockReset();
-        mocks.testRunUpdate.mockReset();
+        mocks.testRunUpdateMany.mockReset();
         mocks.testCaseUpdate.mockReset();
         mocks.transaction.mockReset();
 
@@ -66,13 +66,19 @@ describe('POST /api/test-runs/[id]/cancel', () => {
             },
         });
         mocks.transaction.mockImplementation(async (callback: (tx: {
-            testRun: { update: typeof mocks.testRunUpdate };
+            testRun: {
+                updateMany: typeof mocks.testRunUpdateMany;
+                findUnique: typeof mocks.testRunFindUnique;
+            };
             testCase: { update: typeof mocks.testCaseUpdate };
         }) => Promise<unknown>) => callback({
-            testRun: { update: mocks.testRunUpdate },
+            testRun: {
+                updateMany: mocks.testRunUpdateMany,
+                findUnique: mocks.testRunFindUnique,
+            },
             testCase: { update: mocks.testCaseUpdate },
         }));
-        mocks.testRunUpdate.mockResolvedValue({ id: 'run-1', status: 'CANCELLED' });
+        mocks.testRunUpdateMany.mockResolvedValue({ count: 1 });
         mocks.testCaseUpdate.mockResolvedValue({ id: 'tc-1', status: 'CANCELLED' });
     });
 
@@ -84,8 +90,11 @@ describe('POST /api/test-runs/[id]/cancel', () => {
 
         expect(response.status).toBe(200);
         expect(mocks.transaction).toHaveBeenCalledTimes(1);
-        expect(mocks.testRunUpdate).toHaveBeenCalledWith({
-            where: { id: 'run-1' },
+        expect(mocks.testRunUpdateMany).toHaveBeenCalledWith({
+            where: {
+                id: 'run-1',
+                status: { in: ['RUNNING', 'QUEUED', 'PREPARING'] },
+            },
             data: {
                 status: 'CANCELLED',
                 error: 'Cancelled by user',
@@ -134,5 +143,37 @@ describe('POST /api/test-runs/[id]/cancel', () => {
             status: 'PASS',
         });
     });
-});
 
+    it('does not overwrite terminal status when run transitions before guarded update', async () => {
+        mocks.testRunFindUnique.mockResolvedValueOnce({
+            id: 'run-1',
+            status: 'RUNNING',
+            testCaseId: 'tc-1',
+            assignedRunnerId: 'runner-1',
+            deletedAt: null,
+            testCase: {
+                projectId: 'project-1',
+            },
+        });
+        mocks.testRunUpdateMany.mockResolvedValueOnce({ count: 0 });
+        mocks.testRunFindUnique.mockResolvedValueOnce({
+            status: 'PASS',
+        });
+
+        const request = new Request('http://localhost/api/test-runs/run-1/cancel', { method: 'POST' });
+
+        const response = await POST(request, { params: Promise.resolve({ id: 'run-1' }) });
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(mocks.testRunUpdateMany).toHaveBeenCalledTimes(1);
+        expect(mocks.testCaseUpdate).not.toHaveBeenCalled();
+        expect(mocks.publishRunUpdate).not.toHaveBeenCalled();
+        expect(mocks.cancelLocalBrowserRun).toHaveBeenCalledWith('run-1');
+        expect(payload).toMatchObject({
+            success: true,
+            id: 'run-1',
+            status: 'PASS',
+        });
+    });
+});
