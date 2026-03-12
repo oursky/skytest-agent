@@ -59,5 +59,16 @@ describe('browser-run-dispatcher', () => {
         const [query] = queryRaw.mock.calls[0];
         expect(query.values).toContain('run-browser-2');
     });
-});
 
+    it('uses active-run states for concurrency gating so queued Android runs do not block browser dispatch', async () => {
+        queryRaw.mockResolvedValueOnce([{ id: 'run-browser-3' }]);
+
+        const dispatched = await dispatchNextQueuedBrowserRun();
+
+        expect(dispatched).toBe(true);
+        const [query] = queryRaw.mock.calls[0];
+        const sql = query.strings.join('');
+        expect(sql).toContain('activeTr.status IN');
+        expect(sql).not.toContain(`activeTr.status = 'QUEUED'`);
+    });
+});
