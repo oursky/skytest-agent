@@ -1,10 +1,18 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/core/prisma';
+import { getTeamDevicesAvailability } from '@/lib/runners/availability-service';
 import { cleanStepsForStorage, normalizeTargetConfigMap } from '@/lib/runtime/test-case-utils';
+import { normalizeAndroidTargetConfig } from '@/lib/android/target-config';
 import { normalizeConfigName } from '@/lib/test-config/validation';
 import { isGroupableConfigType, normalizeConfigGroup } from '@/lib/test-config/sort';
 import { parseTestCaseExcel, type TestCaseExcelIssue } from '@/utils/excel/testCaseExcel';
-import type { ConfigType } from '@/types';
+import type {
+    ConfigType,
+    BrowserConfig,
+    TargetConfig,
+    AndroidTargetConfig,
+    AndroidDeviceSelector,
+} from '@/types';
 
 type SupportedImportConfigType = Extract<ConfigType, 'URL' | 'APP_ID' | 'VARIABLE' | 'RANDOM_STRING'>;
 
@@ -59,6 +67,15 @@ interface ParsedImportCandidate {
     issues: BatchImportIssue[];
     parseData: Awaited<ReturnType<typeof parseTestCaseExcel>>['data'];
     hasErrors: boolean;
+}
+
+interface AndroidImportValidationContext {
+    teamRunnerIds: Set<string>;
+    runnerIdByDisplayId: Map<string, string>;
+    teamDevices: Array<{
+        runnerId: string;
+        deviceId: string;
+    }>;
 }
 
 interface UpsertConfigInput {
@@ -156,7 +173,8 @@ async function upsertTestCaseConfigs(
 
 async function parseImportCandidate(
     projectId: string,
-    file: BatchImportSourceFile
+    file: BatchImportSourceFile,
+    androidValidation: AndroidImportValidationContext
 ): Promise<ParsedImportCandidate> {
     const issues: BatchImportIssue[] = [];
     const parseResult = await parseTestCaseExcel(file.content);
@@ -184,6 +202,17 @@ async function parseImportCandidate(
             reason: 'Test case ID is required',
             filename: file.filename,
             sheet: 'Configurations',
+        });
+    }
+
+    if (parseResult.data.testData.browserConfig) {
+        const targetIssues = validateAndroidTargetBindings(
+            parseResult.data.testData.browserConfig,
+            androidValidation,
+            file.filename
+        );
+        targetIssues.forEach((issue) => {
+            issues.push(issue);
         });
     }
 
@@ -228,6 +257,94 @@ async function parseImportCandidate(
         parseData: parseResult.data,
         hasErrors,
     };
+}
+
+function isAndroidTargetConfig(config: BrowserConfig | TargetConfig): config is AndroidTargetConfig {
+    return 'type' in config && config.type === 'android';
+}
+
+const EMULATOR_PROFILE_DEVICE_PREFIX = 'emulator-profile:';
+
+function buildRequestedDeviceId(selector: AndroidDeviceSelector): string {
+    if (selector.mode === 'connected-device') {
+        return selector.serial;
+    }
+    return `${EMULATOR_PROFILE_DEVICE_PREFIX}${selector.emulatorProfileName}`;
+}
+
+function resolveRunnerId(
+    rawRunnerId: string,
+    context: AndroidImportValidationContext
+): string | null {
+    const normalized = rawRunnerId.trim();
+    if (!normalized) {
+        return null;
+    }
+
+    if (context.teamRunnerIds.has(normalized)) {
+        return normalized;
+    }
+
+    return context.runnerIdByDisplayId.get(normalized) ?? null;
+}
+
+function validateAndroidTargetBindings(
+    browserConfig: Record<string, BrowserConfig | TargetConfig>,
+    context: AndroidImportValidationContext,
+    filename: string
+): BatchImportIssue[] {
+    const issues: BatchImportIssue[] = [];
+
+    for (const [targetId, targetConfig] of Object.entries(browserConfig)) {
+        if (!isAndroidTargetConfig(targetConfig)) {
+            continue;
+        }
+
+        const normalizedTarget = normalizeAndroidTargetConfig(targetConfig);
+        const requestedDeviceId = buildRequestedDeviceId(normalizedTarget.deviceSelector);
+        const devicesForSelector = context.teamDevices.filter((device) => device.deviceId === requestedDeviceId);
+        const targetLabel = normalizedTarget.name?.trim() || targetId;
+        const requestedRunnerRaw = normalizedTarget.runnerScope?.runnerId?.trim() || '';
+
+        if (!requestedRunnerRaw) {
+            if (devicesForSelector.length > 1) {
+                issues.push({
+                    code: 'ANDROID_DEVICE_AMBIGUOUS_RUNNER_REQUIRED',
+                    severity: 'error',
+                    reason: `Android target "${targetLabel}" maps to multiple runners for device "${requestedDeviceId}". Provide Runner ID to disambiguate.`,
+                    filename,
+                    sheet: 'Android Targets',
+                });
+            }
+            continue;
+        }
+
+        const resolvedRunnerId = resolveRunnerId(requestedRunnerRaw, context);
+        if (!resolvedRunnerId) {
+            issues.push({
+                code: 'ANDROID_RUNNER_NOT_FOUND',
+                severity: 'error',
+                reason: `Android target "${targetLabel}" uses Runner ID "${requestedRunnerRaw}" that is not paired to this team.`,
+                filename,
+                sheet: 'Android Targets',
+            });
+            continue;
+        }
+
+        targetConfig.runnerScope = { runnerId: resolvedRunnerId };
+        const hasRunnerDeviceMatch = devicesForSelector.some((device) => device.runnerId === resolvedRunnerId);
+        if (!hasRunnerDeviceMatch) {
+            issues.push({
+                code: 'ANDROID_RUNNER_DEVICE_MISMATCH',
+                severity: 'error',
+                reason: `Android target "${targetLabel}" requested device "${requestedDeviceId}" is not currently available on Runner ID "${requestedRunnerRaw}".`,
+                filename,
+                sheet: 'Android Targets',
+            });
+        }
+    }
+
+    return issues;
 }
 
 function summarize(
@@ -349,8 +466,47 @@ export async function processProjectBatchImport(input: {
     mode: BatchImportMode;
     files: BatchImportSourceFile[];
 }): Promise<BatchImportResult> {
+    const project = await prisma.project.findUnique({
+        where: { id: input.projectId },
+        select: { teamId: true },
+    });
+    if (!project) {
+        throw new Error('Project not found');
+    }
+
+    const [teamDevicesAvailability, teamRunners] = await Promise.all([
+        getTeamDevicesAvailability(project.teamId),
+        prisma.runner.findMany({
+            where: { teamId: project.teamId },
+            select: {
+                id: true,
+                displayId: true,
+            },
+        }),
+    ]);
+
+    const runnerIdByDisplayId = new Map<string, string>();
+    for (const runner of teamRunners) {
+        const displayId = runner.displayId.trim();
+        if (!displayId) {
+            continue;
+        }
+        if (!runnerIdByDisplayId.has(displayId)) {
+            runnerIdByDisplayId.set(displayId, runner.id);
+        }
+    }
+
+    const androidValidationContext: AndroidImportValidationContext = {
+        teamRunnerIds: new Set(teamRunners.map((runner) => runner.id)),
+        runnerIdByDisplayId,
+        teamDevices: teamDevicesAvailability.devices.map((device) => ({
+            runnerId: device.runnerId,
+            deviceId: device.deviceId,
+        })),
+    };
+
     const parsedCandidates = await Promise.all(
-        input.files.map((file) => parseImportCandidate(input.projectId, file))
+        input.files.map((file) => parseImportCandidate(input.projectId, file, androidValidationContext))
     );
 
     if (input.mode === 'validate') {
