@@ -228,6 +228,117 @@ describe('POST /api/test-runs/dispatch', () => {
         });
     });
 
+    it('does not infer requestedDeviceId when Android targets include multiple selectors', async () => {
+        const request = new Request('http://localhost/api/test-runs/dispatch', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                testCaseId: 'tc-1',
+                steps: [{ id: 'step-1', target: 'android_a', action: 'Open app', type: 'ai-action' }],
+                browserConfig: {
+                    android_a: {
+                        type: 'android',
+                        name: 'Pixel 8 A',
+                        deviceSelector: {
+                            mode: 'emulator-profile',
+                            emulatorProfileName: 'android_profile_a',
+                        },
+                        runnerScope: {
+                            runnerId: 'runner-1',
+                        },
+                        appId: 'com.example.app',
+                        clearAppState: true,
+                        allowAllPermissions: true,
+                    },
+                    android_b: {
+                        type: 'android',
+                        name: 'Pixel 8 B',
+                        deviceSelector: {
+                            mode: 'emulator-profile',
+                            emulatorProfileName: 'android_profile_b',
+                        },
+                        runnerScope: {
+                            runnerId: 'runner-1',
+                        },
+                        appId: 'com.example.app',
+                        clearAppState: true,
+                        allowAllPermissions: true,
+                    },
+                },
+            }),
+        });
+
+        const response = await POST(request);
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(mocks.getTeamDevicesAvailability).not.toHaveBeenCalled();
+        expect(mocks.testRunCreate).toHaveBeenCalledWith({
+            data: expect.objectContaining({
+                requestedDeviceId: null,
+                requestedRunnerId: 'runner-1',
+            }),
+        });
+        expect(payload).toMatchObject({
+            requestedDeviceId: null,
+            requestedRunnerId: 'runner-1',
+        });
+    });
+
+    it('rejects Android targets with ambiguous runner scope inference', async () => {
+        const request = new Request('http://localhost/api/test-runs/dispatch', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                testCaseId: 'tc-1',
+                steps: [{ id: 'step-1', target: 'android_a', action: 'Open app', type: 'ai-action' }],
+                browserConfig: {
+                    android_a: {
+                        type: 'android',
+                        name: 'Pixel 8 A',
+                        deviceSelector: {
+                            mode: 'emulator-profile',
+                            emulatorProfileName: 'android_profile_a',
+                        },
+                        runnerScope: {
+                            runnerId: 'runner-1',
+                        },
+                        appId: 'com.example.app',
+                        clearAppState: true,
+                        allowAllPermissions: true,
+                    },
+                    android_b: {
+                        type: 'android',
+                        name: 'Pixel 8 B',
+                        deviceSelector: {
+                            mode: 'emulator-profile',
+                            emulatorProfileName: 'android_profile_b',
+                        },
+                        runnerScope: {
+                            runnerId: 'runner-2',
+                        },
+                        appId: 'com.example.app',
+                        clearAppState: true,
+                        allowAllPermissions: true,
+                    },
+                },
+            }),
+        });
+
+        const response = await POST(request);
+        const payload = await response.json();
+
+        expect(response.status).toBe(400);
+        expect(mocks.testRunCreate).not.toHaveBeenCalled();
+        expect(payload).toMatchObject({
+            error: 'Android targets specify multiple runner scopes; provide requestedRunnerId override or align target runnerScope values',
+        });
+    });
+
     it('rejects requestedDeviceId that does not match Android target selectors', async () => {
         const request = new Request('http://localhost/api/test-runs/dispatch', {
             method: 'POST',

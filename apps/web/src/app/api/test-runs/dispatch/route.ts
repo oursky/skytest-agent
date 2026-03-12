@@ -76,21 +76,11 @@ function hasAndroidTargets(browserConfig: RunTestRequest['browserConfig']): bool
 }
 
 function extractRequestedDeviceId(browserConfig: RunTestRequest['browserConfig']): string | null {
-    if (!browserConfig || Object.keys(browserConfig).length === 0) {
+    const requestedDeviceIds = collectAndroidRequestedDeviceIds(browserConfig);
+    if (requestedDeviceIds.size !== 1) {
         return null;
     }
-
-    for (const target of Object.values(browserConfig).filter(isAndroidTargetConfig)) {
-        const selector = normalizeAndroidTargetConfig(target).deviceSelector;
-        if (selector.mode === 'connected-device') {
-            return selector.serial;
-        }
-        if (selector.mode === 'emulator-profile' && selector.emulatorProfileName) {
-            return buildEmulatorProfileRequestedDeviceId(selector.emulatorProfileName);
-        }
-    }
-
-    return null;
+    return requestedDeviceIds.values().next().value ?? null;
 }
 
 function collectAndroidRequestedDeviceIds(browserConfig: RunTestRequest['browserConfig']): Set<string> {
@@ -114,18 +104,11 @@ function collectAndroidRequestedDeviceIds(browserConfig: RunTestRequest['browser
 }
 
 function extractRequestedRunnerId(browserConfig: RunTestRequest['browserConfig']): string | null {
-    if (!browserConfig || Object.keys(browserConfig).length === 0) {
+    const requestedRunnerIds = collectAndroidRequestedRunnerIds(browserConfig);
+    if (requestedRunnerIds.size !== 1) {
         return null;
     }
-
-    for (const target of Object.values(browserConfig).filter(isAndroidTargetConfig)) {
-        const runnerId = target.runnerScope?.runnerId;
-        if (typeof runnerId === 'string' && runnerId.trim().length > 0) {
-            return runnerId.trim();
-        }
-    }
-
-    return null;
+    return requestedRunnerIds.values().next().value ?? null;
 }
 
 function collectAndroidRequestedRunnerIds(browserConfig: RunTestRequest['browserConfig']): Set<string> {
@@ -344,6 +327,16 @@ export async function POST(request: Request) {
         ) {
             return NextResponse.json(
                 { error: 'requestedRunnerId must match an Android target runner scope' },
+                { status: 400 }
+            );
+        }
+        if (
+            requestHasAndroidTargets
+            && !requestedRunnerIdInput
+            && androidRequestedRunnerIds.size > 1
+        ) {
+            return NextResponse.json(
+                { error: 'Android targets specify multiple runner scopes; provide requestedRunnerId override or align target runnerScope values' },
                 { status: 400 }
             );
         }

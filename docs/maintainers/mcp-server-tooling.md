@@ -97,6 +97,9 @@ This document defines current SkyTest MCP tool behavior for maintainers.
   - `requestedDeviceId` is allowed only when Android targets exist.
   - `requestedRunnerId` is allowed only when Android targets exist.
   - `requestedDeviceId` must match one of the Android target device selectors in the final run configuration.
+  - `requestedRunnerId` must match Android target runner scopes when runner scopes are present.
+  - When Android targets contain multiple runner scope IDs and no `requestedRunnerId` override is provided, run queuing is rejected as ambiguous.
+  - Auto-inference of `requestedDeviceId`/`requestedRunnerId` is applied only when the resolved target value is unique across Android targets.
 - Uses durable queue path and returns: `runId`, `status`, `requiredCapability`, `requestedDeviceId`, `requestedRunnerId`.
 
 ### list_test_runs
