@@ -183,7 +183,7 @@ export default function TargetConfigurationsPanel({
                                                                                     <div className="text-[10px] text-gray-400 truncate">{option.detail}</div>
                                                                                 </div>
                                                                                 <span className={`shrink-0 text-[10px] px-2 py-0.5 rounded-full font-medium ${option.statusColorClass}`}>
-                                                                                    {t(option.statusKey)}
+                                                                                    {t(option.statusKey, option.statusParams)}
                                                                                 </span>
                                                                             </div>
                                                                         </button>
@@ -213,7 +213,7 @@ export default function TargetConfigurationsPanel({
                                                                                     <div className="text-[10px] text-gray-400 truncate">{option.detail}</div>
                                                                                 </div>
                                                                                 <span className={`shrink-0 text-[10px] px-2 py-0.5 rounded-full font-medium ${option.statusColorClass}`}>
-                                                                                    {t(option.statusKey)}
+                                                                                    {t(option.statusKey, option.statusParams)}
                                                                                 </span>
                                                                             </div>
                                                                         </button>

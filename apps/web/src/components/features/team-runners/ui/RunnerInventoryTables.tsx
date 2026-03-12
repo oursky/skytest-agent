@@ -15,10 +15,16 @@ interface RunnerInventoryTablesProps {
     onRequestUnpair: (runner: TeamRunnerItem) => void;
     resolveRunnerKindLabel: (kind: string) => string;
     buildRunnerStatusClass: (runner: TeamRunnerItem) => string;
-    buildRunnerStatusLabel: (runner: TeamRunnerItem, t: (key: string) => string) => string;
+    buildRunnerStatusLabel: (
+        runner: TeamRunnerItem,
+        t: (key: string, params?: Record<string, string | number>) => string
+    ) => string;
     buildDeviceStatusClass: (device: TeamDeviceItem) => string;
-    buildDeviceStatusLabel: (device: TeamDeviceItem, t: (key: string) => string) => string;
-    t: (key: string) => string;
+    buildDeviceStatusLabel: (
+        device: TeamDeviceItem,
+        t: (key: string, params?: Record<string, string | number>) => string
+    ) => string;
+    t: (key: string, params?: Record<string, string | number>) => string;
 }
 
 export default function RunnerInventoryTables({

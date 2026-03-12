@@ -9,6 +9,7 @@ export interface AndroidDeviceOption {
     label: string;
     detail: string;
     statusKey: string;
+    statusParams?: Record<string, string | number>;
     statusColorClass: string;
     disabled?: boolean;
     group: 'physical' | 'emulator';

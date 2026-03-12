@@ -4,7 +4,6 @@ import { config as appConfig } from '@/config/app';
 import { AndroidDeviceOption } from '../model/device-utils';
 
 interface UseAndroidDeviceOptionsParams {
-    projectId?: string;
     teamId?: string;
     readOnly?: boolean;
     getAccessToken: () => Promise<string | null>;
@@ -45,14 +44,16 @@ function resolveEmulatorProfileName(device: TeamDevice): string | null {
     return normalized.length > 0 ? normalized : null;
 }
 
-function buildStatusMeta(
-    device: TeamDevice,
-    projectId?: string
-): { statusKey: string; statusColorClass: string; disabled: boolean } {
+function buildStatusMeta(device: TeamDevice): {
+    statusKey: string;
+    statusParams?: Record<string, string | number>;
+    statusColorClass: string;
+    disabled: boolean;
+} {
     if (device.activeRunId) {
-        const isCurrentProject = Boolean(projectId && device.activeProjectId === projectId);
         return {
-            statusKey: isCurrentProject ? 'device.inUseCurrentProject' : 'device.inUseOtherProject',
+            statusKey: 'device.inUseProject',
+            statusParams: { project: device.activeProjectName ?? device.activeProjectId ?? '-' },
             statusColorClass: 'bg-amber-100 text-amber-700',
             disabled: false,
         };
@@ -106,7 +107,6 @@ function buildStatusMeta(
 }
 
 export function useAndroidDeviceOptions({
-    projectId,
     teamId,
     readOnly,
     getAccessToken,
@@ -137,7 +137,7 @@ export function useAndroidDeviceOptions({
 
                 const payload = await res.json() as TeamDevicesResponse;
                 const options: AndroidDeviceOption[] = payload.devices.map((device) => {
-                    const statusMeta = buildStatusMeta(device, projectId);
+                    const statusMeta = buildStatusMeta(device);
                     const emulatorProfileName = resolveEmulatorProfileName(device);
                     const isEmulatorProfile = isEmulatorProfileInventory(device) && Boolean(emulatorProfileName);
                     const baseDetail = isEmulatorProfile && emulatorProfileName ? emulatorProfileName : device.deviceId;
@@ -163,6 +163,7 @@ export function useAndroidDeviceOptions({
                         label: device.name,
                         detail: detailSegments.join(' · '),
                         statusKey: statusMeta.statusKey,
+                        statusParams: statusMeta.statusParams,
                         statusColorClass: statusMeta.statusColorClass,
                         disabled: statusMeta.disabled,
                         group: isEmulatorProfile ? 'emulator' : 'physical',
@@ -186,7 +187,7 @@ export function useAndroidDeviceOptions({
             disposed = true;
             window.clearInterval(timerId);
         };
-    }, [projectId, teamId, getAccessToken, readOnly]);
+    }, [teamId, getAccessToken, readOnly]);
 
     if (readOnly || !teamId) {
         return [];
