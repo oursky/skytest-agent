@@ -2,6 +2,7 @@ import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
 import { hashApiKey, isApiKeyFormat } from '@/lib/security/api-key';
+import { getAuthgearRuntimeConfig } from '@/lib/security/authgear-config';
 
 const logger = createLogger('auth');
 
@@ -37,7 +38,7 @@ function getPayloadEmail(authPayload: Record<string, unknown>): string | null {
 }
 
 async function fetchUserInfoEmail(accessToken: string): Promise<string | null> {
-    const endpoint = process.env.NEXT_PUBLIC_AUTHGEAR_ENDPOINT;
+    const endpoint = getAuthgearRuntimeConfig().endpoint;
     if (!endpoint) {
         return null;
     }
@@ -180,7 +181,7 @@ export async function resolveOrCreateUserId(authPayload: AuthPayload): Promise<s
 function getJwks() {
     if (jwks) return jwks;
 
-    const endpoint = process.env.NEXT_PUBLIC_AUTHGEAR_ENDPOINT;
+    const endpoint = getAuthgearRuntimeConfig().endpoint;
     if (!endpoint) return null;
 
     try {

@@ -91,6 +91,8 @@ export default function TimelineEvent({ event, isLast, onImageClick, targetType 
                             alt={event.data.label || t('timeline.screenshot')}
                             width={targetType === 'android' ? 1080 : 1280}
                             height={targetType === 'android' ? 2400 : 800}
+                            unoptimized
+                            loading="lazy"
                             style={{ width: '100%', height: 'auto' }}
                             className="rounded-md transition-opacity group-hover:opacity-90"
                         />

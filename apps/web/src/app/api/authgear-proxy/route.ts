@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getRateLimitKey, isRateLimited } from '@/lib/runners/rate-limit';
+import { getAuthgearRuntimeConfig } from '@/lib/security/authgear-config';
 
 export const dynamic = 'force-dynamic';
 const AUTHGEAR_PROXY_RATE_LIMIT = { limit: 60, windowMs: 60_000 };
@@ -14,7 +15,7 @@ function getTargetUrl(request: Request): { targetUrl: string | null; errorRespon
     };
   }
 
-  const endpoint = process.env.NEXT_PUBLIC_AUTHGEAR_ENDPOINT;
+  const endpoint = getAuthgearRuntimeConfig().endpoint;
   if (!endpoint) {
     return {
       targetUrl: null,

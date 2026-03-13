@@ -10,8 +10,10 @@ import React, {
 } from "react";
 import type { UserInfo } from "@authgear/web";
 import { createAuthgearProxyFetch } from "./authgear-proxy-fetch";
+import type { AuthgearRuntimeConfig } from "@/types";
 
 interface AuthContextType {
+    authgearConfig: AuthgearRuntimeConfig;
     isLoggedIn: boolean;
     isLoading: boolean;
     user: UserInfo | null;
@@ -26,7 +28,13 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 type AuthgearModule = typeof import("@authgear/web");
 
-export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+export const AuthProvider = ({
+    children,
+    authgearConfig,
+}: {
+    children: React.ReactNode;
+    authgearConfig: AuthgearRuntimeConfig;
+}) => {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [user, setUser] = useState<UserInfo | null>(null);
@@ -43,14 +51,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             const authgear = authgearModule.default;
 
             try {
-                const endpoint = process.env.NEXT_PUBLIC_AUTHGEAR_ENDPOINT || "";
-                const clientID = process.env.NEXT_PUBLIC_AUTHGEAR_CLIENT_ID || "";
-
-                const proxyFetch = createAuthgearProxyFetch(endpoint);
+                const proxyFetch = createAuthgearProxyFetch(authgearConfig.endpoint);
 
                 await authgear.configure({
-                    clientID,
-                    endpoint,
+                    clientID: authgearConfig.clientId,
+                    endpoint: authgearConfig.endpoint,
                     fetch: proxyFetch,
                 });
             } catch (error) {
@@ -61,7 +66,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         })();
 
         return authgearModulePromiseRef.current;
-    }, []);
+    }, [authgearConfig.clientId, authgearConfig.endpoint]);
 
     const initAuthgear = useCallback(async () => {
         try {
@@ -102,7 +107,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
 
         await authgear.startAuthentication({
-            redirectURI: process.env.NEXT_PUBLIC_AUTHGEAR_REDIRECT_URI || "",
+            redirectURI: authgearConfig.redirectUri,
             prompt: authgearModule.PromptOption.Login,
         });
     };
@@ -131,7 +136,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ isLoggedIn, isLoading, user, login, logout, refreshUser: initAuthgear, getAccessToken, openSettings }}>
+        <AuthContext.Provider
+            value={{
+                authgearConfig,
+                isLoggedIn,
+                isLoading,
+                user,
+                login,
+                logout,
+                refreshUser: initAuthgear,
+                getAccessToken,
+                openSettings,
+            }}
+        >
             {children}
         </AuthContext.Provider>
     );

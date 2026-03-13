@@ -192,6 +192,7 @@ export default function FileList({ files, testCaseId, onDelete, readOnly }: File
                                     width={48}
                                     height={48}
                                     unoptimized
+                                    loading="lazy"
                                     className="w-12 h-12 object-cover rounded border border-gray-200"
                                 />
                             ) : (

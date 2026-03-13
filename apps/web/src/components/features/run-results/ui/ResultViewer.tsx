@@ -228,6 +228,8 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
                             alt={lightboxImage.label}
                             width={1920}
                             height={1080}
+                            unoptimized
+                            loading="eager"
                             style={{ width: 'auto', height: 'auto', maxWidth: '100%', maxHeight: '90vh' }}
                             className="rounded-lg"
                         />

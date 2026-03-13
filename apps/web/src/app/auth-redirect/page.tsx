@@ -8,7 +8,7 @@ import { useI18n } from "@/i18n";
 
 export default function AuthRedirect() {
     const router = useRouter();
-    const { refreshUser } = useAuth();
+    const { authgearConfig, refreshUser } = useAuth();
     const { t } = useI18n();
 
     useEffect(() => {
@@ -17,15 +17,12 @@ export default function AuthRedirect() {
                 const authgearModule = await import("@authgear/web");
                 const authgear = authgearModule.default;
 
-                const endpoint = process.env.NEXT_PUBLIC_AUTHGEAR_ENDPOINT || "";
-                const clientID = process.env.NEXT_PUBLIC_AUTHGEAR_CLIENT_ID || "";
-
-                const proxyFetch = createAuthgearProxyFetch(endpoint);
+                const proxyFetch = createAuthgearProxyFetch(authgearConfig.endpoint);
 
                 try {
                     await authgear.configure({
-                        clientID,
-                        endpoint,
+                        clientID: authgearConfig.clientId,
+                        endpoint: authgearConfig.endpoint,
                         fetch: proxyFetch,
                     });
                 } catch {
@@ -74,7 +71,7 @@ export default function AuthRedirect() {
         };
 
         finishAuth();
-    }, [router, refreshUser]);
+    }, [authgearConfig.clientId, authgearConfig.endpoint, refreshUser, router]);
 
     return (
         <div className="flex min-h-screen items-center justify-center">

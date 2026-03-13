@@ -7,6 +7,7 @@ import { Header } from "@/components/layout";
 import { DevRuntimeErrorLogger } from "@/components/layout/DevRuntimeErrorLogger";
 import { I18nProvider } from "@/i18n";
 import { LOCALE_META, type Locale } from "@/i18n/messages";
+import { getAuthgearRuntimeConfig } from "@/lib/security/authgear-config";
 
 export const metadata: Metadata = {
   title: "SkyTest Agent",
@@ -25,12 +26,13 @@ export default async function RootLayout({
   const cookieStore = await cookies();
   const cookieLocale = cookieStore.get("skyt_locale")?.value;
   const initialLocale: Locale = cookieLocale && isLocale(cookieLocale) ? cookieLocale : "en";
+  const authgearConfig = getAuthgearRuntimeConfig();
 
   return (
     <html lang={LOCALE_META[initialLocale].htmlLang}>
       <body className="antialiased">
         <I18nProvider initialLocale={initialLocale}>
-          <AuthProvider>
+          <AuthProvider authgearConfig={authgearConfig}>
             <DevRuntimeErrorLogger />
             <Header />
             {children}
