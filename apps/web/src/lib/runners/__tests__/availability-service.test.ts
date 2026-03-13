@@ -31,6 +31,7 @@ describe('getTeamDevicesAvailability', () => {
         runnerFindMany.mockResolvedValue([
             {
                 id: 'runner-1',
+                hostFingerprint: 'host-team-1',
                 displayId: 'run001',
                 label: 'Local macOS Runner',
                 kind: 'MACOS_AGENT',
@@ -83,6 +84,7 @@ describe('getTeamDevicesAvailability', () => {
         runnerFindMany.mockResolvedValue([
             {
                 id: 'runner-1',
+                hostFingerprint: 'host-team-1',
                 displayId: 'run001',
                 label: 'Local macOS Runner',
                 kind: 'MACOS_AGENT',
@@ -119,6 +121,7 @@ describe('getTeamDevicesAvailability', () => {
         runnerFindMany.mockResolvedValue([
             {
                 id: 'runner-1',
+                hostFingerprint: 'host-team-1',
                 displayId: 'run001',
                 label: 'Local macOS Runner',
                 kind: 'MACOS_AGENT',
@@ -160,6 +163,7 @@ describe('getTeamDevicesAvailability', () => {
         runnerFindMany.mockResolvedValue([
             {
                 id: 'runner-1',
+                hostFingerprint: 'host-team-1',
                 displayId: 'run001',
                 label: 'Local macOS Runner',
                 kind: 'MACOS_AGENT',
@@ -215,6 +219,7 @@ describe('getTeamDevicesAvailability', () => {
         runnerFindMany.mockResolvedValue([
             {
                 id: 'runner-1',
+                hostFingerprint: 'host-team-1',
                 displayId: 'run001',
                 label: 'Local macOS Runner',
                 kind: 'MACOS_AGENT',
@@ -243,6 +248,9 @@ describe('getTeamDevicesAvailability', () => {
             {
                 id: 'run-2',
                 assignedRunnerId: 'runner-other',
+                assignedRunner: {
+                    hostFingerprint: 'host-team-1',
+                },
                 requestedDeviceId: 'R58M1234ABC',
                 testCase: {
                     projectId: 'project-2',
@@ -261,6 +269,62 @@ describe('getTeamDevicesAvailability', () => {
             activeProjectId: null,
             activeProjectName: null,
             inUseByAnotherTeam: true,
+        });
+    });
+
+    it('does not mark occupancy from another host when deviceId matches', async () => {
+        const now = new Date();
+
+        runnerFindMany.mockResolvedValue([
+            {
+                id: 'runner-1',
+                hostFingerprint: 'host-team-1',
+                displayId: 'run001',
+                label: 'Local macOS Runner',
+                kind: 'MACOS_AGENT',
+                status: 'ONLINE',
+                protocolVersion: '1.0.0',
+                runnerVersion: '0.1.0',
+                lastSeenAt: now,
+                devices: [
+                    {
+                        id: 'device-emulator-profile',
+                        deviceId: 'emulator-profile:Pixel_8',
+                        platform: 'ANDROID',
+                        name: 'Pixel 8',
+                        state: 'ONLINE',
+                        metadata: {
+                            inventoryKind: 'emulator-profile',
+                            emulatorProfileName: 'Pixel_8',
+                        },
+                        lastSeenAt: now,
+                    },
+                ],
+            },
+        ]);
+
+        testRunFindMany.mockResolvedValue([
+            {
+                id: 'run-3',
+                assignedRunnerId: 'runner-other',
+                assignedRunner: {
+                    hostFingerprint: 'host-team-2',
+                },
+                requestedDeviceId: 'emulator-profile:Pixel_8',
+                testCase: {
+                    projectId: 'project-3',
+                    project: {
+                        name: 'Other Host Project',
+                        teamId: 'team-other',
+                    },
+                },
+            },
+        ]);
+
+        const result = await getTeamDevicesAvailability('team-occupancy-host-check');
+
+        expect(result.devices[0]).toMatchObject({
+            inUseByAnotherTeam: false,
         });
     });
 });

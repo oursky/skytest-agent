@@ -127,6 +127,7 @@ function dedupeRunnerDevices(devices: ReadonlyArray<TeamRunnerWithDevices['devic
 
 interface TeamRunnerWithDevices {
     id: string;
+    hostFingerprint: string;
     displayId: string;
     label: string;
     kind: string;
@@ -148,6 +149,7 @@ interface TeamRunnerWithDevices {
 interface ActiveDeviceRunProjection {
     runId: string;
     runnerId: string;
+    hostFingerprint: string | null;
     requestedDeviceId: string;
     projectId: string;
     projectName: string;
@@ -159,6 +161,7 @@ async function loadTeamRunners(teamId: string): Promise<TeamRunnerWithDevices[]>
         where: { teamId },
         select: {
             id: true,
+            hostFingerprint: true,
             displayId: true,
             label: true,
             kind: true,
@@ -209,6 +212,11 @@ export async function getTeamDevicesAvailability(teamId: string): Promise<TeamDe
             select: {
                 id: true,
                 assignedRunnerId: true,
+                assignedRunner: {
+                    select: {
+                        hostFingerprint: true,
+                    },
+                },
                 requestedDeviceId: true,
                 testCase: {
                     select: {
@@ -229,6 +237,7 @@ export async function getTeamDevicesAvailability(teamId: string): Promise<TeamDe
             return [{
                 runId: run.id,
                 runnerId: run.assignedRunnerId,
+                hostFingerprint: run.assignedRunner?.hostFingerprint ?? null,
                 requestedDeviceId: run.requestedDeviceId,
                 projectId: run.testCase.projectId,
                 projectName: run.testCase.project.name,
@@ -238,7 +247,8 @@ export async function getTeamDevicesAvailability(teamId: string): Promise<TeamDe
         : [];
 
     const activeRunByRunnerAndDevice = new Map<string, ActiveDeviceRunProjection>();
-    const inUseByOtherTeamDeviceIds = new Set<string>();
+    const inUseByOtherTeamHostAndDeviceKeys = new Set<string>();
+    const runnerHostFingerprintById = new Map(runners.map((runner) => [runner.id, runner.hostFingerprint]));
     for (const run of activeDeviceRuns) {
         if (run.teamId === teamId && teamRunnerIds.has(run.runnerId)) {
             const key = `${run.runnerId}:${run.requestedDeviceId}`;
@@ -247,8 +257,8 @@ export async function getTeamDevicesAvailability(teamId: string): Promise<TeamDe
             }
             continue;
         }
-        if (run.teamId !== teamId) {
-            inUseByOtherTeamDeviceIds.add(run.requestedDeviceId);
+        if (run.teamId !== teamId && run.hostFingerprint) {
+            inUseByOtherTeamHostAndDeviceKeys.add(`${run.hostFingerprint}:${run.requestedDeviceId}`);
         }
     }
 
@@ -270,6 +280,7 @@ export async function getTeamDevicesAvailability(teamId: string): Promise<TeamDe
             const isAvailable = runnerFresh && deviceFresh && device.state === 'ONLINE';
             const occupancyKey = `${runner.id}:${device.deviceId}`;
             const activeRun = activeRunByRunnerAndDevice.get(occupancyKey);
+            const hostFingerprint = runnerHostFingerprintById.get(runner.id) ?? null;
 
             if (isAvailable) {
                 availableDeviceCount += 1;
@@ -294,7 +305,8 @@ export async function getTeamDevicesAvailability(teamId: string): Promise<TeamDe
                 activeProjectId: activeRun?.projectId ?? null,
                 activeProjectName: activeRun?.projectName ?? null,
                 inUseByAnotherTeam: !activeRun
-                    && inUseByOtherTeamDeviceIds.has(device.deviceId),
+                    && !!hostFingerprint
+                    && inUseByOtherTeamHostAndDeviceKeys.has(`${hostFingerprint}:${device.deviceId}`),
             });
         }
     }

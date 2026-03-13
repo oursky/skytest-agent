@@ -2,6 +2,7 @@ import { config as appConfig } from '@/config/app';
 import { createLogger } from '@/lib/core/logger';
 import { pruneOldRunEvents } from '@/lib/runners/event-retention-service';
 import { reapExpiredRunnerLeases } from '@/lib/runners/lease-reaper';
+import { failInvalidQueuedAndroidRuns } from '@/lib/runners/queue-sanitizer';
 import { enforceRunArtifactRetention } from '@/lib/runners/run-retention-service';
 
 const logger = createLogger('worker:runner-maintenance');
@@ -13,15 +14,17 @@ function sleep(ms: number): Promise<void> {
 }
 
 async function runMaintenanceCycle() {
-    const [leaseResult, retentionResult] = await Promise.all([
+    const [leaseResult, retentionResult, queueSanitizerResult] = await Promise.all([
         reapExpiredRunnerLeases(),
         pruneOldRunEvents(),
+        failInvalidQueuedAndroidRuns(),
     ]);
     const runRetentionResult = await enforceRunArtifactRetention();
 
     if (
         leaseResult.recoveredRuns > 0
         || retentionResult.deletedEvents > 0
+        || queueSanitizerResult.failedRuns > 0
         || runRetentionResult.softDeletedRuns > 0
         || runRetentionResult.hardDeletedRuns > 0
         || runRetentionResult.hardDeleteFailures > 0
@@ -32,6 +35,7 @@ async function runMaintenanceCycle() {
             failedRuns: leaseResult.failedRuns,
             deletedEvents: retentionResult.deletedEvents,
             retentionCutoff: retentionResult.cutoff.toISOString(),
+            failedInvalidQueuedRuns: queueSanitizerResult.failedRuns,
             softDeletedRuns: runRetentionResult.softDeletedRuns,
             hardDeletedRuns: runRetentionResult.hardDeletedRuns,
             hardDeletedArtifacts: runRetentionResult.hardDeletedArtifacts,
