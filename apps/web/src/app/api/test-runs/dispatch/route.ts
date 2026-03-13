@@ -5,14 +5,13 @@ import { validateTargetUrl } from '@/lib/security/url-security';
 import { createLogger } from '@/lib/core/logger';
 import { getTeamDevicesAvailability } from '@/lib/runners/availability-service';
 import { config as appConfig } from '@/config/app';
-import { normalizeAndroidTargetConfig } from '@/lib/android/target-config';
+import { isAndroidTargetConfig, normalizeAndroidTargetConfig } from '@/lib/android/target-config';
 import {
     collectAndroidRequestedDeviceIds,
     collectAndroidRequestedRunnerIds,
     extractRequestedDeviceId,
     extractRequestedRunnerId,
     hasAndroidTargets,
-    isAndroidTargetConfig,
     isEmulatorProfileInventoryDevice,
 } from '@/lib/android/target-requests';
 import {

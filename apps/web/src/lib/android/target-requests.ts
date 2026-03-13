@@ -1,12 +1,8 @@
-import { normalizeAndroidTargetConfig } from '@/lib/android/target-config';
+import { isAndroidTargetConfig, normalizeAndroidTargetConfig } from '@/lib/android/target-config';
 import { EMULATOR_PROFILE_DEVICE_PREFIX } from '@/lib/runners/android-resource-lock';
-import type { AndroidTargetConfig, BrowserConfig, TargetConfig } from '@/types';
+import type { BrowserConfig, TargetConfig } from '@/types';
 
 type TargetConfigMap = Record<string, BrowserConfig | TargetConfig> | undefined;
-
-export function isAndroidTargetConfig(config: BrowserConfig | TargetConfig): config is AndroidTargetConfig {
-    return 'type' in config && config.type === 'android';
-}
 
 export function hasAndroidTargets(browserConfig: TargetConfigMap): boolean {
     if (!browserConfig || Object.keys(browserConfig).length === 0) {

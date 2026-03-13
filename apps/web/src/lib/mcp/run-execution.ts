@@ -8,14 +8,13 @@ import {
     BROWSER_EXECUTION_CAPABILITY,
 } from '@/lib/runners/constants';
 import { dispatchBrowserRun } from '@/lib/runtime/browser-run-dispatcher';
-import { normalizeAndroidTargetConfig } from '@/lib/android/target-config';
+import { isAndroidTargetConfig, normalizeAndroidTargetConfig } from '@/lib/android/target-config';
 import {
     collectAndroidRequestedDeviceIds,
     collectAndroidRequestedRunnerIds,
     extractRequestedDeviceId,
     extractRequestedRunnerId,
     hasAndroidTargets,
-    isAndroidTargetConfig,
     isEmulatorProfileInventoryDevice,
 } from '@/lib/android/target-requests';
 import { TEST_STATUS, type BrowserConfig, type TargetConfig, type TestStep } from '@/types';

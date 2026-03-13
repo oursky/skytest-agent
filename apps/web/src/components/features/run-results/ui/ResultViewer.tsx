@@ -10,14 +10,12 @@ import {
     type TestCaseFile,
     type TestData,
     type BrowserConfig,
-    type TargetConfig,
-    type AndroidTargetConfig,
 } from '@/types';
 import { formatTime } from '@/utils/time/dateFormatter';
 import TimelineEvent from './TimelineEvent';
 import ResultStatus from './ResultStatus';
 import { useI18n } from '@/i18n';
-import { normalizeAndroidTargetConfig } from '@/lib/android/target-config';
+import { isAndroidTargetConfig, normalizeAndroidTargetConfig } from '@/lib/android/target-config';
 import { formatAndroidDeviceSelectorDisplay } from '@/lib/android/device-selector-display';
 import { normalizeBrowserConfig } from '@/lib/test-config/browser-target';
 
@@ -34,10 +32,6 @@ interface ResultViewerMeta {
 interface ResultViewerProps {
     result: Omit<TestRun, 'id' | 'testCaseId' | 'createdAt' | 'status'> & { status: TestRun['status'] | null; events: TestEvent[] };
     meta?: ResultViewerMeta;
-}
-
-function isAndroidTargetConfig(config: BrowserConfig | TargetConfig): config is AndroidTargetConfig {
-    return 'type' in config && config.type === 'android';
 }
 
 function buildConfigSummaryLines(config?: TestData): string[] {
@@ -97,14 +91,14 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
         return Object.fromEntries(
             Object.entries(cfg).map(([id, c]) => [
                 id,
-                'type' in c && (c as { type?: string }).type === 'android' ? 'android' : 'browser'
+                isAndroidTargetConfig(c) ? 'android' : 'browser'
             ])
         );
     }, [meta?.config?.browserConfig]);
 
     const hasAndroidTargets = useMemo(() => {
         const cfg = meta?.config?.browserConfig ?? {};
-        return Object.values(cfg).some((target) => 'type' in target && target.type === 'android');
+        return Object.values(cfg).some(isAndroidTargetConfig);
     }, [meta?.config?.browserConfig]);
 
     useEffect(() => {
