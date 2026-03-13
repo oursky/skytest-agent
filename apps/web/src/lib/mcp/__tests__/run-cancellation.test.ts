@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { RUN_ACTIVE_STATUSES } from '@/types';
 
 const { testRunFindUnique, testRunUpdateMany, testCaseUpdate, androidResourceLockDeleteMany, transaction } = vi.hoisted(() => ({
     testRunFindUnique: vi.fn(),
@@ -83,7 +84,7 @@ describe('cancelRunDurably', () => {
         expect(testRunUpdateMany).toHaveBeenCalledWith({
             where: {
                 id: 'run-1',
-                status: { in: ['RUNNING', 'QUEUED', 'PREPARING'] },
+                status: { in: [...RUN_ACTIVE_STATUSES] },
             },
             data: {
                 status: 'CANCELLED',

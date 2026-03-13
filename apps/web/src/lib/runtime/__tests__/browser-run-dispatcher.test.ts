@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { BROWSER_EXECUTION_CAPABILITY } from '@/lib/runners/constants';
+import { RUN_IN_PROGRESS_STATUSES, TEST_STATUS } from '@/types';
 
 const { queryRaw, startLocalBrowserRun } = vi.hoisted(() => ({
     queryRaw: vi.fn(),
@@ -37,7 +39,9 @@ describe('browser-run-dispatcher', () => {
         const [query] = queryRaw.mock.calls[0];
         const sql = query.strings.join('');
         expect(sql).toContain('tr."requiredCapability" =');
-        expect(sql).toContain("tr.status = 'QUEUED'");
+        expect(sql).toContain('tr.status =');
+        expect(query.values).toContain(TEST_STATUS.QUEUED);
+        expect(query.values).toContain(BROWSER_EXECUTION_CAPABILITY);
     });
 
     it('does not dispatch when no queued browser run is claimable', async () => {
@@ -69,6 +73,8 @@ describe('browser-run-dispatcher', () => {
         const [query] = queryRaw.mock.calls[0];
         const sql = query.strings.join('');
         expect(sql).toContain('activeTr.status IN');
-        expect(sql).not.toContain(`activeTr.status = 'QUEUED'`);
+        expect(query.values).toEqual(expect.arrayContaining([...RUN_IN_PROGRESS_STATUSES]));
+        const queuedValueCount = query.values.filter((value: unknown) => value === TEST_STATUS.QUEUED).length;
+        expect(queuedValueCount).toBe(1);
     });
 });

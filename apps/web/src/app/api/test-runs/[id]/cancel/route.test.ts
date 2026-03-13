@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { RUN_ACTIVE_STATUSES } from '@/types';
 
 const mocks = vi.hoisted(() => ({
     verifyAuth: vi.fn(),
@@ -105,7 +106,7 @@ describe('POST /api/test-runs/[id]/cancel', () => {
         expect(mocks.testRunUpdateMany).toHaveBeenCalledWith({
             where: {
                 id: 'run-1',
-                status: { in: ['RUNNING', 'QUEUED', 'PREPARING'] },
+                status: { in: [...RUN_ACTIVE_STATUSES] },
             },
             data: {
                 status: 'CANCELLED',
