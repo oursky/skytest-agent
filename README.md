@@ -66,9 +66,9 @@ Don't want to self-host? We're building a managed version of SkyTest.
 ## Advanced Setup
 
 - **Environment Variables**: See `.env.example` for required configs like database and storage. Users provide their own OpenRouter keys in the app settings.
-- **Local Development**: Check the [Local Dev Guide](./docs/operators/local-dev.md) for running the runner or resetting state.
-- **Android Testing**: See the [macOS Android Emulator Guide](./docs/operators/mac-android-emulator-guide.md) to configure cross-platform testing.
-- **Kubernetes**: Reference Helm charts are available in `infra/helm`.
+- **Local Development**: Check the [Local Development Guide](./docs/operators/local-development.md) for the repo-local stack and reset workflow.
+- **Android Testing**: See the [macOS Android Runner Guide](./docs/operators/macos-android-runner-guide.md) to configure Android execution on macOS hosts.
+- **Kubernetes**: Deployment packaging lives in `infra/helm`.
 
 ### Quick Troubleshooting
 

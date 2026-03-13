@@ -2,13 +2,13 @@
 
 Audience: maintainers / coding agents changing Android runtime behavior.
 
-This document describes current Android runner behavior and operational constraints.
+This document describes Android runner behavior and operational constraints.
 
 Related docs:
 
-- [`docs/maintainers/coding-agent-maintenance-guide.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/coding-agent-maintenance-guide.md)
-- [`docs/operators/android-runtime-deployment-checklist.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/android-runtime-deployment-checklist.md)
-- [`docs/operators/mac-android-emulator-guide.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/mac-android-emulator-guide.md)
+- [coding-agent-maintenance-guide.md](./coding-agent-maintenance-guide.md)
+- [android-runtime-deployment-checklist.md](../operators/android-runtime-deployment-checklist.md)
+- [macos-android-runner-guide.md](../operators/macos-android-runner-guide.md)
 
 ## Runtime Capability Gating (Important)
 
@@ -19,10 +19,12 @@ Related docs:
 ## Deployment Model (Important)
 
 - Control plane and runner agents are separate processes.
+- Kubernetes packaging lives in `infra/helm`; Android runners stay outside the cluster.
 - Control plane responsibilities:
   - durable run scheduling/state in Postgres
   - runner auth/claim/event APIs
   - team-scoped runner/device inventory aggregation from runner inventory
+  - browser run execution dispatch inside control-plane processes
 - Runner responsibilities:
   - local Android discovery
   - Android execution
@@ -69,6 +71,7 @@ For connected physical devices, the same app-specific cleanup toggle semantics a
 ## Scheduling and Capacity Behavior
 
 - Control plane stores runs as `QUEUED` and runners claim with long-poll.
+- Browser runs are dispatched by the control plane and do not require a separate browser worker deployment.
 - Android runs are queued only when a deterministic single `requestedDeviceId` is resolved.
 - Explicit-device runs can be claimed only by the runner that currently owns/publishes that device.
 - Device contention is enforced by host-scoped resource locks in DB:

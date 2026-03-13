@@ -2,21 +2,21 @@
 
 Audience: maintainers / coding agents changing import/export behavior.
 
-This document describes the current supported Excel format for test case import/export.
+This document describes the supported Excel format for test case import and export.
 
 Related docs:
 
-- [`docs/maintainers/coding-agent-maintenance-guide.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/coding-agent-maintenance-guide.md)
+- [coding-agent-maintenance-guide.md](./coding-agent-maintenance-guide.md)
 
 ## Compatibility Policy
 
-- Current export format uses dedicated target sheets: `Browser Targets` and `Android Targets`.
+- Export uses dedicated target sheets: `Browser Targets` and `Android Targets`.
 - Import supports both:
-  - current multi-sheet target format (`Browser Targets` + `Android Targets`)
-  - target rows embedded in `Configurations` (fallback compatibility path)
+  - the dedicated multi-sheet target format (`Browser Targets` + `Android Targets`)
+  - legacy target rows embedded in `Configurations`
 - Layouts outside those parser paths are unsupported.
 
-## Sheets (Current Export)
+## Sheets
 
 - `Configurations`
 - `Browser Targets`
@@ -30,7 +30,7 @@ The `Configurations` sheet is a row-based table with sections such as:
 - `Basic Info` / `Test Case`
 - `Project Variable`
 - `Test Case Variable`
-- `Testing Target` (current term for fallback import path)
+- `Testing Target` (legacy import section name)
 - `File`
 
 Variable rows use these columns:
@@ -42,7 +42,7 @@ Variable rows use these columns:
 - `Group` (for `Variable`, `Random String`, `File`)
 - `Masked` (`Y` when a `Variable` is masked)
 
-### Testing Targets (Configurations Fallback Import)
+### Testing Targets (Legacy `Configurations` Import)
 
 - One row per testing target.
 - Browser testing targets:
@@ -62,17 +62,17 @@ Notes:
 - `Device` values can be:
   - emulator profile name (for `emulator-profile` targets)
   - `serial:<adb-serial>` (for `connected-device` targets)
-- `URL` and `App ID` dedicated columns are not used in this fallback path.
+- `URL` and `App ID` dedicated columns are not used in this path.
 - Testing target values must be read from the shared `Value` column.
 
-## Browser Targets Sheet (Current Export)
+## Browser Targets Sheet
 
 - Columns: `Target`, `Name`, `URL`, `Width`, `Height`
 - `Target` labels are generated (for example `Browser A`, `Browser B`)
 - `Name` is optional display label
 - `Width` and `Height` define per-target browser viewport size
 
-## Android Targets Sheet (Current Export)
+## Android Targets Sheet
 
 - Columns:
   - `Target`
@@ -90,12 +90,12 @@ Notes:
 ## Test Steps Sheet
 
 - Steps include action text and target mapping.
-- Export currently uses the `Browser` column name for target labels (historical naming), even when a step targets Android.
+- Export uses the `Browser` column name for target labels (historical naming), even when a step targets Android.
 - Import resolves target labels/aliases from either:
-  - `Browser Targets` + `Android Targets` sheets (current format), or
-  - `Configurations` testing target rows (fallback path)
+  - `Browser Targets` + `Android Targets` sheets, or
+  - `Configurations` testing target rows
 
-## Import Behavior (Current Product Policy)
+## Import Behavior
 
 Import does:
 
@@ -117,11 +117,11 @@ Import does not:
 Warnings are produced for:
 
 - invalid/unsupported rows
-- `File` rows exported from test case attachments (manual upload required in current product flow)
+- `File` rows exported from test case attachments (manual upload is still required)
 
 ## Export Behavior
 
 - Export includes `Configurations`, `Browser Targets`, `Android Targets`, and `Test Steps`.
 - Android targets are exported with device selector, app ID, and toggles.
 - Export writes test case attachment metadata as `Configurations` rows with `Section = File`.
-- Current import flow does not upload these file attachments automatically; users must upload files manually after import.
+- Import does not upload those file attachments automatically; users must upload files manually after import.

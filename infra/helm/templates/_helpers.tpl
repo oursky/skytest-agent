@@ -23,12 +23,12 @@ app.kubernetes.io/name: {{ include "skytest-agent.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
-{{- define "skytest-agent.controlPlaneFullname" -}}
-{{- printf "%s-control-plane" (include "skytest-agent.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- define "skytest-agent.image" -}}
+{{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}
 
-{{- define "skytest-agent.browserRunnerFullname" -}}
-{{- printf "%s-browser-runner" (include "skytest-agent.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- define "skytest-agent.controlPlaneFullname" -}}
+{{- printf "%s-control-plane" (include "skytest-agent.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
 {{- define "skytest-agent.runnerMaintenanceFullname" -}}

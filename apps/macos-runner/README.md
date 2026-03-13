@@ -1,15 +1,23 @@
 # macOS Runner
 
-Headless runner agent for Android execution in Phase 3.
+Headless runner agent for Android execution.
 This runtime is managed by the `skytest` CLI and is not started directly in normal workflows.
+
+Operator docs live in:
+
+- `docs/operators/macos-android-runner-guide.md`
+- `docs/operators/macos-runner-environment.md`
 
 ## Environment Variables
 
-- `RUNNER_CONTROL_PLANE_URL` (default `http://127.0.0.1:3000`)
-- `RUNNER_LABEL` (default `macOS Runner`)
-- `RUNNER_VERSION` (default `0.1.0`)
-- `RUNNER_TOKEN` (optional existing runner credential)
-- `RUNNER_PAIRING_TOKEN` (required when no stored credential exists)
+The CLI injects runner identity values automatically when it starts a paired runner:
+
+- `RUNNER_CONTROL_PLANE_URL`
+- `RUNNER_LABEL`
+- `RUNNER_VERSION`
+- `RUNNER_TOKEN`
+
+Optional model overrides are documented in `docs/operators/macos-runner-environment.md`.
 
 ## Start
 

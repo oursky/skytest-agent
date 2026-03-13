@@ -2,13 +2,14 @@
 
 This guide is for developers and coding agents making changes in this repository.
 
-It complements `AGENTS.md` with project-specific runtime invariants for the current runner architecture.
+It complements `AGENTS.md` with repository-specific runtime invariants.
 
 ## Read These First
 
 - `AGENTS.md` (repo workflow, constraints, style)
-- [`docs/maintainers/android-runtime-maintenance.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/android-runtime-maintenance.md) (runner runtime behavior + constraints)
-- [`docs/operators/android-runtime-deployment-checklist.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/android-runtime-deployment-checklist.md) (operator rollout expectations)
+- [android-runtime-maintenance.md](./android-runtime-maintenance.md)
+- [../operators/android-runtime-deployment-checklist.md](../operators/android-runtime-deployment-checklist.md)
+- [../../infra/README.md](../../infra/README.md)
 
 ## High-Risk Runtime Areas
 
@@ -77,7 +78,8 @@ The CLI supervises local runner lifecycle; the macOS runner executes jobs.
 
 ## Control Plane Constraints
 
-- Browser execution is dispatched per run from API/MCP queueing paths and must not depend on a long-lived hosted browser worker.
+- Browser execution is dispatched per run from API or MCP queueing paths and runs inside control-plane processes.
+- Do not re-introduce a dedicated `runner:browser` workload or parallel raw Kubernetes manifests for the same deployment topology.
 - Android execution stays runner-owned and must not move into web request handlers.
 - Team-facing device visibility must come from runner-published inventory, not host-local inspection.
 - Do not re-introduce project-scoped device inventory surfaces; active UI is `Team Settings -> Runners`.
@@ -89,24 +91,49 @@ If you add features that expose Android state/control:
 - keep behavior team/project-scoped through runner ownership
 - avoid privileged host-level actions from web routes
 
+## Local Orchestration
+
+The top-level `Makefile` is the source of truth for multi-step local workflows:
+
+- `make bootstrap` installs dependencies, starts local services, and applies the schema
+- `make dev` starts the local control plane and the maintenance loop
+- `make app` starts only the Next.js control plane
+- `make maintenance` starts only the maintenance loop
+- `make runner-reset` clears local runner state
+- `make verify` runs the repo verification checks
+
+Do not duplicate those workflows in new scripts or stale runbooks.
+
+## Browser Network Guard And Failure Metadata
+
+When changing browser execution behavior, keep these invariants stable:
+
+- DNS lookup is fail-closed before navigation and during guarded requests.
+- Private, loopback, and internal destinations remain blocked after DNS resolution.
+- `classifyRunFailure` writes `errorCode` and `errorCategory` into `TestRun.result`.
+- `GET /api/test-runs/:id`, the SSE event stream, and the result viewer all depend on that stored failure metadata.
+
 ## Documentation Update Checklist for Code Changes
 
 When changing runner runtime behavior, update docs in the same PR/commit series:
 
 - Operator-facing impact:
-  - [`docs/operators/mac-android-emulator-guide.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/mac-android-emulator-guide.md)
-  - [`docs/operators/android-runtime-deployment-checklist.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/android-runtime-deployment-checklist.md)
+  - [../operators/local-development.md](../operators/local-development.md)
+  - [../operators/macos-android-runner-guide.md](../operators/macos-android-runner-guide.md)
+  - [../operators/android-runtime-deployment-checklist.md](../operators/android-runtime-deployment-checklist.md)
+  - [../../infra/helm/README.md](../../infra/helm/README.md)
 - Maintainer-facing impact:
-  - [`docs/maintainers/android-runtime-maintenance.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/android-runtime-maintenance.md)
+  - [android-runtime-maintenance.md](./android-runtime-maintenance.md)
 - Import/export behavior:
-  - [`docs/maintainers/test-case-excel-format.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/test-case-excel-format.md)
+  - [test-case-excel-format.md](./test-case-excel-format.md)
 
 ## Common Footguns
 
-- Changing Excel import parser compatibility paths without updating `docs/maintainers/test-case-excel-format.md`
+- Changing Excel import parser compatibility paths without updating [test-case-excel-format.md](./test-case-excel-format.md)
 - Breaking runner protocol request/response shapes without updating `packages/runner-protocol`
 - Bypassing lease ownership checks on runner write-back endpoints
-- Re-introducing long-lived dedicated browser worker loops
+- Re-introducing dedicated browser worker deployments
+- Re-introducing browser-side `process.env` dependencies for deployment-specific config
 - Changing operator-visible runner/device behavior without updating setup/runbook docs
 
 ## Browser Failure Triage (Blank Page / Selector Not Found)
@@ -119,5 +146,5 @@ Use this sequence before changing test steps:
 2. From the same runtime host, verify DNS and HTTP:
    - `node -e "require('node:dns').promises.lookup('<host>', { all: true, verbatim: true }).then(console.log).catch(console.error)"`
    - `curl -I https://<host>/<path>`
-3. If requests are blocked by runtime guard, fix network/policy first; do not tweak selectors yet.
+3. If requests are blocked by the runtime guard, fix network or policy first; do not tweak selectors yet.
 4. Only debug Playwright selectors/assertions after network guard errors are resolved.

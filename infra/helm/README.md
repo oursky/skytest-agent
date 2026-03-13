@@ -1,20 +1,59 @@
-# Helm Chart (Open Source Baseline)
+# Helm Chart
 
-This chart packages SkyTest Agent into three Kubernetes workloads:
+This chart deploys the shared SkyTest control plane into Kubernetes.
 
-- control plane (`next start`)
-- browser runner worker (`npm run runner:browser`)
-- runner maintenance cronjob (`npm run runner:maintenance` with `RUNNER_MAINTENANCE_ONCE=true`)
+## Workloads
 
-This open-source chart intentionally keeps secrets out of the repository.
+The chart creates:
+
+- a control-plane `Deployment` and `Service`
+- a runner-maintenance `CronJob`
+- optional ingress, HPA, and PDB resources
+
+Browser runs execute inside the control-plane pods. Android execution remains external and is provided by paired macOS runners.
 
 ## Prerequisites
 
 - Kubernetes cluster
 - Helm 3
-- A Kubernetes Secret containing runtime environment variables
+- a published application image that already contains Playwright Chromium
+- a Kubernetes `Secret` containing runtime environment variables
 
-Create secret example:
+## Required Runtime Secret Values
+
+Create a secret with at least:
+
+- `DATABASE_URL`
+- `ENCRYPTION_SECRET` or `STREAM_TOKEN_SECRET`
+- `S3_ENDPOINT`
+- `S3_REGION`
+- `S3_BUCKET`
+- `S3_ACCESS_KEY_ID`
+- `S3_SECRET_ACCESS_KEY`
+- `S3_FORCE_PATH_STYLE`
+- `AUTHGEAR_CLIENT_ID`
+- `AUTHGEAR_ENDPOINT`
+- `AUTHGEAR_REDIRECT_URI`
+
+Common optional values:
+
+- `STORAGE_SIGNED_URL_TTL_SECONDS`
+- `STREAM_POLL_INTERVAL_MS`
+- `RUNNER_LEASE_DURATION_SECONDS`
+- `RUNNER_LEASE_REAPER_INTERVAL_MS`
+- `RUNNER_EVENT_RETENTION_DAYS`
+- `RUNNER_ARTIFACT_SOFT_DELETE_DAYS`
+- `RUNNER_ARTIFACT_HARD_DELETE_DAYS`
+- `RUNNER_ARTIFACT_HARD_DELETE_BATCH_SIZE`
+- `RUNNER_MAX_CONCURRENT_RUNS`
+- `PROJECT_MAX_CONCURRENT_RUNS_MAX`
+- `LOG_LEVEL`
+- `PRISMA_LOG_QUERIES`
+- `UI_DEVICE_STATUS_POLL_INTERVAL_MS`
+
+Legacy `NEXT_PUBLIC_AUTHGEAR_*` names are still accepted for compatibility, but new deployments should use `AUTHGEAR_*`.
+
+Example:
 
 ```bash
 kubectl -n skytest create secret generic skytest-agent-secrets \
@@ -26,19 +65,19 @@ kubectl -n skytest create secret generic skytest-agent-secrets \
   --from-literal=S3_ACCESS_KEY_ID='...' \
   --from-literal=S3_SECRET_ACCESS_KEY='...' \
   --from-literal=S3_FORCE_PATH_STYLE='false' \
-  --from-literal=NEXT_PUBLIC_AUTHGEAR_CLIENT_ID='...' \
-  --from-literal=NEXT_PUBLIC_AUTHGEAR_ENDPOINT='https://...' \
-  --from-literal=NEXT_PUBLIC_AUTHGEAR_REDIRECT_URI='https://your-host/auth-redirect'
+  --from-literal=AUTHGEAR_CLIENT_ID='...' \
+  --from-literal=AUTHGEAR_ENDPOINT='https://...' \
+  --from-literal=AUTHGEAR_REDIRECT_URI='https://skytest.example.com/auth-redirect'
 ```
 
-## Dry Run
+## Validate The Chart
 
 ```bash
 helm lint infra/helm
-helm template skytest infra/helm
+helm template skytest infra/helm --set image.tag=<immutable-tag>
 ```
 
-## Install / Upgrade
+## Install Or Upgrade
 
 ```bash
 helm upgrade --install skytest infra/helm \
@@ -48,12 +87,16 @@ helm upgrade --install skytest infra/helm \
   --set image.tag=<immutable-tag>
 ```
 
-## Notes
+## Operational Notes
 
 - `ingress.enabled` is `false` by default.
-- `autoscaling.enabled` is `true` for control plane by default.
-- Android `MACOS_AGENT` runners are external to this chart and must be paired separately.
-- Health endpoints:
-  - liveness: `/api/health/live`
-  - readiness: `/api/health/ready`
-  - dependency diagnostics: `/api/health/dependencies`
+- `autoscaling.enabled` applies to the control-plane deployment.
+- Scale browser throughput by changing control-plane resources or replica count.
+- Pair Android macOS runners against the public control-plane URL after deployment.
+- Updating a referenced `Secret` does not restart pods automatically. Run a Helm upgrade or restart workloads after secret changes.
+
+## Health Endpoints
+
+- liveness: `/api/health/live`
+- readiness: `/api/health/ready`
+- dependency diagnostics: `/api/health/dependencies`

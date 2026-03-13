@@ -19,6 +19,10 @@ spec:
           labels:
             {{- include "skytest-agent.selectorLabels" . | nindent 12 }}
             app.kubernetes.io/component: runner-maintenance
+          {{- with .Values.runnerMaintenance.podAnnotations }}
+          annotations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
         spec:
           restartPolicy: Never
           {{- with .Values.imagePullSecrets }}
@@ -27,7 +31,7 @@ spec:
           {{- end }}
           containers:
             - name: runner-maintenance
-              image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+              image: "{{ include "skytest-agent.image" . }}"
               imagePullPolicy: {{ .Values.image.pullPolicy }}
               command:
                 {{- toYaml .Values.runnerMaintenance.command | nindent 16 }}
@@ -39,4 +43,16 @@ spec:
                   value: {{ .Values.runnerMaintenance.runOnceValue | quote }}
               resources:
                 {{- toYaml .Values.runnerMaintenance.resources | nindent 16 }}
+          {{- with .Values.runnerMaintenance.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.runnerMaintenance.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.runnerMaintenance.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
 {{- end }}

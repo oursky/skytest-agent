@@ -80,7 +80,7 @@ apps/web/src/
 - `docs/maintainers/mcp-server-tooling.md` - MCP tool contracts for all registered tools (CRUD, stop-all, query)
 
 If you are changing operator-facing Android behavior, also read:
-- `docs/operators/mac-android-emulator-guide.md`
+- `docs/operators/macos-android-runner-guide.md`
 - `docs/operators/android-runtime-deployment-checklist.md`
 
 ## Docs Structure (Audience Split)

@@ -1,6 +1,6 @@
 # MCP Server Tooling Notes
 
-This document defines current SkyTest MCP tool behavior for maintainers.
+This document defines SkyTest MCP tool behavior for maintainers.
 
 ## Source of Truth
 

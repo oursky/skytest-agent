@@ -26,6 +26,7 @@ controlPlane:
   containerPort: 3000
   service:
     type: ClusterIP
+    annotations: {}
     port: 80
     targetPort: 3000
   readinessProbe:
@@ -50,25 +51,6 @@ controlPlane:
   tolerations: []
   affinity: {}
 
-browserRunner:
-  enabled: true
-  replicas: 2
-  command:
-    - npm
-    - run
-    - runner:browser
-  resources:
-    requests:
-      cpu: "1000m"
-      memory: "2Gi"
-    limits:
-      cpu: "4"
-      memory: "8Gi"
-  podAnnotations: {}
-  nodeSelector: {}
-  tolerations: []
-  affinity: {}
-
 runnerMaintenance:
   enabled: true
   schedule: "*/2 * * * *"
@@ -81,6 +63,7 @@ runnerMaintenance:
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 3
   backoffLimit: 1
+  podAnnotations: {}
   resources:
     requests:
       cpu: "100m"
@@ -88,6 +71,9 @@ runnerMaintenance:
     limits:
       cpu: "500m"
       memory: "1Gi"
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
 
 autoscaling:
   enabled: true

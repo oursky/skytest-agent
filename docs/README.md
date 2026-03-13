@@ -1,38 +1,30 @@
-# Documentation Index
+# Documentation
 
-This `docs/` folder contains two types of documentation:
+This repository keeps durable documentation in two tracks:
 
-- Operator / self-hosting docs: for people setting up and running this app on their own machines/servers
-- Maintainer / coding-agent docs: for developers working on this repo and Android device runtime behavior
+- `docs/operators/` for people who run SkyTest locally or in shared environments
+- `docs/maintainers/` for developers changing runtime, protocol, or import/export behavior
 
-## Operator / Self-Hosting Docs
+## Start Here
 
-Core app features can run without Android SDK/emulator tooling. Android operator docs below apply only when enabling Android testing on a host (emulator profiles and/or connected devices).
+- [Local development](./operators/local-development.md)
+- [Infrastructure and Kubernetes deployment](../infra/README.md)
+- [Android runtime deployment checklist](./operators/android-runtime-deployment-checklist.md)
+- [macOS Android runner guide](./operators/macos-android-runner-guide.md)
+- [macOS runner environment](./operators/macos-runner-environment.md)
 
-- [`docs/operators/mac-android-emulator-guide.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/mac-android-emulator-guide.md)
-  - macOS setup, emulator profile creation, connected device basics, operations, troubleshooting
-- [`docs/operators/local-dev.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/local-dev.md)
-  - local stack setup, runner lifecycle, and clean reset workflow
-- [`docs/operators/macos-runner-env.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/macos-runner-env.md)
-  - runner-required env vars, model defaults/overrides, source vs Homebrew env loading
-- [`docs/operators/android-runtime-deployment-checklist.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/android-runtime-deployment-checklist.md)
-  - preflight checklist for enabling Android device runtime on a host/environment
+## Maintainer References
 
-## Maintainer / Coding-Agent Docs
+- [Coding agent maintenance guide](./maintainers/coding-agent-maintenance-guide.md)
+- [Android runtime maintenance](./maintainers/android-runtime-maintenance.md)
+- [Runner queue diagnostics](./maintainers/runner-queue-diagnostics.md)
+- [Frontend runtime debugging](./maintainers/frontend-runtime-debugging.md)
+- [MCP server tooling](./maintainers/mcp-server-tooling.md)
+- [Test case Excel import/export format](./maintainers/test-case-excel-format.md)
 
-- [`docs/maintainers/coding-agent-maintenance-guide.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/coding-agent-maintenance-guide.md)
-  - code map, invariants, and maintenance traps for runner orchestration and Android runtime
-- [`docs/maintainers/android-runtime-maintenance.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/android-runtime-maintenance.md)
-  - Android device runtime behavior, isolation model, and operational constraints
-- [`docs/maintainers/test-case-excel-format.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/test-case-excel-format.md)
-  - current import/export Excel format contract and compatibility policy
-- [`docs/maintainers/mcp-server-tooling.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/mcp-server-tooling.md)
-  - MCP tool contracts for all registered tools (CRUD, stop-all, query)
+## Maintenance Rules
 
-## Maintenance Guidance
-
-- Prefer treating operator docs and maintainer docs as separate audiences.
-- When runtime behavior changes (runner scheduling, Android device cleanup, isolation, API visibility), update both:
-  - operator runbooks/checklists
-  - maintainer/runtime notes
-- If import/export behavior changes, update [`docs/maintainers/test-case-excel-format.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/test-case-excel-format.md).
+- Keep operator docs and maintainer docs aligned when runtime behavior changes.
+- Keep `infra/helm` as the only Kubernetes deployment source of truth.
+- Use relative links inside the repository instead of branch-specific GitHub URLs.
+- Update [test-case-excel-format.md](./maintainers/test-case-excel-format.md) whenever import or export behavior changes.

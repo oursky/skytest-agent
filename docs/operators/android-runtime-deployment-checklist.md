@@ -1,21 +1,24 @@
 # Android Runtime Deployment Checklist
 
-Audience: operators / self-hosters who run this app with Android testing enabled.
+Audience: operators enabling Android testing in a shared or self-hosted deployment.
 
-Use this checklist before enabling Android testing in a runner-enabled environment.
+Use this checklist before exposing Android execution to users.
 
 ## Hosting Model
 
 - [ ] Run web control plane and runner agents as separate processes
-- [ ] Run browser execution workers as separate processes from the control plane
+- [ ] Run the control plane from `infra/helm`
+- [ ] Size control-plane pods for browser execution, because browser runs execute inside those pods
 - [ ] Keep Postgres available to control plane (required for claims/leases/events)
+- [ ] Keep S3-compatible object storage available to control plane for artifacts and uploaded files
 - [ ] Run at least one `MACOS_AGENT` runner for Android execution capacity
 - [ ] Run runner maintenance on a singleton worker or cron schedule
 
-Reference:
+References:
 
-- [`docs/maintainers/android-runtime-maintenance.md`](https://github.com/oursky/skytest-agent/blob/main/docs/maintainers/android-runtime-maintenance.md) (runner architecture constraints)
-- [`docs/operators/mac-android-emulator-guide.md`](https://github.com/oursky/skytest-agent/blob/main/docs/operators/mac-android-emulator-guide.md) (host setup + troubleshooting)
+- [Android runtime maintenance](../maintainers/android-runtime-maintenance.md)
+- [macOS Android runner guide](./macos-android-runner-guide.md)
+- [Infrastructure and Kubernetes deployment](../../infra/README.md)
 
 ## Runner Host Prerequisites
 
@@ -36,7 +39,7 @@ Reference:
 
 ## Runtime Behavior Expectations
 
-- [ ] Understand Android jobs are claimed by connected runner agents, not API servers
+- [ ] Understand Android jobs are claimed by connected runner agents, not by control-plane pods
 - [ ] Understand Android device resources are host-scoped leased keys and can be in use by one active run at a time:
   - connected devices: `connected-device:<serial>`
   - emulator profiles: `emulator-profile:<profileName>`
@@ -46,6 +49,7 @@ Reference:
 
 ## Observability / Operations
 
+- [ ] Monitor control-plane health endpoints and rollout status after each deploy
 - [ ] Monitor control plane logs for claim, lease-expiry, and runner auth errors
 - [ ] Monitor runner logs for emulator boot failures and connected-device failures
 - [ ] Monitor run pickup latency and runner heartbeat freshness
