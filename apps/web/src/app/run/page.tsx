@@ -7,7 +7,19 @@ import { TestForm } from "@/components/features/test-builder";
 import { ResultViewer } from "@/components/features/run-results";
 import { Breadcrumbs } from "@/components/layout";
 import TestCaseImportReviewDialog, { type TestCaseImportReviewData } from "@/components/features/test-cases/ui/TestCaseImportReviewDialog";
-import { TestStep, BrowserConfig, TargetConfig, TestEvent, TestCaseFile, ConfigItem } from "@/types";
+import {
+    RUN_ACTIVE_STATUSES,
+    TEST_STATUS,
+    isRunActiveStatus,
+    isRunTerminalStatus,
+    type TestStep,
+    type BrowserConfig,
+    type TargetConfig,
+    type TestEvent,
+    type TestCaseFile,
+    type ConfigItem,
+    type TestStatus,
+} from "@/types";
 import { exportToExcelArrayBuffer, parseTestCaseExcel, type ParsedTestCaseExcel } from "@/utils/excel/testCaseExcel";
 import { useI18n } from "@/i18n";
 import { useUnsavedChanges } from "@/hooks/run/useUnsavedChanges";
@@ -41,7 +53,7 @@ function RunPageContent() {
     const { t } = useI18n();
     const [isLoading, setIsLoading] = useState(false);
     const [result, setResult] = useState<TestResult>({
-        status: 'IDLE',
+        status: null,
         events: [],
     });
     const eventSourceRef = useRef<EventSource | null>(null);
@@ -65,7 +77,7 @@ function RunPageContent() {
     const [isDirty, setIsDirty] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [displayId, setDisplayId] = useState<string>('');
-    const [testCaseStatus, setTestCaseStatus] = useState<string | null>(null);
+    const [testCaseStatus, setTestCaseStatus] = useState<TestStatus | null>(null);
     const [projectConfigs, setProjectConfigs] = useState<ConfigItem[]>([]);
     const [testCaseConfigs, setTestCaseConfigs] = useState<ConfigItem[]>([]);
     const [pendingImportData, setPendingImportData] = useState<ParsedTestCaseExcel | null>(null);
@@ -414,7 +426,7 @@ function RunPageContent() {
 
                 if (data.testRuns && data.testRuns.length > 0) {
                     const latestRun = data.testRuns[0];
-                    if (['RUNNING', 'QUEUED', 'PREPARING'].includes(latestRun.status)) {
+                    if (RUN_ACTIVE_STATUSES.includes(latestRun.status)) {
                         setActiveRunId(latestRun.id);
                     } else {
                         setActiveRunId(null);
@@ -566,7 +578,7 @@ function RunPageContent() {
 
         setResult(prev => ({
             ...prev,
-            status: (prev.status === 'IDLE') ? 'QUEUED' : prev.status,
+            status: prev.status ?? TEST_STATUS.QUEUED,
             events: [],
             error: undefined,
             errorCode: undefined,
@@ -636,7 +648,7 @@ function RunPageContent() {
             setIsLoading(false);
 
             setResult(prev => {
-                if (['PASS', 'FAIL', 'CANCELLED'].includes(prev.status)) {
+                if (isRunTerminalStatus(prev.status)) {
                     return prev;
                 }
                 return { ...prev, error: t('run.error.connectionLost') };
@@ -701,8 +713,8 @@ function RunPageContent() {
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
             const resp = await fetch(`/api/test-runs/${currentRunId}/cancel`, { method: 'POST', headers });
             if (!resp.ok) throw new Error(t('run.error.failedToStop'));
-            setResult(prev => ({ ...prev, status: 'CANCELLED', error: t('run.error.testStopped'), errorCode: undefined, errorCategory: undefined }));
-            setTestCaseStatus('CANCELLED');
+            setResult(prev => ({ ...prev, status: TEST_STATUS.CANCELLED, error: t('run.error.testStopped'), errorCode: undefined, errorCategory: undefined }));
+            setTestCaseStatus(TEST_STATUS.CANCELLED);
             setActiveRunId(null);
             setCurrentRunId(null);
         } catch (error) {
@@ -764,7 +776,7 @@ function RunPageContent() {
     const handleRunTest = useCallback(async (data: TestData) => {
         setIsLoading(true);
         setResult({
-            status: 'IDLE',
+            status: null,
             events: [],
             error: undefined,
             errorCode: undefined,
@@ -778,13 +790,13 @@ function RunPageContent() {
         } catch (error) {
             console.error("Failed to save test case", error);
             const errorMessage = error instanceof Error ? error.message : t('run.error.failedToSave');
-            setResult({ status: 'FAIL', events: [], error: errorMessage, errorCode: undefined, errorCategory: undefined });
+            setResult({ status: TEST_STATUS.FAIL, events: [], error: errorMessage, errorCode: undefined, errorCategory: undefined });
             setIsLoading(false);
             return;
         }
 
         if (!activeTestCaseId) {
-            setResult({ status: 'FAIL', events: [], error: t('run.error.selectOrCreate'), errorCode: undefined, errorCategory: undefined });
+            setResult({ status: TEST_STATUS.FAIL, events: [], error: t('run.error.selectOrCreate'), errorCode: undefined, errorCategory: undefined });
             setIsLoading(false);
             return;
         }
@@ -812,7 +824,7 @@ function RunPageContent() {
 
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
-            setResult(prev => ({ ...prev, status: 'FAIL', error: errorMessage, errorCode: undefined, errorCategory: undefined }));
+            setResult(prev => ({ ...prev, status: TEST_STATUS.FAIL, error: errorMessage, errorCode: undefined, errorCategory: undefined }));
             setIsLoading(false);
         }
     }, [saveTestCase, getAccessToken, t, connectToRun]);
@@ -940,13 +952,12 @@ function RunPageContent() {
         }
     };
 
+    const testCaseHasActiveRun = isRunActiveStatus(testCaseStatus);
     const isRunInProgress =
         isLoading
-        || ['RUNNING', 'QUEUED', 'PREPARING'].includes(result.status)
+        || isRunActiveStatus(result.status)
         || !!activeRunId
-        || testCaseStatus === 'RUNNING'
-        || testCaseStatus === 'QUEUED'
-        || testCaseStatus === 'PREPARING';
+        || testCaseHasActiveRun;
 
     if (isAuthLoading) return null;
 
@@ -980,7 +991,7 @@ function RunPageContent() {
                     {testCaseId ? t('run.title.runTest') : t('run.title.startNewRun')}
                 </h1>
                 <div className="flex items-center gap-2">
-                    {['RUNNING', 'QUEUED', 'PREPARING'].includes(result.status) && (
+                    {isRunActiveStatus(result.status) && (
                         <button
                             onClick={handleStopTest}
                             className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors flex items-center gap-2"
@@ -989,7 +1000,7 @@ function RunPageContent() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
                             </svg>
-                            {result.status === 'QUEUED' ? t('run.button.quitQueue') : t('run.button.stopTest')}
+                            {result.status === TEST_STATUS.QUEUED ? t('run.button.quitQueue') : t('run.button.stopTest')}
                         </button>
                     )}
                 </div>

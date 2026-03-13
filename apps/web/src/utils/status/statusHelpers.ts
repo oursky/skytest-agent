@@ -1,5 +1,4 @@
-export const ACTIVE_RUN_STATUSES: readonly string[] = ['RUNNING', 'QUEUED', 'PREPARING'];
+import { RUN_ACTIVE_STATUSES, isRunActiveStatus } from '@/types';
 
-export function isActiveRunStatus(status: string | null | undefined): boolean {
-    return !!status && ACTIVE_RUN_STATUSES.includes(status);
-}
+export const ACTIVE_RUN_STATUSES = RUN_ACTIVE_STATUSES;
+export const isActiveRunStatus = isRunActiveStatus;

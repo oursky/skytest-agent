@@ -7,6 +7,7 @@ import { BROWSER_EXECUTION_CAPABILITY } from '@/lib/runners/constants';
 import { ACTIVE_LOCKED_RUN_STATUSES, buildHostResourceKey } from '@/lib/runners/android-resource-lock';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { isTestRunProjectMember } from '@/lib/security/permissions';
+import { TEST_STATUS } from '@/types';
 
 const logger = createLogger('api:debug:test-run-diagnostics');
 const EMULATOR_PROFILE_DEVICE_PREFIX = 'emulator-profile:';
@@ -227,7 +228,7 @@ export async function GET(
         let matchingRequestedDeviceRunnerIds: string[] = [];
         const isBrowserRun = run.requiredCapability === BROWSER_EXECUTION_CAPABILITY;
 
-        if (run.status !== 'QUEUED') {
+        if (run.status !== TEST_STATUS.QUEUED) {
             claimabilityReasonCode = 'RUN_NOT_QUEUED';
             claimableNow = false;
         } else if (hasActiveAssignmentLease) {
@@ -281,7 +282,7 @@ export async function GET(
         const [queuedRunsInTeam, queuedRunsWithSameConstraints] = await Promise.all([
             prisma.testRun.count({
                 where: {
-                    status: 'QUEUED',
+                    status: TEST_STATUS.QUEUED,
                     assignedRunnerId: null,
                     testCase: {
                         project: {
@@ -292,7 +293,7 @@ export async function GET(
             }),
             prisma.testRun.count({
                 where: {
-                    status: 'QUEUED',
+                    status: TEST_STATUS.QUEUED,
                     assignedRunnerId: null,
                     requiredCapability: run.requiredCapability,
                     requiredRunnerKind: run.requiredRunnerKind,

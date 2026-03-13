@@ -10,10 +10,11 @@ import { formatDateTime } from "@/utils/time/dateFormatter";
 import { useI18n } from "@/i18n";
 import { getStatusBadgeClass } from '@/utils/status/statusBadge';
 import { parsePageSize } from '@/utils/pagination/pagination';
+import { isRunActiveStatus, type TestStatus } from '@/types';
 
 interface TestRun {
     id: string;
-    status: string;
+    status: TestStatus;
     createdAt: string;
     result: string;
     error: string | null;
@@ -33,7 +34,7 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
     const [projectId, setProjectId] = useState<string>("");
     const [projectName, setProjectName] = useState<string>("");
     const [isLoading, setIsLoading] = useState(true);
-    const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; runId: string; status?: string }>({ isOpen: false, runId: "", status: "" });
+    const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; runId: string; status?: TestStatus | '' }>({ isOpen: false, runId: "", status: "" });
     const [currentPage, setCurrentPage] = useState(1);
 
     useEffect(() => {
@@ -164,7 +165,7 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
         return <CenteredLoading className="min-h-screen" />;
     }
 
-    const isRunningOrQueued = ['RUNNING', 'QUEUED', 'PREPARING'].includes(deleteModal.status || '');
+    const isRunningOrQueued = isRunActiveStatus(deleteModal.status);
 
     return (
         <main className="min-h-screen bg-gray-50">
@@ -217,7 +218,7 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
                         <>
                         <div className="divide-y divide-gray-100">
                             {paginatedTestRuns.map((run) => {
-                                const isRunRunningOrQueued = ['RUNNING', 'QUEUED', 'PREPARING'].includes(run.status);
+                                const isRunRunningOrQueued = isRunActiveStatus(run.status);
                                 return (
                                     <div key={run.id} className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-gray-50 transition-colors">
                                         <div className="col-span-3">

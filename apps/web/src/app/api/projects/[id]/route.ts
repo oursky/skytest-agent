@@ -5,6 +5,7 @@ import { createLogger } from '@/lib/core/logger';
 import { deleteObjectIfExists } from '@/lib/storage/object-store-utils';
 import { canDeleteProject, isProjectMember } from '@/lib/security/permissions';
 import { config as appConfig } from '@/config/app';
+import { RUN_ACTIVE_STATUSES } from '@/types';
 
 const logger = createLogger('api:projects:id');
 
@@ -187,7 +188,7 @@ export async function DELETE(
                     projectId: id
                 },
                 status: {
-                    in: ['RUNNING', 'QUEUED', 'PREPARING']
+                    in: [...RUN_ACTIVE_STATUSES]
                 }
             }
         });

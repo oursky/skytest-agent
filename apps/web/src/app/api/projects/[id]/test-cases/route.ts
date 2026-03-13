@@ -3,7 +3,7 @@ import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { cleanStepsForStorage } from '@/lib/runtime/test-case-utils';
-import { TestStep } from '@/types';
+import { TEST_STATUS, type TestStep } from '@/types';
 import { isProjectMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:projects:test-cases');
@@ -121,7 +121,7 @@ export async function POST(
                 browserConfig: hasBrowserConfig ? JSON.stringify(browserConfig) : undefined,
                 projectId: id,
                 displayId: normalizedDisplayId,
-                status: 'DRAFT',
+                status: TEST_STATUS.DRAFT,
             },
         });
 

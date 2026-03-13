@@ -3,7 +3,16 @@
 import Image from 'next/image';
 import { getStatusBadgeClass } from '@/utils/status/statusBadge';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { TestRun, TestEvent, TestCaseFile, TestData, BrowserConfig, TargetConfig, AndroidTargetConfig } from '@/types';
+import {
+    TEST_STATUS,
+    type TestRun,
+    type TestEvent,
+    type TestCaseFile,
+    type TestData,
+    type BrowserConfig,
+    type TargetConfig,
+    type AndroidTargetConfig,
+} from '@/types';
 import { formatTime } from '@/utils/time/dateFormatter';
 import TimelineEvent from './TimelineEvent';
 import ResultStatus from './ResultStatus';
@@ -23,7 +32,7 @@ interface ResultViewerMeta {
 }
 
 interface ResultViewerProps {
-    result: Omit<TestRun, 'id' | 'testCaseId' | 'createdAt'> & { events: TestEvent[] };
+    result: Omit<TestRun, 'id' | 'testCaseId' | 'createdAt' | 'status'> & { status: TestRun['status'] | null; events: TestEvent[] };
     meta?: ResultViewerMeta;
 }
 
@@ -234,7 +243,7 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
             )}
 
             <div className="glass-panel h-full max-h-[800px] flex flex-col relative overflow-hidden">
-                {!autoScroll && result.status === 'RUNNING' && (
+                {!autoScroll && result.status === TEST_STATUS.RUNNING && (
                     <button
                         onClick={triggerScrollBottom}
                         className="absolute bottom-8 right-8 z-50 px-4 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-md shadow-lg flex items-center gap-2 font-medium text-sm transition-colors"
@@ -249,11 +258,11 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
                 <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-white/50 backdrop-blur-sm z-10">
                     <div className="flex items-center gap-3">
                         <h2 className="text-lg font-semibold text-foreground">{t('results.title')}</h2>
-                        {result.status !== 'IDLE' && (
+                        {result.status !== null && (
                             <div className={`status-badge ${getStatusBadgeClass(result.status)}`}>
-                                {result.status === 'PASS' && '✓'}
-                                {result.status === 'FAIL' && '✕'}
-                                {result.status === 'CANCELLED' && '⏹'}
+                                {result.status === TEST_STATUS.PASS && '✓'}
+                                {result.status === TEST_STATUS.FAIL && '✕'}
+                                {result.status === TEST_STATUS.CANCELLED && '⏹'}
                                 <span>{result.status}</span>
                             </div>
                         )}
@@ -283,7 +292,7 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
                     onScroll={handleScroll}
                     className="flex-1 overflow-y-auto w-full p-6 space-y-4"
                 >
-                    {result.status === 'IDLE' ? (
+                    {result.status === null ? (
                         <div className="h-full flex flex-col items-center justify-center text-center space-y-6">
                             <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center">
                                 <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -309,7 +318,7 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
                                 />
                             ))}
 
-                            {result.status === 'RUNNING' && (
+                            {result.status === TEST_STATUS.RUNNING && (
                                 <div className="relative pl-8 flex items-center gap-2 mt-4 ml-1">
                                     <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-gray-500 text-sm">
                                         <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">

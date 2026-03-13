@@ -1,8 +1,6 @@
 import { prisma } from '@/lib/core/prisma';
 import { dispatchNextQueuedBrowserRun } from '@/lib/runtime/browser-run-dispatcher';
-import { ACTIVE_RUN_STATUSES } from '@/utils/status/statusHelpers';
-
-const TERMINAL_RUN_STATUSES = new Set(['PASS', 'FAIL', 'CANCELLED']);
+import { RUN_ACTIVE_STATUSES, TEST_STATUS, isRunTerminalStatus } from '@/types';
 
 export async function cancelRunDurably(runId: string, errorMessage: string): Promise<boolean> {
     const run = await prisma.testRun.findUnique({
@@ -18,7 +16,7 @@ export async function cancelRunDurably(runId: string, errorMessage: string): Pro
         return false;
     }
 
-    if (TERMINAL_RUN_STATUSES.has(run.status)) {
+    if (isRunTerminalStatus(run.status)) {
         return false;
     }
 
@@ -27,10 +25,10 @@ export async function cancelRunDurably(runId: string, errorMessage: string): Pro
         const updateResult = await tx.testRun.updateMany({
             where: {
                 id: runId,
-                status: { in: [...ACTIVE_RUN_STATUSES] },
+                status: { in: [...RUN_ACTIVE_STATUSES] },
             },
             data: {
-                status: 'CANCELLED',
+                status: TEST_STATUS.CANCELLED,
                 error: errorMessage,
                 completedAt,
                 assignedRunnerId: null,
@@ -44,7 +42,7 @@ export async function cancelRunDurably(runId: string, errorMessage: string): Pro
 
         await tx.testCase.update({
             where: { id: run.testCaseId },
-            data: { status: 'CANCELLED' },
+            data: { status: TEST_STATUS.CANCELLED },
         });
 
         await tx.androidResourceLock.deleteMany({

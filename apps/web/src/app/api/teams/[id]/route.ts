@@ -9,6 +9,7 @@ import {
     isTeamMember,
 } from '@/lib/security/permissions';
 import { deleteObjectIfExists } from '@/lib/storage/object-store-utils';
+import { RUN_ACTIVE_STATUSES } from '@/types';
 
 const logger = createLogger('api:teams:id');
 
@@ -140,7 +141,7 @@ export async function DELETE(
                     }
                 },
                 status: {
-                    in: ['RUNNING', 'QUEUED', 'PREPARING']
+                    in: [...RUN_ACTIVE_STATUSES]
                 }
             },
             select: { id: true }

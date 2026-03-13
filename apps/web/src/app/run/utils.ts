@@ -1,9 +1,17 @@
-import type { ConfigItem, TestEvent, TestFailureCategory, TestFailureCode } from '@/types';
+import {
+    isRunTerminalStatus,
+    type ConfigItem,
+    type RunActiveStatus,
+    type RunTerminalStatus,
+    type TestEvent,
+    type TestFailureCategory,
+    type TestFailureCode,
+} from '@/types';
 
-export type RunViewerStatus = 'IDLE' | 'RUNNING' | 'PASS' | 'FAIL' | 'CANCELLED' | 'QUEUED' | 'PREPARING';
+export type RunViewerStatus = RunActiveStatus | RunTerminalStatus;
 
 export interface RunViewerResult {
-    status: RunViewerStatus;
+    status: RunViewerStatus | null;
     events: TestEvent[];
     error?: string;
     errorCode?: TestFailureCode;
@@ -27,7 +35,7 @@ export function applyRunStreamStatusUpdate(
     previous: RunViewerResult,
     update: RunStreamStatusUpdate
 ): RunStreamUpdateResult {
-    const shouldStopLoading = update.status === 'PASS' || update.status === 'FAIL' || update.status === 'CANCELLED';
+    const shouldStopLoading = isRunTerminalStatus(update.status);
     return {
         next: {
             ...previous,

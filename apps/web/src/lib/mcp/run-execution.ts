@@ -9,7 +9,7 @@ import {
 } from '@/lib/runners/constants';
 import { dispatchBrowserRun } from '@/lib/runtime/browser-run-dispatcher';
 import { normalizeAndroidTargetConfig } from '@/lib/android/target-config';
-import type { BrowserConfig, TargetConfig, AndroidTargetConfig, TestStep } from '@/types';
+import { TEST_STATUS, type BrowserConfig, type TargetConfig, type AndroidTargetConfig, type TestStep } from '@/types';
 
 const EMULATOR_PROFILE_DEVICE_PREFIX = 'emulator-profile:';
 
@@ -358,7 +358,7 @@ export async function queueTestCaseRun(
     const testRun = await prisma.testRun.create({
         data: {
             testCaseId,
-            status: 'QUEUED',
+            status: TEST_STATUS.QUEUED,
             configurationSnapshot,
             requiredCapability: requestHasAndroidTargets
                 ? ANDROID_EXECUTION_CAPABILITY

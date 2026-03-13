@@ -12,7 +12,7 @@ import {
     BROWSER_EXECUTION_CAPABILITY,
 } from '@/lib/runners/constants';
 import { dispatchBrowserRun } from '@/lib/runtime/browser-run-dispatcher';
-import type { BrowserConfig, TargetConfig, AndroidTargetConfig, TestStep } from '@/types';
+import { TEST_STATUS, type BrowserConfig, type TargetConfig, type AndroidTargetConfig, type TestStep } from '@/types';
 
 const logger = createLogger('api:test-runs-dispatch');
 
@@ -372,7 +372,7 @@ export async function POST(request: Request) {
         const testRun = await prisma.testRun.create({
             data: {
                 testCaseId,
-                status: 'QUEUED',
+                status: TEST_STATUS.QUEUED,
                 configurationSnapshot,
                 requiredCapability: requestHasAndroidTargets
                     ? ANDROID_EXECUTION_CAPABILITY

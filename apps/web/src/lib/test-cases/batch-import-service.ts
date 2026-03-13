@@ -6,12 +6,13 @@ import { normalizeAndroidTargetConfig } from '@/lib/android/target-config';
 import { normalizeConfigName } from '@/lib/test-config/validation';
 import { isGroupableConfigType, normalizeConfigGroup } from '@/lib/test-config/sort';
 import { parseTestCaseExcel, type TestCaseExcelIssue } from '@/utils/excel/testCaseExcel';
-import type {
-    ConfigType,
-    BrowserConfig,
-    TargetConfig,
-    AndroidTargetConfig,
-    AndroidDeviceSelector,
+import {
+    TEST_STATUS,
+    type ConfigType,
+    type BrowserConfig,
+    type TargetConfig,
+    type AndroidTargetConfig,
+    type AndroidDeviceSelector,
 } from '@/types';
 
 type SupportedImportConfigType = Extract<ConfigType, 'URL' | 'APP_ID' | 'VARIABLE' | 'RANDOM_STRING'>;
@@ -418,7 +419,7 @@ async function importCandidate(
                     prompt: testData.prompt || '',
                     steps: cleanedSteps ? JSON.stringify(cleanedSteps) : null,
                     browserConfig: normalizedTargetConfig ? JSON.stringify(normalizedTargetConfig) : null,
-                    status: 'DRAFT',
+                    status: TEST_STATUS.DRAFT,
                 },
             });
         } else {
@@ -431,7 +432,7 @@ async function importCandidate(
                     prompt: testData.prompt || '',
                     steps: cleanedSteps ? JSON.stringify(cleanedSteps) : null,
                     browserConfig: normalizedTargetConfig ? JSON.stringify(normalizedTargetConfig) : null,
-                    status: 'DRAFT',
+                    status: TEST_STATUS.DRAFT,
                 },
                 select: { id: true },
             });

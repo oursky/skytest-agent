@@ -1,9 +1,9 @@
 import { prisma } from '@/lib/core/prisma';
+import { RUN_IN_PROGRESS_STATUSES } from '@/types';
 
 const DEVICE_FRESHNESS_WINDOW_MS = 45_000;
 const TEAM_AVAILABILITY_CACHE_TTL_MS = 5_000;
 const EMULATOR_PROFILE_DEVICE_PREFIX = 'emulator-profile:';
-const ACTIVE_RUN_STATUSES = ['PREPARING', 'RUNNING'] as const;
 
 interface CachedTeamDevices {
     expiresAtMs: number;
@@ -201,7 +201,7 @@ export async function getTeamDevicesAvailability(teamId: string): Promise<TeamDe
     const activeDeviceRuns: ActiveDeviceRunProjection[] = teamDeviceIds.size > 0
         ? (await prisma.testRun.findMany({
             where: {
-                status: { in: [...ACTIVE_RUN_STATUSES] },
+                status: { in: [...RUN_IN_PROGRESS_STATUSES] },
                 assignedRunnerId: { not: null },
                 requestedDeviceId: { in: Array.from(teamDeviceIds) },
             },

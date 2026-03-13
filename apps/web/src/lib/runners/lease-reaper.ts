@@ -1,7 +1,6 @@
 import { prisma } from '@/lib/core/prisma';
 import { dispatchQueuedBrowserRuns } from '@/lib/runtime/browser-run-dispatcher';
-
-const ACTIVE_RUN_STATUSES = ['PREPARING', 'RUNNING'] as const;
+import { RUN_IN_PROGRESS_STATUSES, TEST_STATUS } from '@/types';
 
 export async function reapExpiredRunnerLeases(now = new Date()) {
     await prisma.androidResourceLock.deleteMany({
@@ -15,7 +14,7 @@ export async function reapExpiredRunnerLeases(now = new Date()) {
                 },
                 {
                     run: {
-                        status: { notIn: [...ACTIVE_RUN_STATUSES] },
+                        status: { notIn: [...RUN_IN_PROGRESS_STATUSES] },
                     },
                 },
             ],
@@ -24,7 +23,7 @@ export async function reapExpiredRunnerLeases(now = new Date()) {
 
     const expiredRuns = await prisma.testRun.findMany({
         where: {
-            status: { in: [...ACTIVE_RUN_STATUSES] },
+            status: { in: [...RUN_IN_PROGRESS_STATUSES] },
             deletedAt: null,
             leaseExpiresAt: { lt: now },
             assignedRunnerId: { not: null },
@@ -40,17 +39,17 @@ export async function reapExpiredRunnerLeases(now = new Date()) {
         return { recoveredRuns: 0, requeuedRuns: 0, failedRuns: 0 };
     }
 
-    const preparingRuns = expiredRuns.filter((run) => run.status === 'PREPARING');
-    const runningRuns = expiredRuns.filter((run) => run.status === 'RUNNING');
+    const preparingRuns = expiredRuns.filter((run) => run.status === TEST_STATUS.PREPARING);
+    const runningRuns = expiredRuns.filter((run) => run.status === TEST_STATUS.RUNNING);
 
     if (preparingRuns.length > 0) {
         await prisma.testRun.updateMany({
             where: {
                 id: { in: preparingRuns.map((run) => run.id) },
-                status: 'PREPARING',
+                status: TEST_STATUS.PREPARING,
             },
             data: {
-                status: 'QUEUED',
+                status: TEST_STATUS.QUEUED,
                 error: 'Runner lease expired during preparation; run re-queued',
                 assignedRunnerId: null,
                 leaseExpiresAt: null,
@@ -63,10 +62,10 @@ export async function reapExpiredRunnerLeases(now = new Date()) {
         await prisma.testRun.updateMany({
             where: {
                 id: { in: runningRuns.map((run) => run.id) },
-                status: 'RUNNING',
+                status: TEST_STATUS.RUNNING,
             },
             data: {
-                status: 'FAIL',
+                status: TEST_STATUS.FAIL,
                 error: 'Runner lease expired before completion',
                 assignedRunnerId: null,
                 leaseExpiresAt: null,
@@ -79,7 +78,7 @@ export async function reapExpiredRunnerLeases(now = new Date()) {
     if (preparingTestCaseIds.length > 0) {
         await prisma.testCase.updateMany({
             where: { id: { in: preparingTestCaseIds } },
-            data: { status: 'QUEUED' },
+            data: { status: TEST_STATUS.QUEUED },
         });
     }
 
@@ -87,7 +86,7 @@ export async function reapExpiredRunnerLeases(now = new Date()) {
     if (runningTestCaseIds.length > 0) {
         await prisma.testCase.updateMany({
             where: { id: { in: runningTestCaseIds } },
-            data: { status: 'FAIL' },
+            data: { status: TEST_STATUS.FAIL },
         });
     }
 

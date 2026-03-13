@@ -8,6 +8,7 @@ import { createStoredName, validateAndSanitizeFile, buildRunArtifactObjectKey } 
 import { putObjectBuffer } from '@/lib/storage/object-store-utils';
 import { UsageService } from '@/lib/runtime/usage';
 import { dispatchNextQueuedBrowserRun } from '@/lib/runtime/browser-run-dispatcher';
+import { TEST_STATUS, isRunInProgressStatus } from '@/types';
 
 const logger = createLogger('runners:event-service');
 
@@ -49,7 +50,7 @@ function ensureRunOwnership<T extends OwnedRun>(run: T | null, runnerId: string)
     if (!run.leaseExpiresAt || run.leaseExpiresAt.getTime() <= Date.now()) {
         return null;
     }
-    if (!['PREPARING', 'RUNNING'].includes(run.status)) {
+    if (!isRunInProgressStatus(run.status)) {
         return null;
     }
 
@@ -156,8 +157,8 @@ export async function appendRunEvents(input: {
             lastEventAt: now,
             leaseExpiresAt: nextLeaseExpiresAt,
         };
-        if (ownedRun.status === 'PREPARING' && shouldPromoteRunToRunning(input.events)) {
-            runUpdateData.status = 'RUNNING';
+        if (ownedRun.status === TEST_STATUS.PREPARING && shouldPromoteRunToRunning(input.events)) {
+            runUpdateData.status = TEST_STATUS.RUNNING;
         }
 
         const updateResult = await tx.testRun.updateMany({
@@ -289,7 +290,7 @@ export async function completeOwnedRun(input: {
         await tx.testRun.update({
             where: { id: input.runId },
             data: {
-                status: 'PASS',
+                status: TEST_STATUS.PASS,
                 result: input.result,
                 completedAt: now,
                 assignedRunnerId: null,
@@ -305,12 +306,12 @@ export async function completeOwnedRun(input: {
 
         await tx.testCase.update({
             where: { id: ownedRun.testCaseId },
-            data: { status: 'PASS' },
+            data: { status: TEST_STATUS.PASS },
         });
 
         return {
             runId: input.runId,
-            status: 'PASS' as const,
+            status: TEST_STATUS.PASS,
             testCaseId: ownedRun.testCaseId,
         };
     });
@@ -376,7 +377,7 @@ export async function failOwnedRun(input: {
         await tx.testRun.update({
             where: { id: input.runId },
             data: {
-                status: 'FAIL',
+                status: TEST_STATUS.FAIL,
                 error: input.error,
                 result: input.result,
                 completedAt: now,
@@ -393,12 +394,12 @@ export async function failOwnedRun(input: {
 
         await tx.testCase.update({
             where: { id: ownedRun.testCaseId },
-            data: { status: 'FAIL' },
+            data: { status: TEST_STATUS.FAIL },
         });
 
         return {
             runId: input.runId,
-            status: 'FAIL' as const,
+            status: TEST_STATUS.FAIL,
             testCaseId: ownedRun.testCaseId,
         };
     });

@@ -134,5 +134,6 @@ export interface TestRunEventRow {
     createdAt: string;
 }
 
-import type { TestStep, BrowserConfig, TestStatus, TestFailureCode, TestFailureCategory } from './test';
+import type { TestStep, BrowserConfig, TestFailureCode, TestFailureCategory } from './test';
+import type { TestStatus } from './status';
 import type { TestEvent } from './events';

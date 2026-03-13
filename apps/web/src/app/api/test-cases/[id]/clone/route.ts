@@ -9,6 +9,7 @@ import {
 import { createLogger } from '@/lib/core/logger';
 import { copyObject } from '@/lib/storage/object-store-utils';
 import { isProjectMember } from '@/lib/security/permissions';
+import { TEST_STATUS } from '@/types';
 
 const logger = createLogger('api:test-cases:clone');
 
@@ -59,7 +60,7 @@ export async function POST(
                 browserConfig: existingTestCase.browserConfig,
                 projectId: existingTestCase.projectId,
                 displayId: existingTestCase.displayId,
-                status: 'DRAFT',
+                status: TEST_STATUS.DRAFT,
             },
         });
 

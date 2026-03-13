@@ -12,10 +12,16 @@ import { queueTestCaseRun } from '@/lib/mcp/run-execution';
 import { listTestRuns } from '@/lib/mcp/run-query';
 import { manageProjectConfigs } from '@/lib/mcp/project-config-manager';
 import { getProjectRunnerInventory } from '@/lib/mcp/runner-inventory';
-import { ACTIVE_RUN_STATUSES } from '@/utils/status/statusHelpers';
+import {
+    RUN_ACTIVE_STATUSES,
+    TEST_STATUS,
+    type TestStep,
+    type BrowserConfig,
+    type TargetConfig,
+    type ConfigType,
+} from '@/types';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { ServerRequest, ServerNotification } from '@modelcontextprotocol/sdk/types.js';
-import type { TestStep, BrowserConfig, TargetConfig, ConfigType } from '@/types';
 import { isProjectMember, isTestCaseProjectMember, isTestRunProjectMember } from '@/lib/security/permissions';
 
 type Extra = RequestHandlerExtra<ServerRequest, ServerNotification>;
@@ -529,7 +535,7 @@ export function createMcpServer(): McpServer {
                     browserConfig: normalizedBrowserConfig ? JSON.stringify(normalizedBrowserConfig) : undefined,
                     projectId,
                     displayId,
-                    status: 'DRAFT',
+                    status: TEST_STATUS.DRAFT,
                     source: 'agent',
                 },
             });
@@ -693,7 +699,7 @@ export function createMcpServer(): McpServer {
         const activeRuns = await prisma.testRun.findMany({
             where: {
                 testCaseId,
-                status: { in: [...ACTIVE_RUN_STATUSES] }
+                status: { in: [...RUN_ACTIVE_STATUSES] }
             },
             orderBy: { createdAt: 'asc' },
             select: { id: true, status: true, createdAt: true }
@@ -757,7 +763,7 @@ export function createMcpServer(): McpServer {
                 browserConfig as Record<string, BrowserConfig | TargetConfig>
             ));
         }
-        updateData.status = 'DRAFT';
+        updateData.status = TEST_STATUS.DRAFT;
 
         const warnings: string[] = [];
         const upsertConfigInputs = [...(configs ?? []), ...(variables ?? [])];
@@ -892,7 +898,7 @@ export function createMcpServer(): McpServer {
         if (!await verifyProjectAccess(projectId, userId)) return errorResult('Forbidden');
 
         const where = {
-            status: { in: [...ACTIVE_RUN_STATUSES] },
+            status: { in: [...RUN_ACTIVE_STATUSES] },
             testCase: { projectId },
         };
 
@@ -969,7 +975,7 @@ export function createMcpServer(): McpServer {
         if (!await verifyProjectAccess(projectId, userId)) return errorResult('Forbidden');
 
         const where = {
-            status: 'QUEUED' as const,
+            status: TEST_STATUS.QUEUED,
             testCase: { projectId },
         };
 

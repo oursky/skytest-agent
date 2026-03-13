@@ -6,7 +6,7 @@ import { isProjectMember } from '@/lib/security/permissions';
 import { publishRunUpdate } from '@/lib/runners/event-bus';
 import { cancelLocalBrowserRun } from '@/lib/runtime/local-browser-runner';
 import { dispatchNextQueuedBrowserRun } from '@/lib/runtime/browser-run-dispatcher';
-import { ACTIVE_RUN_STATUSES } from '@/utils/status/statusHelpers';
+import { RUN_ACTIVE_STATUSES, TEST_STATUS, isRunActiveStatus } from '@/types';
 
 const logger = createLogger('api:test-runs:cancel');
 
@@ -46,16 +46,16 @@ export async function POST(
         }
 
         let finalStatus = testRun.status;
-        if (ACTIVE_RUN_STATUSES.includes(testRun.status)) {
+        if (isRunActiveStatus(testRun.status)) {
             const completedAt = new Date();
             finalStatus = await prisma.$transaction(async (tx) => {
                 const updateResult = await tx.testRun.updateMany({
                     where: {
                         id,
-                        status: { in: [...ACTIVE_RUN_STATUSES] },
+                        status: { in: [...RUN_ACTIVE_STATUSES] },
                     },
                     data: {
-                        status: 'CANCELLED',
+                        status: TEST_STATUS.CANCELLED,
                         error: 'Cancelled by user',
                         completedAt,
                         assignedRunnerId: null,
@@ -73,7 +73,7 @@ export async function POST(
 
                 await tx.testCase.update({
                     where: { id: testRun.testCaseId },
-                    data: { status: 'CANCELLED' }
+                    data: { status: TEST_STATUS.CANCELLED }
                 });
 
                 await tx.androidResourceLock.deleteMany({
@@ -82,17 +82,17 @@ export async function POST(
                     },
                 });
 
-                return 'CANCELLED';
+                return TEST_STATUS.CANCELLED;
             });
 
-            if (finalStatus === 'CANCELLED') {
+            if (finalStatus === TEST_STATUS.CANCELLED) {
                 publishRunUpdate(id);
             }
         }
 
         // Best-effort local abort for on-demand browser execution.
         cancelLocalBrowserRun(id);
-        if (finalStatus === 'CANCELLED') {
+        if (finalStatus === TEST_STATUS.CANCELLED) {
             void dispatchNextQueuedBrowserRun().catch((dispatchError) => {
                 logger.warn('Failed to dispatch queued browser run after cancellation', {
                     runId: id,
