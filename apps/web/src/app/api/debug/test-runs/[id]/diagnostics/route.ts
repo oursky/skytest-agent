@@ -4,13 +4,16 @@ import { prisma } from '@/lib/core/prisma';
 import { getTeamRunnersOverview } from '@/lib/runners/availability-service';
 import { diagnoseNoClaimForRunner } from '@/lib/runners/claim-service';
 import { BROWSER_EXECUTION_CAPABILITY } from '@/lib/runners/constants';
-import { ACTIVE_LOCKED_RUN_STATUSES, buildHostResourceKey } from '@/lib/runners/android-resource-lock';
+import {
+    ACTIVE_LOCKED_RUN_STATUSES,
+    buildHostResourceKey,
+    EMULATOR_PROFILE_DEVICE_PREFIX,
+} from '@/lib/runners/android-resource-lock';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { isTestRunProjectMember } from '@/lib/security/permissions';
 import { TEST_STATUS } from '@/types';
 
 const logger = createLogger('api:debug:test-run-diagnostics');
-const EMULATOR_PROFILE_DEVICE_PREFIX = 'emulator-profile:';
 
 export const dynamic = 'force-dynamic';
 

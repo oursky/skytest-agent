@@ -1,9 +1,9 @@
 import { prisma } from '@/lib/core/prisma';
 import { RUN_IN_PROGRESS_STATUSES } from '@/types';
+import { EMULATOR_PROFILE_DEVICE_PREFIX } from '@/lib/runners/android-resource-lock';
 
 const DEVICE_FRESHNESS_WINDOW_MS = 45_000;
 const TEAM_AVAILABILITY_CACHE_TTL_MS = 5_000;
-const EMULATOR_PROFILE_DEVICE_PREFIX = 'emulator-profile:';
 
 interface CachedTeamDevices {
     expiresAtMs: number;

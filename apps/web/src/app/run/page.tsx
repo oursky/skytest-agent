@@ -8,7 +8,6 @@ import { ResultViewer } from "@/components/features/run-results";
 import { Breadcrumbs } from "@/components/layout";
 import TestCaseImportReviewDialog, { type TestCaseImportReviewData } from "@/components/features/test-cases/ui/TestCaseImportReviewDialog";
 import {
-    RUN_ACTIVE_STATUSES,
     TEST_STATUS,
     isRunActiveStatus,
     isRunTerminalStatus,
@@ -426,7 +425,7 @@ function RunPageContent() {
 
                 if (data.testRuns && data.testRuns.length > 0) {
                     const latestRun = data.testRuns[0];
-                    if (RUN_ACTIVE_STATUSES.includes(latestRun.status)) {
+                    if (isRunActiveStatus(latestRun.status)) {
                         setActiveRunId(latestRun.id);
                     } else {
                         setActiveRunId(null);

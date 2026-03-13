@@ -1,9 +1,9 @@
 import { readFile } from 'node:fs/promises';
-import crypto from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
+import { resolveHostFingerprint } from '@skytest/runner-protocol/src/host-fingerprint';
 import type { LocalRunnerCredential, LocalRunnerDescriptor, LocalRunnerMetadata } from '../state/types';
 import {
     clearRunnerPid,
@@ -109,21 +109,6 @@ function normalizeBaseUrl(baseUrl: string): string {
 function defaultRunnerLabel(localRunnerId: string): string {
     const host = os.hostname().trim() || 'host';
     return `${host}-${localRunnerId}`;
-}
-
-function resolveHostFingerprint(): string {
-    const interfaces = os.networkInterfaces();
-    const macs = Object.values(interfaces)
-        .flatMap((items) => items ?? [])
-        .map((entry) => entry.mac?.trim().toLowerCase() ?? '')
-        .filter((mac) => mac.length > 0 && mac !== '00:00:00:00:00:00')
-        .sort();
-    const host = os.hostname().trim().toLowerCase() || 'host';
-    const digest = crypto
-        .createHash('sha256')
-        .update(JSON.stringify({ host, macs }))
-        .digest('hex');
-    return `host-${digest.slice(0, 40)}`;
 }
 
 function maskRunnerToken(runnerToken: string): string {

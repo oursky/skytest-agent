@@ -3,6 +3,7 @@ import { prisma } from '@/lib/core/prisma';
 import { getTeamDevicesAvailability } from '@/lib/runners/availability-service';
 import { cleanStepsForStorage, normalizeTargetConfigMap } from '@/lib/runtime/test-case-utils';
 import { normalizeAndroidTargetConfig } from '@/lib/android/target-config';
+import { buildEmulatorProfileRequestedDeviceId, isAndroidTargetConfig } from '@/lib/android/target-requests';
 import { normalizeConfigName } from '@/lib/test-config/validation';
 import { isGroupableConfigType, normalizeConfigGroup } from '@/lib/test-config/sort';
 import { parseTestCaseExcel, type TestCaseExcelIssue } from '@/utils/excel/testCaseExcel';
@@ -12,7 +13,6 @@ import {
     type BrowserConfig,
     type TargetConfig,
     type AndroidTargetConfig,
-    type AndroidDeviceSelector,
 } from '@/types';
 
 type SupportedImportConfigType = Extract<ConfigType, 'URL' | 'APP_ID' | 'VARIABLE' | 'RANDOM_STRING'>;
@@ -260,17 +260,11 @@ async function parseImportCandidate(
     };
 }
 
-function isAndroidTargetConfig(config: BrowserConfig | TargetConfig): config is AndroidTargetConfig {
-    return 'type' in config && config.type === 'android';
-}
-
-const EMULATOR_PROFILE_DEVICE_PREFIX = 'emulator-profile:';
-
-function buildRequestedDeviceId(selector: AndroidDeviceSelector): string {
+function buildRequestedDeviceId(selector: AndroidTargetConfig['deviceSelector']): string {
     if (selector.mode === 'connected-device') {
         return selector.serial;
     }
-    return `${EMULATOR_PROFILE_DEVICE_PREFIX}${selector.emulatorProfileName}`;
+    return buildEmulatorProfileRequestedDeviceId(selector.emulatorProfileName);
 }
 
 function resolveRunnerId(

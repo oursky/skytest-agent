@@ -25,6 +25,7 @@ import {
     type RunnerEventInput,
     type RunnerTransportMetadata,
 } from '@skytest/runner-protocol';
+import { resolveHostFingerprint } from '@skytest/runner-protocol/src/host-fingerprint';
 import * as loggerModule from '../../web/src/lib/core/logger';
 import * as testRunnerModule from '../../web/src/lib/runtime/test-runner';
 import * as deviceDisplayModule from '../../web/src/lib/android/device-display';
@@ -119,28 +120,7 @@ const DEFAULT_TRANSPORT: RunnerTransportMetadata = {
 function buildRunnerDisplayId(seed: string): string {
     return crypto.createHash('sha256').update(seed).digest('hex').slice(0, 6);
 }
-
-function resolveHostFingerprint(): string {
-    const configured = process.env.RUNNER_HOST_FINGERPRINT?.trim();
-    if (configured) {
-        return configured;
-    }
-
-    const interfaces = os.networkInterfaces();
-    const macs = Object.values(interfaces)
-        .flatMap((items) => items ?? [])
-        .map((entry) => entry.mac?.trim().toLowerCase() ?? '')
-        .filter((mac) => mac.length > 0 && mac !== '00:00:00:00:00:00')
-        .sort();
-    const host = os.hostname().trim().toLowerCase() || 'host';
-    const digest = crypto
-        .createHash('sha256')
-        .update(JSON.stringify({ host, macs }))
-        .digest('hex');
-    return `host-${digest.slice(0, 40)}`;
-}
-
-const hostFingerprint = resolveHostFingerprint();
+const hostFingerprint = resolveHostFingerprint(process.env.RUNNER_HOST_FINGERPRINT);
 
 const JSON_HEADERS = {
     'Content-Type': 'application/json',
