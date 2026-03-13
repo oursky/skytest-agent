@@ -1,4 +1,5 @@
-export type TestStatus = 'IDLE' | 'RUNNING' | 'PASS' | 'FAIL' | 'CANCELLED' | 'QUEUED' | 'DRAFT' | 'PREPARING';
+import type { TestEvent } from './events';
+import type { RunTerminalStatus } from './status';
 
 export interface BrowserConfig {
     name?: string;
@@ -29,10 +30,15 @@ export interface AndroidConnectedDeviceSelector {
 
 export type AndroidDeviceSelector = AndroidEmulatorProfileSelector | AndroidConnectedDeviceSelector;
 
+export interface AndroidRunnerScope {
+    runnerId: string;
+}
+
 export interface AndroidTargetConfig {
     type: 'android';
     name?: string;
     deviceSelector: AndroidDeviceSelector;
+    runnerScope?: AndroidRunnerScope;
     appId: string;
     clearAppState: boolean;
     allowAllPermissions: boolean;
@@ -110,7 +116,7 @@ export type TestFailureCode =
     | 'UNKNOWN_ERROR';
 
 export interface TestResult {
-    status: 'PASS' | 'FAIL' | 'CANCELLED';
+    status: RunTerminalStatus;
     error?: string;
     errorCode?: TestFailureCode;
     errorCategory?: TestFailureCategory;
@@ -142,5 +148,3 @@ export interface ResolvedConfig {
     filename?: string;
     source: 'project' | 'test-case';
 }
-
-import type { TestEvent } from './events';

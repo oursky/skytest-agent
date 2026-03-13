@@ -8,49 +8,16 @@ import {
     BROWSER_EXECUTION_CAPABILITY,
 } from '@/lib/runners/constants';
 import { dispatchBrowserRun } from '@/lib/runtime/browser-run-dispatcher';
-import { normalizeAndroidTargetConfig } from '@/lib/android/target-config';
-import type { BrowserConfig, TargetConfig, AndroidTargetConfig, TestStep } from '@/types';
-
-const EMULATOR_PROFILE_DEVICE_PREFIX = 'emulator-profile:';
-
-function buildEmulatorProfileRequestedDeviceId(profileName: string): string {
-    return `${EMULATOR_PROFILE_DEVICE_PREFIX}${profileName}`;
-}
-
-function isAndroidTargetConfig(config: BrowserConfig | TargetConfig): config is AndroidTargetConfig {
-    return 'type' in config && config.type === 'android';
-}
-
-function hasAndroidTargets(browserConfig: Record<string, BrowserConfig | TargetConfig> | undefined): boolean {
-    if (!browserConfig || Object.keys(browserConfig).length === 0) {
-        return false;
-    }
-
-    return Object.values(browserConfig).some(isAndroidTargetConfig);
-}
-
-function extractRequestedDeviceId(browserConfig: Record<string, BrowserConfig | TargetConfig> | undefined): string | null {
-    if (!browserConfig || Object.keys(browserConfig).length === 0) {
-        return null;
-    }
-
-    for (const target of Object.values(browserConfig).filter(isAndroidTargetConfig)) {
-        const selector = normalizeAndroidTargetConfig(target).deviceSelector;
-        if (selector.mode === 'connected-device') {
-            return selector.serial;
-        }
-        if (selector.mode === 'emulator-profile' && selector.emulatorProfileName) {
-            return buildEmulatorProfileRequestedDeviceId(selector.emulatorProfileName);
-        }
-    }
-
-    return null;
-}
-
-function isEmulatorProfileInventoryDevice(device: { deviceId: string; metadata: Record<string, unknown> | null }): boolean {
-    return device.deviceId.startsWith(EMULATOR_PROFILE_DEVICE_PREFIX)
-        || device.metadata?.inventoryKind === 'emulator-profile';
-}
+import { isAndroidTargetConfig, normalizeAndroidTargetConfig } from '@/lib/android/target-config';
+import {
+    collectAndroidRequestedDeviceIds,
+    collectAndroidRequestedRunnerIds,
+    extractRequestedDeviceId,
+    extractRequestedRunnerId,
+    hasAndroidTargets,
+    isEmulatorProfileInventoryDevice,
+} from '@/lib/android/target-requests';
+import { TEST_STATUS, type BrowserConfig, type TargetConfig, type TestStep } from '@/types';
 
 function validateConfigUrls(config: {
     url?: string;
@@ -117,6 +84,7 @@ function createConfigurationSnapshot(config: {
     steps?: TestStep[];
     browserConfig?: Record<string, BrowserConfig | TargetConfig>;
     requestedDeviceId?: string | null;
+    requestedRunnerId?: string | null;
 }) {
     return config;
 }
@@ -127,6 +95,7 @@ export interface RunTestOverrides {
     steps?: TestStep[];
     browserConfig?: Record<string, BrowserConfig | TargetConfig>;
     requestedDeviceId?: string;
+    requestedRunnerId?: string;
 }
 
 export interface QueueTestCaseRunResult {
@@ -134,6 +103,7 @@ export interface QueueTestCaseRunResult {
     status: string;
     requiredCapability: string | null;
     requestedDeviceId: string | null;
+    requestedRunnerId: string | null;
 }
 
 export interface QueueTestCaseRunFailure {
@@ -221,19 +191,74 @@ export async function queueTestCaseRun(
     const requestedDeviceIdInput = typeof overrides?.requestedDeviceId === 'string'
         ? overrides.requestedDeviceId.trim()
         : '';
+    const requestedRunnerIdInput = typeof overrides?.requestedRunnerId === 'string'
+        ? overrides.requestedRunnerId.trim()
+        : '';
 
     if (!requestHasAndroidTargets && requestedDeviceIdInput) {
         return { ok: false, failure: { error: 'requestedDeviceId requires Android targets' } };
     }
 
+    if (!requestHasAndroidTargets && requestedRunnerIdInput) {
+        return { ok: false, failure: { error: 'requestedRunnerId requires Android targets' } };
+    }
+
     const inferredRequestedDeviceId = extractRequestedDeviceId(normalizedBrowserConfig);
+    const androidRequestedDeviceIds = collectAndroidRequestedDeviceIds(normalizedBrowserConfig);
+    const inferredRequestedRunnerId = extractRequestedRunnerId(normalizedBrowserConfig);
+    const androidRequestedRunnerIds = collectAndroidRequestedRunnerIds(normalizedBrowserConfig);
     const requestedDeviceId = requestHasAndroidTargets
         ? (requestedDeviceIdInput || inferredRequestedDeviceId)
         : null;
+    const requestedRunnerId = requestHasAndroidTargets
+        ? (requestedRunnerIdInput || inferredRequestedRunnerId || null)
+        : null;
+
+    if (requestHasAndroidTargets && !requestedDeviceId) {
+        return {
+            ok: false,
+            failure: {
+                error: 'Android runs require a single requestedDeviceId. Align Android target selectors or provide requestedDeviceId override.'
+            },
+        };
+    }
+
+    if (
+        requestHasAndroidTargets
+        && requestedDeviceIdInput
+        && !androidRequestedDeviceIds.has(requestedDeviceIdInput)
+    ) {
+        return { ok: false, failure: { error: 'requestedDeviceId must match an Android target device selector' } };
+    }
+
+    if (
+        requestHasAndroidTargets
+        && requestedRunnerIdInput
+        && androidRequestedRunnerIds.size > 0
+        && !androidRequestedRunnerIds.has(requestedRunnerIdInput)
+    ) {
+        return { ok: false, failure: { error: 'requestedRunnerId must match an Android target runner scope' } };
+    }
+    if (
+        requestHasAndroidTargets
+        && !requestedRunnerIdInput
+        && androidRequestedRunnerIds.size > 1
+    ) {
+        return {
+            ok: false,
+            failure: {
+                error: 'Android targets specify multiple runner scopes; provide requestedRunnerId override or align target runnerScope values'
+            }
+        };
+    }
 
     if (requestHasAndroidTargets && requestedDeviceId) {
         const availability = await getTeamDevicesAvailability(testCase.project.teamId);
-        const selectedDevice = availability.devices.find((device) => device.deviceId === requestedDeviceId);
+        const selectedDevice = requestedRunnerId
+            ? availability.devices.find((device) => (
+                device.deviceId === requestedDeviceId && device.runnerId === requestedRunnerId
+            ))
+            : availability.devices.find((device) => device.deviceId === requestedDeviceId);
 
         const emulatorProfileClaimable = selectedDevice
             && isEmulatorProfileInventoryDevice(selectedDevice)
@@ -256,12 +281,13 @@ export async function queueTestCaseRun(
         steps: normalizedSteps,
         browserConfig: normalizedBrowserConfig,
         requestedDeviceId,
+        requestedRunnerId,
     }));
 
     const testRun = await prisma.testRun.create({
         data: {
             testCaseId,
-            status: 'QUEUED',
+            status: TEST_STATUS.QUEUED,
             configurationSnapshot,
             requiredCapability: requestHasAndroidTargets
                 ? ANDROID_EXECUTION_CAPABILITY
@@ -270,6 +296,7 @@ export async function queueTestCaseRun(
                 ? ANDROID_EXECUTION_RUNNER_KIND
                 : null,
             requestedDeviceId,
+            requestedRunnerId,
         }
     });
 
@@ -296,6 +323,7 @@ export async function queueTestCaseRun(
             status: testRun.status,
             requiredCapability: testRun.requiredCapability,
             requestedDeviceId: testRun.requestedDeviceId,
+            requestedRunnerId: testRun.requestedRunnerId,
         }
     };
 }

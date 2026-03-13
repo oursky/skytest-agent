@@ -1,7 +1,7 @@
 import { chromium, Page, BrowserContext, Browser, ConsoleMessage } from 'playwright';
 import { expect as playwrightExpect } from '@playwright/test';
 import { PlaywrightAgent } from '@midscene/web/playwright';
-import { TestStep, BrowserConfig, TargetConfig, AndroidTargetConfig, AndroidAgent, AndroidDevice, TestEvent, TestResult, RunTestOptions, TestCaseFile } from '@/types';
+import { TEST_STATUS, TestStep, BrowserConfig, TargetConfig, AndroidTargetConfig, AndroidAgent, AndroidDevice, TestEvent, TestResult, RunTestOptions, TestCaseFile } from '@/types';
 import { config } from '@/config/app';
 import { ConfigurationError, TestExecutionError, PlaywrightCodeError, getErrorMessage } from '@/lib/core/errors';
 import { substituteAll } from '@/lib/test-config/resolver';
@@ -1614,7 +1614,7 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
 
     if (!openRouterApiKey) {
         return {
-            status: 'FAIL',
+            status: TEST_STATUS.FAIL,
             error: 'OpenRouter API key is required. Please configure it in API Key & Usage settings.',
             errorCode: 'CONFIGURATION_ERROR',
             errorCategory: 'CONFIGURATION',
@@ -1730,7 +1730,7 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
 
             await captureFinalScreenshots(executionTargets, onEvent, runSignal);
 
-            return { status: 'PASS', actionCount: actionCounter.count };
+            return { status: TEST_STATUS.PASS, actionCount: actionCounter.count };
 
         } catch (error: unknown) {
             if (timeoutExceeded) {
@@ -1739,7 +1739,7 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
                     await captureErrorScreenshots(executionTargets, onEvent);
                 }
                 return {
-                    status: 'FAIL',
+                    status: TEST_STATUS.FAIL,
                     error: timeoutMessage,
                     errorCode: 'TEST_TIMEOUT',
                     errorCategory: 'TIMEOUT',
@@ -1748,7 +1748,7 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
             }
 
             if (signal?.aborted || runSignal.aborted || (error instanceof Error && error.message === 'Aborted')) {
-                return { status: 'CANCELLED', error: 'Test was cancelled by user', actionCount: actionCounter.count };
+                return { status: TEST_STATUS.CANCELLED, error: 'Test was cancelled by user', actionCount: actionCounter.count };
             }
 
             const networkGuardSummaries = executionTargets
@@ -1767,7 +1767,7 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
             }
 
             return {
-                status: 'FAIL',
+                status: TEST_STATUS.FAIL,
                 error: msg,
                 errorCode: failureClassification.code,
                 errorCategory: failureClassification.category,

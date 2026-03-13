@@ -54,4 +54,40 @@ describe('testCaseExcel import/export contract', () => {
         const parsed = await parseTestCaseExcel(workbook);
         expect(parsed.issues.some((issue) => issue.code === 'MISSING_STEP_ACTION' && issue.severity === 'error')).toBe(true);
     });
+
+    it('round-trips Android runner scope through export and import', async () => {
+        const workbook = await exportToExcelArrayBuffer({
+            name: 'Android Runner Scope',
+            testCaseId: 'TC-102',
+            steps: [{
+                id: '1',
+                target: 'android_a',
+                type: 'ai-action',
+                action: 'Open app',
+            }],
+            browserConfig: {
+                android_a: {
+                    type: 'android',
+                    name: 'Pixel 8',
+                    deviceSelector: {
+                        mode: 'emulator-profile',
+                        emulatorProfileName: 'android_profile_a',
+                    },
+                    runnerScope: {
+                        runnerId: 'runner-1',
+                    },
+                    appId: 'com.example.app',
+                    clearAppState: true,
+                    allowAllPermissions: true,
+                },
+            },
+        });
+
+        const parsed = await parseTestCaseExcel(workbook);
+        const parsedAndroidTarget = parsed.data.testData.browserConfig?.android_a;
+        if (!parsedAndroidTarget || !('type' in parsedAndroidTarget) || parsedAndroidTarget.type !== 'android') {
+            throw new Error('Expected android target');
+        }
+        expect(parsedAndroidTarget.runnerScope?.runnerId).toBe('runner-1');
+    });
 });

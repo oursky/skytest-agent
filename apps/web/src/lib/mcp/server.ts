@@ -12,10 +12,16 @@ import { queueTestCaseRun } from '@/lib/mcp/run-execution';
 import { listTestRuns } from '@/lib/mcp/run-query';
 import { manageProjectConfigs } from '@/lib/mcp/project-config-manager';
 import { getProjectRunnerInventory } from '@/lib/mcp/runner-inventory';
-import { ACTIVE_RUN_STATUSES } from '@/utils/status/statusHelpers';
+import {
+    RUN_ACTIVE_STATUSES,
+    TEST_STATUS,
+    type TestStep,
+    type BrowserConfig,
+    type TargetConfig,
+    type ConfigType,
+} from '@/types';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { ServerRequest, ServerNotification } from '@modelcontextprotocol/sdk/types.js';
-import type { TestStep, BrowserConfig, TargetConfig, ConfigType } from '@/types';
 import { isProjectMember, isTestCaseProjectMember, isTestRunProjectMember } from '@/lib/security/permissions';
 
 type Extra = RequestHandlerExtra<ServerRequest, ServerNotification>;
@@ -164,6 +170,7 @@ const mcpCreateTestCaseSchema = z.object({
     androidTargets: z.array(z.object({
         id: z.string().optional().describe('Optional target ID'),
         name: z.string().optional().describe('Display name'),
+        runnerId: z.string().optional().describe('Optional runner scope for this Android target'),
         device: z.string().optional().describe('Device selector text (e.g. serial:emulator-5554, profile name, or display name such as "Pixel 8")'),
         deviceSelector: z.object({
             mode: z.enum(['emulator-profile', 'connected-device']),
@@ -186,6 +193,7 @@ const mcpRunOverridesSchema = z.object({
     steps: z.array(mcpStepSchema).optional().describe('Override steps for this run'),
     browserConfig: z.record(z.string(), z.unknown()).optional().describe('Override browser/android target config for this run'),
     requestedDeviceId: z.string().optional().describe('Optional explicit requested device id for Android runs'),
+    requestedRunnerId: z.string().optional().describe('Optional explicit requested runner id for Android runs'),
 });
 
 export function createMcpServer(): McpServer {
@@ -287,6 +295,7 @@ export function createMcpServer(): McpServer {
                 steps: overrides.steps as TestStep[] | undefined,
                 browserConfig: overrides.browserConfig as Record<string, BrowserConfig | TargetConfig> | undefined,
                 requestedDeviceId: overrides.requestedDeviceId,
+                requestedRunnerId: overrides.requestedRunnerId,
             } : undefined);
 
             if (!runResult.ok) {
@@ -497,6 +506,7 @@ export function createMcpServer(): McpServer {
                     type: 'android',
                     name: target.name?.trim() || undefined,
                     deviceSelector,
+                    runnerScope: target.runnerId ? { runnerId: target.runnerId.trim() } : undefined,
                     appId: target.appId || '',
                     clearAppState: target.clearAppState ?? true,
                     allowAllPermissions: target.allowAllPermissions ?? true,
@@ -525,7 +535,7 @@ export function createMcpServer(): McpServer {
                     browserConfig: normalizedBrowserConfig ? JSON.stringify(normalizedBrowserConfig) : undefined,
                     projectId,
                     displayId,
-                    status: 'DRAFT',
+                    status: TEST_STATUS.DRAFT,
                     source: 'agent',
                 },
             });
@@ -689,7 +699,7 @@ export function createMcpServer(): McpServer {
         const activeRuns = await prisma.testRun.findMany({
             where: {
                 testCaseId,
-                status: { in: [...ACTIVE_RUN_STATUSES] }
+                status: { in: [...RUN_ACTIVE_STATUSES] }
             },
             orderBy: { createdAt: 'asc' },
             select: { id: true, status: true, createdAt: true }
@@ -753,7 +763,7 @@ export function createMcpServer(): McpServer {
                 browserConfig as Record<string, BrowserConfig | TargetConfig>
             ));
         }
-        updateData.status = 'DRAFT';
+        updateData.status = TEST_STATUS.DRAFT;
 
         const warnings: string[] = [];
         const upsertConfigInputs = [...(configs ?? []), ...(variables ?? [])];
@@ -888,7 +898,7 @@ export function createMcpServer(): McpServer {
         if (!await verifyProjectAccess(projectId, userId)) return errorResult('Forbidden');
 
         const where = {
-            status: { in: [...ACTIVE_RUN_STATUSES] },
+            status: { in: [...RUN_ACTIVE_STATUSES] },
             testCase: { projectId },
         };
 
@@ -965,7 +975,7 @@ export function createMcpServer(): McpServer {
         if (!await verifyProjectAccess(projectId, userId)) return errorResult('Forbidden');
 
         const where = {
-            status: 'QUEUED' as const,
+            status: TEST_STATUS.QUEUED,
             testCase: { projectId },
         };
 

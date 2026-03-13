@@ -1,7 +1,6 @@
 import { prisma } from '@/lib/core/prisma';
 import { getTeamDevicesAvailability, getTeamRunnersOverview } from '@/lib/runners/availability-service';
-
-const EMULATOR_PROFILE_DEVICE_PREFIX = 'emulator-profile:';
+import { EMULATOR_PROFILE_DEVICE_PREFIX } from '@/lib/runners/android-resource-lock';
 
 interface DeviceMetadata {
     kind?: string;

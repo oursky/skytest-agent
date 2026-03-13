@@ -7,7 +7,7 @@ import { config as appConfig } from '@/config/app';
 import { isTestRunProjectMember } from '@/lib/security/permissions';
 import { subscribeRunUpdates } from '@/lib/runners/event-bus';
 import { objectStore } from '@/lib/storage/object-store';
-import { isScreenshotData, type TestEvent, type LogLevel } from '@/types';
+import { TEST_STATUS, isRunTerminalStatus, isScreenshotData, type TestEvent, type LogLevel } from '@/types';
 import { parseTestResultMetadata } from '@/lib/runtime/test-result-metadata';
 import { loadMaskedVariableValuesForRun } from '@/lib/runtime/masked-variables';
 import { createExactValueMasker, maskEventForViewer, maskNullableText } from '@/lib/runtime/log-masking';
@@ -287,7 +287,7 @@ export async function GET(
                 try {
                     const statusRow = await fetchRunStatus(runId);
                     if (!statusRow) {
-                        safeEnqueue({ type: 'status', status: 'FAIL', error: 'Run deleted' });
+                        safeEnqueue({ type: 'status', status: TEST_STATUS.FAIL, error: 'Run deleted' });
                         closeStream();
                         return;
                     }
@@ -310,7 +310,7 @@ export async function GET(
                         lastSequence = row.sequence;
                     }
 
-                    if (['PASS', 'FAIL', 'CANCELLED'].includes(statusRow.status)) {
+                    if (isRunTerminalStatus(statusRow.status)) {
                         closeStream();
                     }
                 } catch (error) {

@@ -39,6 +39,7 @@ This document defines current SkyTest MCP tool behavior for maintainers.
 - `FILE` variables are rejected with a warning (MCP cannot upload file content).
 - If a test-case variable matches an existing project-level config (same type and value), it is skipped with a warning naming the matching project variable.
 - Android device names are resolved against runner-synced team inventory. If no match is found, the test case is still created but the response includes a warning so the caller can confirm with the user.
+- Android targets may include optional `runnerId` for runner-scoped device targeting.
 
 ### update_test_case
 
@@ -91,8 +92,16 @@ This document defines current SkyTest MCP tool behavior for maintainers.
 
 - Input: `{ testCaseId, overrides? }`
 - Queues one test run for the test case.
-- Optional `overrides` fields: `url`, `prompt`, `steps`, `browserConfig`, `requestedDeviceId`.
-- Uses durable queue path and returns: `runId`, `status`, `requiredCapability`, `requestedDeviceId`.
+- Optional `overrides` fields: `url`, `prompt`, `steps`, `browserConfig`, `requestedDeviceId`, `requestedRunnerId`.
+- Validation:
+  - `requestedDeviceId` is allowed only when Android targets exist.
+  - `requestedRunnerId` is allowed only when Android targets exist.
+  - Android runs require a single resolved `requestedDeviceId`; if selectors are ambiguous, queueing is rejected.
+  - `requestedDeviceId` must match one of the Android target device selectors in the final run configuration.
+  - `requestedRunnerId` must match Android target runner scopes when runner scopes are present.
+  - When Android targets contain multiple runner scope IDs and no `requestedRunnerId` override is provided, run queuing is rejected as ambiguous.
+  - Auto-inference of `requestedDeviceId`/`requestedRunnerId` is applied only when the resolved target value is unique across Android targets.
+- Uses durable queue path and returns: `runId`, `status`, `requiredCapability`, `requestedDeviceId`, `requestedRunnerId`.
 
 ### list_test_runs
 

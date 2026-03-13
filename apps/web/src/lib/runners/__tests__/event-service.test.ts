@@ -11,6 +11,9 @@ const {
     findUniqueProject,
     upsertUsageRecord,
     createRunFile,
+    updateManyLock,
+    deleteManyLock,
+    countLocks,
     transaction,
     putObjectBuffer,
 } = vi.hoisted(() => ({
@@ -24,6 +27,9 @@ const {
     findUniqueProject: vi.fn(),
     upsertUsageRecord: vi.fn(),
     createRunFile: vi.fn(),
+    updateManyLock: vi.fn(),
+    deleteManyLock: vi.fn(),
+    countLocks: vi.fn(),
     transaction: vi.fn(),
     putObjectBuffer: vi.fn(),
 }));
@@ -72,6 +78,9 @@ describe('event-service', () => {
         findUniqueProject.mockReset();
         upsertUsageRecord.mockReset();
         createRunFile.mockReset();
+        updateManyLock.mockReset();
+        deleteManyLock.mockReset();
+        countLocks.mockReset();
         transaction.mockReset();
         putObjectBuffer.mockReset();
 
@@ -80,6 +89,11 @@ describe('event-service', () => {
                 findUnique: typeof findUniqueRun;
                 updateMany: typeof updateManyRun;
                 update: typeof updateRun;
+            };
+            androidResourceLock: {
+                updateMany: typeof updateManyLock;
+                deleteMany: typeof deleteManyLock;
+                count: typeof countLocks;
             };
             testRunEvent: {
                 createMany: typeof createManyEvents;
@@ -93,6 +107,11 @@ describe('event-service', () => {
                 updateMany: updateManyRun,
                 update: updateRun,
             },
+            androidResourceLock: {
+                updateMany: updateManyLock,
+                deleteMany: deleteManyLock,
+                count: countLocks,
+            },
             testRunEvent: {
                 createMany: createManyEvents,
             },
@@ -101,6 +120,9 @@ describe('event-service', () => {
             },
         }));
         updateManyRun.mockResolvedValue({ count: 1 });
+        updateManyLock.mockResolvedValue({ count: 1 });
+        deleteManyLock.mockResolvedValue({ count: 1 });
+        countLocks.mockResolvedValue(1);
         findUniqueTestCase.mockResolvedValue({
             name: 'Checkout flow',
             project: {
@@ -150,6 +172,15 @@ describe('event-service', () => {
                 expect.objectContaining({ runId: 'run-1', sequence: 4, kind: 'STEP' }),
                 expect.objectContaining({ runId: 'run-1', sequence: 5, kind: 'STEP' }),
             ],
+        });
+        expect(updateManyLock).toHaveBeenCalledWith({
+            where: {
+                runId: 'run-1',
+                runnerId: 'runner-1',
+            },
+            data: {
+                leaseExpiresAt: expect.any(Date),
+            },
         });
         expect(result).toEqual({ accepted: 2, nextSequence: 6 });
     });
@@ -236,6 +267,29 @@ describe('event-service', () => {
         expect(createManyEvents).not.toHaveBeenCalled();
     });
 
+    it('rejects appending for explicit-device run when resource lock is missing', async () => {
+        findUniqueRun.mockResolvedValueOnce({
+            id: 'run-1',
+            testCaseId: 'tc-1',
+            status: 'RUNNING',
+            requestedDeviceId: 'device-a',
+            assignedRunnerId: 'runner-1',
+            leaseExpiresAt: new Date(Date.now() + 10_000),
+            nextEventSequence: 1,
+        });
+        countLocks.mockResolvedValueOnce(0);
+
+        const result = await appendRunEvents({
+            runId: 'run-1',
+            runnerId: 'runner-1',
+            events: [{ kind: 'STEP' }],
+        });
+
+        expect(result).toBeNull();
+        expect(updateManyRun).not.toHaveBeenCalled();
+        expect(createManyEvents).not.toHaveBeenCalled();
+    });
+
     it('marks owned runs completed', async () => {
         findUniqueRun.mockResolvedValueOnce({
             id: 'run-1',
@@ -260,6 +314,11 @@ describe('event-service', () => {
                 completedAt: expect.any(Date),
                 assignedRunnerId: null,
                 leaseExpiresAt: null,
+            },
+        });
+        expect(deleteManyLock).toHaveBeenCalledWith({
+            where: {
+                runId: 'run-1',
             },
         });
         expect(updateTestCase).toHaveBeenCalledWith({
@@ -313,6 +372,11 @@ describe('event-service', () => {
                 completedAt: expect.any(Date),
                 assignedRunnerId: null,
                 leaseExpiresAt: null,
+            },
+        });
+        expect(deleteManyLock).toHaveBeenCalledWith({
+            where: {
+                runId: 'run-1',
             },
         });
         expect(updateTestCase).toHaveBeenCalledWith({

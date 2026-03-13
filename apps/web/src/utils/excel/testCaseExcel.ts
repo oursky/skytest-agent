@@ -289,6 +289,7 @@ function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
             Target: targetLabelById.get(entry.id) || entry.id,
             Name: entry.config.name || '',
             Device: deviceDisplay.rawValue || '',
+            'Runner ID': normalizedAndroidTarget.runnerScope?.runnerId || '',
             'APP ID': entry.config.appId || '',
             'Clear App Data': entry.config.clearAppState ? 'Yes' : 'No',
             'Allow Permissions': entry.config.allowAllPermissions ? 'Yes' : 'No',
@@ -310,7 +311,7 @@ function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
             workbook,
             'Android Targets',
             androidTargetRows,
-            ['Target', 'Name', 'Device', 'APP ID', 'Clear App Data', 'Allow Permissions', 'Device Details (separate by /)']
+            ['Target', 'Name', 'Device', 'Runner ID', 'APP ID', 'Clear App Data', 'Allow Permissions', 'Device Details (separate by /)']
         );
     }
     appendRowsAsWorksheet(workbook, 'Test Steps', stepRows);
@@ -499,6 +500,7 @@ function parseConfigurationsRows(
             if (type === 'android') {
                 const name = getRowValue(row, ['name', 'key']) || '';
                 const rawDeviceValue = getRowValue(row, ['device', 'emulator', 'avd', 'avdname']) || '';
+                const runnerId = getRowValue(row, ['runner id', 'runnerid', 'android_runner_id']) || '';
                 const appId = getRowValue(row, ['value']) || '';
                 const deviceSelector = rawDeviceValue.toLowerCase().startsWith('serial:')
                     ? { mode: 'connected-device' as const, serial: rawDeviceValue.slice('serial:'.length).trim() }
@@ -512,6 +514,7 @@ function parseConfigurationsRows(
                             type: 'android',
                             name: name || undefined,
                             deviceSelector,
+                            runnerScope: runnerId ? { runnerId } : undefined,
                             appId,
                             clearAppState: parseBooleanCell(getRowValue(row, ['clearappdata', 'clear app data']), true),
                             allowAllPermissions: parseBooleanCell(getRowValue(row, ['allowallpermissions', 'allow all permissions']), true),
@@ -632,6 +635,7 @@ function parseAndroidTargetRows(
         const rawTarget = getRowValue(row, ['target']);
         const name = getRowValue(row, ['name', 'key']) || '';
         const rawDeviceValue = getRowValue(row, ['device', 'emulator', 'avd', 'avdname']) || '';
+        const runnerId = getRowValue(row, ['runner id', 'runnerid', 'android_runner_id']) || '';
         const appId = getRowValue(row, ['app id', 'appid', 'value']) || '';
 
         if (!rawTarget && !name && !rawDeviceValue && !appId) {
@@ -646,6 +650,7 @@ function parseAndroidTargetRows(
                 type: 'android',
                 name: name || undefined,
                 deviceSelector: parseAndroidDeviceSelectorForSheet(rawDeviceValue),
+                runnerScope: runnerId ? { runnerId } : undefined,
                 appId,
                 clearAppState: parseBooleanCell(getRowValue(row, ['clearappdata', 'clear app data']), true),
                 allowAllPermissions: parseBooleanCell(getRowValue(row, ['allowpermissions', 'allow permissions', 'allowallpermissions', 'allow all permissions']), true),

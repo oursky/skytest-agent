@@ -5,7 +5,7 @@ import { createLogger } from '@/lib/core/logger';
 import { isProjectMember } from '@/lib/security/permissions';
 import { isTestEvent } from '@/lib/runtime/test-events';
 import { objectStore } from '@/lib/storage/object-store';
-import { isScreenshotData, type TestEvent, type LogLevel } from '@/types';
+import { isRunActiveStatus, isScreenshotData, type TestEvent, type LogLevel } from '@/types';
 import { parseTestResultMetadata } from '@/lib/runtime/test-result-metadata';
 import { loadMaskedVariableValuesForTestCase } from '@/lib/runtime/masked-variables';
 import { createExactValueMasker, maskEventForViewer, maskNullableText } from '@/lib/runtime/log-masking';
@@ -207,7 +207,7 @@ export async function DELETE(
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        if (['RUNNING', 'QUEUED', 'PREPARING'].includes(testRun.status)) {
+        if (isRunActiveStatus(testRun.status)) {
             return NextResponse.json({ error: 'Cannot delete an active test run' }, { status: 409 });
         }
 

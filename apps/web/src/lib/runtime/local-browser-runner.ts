@@ -9,7 +9,19 @@ import { config as appConfig } from '@/config/app';
 import { createStoredName, validateAndSanitizeFile, buildRunArtifactObjectKey } from '@/lib/security/file-security';
 import { putObjectBuffer } from '@/lib/storage/object-store-utils';
 import { UsageService } from '@/lib/runtime/usage';
-import { isScreenshotData, type BrowserConfig, type TargetConfig, type TestCaseFile, type TestEvent, type TestStep } from '@/types';
+import {
+    RUN_IN_PROGRESS_STATUSES,
+    TEST_STATUS,
+    isRunInProgressStatus,
+    isScreenshotData,
+    isRunTerminalStatus,
+    type BrowserConfig,
+    type RunInProgressStatus,
+    type TargetConfig,
+    type TestCaseFile,
+    type TestEvent,
+    type TestStep,
+} from '@/types';
 
 interface SnapshotPayload {
     url?: string;
@@ -181,7 +193,7 @@ async function loadRunConfig(runId: string, options?: LocalBrowserRunOptions): P
         },
     });
 
-    if (!run || !['PREPARING', 'RUNNING'].includes(run.status)) {
+    if (!run || !isRunInProgressStatus(run.status)) {
         return null;
     }
 
@@ -247,7 +259,7 @@ async function appendRunEvents(runId: string, events: RunEventInput[], options?:
             },
         });
 
-        if (!run || ['PASS', 'FAIL', 'CANCELLED'].includes(run.status)) {
+        if (!run || isRunTerminalStatus(run.status)) {
             return false;
         }
         if (options?.runnerId) {
@@ -312,7 +324,7 @@ async function appendRunEvents(runId: string, events: RunEventInput[], options?:
 
 async function updateRunStatusWithOwnership(
     runId: string,
-    status: 'PREPARING' | 'RUNNING',
+    status: RunInProgressStatus,
     options?: LocalBrowserRunOptions
 ): Promise<void> {
     const now = new Date();
@@ -320,7 +332,7 @@ async function updateRunStatusWithOwnership(
         where: {
             id: runId,
             status: {
-                in: ['PREPARING', 'RUNNING'],
+                in: [...RUN_IN_PROGRESS_STATUSES],
             },
             ...(options?.runnerId
                 ? {
@@ -351,7 +363,7 @@ function buildRunOwnershipWhere(runId: string, options?: LocalBrowserRunOptions)
     return {
         id: runId,
         status: {
-            in: ['PREPARING', 'RUNNING'],
+            in: [...RUN_IN_PROGRESS_STATUSES],
         },
         ...(options?.runnerId
             ? {
@@ -383,7 +395,7 @@ async function completeRun(
     const updated = await prisma.testRun.updateMany({
         where: buildRunOwnershipWhere(runId, options),
         data: {
-            status: 'PASS',
+            status: TEST_STATUS.PASS,
             result,
             completedAt: now,
             assignedRunnerId: null,
@@ -394,7 +406,7 @@ async function completeRun(
     if (updated.count > 0) {
         await prisma.testCase.update({
             where: { id: testCaseId },
-            data: { status: 'PASS' },
+            data: { status: TEST_STATUS.PASS },
         });
         try {
             await UsageService.recordRunUsageFromResult({
@@ -427,7 +439,7 @@ async function failRun(
     const updated = await prisma.testRun.updateMany({
         where: buildRunOwnershipWhere(runId, options),
         data: {
-            status: 'FAIL',
+            status: TEST_STATUS.FAIL,
             error,
             result,
             completedAt: now,
@@ -439,7 +451,7 @@ async function failRun(
     if (updated.count > 0) {
         await prisma.testCase.update({
             where: { id: testCaseId },
-            data: { status: 'FAIL' },
+            data: { status: TEST_STATUS.FAIL },
         });
         try {
             await UsageService.recordRunUsageFromResult({
@@ -465,7 +477,7 @@ async function failRunWithoutTestCase(runId: string, error: string, options?: Lo
     const updated = await prisma.testRun.updateMany({
         where: buildRunOwnershipWhere(runId, options),
         data: {
-            status: 'FAIL',
+            status: TEST_STATUS.FAIL,
             error,
             completedAt: now,
             assignedRunnerId: null,
@@ -490,7 +502,7 @@ async function cancelRun(
     const updated = await prisma.testRun.updateMany({
         where: buildRunOwnershipWhere(runId, options),
         data: {
-            status: 'CANCELLED',
+            status: TEST_STATUS.CANCELLED,
             error: 'Cancelled by user',
             completedAt: now,
             assignedRunnerId: null,
@@ -501,7 +513,7 @@ async function cancelRun(
     if (updated.count > 0) {
         await prisma.testCase.update({
             where: { id: testCaseId },
-            data: { status: 'CANCELLED' },
+            data: { status: TEST_STATUS.CANCELLED },
         });
         try {
             await UsageService.recordRunUsageFromResult({
@@ -533,7 +545,7 @@ async function uploadRunArtifact(runId: string, input: {
                 id: runId,
                 assignedRunnerId: options.runnerId,
                 leaseExpiresAt: { gt: new Date() },
-                status: { in: ['PREPARING', 'RUNNING'] },
+                status: { in: [...RUN_IN_PROGRESS_STATUSES] },
             },
             select: { id: true },
         });
@@ -707,14 +719,14 @@ async function executeLocalBrowserRun(
                 handleTestEvent(event);
             },
             async onPreparing() {
-                await updateRunStatusWithOwnership(runId, 'PREPARING', options);
+                await updateRunStatusWithOwnership(runId, TEST_STATUS.PREPARING, options);
                 queueEvent({
                     kind: 'STATUS',
                     message: 'Preparing run execution',
                 });
             },
             async onRunning() {
-                await updateRunStatusWithOwnership(runId, 'RUNNING', options);
+                await updateRunStatusWithOwnership(runId, TEST_STATUS.RUNNING, options);
                 queueEvent({
                     kind: 'STATUS',
                     message: 'Running test steps',
@@ -726,7 +738,7 @@ async function executeLocalBrowserRun(
         await flushEvents();
 
         const resultSummary = JSON.stringify(result);
-        if (result.status === 'PASS') {
+        if (result.status === TEST_STATUS.PASS) {
             await completeRun(
                 runId,
                 details.testCaseId,
@@ -740,7 +752,7 @@ async function executeLocalBrowserRun(
             );
             return;
         }
-        if (result.status === 'CANCELLED') {
+        if (result.status === TEST_STATUS.CANCELLED) {
             await cancelRun(
                 runId,
                 details.testCaseId,

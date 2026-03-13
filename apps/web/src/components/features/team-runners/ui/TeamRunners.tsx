@@ -40,7 +40,10 @@ function buildRunnerStatusClass(runner: TeamRunnerItem): string {
     return 'bg-gray-100 text-gray-700';
 }
 
-function buildRunnerStatusLabel(runner: TeamRunnerItem, t: (key: string) => string): string {
+function buildRunnerStatusLabel(
+    runner: TeamRunnerItem,
+    t: (key: string, params?: Record<string, string | number>) => string
+): string {
     if (runner.status === 'ONLINE' && runner.isFresh) {
         return t('device.state.online');
     }
@@ -48,6 +51,12 @@ function buildRunnerStatusLabel(runner: TeamRunnerItem, t: (key: string) => stri
 }
 
 function buildDeviceStatusClass(device: TeamDeviceItem): string {
+    if (device.activeRunId) {
+        return 'bg-amber-100 text-amber-700';
+    }
+    if (device.inUseByAnotherTeam) {
+        return 'bg-red-100 text-red-700';
+    }
     if (device.isAvailable) {
         return 'bg-green-100 text-green-700';
     }
@@ -63,7 +72,16 @@ function buildDeviceStatusClass(device: TeamDeviceItem): string {
     return 'bg-gray-100 text-gray-700';
 }
 
-function buildDeviceStatusLabel(device: TeamDeviceItem, t: (key: string) => string): string {
+function buildDeviceStatusLabel(
+    device: TeamDeviceItem,
+    t: (key: string, params?: Record<string, string | number>) => string
+): string {
+    if (device.activeRunId) {
+        return t('device.inUseProject', { project: device.activeProjectName ?? device.activeProjectId ?? '-' });
+    }
+    if (device.inUseByAnotherTeam) {
+        return t('device.inUseAnotherTeam');
+    }
     if (device.isAvailable) {
         return t('device.state.online');
     }

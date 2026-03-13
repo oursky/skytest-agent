@@ -8,6 +8,7 @@ import { createStoredName, validateAndSanitizeFile, buildRunArtifactObjectKey } 
 import { putObjectBuffer } from '@/lib/storage/object-store-utils';
 import { UsageService } from '@/lib/runtime/usage';
 import { dispatchNextQueuedBrowserRun } from '@/lib/runtime/browser-run-dispatcher';
+import { TEST_STATUS, isRunInProgressStatus } from '@/types';
 
 const logger = createLogger('runners:event-service');
 
@@ -15,6 +16,7 @@ interface OwnedRun {
     id: string;
     testCaseId: string;
     status: string;
+    requestedDeviceId: string | null;
     deletedAt: Date | null;
     assignedRunnerId: string | null;
     leaseExpiresAt: Date | null;
@@ -48,7 +50,7 @@ function ensureRunOwnership<T extends OwnedRun>(run: T | null, runnerId: string)
     if (!run.leaseExpiresAt || run.leaseExpiresAt.getTime() <= Date.now()) {
         return null;
     }
-    if (!['PREPARING', 'RUNNING'].includes(run.status)) {
+    if (!isRunInProgressStatus(run.status)) {
         return null;
     }
 
@@ -62,6 +64,7 @@ async function findOwnedRun(runId: string, runnerId: string): Promise<OwnedRun |
             id: true,
             testCaseId: true,
             status: true,
+            requestedDeviceId: true,
             deletedAt: true,
             assignedRunnerId: true,
             leaseExpiresAt: true,
@@ -122,6 +125,7 @@ export async function appendRunEvents(input: {
                 id: true,
                 testCaseId: true,
                 status: true,
+                requestedDeviceId: true,
                 deletedAt: true,
                 assignedRunnerId: true,
                 leaseExpiresAt: true,
@@ -133,14 +137,28 @@ export async function appendRunEvents(input: {
             return null;
         }
 
+        if (ownedRun.requestedDeviceId) {
+            const lockCount = await tx.androidResourceLock.count({
+                where: {
+                    runId: input.runId,
+                    runnerId: input.runnerId,
+                    leaseExpiresAt: { gt: now },
+                },
+            });
+            if (lockCount === 0) {
+                return null;
+            }
+        }
+
         const startSequence = ownedRun.nextEventSequence;
+        const nextLeaseExpiresAt = createLeaseExpiry(now);
         const runUpdateData: Prisma.TestRunUpdateManyMutationInput = {
             nextEventSequence: startSequence + input.events.length,
             lastEventAt: now,
-            leaseExpiresAt: createLeaseExpiry(now),
+            leaseExpiresAt: nextLeaseExpiresAt,
         };
-        if (ownedRun.status === 'PREPARING' && shouldPromoteRunToRunning(input.events)) {
-            runUpdateData.status = 'RUNNING';
+        if (ownedRun.status === TEST_STATUS.PREPARING && shouldPromoteRunToRunning(input.events)) {
+            runUpdateData.status = TEST_STATUS.RUNNING;
         }
 
         const updateResult = await tx.testRun.updateMany({
@@ -155,6 +173,16 @@ export async function appendRunEvents(input: {
         if (updateResult.count !== 1) {
             throw new Error('Failed to reserve event sequence');
         }
+
+        await tx.androidResourceLock.updateMany({
+            where: {
+                runId: input.runId,
+                runnerId: input.runnerId,
+            },
+            data: {
+                leaseExpiresAt: nextLeaseExpiresAt,
+            },
+        });
 
         await tx.testRunEvent.createMany({
             data: input.events.map((event, index) => ({
@@ -247,6 +275,7 @@ export async function completeOwnedRun(input: {
                 id: true,
                 testCaseId: true,
                 status: true,
+                requestedDeviceId: true,
                 deletedAt: true,
                 assignedRunnerId: true,
                 leaseExpiresAt: true,
@@ -261,7 +290,7 @@ export async function completeOwnedRun(input: {
         await tx.testRun.update({
             where: { id: input.runId },
             data: {
-                status: 'PASS',
+                status: TEST_STATUS.PASS,
                 result: input.result,
                 completedAt: now,
                 assignedRunnerId: null,
@@ -269,14 +298,20 @@ export async function completeOwnedRun(input: {
             },
         });
 
+        await tx.androidResourceLock.deleteMany({
+            where: {
+                runId: input.runId,
+            },
+        });
+
         await tx.testCase.update({
             where: { id: ownedRun.testCaseId },
-            data: { status: 'PASS' },
+            data: { status: TEST_STATUS.PASS },
         });
 
         return {
             runId: input.runId,
-            status: 'PASS' as const,
+            status: TEST_STATUS.PASS,
             testCaseId: ownedRun.testCaseId,
         };
     });
@@ -327,6 +362,7 @@ export async function failOwnedRun(input: {
                 id: true,
                 testCaseId: true,
                 status: true,
+                requestedDeviceId: true,
                 deletedAt: true,
                 assignedRunnerId: true,
                 leaseExpiresAt: true,
@@ -341,7 +377,7 @@ export async function failOwnedRun(input: {
         await tx.testRun.update({
             where: { id: input.runId },
             data: {
-                status: 'FAIL',
+                status: TEST_STATUS.FAIL,
                 error: input.error,
                 result: input.result,
                 completedAt: now,
@@ -350,14 +386,20 @@ export async function failOwnedRun(input: {
             },
         });
 
+        await tx.androidResourceLock.deleteMany({
+            where: {
+                runId: input.runId,
+            },
+        });
+
         await tx.testCase.update({
             where: { id: ownedRun.testCaseId },
-            data: { status: 'FAIL' },
+            data: { status: TEST_STATUS.FAIL },
         });
 
         return {
             runId: input.runId,
-            status: 'FAIL' as const,
+            status: TEST_STATUS.FAIL,
             testCaseId: ownedRun.testCaseId,
         };
     });

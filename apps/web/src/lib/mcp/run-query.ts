@@ -41,6 +41,7 @@ interface RunListItem {
     error: string | null;
     requiredCapability: string | null;
     requestedDeviceId: string | null;
+    requestedRunnerId: string | null;
     startedAt: string | null;
     completedAt: string | null;
     createdAt: string;
@@ -198,6 +199,7 @@ export async function listTestRuns(
             error: true,
             requiredCapability: true,
             requestedDeviceId: true,
+            requestedRunnerId: true,
             startedAt: true,
             completedAt: true,
             createdAt: true,
@@ -303,6 +305,7 @@ export async function listTestRuns(
         error: run.error,
         requiredCapability: run.requiredCapability,
         requestedDeviceId: run.requestedDeviceId,
+        requestedRunnerId: run.requestedRunnerId,
         startedAt: run.startedAt ? run.startedAt.toISOString() : null,
         completedAt: run.completedAt ? run.completedAt.toISOString() : null,
         createdAt: run.createdAt.toISOString(),

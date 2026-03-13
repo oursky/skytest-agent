@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/core/prisma';
 import { resolveConfigs } from '@/lib/test-config/resolver';
 import { decrypt } from '@/lib/security/crypto';
-import type { BrowserConfig, TargetConfig, TestStep } from '@/types';
+import { isRunInProgressStatus, type BrowserConfig, type TargetConfig, type TestStep } from '@/types';
 
 interface SnapshotPayload {
     url?: string;
@@ -47,7 +47,7 @@ function isRunnerRunOwned(input: {
     if (!input.leaseExpiresAt || input.leaseExpiresAt.getTime() <= Date.now()) {
         return false;
     }
-    return input.status === 'PREPARING' || input.status === 'RUNNING';
+    return isRunInProgressStatus(input.status);
 }
 
 export async function loadRunnerJobDetails(input: { runId: string; runnerId: string }) {

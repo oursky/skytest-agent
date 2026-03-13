@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { RUN_ACTIVE_STATUSES } from '@/types';
 
 const mocks = vi.hoisted(() => ({
     verifyAuth: vi.fn(),
@@ -6,9 +7,11 @@ const mocks = vi.hoisted(() => ({
     isProjectMember: vi.fn(),
     publishRunUpdate: vi.fn(),
     cancelLocalBrowserRun: vi.fn(),
+    dispatchNextQueuedBrowserRun: vi.fn(),
     testRunFindUnique: vi.fn(),
-    testRunUpdate: vi.fn(),
+    testRunUpdateMany: vi.fn(),
     testCaseUpdate: vi.fn(),
+    androidResourceLockDeleteMany: vi.fn(),
     transaction: vi.fn(),
 }));
 
@@ -29,6 +32,10 @@ vi.mock('@/lib/runtime/local-browser-runner', () => ({
     cancelLocalBrowserRun: mocks.cancelLocalBrowserRun,
 }));
 
+vi.mock('@/lib/runtime/browser-run-dispatcher', () => ({
+    dispatchNextQueuedBrowserRun: mocks.dispatchNextQueuedBrowserRun,
+}));
+
 vi.mock('@/lib/core/prisma', () => ({
     prisma: {
         testRun: {
@@ -47,9 +54,11 @@ describe('POST /api/test-runs/[id]/cancel', () => {
         mocks.isProjectMember.mockReset();
         mocks.publishRunUpdate.mockReset();
         mocks.cancelLocalBrowserRun.mockReset();
+        mocks.dispatchNextQueuedBrowserRun.mockReset();
         mocks.testRunFindUnique.mockReset();
-        mocks.testRunUpdate.mockReset();
+        mocks.testRunUpdateMany.mockReset();
         mocks.testCaseUpdate.mockReset();
+        mocks.androidResourceLockDeleteMany.mockReset();
         mocks.transaction.mockReset();
 
         mocks.verifyAuth.mockResolvedValue({ sub: 'auth-user' });
@@ -66,14 +75,24 @@ describe('POST /api/test-runs/[id]/cancel', () => {
             },
         });
         mocks.transaction.mockImplementation(async (callback: (tx: {
-            testRun: { update: typeof mocks.testRunUpdate };
+            testRun: {
+                updateMany: typeof mocks.testRunUpdateMany;
+                findUnique: typeof mocks.testRunFindUnique;
+            };
             testCase: { update: typeof mocks.testCaseUpdate };
+            androidResourceLock: { deleteMany: typeof mocks.androidResourceLockDeleteMany };
         }) => Promise<unknown>) => callback({
-            testRun: { update: mocks.testRunUpdate },
+            testRun: {
+                updateMany: mocks.testRunUpdateMany,
+                findUnique: mocks.testRunFindUnique,
+            },
             testCase: { update: mocks.testCaseUpdate },
+            androidResourceLock: { deleteMany: mocks.androidResourceLockDeleteMany },
         }));
-        mocks.testRunUpdate.mockResolvedValue({ id: 'run-1', status: 'CANCELLED' });
+        mocks.testRunUpdateMany.mockResolvedValue({ count: 1 });
         mocks.testCaseUpdate.mockResolvedValue({ id: 'tc-1', status: 'CANCELLED' });
+        mocks.androidResourceLockDeleteMany.mockResolvedValue({ count: 1 });
+        mocks.dispatchNextQueuedBrowserRun.mockResolvedValue(true);
     });
 
     it('cancels active runs and updates test case status to CANCELLED', async () => {
@@ -84,8 +103,11 @@ describe('POST /api/test-runs/[id]/cancel', () => {
 
         expect(response.status).toBe(200);
         expect(mocks.transaction).toHaveBeenCalledTimes(1);
-        expect(mocks.testRunUpdate).toHaveBeenCalledWith({
-            where: { id: 'run-1' },
+        expect(mocks.testRunUpdateMany).toHaveBeenCalledWith({
+            where: {
+                id: 'run-1',
+                status: { in: [...RUN_ACTIVE_STATUSES] },
+            },
             data: {
                 status: 'CANCELLED',
                 error: 'Cancelled by user',
@@ -98,8 +120,14 @@ describe('POST /api/test-runs/[id]/cancel', () => {
             where: { id: 'tc-1' },
             data: { status: 'CANCELLED' },
         });
+        expect(mocks.androidResourceLockDeleteMany).toHaveBeenCalledWith({
+            where: {
+                runId: 'run-1',
+            },
+        });
         expect(mocks.publishRunUpdate).toHaveBeenCalledWith('run-1');
         expect(mocks.cancelLocalBrowserRun).toHaveBeenCalledWith('run-1');
+        expect(mocks.dispatchNextQueuedBrowserRun).toHaveBeenCalledTimes(1);
         expect(payload).toMatchObject({
             success: true,
             id: 'run-1',
@@ -128,6 +156,41 @@ describe('POST /api/test-runs/[id]/cancel', () => {
         expect(mocks.transaction).not.toHaveBeenCalled();
         expect(mocks.publishRunUpdate).not.toHaveBeenCalled();
         expect(mocks.cancelLocalBrowserRun).toHaveBeenCalledWith('run-1');
+        expect(mocks.dispatchNextQueuedBrowserRun).not.toHaveBeenCalled();
+        expect(payload).toMatchObject({
+            success: true,
+            id: 'run-1',
+            status: 'PASS',
+        });
+    });
+
+    it('does not overwrite terminal status when run transitions before guarded update', async () => {
+        mocks.testRunFindUnique.mockResolvedValueOnce({
+            id: 'run-1',
+            status: 'RUNNING',
+            testCaseId: 'tc-1',
+            assignedRunnerId: 'runner-1',
+            deletedAt: null,
+            testCase: {
+                projectId: 'project-1',
+            },
+        });
+        mocks.testRunUpdateMany.mockResolvedValueOnce({ count: 0 });
+        mocks.testRunFindUnique.mockResolvedValueOnce({
+            status: 'PASS',
+        });
+
+        const request = new Request('http://localhost/api/test-runs/run-1/cancel', { method: 'POST' });
+
+        const response = await POST(request, { params: Promise.resolve({ id: 'run-1' }) });
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(mocks.testRunUpdateMany).toHaveBeenCalledTimes(1);
+        expect(mocks.testCaseUpdate).not.toHaveBeenCalled();
+        expect(mocks.publishRunUpdate).not.toHaveBeenCalled();
+        expect(mocks.cancelLocalBrowserRun).toHaveBeenCalledWith('run-1');
+        expect(mocks.dispatchNextQueuedBrowserRun).not.toHaveBeenCalled();
         expect(payload).toMatchObject({
             success: true,
             id: 'run-1',
@@ -135,4 +198,3 @@ describe('POST /api/test-runs/[id]/cancel', () => {
         });
     });
 });
-

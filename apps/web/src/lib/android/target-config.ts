@@ -1,4 +1,9 @@
-import type { AndroidTargetConfig, AndroidDeviceSelector } from '@/types';
+import type {
+    AndroidTargetConfig,
+    AndroidDeviceSelector,
+    BrowserConfig,
+    TargetConfig,
+} from '@/types';
 
 export interface NormalizedAndroidTargetConfig extends Omit<AndroidTargetConfig, 'deviceSelector'> {
     deviceSelector: AndroidDeviceSelector;
@@ -23,6 +28,10 @@ export function normalizeAndroidDeviceSelector(selector: AndroidDeviceSelector):
         mode: 'emulator-profile',
         emulatorProfileName: selector.emulatorProfileName.trim(),
     };
+}
+
+export function isAndroidTargetConfig(config: BrowserConfig | TargetConfig): config is AndroidTargetConfig {
+    return 'type' in config && config.type === 'android';
 }
 
 export function getAndroidDeviceSelectorResourceKey(selector: AndroidDeviceSelector): string {

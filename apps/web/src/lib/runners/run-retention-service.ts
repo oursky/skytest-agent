@@ -2,10 +2,9 @@ import { config as appConfig } from '@/config/app';
 import { createLogger } from '@/lib/core/logger';
 import { prisma } from '@/lib/core/prisma';
 import { objectStore } from '@/lib/storage/object-store';
+import { RUN_TERMINAL_STATUSES } from '@/types';
 
 const logger = createLogger('runners:run-retention');
-
-const TERMINAL_STATUSES = ['PASS', 'FAIL', 'CANCELLED'] as const;
 
 function daysAgo(now: Date, days: number): Date {
     return new Date(now.getTime() - (days * 24 * 60 * 60 * 1000));
@@ -37,7 +36,7 @@ export async function enforceRunArtifactRetention(now = new Date()) {
     const softDeleteResult = await prisma.testRun.updateMany({
         where: {
             deletedAt: null,
-            status: { in: [...TERMINAL_STATUSES] },
+            status: { in: [...RUN_TERMINAL_STATUSES] },
             completedAt: {
                 not: null,
                 lt: softDeleteCutoff,
@@ -51,7 +50,7 @@ export async function enforceRunArtifactRetention(now = new Date()) {
     const hardDeleteCandidates = await prisma.testRun.findMany({
         where: {
             deletedAt: { lt: hardDeleteCutoff },
-            status: { in: [...TERMINAL_STATUSES] },
+            status: { in: [...RUN_TERMINAL_STATUSES] },
         },
         orderBy: {
             deletedAt: 'asc',

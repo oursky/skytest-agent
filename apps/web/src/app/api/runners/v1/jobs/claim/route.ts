@@ -82,6 +82,7 @@ export async function POST(request: Request) {
                 teamId: auth.teamId,
                 runId: claimed.runId,
                 requestedDeviceId: claimed.requestedDeviceId,
+                requestedRunnerId: claimed.requestedRunnerId,
                 requiredCapability: claimed.requiredCapability,
                 leaseExpiresAt: claimed.leaseExpiresAt.toISOString(),
                 elapsedMs: Date.now() - claimStartedAt,
@@ -106,6 +107,8 @@ export async function POST(request: Request) {
                 logMeta.queuedCompatibleKindRuns = diagnosis.queuedCompatibleKindRuns;
                 logMeta.explicitRequestedRuns = diagnosis.explicitRequestedRuns;
                 logMeta.explicitRequestedRunsMatchingRunnerDevices = diagnosis.explicitRequestedRunsMatchingRunnerDevices;
+                logMeta.explicitRequestedRunsBlockedByHostLocks = diagnosis.explicitRequestedRunsBlockedByHostLocks;
+                logMeta.blockedHostResourceKeys = diagnosis.blockedHostResourceKeys;
                 logMeta.genericQueuedRuns = diagnosis.genericQueuedRuns;
                 logMeta.claimableDeviceIds = diagnosis.claimableDeviceIds;
             }

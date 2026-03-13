@@ -11,11 +11,11 @@ import { formatDateTime } from "@/utils/time/dateFormatter";
 import { useI18n } from "@/i18n";
 import { parseStoredEvents } from "@/lib/runtime/test-events";
 
-import { TestStep, BrowserConfig, TargetConfig, ConfigItem, TestEvent } from "@/types";
+import { type TestStep, type BrowserConfig, type TargetConfig, type ConfigItem, type TestEvent, type TestStatus } from "@/types";
 
 interface TestRun {
     id: string;
-    status: 'IDLE' | 'RUNNING' | 'PASS' | 'FAIL' | 'CANCELLED' | 'QUEUED' | 'PREPARING';
+    status: TestStatus;
     createdAt: string;
     result: string | null;
     logs: string | null;
