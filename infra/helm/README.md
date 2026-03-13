@@ -51,8 +51,6 @@ Common optional values:
 - `PRISMA_LOG_QUERIES`
 - `UI_DEVICE_STATUS_POLL_INTERVAL_MS`
 
-Legacy `NEXT_PUBLIC_AUTHGEAR_*` names are still accepted for compatibility, but new deployments should use `AUTHGEAR_*`.
-
 Example:
 
 ```bash

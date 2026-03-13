@@ -38,6 +38,11 @@ export const AuthProvider = ({
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [user, setUser] = useState<UserInfo | null>(null);
+    const hasAuthgearConfig = Boolean(
+        authgearConfig.clientId.trim()
+        && authgearConfig.endpoint.trim()
+        && authgearConfig.redirectUri.trim()
+    );
 
     const authgearModulePromiseRef = useRef<Promise<AuthgearModule> | null>(null);
 
@@ -49,6 +54,9 @@ export const AuthProvider = ({
         authgearModulePromiseRef.current = (async () => {
             const authgearModule = await import("@authgear/web");
             const authgear = authgearModule.default;
+            if (!hasAuthgearConfig) {
+                return authgearModule;
+            }
 
             try {
                 const proxyFetch = createAuthgearProxyFetch(authgearConfig.endpoint);
@@ -66,7 +74,7 @@ export const AuthProvider = ({
         })();
 
         return authgearModulePromiseRef.current;
-    }, [authgearConfig.clientId, authgearConfig.endpoint]);
+    }, [authgearConfig.clientId, authgearConfig.endpoint, hasAuthgearConfig]);
 
     const initAuthgear = useCallback(async () => {
         try {

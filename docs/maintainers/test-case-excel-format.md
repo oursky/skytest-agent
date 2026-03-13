@@ -11,9 +11,7 @@ Related docs:
 ## Compatibility Policy
 
 - Export uses dedicated target sheets: `Browser Targets` and `Android Targets`.
-- Import supports both:
-  - the dedicated multi-sheet target format (`Browser Targets` + `Android Targets`)
-  - legacy target rows embedded in `Configurations`
+- Import supports dedicated target sheets only (`Browser Targets` + `Android Targets`).
 - Layouts outside those parser paths are unsupported.
 
 ## Sheets
@@ -30,7 +28,6 @@ The `Configurations` sheet is a row-based table with sections such as:
 - `Basic Info` / `Test Case`
 - `Project Variable`
 - `Test Case Variable`
-- `Testing Target` (legacy import section name)
 - `File`
 
 Variable rows use these columns:
@@ -41,29 +38,6 @@ Variable rows use these columns:
 - `Value`
 - `Group` (for `Variable`, `Random String`, `File`)
 - `Masked` (`Y` when a `Variable` is masked)
-
-### Testing Targets (Legacy `Configurations` Import)
-
-- One row per testing target.
-- Browser testing targets:
-  - `Type = Browser`
-  - `Name` (optional label)
-  - `Value` (URL)
-- Android testing targets:
-  - `Type = Android`
-  - `Name` (optional label)
-- `Device` / `Emulator` / `AVD`
-  - `Value` (App ID)
-  - `Clear App Data` (boolean)
-  - `Allow All Permissions` (boolean)
-
-Notes:
-
-- `Device` values can be:
-  - emulator profile name (for `emulator-profile` targets)
-  - `serial:<adb-serial>` (for `connected-device` targets)
-- `URL` and `App ID` dedicated columns are not used in this path.
-- Testing target values must be read from the shared `Value` column.
 
 ## Browser Targets Sheet
 
@@ -91,9 +65,7 @@ Notes:
 
 - Steps include action text and target mapping.
 - Export uses the `Browser` column name for target labels (historical naming), even when a step targets Android.
-- Import resolves target labels/aliases from either:
-  - `Browser Targets` + `Android Targets` sheets, or
-  - `Configurations` testing target rows
+- Import resolves target labels/aliases from `Browser Targets` + `Android Targets` sheets.
 
 ## Import Behavior
 
@@ -113,6 +85,7 @@ Import does not:
 - import file variables
 - import attached test files
 - import `Secret` variable type rows (unsupported)
+- import `Testing Target` rows from `Configurations`
 
 Warnings are produced for:
 

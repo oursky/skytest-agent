@@ -154,15 +154,10 @@ export async function parseTestCaseExcel(content: ArrayBuffer): Promise<ParseRes
     const parsedConfigurations = parseConfigurationsRows(configurationsRows, warnings, issues);
     const parsedBrowserTargets = parseBrowserTargetRows(browserRows, warnings, issues);
     const parsedAndroidTargets = parseAndroidTargetRows(androidRows, warnings, issues);
-    const hasDedicatedTargetSheets = browserRows.length > 0 || androidRows.length > 0;
 
     const parsedTestCase = parsedConfigurations.testCase;
-    const targetEntries = hasDedicatedTargetSheets
-        ? [...parsedBrowserTargets.targetEntries, ...parsedAndroidTargets.targetEntries]
-        : parsedConfigurations.targetEntries;
-    const targetAliases = hasDedicatedTargetSheets
-        ? { ...parsedBrowserTargets.targetAliases, ...parsedAndroidTargets.targetAliases }
-        : parsedConfigurations.targetAliases;
+    const targetEntries = [...parsedBrowserTargets.targetEntries, ...parsedAndroidTargets.targetEntries];
+    const targetAliases = { ...parsedBrowserTargets.targetAliases, ...parsedAndroidTargets.targetAliases };
     const projectVariables = parsedConfigurations.projectVariables;
     const testCaseVariables = parsedConfigurations.testCaseVariables;
     const files = parsedConfigurations.files;
@@ -354,15 +349,11 @@ function parseConfigurationsRows(
     testCase: { name?: string; testCaseId?: string; primaryUrl?: string };
     projectVariables: ExcelProjectVariable[];
     testCaseVariables: ExcelProjectVariable[];
-    targetEntries: ExcelTargetEntry[];
-    targetAliases: Record<string, string>;
     files: ExcelFileEntry[];
 } {
     const fieldMap = new Map<string, string>();
     const projectVariables: ExcelProjectVariable[] = [];
     const testCaseVariables: ExcelProjectVariable[] = [];
-    const targetEntries: ExcelTargetEntry[] = [];
-    const targetAliases: Record<string, string> = {};
     const files: ExcelFileEntry[] = [];
 
     rows.forEach((row, index) => {
@@ -473,63 +464,6 @@ function parseConfigurationsRows(
             return;
         }
 
-        if (section === 'testingtarget' || section === 'testingtargets') {
-            const type = normalizeHeader(getRowValue(row, ['type']) || '');
-            if (type === 'browser') {
-                const name = getRowValue(row, ['name', 'key']) || '';
-                const url = getRowValue(row, ['value']) || '';
-                if (url) {
-                    const targetIndex = targetEntries.length;
-                    const id = `browser_${String.fromCharCode('a'.charCodeAt(0) + targetIndex)}`;
-                    targetEntries.push({
-                        id,
-                        config: normalizeBrowserConfig({
-                            name: name || undefined,
-                            url,
-                            width: parseDimensionValue(getRowValue(row, ['width'])),
-                            height: parseDimensionValue(getRowValue(row, ['height'])),
-                        })
-                    });
-                    targetAliases[normalizeHeader(formatTargetLabel(targetIndex, 'browser'))] = id;
-                    if (name) {
-                        targetAliases[normalizeHeader(name)] = id;
-                    }
-                }
-                return;
-            }
-            if (type === 'android') {
-                const name = getRowValue(row, ['name', 'key']) || '';
-                const rawDeviceValue = getRowValue(row, ['device', 'emulator', 'avd', 'avdname']) || '';
-                const runnerId = getRowValue(row, ['runner id', 'runnerid', 'android_runner_id']) || '';
-                const appId = getRowValue(row, ['value']) || '';
-                const deviceSelector = rawDeviceValue.toLowerCase().startsWith('serial:')
-                    ? { mode: 'connected-device' as const, serial: rawDeviceValue.slice('serial:'.length).trim() }
-                    : { mode: 'emulator-profile' as const, emulatorProfileName: rawDeviceValue };
-                if (appId || rawDeviceValue || name) {
-                    const targetIndex = targetEntries.length;
-                    const id = `android_${String.fromCharCode('a'.charCodeAt(0) + targetIndex)}`;
-                    targetEntries.push({
-                        id,
-                        config: {
-                            type: 'android',
-                            name: name || undefined,
-                            deviceSelector,
-                            runnerScope: runnerId ? { runnerId } : undefined,
-                            appId,
-                            clearAppState: parseBooleanCell(getRowValue(row, ['clearappdata', 'clear app data']), true),
-                            allowAllPermissions: parseBooleanCell(getRowValue(row, ['allowallpermissions', 'allow all permissions']), true),
-                        }
-                    });
-                    targetAliases[normalizeHeader(formatTargetLabel(targetIndex, 'android'))] = id;
-                    if (name) {
-                        targetAliases[normalizeHeader(name)] = id;
-                    }
-                }
-                return;
-            }
-            return;
-        }
-
         if (section === 'file') {
             const filename = getRowValue(row, ['name', 'key', 'filename', 'file name']);
             if (!filename) {
@@ -568,8 +502,6 @@ function parseConfigurationsRows(
         },
         projectVariables,
         testCaseVariables,
-        targetEntries,
-        targetAliases,
         files,
     };
 }

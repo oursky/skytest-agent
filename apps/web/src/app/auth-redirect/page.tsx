@@ -10,12 +10,21 @@ export default function AuthRedirect() {
     const router = useRouter();
     const { authgearConfig, refreshUser } = useAuth();
     const { t } = useI18n();
+    const hasAuthgearConfig = Boolean(
+        authgearConfig.clientId.trim()
+        && authgearConfig.endpoint.trim()
+        && authgearConfig.redirectUri.trim()
+    );
 
     useEffect(() => {
         const finishAuth = async () => {
             try {
                 const authgearModule = await import("@authgear/web");
                 const authgear = authgearModule.default;
+                if (!hasAuthgearConfig) {
+                    router.push('/');
+                    return;
+                }
 
                 const proxyFetch = createAuthgearProxyFetch(authgearConfig.endpoint);
 
@@ -71,7 +80,7 @@ export default function AuthRedirect() {
         };
 
         finishAuth();
-    }, [authgearConfig.clientId, authgearConfig.endpoint, refreshUser, router]);
+    }, [authgearConfig.clientId, authgearConfig.endpoint, hasAuthgearConfig, refreshUser, router]);
 
     return (
         <div className="flex min-h-screen items-center justify-center">

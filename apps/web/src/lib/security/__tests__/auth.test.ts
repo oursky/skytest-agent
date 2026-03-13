@@ -48,7 +48,6 @@ type ResolveUserIdPayload = Parameters<typeof resolveUserId>[0];
 describe('resolveUserId', () => {
     beforeEach(() => {
         process.env.AUTHGEAR_ENDPOINT = 'https://example.authgear.com';
-        delete process.env.NEXT_PUBLIC_AUTHGEAR_ENDPOINT;
         createRemoteJWKSet.mockReset();
         jwtVerify.mockReset();
         findUnique.mockReset();
@@ -165,7 +164,6 @@ describe('resolveUserId', () => {
 describe('resolveOrCreateUserId', () => {
     beforeEach(() => {
         process.env.AUTHGEAR_ENDPOINT = 'https://example.authgear.com';
-        delete process.env.NEXT_PUBLIC_AUTHGEAR_ENDPOINT;
         createRemoteJWKSet.mockReset();
         jwtVerify.mockReset();
         findUnique.mockReset();
@@ -211,7 +209,6 @@ describe('verifyAuth', () => {
 
     beforeEach(() => {
         process.env.AUTHGEAR_ENDPOINT = 'https://example.authgear.com';
-        delete process.env.NEXT_PUBLIC_AUTHGEAR_ENDPOINT;
         createRemoteJWKSet.mockReset();
         jwtVerify.mockReset();
         findUnique.mockReset();
