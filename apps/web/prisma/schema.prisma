@@ -145,6 +145,7 @@ model TestRun {
   requiredCapability      String?
   requiredRunnerKind      String?
   requestedDeviceId       String?
+  requestedRunnerId       String?
   assignedRunnerId        String?
   assignedRunner          Runner?  @relation("AssignedRunnerRuns", fields: [assignedRunnerId], references: [id], onDelete: SetNull)
   leaseExpiresAt          DateTime?
@@ -162,12 +163,14 @@ model TestRun {
   usageRecords            UsageRecord[]
   files                   TestRunFile[]
   events                  TestRunEvent[]
+  androidResourceLock     AndroidResourceLock?
 
   @@index([testCaseId, createdAt(sort: Desc)])
   @@index([status])
   @@index([status, requiredCapability, createdAt(sort: Asc)])
   @@index([assignedRunnerId, leaseExpiresAt])
   @@index([requestedDeviceId])
+  @@index([requestedRunnerId])
   @@index([deletedAt, completedAt(sort: Asc)])
 }
 
@@ -238,6 +241,7 @@ model TestCaseConfig {
 model Runner {
   id              String       @id @default(cuid())
   displayId       String
+  hostFingerprint String
   teamId          String
   team            Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
   label           String
@@ -252,9 +256,27 @@ model Runner {
   tokens          RunnerToken[]
   devices         RunnerDevice[]
   assignedRuns    TestRun[]    @relation("AssignedRunnerRuns")
+  androidResourceLocks AndroidResourceLock[]
 
   @@index([teamId, kind])
   @@index([teamId, status, lastSeenAt])
+}
+
+model AndroidResourceLock {
+  hostFingerprint String
+  resourceKey     String
+  resourceType    String
+  runId           String   @unique
+  run             TestRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  runnerId        String
+  runner          Runner   @relation(fields: [runnerId], references: [id], onDelete: Cascade)
+  leaseExpiresAt  DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@id([hostFingerprint, resourceKey])
+  @@index([runnerId, leaseExpiresAt])
+  @@index([leaseExpiresAt])
 }
 
 model RunnerToken {

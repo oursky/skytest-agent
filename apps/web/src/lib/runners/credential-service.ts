@@ -41,6 +41,7 @@ export async function createPairingToken(input: {
 
 export async function exchangePairingToken(input: {
     pairingToken: string;
+    hostFingerprint: string;
     displayId: string;
     label: string;
     kind: RunnerKind;
@@ -95,6 +96,7 @@ export async function exchangePairingToken(input: {
         const runner = await tx.runner.create({
             data: {
                 displayId: input.displayId,
+                hostFingerprint: input.hostFingerprint,
                 teamId: pairing.teamId,
                 label: input.label,
                 kind: input.kind,

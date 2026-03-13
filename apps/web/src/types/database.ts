@@ -66,6 +66,7 @@ export interface TestRun {
     requiredCapability?: string | null;
     requiredRunnerKind?: string | null;
     requestedDeviceId?: string | null;
+    requestedRunnerId?: string | null;
     assignedRunnerId?: string | null;
     leaseExpiresAt?: string | null;
     lastEventAt?: string | null;
@@ -82,6 +83,7 @@ export interface TestRun {
 export interface Runner {
     id: string;
     displayId: string;
+    hostFingerprint: string;
     teamId: string;
     label: string;
     kind: string;
@@ -132,5 +134,6 @@ export interface TestRunEventRow {
     createdAt: string;
 }
 
-import type { TestStep, BrowserConfig, TestStatus, TestFailureCode, TestFailureCategory } from './test';
+import type { TestStep, BrowserConfig, TestFailureCode, TestFailureCategory } from './test';
+import type { TestStatus } from './status';
 import type { TestEvent } from './events';

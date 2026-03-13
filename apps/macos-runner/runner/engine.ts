@@ -1,4 +1,5 @@
 import { mkdir, open, readFile, rm, writeFile } from 'node:fs/promises';
+import crypto from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import {
@@ -24,6 +25,7 @@ import {
     type RunnerEventInput,
     type RunnerTransportMetadata,
 } from '@skytest/runner-protocol';
+import { resolveHostFingerprint } from '@skytest/runner-protocol/src/host-fingerprint';
 import * as loggerModule from '../../web/src/lib/core/logger';
 import * as testRunnerModule from '../../web/src/lib/runtime/test-runner';
 import * as deviceDisplayModule from '../../web/src/lib/android/device-display';
@@ -102,6 +104,7 @@ const controlPlaneBaseUrl = process.env.RUNNER_CONTROL_PLANE_URL ?? 'http://127.
 const pairingToken = process.env.RUNNER_PAIRING_TOKEN?.trim() || null;
 const envRunnerToken = process.env.RUNNER_TOKEN?.trim() || null;
 const runnerLabel = process.env.RUNNER_LABEL ?? 'macOS Runner';
+const runnerDisplayId = (process.env.RUNNER_DISPLAY_ID?.trim() || '').toLowerCase();
 const capabilities = ['ANDROID'] as const;
 const EMULATOR_PROFILE_DEVICE_PREFIX = 'emulator-profile:';
 const runnerStateRoot = process.env.SKYTEST_RUNNER_STATE_DIR?.trim() || path.join(os.homedir(), '.skytest-agent');
@@ -113,6 +116,11 @@ const DEFAULT_TRANSPORT: RunnerTransportMetadata = {
     claimLongPollTimeoutSeconds: 15,
     deviceSyncIntervalSeconds: 20,
 };
+
+function buildRunnerDisplayId(seed: string): string {
+    return crypto.createHash('sha256').update(seed).digest('hex').slice(0, 6);
+}
+const hostFingerprint = resolveHostFingerprint(process.env.RUNNER_HOST_FINGERPRINT);
 
 const JSON_HEADERS = {
     'Content-Type': 'application/json',
@@ -309,6 +317,8 @@ async function exchangePairingCredential(): Promise<RunnerAuthState> {
         pairingToken,
         protocolVersion: RUNNER_PROTOCOL_CURRENT_VERSION,
         runnerVersion,
+        hostFingerprint,
+        displayId: runnerDisplayId || buildRunnerDisplayId(`${runnerLabel}:${os.hostname()}:${runnerVersion}`),
         label: runnerLabel,
         kind: 'MACOS_AGENT',
         capabilities,
@@ -361,6 +371,7 @@ async function registerRunner(): Promise<void> {
     const payload = registerRunnerRequestSchema.parse({
         protocolVersion: RUNNER_PROTOCOL_CURRENT_VERSION,
         runnerVersion,
+        hostFingerprint,
         label: runnerLabel,
         kind: 'MACOS_AGENT',
         capabilities,
@@ -387,6 +398,7 @@ async function sendHeartbeat() {
     const payload = heartbeatRunnerRequestSchema.parse({
         protocolVersion: RUNNER_PROTOCOL_CURRENT_VERSION,
         runnerVersion,
+        hostFingerprint,
     });
     const response = await postRunnerApi('/api/runners/v1/heartbeat', payload);
     const parsed = heartbeatRunnerResponseSchema.parse(response);

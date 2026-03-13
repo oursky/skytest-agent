@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
+import { resolveHostFingerprint } from '@skytest/runner-protocol/src/host-fingerprint';
 import type { LocalRunnerCredential, LocalRunnerDescriptor, LocalRunnerMetadata } from '../state/types';
 import {
     clearRunnerPid,
@@ -224,6 +225,7 @@ export async function pairRunner(options: PairRunnerOptions): Promise<PairRunner
     const exchanged = await exchangePairingToken({
         pairingToken: options.pairingToken,
         controlPlaneBaseUrl,
+        hostFingerprint: resolveHostFingerprint(),
         displayId: localRunnerId,
         label,
         runnerVersion: DEFAULT_RUNNER_VERSION,
@@ -314,6 +316,8 @@ export async function startRunner(runnerIdentifier: string): Promise<StartRunner
             RUNNER_CONTROL_PLANE_URL: metadata.controlPlaneBaseUrl,
             RUNNER_VERSION: DEFAULT_RUNNER_VERSION,
             RUNNER_LABEL: metadata.label,
+            RUNNER_DISPLAY_ID: metadata.localRunnerId,
+            RUNNER_HOST_FINGERPRINT: resolveHostFingerprint(),
             RUNNER_TOKEN: credential.runnerToken,
             SKYTEST_RUNNER_STATE_DIR: runnerPaths.runtimeStateDir,
             SKYTEST_RUNNER_DISABLE_KEYCHAIN: '1',

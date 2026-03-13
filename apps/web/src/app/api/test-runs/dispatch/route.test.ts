@@ -78,6 +78,7 @@ describe('POST /api/test-runs/dispatch', () => {
             devices: [
                 {
                     id: 'device-1',
+                    runnerId: 'runner-1',
                     deviceId: 'emulator-profile:android_profile_a',
                     metadata: { inventoryKind: 'emulator-profile', emulatorProfileName: 'android_profile_a' },
                     isAvailable: false,
@@ -90,6 +91,7 @@ describe('POST /api/test-runs/dispatch', () => {
             status: String(data.status),
             requiredCapability: data.requiredCapability ?? null,
             requestedDeviceId: data.requestedDeviceId ?? null,
+            requestedRunnerId: data.requestedRunnerId ?? null,
         }));
         mocks.dispatchBrowserRun.mockResolvedValue(true);
     });
@@ -180,6 +182,268 @@ describe('POST /api/test-runs/dispatch', () => {
             status: 'QUEUED',
             requiredCapability: 'ANDROID',
             requestedDeviceId: 'emulator-profile:android_profile_a',
+        });
+    });
+
+    it('infers requestedRunnerId from Android target runnerScope when override is omitted', async () => {
+        const request = new Request('http://localhost/api/test-runs/dispatch', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                testCaseId: 'tc-1',
+                steps: [{ id: 'step-1', target: 'android_a', action: 'Open app', type: 'ai-action' }],
+                browserConfig: {
+                    android_a: {
+                        type: 'android',
+                        name: 'Pixel 8 target',
+                        deviceSelector: {
+                            mode: 'emulator-profile',
+                            emulatorProfileName: 'android_profile_a',
+                        },
+                        runnerScope: {
+                            runnerId: 'runner-1',
+                        },
+                        appId: 'com.example.app',
+                        clearAppState: true,
+                        allowAllPermissions: true,
+                    },
+                },
+            }),
+        });
+
+        const response = await POST(request);
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(mocks.testRunCreate).toHaveBeenCalledWith({
+            data: expect.objectContaining({
+                requestedDeviceId: 'emulator-profile:android_profile_a',
+                requestedRunnerId: 'runner-1',
+            }),
+        });
+        expect(payload).toMatchObject({
+            requestedRunnerId: 'runner-1',
+        });
+    });
+
+    it('rejects Android runs when multiple selectors prevent requestedDeviceId resolution', async () => {
+        const request = new Request('http://localhost/api/test-runs/dispatch', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                testCaseId: 'tc-1',
+                steps: [{ id: 'step-1', target: 'android_a', action: 'Open app', type: 'ai-action' }],
+                browserConfig: {
+                    android_a: {
+                        type: 'android',
+                        name: 'Pixel 8 A',
+                        deviceSelector: {
+                            mode: 'emulator-profile',
+                            emulatorProfileName: 'android_profile_a',
+                        },
+                        runnerScope: {
+                            runnerId: 'runner-1',
+                        },
+                        appId: 'com.example.app',
+                        clearAppState: true,
+                        allowAllPermissions: true,
+                    },
+                    android_b: {
+                        type: 'android',
+                        name: 'Pixel 8 B',
+                        deviceSelector: {
+                            mode: 'emulator-profile',
+                            emulatorProfileName: 'android_profile_b',
+                        },
+                        runnerScope: {
+                            runnerId: 'runner-1',
+                        },
+                        appId: 'com.example.app',
+                        clearAppState: true,
+                        allowAllPermissions: true,
+                    },
+                },
+            }),
+        });
+
+        const response = await POST(request);
+        const payload = await response.json();
+
+        expect(response.status).toBe(400);
+        expect(mocks.getTeamDevicesAvailability).not.toHaveBeenCalled();
+        expect(mocks.testRunCreate).not.toHaveBeenCalled();
+        expect(payload).toMatchObject({
+            error: 'Android runs require a single requestedDeviceId. Align Android target selectors or provide requestedDeviceId override.',
+        });
+    });
+
+    it('rejects Android targets with ambiguous runner scope inference', async () => {
+        const request = new Request('http://localhost/api/test-runs/dispatch', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                testCaseId: 'tc-1',
+                steps: [{ id: 'step-1', target: 'android_a', action: 'Open app', type: 'ai-action' }],
+                browserConfig: {
+                    android_a: {
+                        type: 'android',
+                        name: 'Pixel 8 A',
+                        deviceSelector: {
+                            mode: 'emulator-profile',
+                            emulatorProfileName: 'android_profile_a',
+                        },
+                        runnerScope: {
+                            runnerId: 'runner-1',
+                        },
+                        appId: 'com.example.app',
+                        clearAppState: true,
+                        allowAllPermissions: true,
+                    },
+                    android_b: {
+                        type: 'android',
+                        name: 'Pixel 8 B',
+                        deviceSelector: {
+                            mode: 'emulator-profile',
+                            emulatorProfileName: 'android_profile_b',
+                        },
+                        runnerScope: {
+                            runnerId: 'runner-2',
+                        },
+                        appId: 'com.example.app',
+                        clearAppState: true,
+                        allowAllPermissions: true,
+                    },
+                },
+            }),
+        });
+
+        const response = await POST(request);
+        const payload = await response.json();
+
+        expect(response.status).toBe(400);
+        expect(mocks.testRunCreate).not.toHaveBeenCalled();
+        expect(payload).toMatchObject({
+            error: 'Android runs require a single requestedDeviceId. Align Android target selectors or provide requestedDeviceId override.',
+        });
+    });
+
+    it('rejects requestedDeviceId that does not match Android target selectors', async () => {
+        const request = new Request('http://localhost/api/test-runs/dispatch', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                testCaseId: 'tc-1',
+                steps: [{ id: 'step-1', target: 'android_a', action: 'Open app', type: 'ai-action' }],
+                requestedDeviceId: 'emulator-profile:android_profile_b',
+                browserConfig: {
+                    android_a: {
+                        type: 'android',
+                        name: 'Pixel 8 target',
+                        deviceSelector: {
+                            mode: 'emulator-profile',
+                            emulatorProfileName: 'android_profile_a',
+                        },
+                        appId: 'com.example.app',
+                        clearAppState: true,
+                        allowAllPermissions: true,
+                    },
+                },
+            }),
+        });
+
+        const response = await POST(request);
+        const payload = await response.json();
+
+        expect(response.status).toBe(400);
+        expect(mocks.testRunCreate).not.toHaveBeenCalled();
+        expect(mocks.dispatchBrowserRun).not.toHaveBeenCalled();
+        expect(payload).toMatchObject({
+            error: 'requestedDeviceId must match an Android target device selector',
+        });
+    });
+
+    it('rejects requestedRunnerId when runner-device pair is not available', async () => {
+        const request = new Request('http://localhost/api/test-runs/dispatch', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                testCaseId: 'tc-1',
+                steps: [{ id: 'step-1', target: 'android_a', action: 'Open app', type: 'ai-action' }],
+                requestedDeviceId: 'emulator-profile:android_profile_a',
+                requestedRunnerId: 'runner-2',
+                browserConfig: {
+                    android_a: {
+                        type: 'android',
+                        name: 'Pixel 8 target',
+                        deviceSelector: {
+                            mode: 'emulator-profile',
+                            emulatorProfileName: 'android_profile_a',
+                        },
+                        appId: 'com.example.app',
+                        clearAppState: true,
+                        allowAllPermissions: true,
+                    },
+                },
+            }),
+        });
+
+        const response = await POST(request);
+        const payload = await response.json();
+
+        expect(response.status).toBe(409);
+        expect(mocks.testRunCreate).not.toHaveBeenCalled();
+        expect(payload).toMatchObject({
+            error: 'Selected device is no longer available. Check Team Settings > Runners and choose an available device.',
+        });
+    });
+
+    it('rejects requestedRunnerId override that conflicts with Android target runnerScope', async () => {
+        const request = new Request('http://localhost/api/test-runs/dispatch', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                testCaseId: 'tc-1',
+                steps: [{ id: 'step-1', target: 'android_a', action: 'Open app', type: 'ai-action' }],
+                requestedDeviceId: 'emulator-profile:android_profile_a',
+                requestedRunnerId: 'runner-2',
+                browserConfig: {
+                    android_a: {
+                        type: 'android',
+                        name: 'Pixel 8 target',
+                        deviceSelector: {
+                            mode: 'emulator-profile',
+                            emulatorProfileName: 'android_profile_a',
+                        },
+                        runnerScope: {
+                            runnerId: 'runner-1',
+                        },
+                        appId: 'com.example.app',
+                        clearAppState: true,
+                        allowAllPermissions: true,
+                    },
+                },
+            }),
+        });
+
+        const response = await POST(request);
+        const payload = await response.json();
+
+        expect(response.status).toBe(400);
+        expect(mocks.testRunCreate).not.toHaveBeenCalled();
+        expect(payload).toMatchObject({
+            error: 'requestedRunnerId must match an Android target runner scope',
         });
     });
 });

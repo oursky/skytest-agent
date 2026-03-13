@@ -37,7 +37,9 @@ Reference:
 ## Runtime Behavior Expectations
 
 - [ ] Understand Android jobs are claimed by connected runner agents, not API servers
-- [ ] Understand connected physical devices are leased by serial and can be in use by one active run at a time
+- [ ] Understand Android device resources are host-scoped leased keys and can be in use by one active run at a time:
+  - connected devices: `connected-device:<serial>`
+  - emulator profiles: `emulator-profile:<profileName>`
 - [ ] Understand `Clear App Data` only affects the target app package (not full emulator wipe)
 - [ ] Understand other device state can persist across runs
 - [ ] Understand manual app installation is required; no auto-install flow is provided

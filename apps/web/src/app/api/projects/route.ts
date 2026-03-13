@@ -4,6 +4,7 @@ import { verifyAuth, resolveOrCreateUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { isTeamMember } from '@/lib/security/permissions';
 import { config as appConfig } from '@/config/app';
+import { RUN_ACTIVE_STATUSES } from '@/types';
 
 const logger = createLogger('api:projects');
 
@@ -68,7 +69,7 @@ export async function GET(request: Request) {
                     testRuns: {
                         some: {
                             status: {
-                                in: ['RUNNING', 'QUEUED', 'PREPARING']
+                                in: [...RUN_ACTIVE_STATUSES]
                             }
                         }
                     }

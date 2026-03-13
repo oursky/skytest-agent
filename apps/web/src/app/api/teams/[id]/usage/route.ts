@@ -5,6 +5,7 @@ import { createLogger } from '@/lib/core/logger';
 import { isTeamMember } from '@/lib/security/permissions';
 import { parseActionCountFromResult } from '@/lib/runtime/usage';
 import { UsageService } from '@/lib/runtime/usage';
+import { RUN_TERMINAL_STATUSES } from '@/types';
 
 const logger = createLogger('api:teams:usage');
 
@@ -13,7 +14,7 @@ export const dynamic = 'force-dynamic';
 async function backfillTeamUsageRecords(teamId: string, projectId?: string) {
     const runsWithoutUsage = await prisma.testRun.findMany({
         where: {
-            status: { in: ['PASS', 'FAIL', 'CANCELLED'] },
+            status: { in: [...RUN_TERMINAL_STATUSES] },
             result: { not: null },
             usageRecords: { none: {} },
             testCase: {
@@ -59,7 +60,7 @@ async function backfillTeamUsageRecords(teamId: string, projectId?: string) {
     }
 
     const completedRunsWhere = {
-        status: { in: ['PASS', 'FAIL', 'CANCELLED'] },
+        status: { in: [...RUN_TERMINAL_STATUSES] },
         testCase: {
             project: {
                 teamId,

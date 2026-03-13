@@ -10,6 +10,7 @@ import {
 interface ExchangePairingTokenOptions {
     pairingToken: string;
     controlPlaneBaseUrl: string;
+    hostFingerprint: string;
     displayId: string;
     label: string;
     runnerVersion: string;
@@ -35,6 +36,7 @@ export async function exchangePairingToken(
         pairingToken: options.pairingToken,
         protocolVersion: RUNNER_PROTOCOL_CURRENT_VERSION,
         runnerVersion: options.runnerVersion,
+        hostFingerprint: options.hostFingerprint,
         displayId: options.displayId,
         label: options.label,
         kind: 'MACOS_AGENT',

@@ -24,6 +24,7 @@ export interface TeamRunnersResponse {
 export interface TeamDeviceItem {
     id: string;
     runnerId: string;
+    runnerDisplayId?: string;
     runnerLabel: string;
     deviceId: string;
     name: string;
@@ -33,6 +34,10 @@ export interface TeamDeviceItem {
     lastSeenAt: string;
     isFresh: boolean;
     isAvailable: boolean;
+    activeRunId?: string | null;
+    activeProjectId?: string | null;
+    activeProjectName?: string | null;
+    inUseByAnotherTeam?: boolean;
 }
 
 export interface TeamDevicesResponse {

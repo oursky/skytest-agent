@@ -1,3 +1,5 @@
+import { TEST_STATUS } from '@/types';
+
 const storageSignedUrlTtlSecondsValue = Number.parseInt(process.env.STORAGE_SIGNED_URL_TTL_SECONDS ?? '', 10);
 const storageSignedUrlTtlSeconds = Number.isFinite(storageSignedUrlTtlSecondsValue) && storageSignedUrlTtlSecondsValue > 0
     ? storageSignedUrlTtlSecondsValue
@@ -38,6 +40,10 @@ const runnerArtifactHardDeleteBatchSizeValue = Number.parseInt(process.env.RUNNE
 const runnerArtifactHardDeleteBatchSize = Number.isFinite(runnerArtifactHardDeleteBatchSizeValue) && runnerArtifactHardDeleteBatchSizeValue > 0
     ? runnerArtifactHardDeleteBatchSizeValue
     : 50;
+const uiDeviceStatusPollIntervalMsValue = Number.parseInt(process.env.UI_DEVICE_STATUS_POLL_INTERVAL_MS ?? '', 10);
+const uiDeviceStatusPollIntervalMs = Number.isFinite(uiDeviceStatusPollIntervalMsValue) && uiDeviceStatusPollIntervalMsValue > 0
+    ? uiDeviceStatusPollIntervalMsValue
+    : 10_000;
 const midsceneGenerateReport = process.env.SKYTEST_MIDSCENE_GENERATE_REPORT === 'true';
 const midsceneAutoPrintReportMsg = process.env.SKYTEST_MIDSCENE_AUTO_PRINT_REPORT_MSG === 'true';
 
@@ -166,14 +172,14 @@ export const config = {
     },
 
     ui: {
+        deviceStatusPollIntervalMs: uiDeviceStatusPollIntervalMs,
         statusColors: {
-            IDLE: 'bg-gray-100 text-gray-700',
-            QUEUED: 'bg-blue-100 text-blue-700',
-            PREPARING: 'bg-cyan-100 text-cyan-700',
-            RUNNING: 'bg-yellow-100 text-yellow-700',
-            PASS: 'bg-green-100 text-green-700',
-            FAIL: 'bg-red-100 text-red-700',
-            CANCELLED: 'bg-gray-100 text-gray-700',
+            [TEST_STATUS.QUEUED]: 'bg-blue-100 text-blue-700',
+            [TEST_STATUS.PREPARING]: 'bg-cyan-100 text-cyan-700',
+            [TEST_STATUS.RUNNING]: 'bg-yellow-100 text-yellow-700',
+            [TEST_STATUS.PASS]: 'bg-green-100 text-green-700',
+            [TEST_STATUS.FAIL]: 'bg-red-100 text-red-700',
+            [TEST_STATUS.CANCELLED]: 'bg-gray-100 text-gray-700',
         },
         browserColors: [
             'bg-blue-500',

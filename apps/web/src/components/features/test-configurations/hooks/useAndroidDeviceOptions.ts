@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { buildAuthHeaders } from '@/components/features/test-configurations/model/config-utils';
+import { config as appConfig } from '@/config/app';
 import { AndroidDeviceOption } from '../model/device-utils';
 
 interface UseAndroidDeviceOptionsParams {
@@ -10,11 +11,18 @@ interface UseAndroidDeviceOptionsParams {
 
 interface TeamDevice {
     id: string;
+    runnerId: string;
+    runnerDisplayId?: string;
+    runnerLabel: string;
     deviceId: string;
     name: string;
     state: string;
     isFresh: boolean;
     isAvailable: boolean;
+    activeRunId?: string | null;
+    activeProjectId?: string | null;
+    activeProjectName?: string | null;
+    inUseByAnotherTeam?: boolean;
     metadata?: Record<string, unknown> | null;
 }
 
@@ -36,7 +44,29 @@ function resolveEmulatorProfileName(device: TeamDevice): string | null {
     return normalized.length > 0 ? normalized : null;
 }
 
-function buildStatusMeta(device: TeamDevice): { statusKey: string; statusColorClass: string; disabled: boolean } {
+function buildStatusMeta(device: TeamDevice): {
+    statusKey: string;
+    statusParams?: Record<string, string | number>;
+    statusColorClass: string;
+    disabled: boolean;
+} {
+    if (device.activeRunId) {
+        return {
+            statusKey: 'device.inUseProject',
+            statusParams: { project: device.activeProjectName ?? device.activeProjectId ?? '-' },
+            statusColorClass: 'bg-amber-100 text-amber-700',
+            disabled: false,
+        };
+    }
+
+    if (device.inUseByAnotherTeam) {
+        return {
+            statusKey: 'device.inUseAnotherTeam',
+            statusColorClass: 'bg-red-100 text-red-700',
+            disabled: false,
+        };
+    }
+
     if (device.isAvailable) {
         return {
             statusKey: 'device.state.online',
@@ -88,40 +118,75 @@ export function useAndroidDeviceOptions({
             return;
         }
 
+        let disposed = false;
+        let fetching = false;
         const fetchTeamDevices = async () => {
-            const token = await getAccessToken();
-            const res = await fetch(
-                `/api/teams/${encodeURIComponent(teamId)}/devices`,
-                { headers: buildAuthHeaders(token) }
-            );
-            if (!res.ok) {
+            if (disposed || fetching) {
                 return;
             }
+            fetching = true;
+            try {
+                const token = await getAccessToken();
+                const res = await fetch(
+                    `/api/teams/${encodeURIComponent(teamId)}/devices`,
+                    { headers: buildAuthHeaders(token) }
+                );
+                if (!res.ok) {
+                    return;
+                }
 
-            const payload = await res.json() as TeamDevicesResponse;
-            const options: AndroidDeviceOption[] = payload.devices.map((device) => {
-                const statusMeta = buildStatusMeta(device);
-                const emulatorProfileName = resolveEmulatorProfileName(device);
-                const isEmulatorProfile = isEmulatorProfileInventory(device) && Boolean(emulatorProfileName);
+                const payload = await res.json() as TeamDevicesResponse;
+                const options: AndroidDeviceOption[] = payload.devices.map((device) => {
+                    const statusMeta = buildStatusMeta(device);
+                    const emulatorProfileName = resolveEmulatorProfileName(device);
+                    const isEmulatorProfile = isEmulatorProfileInventory(device) && Boolean(emulatorProfileName);
+                    const baseDetail = isEmulatorProfile && emulatorProfileName ? emulatorProfileName : device.deviceId;
+                    const runnerDisplayId = typeof device.runnerDisplayId === 'string'
+                        ? device.runnerDisplayId.trim()
+                        : '';
+                    const runnerIdentity = runnerDisplayId.length > 0
+                        ? runnerDisplayId
+                        : device.runnerLabel;
+                    const detailSegments = [baseDetail, `Runner ${runnerIdentity}`];
+                    if (device.activeRunId && device.activeProjectName) {
+                        detailSegments.push(device.activeProjectName);
+                    }
 
-                return {
-                    id: `android:${device.id}`,
-                    selector: isEmulatorProfile && emulatorProfileName
-                        ? { mode: 'emulator-profile', emulatorProfileName }
-                        : { mode: 'connected-device', serial: device.deviceId },
-                    label: device.name,
-                    detail: isEmulatorProfile && emulatorProfileName ? emulatorProfileName : device.deviceId,
-                    statusKey: statusMeta.statusKey,
-                    statusColorClass: statusMeta.statusColorClass,
-                    disabled: statusMeta.disabled,
-                    group: isEmulatorProfile ? 'emulator' : 'physical',
-                };
-            });
+                    return {
+                        id: `android:${device.id}`,
+                        runnerId: device.runnerId,
+                        runnerLabel: device.runnerLabel,
+                        runnerDisplayId,
+                        selector: isEmulatorProfile && emulatorProfileName
+                            ? { mode: 'emulator-profile', emulatorProfileName }
+                            : { mode: 'connected-device', serial: device.deviceId },
+                        label: device.name,
+                        detail: detailSegments.join(' · '),
+                        statusKey: statusMeta.statusKey,
+                        statusParams: statusMeta.statusParams,
+                        statusColorClass: statusMeta.statusColorClass,
+                        disabled: statusMeta.disabled,
+                        group: isEmulatorProfile ? 'emulator' : 'physical',
+                    };
+                });
 
-            setAndroidDeviceOptions(options);
+                if (!disposed) {
+                    setAndroidDeviceOptions(options);
+                }
+            } finally {
+                fetching = false;
+            }
         };
 
         void fetchTeamDevices().catch(() => {});
+        const timerId = window.setInterval(() => {
+            void fetchTeamDevices().catch(() => {});
+        }, appConfig.ui.deviceStatusPollIntervalMs);
+
+        return () => {
+            disposed = true;
+            window.clearInterval(timerId);
+        };
     }, [teamId, getAccessToken, readOnly]);
 
     if (readOnly || !teamId) {

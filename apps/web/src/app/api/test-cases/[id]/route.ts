@@ -3,7 +3,7 @@ import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { parseTestCaseJson, cleanStepsForStorage, normalizeTargetConfigMap } from '@/lib/runtime/test-case-utils';
-import { BrowserConfig, TargetConfig } from '@/types';
+import { BrowserConfig, TargetConfig, TEST_STATUS } from '@/types';
 import { deleteObjectIfExists } from '@/lib/storage/object-store-utils';
 import { isProjectMember } from '@/lib/security/permissions';
 
@@ -124,7 +124,7 @@ export async function PUT(
         };
 
         if (preserveStatus !== true) {
-            updateData.status = 'DRAFT';
+            updateData.status = TEST_STATUS.DRAFT;
         }
 
         const testCase = await prisma.testCase.update({

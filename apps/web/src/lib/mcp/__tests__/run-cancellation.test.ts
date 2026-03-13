@@ -1,20 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { testRunFindUnique, testRunUpdateMany, testCaseUpdate } = vi.hoisted(() => ({
+const { testRunFindUnique, testRunUpdateMany, testCaseUpdate, androidResourceLockDeleteMany, transaction } = vi.hoisted(() => ({
     testRunFindUnique: vi.fn(),
     testRunUpdateMany: vi.fn(),
     testCaseUpdate: vi.fn(),
+    androidResourceLockDeleteMany: vi.fn(),
+    transaction: vi.fn(),
 }));
 
 vi.mock('@/lib/core/prisma', () => ({
     prisma: {
         testRun: {
             findUnique: testRunFindUnique,
-            updateMany: testRunUpdateMany,
         },
-        testCase: {
-            update: testCaseUpdate,
-        },
+        $transaction: transaction,
     },
 }));
 
@@ -25,6 +24,17 @@ describe('cancelRunDurably', () => {
         testRunFindUnique.mockReset();
         testRunUpdateMany.mockReset();
         testCaseUpdate.mockReset();
+        androidResourceLockDeleteMany.mockReset();
+        transaction.mockReset();
+        transaction.mockImplementation(async (callback: (tx: {
+            testRun: { updateMany: typeof testRunUpdateMany };
+            testCase: { update: typeof testCaseUpdate };
+            androidResourceLock: { deleteMany: typeof androidResourceLockDeleteMany };
+        }) => Promise<unknown>) => callback({
+            testRun: { updateMany: testRunUpdateMany },
+            testCase: { update: testCaseUpdate },
+            androidResourceLock: { deleteMany: androidResourceLockDeleteMany },
+        }));
     });
 
     it('returns false when the run does not exist', async () => {
@@ -86,6 +96,11 @@ describe('cancelRunDurably', () => {
         expect(testCaseUpdate).toHaveBeenCalledWith({
             where: { id: 'tc-1' },
             data: { status: 'CANCELLED' },
+        });
+        expect(androidResourceLockDeleteMany).toHaveBeenCalledWith({
+            where: {
+                runId: 'run-1',
+            },
         });
     });
 });

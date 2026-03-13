@@ -51,9 +51,19 @@ export async function POST(request: Request) {
 
         const runner = await heartbeatRunner({
             runnerId: auth.runnerId,
+            hostFingerprint: parsed.data.hostFingerprint,
             protocolVersion: parsed.data.protocolVersion,
             runnerVersion: parsed.data.runnerVersion,
         });
+        if (!runner) {
+            logger.warn('Runner host fingerprint mismatch during heartbeat', {
+                runnerId: auth.runnerId,
+            });
+            return NextResponse.json(
+                { error: 'Runner host fingerprint mismatch' },
+                { status: 409 }
+            );
+        }
 
         const responseBody = heartbeatRunnerResponseSchema.parse({
             runnerId: runner.id,

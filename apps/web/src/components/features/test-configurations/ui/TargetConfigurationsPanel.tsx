@@ -36,6 +36,26 @@ function isAndroidConfig(config: BrowserEntry['config']): config is AndroidTarge
     return 'type' in config && config.type === 'android';
 }
 
+function resolveRunnerScopeId(config: AndroidTargetConfig): string | null {
+    const runnerId = config.runnerScope?.runnerId;
+    if (typeof runnerId !== 'string') {
+        return null;
+    }
+    const normalized = runnerId.trim();
+    return normalized.length > 0 ? normalized : null;
+}
+
+function isSameRunnerScopedAndroidOption(option: AndroidDeviceOption, config: AndroidTargetConfig): boolean {
+    if (!isSameAndroidDeviceSelector(option.selector, normalizeAndroidTargetConfig(config).deviceSelector)) {
+        return false;
+    }
+    const configuredRunnerId = resolveRunnerScopeId(config);
+    if (!configuredRunnerId) {
+        return true;
+    }
+    return option.runnerId === configuredRunnerId;
+}
+
 export default function TargetConfigurationsPanel({
     readOnly,
     projectId,
@@ -77,9 +97,11 @@ export default function TargetConfigurationsPanel({
                                 const cfg = browser.config as AndroidTargetConfig;
                                 const normalizedAndroidConfig = normalizeAndroidTargetConfig(cfg);
                                 const selectedDeviceOption = androidDeviceOptions.find((option) =>
-                                    isSameAndroidDeviceSelector(option.selector, normalizedAndroidConfig.deviceSelector)
+                                    isSameRunnerScopedAndroidOption(option, normalizedAndroidConfig)
                                 );
-                                const selectedDeviceLabel = selectedDeviceOption?.label || getAndroidDeviceSelectorLabel(normalizedAndroidConfig.deviceSelector);
+                                const selectedDeviceLabel = selectedDeviceOption
+                                    ? `${selectedDeviceOption.label} (${selectedDeviceOption.detail})`
+                                    : getAndroidDeviceSelectorLabel(normalizedAndroidConfig.deviceSelector);
                                 const physicalDeviceOptions = androidDeviceOptions.filter((option) => option.group === 'physical');
                                 const emulatorDeviceOptions = androidDeviceOptions.filter((option) => option.group === 'emulator');
                                 return (
@@ -146,11 +168,14 @@ export default function TargetConfigurationsPanel({
                                                                             type="button"
                                                                             onClick={() => {
                                                                                 if (option.disabled) return;
-                                                                                onUpdateTarget(index, { deviceSelector: option.selector });
+                                                                                onUpdateTarget(index, {
+                                                                                    deviceSelector: option.selector,
+                                                                                    runnerScope: { runnerId: option.runnerId },
+                                                                                });
                                                                                 setAvdDropdownOpen(null);
                                                                             }}
                                                                             disabled={option.disabled}
-                                                                            className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 disabled:opacity-50 ${selectedDeviceOption && isSameAndroidDeviceSelector(selectedDeviceOption.selector, option.selector) ? 'bg-gray-50 font-medium' : 'text-gray-700'}`}
+                                                                            className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 disabled:opacity-50 ${selectedDeviceOption?.id === option.id ? 'bg-gray-50 font-medium' : 'text-gray-700'}`}
                                                                         >
                                                                             <div className="flex items-center justify-between gap-2">
                                                                                 <div className="min-w-0">
@@ -158,7 +183,7 @@ export default function TargetConfigurationsPanel({
                                                                                     <div className="text-[10px] text-gray-400 truncate">{option.detail}</div>
                                                                                 </div>
                                                                                 <span className={`shrink-0 text-[10px] px-2 py-0.5 rounded-full font-medium ${option.statusColorClass}`}>
-                                                                                    {t(option.statusKey)}
+                                                                                    {t(option.statusKey, option.statusParams)}
                                                                                 </span>
                                                                             </div>
                                                                         </button>
@@ -173,11 +198,14 @@ export default function TargetConfigurationsPanel({
                                                                             key={option.id}
                                                                             type="button"
                                                                             onClick={() => {
-                                                                                onUpdateTarget(index, { deviceSelector: option.selector });
+                                                                                onUpdateTarget(index, {
+                                                                                    deviceSelector: option.selector,
+                                                                                    runnerScope: { runnerId: option.runnerId },
+                                                                                });
                                                                                 setAvdDropdownOpen(null);
                                                                             }}
                                                                             disabled={option.disabled}
-                                                                            className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 disabled:opacity-50 ${selectedDeviceOption && isSameAndroidDeviceSelector(selectedDeviceOption.selector, option.selector) ? 'bg-gray-50 font-medium' : 'text-gray-700'}`}
+                                                                            className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 disabled:opacity-50 ${selectedDeviceOption?.id === option.id ? 'bg-gray-50 font-medium' : 'text-gray-700'}`}
                                                                         >
                                                                             <div className="flex items-center justify-between gap-2">
                                                                                 <div className="min-w-0">
@@ -185,7 +213,7 @@ export default function TargetConfigurationsPanel({
                                                                                     <div className="text-[10px] text-gray-400 truncate">{option.detail}</div>
                                                                                 </div>
                                                                                 <span className={`shrink-0 text-[10px] px-2 py-0.5 rounded-full font-medium ${option.statusColorClass}`}>
-                                                                                    {t(option.statusKey)}
+                                                                                    {t(option.statusKey, option.statusParams)}
                                                                                 </span>
                                                                             </div>
                                                                         </button>

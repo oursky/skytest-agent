@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { TestStatus, TestFailureCode, TestFailureCategory } from '@/types';
+import { TEST_STATUS, type TestStatus, type TestFailureCode, type TestFailureCategory } from '@/types';
 import { useI18n } from '@/i18n';
 
 interface ResultStatusProps {
-    status: TestStatus;
+    status: TestStatus | null;
     error?: string;
     errorCode?: TestFailureCode;
     errorCategory?: TestFailureCategory;
@@ -35,7 +35,7 @@ export default function ResultStatus({
         }
     };
 
-    if (status === 'PASS') {
+    if (status === TEST_STATUS.PASS) {
         return (
             <div className="mt-6 p-6 bg-green-50 border border-green-200 rounded-lg">
                 <div className="flex items-start gap-4">
@@ -55,7 +55,7 @@ export default function ResultStatus({
         );
     }
 
-    if (status === 'CANCELLED') {
+    if (status === TEST_STATUS.CANCELLED) {
         return (
             <div className="mt-6 p-6 bg-gray-50 border border-gray-200 rounded-lg">
                 <div className="flex items-start gap-4">
@@ -78,7 +78,7 @@ export default function ResultStatus({
         );
     }
 
-    if (status === 'FAIL') {
+    if (status === TEST_STATUS.FAIL) {
         return (
             <div className="mt-6 p-6 bg-red-50 border border-red-200 rounded-lg">
                 <div className="flex items-start gap-4">
@@ -143,7 +143,7 @@ export default function ResultStatus({
         );
     }
 
-    if (status === 'PREPARING') {
+    if (status === TEST_STATUS.PREPARING) {
         return (
             <div className="mt-6 p-6 bg-cyan-50 border border-cyan-200 rounded-lg">
                 <div className="flex items-start gap-4">
