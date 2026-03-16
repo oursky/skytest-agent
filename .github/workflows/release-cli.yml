@@ -152,11 +152,15 @@ jobs:
           fi
 
       - name: Update Homebrew tap formula (optional)
-        if: ${{ secrets.HOMEBREW_TAP_PAT != '' }}
         env:
           HOMEBREW_TAP_PAT: ${{ secrets.HOMEBREW_TAP_PAT }}
           CLI_VERSION: ${{ steps.version.outputs.cli_version }}
         run: |
+          if [[ -z "${HOMEBREW_TAP_PAT:-}" ]]; then
+            echo "HOMEBREW_TAP_PAT is not set. Skipping Homebrew tap update."
+            exit 0
+          fi
+
           TAP_REPO="${HOMEBREW_TAP_REPO:-oursky/homebrew-skytest}"
 
           git clone "https://x-access-token:${HOMEBREW_TAP_PAT}@github.com/${TAP_REPO}.git" tap-repo
