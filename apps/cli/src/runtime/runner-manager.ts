@@ -26,9 +26,16 @@ import { isProcessAlive, startDetachedRunnerProcess, stopProcessWithTimeout } fr
 const DEFAULT_CONTROL_PLANE_URL = process.env.RUNNER_CONTROL_PLANE_URL ?? 'http://127.0.0.1:3000';
 const DEFAULT_RUNNER_VERSION = process.env.RUNNER_VERSION ?? '0.1.0';
 const STOP_TIMEOUT_MS = 5_000;
+const STARTUP_HEALTH_CHECK_MS = 500;
 const RUNNER_CREDENTIAL_REVOKED_FILE = 'credential-revoked.json';
 const RUNNER_ENV_FILE_ENV = 'SKYTEST_RUNNER_ENV_FILE';
 type RunnerEnv = Record<string, string | undefined>;
+
+function sleep(milliseconds: number): Promise<void> {
+    return new Promise((resolve) => {
+        setTimeout(resolve, milliseconds);
+    });
+}
 
 function resolveRepoRoot(): string {
     const currentFile = fileURLToPath(import.meta.url);
@@ -325,6 +332,11 @@ export async function startRunner(runnerIdentifier: string): Promise<StartRunner
             TSX_TSCONFIG_PATH: path.join(resolveRepoRoot(), 'apps', 'web', 'tsconfig.json'),
         },
     });
+
+    await sleep(STARTUP_HEALTH_CHECK_MS);
+    if (!isProcessAlive(pid)) {
+        throw new Error(`Runner process exited before startup completed. Check logs: ${runnerPaths.logPath}`);
+    }
 
     await writeRunnerPid(localRunnerId, pid);
     await saveRunnerMetadata(localRunnerId, {

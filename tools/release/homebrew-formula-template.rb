@@ -20,7 +20,9 @@ class Skytest < Formula
 
   def install
     libexec.install Dir["*"]
-    system "npm", "install", "--prefix", libexec, "tsx@4.20.6"
+    ENV["PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD"] = "1"
+    ENV["PRISMA_SKIP_POSTINSTALL_GENERATE"] = "1"
+    system "npm", "ci", "--prefix", libexec
 
     state_dir = var/"skytest"
     state_dir.mkpath

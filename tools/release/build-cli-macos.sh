@@ -33,6 +33,11 @@ cp "${ROOT_DIR}/package-lock.json" "${PACKAGE_DIR}/package-lock.json"
 cp -R "${ROOT_DIR}/packages" "${PACKAGE_DIR}/packages"
 cp -R "${ROOT_DIR}/apps/macos-runner" "${PACKAGE_DIR}/apps/macos-runner"
 cp -R "${ROOT_DIR}/apps/cli" "${PACKAGE_DIR}/apps/cli"
+mkdir -p "${PACKAGE_DIR}/apps/web"
+cp "${ROOT_DIR}/apps/web/package.json" "${PACKAGE_DIR}/apps/web/package.json"
+cp "${ROOT_DIR}/apps/web/tsconfig.json" "${PACKAGE_DIR}/apps/web/tsconfig.json"
+cp -R "${ROOT_DIR}/apps/web/prisma" "${PACKAGE_DIR}/apps/web/prisma"
+cp -R "${ROOT_DIR}/apps/web/src" "${PACKAGE_DIR}/apps/web/src"
 
 mkdir -p "${PACKAGE_DIR}/bin"
 cat > "${PACKAGE_DIR}/bin/skytest" <<RUNNER_SCRIPT

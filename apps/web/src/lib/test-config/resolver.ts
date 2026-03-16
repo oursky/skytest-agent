@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { prisma } from '@/lib/core/prisma';
 import type { ResolvedConfig, ConfigType } from '@/types';
+export { substituteAll, substituteFileReferences, substituteVariables } from '@/lib/test-config/substitution';
 
 interface ResolvedConfigs {
     variables: Record<string, string>;
@@ -106,32 +107,4 @@ export async function resolveConfigs(projectId: string, testCaseId?: string): Pr
         files,
         allConfigs: Array.from(merged.values()),
     };
-}
-
-const VARIABLE_REGEX = /\{\{([A-Z][A-Z0-9_]*)\}\}/g;
-
-export function substituteVariables(text: string, variables: Record<string, string>): string {
-    return text.replace(VARIABLE_REGEX, (match, name: string) => {
-        if (name in variables) {
-            return variables[name];
-        }
-        return match;
-    });
-}
-
-const FILE_REF_REGEX = /\{\{file:([^}]+)\}\}/g;
-
-export function substituteFileReferences(text: string, files: Record<string, string>): string {
-    return text.replace(FILE_REF_REGEX, (match, filename: string) => {
-        if (filename in files) {
-            return files[filename];
-        }
-        return match;
-    });
-}
-
-export function substituteAll(text: string, variables: Record<string, string>, files: Record<string, string>): string {
-    let result = substituteVariables(text, variables);
-    result = substituteFileReferences(result, files);
-    return result;
 }
