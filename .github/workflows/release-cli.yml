@@ -152,7 +152,6 @@ jobs:
           fi
 
       - name: Update Homebrew tap formula (optional)
-        if: ${{ secrets.HOMEBREW_TAP_PAT != '' }}
         env:
           HOMEBREW_TAP_PAT: ${{ secrets.HOMEBREW_TAP_PAT }}
           CLI_VERSION: ${{ steps.version.outputs.cli_version }}
