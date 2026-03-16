@@ -40,6 +40,13 @@ Install these prerequisites on the macOS host:
 - JDK 17 or newer
 - Android Studio or Android SDK command-line tools
 
+Install Homebrew CLI if you prefer package install:
+
+```bash
+brew tap oursky/skytest
+brew install skytest
+```
+
 Install the Xcode tools if needed:
 
 ```bash
