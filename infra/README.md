@@ -23,9 +23,11 @@ Android execution does not run in the cluster. It is provided by external macOS 
 Shared deployments require:
 
 - PostgreSQL
-- S3-compatible object storage
+- Google Cloud Storage (GCS)
 - Authgear
 - one or more external macOS runners if your teams run Android test cases
+
+Provisioning, updates, and maintenance of GCP PostgreSQL and GCS are handled by IT Support. Contact IT Support for assistance.
 
 ## Image Requirements
 

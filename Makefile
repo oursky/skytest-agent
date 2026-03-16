@@ -32,14 +32,14 @@ help: ## Show available targets
 install: ## Install npm dependencies
 	$(NODE_PM) install
 
-services-up: ## Start local Postgres and MinIO services
+services-up: ## Start local Postgres and GCS emulator services
 	$(COMPOSE) -f $(COMPOSE_FILE) up -d
 
-services-down: ## Stop local Postgres and MinIO services
-	$(COMPOSE) -f $(COMPOSE_FILE) down
+services-down: ## Stop local Postgres and GCS emulator services
+	$(COMPOSE) -f $(COMPOSE_FILE) down --remove-orphans
 
-services-logs: ## Tail local Postgres and MinIO service logs
-	$(COMPOSE) -f $(COMPOSE_FILE) logs -f postgres minio createbuckets
+services-logs: ## Tail local Postgres and GCS emulator service logs
+	$(COMPOSE) -f $(COMPOSE_FILE) logs -f postgres gcs create-gcs-bucket
 
 db-generate: ## Generate Prisma client
 	$(NODE_PM) run db:generate

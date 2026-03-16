@@ -69,12 +69,13 @@ Don't want to self-host? We're building a managed version of SkyTest.
 - **Local Development**: Check the [Local Development Guide](./docs/operators/local-development.md) for the repo-local stack and reset workflow.
 - **Android Testing**: See the [macOS Android Runner Guide](./docs/operators/macos-android-runner-guide.md) to configure Android execution on macOS hosts.
 - **Kubernetes**: Deployment packaging lives in `infra/helm`.
+- **Operator note**: Provisioning, updates, and maintenance of GCP PostgreSQL and GCS are handled by IT Support. Contact IT Support for assistance.
 
 ### Quick Troubleshooting
 
 - **Browsers not found**: Run `npm run playwright:install`
 - **Database errors**: Verify `DATABASE_URL`, then run `npx prisma db push`
-- **Object storage errors**: Verify `S3_*` variables and your bucket in MinIO/S3
+- **Object storage errors**: Verify `GCS_BUCKET`, `GCS_PROJECT_ID`, and `STORAGE_EMULATOR_HOST` (local only)
 
 ## Community & Contributing
 

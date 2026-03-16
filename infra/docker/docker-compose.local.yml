@@ -17,33 +17,37 @@ services:
     volumes:
       - skytest-local-postgres:/var/lib/postgresql/data
 
-  minio:
-    image: minio/minio:latest
-    container_name: skytest-local-minio
+  gcs:
+    image: fsouza/fake-gcs-server:latest
+    container_name: skytest-local-gcs
     restart: unless-stopped
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+    command: -scheme http -backend memory
     ports:
-      - "9000:9000"
-      - "9001:9001"
-    volumes:
-      - skytest-local-minio:/data
+      - "4443:4443"
 
-  createbuckets:
-    image: minio/mc:latest
+  create-gcs-bucket:
+    image: curlimages/curl:8.16.0
     depends_on:
-      minio:
+      gcs:
         condition: service_started
     restart: "no"
-    entrypoint: >-
-      /bin/sh -c '
-      until mc alias set local http://minio:9000 minioadmin minioadmin; do sleep 1; done &&
-      mc mb --ignore-existing local/skytest-agent &&
-      mc anonymous set private local/skytest-agent
-      '
+    entrypoint:
+      - /bin/sh
+    command:
+      - -ec
+      - |
+        until curl -fsS http://gcs:4443/storage/v1/b >/dev/null; do
+          sleep 1
+        done
+        status="$$(curl -sS -o /tmp/create-bucket-response.json -w '%{http_code}' \
+          -X POST 'http://gcs:4443/storage/v1/b?project=skytest-local' \
+          -H 'Content-Type: application/json' \
+          -d '{"name":"skytest-agent"}')"
+        if [ "$${status}" = "200" ] || [ "$${status}" = "409" ]; then
+          exit 0
+        fi
+        cat /tmp/create-bucket-response.json
+        exit 1
 
 volumes:
   skytest-local-postgres:
-  skytest-local-minio:

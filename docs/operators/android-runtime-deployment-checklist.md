@@ -10,9 +10,10 @@ Use this checklist before exposing Android execution to users.
 - [ ] Run the control plane from `infra/helm`
 - [ ] Size control-plane pods for browser execution, because browser runs execute inside those pods
 - [ ] Keep Postgres available to control plane (required for claims/leases/events)
-- [ ] Keep S3-compatible object storage available to control plane for artifacts and uploaded files
+- [ ] Keep GCS available to control plane for artifacts and uploaded files
 - [ ] Run at least one `MACOS_AGENT` runner for Android execution capacity
 - [ ] Run runner maintenance on a singleton worker or cron schedule
+- [ ] If cloud dependency provisioning/changes are needed, contact IT Support (owner of GCP PostgreSQL and GCS)
 
 References:
 

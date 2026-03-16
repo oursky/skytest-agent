@@ -25,18 +25,16 @@ Create a secret with at least:
 
 - `DATABASE_URL`
 - `ENCRYPTION_SECRET` or `STREAM_TOKEN_SECRET`
-- `S3_ENDPOINT`
-- `S3_REGION`
-- `S3_BUCKET`
-- `S3_ACCESS_KEY_ID`
-- `S3_SECRET_ACCESS_KEY`
-- `S3_FORCE_PATH_STYLE`
+- `GCS_BUCKET`
+- `GCS_PROJECT_ID`
 - `AUTHGEAR_CLIENT_ID`
 - `AUTHGEAR_ENDPOINT`
 - `AUTHGEAR_REDIRECT_URI`
 
 Common optional values:
 
+- `GCS_SERVICE_ACCOUNT_JSON_BASE64` (omit when using ADC/Workload Identity)
+- `STORAGE_EMULATOR_HOST` (local emulator only)
 - `STORAGE_SIGNED_URL_TTL_SECONDS`
 - `STREAM_POLL_INTERVAL_MS`
 - `RUNNER_LEASE_DURATION_SECONDS`
@@ -57,16 +55,14 @@ Example:
 kubectl -n skytest create secret generic skytest-agent-secrets \
   --from-literal=DATABASE_URL='postgresql://...' \
   --from-literal=ENCRYPTION_SECRET='replace-me' \
-  --from-literal=S3_ENDPOINT='https://s3.example.com' \
-  --from-literal=S3_REGION='us-east-1' \
-  --from-literal=S3_BUCKET='skytest-agent' \
-  --from-literal=S3_ACCESS_KEY_ID='...' \
-  --from-literal=S3_SECRET_ACCESS_KEY='...' \
-  --from-literal=S3_FORCE_PATH_STYLE='false' \
+  --from-literal=GCS_BUCKET='skytest-agent' \
+  --from-literal=GCS_PROJECT_ID='<gcp-project-id>' \
   --from-literal=AUTHGEAR_CLIENT_ID='...' \
   --from-literal=AUTHGEAR_ENDPOINT='https://...' \
   --from-literal=AUTHGEAR_REDIRECT_URI='https://skytest.example.com/auth-redirect'
 ```
+
+Provisioning, updates, and maintenance of GCP PostgreSQL and GCS are handled by IT Support. Contact IT Support for assistance.
 
 ## Validate The Chart
 

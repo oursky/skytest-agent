@@ -224,12 +224,10 @@ export const config = {
     },
 
     storage: {
-        endpoint: process.env.S3_ENDPOINT ?? '',
-        region: process.env.S3_REGION ?? '',
-        bucket: process.env.S3_BUCKET ?? '',
-        accessKeyId: process.env.S3_ACCESS_KEY_ID ?? '',
-        secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? '',
-        forcePathStyle: process.env.S3_FORCE_PATH_STYLE === 'true',
+        bucket: process.env.GCS_BUCKET ?? '',
+        projectId: process.env.GCS_PROJECT_ID ?? '',
+        serviceAccountJsonBase64: process.env.GCS_SERVICE_ACCOUNT_JSON_BASE64 ?? '',
+        emulatorHost: process.env.STORAGE_EMULATOR_HOST ?? '',
         signedUrlTtlSeconds: storageSignedUrlTtlSeconds,
     },
 

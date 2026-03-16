@@ -40,8 +40,8 @@
   "scripts": {
     "dev": "npm run --workspace @skytest/web dev --",
     "dev:services:up": "docker compose -f infra/docker/docker-compose.local.yml up -d",
-    "dev:services:down": "docker compose -f infra/docker/docker-compose.local.yml down",
-    "dev:services:logs": "docker compose -f infra/docker/docker-compose.local.yml logs -f postgres minio createbuckets",
+    "dev:services:down": "docker compose -f infra/docker/docker-compose.local.yml down --remove-orphans",
+    "dev:services:logs": "docker compose -f infra/docker/docker-compose.local.yml logs -f postgres gcs create-gcs-bucket",
     "build": "npm run --workspace @skytest/web build",
     "start": "npm run --workspace @skytest/web start --",
     "lint": "npm run --workspace @skytest/web lint",
