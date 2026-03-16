@@ -83,9 +83,23 @@ export const AuthProvider = ({
 
             const sessionState = authgear.sessionState;
             if (sessionState === "AUTHENTICATED") {
-                setIsLoggedIn(true);
-                const userInfo = await authgear.fetchUserInfo();
-                setUser(userInfo);
+                try {
+                    await authgear.refreshAccessTokenIfNeeded();
+                    const accessToken = authgear.accessToken;
+                    if (!accessToken) {
+                        setIsLoggedIn(false);
+                        setUser(null);
+                        return;
+                    }
+
+                    const userInfo = await authgear.fetchUserInfo();
+                    setIsLoggedIn(true);
+                    setUser(userInfo);
+                } catch (error) {
+                    console.warn("Authgear session is invalid, resetting auth state", error);
+                    setIsLoggedIn(false);
+                    setUser(null);
+                }
             } else {
                 setIsLoggedIn(false);
                 setUser(null);
@@ -132,8 +146,24 @@ export const AuthProvider = ({
 
     const getAccessToken = async () => {
         const authgearModule = await ensureAuthgearConfigured();
-        await authgearModule.default.refreshAccessTokenIfNeeded();
-        return authgearModule.default.accessToken || null;
+        const authgear = authgearModule.default;
+
+        try {
+            await authgear.refreshAccessTokenIfNeeded();
+        } catch (error) {
+            console.warn("Failed to refresh access token", error);
+            setIsLoggedIn(false);
+            setUser(null);
+            return null;
+        }
+
+        const accessToken = authgear.accessToken || null;
+        if (!accessToken) {
+            setIsLoggedIn(false);
+            setUser(null);
+        }
+
+        return accessToken;
     };
 
     const openSettings = async () => {

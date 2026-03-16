@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/app/auth-provider';
 import { Button, CustomSelect, Modal } from '@/components/shared';
 import { LOCALE_META, Locale, useI18n } from '@/i18n';
@@ -10,8 +10,9 @@ import { useCurrentTeam } from '@/hooks/team/useCurrentTeam';
 import { useCreateTeam } from '@/hooks/team/useCreateTeam';
 
 export default function Header() {
-    const { isLoggedIn, isLoading: isAuthLoading, user, logout, openSettings, login, getAccessToken } = useAuth();
+    const { isLoggedIn, user, logout, openSettings, getAccessToken } = useAuth();
     const router = useRouter();
+    const pathname = usePathname();
     const { locale, setLocale, t } = useI18n();
     const { teams, refresh: refreshTeams } = useTeams(getAccessToken, isLoggedIn);
     const { currentTeam, setCurrentTeam } = useCurrentTeam(getAccessToken, isLoggedIn);
@@ -68,6 +69,10 @@ export default function Header() {
         setIsCreateTeamOpen(false);
         router.push(`/projects?teamId=${encodeURIComponent(result.teamId)}`);
     };
+
+    if (pathname === '/') {
+        return null;
+    }
 
     return (
         <>
@@ -226,17 +231,7 @@ export default function Header() {
                                         )}
                                     </div>
                                 </div>
-                            ) : (
-                                <Button
-                                    onClick={() => login()}
-                                    disabled={isAuthLoading}
-                                    variant="secondary"
-                                    size="sm"
-                                    className="border-blue-200 text-blue-600 hover:bg-blue-50"
-                                >
-                                    {t('landing.loginToStart')}
-                                </Button>
-                            )}
+                            ) : null}
                         </div>
                     </div>
                 </div>
