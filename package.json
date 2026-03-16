@@ -12,6 +12,7 @@
     "dompurify": "3.3.2",
     "hono": "4.12.7",
     "appium-adb": "12.13.0",
+    "undici": "6.24.1",
     "ajv@8.17.1": "8.18.0",
     "ajv@^6.12.4": "6.14.0",
     "axios@1.9.0": "1.13.5",
@@ -25,7 +26,16 @@
     "minimatch@^9.0.5": "9.0.7",
     "js-yaml": ">=4.1.1",
     "lodash": ">=4.17.23",
-    "qs": ">=6.14.2"
+    "qs": ">=6.14.2",
+    "yauzl": "3.2.1",
+    "@appium/support": {
+      ".": "7.0.6",
+      "yauzl": "3.2.1"
+    },
+    "extract-zip": {
+      ".": "2.0.1",
+      "yauzl": "3.2.1"
+    }
   },
   "scripts": {
     "dev": "npm run --workspace @skytest/web dev --",
