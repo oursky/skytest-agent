@@ -27,8 +27,6 @@ Shared deployments require:
 - Authgear
 - one or more external macOS runners if your teams run Android test cases
 
-Provisioning, updates, and maintenance of GCP PostgreSQL and GCS are handled by IT Support. Contact IT Support for assistance.
-
 ## Image Requirements
 
 The application image must:

@@ -69,7 +69,6 @@ Don't want to self-host? We're building a managed version of SkyTest.
 - **Local Development**: Check the [Local Development Guide](./docs/operators/local-development.md) for the repo-local stack and reset workflow.
 - **Android Testing**: See the [macOS Android Runner Guide](./docs/operators/macos-android-runner-guide.md) to configure Android execution on macOS hosts.
 - **Kubernetes**: Deployment packaging lives in `infra/helm`.
-- **Operator note**: Provisioning, updates, and maintenance of GCP PostgreSQL and GCS are handled by IT Support. Contact IT Support for assistance.
 
 ### Quick Troubleshooting
 

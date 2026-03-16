@@ -62,8 +62,6 @@ kubectl -n skytest create secret generic skytest-agent-secrets \
   --from-literal=AUTHGEAR_REDIRECT_URI='https://skytest.example.com/auth-redirect'
 ```
 
-Provisioning, updates, and maintenance of GCP PostgreSQL and GCS are handled by IT Support. Contact IT Support for assistance.
-
 ## Validate The Chart
 
 ```bash
