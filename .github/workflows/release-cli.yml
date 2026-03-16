@@ -4,27 +4,53 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: CLI version (for example 0.1.0)
+        description: CLI version (v1.2.3 or 1.2.3)
         required: true
   push:
     tags:
-      - "skytest-cli-v*"
+      - "v*"
 
 permissions:
   contents: write
 
 jobs:
-  build-macos:
+  release-macos:
     runs-on: macos-latest
     env:
-      CLI_VERSION: ${{ github.event.inputs.version }}
+      HOMEBREW_TAP_REPO: ${{ vars.HOMEBREW_TAP_REPO }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Resolve version from tag
-        if: github.event_name == 'push'
-        run: echo "CLI_VERSION=${GITHUB_REF_NAME#skytest-cli-v}" >> "$GITHUB_ENV"
+      - name: Resolve release version
+        id: version
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            RAW_VERSION="${GITHUB_REF_NAME}"
+          else
+            RAW_VERSION="${{ github.event.inputs.version }}"
+          fi
+
+          CLI_VERSION="${RAW_VERSION#v}"
+          if [[ -z "${CLI_VERSION}" ]]; then
+            echo "Failed to resolve version." >&2
+            exit 1
+          fi
+
+          if ! [[ "${CLI_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid SemVer: ${CLI_VERSION}" >&2
+            exit 1
+          fi
+
+          RELEASE_TAG="v${CLI_VERSION}"
+
+          if [[ "${GITHUB_EVENT_NAME}" == "push" && "${GITHUB_REF_NAME}" != "${RELEASE_TAG}" ]]; then
+            echo "Tag mismatch: expected ${RELEASE_TAG}, got ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+
+          echo "cli_version=${CLI_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -34,51 +60,118 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build CLI archive
+      - name: Build CLI archives
+        env:
+          CLI_VERSION: ${{ steps.version.outputs.cli_version }}
         run: |
           chmod +x tools/release/build-cli-macos.sh
-          tools/release/build-cli-macos.sh "${CLI_VERSION}" "x86_64"
+          tools/release/build-cli-macos.sh "${CLI_VERSION}" "arm64"
+          tools/release/build-cli-macos.sh "${CLI_VERSION}" "amd64"
 
       - name: Resolve archive metadata
         id: archive
+        env:
+          CLI_VERSION: ${{ steps.version.outputs.cli_version }}
         run: |
-          ARCHIVE_PATH="dist/cli-release/${CLI_VERSION}/skytest-${CLI_VERSION}-macos-x86_64.tar.gz"
-          SHA256="$(shasum -a 256 "${ARCHIVE_PATH}" | awk '{print $1}')"
-          echo "archive_path=${ARCHIVE_PATH}" >> "$GITHUB_OUTPUT"
-          echo "sha256=${SHA256}" >> "$GITHUB_OUTPUT"
+          RELEASE_DIR="dist/cli-release/${CLI_VERSION}"
+          ARCHIVE_ARM64="${RELEASE_DIR}/skytest-${CLI_VERSION}-darwin-arm64.tar.gz"
+          ARCHIVE_AMD64="${RELEASE_DIR}/skytest-${CLI_VERSION}-darwin-amd64.tar.gz"
+
+          for path in "${ARCHIVE_ARM64}" "${ARCHIVE_AMD64}"; do
+            if [[ ! -f "${path}" ]]; then
+              echo "Missing archive: ${path}" >&2
+              exit 1
+            fi
+          done
+
+          SHA256_ARM64="$(shasum -a 256 "${ARCHIVE_ARM64}" | awk '{print $1}')"
+          SHA256_AMD64="$(shasum -a 256 "${ARCHIVE_AMD64}" | awk '{print $1}')"
+
+          CHECKSUMS_PATH="${RELEASE_DIR}/checksums.txt"
+          {
+            echo "${SHA256_ARM64}  $(basename "${ARCHIVE_ARM64}")"
+            echo "${SHA256_AMD64}  $(basename "${ARCHIVE_AMD64}")"
+          } > "${CHECKSUMS_PATH}"
+
+          echo "archive_arm64=${ARCHIVE_ARM64}" >> "$GITHUB_OUTPUT"
+          echo "archive_amd64=${ARCHIVE_AMD64}" >> "$GITHUB_OUTPUT"
+          echo "checksum_arm64=${SHA256_ARM64}" >> "$GITHUB_OUTPUT"
+          echo "checksum_amd64=${SHA256_AMD64}" >> "$GITHUB_OUTPUT"
+          echo "checksums_path=${CHECKSUMS_PATH}" >> "$GITHUB_OUTPUT"
 
       - name: Render Homebrew formula
+        env:
+          CLI_VERSION: ${{ steps.version.outputs.cli_version }}
+          RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
+          CHECKSUM_ARM64: ${{ steps.archive.outputs.checksum_arm64 }}
+          CHECKSUM_AMD64: ${{ steps.archive.outputs.checksum_amd64 }}
         run: |
-          ARCHIVE_URL="https://github.com/${{ github.repository }}/releases/download/skytest-cli-v${CLI_VERSION}/skytest-${CLI_VERSION}-macos-x86_64.tar.gz"
+          URL_BASE="https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}"
+          ARCHIVE_URL_ARM64="${URL_BASE}/skytest-${CLI_VERSION}-darwin-arm64.tar.gz"
+          ARCHIVE_URL_AMD64="${URL_BASE}/skytest-${CLI_VERSION}-darwin-amd64.tar.gz"
+
           sed \
-            -e "s|__ARCHIVE_URL__|${ARCHIVE_URL}|g" \
-            -e "s|__ARCHIVE_SHA256__|${{ steps.archive.outputs.sha256 }}|g" \
             -e "s|__VERSION__|${CLI_VERSION}|g" \
+            -e "s|__ARCHIVE_URL_ARM64__|${ARCHIVE_URL_ARM64}|g" \
+            -e "s|__ARCHIVE_SHA256_ARM64__|${CHECKSUM_ARM64}|g" \
+            -e "s|__ARCHIVE_URL_AMD64__|${ARCHIVE_URL_AMD64}|g" \
+            -e "s|__ARCHIVE_SHA256_AMD64__|${CHECKSUM_AMD64}|g" \
             tools/release/homebrew-formula-template.rb > "skytest.rb"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: skytest-cli-${{ env.CLI_VERSION }}
+          name: skytest-cli-${{ steps.version.outputs.cli_version }}
           path: |
-            ${{ steps.archive.outputs.archive_path }}
+            ${{ steps.archive.outputs.archive_arm64 }}
+            ${{ steps.archive.outputs.archive_amd64 }}
+            ${{ steps.archive.outputs.checksums_path }}
             skytest.rb
 
       - name: Publish GitHub release assets
-        if: startsWith(github.ref, 'refs/tags/skytest-cli-v')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
+          CLI_VERSION: ${{ steps.version.outputs.cli_version }}
         run: |
-          TAG="${GITHUB_REF_NAME}"
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" \
-              "${{ steps.archive.outputs.archive_path }}" \
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh release upload "${RELEASE_TAG}" \
+              "${{ steps.archive.outputs.archive_arm64 }}" \
+              "${{ steps.archive.outputs.archive_amd64 }}" \
+              "${{ steps.archive.outputs.checksums_path }}" \
               skytest.rb \
               --clobber
           else
-            gh release create "$TAG" \
-              "${{ steps.archive.outputs.archive_path }}" \
+            gh release create "${RELEASE_TAG}" \
+              "${{ steps.archive.outputs.archive_arm64 }}" \
+              "${{ steps.archive.outputs.archive_amd64 }}" \
+              "${{ steps.archive.outputs.checksums_path }}" \
               skytest.rb \
-              --title "$TAG" \
+              --title "SkyTest CLI ${CLI_VERSION}" \
               --generate-notes
           fi
+
+      - name: Update Homebrew tap formula (optional)
+        if: ${{ secrets.HOMEBREW_TAP_PAT != '' }}
+        env:
+          HOMEBREW_TAP_PAT: ${{ secrets.HOMEBREW_TAP_PAT }}
+          CLI_VERSION: ${{ steps.version.outputs.cli_version }}
+        run: |
+          TAP_REPO="${HOMEBREW_TAP_REPO:-oursky/homebrew-skytest}"
+
+          git clone "https://x-access-token:${HOMEBREW_TAP_PAT}@github.com/${TAP_REPO}.git" tap-repo
+          mkdir -p tap-repo/Formula
+          cp skytest.rb tap-repo/Formula/skytest.rb
+
+          cd tap-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if git diff --quiet -- Formula/skytest.rb; then
+            echo "No Homebrew formula changes detected."
+            exit 0
+          fi
+
+          git add Formula/skytest.rb
+          git commit -m "skytest ${CLI_VERSION}"
+          git push

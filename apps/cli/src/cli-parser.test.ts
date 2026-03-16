@@ -6,6 +6,10 @@ describe('parseSkytestCliCommand', () => {
         expect(parseSkytestCliCommand([])).toEqual({ kind: 'help' });
     });
 
+    it('parses version command', () => {
+        expect(parseSkytestCliCommand(['version'])).toEqual({ kind: 'version' });
+    });
+
     it('parses pair runner with options', () => {
         expect(parseSkytestCliCommand([
             'pair',
