@@ -1,5 +1,5 @@
 import { config } from '@/config/app';
-import { S3ObjectStore, type StoredObject } from '@/lib/storage/object-store-s3';
+import { GcsObjectStore, type StoredObject } from '@/lib/storage/object-store-gcs';
 
 export interface ObjectStore {
     putObject(input: {
@@ -22,19 +22,17 @@ export interface ObjectStore {
 const globalForObjectStore = global as unknown as { objectStore?: ObjectStore };
 
 function createObjectStore(): ObjectStore {
-    const { endpoint, region, bucket, accessKeyId, secretAccessKey, forcePathStyle, signedUrlTtlSeconds } = config.storage;
+    const { bucket, projectId, serviceAccountJsonBase64, emulatorHost, signedUrlTtlSeconds } = config.storage;
 
-    if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
-        throw new Error('S3 object storage is not fully configured');
+    if (!bucket || !projectId) {
+        throw new Error('GCS object storage is not fully configured: missing GCS_BUCKET or GCS_PROJECT_ID');
     }
 
-    return new S3ObjectStore({
-        endpoint,
-        region,
+    return new GcsObjectStore({
         bucket,
-        accessKeyId,
-        secretAccessKey,
-        forcePathStyle,
+        projectId,
+        serviceAccountJsonBase64,
+        emulatorHost,
         signedUrlTtlSeconds,
     });
 }

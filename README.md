@@ -74,7 +74,7 @@ Don't want to self-host? We're building a managed version of SkyTest.
 
 - **Browsers not found**: Run `npm run playwright:install`
 - **Database errors**: Verify `DATABASE_URL`, then run `npx prisma db push`
-- **Object storage errors**: Verify `S3_*` variables and your bucket in MinIO/S3
+- **Object storage errors**: Verify `GCS_BUCKET`, `GCS_PROJECT_ID`, and `STORAGE_EMULATOR_HOST` (local only)
 
 ## Community & Contributing
 
