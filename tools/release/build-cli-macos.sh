@@ -35,9 +35,8 @@ cp -R "${ROOT_DIR}/apps/macos-runner" "${PACKAGE_DIR}/apps/macos-runner"
 cp -R "${ROOT_DIR}/apps/cli" "${PACKAGE_DIR}/apps/cli"
 mkdir -p "${PACKAGE_DIR}/apps/web"
 cp "${ROOT_DIR}/apps/web/package.json" "${PACKAGE_DIR}/apps/web/package.json"
-cp "${ROOT_DIR}/apps/web/tsconfig.json" "${PACKAGE_DIR}/apps/web/tsconfig.json"
-cp -R "${ROOT_DIR}/apps/web/prisma" "${PACKAGE_DIR}/apps/web/prisma"
-cp -R "${ROOT_DIR}/apps/web/src" "${PACKAGE_DIR}/apps/web/src"
+mkdir -p "${PACKAGE_DIR}/apps/macos-runner/dist"
+node "${ROOT_DIR}/tools/release/build-runner-bundle.mjs" "${PACKAGE_DIR}/apps/macos-runner/dist/runner.bundle.cjs"
 
 mkdir -p "${PACKAGE_DIR}/bin"
 cat > "${PACKAGE_DIR}/bin/skytest" <<RUNNER_SCRIPT
