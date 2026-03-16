@@ -6,6 +6,7 @@ interface StartProcessOptions {
     workingDirectory: string;
     logPath: string;
     env: NodeJS.ProcessEnv;
+    useTsxLoader: boolean;
 }
 
 function sleep(milliseconds: number): Promise<void> {
@@ -30,9 +31,12 @@ export function isProcessAlive(pid: number): boolean {
 export function startDetachedRunnerProcess(options: StartProcessOptions): number {
     const outputDescriptor = openSync(options.logPath, 'a');
     try {
+        const args = options.useTsxLoader
+            ? ['--import', 'tsx', options.entryScriptPath]
+            : [options.entryScriptPath];
         const child = spawn(
             process.execPath,
-            ['--import', 'tsx', options.entryScriptPath],
+            args,
             {
                 cwd: options.workingDirectory,
                 env: options.env,

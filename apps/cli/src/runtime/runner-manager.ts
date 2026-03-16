@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -26,9 +26,25 @@ import { isProcessAlive, startDetachedRunnerProcess, stopProcessWithTimeout } fr
 const DEFAULT_CONTROL_PLANE_URL = process.env.RUNNER_CONTROL_PLANE_URL ?? 'http://127.0.0.1:3000';
 const DEFAULT_RUNNER_VERSION = process.env.RUNNER_VERSION ?? '0.1.0';
 const STOP_TIMEOUT_MS = 5_000;
+const STARTUP_HEALTH_CHECK_MS = 500;
 const RUNNER_CREDENTIAL_REVOKED_FILE = 'credential-revoked.json';
 const RUNNER_ENV_FILE_ENV = 'SKYTEST_RUNNER_ENV_FILE';
 type RunnerEnv = Record<string, string | undefined>;
+
+function sleep(milliseconds: number): Promise<void> {
+    return new Promise((resolve) => {
+        setTimeout(resolve, milliseconds);
+    });
+}
+
+async function fileExists(pathToCheck: string): Promise<boolean> {
+    try {
+        await access(pathToCheck);
+        return true;
+    } catch {
+        return false;
+    }
+}
 
 function resolveRepoRoot(): string {
     const currentFile = fileURLToPath(import.meta.url);
@@ -304,12 +320,17 @@ export async function startRunner(runnerIdentifier: string): Promise<StartRunner
         await clearRunnerPid(localRunnerId);
     }
 
-    const entryScriptPath = path.join(resolveRepoRoot(), 'apps', 'macos-runner', 'runner', 'index.ts');
+    const repoRoot = resolveRepoRoot();
+    const bundledEntryScriptPath = path.join(repoRoot, 'apps', 'macos-runner', 'dist', 'runner.bundle.cjs');
+    const sourceEntryScriptPath = path.join(repoRoot, 'apps', 'macos-runner', 'runner', 'index.ts');
+    const useBundledRunnerEntry = await fileExists(bundledEntryScriptPath);
+    const entryScriptPath = useBundledRunnerEntry ? bundledEntryScriptPath : sourceEntryScriptPath;
     const loadedEnv = await loadLocalRunnerEnv();
     const pid = startDetachedRunnerProcess({
         entryScriptPath,
-        workingDirectory: resolveRepoRoot(),
+        workingDirectory: repoRoot,
         logPath: runnerPaths.logPath,
+        useTsxLoader: !useBundledRunnerEntry,
         env: {
             ...loadedEnv,
             ...process.env,
@@ -322,9 +343,16 @@ export async function startRunner(runnerIdentifier: string): Promise<StartRunner
             SKYTEST_RUNNER_STATE_DIR: runnerPaths.runtimeStateDir,
             SKYTEST_RUNNER_DISABLE_KEYCHAIN: '1',
             SKYTEST_RUNNER_QUIET: '1',
-            TSX_TSCONFIG_PATH: path.join(resolveRepoRoot(), 'apps', 'web', 'tsconfig.json'),
+            ...(useBundledRunnerEntry ? {} : {
+                TSX_TSCONFIG_PATH: path.join(repoRoot, 'apps', 'web', 'tsconfig.json'),
+            }),
         },
     });
+
+    await sleep(STARTUP_HEALTH_CHECK_MS);
+    if (!isProcessAlive(pid)) {
+        throw new Error(`Runner process exited before startup completed. Check logs: ${runnerPaths.logPath}`);
+    }
 
     await writeRunnerPid(localRunnerId, pid);
     await saveRunnerMetadata(localRunnerId, {

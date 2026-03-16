@@ -68,6 +68,14 @@ jobs:
           tools/release/build-cli-macos.sh "${CLI_VERSION}" "arm64"
           tools/release/build-cli-macos.sh "${CLI_VERSION}" "amd64"
 
+      - name: Smoke test packaged runner runtime
+        env:
+          CLI_VERSION: ${{ steps.version.outputs.cli_version }}
+        run: |
+          chmod +x tools/release/smoke-test-cli-archive.sh
+          tools/release/smoke-test-cli-archive.sh "dist/cli-release/${CLI_VERSION}/skytest-${CLI_VERSION}-darwin-arm64.tar.gz"
+          tools/release/smoke-test-cli-archive.sh "dist/cli-release/${CLI_VERSION}/skytest-${CLI_VERSION}-darwin-amd64.tar.gz"
+
       - name: Resolve archive metadata
         id: archive
         env:
@@ -160,7 +168,6 @@ jobs:
             echo "HOMEBREW_TAP_PAT is not set. Skipping Homebrew tap update."
             exit 0
           fi
-
           TAP_REPO="${HOMEBREW_TAP_REPO:-oursky/homebrew-skytest}"
 
           git clone "https://x-access-token:${HOMEBREW_TAP_PAT}@github.com/${TAP_REPO}.git" tap-repo

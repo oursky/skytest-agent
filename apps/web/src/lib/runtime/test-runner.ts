@@ -4,7 +4,7 @@ import { PlaywrightAgent } from '@midscene/web/playwright';
 import { TEST_STATUS, TestStep, BrowserConfig, TargetConfig, AndroidTargetConfig, AndroidAgent, AndroidDevice, TestEvent, TestResult, RunTestOptions, TestCaseFile } from '@/types';
 import { config } from '@/config/app';
 import { ConfigurationError, TestExecutionError, PlaywrightCodeError, getErrorMessage } from '@/lib/core/errors';
-import { substituteAll } from '@/lib/test-config/resolver';
+import { substituteAll } from '@/lib/test-config/substitution';
 import { createLogger as createServerLogger } from '@/lib/core/logger';
 import { withMidsceneApiKey } from '@/lib/runtime/midscene-env';
 import { validateTargetUrl } from '@/lib/security/url-security';

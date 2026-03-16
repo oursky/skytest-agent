@@ -33,6 +33,10 @@ cp "${ROOT_DIR}/package-lock.json" "${PACKAGE_DIR}/package-lock.json"
 cp -R "${ROOT_DIR}/packages" "${PACKAGE_DIR}/packages"
 cp -R "${ROOT_DIR}/apps/macos-runner" "${PACKAGE_DIR}/apps/macos-runner"
 cp -R "${ROOT_DIR}/apps/cli" "${PACKAGE_DIR}/apps/cli"
+mkdir -p "${PACKAGE_DIR}/apps/web"
+cp "${ROOT_DIR}/apps/web/package.json" "${PACKAGE_DIR}/apps/web/package.json"
+mkdir -p "${PACKAGE_DIR}/apps/macos-runner/dist"
+node "${ROOT_DIR}/tools/release/build-runner-bundle.mjs" "${PACKAGE_DIR}/apps/macos-runner/dist/runner.bundle.cjs"
 
 mkdir -p "${PACKAGE_DIR}/bin"
 cat > "${PACKAGE_DIR}/bin/skytest" <<RUNNER_SCRIPT
