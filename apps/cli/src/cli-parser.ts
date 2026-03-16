@@ -2,6 +2,7 @@ import { resolveOutputFormat } from './commands/output';
 
 export type SkytestCliCommand =
     | { kind: 'help' }
+    | { kind: 'version' }
     | { kind: 'pair-runner'; pairingToken: string; label?: string; controlPlaneBaseUrl?: string; autoStart: boolean }
     | { kind: 'start-runner'; runnerId: string }
     | { kind: 'stop-runner'; runnerId: string }
@@ -104,6 +105,10 @@ function parsePairRunnerArguments(args: string[]): {
 export function parseSkytestCliCommand(args: string[]): SkytestCliCommand {
     if (args.length === 0 || isHelpFlag(args[0])) {
         return { kind: 'help' };
+    }
+
+    if (args[0] === 'version') {
+        return { kind: 'version' };
     }
 
     if (args[0] === 'reset') {

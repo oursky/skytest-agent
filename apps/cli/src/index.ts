@@ -15,6 +15,7 @@ function printHelp(): void {
         'SkyTest CLI (work in progress)',
         '',
         'Usage:',
+        '  skytest version',
         '  skytest pair runner <pairing-token>',
         '  skytest start runner <runner-id>',
         '  skytest stop runner <runner-id>',
@@ -26,11 +27,24 @@ function printHelp(): void {
     ].join('\n'));
 }
 
+function resolveCliVersion(): string {
+    const version = process.env.SKYTEST_CLI_VERSION ?? process.env.npm_package_version;
+    if (!version || version.trim().length === 0) {
+        return 'dev';
+    }
+    return version;
+}
+
 async function main(): Promise<void> {
     const command = parseSkytestCliCommand(process.argv.slice(2));
 
     if (command.kind === 'help') {
         printHelp();
+        return;
+    }
+
+    if (command.kind === 'version') {
+        console.log(resolveCliVersion());
         return;
     }
 
