@@ -68,6 +68,14 @@ jobs:
           tools/release/build-cli-macos.sh "${CLI_VERSION}" "arm64"
           tools/release/build-cli-macos.sh "${CLI_VERSION}" "amd64"
 
+      - name: Smoke test packaged runner runtime
+        env:
+          CLI_VERSION: ${{ steps.version.outputs.cli_version }}
+        run: |
+          chmod +x tools/release/smoke-test-cli-archive.sh
+          tools/release/smoke-test-cli-archive.sh "dist/cli-release/${CLI_VERSION}/skytest-${CLI_VERSION}-darwin-arm64.tar.gz"
+          tools/release/smoke-test-cli-archive.sh "dist/cli-release/${CLI_VERSION}/skytest-${CLI_VERSION}-darwin-amd64.tar.gz"
+
       - name: Resolve archive metadata
         id: archive
         env:
