@@ -1,18 +1,5 @@
+import { parseBoundedIntEnv } from '@/lib/core/env';
 import { TEST_STATUS } from '@/types';
-
-function parseBoundedIntEnv(input: {
-    name: string;
-    fallback: number;
-    min: number;
-    max: number;
-}): number {
-    const value = Number.parseInt(process.env[input.name] ?? '', 10);
-    if (!Number.isFinite(value)) {
-        return input.fallback;
-    }
-
-    return Math.min(input.max, Math.max(input.min, value));
-}
 
 const storageSignedUrlTtlSeconds = parseBoundedIntEnv({
     name: 'STORAGE_SIGNED_URL_TTL_SECONDS',

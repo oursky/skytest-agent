@@ -344,8 +344,6 @@ export async function POST(request: Request) {
                 logger.warn('Failed to snapshot run files', e);
             }
         }
-
-
         return NextResponse.json({
             runId: testRun.id,
             status: testRun.status,

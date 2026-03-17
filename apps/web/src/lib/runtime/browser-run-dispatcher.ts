@@ -30,6 +30,7 @@ function ensureBrowserWorkerEnabled(): boolean {
 
 async function withDispatchLock<T>(handler: () => Promise<T>): Promise<T> {
     const run = dispatchLock.then(handler, handler);
+    // Keep the queue moving even if a previous dispatch failed; callers still observe `run` errors.
     dispatchLock = run.catch(() => undefined);
     return run;
 }

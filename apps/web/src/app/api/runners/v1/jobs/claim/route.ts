@@ -4,6 +4,7 @@ import {
     claimJobResponseSchema,
 } from '@skytest/runner-protocol';
 import { createLogger } from '@/lib/core/logger';
+import { parseBoundedIntEnv } from '@/lib/core/env';
 import { authenticateRunnerRequest } from '@/lib/runners/auth';
 import { claimNextRunForRunner, diagnoseNoClaimForRunner } from '@/lib/runners/claim-service';
 import { evaluateRunnerCompatibility, getRunnerTransportMetadata } from '@/lib/runners/protocol';
@@ -13,15 +14,6 @@ const logger = createLogger('api:runners:v1:claim');
 const shouldCollectClaimDiagnosis = (process.env.LOG_LEVEL ?? 'info').toLowerCase() === 'debug';
 const CLAIM_RETRY_INTERVAL_MIN_MS = 250;
 const CLAIM_RETRY_INTERVAL_MAX_MS = 5_000;
-
-function parseClaimRetryIntervalMs(fallbackMs: number): number {
-    const configured = Number.parseInt(process.env.RUNNER_CLAIM_RETRY_INTERVAL_MS ?? '', 10);
-    if (!Number.isFinite(configured) || configured <= 0) {
-        return fallbackMs;
-    }
-
-    return Math.min(CLAIM_RETRY_INTERVAL_MAX_MS, Math.max(CLAIM_RETRY_INTERVAL_MIN_MS, configured));
-}
 
 function sleep(ms: number): Promise<void> {
     return new Promise((resolve) => {
@@ -72,7 +64,12 @@ export async function POST(request: Request) {
             CLAIM_RETRY_INTERVAL_MIN_MS,
             Math.floor(claimLongPollTimeoutMs / 6)
         );
-        const configuredRetryIntervalMs = parseClaimRetryIntervalMs(defaultRetryIntervalMs);
+        const configuredRetryIntervalMs = parseBoundedIntEnv({
+            name: 'RUNNER_CLAIM_RETRY_INTERVAL_MS',
+            fallback: defaultRetryIntervalMs,
+            min: CLAIM_RETRY_INTERVAL_MIN_MS,
+            max: CLAIM_RETRY_INTERVAL_MAX_MS,
+        });
         const deadlineMs = Date.now() + claimLongPollTimeoutMs;
         const claimStartedAt = Date.now();
         let retryIntervalMs = configuredRetryIntervalMs;

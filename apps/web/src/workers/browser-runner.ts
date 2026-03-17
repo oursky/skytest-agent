@@ -1,6 +1,7 @@
 import { config as appConfig } from '@/config/app';
 import { createLogger } from '@/lib/core/logger';
 import { dispatchQueuedBrowserRuns } from '@/lib/runtime/browser-run-dispatcher';
+import { abortInactiveLocalBrowserRuns } from '@/lib/runtime/local-browser-runner';
 
 const logger = createLogger('worker:browser-runner');
 
@@ -27,10 +28,20 @@ async function main() {
 
     let nextDispatchIntervalMs = appConfig.browserWorker.dispatchIntervalMs;
     while (true) {
+        let abortedRuns = 0;
+        let dispatchedRuns = 0;
+
         try {
-            const dispatched = await dispatchQueuedBrowserRuns(appConfig.browserWorker.maxDispatchesPerCycle);
-            if (dispatched > 0) {
+            abortedRuns = await abortInactiveLocalBrowserRuns();
+            dispatchedRuns = await dispatchQueuedBrowserRuns(appConfig.browserWorker.maxDispatchesPerCycle);
+
+            if (abortedRuns > 0 || dispatchedRuns > 0) {
                 nextDispatchIntervalMs = appConfig.browserWorker.dispatchIntervalMs;
+                if (abortedRuns > 0) {
+                    logger.info('Aborted inactive local browser runs', {
+                        abortedRuns,
+                    });
+                }
             } else {
                 nextDispatchIntervalMs = Math.min(
                     appConfig.browserWorker.maxDispatchIntervalMs,

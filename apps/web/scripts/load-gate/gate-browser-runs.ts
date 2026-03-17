@@ -5,6 +5,7 @@ import { encrypt } from '../../src/lib/security/crypto';
 import { BROWSER_EXECUTION_CAPABILITY } from '../../src/lib/runners/constants';
 
 if (process.env.SKYTEST_BROWSER_WORKER !== 'true') {
+    // This must be set before the dynamic import below so app config resolves worker mode correctly.
     process.env.SKYTEST_BROWSER_WORKER = 'true';
 }
 

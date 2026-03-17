@@ -139,6 +139,7 @@ Recommended runtime env tuning per profile:
 
 - `ingress.enabled` is `false` by default.
 - `autoscaling.enabled` applies to the control-plane deployment.
+- `browserWorkerAutoscaling.enabled` controls a separate browser-worker HPA (disabled by default for lowest-cost baseline).
 - Scale browser throughput by changing `browserWorker.replicas` and `RUNNER_MAX_LOCAL_BROWSER_RUNS`.
 - Pair Android macOS runners against the public control-plane URL after deployment.
 - Updating a referenced `Secret` does not restart pods automatically. Run a Helm upgrade or restart workloads after secret changes.

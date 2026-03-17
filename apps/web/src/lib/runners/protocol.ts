@@ -5,35 +5,22 @@ import {
     type CompatibilityMetadata,
     type RunnerTransportMetadata,
 } from '@skytest/runner-protocol';
+import { parseBoundedIntEnv } from '@/lib/core/env';
 
 const SEMVER_PATTERN = /^(\d+)\.(\d+)\.(\d+)$/;
-
-function parsePositiveIntEnv(input: {
-    name: string;
-    fallback: number;
-    min: number;
-    max: number;
-}): number {
-    const value = Number.parseInt(process.env[input.name] ?? '', 10);
-    if (!Number.isFinite(value)) {
-        return input.fallback;
-    }
-    return Math.min(input.max, Math.max(input.min, value));
-}
-
-const HEARTBEAT_INTERVAL_SECONDS = parsePositiveIntEnv({
+const HEARTBEAT_INTERVAL_SECONDS = parseBoundedIntEnv({
     name: 'RUNNER_HEARTBEAT_INTERVAL_SECONDS',
     fallback: 45,
     min: 5,
     max: 300,
 });
-const CLAIM_LONG_POLL_TIMEOUT_SECONDS = parsePositiveIntEnv({
+const CLAIM_LONG_POLL_TIMEOUT_SECONDS = parseBoundedIntEnv({
     name: 'RUNNER_CLAIM_LONG_POLL_TIMEOUT_SECONDS',
     fallback: 30,
     min: 10,
     max: 120,
 });
-const DEVICE_SYNC_INTERVAL_SECONDS = parsePositiveIntEnv({
+const DEVICE_SYNC_INTERVAL_SECONDS = parseBoundedIntEnv({
     name: 'RUNNER_DEVICE_SYNC_INTERVAL_SECONDS',
     fallback: 45,
     min: 10,

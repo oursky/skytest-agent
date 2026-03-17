@@ -279,6 +279,7 @@ export async function GET(
             };
 
             let flushInProgress = false;
+            let pendingUpdateFlush = false;
             const scheduleNextPoll = () => {
                 if (streamClosed) {
                     return;
@@ -293,7 +294,7 @@ export async function GET(
             const flushFromDb = async (trigger: 'poll' | 'update') => {
                 if (streamClosed || flushInProgress) {
                     if (trigger === 'update') {
-                        pollIntervalMs = appConfig.stream.pollInterval;
+                        pendingUpdateFlush = true;
                     }
                     return;
                 }
@@ -339,8 +340,9 @@ export async function GET(
                 } finally {
                     flushInProgress = false;
                     if (!streamClosed) {
-                        if (hadUpdates || trigger === 'update') {
+                        if (pendingUpdateFlush || hadUpdates || trigger === 'update') {
                             pollIntervalMs = appConfig.stream.pollInterval;
+                            pendingUpdateFlush = false;
                         } else {
                             pollIntervalMs = Math.min(
                                 appConfig.stream.maxPollIntervalMs,
@@ -364,7 +366,6 @@ export async function GET(
             void flushFromDb('update');
 
             unsubscribe = subscribeRunUpdates(runId, () => {
-                pollIntervalMs = appConfig.stream.pollInterval;
                 void flushFromDb('update');
             });
 

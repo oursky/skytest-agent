@@ -87,8 +87,6 @@ export async function POST(
                 publishRunUpdate(id);
             }
         }
-
-
         logger.info('Cancelled test run', {
             runId: id,
             previousStatus: testRun.status,
