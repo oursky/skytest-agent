@@ -35,6 +35,9 @@ spec:
           ports:
             - name: http
               containerPort: {{ .Values.controlPlane.containerPort }}
+          env:
+            - name: SKYTEST_BROWSER_WORKER
+              value: "false"
           envFrom:
             - secretRef:
                 name: {{ .Values.secrets.existingSecretName }}

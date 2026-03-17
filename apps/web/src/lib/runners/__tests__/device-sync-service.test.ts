@@ -1,11 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
-    upsert,
+    findMany,
+    createMany,
+    update,
     updateMany,
     transaction,
 } = vi.hoisted(() => ({
-    upsert: vi.fn(),
+    findMany: vi.fn(),
+    createMany: vi.fn(),
+    update: vi.fn(),
     updateMany: vi.fn(),
     transaction: vi.fn(),
 }));
@@ -20,24 +24,32 @@ const { syncRunnerDevices } = await import('@/lib/runners/device-sync-service');
 
 describe('syncRunnerDevices', () => {
     beforeEach(() => {
-        upsert.mockReset();
+        findMany.mockReset();
+        createMany.mockReset();
+        update.mockReset();
         updateMany.mockReset();
         transaction.mockReset();
 
         transaction.mockImplementation(async (callback: (tx: {
             runnerDevice: {
-                upsert: typeof upsert;
+                findMany: typeof findMany;
+                createMany: typeof createMany;
+                update: typeof update;
                 updateMany: typeof updateMany;
             };
         }) => Promise<unknown>) => callback({
             runnerDevice: {
-                upsert,
+                findMany,
+                createMany,
+                update,
                 updateMany,
             },
         }));
     });
 
     it('upserts incoming devices and marks stale rows offline', async () => {
+        findMany.mockResolvedValueOnce([]);
+
         await syncRunnerDevices({
             runnerId: 'runner-1',
             devices: [
@@ -57,25 +69,109 @@ describe('syncRunnerDevices', () => {
             ],
         });
 
-        expect(upsert).toHaveBeenCalledTimes(2);
+        expect(findMany).toHaveBeenCalledWith({
+            where: {
+                runnerId: 'runner-1',
+                deviceId: {
+                    in: ['device-1', 'device-2'],
+                },
+            },
+            select: {
+                runnerId: true,
+                deviceId: true,
+                platform: true,
+                name: true,
+                state: true,
+                metadata: true,
+                lastSeenAt: true,
+            },
+        });
+        expect(createMany).toHaveBeenCalledTimes(1);
+        expect(createMany).toHaveBeenCalledWith({
+            data: [
+                expect.objectContaining({
+                    runnerId: 'runner-1',
+                    deviceId: 'device-1',
+                    platform: 'ANDROID',
+                    name: 'Pixel 9',
+                    state: 'ONLINE',
+                    metadata: { serial: 'ABC123' },
+                }),
+                expect.objectContaining({
+                    runnerId: 'runner-1',
+                    deviceId: 'device-2',
+                    platform: 'ANDROID',
+                    name: 'Pixel 8',
+                    state: 'UNAVAILABLE',
+                }),
+            ],
+            skipDuplicates: true,
+        });
+        expect(update).not.toHaveBeenCalled();
         expect(updateMany).toHaveBeenCalledWith({
             where: {
                 runnerId: 'runner-1',
                 deviceId: { notIn: ['device-1', 'device-2'] },
+                state: { not: 'OFFLINE' },
             },
             data: { state: 'OFFLINE' },
         });
     });
 
     it('marks all devices offline when an empty snapshot is sent', async () => {
+        findMany.mockResolvedValueOnce([]);
+
         await syncRunnerDevices({
             runnerId: 'runner-1',
             devices: [],
         });
 
-        expect(upsert).not.toHaveBeenCalled();
+        expect(createMany).not.toHaveBeenCalled();
+        expect(update).not.toHaveBeenCalled();
         expect(updateMany).toHaveBeenCalledWith({
-            where: { runnerId: 'runner-1' },
+            where: {
+                runnerId: 'runner-1',
+                state: { not: 'OFFLINE' },
+            },
+            data: { state: 'OFFLINE' },
+        });
+    });
+
+    it('skips update when an incoming device is unchanged and recently seen', async () => {
+        const recentLastSeenAt = new Date(Date.now() - 1000);
+        findMany.mockResolvedValueOnce([
+            {
+                runnerId: 'runner-1',
+                deviceId: 'device-1',
+                platform: 'ANDROID',
+                name: 'Pixel 9',
+                state: 'ONLINE',
+                metadata: { serial: 'ABC123' },
+                lastSeenAt: recentLastSeenAt,
+            },
+        ]);
+
+        await syncRunnerDevices({
+            runnerId: 'runner-1',
+            devices: [
+                {
+                    deviceId: 'device-1',
+                    platform: 'ANDROID',
+                    name: 'Pixel 9',
+                    state: 'ONLINE',
+                    metadata: { serial: 'ABC123' },
+                },
+            ],
+        });
+
+        expect(createMany).not.toHaveBeenCalled();
+        expect(update).not.toHaveBeenCalled();
+        expect(updateMany).toHaveBeenCalledWith({
+            where: {
+                runnerId: 'runner-1',
+                deviceId: { notIn: ['device-1'] },
+                state: { not: 'OFFLINE' },
+            },
             data: { state: 'OFFLINE' },
         });
     });

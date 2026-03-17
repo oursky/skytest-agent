@@ -46,6 +46,24 @@ describe('parseSkytestCliCommand', () => {
         });
     });
 
+    it('parses start runner with repair token option', () => {
+        expect(parseSkytestCliCommand(['start', 'runner', 'abc123', '--repair-token', 'st_pair_token'])).toEqual({
+            kind: 'start-runner',
+            runnerId: 'abc123',
+            repairPairingToken: 'st_pair_token',
+        });
+    });
+
+    it('rejects start runner with missing repair token value', () => {
+        expect(() => parseSkytestCliCommand(['start', 'runner', 'abc123', '--repair-token']))
+            .toThrow('Missing value for `--repair-token`.');
+    });
+
+    it('rejects unknown start runner option', () => {
+        expect(() => parseSkytestCliCommand(['start', 'runner', 'abc123', '--foo']))
+            .toThrow('Unknown option for `start runner`: --foo');
+    });
+
     it('parses logs runner with follow and tail', () => {
         expect(parseSkytestCliCommand(['logs', 'runner', 'abc123', '--follow', '--tail', '20'])).toEqual({
             kind: 'logs-runner',

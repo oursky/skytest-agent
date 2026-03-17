@@ -7,7 +7,6 @@ import {
     ANDROID_EXECUTION_RUNNER_KIND,
     BROWSER_EXECUTION_CAPABILITY,
 } from '@/lib/runners/constants';
-import { dispatchBrowserRun } from '@/lib/runtime/browser-run-dispatcher';
 import { isAndroidTargetConfig, normalizeAndroidTargetConfig } from '@/lib/android/target-config';
 import {
     collectAndroidRequestedDeviceIds,
@@ -311,11 +310,6 @@ export async function queueTestCaseRun(
             }))
         });
     }
-
-    if (!requestHasAndroidTargets) {
-        await dispatchBrowserRun(testRun.id);
-    }
-
     return {
         ok: true,
         data: {

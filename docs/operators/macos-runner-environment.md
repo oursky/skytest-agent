@@ -33,6 +33,10 @@ The runner reads optional Midscene overrides from the environment:
 - `SKYTEST_MIDSCENE_INSIGHT_MODEL_FAMILY`
 - `SKYTEST_MIDSCENE_MODEL_TEMPERATURE`
 
+The CLI supports an optional repair pairing token for automatic `401` recovery on start:
+
+- `SKYTEST_REPAIR_PAIRING_TOKEN`
+
 The runner does not require `DATABASE_URL`.
 
 ## Resolution Order
@@ -48,6 +52,22 @@ When `skytest start runner <runner-id>` launches the process, values are resolve
    - `<repo>/.env.<NODE_ENV>`
    - `<repo>/.env.<NODE_ENV>.local`
 3. shell environment at command execution time
+
+## Startup Repair Behavior
+
+`skytest start runner <runner-id>` now supports automatic recovery paths:
+
+- `409 host fingerprint mismatch`: runner host binding is repaired automatically.
+- `401 unauthorized`:
+  - if `--repair-token` is provided, the runner is re-paired in place and started.
+  - else if `SKYTEST_REPAIR_PAIRING_TOKEN` is set, that token is used.
+  - otherwise the stale local runner entry is removed and start returns a re-pair instruction.
+
+Example with explicit repair token:
+
+```bash
+skytest start runner <runner-id> --repair-token "<pairing-token>"
+```
 
 ## Source Install
 

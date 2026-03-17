@@ -231,11 +231,12 @@ export async function GET(
     const maskText = createExactValueMasker(maskedVariableValues);
 
     let streamClosed = false;
-    let pollInterval: ReturnType<typeof setInterval> | null = null;
+    let pollTimer: ReturnType<typeof setTimeout> | null = null;
     let ttlTimer: ReturnType<typeof setTimeout> | null = null;
     let unsubscribe: (() => void) | null = null;
     let lastSequence = 0;
     let lastStatus = '';
+    let pollIntervalMs = appConfig.stream.pollInterval;
 
     const stream = new ReadableStream({
         start(controller) {
@@ -247,8 +248,8 @@ export async function GET(
                     return;
                 }
                 streamClosed = true;
-                if (pollInterval) {
-                    clearInterval(pollInterval);
+                if (pollTimer) {
+                    clearTimeout(pollTimer);
                 }
                 if (ttlTimer) {
                     clearTimeout(ttlTimer);
@@ -278,11 +279,27 @@ export async function GET(
             };
 
             let flushInProgress = false;
-            const flushFromDb = async () => {
+            let pendingUpdateFlush = false;
+            const scheduleNextPoll = () => {
+                if (streamClosed) {
+                    return;
+                }
+                if (pollTimer) {
+                    clearTimeout(pollTimer);
+                }
+                pollTimer = setTimeout(() => {
+                    void flushFromDb('poll');
+                }, pollIntervalMs);
+            };
+            const flushFromDb = async (trigger: 'poll' | 'update') => {
                 if (streamClosed || flushInProgress) {
+                    if (trigger === 'update') {
+                        pendingUpdateFlush = true;
+                    }
                     return;
                 }
                 flushInProgress = true;
+                let hadUpdates = false;
 
                 try {
                     const statusRow = await fetchRunStatus(runId);
@@ -302,12 +319,16 @@ export async function GET(
                             errorCategory: metadata.errorCategory,
                         });
                         lastStatus = statusRow.status;
+                        hadUpdates = true;
                     }
 
                     const events = await fetchRunEventsAfter(runId, lastSequence);
                     for (const row of events) {
                         safeEnqueue(await mapRunEventToUiEvent(row, maskText));
                         lastSequence = row.sequence;
+                    }
+                    if (events.length > 0) {
+                        hadUpdates = true;
                     }
 
                     if (isRunTerminalStatus(statusRow.status)) {
@@ -318,6 +339,18 @@ export async function GET(
                     closeStream();
                 } finally {
                     flushInProgress = false;
+                    if (!streamClosed) {
+                        if (pendingUpdateFlush || hadUpdates || trigger === 'update') {
+                            pollIntervalMs = appConfig.stream.pollInterval;
+                            pendingUpdateFlush = false;
+                        } else {
+                            pollIntervalMs = Math.min(
+                                appConfig.stream.maxPollIntervalMs,
+                                Math.floor(pollIntervalMs * 1.5)
+                            );
+                        }
+                        scheduleNextPoll();
+                    }
                 }
             };
 
@@ -330,14 +363,10 @@ export async function GET(
                 errorCategory: initialMetadata.errorCategory,
             });
             lastStatus = currentRun.status;
-            void flushFromDb();
-
-            pollInterval = setInterval(() => {
-                void flushFromDb();
-            }, appConfig.stream.pollInterval);
+            void flushFromDb('update');
 
             unsubscribe = subscribeRunUpdates(runId, () => {
-                void flushFromDb();
+                void flushFromDb('update');
             });
 
             ttlTimer = setTimeout(() => {
@@ -346,8 +375,8 @@ export async function GET(
         },
         cancel() {
             streamClosed = true;
-            if (pollInterval) {
-                clearInterval(pollInterval);
+            if (pollTimer) {
+                clearTimeout(pollTimer);
             }
             if (ttlTimer) {
                 clearTimeout(ttlTimer);

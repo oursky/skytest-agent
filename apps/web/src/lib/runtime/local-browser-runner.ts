@@ -70,7 +70,67 @@ interface LocalBrowserRunOptions {
 const logger = createLogger('runtime:local-browser-runner');
 const activeAbortControllers = new Map<string, AbortController>();
 const activeExecutions = new Map<string, Promise<void>>();
-const RUN_STATUS_WATCH_INTERVAL_MS = 1_000;
+const RUN_STATUS_WATCH_INTERVAL_MS = appConfig.runner.runStatusPollIntervalMs;
+const RUN_STATUS_MAX_CANCELLATION_POLL_INTERVAL_MS = appConfig.runner.runStatusMaxCancellationPollIntervalMs;
+
+export function getActiveLocalBrowserRunCount(): number {
+    return activeExecutions.size;
+}
+
+export function getMaxLocalBrowserRunCount(): number {
+    return appConfig.runner.maxLocalBrowserRuns;
+}
+
+export function hasLocalBrowserRunCapacity(): boolean {
+    return getActiveLocalBrowserRunCount() < getMaxLocalBrowserRunCount();
+}
+
+export function getActiveLocalBrowserRunIds(): string[] {
+    return Array.from(activeAbortControllers.keys());
+}
+
+export async function abortInactiveLocalBrowserRuns(options?: LocalBrowserRunOptions): Promise<number> {
+    const activeRunIds = getActiveLocalBrowserRunIds();
+    if (activeRunIds.length === 0) {
+        return 0;
+    }
+
+    const nowMs = Date.now();
+    const runs = await prisma.testRun.findMany({
+        where: {
+            id: { in: activeRunIds },
+        },
+        select: {
+            id: true,
+            status: true,
+            assignedRunnerId: true,
+            leaseExpiresAt: true,
+        },
+    });
+    const runById = new Map(runs.map((run) => [run.id, run]));
+    let abortedCount = 0;
+
+    for (const runId of activeRunIds) {
+        const run = runById.get(runId);
+        const leaseValid = run?.leaseExpiresAt ? run.leaseExpiresAt.getTime() > nowMs : false;
+        const stillActive = run
+            && isRunInProgressStatus(run.status)
+            && (
+                options?.runnerId
+                    ? run.assignedRunnerId === options.runnerId
+                    && leaseValid
+                    : !run.assignedRunnerId
+            );
+        if (stillActive) {
+            continue;
+        }
+
+        cancelLocalBrowserRun(runId);
+        abortedCount += 1;
+    }
+
+    return abortedCount;
+}
 
 function triggerQueuedBrowserDispatch(reason: string, runId: string): void {
     void import('@/lib/runtime/browser-run-dispatcher')
@@ -684,20 +744,53 @@ async function executeLocalBrowserRun(
         });
     };
 
-    const statusWatchTimer = setInterval(() => {
-        void runStillActive(runId, options)
-            .then((active) => {
-                if (!active) {
-                    cancelLocalBrowserRun(runId);
-                }
-            })
-            .catch((error) => {
-                logger.warn('Failed to poll local run status', {
-                    runId,
-                    error: error instanceof Error ? error.message : String(error),
-                });
+    let statusWatchTimer: ReturnType<typeof setTimeout> | null = null;
+    let statusPollIntervalMs = RUN_STATUS_WATCH_INTERVAL_MS;
+    const maxStatusPollIntervalMs = Math.min(
+        appConfig.runner.runStatusMaxPollIntervalMs,
+        RUN_STATUS_MAX_CANCELLATION_POLL_INTERVAL_MS
+    );
+    const scheduleStatusPoll = () => {
+        if (controller.signal.aborted) {
+            return;
+        }
+        if (statusWatchTimer) {
+            clearTimeout(statusWatchTimer);
+        }
+        statusWatchTimer = setTimeout(() => {
+            void pollRunStatus();
+        }, statusPollIntervalMs);
+    };
+    const pollRunStatus = async () => {
+        if (controller.signal.aborted) {
+            return;
+        }
+
+        try {
+            const active = await runStillActive(runId, options);
+            if (!active) {
+                cancelLocalBrowserRun(runId);
+                return;
+            }
+
+            statusPollIntervalMs = Math.min(
+                maxStatusPollIntervalMs,
+                Math.floor(statusPollIntervalMs * 1.5)
+            );
+        } catch (error) {
+            logger.warn('Failed to poll local run status', {
+                runId,
+                error: error instanceof Error ? error.message : String(error),
             });
-    }, RUN_STATUS_WATCH_INTERVAL_MS);
+            statusPollIntervalMs = Math.min(
+                maxStatusPollIntervalMs,
+                Math.floor(statusPollIntervalMs * 2)
+            );
+        }
+
+        scheduleStatusPoll();
+    };
+    scheduleStatusPoll();
 
     try {
         const result = await runTest({
@@ -796,7 +889,9 @@ async function executeLocalBrowserRun(
             options
         );
     } finally {
-        clearInterval(statusWatchTimer);
+        if (statusWatchTimer) {
+            clearTimeout(statusWatchTimer);
+        }
     }
 }
 

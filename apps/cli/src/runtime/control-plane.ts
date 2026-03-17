@@ -4,7 +4,10 @@ import {
     pairingExchangeResponseSchema,
     shutdownRunnerRequestSchema,
     shutdownRunnerResponseSchema,
+    verifyRunnerCredentialRequestSchema,
+    verifyRunnerCredentialResponseSchema,
     type PairingExchangeResponse,
+    type VerifyRunnerCredentialResponse,
 } from '@skytest/runner-protocol';
 
 interface ExchangePairingTokenOptions {
@@ -23,10 +26,27 @@ interface NotifyRunnerShutdownOptions {
     reason?: string;
 }
 
+interface VerifyRunnerCredentialOptions {
+    controlPlaneBaseUrl: string;
+    runnerToken: string;
+    runnerVersion: string;
+}
+
 const SHUTDOWN_NOTIFY_TIMEOUT_MS = 3_000;
 
 function normalizeBaseUrl(input: string): string {
     return input.endsWith('/') ? input.slice(0, -1) : input;
+}
+
+export class ControlPlaneHttpError extends Error {
+    status: number;
+    body: string;
+
+    constructor(message: string, status: number, body: string) {
+        super(`${message} with ${status}: ${body}`);
+        this.status = status;
+        this.body = body;
+    }
 }
 
 export async function exchangePairingToken(
@@ -53,7 +73,7 @@ export async function exchangePairingToken(
 
     if (!response.ok) {
         const responseBody = await response.text();
-        throw new Error(`Pairing exchange failed with ${response.status}: ${responseBody}`);
+        throw new ControlPlaneHttpError('Pairing exchange failed', response.status, responseBody);
     }
 
     const responseJson = await response.json();
@@ -87,7 +107,7 @@ export async function notifyRunnerShutdown(
 
         if (!response.ok) {
             const responseBody = await response.text();
-            throw new Error(`Runner shutdown notify failed with ${response.status}: ${responseBody}`);
+            throw new ControlPlaneHttpError('Runner shutdown notify failed', response.status, responseBody);
         }
 
         const responseJson = await response.json();
@@ -95,4 +115,30 @@ export async function notifyRunnerShutdown(
     } finally {
         clearTimeout(timeout);
     }
+}
+
+export async function verifyRunnerCredential(
+    options: VerifyRunnerCredentialOptions
+): Promise<VerifyRunnerCredentialResponse> {
+    const payload = verifyRunnerCredentialRequestSchema.parse({
+        protocolVersion: RUNNER_PROTOCOL_CURRENT_VERSION,
+        runnerVersion: options.runnerVersion,
+    });
+
+    const response = await fetch(`${normalizeBaseUrl(options.controlPlaneBaseUrl)}/api/runners/v1/credential/verify`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${options.runnerToken}`,
+        },
+        body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+        const responseBody = await response.text();
+        throw new ControlPlaneHttpError('Runner credential verify failed', response.status, responseBody);
+    }
+
+    const responseJson = await response.json();
+    return verifyRunnerCredentialResponseSchema.parse(responseJson);
 }

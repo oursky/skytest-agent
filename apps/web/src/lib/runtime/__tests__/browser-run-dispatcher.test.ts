@@ -2,9 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BROWSER_EXECUTION_CAPABILITY } from '@/lib/runners/constants';
 import { RUN_IN_PROGRESS_STATUSES, TEST_STATUS } from '@/types';
 
-const { queryRaw, startLocalBrowserRun } = vi.hoisted(() => ({
+const { queryRaw, startLocalBrowserRun, hasLocalBrowserRunCapacity, getActiveLocalBrowserRunCount, getMaxLocalBrowserRunCount } = vi.hoisted(() => ({
     queryRaw: vi.fn(),
     startLocalBrowserRun: vi.fn(),
+    hasLocalBrowserRunCapacity: vi.fn(),
+    getActiveLocalBrowserRunCount: vi.fn(),
+    getMaxLocalBrowserRunCount: vi.fn(),
 }));
 
 vi.mock('@/lib/core/prisma', () => ({
@@ -15,7 +18,12 @@ vi.mock('@/lib/core/prisma', () => ({
 
 vi.mock('@/lib/runtime/local-browser-runner', () => ({
     startLocalBrowserRun,
+    hasLocalBrowserRunCapacity,
+    getActiveLocalBrowserRunCount,
+    getMaxLocalBrowserRunCount,
 }));
+
+process.env.SKYTEST_BROWSER_WORKER = 'true';
 
 const {
     dispatchBrowserRun,
@@ -27,6 +35,12 @@ describe('browser-run-dispatcher', () => {
         queryRaw.mockReset();
         startLocalBrowserRun.mockReset();
         startLocalBrowserRun.mockResolvedValue(undefined);
+        hasLocalBrowserRunCapacity.mockReset();
+        hasLocalBrowserRunCapacity.mockReturnValue(true);
+        getActiveLocalBrowserRunCount.mockReset();
+        getActiveLocalBrowserRunCount.mockReturnValue(0);
+        getMaxLocalBrowserRunCount.mockReset();
+        getMaxLocalBrowserRunCount.mockReturnValue(1);
     });
 
     it('dispatches next queued browser run when a candidate is claimed', async () => {
@@ -76,5 +90,15 @@ describe('browser-run-dispatcher', () => {
         expect(query.values).toEqual(expect.arrayContaining([...RUN_IN_PROGRESS_STATUSES]));
         const queuedValueCount = query.values.filter((value: unknown) => value === TEST_STATUS.QUEUED).length;
         expect(queuedValueCount).toBe(1);
+    });
+
+    it('skips dispatch when local pod capacity is full', async () => {
+        hasLocalBrowserRunCapacity.mockReturnValue(false);
+
+        const dispatched = await dispatchNextQueuedBrowserRun();
+
+        expect(dispatched).toBe(false);
+        expect(queryRaw).not.toHaveBeenCalled();
+        expect(startLocalBrowserRun).not.toHaveBeenCalled();
     });
 });

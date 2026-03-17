@@ -16,7 +16,7 @@ vi.mock('@/lib/core/prisma', () => ({
     },
 }));
 
-const { getTeamDevicesAvailability } = await import('@/lib/runners/availability-service');
+const { getTeamDevicesAvailability, getTeamRunnersOverview } = await import('@/lib/runners/availability-service');
 
 describe('getTeamDevicesAvailability', () => {
     beforeEach(() => {
@@ -326,5 +326,46 @@ describe('getTeamDevicesAvailability', () => {
         expect(result.devices[0]).toMatchObject({
             inUseByAnotherTeam: false,
         });
+    });
+});
+
+describe('getTeamRunnersOverview', () => {
+    beforeEach(() => {
+        runnerFindMany.mockReset();
+    });
+
+    it('keeps a recently heartbeating runner fresh within grace window', async () => {
+        vi.useFakeTimers();
+        try {
+            const now = new Date('2026-03-17T10:00:00.000Z');
+            vi.setSystemTime(now);
+
+            runnerFindMany.mockResolvedValue([
+                {
+                    id: 'runner-1',
+                    hostFingerprint: 'host-team-1',
+                    displayId: 'run001',
+                    label: 'Local macOS Runner',
+                    kind: 'MACOS_AGENT',
+                    status: 'ONLINE',
+                    protocolVersion: '1.0.0',
+                    runnerVersion: '0.1.0',
+                    lastSeenAt: new Date(now.getTime() - 50_000),
+                    devices: [],
+                },
+            ]);
+
+            const result = await getTeamRunnersOverview('team-runners-fresh-window');
+
+            expect(result.runnerConnected).toBe(true);
+            expect(result.macRunnerOnlineCount).toBe(1);
+            expect(result.runners[0]).toMatchObject({
+                id: 'runner-1',
+                status: 'ONLINE',
+                isFresh: true,
+            });
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });

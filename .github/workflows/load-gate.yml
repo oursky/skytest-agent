@@ -1,0 +1,260 @@
+name: Load Gate
+
+on:
+  pull_request:
+    paths:
+      - 'apps/macos-runner/runner/**'
+      - 'apps/web/src/app/api/runners/**'
+      - 'apps/web/src/lib/runners/**'
+      - 'apps/web/src/lib/runtime/**'
+      - 'apps/web/src/workers/**'
+      - 'apps/web/src/config/app.ts'
+      - 'apps/web/scripts/load-gate/**'
+      - 'apps/web/package.json'
+      - '.github/workflows/load-gate.yml'
+  workflow_dispatch:
+
+jobs:
+  runner-claim-load-gate:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: skytest_agent
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d skytest_agent"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/skytest_agent?schema=public
+      ENCRYPTION_SECRET: load-gate-not-for-production
+      GCS_BUCKET: load-gate
+      GCS_PROJECT_ID: load-gate
+      RUNNER_MAX_CONCURRENT_RUNS: "5000"
+      PROJECT_MAX_CONCURRENT_RUNS_MAX: "5000"
+      RATE_LIMIT_STORE_MODE: memory
+      RUNNER_RATE_LIMIT_STORE_MODE: memory
+      RUNNER_CLAIM_LONG_POLL_TIMEOUT_SECONDS: "10"
+      CLAIM_RPS: "3"
+      K6_DURATION: "45s"
+      MAX_DB_TX_PER_SEC: "800"
+      MAX_APP_RSS_MB: "1400"
+      LOAD_GATE_RUN_COUNT: "3000"
+      LOAD_GATE_DEVICE_COUNT: "40"
+      LOAD_GATE_PROJECT_MAX_CONCURRENT_RUNS: "5000"
+      LOAD_GATE_ENV_FILE: /tmp/skytest-load-gate.env
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Setup k6
+        uses: grafana/setup-k6-action@v1
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prepare schema
+        run: |
+          npm run --workspace @skytest/web db:generate
+          npm run --workspace @skytest/web db:push
+
+      - name: Seed load test data
+        run: npm run --workspace @skytest/web perf:seed:runner-claim
+
+      - name: Build app
+        run: npm run --workspace @skytest/web build
+
+      - name: Start app
+        run: |
+          npm run --workspace @skytest/web start -- --hostname 127.0.0.1 --port 3000 > /tmp/skytest-load-gate.log 2>&1 &
+          APP_PID=$!
+          echo "APP_PID=$APP_PID" >> "$GITHUB_ENV"
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:3000/api/health/live >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "App failed to become healthy in time"
+          tail -n 120 /tmp/skytest-load-gate.log || true
+          exit 1
+
+      - name: Run k6 claim gate and resource checks
+        run: |
+          set -euo pipefail
+          source "$LOAD_GATE_ENV_FILE"
+          get_db_tx() {
+            node -e "const { Client } = require('pg'); (async () => { const c = new Client({ connectionString: process.env.DATABASE_URL }); await c.connect(); const q = await c.query('SELECT COALESCE(xact_commit + xact_rollback,0)::bigint AS tx FROM pg_stat_database WHERE datname = current_database()'); console.log(q.rows[0].tx); await c.end(); })().catch((e) => { console.error(e); process.exit(1); });"
+          }
+          TX_BEFORE=$(get_db_tx)
+          PEAK_RSS_FILE=/tmp/load-gate-peak-rss-kb.txt
+          echo "0" > "$PEAK_RSS_FILE"
+          (
+            while kill -0 "$APP_PID" 2>/dev/null; do
+              RSS_KB=$(ps -o rss= -p "$APP_PID" | tr -d '[:space:]')
+              CURRENT_MAX=$(cat "$PEAK_RSS_FILE")
+              if [ -n "$RSS_KB" ] && [ "$RSS_KB" -gt "$CURRENT_MAX" ]; then
+                echo "$RSS_KB" > "$PEAK_RSS_FILE"
+              fi
+              sleep 1
+            done
+          ) &
+          SAMPLER_PID=$!
+          START_TS=$(date +%s)
+          k6 run \
+            --summary-export=/tmp/k6-summary.json \
+            -e BASE_URL=http://127.0.0.1:3000 \
+            -e RUNNER_TOKEN="$RUNNER_TOKEN" \
+            -e RUNNER_PROTOCOL_VERSION="$RUNNER_PROTOCOL_VERSION" \
+            -e RUNNER_VERSION="$RUNNER_VERSION" \
+            -e CLAIM_RPS="$CLAIM_RPS" \
+            -e K6_DURATION="$K6_DURATION" \
+            apps/web/scripts/load-gate/runner-claim.k6.js
+          END_TS=$(date +%s)
+          if kill -0 "$SAMPLER_PID" 2>/dev/null; then
+            kill "$SAMPLER_PID" || true
+          fi
+          DURATION=$((END_TS - START_TS))
+          if [ "$DURATION" -lt 1 ]; then
+            DURATION=1
+          fi
+          TX_AFTER=$(get_db_tx)
+          TX_DELTA=$((TX_AFTER - TX_BEFORE))
+          DB_TX_PER_SEC=$(awk "BEGIN {printf \"%.2f\", ${TX_DELTA}/${DURATION}}")
+          PEAK_RSS_KB=$(cat "$PEAK_RSS_FILE")
+          APP_RSS_MB=$(awk "BEGIN {printf \"%.2f\", ${PEAK_RSS_KB}/1024}")
+          echo "DB tx/s: $DB_TX_PER_SEC"
+          echo "App peak RSS MB: $APP_RSS_MB"
+          awk "BEGIN {exit !(${DB_TX_PER_SEC} <= ${MAX_DB_TX_PER_SEC})}" || { echo \"DB tx/s threshold exceeded (${DB_TX_PER_SEC} > ${MAX_DB_TX_PER_SEC})\"; exit 1; }
+          awk "BEGIN {exit !(${APP_RSS_MB} <= ${MAX_APP_RSS_MB})}" || { echo \"App RSS threshold exceeded (${APP_RSS_MB} > ${MAX_APP_RSS_MB})\"; exit 1; }
+
+      - name: Stop app and print logs
+        if: always()
+        run: |
+          if [ -n "${APP_PID:-}" ] && kill -0 "$APP_PID" 2>/dev/null; then
+            kill "$APP_PID" || true
+          fi
+          tail -n 120 /tmp/skytest-load-gate.log || true
+
+  browser-run-load-gate:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: skytest_agent
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d skytest_agent"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/skytest_agent?schema=public
+      ENCRYPTION_SECRET: load-gate-not-for-production
+      GCS_BUCKET: load-gate
+      GCS_PROJECT_ID: load-gate
+      STORAGE_EMULATOR_HOST: http://127.0.0.1:4443
+      RUNNER_MAX_CONCURRENT_RUNS: "4"
+      RUNNER_MAX_LOCAL_BROWSER_RUNS: "1"
+      SKYTEST_BROWSER_WORKER: "true"
+      RATE_LIMIT_STORE_MODE: memory
+      RUNNER_RATE_LIMIT_STORE_MODE: memory
+      LOAD_GATE_BROWSER_RUN_COUNT: "12"
+      LOAD_GATE_BROWSER_DISPATCH_BATCH: "2"
+      LOAD_GATE_BROWSER_POLL_INTERVAL_MS: "250"
+      LOAD_GATE_BROWSER_TIMEOUT_MS: "240000"
+      LOAD_GATE_BROWSER_PROJECT_MAX_CONCURRENT_RUNS: "20"
+      LOAD_GATE_BROWSER_METRICS_FILE: /tmp/skytest-browser-gate-metrics.json
+      MAX_BROWSER_RUN_P95_MS: "90000"
+      MAX_BROWSER_GATE_RSS_MB: "2200"
+      MAX_BROWSER_OOM_COUNT: "0"
+      MAX_BROWSER_FAILED_RUNS: "0"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npm run --workspace @skytest/web playwright:install
+
+      - name: Prepare schema
+        run: |
+          npm run --workspace @skytest/web db:generate
+          npm run --workspace @skytest/web db:push
+
+      - name: Run browser execution gate and resource checks
+        run: |
+          set -euo pipefail
+          BROWSER_GATE_LOG=/tmp/skytest-browser-gate.log
+          npm run --workspace @skytest/web perf:gate:browser-runs > "$BROWSER_GATE_LOG" 2>&1 &
+          GATE_PID=$!
+          PEAK_RSS_FILE=/tmp/browser-gate-peak-rss-kb.txt
+          echo "0" > "$PEAK_RSS_FILE"
+          while kill -0 "$GATE_PID" 2>/dev/null; do
+            RSS_KB=$(ps -o rss= -p "$GATE_PID" | tr -d '[:space:]')
+            CURRENT_MAX=$(cat "$PEAK_RSS_FILE")
+            if [ -n "$RSS_KB" ] && [ "$RSS_KB" -gt "$CURRENT_MAX" ]; then
+              echo "$RSS_KB" > "$PEAK_RSS_FILE"
+            fi
+            sleep 1
+          done
+          set +e
+          wait "$GATE_PID"
+          EXIT_CODE=$?
+          set -e
+          OOM_COUNT=0
+          if [ "$EXIT_CODE" -eq 137 ]; then
+            OOM_COUNT=1
+          fi
+          if [ "$EXIT_CODE" -ne 0 ] && [ "$OOM_COUNT" -eq 0 ]; then
+            echo "Browser gate process exited with code $EXIT_CODE"
+            tail -n 200 "$BROWSER_GATE_LOG" || true
+            exit "$EXIT_CODE"
+          fi
+          PEAK_RSS_KB=$(cat "$PEAK_RSS_FILE")
+          RSS_MB=$(awk "BEGIN {printf \"%.2f\", ${PEAK_RSS_KB}/1024}")
+          if [ -f "$LOAD_GATE_BROWSER_METRICS_FILE" ]; then
+            P95_MS=$(node -e "const fs=require('fs');const m=JSON.parse(fs.readFileSync(process.env.LOAD_GATE_BROWSER_METRICS_FILE,'utf8'));console.log(m.p95LatencyMs.toFixed(2));")
+            FAIL_COUNT=$(node -e "const fs=require('fs');const m=JSON.parse(fs.readFileSync(process.env.LOAD_GATE_BROWSER_METRICS_FILE,'utf8'));console.log(m.failedRuns);")
+          else
+            P95_MS=999999
+            FAIL_COUNT=999999
+          fi
+          echo "Browser run p95 latency ms: $P95_MS"
+          echo "Browser gate peak RSS MB: $RSS_MB"
+          echo "Browser gate OOM count: $OOM_COUNT"
+          echo "Browser run failed count: $FAIL_COUNT"
+          awk "BEGIN {exit !(${P95_MS} <= ${MAX_BROWSER_RUN_P95_MS})}" || { echo \"Browser p95 threshold exceeded (${P95_MS} > ${MAX_BROWSER_RUN_P95_MS})\"; exit 1; }
+          awk "BEGIN {exit !(${RSS_MB} <= ${MAX_BROWSER_GATE_RSS_MB})}" || { echo \"Browser RSS threshold exceeded (${RSS_MB} > ${MAX_BROWSER_GATE_RSS_MB})\"; exit 1; }
+          awk "BEGIN {exit !(${OOM_COUNT} <= ${MAX_BROWSER_OOM_COUNT})}" || { echo \"Browser OOM threshold exceeded (${OOM_COUNT} > ${MAX_BROWSER_OOM_COUNT})\"; exit 1; }
+          awk "BEGIN {exit !(${FAIL_COUNT} <= ${MAX_BROWSER_FAILED_RUNS})}" || { echo \"Browser failed-run threshold exceeded (${FAIL_COUNT} > ${MAX_BROWSER_FAILED_RUNS})\"; exit 1; }
+
+      - name: Print browser gate logs
+        if: always()
+        run: |
+          tail -n 200 /tmp/skytest-browser-gate.log || true
+          cat "$LOAD_GATE_BROWSER_METRICS_FILE" || true

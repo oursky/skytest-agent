@@ -1,8 +1,15 @@
 import { prisma } from '@/lib/core/prisma';
 import { RUN_IN_PROGRESS_STATUSES } from '@/types';
 import { EMULATOR_PROFILE_DEVICE_PREFIX } from '@/lib/runners/android-resource-lock';
+import { getRunnerTransportMetadata } from '@/lib/runners/protocol';
 
-const DEVICE_FRESHNESS_WINDOW_MS = 45_000;
+const RUNNER_TRANSPORT = getRunnerTransportMetadata();
+const FRESHNESS_GRACE_MS = 15_000;
+const DEVICE_FRESHNESS_WINDOW_MS = Math.max(
+    45_000,
+    RUNNER_TRANSPORT.heartbeatIntervalSeconds * 1000 + FRESHNESS_GRACE_MS,
+    RUNNER_TRANSPORT.deviceSyncIntervalSeconds * 1000 + FRESHNESS_GRACE_MS,
+);
 const TEAM_AVAILABILITY_CACHE_TTL_MS = 5_000;
 
 interface CachedTeamDevices {

@@ -5,12 +5,27 @@ import {
     type CompatibilityMetadata,
     type RunnerTransportMetadata,
 } from '@skytest/runner-protocol';
+import { parseBoundedIntEnv } from '@/lib/core/env';
 
 const SEMVER_PATTERN = /^(\d+)\.(\d+)\.(\d+)$/;
-
-const HEARTBEAT_INTERVAL_SECONDS = 10;
-const CLAIM_LONG_POLL_TIMEOUT_SECONDS = 15;
-const DEVICE_SYNC_INTERVAL_SECONDS = 20;
+const HEARTBEAT_INTERVAL_SECONDS = parseBoundedIntEnv({
+    name: 'RUNNER_HEARTBEAT_INTERVAL_SECONDS',
+    fallback: 45,
+    min: 5,
+    max: 300,
+});
+const CLAIM_LONG_POLL_TIMEOUT_SECONDS = parseBoundedIntEnv({
+    name: 'RUNNER_CLAIM_LONG_POLL_TIMEOUT_SECONDS',
+    fallback: 30,
+    min: 10,
+    max: 120,
+});
+const DEVICE_SYNC_INTERVAL_SECONDS = parseBoundedIntEnv({
+    name: 'RUNNER_DEVICE_SYNC_INTERVAL_SECONDS',
+    fallback: 45,
+    min: 10,
+    max: 600,
+});
 
 const parseSemver = (version: string): [number, number, number] | null => {
     const match = SEMVER_PATTERN.exec(version.trim());

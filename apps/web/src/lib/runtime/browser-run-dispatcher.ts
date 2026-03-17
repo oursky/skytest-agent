@@ -2,12 +2,38 @@ import { Prisma } from '@prisma/client';
 import { config as appConfig } from '@/config/app';
 import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
-import { startLocalBrowserRun } from '@/lib/runtime/local-browser-runner';
+import {
+    hasLocalBrowserRunCapacity,
+    getActiveLocalBrowserRunCount,
+    getMaxLocalBrowserRunCount,
+    startLocalBrowserRun,
+} from '@/lib/runtime/local-browser-runner';
 import { BROWSER_EXECUTION_CAPABILITY } from '@/lib/runners/constants';
 import { RUN_IN_PROGRESS_STATUSES, TEST_STATUS } from '@/types';
 
 const logger = createLogger('runtime:browser-run-dispatcher');
-const LEGACY_BROWSER_RUNNER_KINDS = ['BROWSER_WORKER', 'CONTROL_PLANE'] as const;
+let dispatchLock: Promise<unknown> = Promise.resolve();
+let browserWorkerDisabledLogged = false;
+
+function ensureBrowserWorkerEnabled(): boolean {
+    if (appConfig.browserWorker.enabled) {
+        return true;
+    }
+
+    if (!browserWorkerDisabledLogged) {
+        browserWorkerDisabledLogged = true;
+        logger.info('Skipping browser run dispatch because browser worker mode is disabled');
+    }
+
+    return false;
+}
+
+async function withDispatchLock<T>(handler: () => Promise<T>): Promise<T> {
+    const run = dispatchLock.then(handler, handler);
+    // Keep the queue moving even if a previous dispatch failed; callers still observe `run` errors.
+    dispatchLock = run.catch(() => undefined);
+    return run;
+}
 
 function launchLocalBrowserRun(runId: string): void {
     void startLocalBrowserRun(runId).catch((error) => {
@@ -29,7 +55,7 @@ async function claimBrowserRunWithFilter(filterSql: Prisma.Sql): Promise<string 
               AND tr."deletedAt" IS NULL
               AND tr."assignedRunnerId" IS NULL
               AND tr."requiredCapability" = ${BROWSER_EXECUTION_CAPABILITY}
-              AND (tr."requiredRunnerKind" IS NULL OR tr."requiredRunnerKind" IN (${Prisma.join([...LEGACY_BROWSER_RUNNER_KINDS])}))
+              AND tr."requiredRunnerKind" IS NULL
               AND (
                   SELECT COUNT(*)
                   FROM "TestRun" activeTr
@@ -62,36 +88,66 @@ async function claimBrowserRunWithFilter(filterSql: Prisma.Sql): Promise<string 
 }
 
 export async function dispatchBrowserRun(runId: string): Promise<boolean> {
-    const claimedRunId = await claimBrowserRunWithFilter(Prisma.sql`tr.id = ${runId}`);
-    if (!claimedRunId) {
-        return false;
-    }
+    return withDispatchLock(async () => {
+        if (!ensureBrowserWorkerEnabled()) {
+            return false;
+        }
 
-    launchLocalBrowserRun(claimedRunId);
-    return true;
+        if (!hasLocalBrowserRunCapacity()) {
+            return false;
+        }
+
+        const claimedRunId = await claimBrowserRunWithFilter(Prisma.sql`tr.id = ${runId}`);
+        if (!claimedRunId) {
+            return false;
+        }
+
+        launchLocalBrowserRun(claimedRunId);
+        return true;
+    });
 }
 
 export async function dispatchNextQueuedBrowserRun(): Promise<boolean> {
-    const claimedRunId = await claimBrowserRunWithFilter(Prisma.sql`TRUE`);
-    if (!claimedRunId) {
-        return false;
-    }
+    return withDispatchLock(async () => {
+        if (!ensureBrowserWorkerEnabled()) {
+            return false;
+        }
 
-    launchLocalBrowserRun(claimedRunId);
-    return true;
+        if (!hasLocalBrowserRunCapacity()) {
+            return false;
+        }
+
+        const claimedRunId = await claimBrowserRunWithFilter(Prisma.sql`TRUE`);
+        if (!claimedRunId) {
+            return false;
+        }
+
+        launchLocalBrowserRun(claimedRunId);
+        return true;
+    });
 }
 
 export async function dispatchQueuedBrowserRuns(maxDispatches = 1): Promise<number> {
-    const safeMaxDispatches = Math.max(1, Math.floor(maxDispatches));
-    let dispatched = 0;
-
-    for (let i = 0; i < safeMaxDispatches; i += 1) {
-        const claimed = await dispatchNextQueuedBrowserRun();
-        if (!claimed) {
-            break;
+    return withDispatchLock(async () => {
+        if (!ensureBrowserWorkerEnabled()) {
+            return 0;
         }
-        dispatched += 1;
-    }
 
-    return dispatched;
+        const safeMaxDispatches = Math.max(1, Math.floor(maxDispatches));
+        const availableLocalSlots = Math.max(0, getMaxLocalBrowserRunCount() - getActiveLocalBrowserRunCount());
+        const dispatchLimit = Math.min(safeMaxDispatches, availableLocalSlots);
+        let dispatched = 0;
+
+        for (let i = 0; i < dispatchLimit; i += 1) {
+            const claimedRunId = await claimBrowserRunWithFilter(Prisma.sql`TRUE`);
+            if (!claimedRunId) {
+                break;
+            }
+
+            launchLocalBrowserRun(claimedRunId);
+            dispatched += 1;
+        }
+
+        return dispatched;
+    });
 }

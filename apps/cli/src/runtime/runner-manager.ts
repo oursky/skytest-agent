@@ -1,4 +1,4 @@
-import { access, readFile } from 'node:fs/promises';
+import { access, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -20,7 +20,7 @@ import {
     writeRunnerPid,
 } from '../state/store';
 import { generateLocalRunnerId } from '../state/id';
-import { exchangePairingToken, notifyRunnerShutdown } from './control-plane';
+import { ControlPlaneHttpError, exchangePairingToken, notifyRunnerShutdown, verifyRunnerCredential } from './control-plane';
 import { isProcessAlive, startDetachedRunnerProcess, stopProcessWithTimeout } from './process';
 
 const DEFAULT_CONTROL_PLANE_URL = process.env.RUNNER_CONTROL_PLANE_URL ?? 'http://127.0.0.1:3000';
@@ -29,6 +29,7 @@ const STOP_TIMEOUT_MS = 5_000;
 const STARTUP_HEALTH_CHECK_MS = 500;
 const RUNNER_CREDENTIAL_REVOKED_FILE = 'credential-revoked.json';
 const RUNNER_ENV_FILE_ENV = 'SKYTEST_RUNNER_ENV_FILE';
+const START_REPAIR_PAIRING_TOKEN_ENV = 'SKYTEST_REPAIR_PAIRING_TOKEN';
 type RunnerEnv = Record<string, string | undefined>;
 
 function sleep(milliseconds: number): Promise<void> {
@@ -216,6 +217,101 @@ async function isRunnerCredentialRevoked(localRunnerId: string): Promise<boolean
     }
 }
 
+function resolveRepairPairingToken(overrideToken?: string): string | null {
+    const override = overrideToken?.trim();
+    if (override) {
+        return override;
+    }
+    const envToken = process.env[START_REPAIR_PAIRING_TOKEN_ENV]?.trim();
+    return envToken && envToken.length > 0 ? envToken : null;
+}
+
+async function removeLocalRunnerState(localRunnerId: string): Promise<void> {
+    const pid = await readRunnerPid(localRunnerId);
+    if (pid && isProcessAlive(pid)) {
+        await stopProcessWithTimeout(pid, STOP_TIMEOUT_MS);
+    }
+    await clearRunnerPid(localRunnerId);
+    await deleteRunner(localRunnerId);
+}
+
+async function repairRunnerCredential(input: {
+    localRunnerId: string;
+    metadata: LocalRunnerMetadata;
+    pairingToken: string;
+}): Promise<{ metadata: LocalRunnerMetadata; credential: LocalRunnerCredential }> {
+    const exchanged = await exchangePairingToken({
+        pairingToken: input.pairingToken,
+        controlPlaneBaseUrl: input.metadata.controlPlaneBaseUrl,
+        hostFingerprint: resolveHostFingerprint(),
+        displayId: input.localRunnerId,
+        label: input.metadata.label,
+        runnerVersion: DEFAULT_RUNNER_VERSION,
+    });
+
+    const now = new Date().toISOString();
+    const nextMetadata: LocalRunnerMetadata = {
+        ...input.metadata,
+        serverRunnerId: exchanged.runnerId,
+        updatedAt: now,
+    };
+    const nextCredential: LocalRunnerCredential = {
+        runnerToken: exchanged.runnerToken,
+        runnerId: exchanged.runnerId,
+        credentialExpiresAt: exchanged.credentialExpiresAt,
+        transport: exchanged.transport,
+        updatedAt: now,
+    };
+
+    await saveRunnerMetadata(input.localRunnerId, nextMetadata);
+    await saveRunnerCredential(input.localRunnerId, nextCredential);
+    await rm(path.join(resolveRunnerPaths(input.localRunnerId).runtimeStateDir, RUNNER_CREDENTIAL_REVOKED_FILE), { force: true });
+
+    return { metadata: nextMetadata, credential: nextCredential };
+}
+
+async function reconcileRunnerCredential(input: {
+    localRunnerId: string;
+    metadata: LocalRunnerMetadata;
+    credential: LocalRunnerCredential;
+    repairPairingToken?: string;
+    bestEffort?: boolean;
+}): Promise<{ metadata: LocalRunnerMetadata; credential: LocalRunnerCredential } | null> {
+    try {
+        await verifyRunnerCredential({
+            controlPlaneBaseUrl: input.metadata.controlPlaneBaseUrl,
+            runnerToken: input.credential.runnerToken,
+            runnerVersion: DEFAULT_RUNNER_VERSION,
+        });
+        return {
+            metadata: input.metadata,
+            credential: input.credential,
+        };
+    } catch (error) {
+        if (!(error instanceof ControlPlaneHttpError) || error.status !== 401) {
+            if (input.bestEffort) {
+                return {
+                    metadata: input.metadata,
+                    credential: input.credential,
+                };
+            }
+            throw error;
+        }
+
+        const repairPairingToken = resolveRepairPairingToken(input.repairPairingToken);
+        if (!repairPairingToken) {
+            await removeLocalRunnerState(input.localRunnerId);
+            return null;
+        }
+
+        return repairRunnerCredential({
+            localRunnerId: input.localRunnerId,
+            metadata: input.metadata,
+            pairingToken: repairPairingToken,
+        });
+    }
+}
+
 export interface PairRunnerOptions {
     pairingToken: string;
     label?: string;
@@ -296,15 +392,38 @@ export interface StartRunnerResult {
     pid: number;
     alreadyRunning: boolean;
     logPath: string;
+    autoRepaired: boolean;
 }
 
-export async function startRunner(runnerIdentifier: string): Promise<StartRunnerResult> {
+export async function startRunner(
+    runnerIdentifier: string,
+    options?: { repairPairingToken?: string }
+): Promise<StartRunnerResult> {
     const localRunnerId = await resolveLocalRunnerId(runnerIdentifier);
-    const metadata = await requireRunnerMetadata(localRunnerId);
-    const credential = await requireRunnerCredential(localRunnerId);
+    let metadata = await requireRunnerMetadata(localRunnerId);
+    let credential = await requireRunnerCredential(localRunnerId);
     const runnerPaths = resolveRunnerPaths(localRunnerId);
 
     await ensureRunnerDirectories(localRunnerId);
+
+    let autoRepaired = false;
+    const reconciled = await reconcileRunnerCredential({
+        localRunnerId,
+        metadata,
+        credential,
+        repairPairingToken: options?.repairPairingToken,
+        bestEffort: true,
+    });
+    if (!reconciled) {
+        throw new Error(
+            `Runner '${runnerIdentifier}' is no longer paired on server. Local CLI state was removed. Run \`skytest pair runner "<pairing-token>" --url "${metadata.controlPlaneBaseUrl}"\` to pair again.`
+        );
+    }
+    if (reconciled.credential.runnerToken !== credential.runnerToken) {
+        autoRepaired = true;
+    }
+    metadata = reconciled.metadata;
+    credential = reconciled.credential;
 
     const existingPid = await readRunnerPid(localRunnerId);
     if (existingPid && isProcessAlive(existingPid)) {
@@ -313,6 +432,7 @@ export async function startRunner(runnerIdentifier: string): Promise<StartRunner
             pid: existingPid,
             alreadyRunning: true,
             logPath: runnerPaths.logPath,
+            autoRepaired,
         };
     }
 
@@ -366,6 +486,7 @@ export async function startRunner(runnerIdentifier: string): Promise<StartRunner
         pid,
         alreadyRunning: false,
         logPath: runnerPaths.logPath,
+        autoRepaired,
     };
 }
 
@@ -441,10 +562,20 @@ export async function getRunners(): Promise<LocalRunnerDescriptor[]> {
             continue;
         }
 
-        const runtime = await determineRunnerStatus(localRunnerId);
-        descriptors.push({
+        const reconciled = await reconcileRunnerCredential({
+            localRunnerId,
             metadata,
             credential,
+            bestEffort: true,
+        });
+        if (!reconciled) {
+            continue;
+        }
+
+        const runtime = await determineRunnerStatus(localRunnerId);
+        descriptors.push({
+            metadata: reconciled.metadata,
+            credential: reconciled.credential,
             pid: runtime.pid,
             status: runtime.status,
             logPath: resolveRunnerPaths(localRunnerId).logPath,
@@ -458,15 +589,24 @@ export async function describeRunner(runnerIdentifier: string): Promise<LocalRun
     const localRunnerId = await resolveLocalRunnerId(runnerIdentifier);
     const metadata = await requireRunnerMetadata(localRunnerId);
     const credential = await requireRunnerCredential(localRunnerId);
+    const reconciled = await reconcileRunnerCredential({
+        localRunnerId,
+        metadata,
+        credential,
+        bestEffort: true,
+    });
+    if (!reconciled) {
+        throw new Error(`Runner '${runnerIdentifier}' is no longer paired on server and was removed locally.`);
+    }
     const runtime = await determineRunnerStatus(localRunnerId);
 
     return {
-        metadata,
-        credential,
+        metadata: reconciled.metadata,
+        credential: reconciled.credential,
         pid: runtime.pid,
         status: runtime.status,
         logPath: resolveRunnerPaths(localRunnerId).logPath,
-        maskedRunnerToken: maskRunnerToken(credential.runnerToken),
+        maskedRunnerToken: maskRunnerToken(reconciled.credential.runnerToken),
     };
 }
 

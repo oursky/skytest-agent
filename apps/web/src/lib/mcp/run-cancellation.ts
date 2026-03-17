@@ -1,5 +1,4 @@
 import { prisma } from '@/lib/core/prisma';
-import { dispatchNextQueuedBrowserRun } from '@/lib/runtime/browser-run-dispatcher';
 import { RUN_ACTIVE_STATUSES, TEST_STATUS, isRunTerminalStatus } from '@/types';
 
 export async function cancelRunDurably(runId: string, errorMessage: string): Promise<boolean> {
@@ -56,8 +55,6 @@ export async function cancelRunDurably(runId: string, errorMessage: string): Pro
     if (!cancelled) {
         return false;
     }
-
-    void dispatchNextQueuedBrowserRun().catch(() => {});
 
     return true;
 }

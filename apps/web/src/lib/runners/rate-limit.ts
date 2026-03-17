@@ -7,20 +7,57 @@ interface RateLimitWindow {
     windowStartMs: number;
 }
 
+type RateLimitStoreMode = 'db' | 'memory';
+
 const windows = new Map<string, RateLimitWindow>();
 const RATE_LIMIT_RETENTION_MS = 24 * 60 * 60 * 1000;
 const RATE_LIMIT_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 const RATE_LIMIT_FALLBACK_LOG_DEDUP_MS = 60 * 1000;
+const RUNNER_RATE_LIMIT_PREFIX = 'runners-v1-';
 const logger = createLogger('runners:rate-limit');
 
 const globalForRateLimit = global as unknown as {
     rateLimitWindowInit?: Promise<void>;
     rateLimitWindowCleanupAtMs?: number;
     rateLimitFallbackLogAtMs?: number;
+    inMemoryRateLimitCleanupAtMs?: number;
 };
+
+function parseRateLimitStoreMode(name: string, fallback: RateLimitStoreMode): RateLimitStoreMode {
+    const rawValue = process.env[name]?.trim().toLowerCase();
+    if (rawValue === 'memory' || rawValue === 'db') {
+        return rawValue;
+    }
+    return fallback;
+}
+
+function resolveRateLimitStoreMode(key: string): RateLimitStoreMode {
+    const defaultMode = parseRateLimitStoreMode('RATE_LIMIT_STORE_MODE', 'memory');
+    if (!key.startsWith(RUNNER_RATE_LIMIT_PREFIX)) {
+        return defaultMode;
+    }
+
+    return parseRateLimitStoreMode('RUNNER_RATE_LIMIT_STORE_MODE', 'memory');
+}
+
+function cleanupInMemoryWindows(nowMs: number): void {
+    const nextCleanupAt = globalForRateLimit.inMemoryRateLimitCleanupAtMs ?? 0;
+    if (nowMs < nextCleanupAt) {
+        return;
+    }
+
+    globalForRateLimit.inMemoryRateLimitCleanupAtMs = nowMs + RATE_LIMIT_CLEANUP_INTERVAL_MS;
+    const staleBeforeMs = nowMs - RATE_LIMIT_RETENTION_MS;
+    for (const [key, value] of windows.entries()) {
+        if (value.windowStartMs < staleBeforeMs) {
+            windows.delete(key);
+        }
+    }
+}
 
 function isRateLimitedInMemory(key: string, input: { limit: number; windowMs: number }): boolean {
     const now = Date.now();
+    cleanupInMemoryWindows(now);
     const existing = windows.get(key);
 
     if (!existing || now - existing.windowStartMs >= input.windowMs) {
@@ -78,6 +115,11 @@ async function cleanupOldRateLimitWindows(nowMs: number): Promise<void> {
 }
 
 export async function isRateLimited(key: string, input: { limit: number; windowMs: number }): Promise<boolean> {
+    const mode = resolveRateLimitStoreMode(key);
+    if (mode === 'memory') {
+        return isRateLimitedInMemory(key, input);
+    }
+
     try {
         await ensureRateLimitWindowStore();
 

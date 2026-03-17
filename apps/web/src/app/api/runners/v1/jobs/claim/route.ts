@@ -4,15 +4,16 @@ import {
     claimJobResponseSchema,
 } from '@skytest/runner-protocol';
 import { createLogger } from '@/lib/core/logger';
+import { parseBoundedIntEnv } from '@/lib/core/env';
 import { authenticateRunnerRequest } from '@/lib/runners/auth';
 import { claimNextRunForRunner, diagnoseNoClaimForRunner } from '@/lib/runners/claim-service';
-import { evaluateRunnerCompatibility } from '@/lib/runners/protocol';
+import { evaluateRunnerCompatibility, getRunnerTransportMetadata } from '@/lib/runners/protocol';
 import { getRateLimitKey, isRateLimited } from '@/lib/runners/rate-limit';
 
 const logger = createLogger('api:runners:v1:claim');
-const CLAIM_LONG_POLL_TIMEOUT_MS = 15_000;
-const CLAIM_RETRY_INTERVAL_MS = 1_000;
 const shouldCollectClaimDiagnosis = (process.env.LOG_LEVEL ?? 'info').toLowerCase() === 'debug';
+const CLAIM_RETRY_INTERVAL_MIN_MS = 250;
+const CLAIM_RETRY_INTERVAL_MAX_MS = 5_000;
 
 function sleep(ms: number): Promise<void> {
     return new Promise((resolve) => {
@@ -57,8 +58,21 @@ export async function POST(request: Request) {
             );
         }
 
-        const deadlineMs = Date.now() + CLAIM_LONG_POLL_TIMEOUT_MS;
+        const transport = getRunnerTransportMetadata();
+        const claimLongPollTimeoutMs = transport.claimLongPollTimeoutSeconds * 1000;
+        const defaultRetryIntervalMs = Math.max(
+            CLAIM_RETRY_INTERVAL_MIN_MS,
+            Math.floor(claimLongPollTimeoutMs / 6)
+        );
+        const configuredRetryIntervalMs = parseBoundedIntEnv({
+            name: 'RUNNER_CLAIM_RETRY_INTERVAL_MS',
+            fallback: defaultRetryIntervalMs,
+            min: CLAIM_RETRY_INTERVAL_MIN_MS,
+            max: CLAIM_RETRY_INTERVAL_MAX_MS,
+        });
+        const deadlineMs = Date.now() + claimLongPollTimeoutMs;
         const claimStartedAt = Date.now();
+        let retryIntervalMs = configuredRetryIntervalMs;
         let claimed = await claimNextRunForRunner({
             runnerId: auth.runnerId,
             teamId: auth.teamId,
@@ -67,13 +81,17 @@ export async function POST(request: Request) {
         });
 
         while (!claimed && Date.now() < deadlineMs) {
-            await sleep(CLAIM_RETRY_INTERVAL_MS);
+            await sleep(Math.min(retryIntervalMs, Math.max(0, deadlineMs - Date.now())));
             claimed = await claimNextRunForRunner({
                 runnerId: auth.runnerId,
                 teamId: auth.teamId,
                 runnerKind: auth.runnerKind,
                 capabilities: auth.capabilities,
             });
+            retryIntervalMs = Math.min(
+                CLAIM_RETRY_INTERVAL_MAX_MS,
+                Math.floor(retryIntervalMs * 1.5)
+            );
         }
 
         if (claimed) {

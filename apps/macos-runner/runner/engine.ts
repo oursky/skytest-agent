@@ -112,9 +112,9 @@ const RUNNER_LOCK_PATH = path.join(runnerStateRoot, 'runner.lock');
 const RUNNER_CREDENTIAL_REVOKED_PATH = path.join(runnerStateRoot, 'credential-revoked.json');
 
 const DEFAULT_TRANSPORT: RunnerTransportMetadata = {
-    heartbeatIntervalSeconds: 10,
-    claimLongPollTimeoutSeconds: 15,
-    deviceSyncIntervalSeconds: 20,
+    heartbeatIntervalSeconds: 45,
+    claimLongPollTimeoutSeconds: 30,
+    deviceSyncIntervalSeconds: 45,
 };
 
 function buildRunnerDisplayId(seed: string): string {
@@ -377,6 +377,33 @@ async function registerRunner(): Promise<void> {
         capabilities,
     });
     const response = await postRunnerApi('/api/runners/v1/register', payload);
+    const parsed = registerRunnerResponseSchema.parse(response);
+
+    authState = {
+        runnerToken: ensureRunnerToken(),
+        runnerId: parsed.runnerId,
+        credentialExpiresAt: parsed.credentialExpiresAt,
+        transport: parsed.transport,
+    };
+
+    await saveRunnerCredential(controlPlaneBaseUrl, {
+        runnerToken: ensureRunnerToken(),
+        runnerId: parsed.runnerId,
+        credentialExpiresAt: parsed.credentialExpiresAt,
+        updatedAt: new Date().toISOString(),
+    });
+}
+
+async function repairRunnerRegistration(): Promise<void> {
+    const payload = registerRunnerRequestSchema.parse({
+        protocolVersion: RUNNER_PROTOCOL_CURRENT_VERSION,
+        runnerVersion,
+        hostFingerprint,
+        label: runnerLabel,
+        kind: 'MACOS_AGENT',
+        capabilities,
+    });
+    const response = await postRunnerApi('/api/runners/v1/repair', payload);
     const parsed = registerRunnerResponseSchema.parse(response);
 
     authState = {
@@ -885,6 +912,9 @@ export async function startRunnerEngine() {
             if (error instanceof RunnerHttpError && error.status === 401 && pairingToken) {
                 authState = await exchangePairingCredential();
                 await registerRunner();
+            } else if (error instanceof RunnerHttpError && error.status === 409) {
+                logger.warn('Runner host fingerprint mismatch detected. Repairing runner registration.');
+                await repairRunnerRegistration();
             } else {
                 throw error;
             }

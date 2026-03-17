@@ -1,0 +1,55 @@
+{{- if .Values.browserWorker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "skytest-agent.browserWorkerFullname" . }}
+  labels:
+    {{- include "skytest-agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: browser-worker
+spec:
+  replicas: {{ .Values.browserWorker.replicas }}
+  selector:
+    matchLabels:
+      {{- include "skytest-agent.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: browser-worker
+  template:
+    metadata:
+      labels:
+        {{- include "skytest-agent.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: browser-worker
+      {{- with .Values.browserWorker.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: browser-worker
+          image: "{{ include "skytest-agent.image" . }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            {{- toYaml .Values.browserWorker.command | nindent 12 }}
+          env:
+            - name: SKYTEST_BROWSER_WORKER
+              value: "true"
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secrets.existingSecretName }}
+          resources:
+            {{- toYaml .Values.browserWorker.resources | nindent 12 }}
+      {{- with .Values.browserWorker.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.browserWorker.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.browserWorker.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

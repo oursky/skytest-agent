@@ -34,3 +34,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "skytest-agent.runnerMaintenanceFullname" -}}
 {{- printf "%s-runner-maintenance" (include "skytest-agent.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
+
+{{- define "skytest-agent.browserWorkerFullname" -}}
+{{- printf "%s-browser-worker" (include "skytest-agent.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
