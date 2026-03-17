@@ -23,6 +23,7 @@ This repository keeps durable documentation in two tracks:
 - [CLI release and Homebrew flow](./maintainers/cli-release-homebrew.md)
 - [Test case Excel import/export format](./maintainers/test-case-excel-format.md)
 - [Dependency lifecycle policy](./maintainers/dependency-lifecycle-policy.md)
+- [Fly/Supabase runtime pre-deploy readiness](./maintainers/fly-supabase-predeploy-readiness.md)
 
 ## Maintenance Rules
 
