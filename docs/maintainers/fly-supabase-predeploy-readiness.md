@@ -38,3 +38,7 @@ Intentionally not executed here:
 
 - production deployment execution to `skytest-oursky.fly.dev`
 - post-deploy production soak and recovery drills
+
+## Known limitation to track
+
+- Midscene API-key injection currently uses process-level environment mutation and a global lock in `apps/web/src/lib/runtime/midscene-env.ts`. This is acceptable for initial single-tenant launch but should be refactored to remove global mutation for higher-concurrency multi-tenant isolation.

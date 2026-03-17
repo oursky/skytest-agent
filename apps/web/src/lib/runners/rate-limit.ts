@@ -152,9 +152,11 @@ export async function isRateLimited(key: string, input: { limit: number; windowM
 }
 
 export function getRateLimitKey(request: Request, prefix: string): string {
+    // Fly's edge proxy sets Fly-Client-IP; prefer it because clients can spoof X-Forwarded-For.
+    const flyClientIp = request.headers.get('fly-client-ip')?.trim();
+    const realIp = request.headers.get('x-real-ip')?.trim();
     const forwardedFor = request.headers.get('x-forwarded-for') || '';
     const firstForwarded = forwardedFor.split(',')[0]?.trim();
-    const realIp = request.headers.get('x-real-ip')?.trim();
-    const address = firstForwarded || realIp || 'unknown';
+    const address = flyClientIp || realIp || firstForwarded || 'unknown';
     return `${prefix}:${address}`;
 }
