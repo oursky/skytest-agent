@@ -6,7 +6,6 @@ const mocks = vi.hoisted(() => ({
     testRunFileCreateMany: vi.fn(),
     validateTargetUrl: vi.fn(),
     getTeamDevicesAvailability: vi.fn(),
-    dispatchBrowserRun: vi.fn(),
 }));
 
 vi.mock('@/lib/core/prisma', () => ({
@@ -31,10 +30,6 @@ vi.mock('@/lib/runners/availability-service', () => ({
     getTeamDevicesAvailability: mocks.getTeamDevicesAvailability,
 }));
 
-vi.mock('@/lib/runtime/browser-run-dispatcher', () => ({
-    dispatchBrowserRun: mocks.dispatchBrowserRun,
-}));
-
 const { queueTestCaseRun } = await import('@/lib/mcp/run-execution');
 
 describe('queueTestCaseRun', () => {
@@ -44,7 +39,6 @@ describe('queueTestCaseRun', () => {
         mocks.testRunFileCreateMany.mockReset();
         mocks.validateTargetUrl.mockReset();
         mocks.getTeamDevicesAvailability.mockReset();
-        mocks.dispatchBrowserRun.mockReset();
 
         mocks.validateTargetUrl.mockReturnValue({ valid: true });
         mocks.testRunCreate.mockResolvedValue({
@@ -55,7 +49,6 @@ describe('queueTestCaseRun', () => {
             requestedRunnerId: null,
         });
         mocks.testRunFileCreateMany.mockResolvedValue({ count: 0 });
-        mocks.dispatchBrowserRun.mockResolvedValue(true);
     });
 
     it('queues a browser run with default test case configuration', async () => {
@@ -98,7 +91,6 @@ describe('queueTestCaseRun', () => {
                 requiredRunnerKind: null,
             }),
         });
-        expect(mocks.dispatchBrowserRun).toHaveBeenCalledWith('run-1');
         expect(mocks.testRunFileCreateMany).toHaveBeenCalledTimes(1);
     });
 
@@ -145,7 +137,6 @@ describe('queueTestCaseRun', () => {
         }
         expect(result.failure.error).toContain('Selected device is no longer available');
         expect(mocks.testRunCreate).not.toHaveBeenCalled();
-        expect(mocks.dispatchBrowserRun).not.toHaveBeenCalled();
     });
 
     it('returns failure when requestedDeviceId does not match Android target selectors', async () => {

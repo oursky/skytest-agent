@@ -3,7 +3,10 @@ import path from 'node:path';
 import { prisma } from '../../src/lib/core/prisma';
 import { encrypt } from '../../src/lib/security/crypto';
 import { BROWSER_EXECUTION_CAPABILITY } from '../../src/lib/runners/constants';
-import { dispatchQueuedBrowserRuns } from '../../src/lib/runtime/browser-run-dispatcher';
+
+if (process.env.SKYTEST_BROWSER_WORKER !== 'true') {
+    process.env.SKYTEST_BROWSER_WORKER = 'true';
+}
 
 const TERMINAL_STATUSES = new Set(['PASS', 'FAIL', 'CANCELLED']);
 const ACTIVE_STATUSES = new Set(['QUEUED', 'PREPARING', 'RUNNING']);
@@ -36,6 +39,7 @@ async function ensureParentDirectory(filePath: string): Promise<void> {
 }
 
 async function main() {
+    const { dispatchQueuedBrowserRuns } = await import('../../src/lib/runtime/browser-run-dispatcher');
     const runSeed = `load-gate-browser-${Date.now()}`;
     const targetUrl = process.env.LOAD_GATE_BROWSER_URL ?? 'https://example.com';
     const metricsFilePath = process.env.LOAD_GATE_BROWSER_METRICS_FILE ?? '/tmp/skytest-browser-gate-metrics.json';

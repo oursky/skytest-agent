@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({
     testCaseFindUnique: vi.fn(),
     testCaseFileFindMany: vi.fn(),
     testRunCreate: vi.fn(),
-    dispatchBrowserRun: vi.fn(),
 }));
 
 vi.mock('@/lib/security/auth', () => ({
@@ -41,10 +40,6 @@ vi.mock('@/lib/core/prisma', () => ({
     },
 }));
 
-vi.mock('@/lib/runtime/browser-run-dispatcher', () => ({
-    dispatchBrowserRun: mocks.dispatchBrowserRun,
-}));
-
 const { POST } = await import('@/app/api/test-runs/dispatch/route');
 
 describe('POST /api/test-runs/dispatch', () => {
@@ -56,7 +51,6 @@ describe('POST /api/test-runs/dispatch', () => {
         mocks.testCaseFindUnique.mockReset();
         mocks.testCaseFileFindMany.mockReset();
         mocks.testRunCreate.mockReset();
-        mocks.dispatchBrowserRun.mockReset();
 
         mocks.verifyAuth.mockResolvedValue({ sub: 'auth-user' });
         mocks.resolveUserId.mockResolvedValue('user-1');
@@ -93,10 +87,9 @@ describe('POST /api/test-runs/dispatch', () => {
             requestedDeviceId: data.requestedDeviceId ?? null,
             requestedRunnerId: data.requestedRunnerId ?? null,
         }));
-        mocks.dispatchBrowserRun.mockResolvedValue(true);
     });
 
-    it('queues browser runs and dispatches local browser execution', async () => {
+    it('queues browser runs for worker pickup', async () => {
         const request = new Request('http://localhost/api/test-runs/dispatch', {
             method: 'POST',
             headers: {
@@ -130,7 +123,6 @@ describe('POST /api/test-runs/dispatch', () => {
                 requiredRunnerKind: null,
             },
         });
-        expect(mocks.dispatchBrowserRun).toHaveBeenCalledWith('run-1');
         expect(payload).toMatchObject({
             runId: 'run-1',
             status: 'QUEUED',
@@ -176,7 +168,6 @@ describe('POST /api/test-runs/dispatch', () => {
                 requestedDeviceId: 'emulator-profile:android_profile_a',
             },
         });
-        expect(mocks.dispatchBrowserRun).not.toHaveBeenCalled();
         expect(payload).toMatchObject({
             runId: 'run-1',
             status: 'QUEUED',
@@ -364,7 +355,6 @@ describe('POST /api/test-runs/dispatch', () => {
 
         expect(response.status).toBe(400);
         expect(mocks.testRunCreate).not.toHaveBeenCalled();
-        expect(mocks.dispatchBrowserRun).not.toHaveBeenCalled();
         expect(payload).toMatchObject({
             error: 'requestedDeviceId must match an Android target device selector',
         });

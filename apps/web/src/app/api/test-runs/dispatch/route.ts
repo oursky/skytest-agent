@@ -19,7 +19,6 @@ import {
     ANDROID_EXECUTION_RUNNER_KIND,
     BROWSER_EXECUTION_CAPABILITY,
 } from '@/lib/runners/constants';
-import { dispatchBrowserRun } from '@/lib/runtime/browser-run-dispatcher';
 import { TEST_STATUS, type BrowserConfig, type TargetConfig, type TestStep } from '@/types';
 
 const logger = createLogger('api:test-runs-dispatch');
@@ -346,17 +345,6 @@ export async function POST(request: Request) {
             }
         }
 
-        if (!requestHasAndroidTargets) {
-            const dispatched = await dispatchBrowserRun(testRun.id);
-            if (!dispatched) {
-                logger.warn('Browser run dispatch skipped because run was not claimable', {
-                    runId: testRun.id,
-                    status: testRun.status,
-                    requiredCapability: testRun.requiredCapability,
-                    requiredRunnerKind: testRun.requiredRunnerKind,
-                });
-            }
-        }
 
         return NextResponse.json({
             runId: testRun.id,

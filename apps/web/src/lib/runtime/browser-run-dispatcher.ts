@@ -13,6 +13,20 @@ import { RUN_IN_PROGRESS_STATUSES, TEST_STATUS } from '@/types';
 
 const logger = createLogger('runtime:browser-run-dispatcher');
 let dispatchLock: Promise<unknown> = Promise.resolve();
+let browserWorkerDisabledLogged = false;
+
+function ensureBrowserWorkerEnabled(): boolean {
+    if (appConfig.browserWorker.enabled) {
+        return true;
+    }
+
+    if (!browserWorkerDisabledLogged) {
+        browserWorkerDisabledLogged = true;
+        logger.info('Skipping browser run dispatch because browser worker mode is disabled');
+    }
+
+    return false;
+}
 
 async function withDispatchLock<T>(handler: () => Promise<T>): Promise<T> {
     const run = dispatchLock.then(handler, handler);
@@ -74,6 +88,10 @@ async function claimBrowserRunWithFilter(filterSql: Prisma.Sql): Promise<string 
 
 export async function dispatchBrowserRun(runId: string): Promise<boolean> {
     return withDispatchLock(async () => {
+        if (!ensureBrowserWorkerEnabled()) {
+            return false;
+        }
+
         if (!hasLocalBrowserRunCapacity()) {
             return false;
         }
@@ -90,6 +108,10 @@ export async function dispatchBrowserRun(runId: string): Promise<boolean> {
 
 export async function dispatchNextQueuedBrowserRun(): Promise<boolean> {
     return withDispatchLock(async () => {
+        if (!ensureBrowserWorkerEnabled()) {
+            return false;
+        }
+
         if (!hasLocalBrowserRunCapacity()) {
             return false;
         }
@@ -106,6 +128,10 @@ export async function dispatchNextQueuedBrowserRun(): Promise<boolean> {
 
 export async function dispatchQueuedBrowserRuns(maxDispatches = 1): Promise<number> {
     return withDispatchLock(async () => {
+        if (!ensureBrowserWorkerEnabled()) {
+            return 0;
+        }
+
         const safeMaxDispatches = Math.max(1, Math.floor(maxDispatches));
         const availableLocalSlots = Math.max(0, getMaxLocalBrowserRunCount() - getActiveLocalBrowserRunCount());
         const dispatchLimit = Math.min(safeMaxDispatches, availableLocalSlots);

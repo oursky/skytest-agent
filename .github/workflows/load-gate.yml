@@ -7,6 +7,7 @@ on:
       - 'apps/web/src/app/api/runners/**'
       - 'apps/web/src/lib/runners/**'
       - 'apps/web/src/lib/runtime/**'
+      - 'apps/web/src/workers/**'
       - 'apps/web/src/config/app.ts'
       - 'apps/web/scripts/load-gate/**'
       - 'apps/web/package.json'
@@ -171,6 +172,7 @@ jobs:
       STORAGE_EMULATOR_HOST: http://127.0.0.1:4443
       RUNNER_MAX_CONCURRENT_RUNS: "4"
       RUNNER_MAX_LOCAL_BROWSER_RUNS: "1"
+      SKYTEST_BROWSER_WORKER: "true"
       RATE_LIMIT_STORE_MODE: memory
       RUNNER_RATE_LIMIT_STORE_MODE: memory
       LOAD_GATE_BROWSER_RUN_COUNT: "12"

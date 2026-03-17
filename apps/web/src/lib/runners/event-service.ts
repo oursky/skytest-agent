@@ -7,7 +7,6 @@ import { publishRunUpdate } from '@/lib/runners/event-bus';
 import { createStoredName, validateAndSanitizeFile, buildRunArtifactObjectKey } from '@/lib/security/file-security';
 import { putObjectBuffer } from '@/lib/storage/object-store-utils';
 import { UsageService } from '@/lib/runtime/usage';
-import { dispatchNextQueuedBrowserRun } from '@/lib/runtime/browser-run-dispatcher';
 import { TEST_STATUS, isRunInProgressStatus } from '@/types';
 
 const logger = createLogger('runners:event-service');
@@ -327,12 +326,6 @@ export async function completeOwnedRun(input: {
             runnerId: input.runnerId,
         });
         publishRunUpdate(input.runId);
-        void dispatchNextQueuedBrowserRun().catch((dispatchError) => {
-            logger.warn('Failed to dispatch queued browser run after runner completion', {
-                runId: input.runId,
-                error: dispatchError instanceof Error ? dispatchError.message : String(dispatchError),
-            });
-        });
     } else {
         logger.warn('Ignored complete request for non-owned or expired run', {
             runId: input.runId,
@@ -415,12 +408,6 @@ export async function failOwnedRun(input: {
             runnerId: input.runnerId,
         });
         publishRunUpdate(input.runId);
-        void dispatchNextQueuedBrowserRun().catch((dispatchError) => {
-            logger.warn('Failed to dispatch queued browser run after runner failure', {
-                runId: input.runId,
-                error: dispatchError instanceof Error ? dispatchError.message : String(dispatchError),
-            });
-        });
     } else {
         logger.warn('Ignored fail request for non-owned or expired run', {
             runId: input.runId,

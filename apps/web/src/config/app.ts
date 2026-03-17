@@ -74,6 +74,24 @@ const runnerRunStatusMaxPollIntervalMs = parseBoundedIntEnv({
     min: runnerRunStatusPollIntervalMs,
     max: 120_000,
 });
+const browserWorkerDispatchIntervalMs = parseBoundedIntEnv({
+    name: 'BROWSER_WORKER_DISPATCH_INTERVAL_MS',
+    fallback: 1_000,
+    min: 100,
+    max: 60_000,
+});
+const browserWorkerMaxDispatchIntervalMs = parseBoundedIntEnv({
+    name: 'BROWSER_WORKER_MAX_DISPATCH_INTERVAL_MS',
+    fallback: 5_000,
+    min: browserWorkerDispatchIntervalMs,
+    max: 120_000,
+});
+const browserWorkerMaxDispatchesPerCycle = parseBoundedIntEnv({
+    name: 'BROWSER_WORKER_MAX_DISPATCHES_PER_CYCLE',
+    fallback: runnerMaxLocalBrowserRuns,
+    min: 1,
+    max: 100,
+});
 const runnerEventRetentionDays = parseBoundedIntEnv({
     name: 'RUNNER_EVENT_RETENTION_DAYS',
     fallback: 30,
@@ -104,6 +122,7 @@ const uiDeviceStatusPollIntervalMs = parseBoundedIntEnv({
     min: 1_000,
     max: 120_000,
 });
+const browserWorkerEnabled = process.env.SKYTEST_BROWSER_WORKER === 'true';
 const midsceneGenerateReport = process.env.SKYTEST_MIDSCENE_GENERATE_REPORT === 'true';
 const midsceneAutoPrintReportMsg = process.env.SKYTEST_MIDSCENE_AUTO_PRINT_REPORT_MSG === 'true';
 
@@ -149,6 +168,13 @@ export const config = {
         artifactSoftDeleteDays: runnerArtifactSoftDeleteDays,
         artifactHardDeleteDays: runnerArtifactHardDeleteDays,
         artifactHardDeleteBatchSize: runnerArtifactHardDeleteBatchSize,
+    },
+
+    browserWorker: {
+        enabled: browserWorkerEnabled,
+        dispatchIntervalMs: browserWorkerDispatchIntervalMs,
+        maxDispatchIntervalMs: browserWorkerMaxDispatchIntervalMs,
+        maxDispatchesPerCycle: browserWorkerMaxDispatchesPerCycle,
     },
 
     test: {

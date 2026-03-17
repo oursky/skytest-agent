@@ -1,5 +1,4 @@
 import { prisma } from '@/lib/core/prisma';
-import { dispatchQueuedBrowserRuns } from '@/lib/runtime/browser-run-dispatcher';
 import { RUN_IN_PROGRESS_STATUSES, TEST_STATUS } from '@/types';
 
 export async function reapExpiredRunnerLeases(now = new Date()) {
@@ -89,8 +88,6 @@ export async function reapExpiredRunnerLeases(now = new Date()) {
             data: { status: TEST_STATUS.FAIL },
         });
     }
-
-    void dispatchQueuedBrowserRuns(expiredRuns.length).catch(() => {});
 
     return {
         recoveredRuns: expiredRuns.length,

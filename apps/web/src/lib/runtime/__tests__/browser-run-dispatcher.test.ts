@@ -23,6 +23,8 @@ vi.mock('@/lib/runtime/local-browser-runner', () => ({
     getMaxLocalBrowserRunCount,
 }));
 
+process.env.SKYTEST_BROWSER_WORKER = 'true';
+
 const {
     dispatchBrowserRun,
     dispatchNextQueuedBrowserRun,
