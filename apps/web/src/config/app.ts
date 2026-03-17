@@ -22,13 +22,13 @@ const storageSignedUrlTtlSeconds = parseBoundedIntEnv({
 });
 const streamPollIntervalMs = parseBoundedIntEnv({
     name: 'STREAM_POLL_INTERVAL_MS',
-    fallback: 3_000,
+    fallback: 5_000,
     min: 500,
     max: 30_000,
 });
 const streamMaxPollIntervalMs = parseBoundedIntEnv({
     name: 'STREAM_MAX_POLL_INTERVAL_MS',
-    fallback: 15_000,
+    fallback: 30_000,
     min: streamPollIntervalMs,
     max: 120_000,
 });
@@ -40,7 +40,7 @@ const runnerLeaseDurationSeconds = parseBoundedIntEnv({
 });
 const runnerMaxConcurrentRuns = parseBoundedIntEnv({
     name: 'RUNNER_MAX_CONCURRENT_RUNS',
-    fallback: 10,
+    fallback: 4,
     min: 1,
     max: 200,
 });
@@ -64,13 +64,13 @@ const runnerMaxLocalBrowserRuns = parseBoundedIntEnv({
 });
 const runnerRunStatusPollIntervalMs = parseBoundedIntEnv({
     name: 'RUNNER_RUN_STATUS_POLL_INTERVAL_MS',
-    fallback: 3_000,
+    fallback: 5_000,
     min: 500,
     max: 30_000,
 });
 const runnerRunStatusMaxPollIntervalMs = parseBoundedIntEnv({
     name: 'RUNNER_RUN_STATUS_MAX_POLL_INTERVAL_MS',
-    fallback: 15_000,
+    fallback: 30_000,
     min: runnerRunStatusPollIntervalMs,
     max: 120_000,
 });

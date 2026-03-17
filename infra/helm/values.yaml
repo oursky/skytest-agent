@@ -13,7 +13,7 @@ secrets:
 
 controlPlane:
   enabled: true
-  replicas: 2
+  replicas: 1
   command:
     - npm
     - run
@@ -41,11 +41,11 @@ controlPlane:
     timeoutSeconds: 3
   resources:
     requests:
-      cpu: "500m"
-      memory: "1Gi"
+      cpu: "250m"
+      memory: "768Mi"
     limits:
-      cpu: "2"
-      memory: "4Gi"
+      cpu: "1"
+      memory: "2Gi"
   podAnnotations: {}
   nodeSelector: {}
   tolerations: []
@@ -77,10 +77,10 @@ runnerMaintenance:
 
 autoscaling:
   enabled: true
-  minReplicas: 2
-  maxReplicas: 8
-  targetCPUUtilizationPercentage: 70
-  targetMemoryUtilizationPercentage: 80
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 75
+  targetMemoryUtilizationPercentage: 85
 
 ingress:
   enabled: false

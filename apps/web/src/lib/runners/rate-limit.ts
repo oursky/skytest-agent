@@ -32,7 +32,7 @@ function parseRateLimitStoreMode(name: string, fallback: RateLimitStoreMode): Ra
 }
 
 function resolveRateLimitStoreMode(key: string): RateLimitStoreMode {
-    const defaultMode = parseRateLimitStoreMode('RATE_LIMIT_STORE_MODE', 'db');
+    const defaultMode = parseRateLimitStoreMode('RATE_LIMIT_STORE_MODE', 'memory');
     if (!key.startsWith(RUNNER_RATE_LIMIT_PREFIX)) {
         return defaultMode;
     }

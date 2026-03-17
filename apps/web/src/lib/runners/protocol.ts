@@ -23,7 +23,7 @@ function parsePositiveIntEnv(input: {
 
 const HEARTBEAT_INTERVAL_SECONDS = parsePositiveIntEnv({
     name: 'RUNNER_HEARTBEAT_INTERVAL_SECONDS',
-    fallback: 30,
+    fallback: 45,
     min: 5,
     max: 300,
 });
@@ -35,7 +35,7 @@ const CLAIM_LONG_POLL_TIMEOUT_SECONDS = parsePositiveIntEnv({
 });
 const DEVICE_SYNC_INTERVAL_SECONDS = parsePositiveIntEnv({
     name: 'RUNNER_DEVICE_SYNC_INTERVAL_SECONDS',
-    fallback: 30,
+    fallback: 45,
     min: 10,
     max: 600,
 });

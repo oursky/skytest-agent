@@ -93,8 +93,8 @@ helm upgrade --install skytest infra/helm \
 
 Use one of the profile override files in `infra/helm/profiles`:
 
-- `low.yaml`: lowest-cost baseline for small teams and low parallel browser load
-- `standard.yaml`: default production baseline
+- `low.yaml`: lowest-cost baseline (matches current chart defaults) for small teams and low parallel browser load
+- `standard.yaml`: balanced production baseline
 - `high.yaml`: higher baseline for heavier browser concurrency
 
 Examples:
