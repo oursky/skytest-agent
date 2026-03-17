@@ -696,20 +696,50 @@ async function executeLocalBrowserRun(
         });
     };
 
-    const statusWatchTimer = setInterval(() => {
-        void runStillActive(runId, options)
-            .then((active) => {
-                if (!active) {
-                    cancelLocalBrowserRun(runId);
-                }
-            })
-            .catch((error) => {
-                logger.warn('Failed to poll local run status', {
-                    runId,
-                    error: error instanceof Error ? error.message : String(error),
-                });
+    let statusWatchTimer: ReturnType<typeof setTimeout> | null = null;
+    let statusPollIntervalMs = RUN_STATUS_WATCH_INTERVAL_MS;
+    const maxStatusPollIntervalMs = appConfig.runner.runStatusMaxPollIntervalMs;
+    const scheduleStatusPoll = () => {
+        if (controller.signal.aborted) {
+            return;
+        }
+        if (statusWatchTimer) {
+            clearTimeout(statusWatchTimer);
+        }
+        statusWatchTimer = setTimeout(() => {
+            void pollRunStatus();
+        }, statusPollIntervalMs);
+    };
+    const pollRunStatus = async () => {
+        if (controller.signal.aborted) {
+            return;
+        }
+
+        try {
+            const active = await runStillActive(runId, options);
+            if (!active) {
+                cancelLocalBrowserRun(runId);
+                return;
+            }
+
+            statusPollIntervalMs = Math.min(
+                maxStatusPollIntervalMs,
+                Math.floor(statusPollIntervalMs * 1.5)
+            );
+        } catch (error) {
+            logger.warn('Failed to poll local run status', {
+                runId,
+                error: error instanceof Error ? error.message : String(error),
             });
-    }, RUN_STATUS_WATCH_INTERVAL_MS);
+            statusPollIntervalMs = Math.min(
+                maxStatusPollIntervalMs,
+                Math.floor(statusPollIntervalMs * 2)
+            );
+        }
+
+        scheduleStatusPoll();
+    };
+    scheduleStatusPoll();
 
     try {
         const result = await runTest({
@@ -808,7 +838,9 @@ async function executeLocalBrowserRun(
             options
         );
     } finally {
-        clearInterval(statusWatchTimer);
+        if (statusWatchTimer) {
+            clearTimeout(statusWatchTimer);
+        }
     }
 }
 

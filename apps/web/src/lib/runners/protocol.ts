@@ -35,7 +35,7 @@ const CLAIM_LONG_POLL_TIMEOUT_SECONDS = parsePositiveIntEnv({
 });
 const DEVICE_SYNC_INTERVAL_SECONDS = parsePositiveIntEnv({
     name: 'RUNNER_DEVICE_SYNC_INTERVAL_SECONDS',
-    fallback: 60,
+    fallback: 30,
     min: 10,
     max: 600,
 });

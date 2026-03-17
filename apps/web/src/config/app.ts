@@ -1,58 +1,109 @@
 import { TEST_STATUS } from '@/types';
 
-const storageSignedUrlTtlSecondsValue = Number.parseInt(process.env.STORAGE_SIGNED_URL_TTL_SECONDS ?? '', 10);
-const storageSignedUrlTtlSeconds = Number.isFinite(storageSignedUrlTtlSecondsValue) && storageSignedUrlTtlSecondsValue > 0
-    ? storageSignedUrlTtlSecondsValue
-    : 900;
-const streamPollIntervalMsValue = Number.parseInt(process.env.STREAM_POLL_INTERVAL_MS ?? '', 10);
-const streamPollIntervalMs = Number.isFinite(streamPollIntervalMsValue) && streamPollIntervalMsValue > 0
-    ? streamPollIntervalMsValue
-    : 3_000;
-const runnerLeaseDurationSecondsValue = Number.parseInt(process.env.RUNNER_LEASE_DURATION_SECONDS ?? '', 10);
-const runnerLeaseDurationSeconds = Number.isFinite(runnerLeaseDurationSecondsValue) && runnerLeaseDurationSecondsValue > 0
-    ? runnerLeaseDurationSecondsValue
-    : 120;
-const runnerMaxConcurrentRunsValue = Number.parseInt(process.env.RUNNER_MAX_CONCURRENT_RUNS ?? '', 10);
-const runnerMaxConcurrentRuns = Number.isFinite(runnerMaxConcurrentRunsValue) && runnerMaxConcurrentRunsValue > 0
-    ? runnerMaxConcurrentRunsValue
-    : 10;
-const projectMaxConcurrentRunsMaxValue = Number.parseInt(process.env.PROJECT_MAX_CONCURRENT_RUNS_MAX ?? '', 10);
-const projectMaxConcurrentRunsMax = Number.isFinite(projectMaxConcurrentRunsMaxValue) && projectMaxConcurrentRunsMaxValue > 0
-    ? projectMaxConcurrentRunsMaxValue
-    : 5;
-const runnerLeaseReaperIntervalMsValue = Number.parseInt(process.env.RUNNER_LEASE_REAPER_INTERVAL_MS ?? '', 10);
-const runnerLeaseReaperIntervalMs = Number.isFinite(runnerLeaseReaperIntervalMsValue) && runnerLeaseReaperIntervalMsValue > 0
-    ? runnerLeaseReaperIntervalMsValue
-    : 60_000;
-const runnerMaxLocalBrowserRunsValue = Number.parseInt(process.env.RUNNER_MAX_LOCAL_BROWSER_RUNS ?? '', 10);
-const runnerMaxLocalBrowserRuns = Number.isFinite(runnerMaxLocalBrowserRunsValue) && runnerMaxLocalBrowserRunsValue > 0
-    ? runnerMaxLocalBrowserRunsValue
-    : 1;
-const runnerRunStatusPollIntervalMsValue = Number.parseInt(process.env.RUNNER_RUN_STATUS_POLL_INTERVAL_MS ?? '', 10);
-const runnerRunStatusPollIntervalMs = Number.isFinite(runnerRunStatusPollIntervalMsValue)
-    && runnerRunStatusPollIntervalMsValue > 0
-    ? runnerRunStatusPollIntervalMsValue
-    : 3_000;
-const runnerEventRetentionDaysValue = Number.parseInt(process.env.RUNNER_EVENT_RETENTION_DAYS ?? '', 10);
-const runnerEventRetentionDays = Number.isFinite(runnerEventRetentionDaysValue) && runnerEventRetentionDaysValue > 0
-    ? runnerEventRetentionDaysValue
-    : 30;
-const runnerArtifactSoftDeleteDaysValue = Number.parseInt(process.env.RUNNER_ARTIFACT_SOFT_DELETE_DAYS ?? '', 10);
-const runnerArtifactSoftDeleteDays = Number.isFinite(runnerArtifactSoftDeleteDaysValue) && runnerArtifactSoftDeleteDaysValue > 0
-    ? runnerArtifactSoftDeleteDaysValue
-    : 30;
-const runnerArtifactHardDeleteDaysValue = Number.parseInt(process.env.RUNNER_ARTIFACT_HARD_DELETE_DAYS ?? '', 10);
-const runnerArtifactHardDeleteDays = Number.isFinite(runnerArtifactHardDeleteDaysValue) && runnerArtifactHardDeleteDaysValue >= 0
-    ? runnerArtifactHardDeleteDaysValue
-    : 7;
-const runnerArtifactHardDeleteBatchSizeValue = Number.parseInt(process.env.RUNNER_ARTIFACT_HARD_DELETE_BATCH_SIZE ?? '', 10);
-const runnerArtifactHardDeleteBatchSize = Number.isFinite(runnerArtifactHardDeleteBatchSizeValue) && runnerArtifactHardDeleteBatchSizeValue > 0
-    ? runnerArtifactHardDeleteBatchSizeValue
-    : 50;
-const uiDeviceStatusPollIntervalMsValue = Number.parseInt(process.env.UI_DEVICE_STATUS_POLL_INTERVAL_MS ?? '', 10);
-const uiDeviceStatusPollIntervalMs = Number.isFinite(uiDeviceStatusPollIntervalMsValue) && uiDeviceStatusPollIntervalMsValue > 0
-    ? uiDeviceStatusPollIntervalMsValue
-    : 10_000;
+function parseBoundedIntEnv(input: {
+    name: string;
+    fallback: number;
+    min: number;
+    max: number;
+}): number {
+    const value = Number.parseInt(process.env[input.name] ?? '', 10);
+    if (!Number.isFinite(value)) {
+        return input.fallback;
+    }
+
+    return Math.min(input.max, Math.max(input.min, value));
+}
+
+const storageSignedUrlTtlSeconds = parseBoundedIntEnv({
+    name: 'STORAGE_SIGNED_URL_TTL_SECONDS',
+    fallback: 900,
+    min: 60,
+    max: 86_400,
+});
+const streamPollIntervalMs = parseBoundedIntEnv({
+    name: 'STREAM_POLL_INTERVAL_MS',
+    fallback: 3_000,
+    min: 500,
+    max: 30_000,
+});
+const streamMaxPollIntervalMs = parseBoundedIntEnv({
+    name: 'STREAM_MAX_POLL_INTERVAL_MS',
+    fallback: 15_000,
+    min: streamPollIntervalMs,
+    max: 120_000,
+});
+const runnerLeaseDurationSeconds = parseBoundedIntEnv({
+    name: 'RUNNER_LEASE_DURATION_SECONDS',
+    fallback: 120,
+    min: 30,
+    max: 900,
+});
+const runnerMaxConcurrentRuns = parseBoundedIntEnv({
+    name: 'RUNNER_MAX_CONCURRENT_RUNS',
+    fallback: 10,
+    min: 1,
+    max: 200,
+});
+const projectMaxConcurrentRunsMax = parseBoundedIntEnv({
+    name: 'PROJECT_MAX_CONCURRENT_RUNS_MAX',
+    fallback: 5,
+    min: 1,
+    max: 50,
+});
+const runnerLeaseReaperIntervalMs = parseBoundedIntEnv({
+    name: 'RUNNER_LEASE_REAPER_INTERVAL_MS',
+    fallback: 60_000,
+    min: 5_000,
+    max: 600_000,
+});
+const runnerMaxLocalBrowserRuns = parseBoundedIntEnv({
+    name: 'RUNNER_MAX_LOCAL_BROWSER_RUNS',
+    fallback: 1,
+    min: 1,
+    max: 20,
+});
+const runnerRunStatusPollIntervalMs = parseBoundedIntEnv({
+    name: 'RUNNER_RUN_STATUS_POLL_INTERVAL_MS',
+    fallback: 3_000,
+    min: 500,
+    max: 30_000,
+});
+const runnerRunStatusMaxPollIntervalMs = parseBoundedIntEnv({
+    name: 'RUNNER_RUN_STATUS_MAX_POLL_INTERVAL_MS',
+    fallback: 15_000,
+    min: runnerRunStatusPollIntervalMs,
+    max: 120_000,
+});
+const runnerEventRetentionDays = parseBoundedIntEnv({
+    name: 'RUNNER_EVENT_RETENTION_DAYS',
+    fallback: 30,
+    min: 1,
+    max: 3_650,
+});
+const runnerArtifactSoftDeleteDays = parseBoundedIntEnv({
+    name: 'RUNNER_ARTIFACT_SOFT_DELETE_DAYS',
+    fallback: 30,
+    min: 1,
+    max: 3_650,
+});
+const runnerArtifactHardDeleteDays = parseBoundedIntEnv({
+    name: 'RUNNER_ARTIFACT_HARD_DELETE_DAYS',
+    fallback: 7,
+    min: 0,
+    max: 3_650,
+});
+const runnerArtifactHardDeleteBatchSize = parseBoundedIntEnv({
+    name: 'RUNNER_ARTIFACT_HARD_DELETE_BATCH_SIZE',
+    fallback: 50,
+    min: 1,
+    max: 2_000,
+});
+const uiDeviceStatusPollIntervalMs = parseBoundedIntEnv({
+    name: 'UI_DEVICE_STATUS_POLL_INTERVAL_MS',
+    fallback: 10_000,
+    min: 1_000,
+    max: 120_000,
+});
 const midsceneGenerateReport = process.env.SKYTEST_MIDSCENE_GENERATE_REPORT === 'true';
 const midsceneAutoPrintReportMsg = process.env.SKYTEST_MIDSCENE_AUTO_PRINT_REPORT_MSG === 'true';
 
@@ -82,6 +133,7 @@ export const config = {
 
     stream: {
         pollInterval: streamPollIntervalMs,
+        maxPollIntervalMs: streamMaxPollIntervalMs,
         sseConnectionTtlMs: 5 * 60 * 1000,
     },
 
@@ -91,6 +143,7 @@ export const config = {
         maxProjectConcurrentRuns: projectMaxConcurrentRunsMax,
         maxLocalBrowserRuns: runnerMaxLocalBrowserRuns,
         runStatusPollIntervalMs: runnerRunStatusPollIntervalMs,
+        runStatusMaxPollIntervalMs: runnerRunStatusMaxPollIntervalMs,
         leaseReaperIntervalMs: runnerLeaseReaperIntervalMs,
         eventRetentionDays: runnerEventRetentionDays,
         artifactSoftDeleteDays: runnerArtifactSoftDeleteDays,

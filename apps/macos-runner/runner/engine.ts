@@ -114,7 +114,7 @@ const RUNNER_CREDENTIAL_REVOKED_PATH = path.join(runnerStateRoot, 'credential-re
 const DEFAULT_TRANSPORT: RunnerTransportMetadata = {
     heartbeatIntervalSeconds: 30,
     claimLongPollTimeoutSeconds: 30,
-    deviceSyncIntervalSeconds: 60,
+    deviceSyncIntervalSeconds: 30,
 };
 
 function buildRunnerDisplayId(seed: string): string {
