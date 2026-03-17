@@ -15,7 +15,8 @@
     "playwright:install": "playwright install chromium",
     "test": "vitest --run",
     "runner:maintenance": "tsx src/workers/runner-maintenance.ts",
-    "perf:seed:runner-claim": "tsx scripts/load-gate/seed-runner-claim.ts"
+    "perf:seed:runner-claim": "tsx scripts/load-gate/seed-runner-claim.ts",
+    "perf:gate:browser-runs": "tsx scripts/load-gate/gate-browser-runs.ts"
   },
   "dependencies": {
     "@authgear/web": "5.0.1",
