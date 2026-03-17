@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
     usageRecordUpsert: vi.fn(),
     usageRecordCreate: vi.fn(),
     transaction: vi.fn(),
+    txTestRunFindUnique: vi.fn(),
 }));
 
 vi.mock('@/lib/runtime/test-runner', () => ({
@@ -118,22 +119,23 @@ describe('local-browser-runner cancellation SLA integration', () => {
         mocks.projectFindUnique.mockResolvedValue({ id: 'project-1' });
         mocks.usageRecordUpsert.mockResolvedValue({ id: 'usage-1' });
         mocks.usageRecordCreate.mockResolvedValue({ id: 'usage-1' });
+        mocks.txTestRunFindUnique.mockResolvedValue({
+            id: 'run-1',
+            status: 'RUNNING',
+            assignedRunnerId: null,
+            leaseExpiresAt: null,
+            nextEventSequence: 0,
+        });
 
         mocks.transaction.mockImplementation(async (callback: (tx: {
             testRun: {
-                findUnique: typeof mocks.testRunFindUnique;
+                findUnique: typeof mocks.txTestRunFindUnique;
                 updateMany: typeof mocks.testRunUpdateMany;
             };
             testRunEvent: { createMany: typeof mocks.testRunEventCreateMany };
         }) => Promise<unknown>) => callback({
             testRun: {
-                findUnique: async () => ({
-                    id: 'run-1',
-                    status: 'RUNNING',
-                    assignedRunnerId: null,
-                    leaseExpiresAt: null,
-                    nextEventSequence: 0,
-                }),
+                findUnique: mocks.txTestRunFindUnique,
                 updateMany: mocks.testRunUpdateMany,
             },
             testRunEvent: {
@@ -208,5 +210,42 @@ describe('local-browser-runner cancellation SLA integration', () => {
         expect(abortObservedAtMs).not.toBeNull();
         const detectionLatencyMs = (abortObservedAtMs ?? cancellationPersistedAtMs) - cancellationPersistedAtMs;
         expect(detectionLatencyMs).toBeLessThanOrEqual(1000);
+    });
+
+    it('does not abort an in-flight run when persisted status remains RUNNING', async () => {
+        vi.resetModules();
+        const { startLocalBrowserRun, abortInactiveLocalBrowserRuns } = await import('@/lib/runtime/local-browser-runner');
+
+        mocks.testRunFindMany.mockResolvedValue([{
+            id: 'run-1',
+            status: 'RUNNING',
+            assignedRunnerId: null,
+            leaseExpiresAt: null,
+        }]);
+
+        let signalAborted = false;
+        mocks.runTest.mockImplementation(async (input: {
+            signal: AbortSignal;
+            onPreparing?: () => Promise<void>;
+            onRunning?: () => Promise<void>;
+        }) => {
+            await input.onPreparing?.();
+            await input.onRunning?.();
+            signalAborted = input.signal.aborted;
+            await new Promise((resolve) => setTimeout(resolve, 200));
+            signalAborted = signalAborted || input.signal.aborted;
+            return {
+                status: 'PASS',
+            };
+        });
+
+        const runPromise = startLocalBrowserRun('run-1');
+        await vi.advanceTimersByTimeAsync(1);
+        const abortedRuns = await abortInactiveLocalBrowserRuns();
+        expect(abortedRuns).toBe(0);
+
+        await vi.advanceTimersByTimeAsync(250);
+        await runPromise;
+        expect(signalAborted).toBe(false);
     });
 });

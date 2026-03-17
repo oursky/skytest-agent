@@ -61,6 +61,15 @@ const runnerRunStatusMaxPollIntervalMs = parseBoundedIntEnv({
     min: runnerRunStatusPollIntervalMs,
     max: 120_000,
 });
+const runnerRunStatusMaxCancellationPollIntervalMs = parseBoundedIntEnv({
+    name: 'RUNNER_RUN_STATUS_MAX_CANCELLATION_POLL_INTERVAL_MS',
+    fallback: Math.min(
+        runnerRunStatusMaxPollIntervalMs,
+        Math.max(runnerRunStatusPollIntervalMs, 10_000)
+    ),
+    min: runnerRunStatusPollIntervalMs,
+    max: runnerRunStatusMaxPollIntervalMs,
+});
 const browserWorkerDispatchIntervalMs = parseBoundedIntEnv({
     name: 'BROWSER_WORKER_DISPATCH_INTERVAL_MS',
     fallback: 1_000,
@@ -150,6 +159,7 @@ export const config = {
         maxLocalBrowserRuns: runnerMaxLocalBrowserRuns,
         runStatusPollIntervalMs: runnerRunStatusPollIntervalMs,
         runStatusMaxPollIntervalMs: runnerRunStatusMaxPollIntervalMs,
+        runStatusMaxCancellationPollIntervalMs: runnerRunStatusMaxCancellationPollIntervalMs,
         leaseReaperIntervalMs: runnerLeaseReaperIntervalMs,
         eventRetentionDays: runnerEventRetentionDays,
         artifactSoftDeleteDays: runnerArtifactSoftDeleteDays,

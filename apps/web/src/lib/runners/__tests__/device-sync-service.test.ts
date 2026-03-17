@@ -136,4 +136,43 @@ describe('syncRunnerDevices', () => {
             data: { state: 'OFFLINE' },
         });
     });
+
+    it('skips update when an incoming device is unchanged and recently seen', async () => {
+        const recentLastSeenAt = new Date(Date.now() - 1000);
+        findMany.mockResolvedValueOnce([
+            {
+                runnerId: 'runner-1',
+                deviceId: 'device-1',
+                platform: 'ANDROID',
+                name: 'Pixel 9',
+                state: 'ONLINE',
+                metadata: { serial: 'ABC123' },
+                lastSeenAt: recentLastSeenAt,
+            },
+        ]);
+
+        await syncRunnerDevices({
+            runnerId: 'runner-1',
+            devices: [
+                {
+                    deviceId: 'device-1',
+                    platform: 'ANDROID',
+                    name: 'Pixel 9',
+                    state: 'ONLINE',
+                    metadata: { serial: 'ABC123' },
+                },
+            ],
+        });
+
+        expect(createMany).not.toHaveBeenCalled();
+        expect(update).not.toHaveBeenCalled();
+        expect(updateMany).toHaveBeenCalledWith({
+            where: {
+                runnerId: 'runner-1',
+                deviceId: { notIn: ['device-1'] },
+                state: { not: 'OFFLINE' },
+            },
+            data: { state: 'OFFLINE' },
+        });
+    });
 });

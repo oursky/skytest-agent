@@ -71,7 +71,7 @@ const logger = createLogger('runtime:local-browser-runner');
 const activeAbortControllers = new Map<string, AbortController>();
 const activeExecutions = new Map<string, Promise<void>>();
 const RUN_STATUS_WATCH_INTERVAL_MS = appConfig.runner.runStatusPollIntervalMs;
-const RUN_STATUS_MAX_CANCELLATION_POLL_INTERVAL_MS = 10_000;
+const RUN_STATUS_MAX_CANCELLATION_POLL_INTERVAL_MS = appConfig.runner.runStatusMaxCancellationPollIntervalMs;
 
 export function getActiveLocalBrowserRunCount(): number {
     return activeExecutions.size;
