@@ -18,6 +18,7 @@ CONTROL_PLANE_URL ?= http://$(CONTROL_PLANE_HOST):$(CONTROL_PLANE_PORT)
 	db-setup \
 	app \
 	maintenance \
+	browser-worker \
 	helm-lint \
 	helm-template \
 	playwright-install \
@@ -55,6 +56,9 @@ app: ## Start the local Next.js control plane
 maintenance: ## Start the runner maintenance worker loop
 	RUNNER_MAINTENANCE_ONCE=false $(NODE_PM) run runner:maintenance
 
+browser-worker: ## Start the browser run dispatch worker loop
+	SKYTEST_BROWSER_WORKER=true $(NODE_PM) run --workspace @skytest/web browser:worker
+
 helm-lint: ## Lint Helm chart for Kubernetes deployment
 	helm lint infra/helm
 
@@ -72,7 +76,7 @@ bootstrap: ## Install deps, start local services, and apply the database schema
 	$(MAKE) services-up
 	$(MAKE) db-setup
 
-dev: ## Boot local services, apply schema, and start the web app with runner maintenance
+dev: ## Boot local services, apply schema, and start the web app with maintenance + browser worker
 	$(MAKE) services-up
 	$(MAKE) db-setup
 	@set -a; \
@@ -80,11 +84,15 @@ dev: ## Boot local services, apply schema, and start the web app with runner mai
 	set +a; \
 	RUNNER_MAINTENANCE_ONCE=false $(NODE_PM) run runner:maintenance & \
 	MAINT_PID=$$!; \
-	trap 'kill $$MAINT_PID >/dev/null 2>&1' EXIT INT TERM; \
+	SKYTEST_BROWSER_WORKER=true $(NODE_PM) run --workspace @skytest/web browser:worker & \
+	BROWSER_WORKER_PID=$$!; \
+	trap 'kill $$MAINT_PID $$BROWSER_WORKER_PID >/dev/null 2>&1' EXIT INT TERM; \
 	$(NODE_PM) run dev -- --hostname $(CONTROL_PLANE_HOST) --port $(CONTROL_PLANE_PORT); \
 	EXIT_CODE=$$?; \
 	kill $$MAINT_PID >/dev/null 2>&1 || true; \
+	kill $$BROWSER_WORKER_PID >/dev/null 2>&1 || true; \
 	wait $$MAINT_PID 2>/dev/null || true; \
+	wait $$BROWSER_WORKER_PID 2>/dev/null || true; \
 	exit $$EXIT_CODE
 
 verify: ## Run lint, TypeScript compile, and dependency audit
