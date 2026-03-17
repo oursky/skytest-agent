@@ -63,21 +63,12 @@ export async function GET(
             const testCaseFile = await prisma.testCaseFile.findFirst({
                 where: { testCaseId: id, storedName }
             });
-            if (testCaseFile) {
-                mimeType = testCaseFile.mimeType;
-                filename = testCaseFile.filename;
-                size = testCaseFile.size;
-            } else {
-                const testRunFile = await prisma.testRunFile.findFirst({
-                    where: { storedName }
-                });
-                if (!testRunFile) {
-                    return NextResponse.json({ error: 'File not found' }, { status: 404 });
-                }
-                mimeType = testRunFile.mimeType;
-                filename = testRunFile.filename;
-                size = testRunFile.size;
+            if (!testCaseFile) {
+                return NextResponse.json({ error: 'File not found' }, { status: 404 });
             }
+            mimeType = testCaseFile.mimeType;
+            filename = testCaseFile.filename;
+            size = testCaseFile.size;
         } else {
             const file = await prisma.testCaseFile.findUnique({
                 where: { id: fileId },

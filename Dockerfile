@@ -21,11 +21,14 @@ RUN npm run build
 
 FROM base AS runner
 
-WORKDIR /app
+WORKDIR /app/apps/web
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-COPY --from=builder /app /app
+COPY --from=builder --chown=pwuser:pwuser /app/node_modules /app/node_modules
+COPY --from=builder --chown=pwuser:pwuser /app/apps/web /app/apps/web
+
+USER pwuser
 
 EXPOSE 3000
 CMD ["npm", "run", "start", "--", "--hostname", "0.0.0.0", "--port", "3000"]

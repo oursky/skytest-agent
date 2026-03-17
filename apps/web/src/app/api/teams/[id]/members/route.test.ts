@@ -1,0 +1,82 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const mocks = vi.hoisted(() => ({
+    verifyAuth: vi.fn(),
+    resolveUserId: vi.fn(),
+    isTeamMember: vi.fn(),
+    isTeamOwner: vi.fn(),
+    teamMembershipFindMany: vi.fn(),
+    userFindFirst: vi.fn(),
+    teamMembershipFindFirst: vi.fn(),
+    teamMembershipCreate: vi.fn(),
+}));
+
+vi.mock('@/lib/security/auth', () => ({
+    verifyAuth: mocks.verifyAuth,
+    resolveUserId: mocks.resolveUserId,
+}));
+
+vi.mock('@/lib/security/permissions', () => ({
+    isTeamMember: mocks.isTeamMember,
+    isTeamOwner: mocks.isTeamOwner,
+}));
+
+vi.mock('@/lib/core/prisma', () => ({
+    prisma: {
+        teamMembership: {
+            findMany: mocks.teamMembershipFindMany,
+            findFirst: mocks.teamMembershipFindFirst,
+            create: mocks.teamMembershipCreate,
+        },
+        user: {
+            findFirst: mocks.userFindFirst,
+        },
+    },
+}));
+
+const { GET, POST } = await import('@/app/api/teams/[id]/members/route');
+
+describe('team members route ownership controls', () => {
+    beforeEach(() => {
+        mocks.verifyAuth.mockReset();
+        mocks.resolveUserId.mockReset();
+        mocks.isTeamMember.mockReset();
+        mocks.isTeamOwner.mockReset();
+        mocks.teamMembershipFindMany.mockReset();
+        mocks.userFindFirst.mockReset();
+        mocks.teamMembershipFindFirst.mockReset();
+        mocks.teamMembershipCreate.mockReset();
+
+        mocks.verifyAuth.mockResolvedValue({ sub: 'auth-user' });
+        mocks.resolveUserId.mockResolvedValue('user-1');
+    });
+
+    it('returns canManageMembers=false for non-owner team members', async () => {
+        mocks.isTeamMember.mockResolvedValue(true);
+        mocks.isTeamOwner.mockResolvedValue(false);
+        mocks.teamMembershipFindMany.mockResolvedValue([]);
+
+        const response = await GET(new Request('http://localhost/api/teams/team-1/members'), {
+            params: Promise.resolve({ id: 'team-1' }),
+        });
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(payload.canManageMembers).toBe(false);
+    });
+
+    it('rejects member add when caller is not owner', async () => {
+        mocks.isTeamOwner.mockResolvedValue(false);
+
+        const response = await POST(new Request('http://localhost/api/teams/team-1/members', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: 'member@example.com' }),
+        }), {
+            params: Promise.resolve({ id: 'team-1' }),
+        });
+
+        expect(response.status).toBe(403);
+        expect(mocks.teamMembershipCreate).not.toHaveBeenCalled();
+    });
+});

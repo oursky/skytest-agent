@@ -79,7 +79,7 @@ The CLI supervises local runner lifecycle; the macOS runner executes jobs.
 ## Control Plane Constraints
 
 - Browser execution is dispatched per run from API or MCP queueing paths and runs inside control-plane processes.
-- Do not re-introduce a dedicated `runner:browser` workload or parallel raw Kubernetes manifests for the same deployment topology.
+- Do not re-introduce a dedicated `runner:browser` workload or parallel raw deployment-manifest systems for the same topology.
 - Android execution stays runner-owned and must not move into web request handlers.
 - Team-facing device visibility must come from runner-published inventory, not host-local inspection.
 - Do not re-introduce project-scoped device inventory surfaces; active UI is `Team Settings -> Runners`.

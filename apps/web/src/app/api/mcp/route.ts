@@ -34,18 +34,22 @@ async function resolveAuthenticatedUserId(request: Request): Promise<string | nu
 async function handleMcpRequest(request: Request): Promise<Response> {
     try {
         const userId = await resolveAuthenticatedUserId(request);
+        if (!userId) {
+            return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+                status: 401,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        }
+
         const server = createMcpServer();
         const transport = new WebStandardStreamableHTTPServerTransport({
             sessionIdGenerator: undefined,
             enableJsonResponse: true,
         });
         await server.connect(transport);
-        const response = await transport.handleRequest(
-            request,
-            userId
-                ? { authInfo: { token: 'api-key', clientId: userId, scopes: [] } }
-                : {}
-        );
+        const response = await transport.handleRequest(request, {
+            authInfo: { token: 'api-key', clientId: userId, scopes: [] },
+        });
         return response;
     } catch (error) {
         logger.error('MCP request failed', error);

@@ -108,6 +108,11 @@ export async function isTeamMember(userId: string, teamId: string): Promise<bool
     return access.isMember;
 }
 
+export async function isTeamOwner(userId: string, teamId: string): Promise<boolean> {
+    const role = await getTeamRole(userId, teamId);
+    return role === 'OWNER';
+}
+
 export async function isProjectMember(userId: string, projectId: string): Promise<boolean> {
     const teamId = await getProjectTeamId(projectId);
     if (!teamId) {
