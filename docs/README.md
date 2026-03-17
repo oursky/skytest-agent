@@ -22,6 +22,7 @@ This repository keeps durable documentation in two tracks:
 - [MCP server tooling](./maintainers/mcp-server-tooling.md)
 - [CLI release and Homebrew flow](./maintainers/cli-release-homebrew.md)
 - [Test case Excel import/export format](./maintainers/test-case-excel-format.md)
+- [Dependency lifecycle policy](./maintainers/dependency-lifecycle-policy.md)
 
 ## Maintenance Rules
 
