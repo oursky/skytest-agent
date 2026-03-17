@@ -17,7 +17,8 @@
     "runner:maintenance": "tsx src/workers/runner-maintenance.ts",
     "browser:worker": "tsx src/workers/browser-runner.ts",
     "perf:seed:runner-claim": "tsx scripts/load-gate/seed-runner-claim.ts",
-    "perf:gate:browser-runs": "tsx scripts/load-gate/gate-browser-runs.ts"
+    "perf:gate:browser-runs": "tsx scripts/load-gate/gate-browser-runs.ts",
+    "smoke:storage": "tsx scripts/smoke/storage-s3.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.922.0",

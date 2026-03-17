@@ -18,7 +18,7 @@ services:
       - skytest-local-postgres:/var/lib/postgresql/data
 
   minio:
-    image: minio/minio:RELEASE.2026-03-11T00-17-09Z
+    image: minio/minio:latest
     container_name: skytest-local-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -32,7 +32,7 @@ services:
       - skytest-local-minio:/data
 
   create-minio-bucket:
-    image: minio/mc:RELEASE.2026-03-12T17-29-24Z
+    image: minio/mc:latest
     depends_on:
       minio:
         condition: service_started

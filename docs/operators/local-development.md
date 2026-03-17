@@ -54,6 +54,7 @@ make services-down
 make services-logs
 make runner-reset
 make verify
+npm run --workspace @skytest/web smoke:storage
 ```
 
 Use `make app` and `make maintenance` in separate terminals when you want to run the control plane and the maintenance loop independently.
