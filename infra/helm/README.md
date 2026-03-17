@@ -89,6 +89,48 @@ helm upgrade --install skytest infra/helm \
   --set image.tag=<immutable-tag>
 ```
 
+## Resource Profiles
+
+Use one of the profile override files in `infra/helm/profiles`:
+
+- `low.yaml`: lowest-cost baseline for small teams and low parallel browser load
+- `standard.yaml`: default production baseline
+- `high.yaml`: higher baseline for heavier browser concurrency
+
+Examples:
+
+```bash
+# low-cost profile
+helm upgrade --install skytest infra/helm \
+  --namespace skytest \
+  --create-namespace \
+  --set image.repository=ghcr.io/oursky/skytest-agent \
+  --set image.tag=<immutable-tag> \
+  -f infra/helm/profiles/low.yaml
+
+# standard profile
+helm upgrade --install skytest infra/helm \
+  --namespace skytest \
+  --create-namespace \
+  --set image.repository=ghcr.io/oursky/skytest-agent \
+  --set image.tag=<immutable-tag> \
+  -f infra/helm/profiles/standard.yaml
+
+# high-throughput profile
+helm upgrade --install skytest infra/helm \
+  --namespace skytest \
+  --create-namespace \
+  --set image.repository=ghcr.io/oursky/skytest-agent \
+  --set image.tag=<immutable-tag> \
+  -f infra/helm/profiles/high.yaml
+```
+
+Recommended runtime env tuning per profile:
+
+- `low`: `RUNNER_MAX_LOCAL_BROWSER_RUNS=1`, `RUNNER_MAX_CONCURRENT_RUNS=4`, `STREAM_POLL_INTERVAL_MS=5000`, `STREAM_MAX_POLL_INTERVAL_MS=30000`, `RUNNER_RUN_STATUS_POLL_INTERVAL_MS=5000`, `RUNNER_RUN_STATUS_MAX_POLL_INTERVAL_MS=30000`, `RUNNER_HEARTBEAT_INTERVAL_SECONDS=45`, `RUNNER_DEVICE_SYNC_INTERVAL_SECONDS=45`, `RUNNER_RATE_LIMIT_STORE_MODE=memory`.
+- `standard`: use `.env.example` defaults.
+- `high`: start with `RUNNER_MAX_LOCAL_BROWSER_RUNS=2`, `RUNNER_MAX_CONCURRENT_RUNS=20`, `STREAM_POLL_INTERVAL_MS=3000`, `STREAM_MAX_POLL_INTERVAL_MS=15000`, `RUNNER_RUN_STATUS_POLL_INTERVAL_MS=3000`, `RUNNER_RUN_STATUS_MAX_POLL_INTERVAL_MS=15000`, and tune upward from load-test evidence.
+
 ## Operational Notes
 
 - `ingress.enabled` is `false` by default.
