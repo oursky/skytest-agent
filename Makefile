@@ -19,8 +19,6 @@ CONTROL_PLANE_URL ?= http://$(CONTROL_PLANE_HOST):$(CONTROL_PLANE_PORT)
 	app \
 	maintenance \
 	browser-worker \
-	helm-lint \
-	helm-template \
 	playwright-install \
 	runner-reset \
 	bootstrap \
@@ -33,14 +31,14 @@ help: ## Show available targets
 install: ## Install npm dependencies
 	$(NODE_PM) install
 
-services-up: ## Start local Postgres and GCS emulator services
+services-up: ## Start local Postgres and MinIO services
 	$(COMPOSE) -f $(COMPOSE_FILE) up -d
 
-services-down: ## Stop local Postgres and GCS emulator services
+services-down: ## Stop local Postgres and MinIO services
 	$(COMPOSE) -f $(COMPOSE_FILE) down --remove-orphans
 
-services-logs: ## Tail local Postgres and GCS emulator service logs
-	$(COMPOSE) -f $(COMPOSE_FILE) logs -f postgres gcs create-gcs-bucket
+services-logs: ## Tail local Postgres and MinIO service logs
+	$(COMPOSE) -f $(COMPOSE_FILE) logs -f postgres minio create-minio-bucket
 
 db-generate: ## Generate Prisma client
 	$(NODE_PM) run db:generate
@@ -58,12 +56,6 @@ maintenance: ## Start the runner maintenance worker loop
 
 browser-worker: ## Start the browser run dispatch worker loop
 	SKYTEST_BROWSER_WORKER=true $(NODE_PM) run --workspace @skytest/web browser:worker
-
-helm-lint: ## Lint Helm chart for Kubernetes deployment
-	helm lint infra/helm
-
-helm-template: ## Render Helm chart templates locally
-	helm template skytest infra/helm
 
 playwright-install: ## Install Playwright Chromium locally
 	$(NODE_PM) run playwright:install
