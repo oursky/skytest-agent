@@ -17,6 +17,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Legacy cleanup denylist
+        run: |
+          set -euo pipefail
+          banned='GCS_|object-store-gcs|fake-gcs|STORAGE_EMULATOR_HOST|STORAGE_PROVIDER=gcs|infra/helm|helm lint|helm template|kubectl|kubernetes'
+          if rg -n "$banned" \
+            --glob '!.git/**' \
+            --glob '!docs/plans/**' \
+            --glob '!**/*.png' \
+            --glob '!**/*.jpg' \
+            --glob '!**/*.jpeg' \
+            --glob '!**/*.gif'; then
+            echo "Legacy token(s) detected. Remove references before merging."
+            exit 1
+          fi
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -31,12 +46,3 @@ jobs:
 
       - name: Test
         run: npm test
-
-      - name: Install Helm
-        run: curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-
-      - name: Helm lint
-        run: helm lint infra/helm
-
-      - name: Helm template
-        run: helm template skytest infra/helm > /tmp/skytest-rendered.yaml

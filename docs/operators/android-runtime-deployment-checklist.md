@@ -7,19 +7,19 @@ Use this checklist before exposing Android execution to users.
 ## Hosting Model
 
 - [ ] Run web control plane and runner agents as separate processes
-- [ ] Run the control plane from `infra/helm`
-- [ ] Size control-plane pods for browser execution, because browser runs execute inside those pods
+- [ ] Run the control plane and workers using Fly process groups (`web`, `browser`, `maintenance`)
+- [ ] Size control-plane/browser workers for browser execution capacity
 - [ ] Keep Postgres available to control plane (required for claims/leases/events)
-- [ ] Keep GCS available to control plane for artifacts and uploaded files
+- [ ] Keep S3-compatible object storage available to control plane for artifacts and uploaded files
 - [ ] Run at least one `MACOS_AGENT` runner for Android execution capacity
 - [ ] Run runner maintenance on a singleton worker or cron schedule
-- [ ] If cloud dependency provisioning/changes are needed, contact IT Support (owner of GCP PostgreSQL and GCS)
+- [ ] If cloud dependency provisioning/changes are needed, contact platform owners for Supabase/Tigris/Fly access
 
 References:
 
 - [Android runtime maintenance](../maintainers/android-runtime-maintenance.md)
 - [macOS Android runner guide](./macos-android-runner-guide.md)
-- [Infrastructure and Kubernetes deployment](../../infra/README.md)
+- [Infrastructure and local services](../../infra/README.md)
 
 ## Runner Host Prerequisites
 

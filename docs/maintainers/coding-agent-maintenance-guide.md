@@ -121,7 +121,7 @@ When changing runner runtime behavior, update docs in the same PR/commit series:
   - [../operators/local-development.md](../operators/local-development.md)
   - [../operators/macos-android-runner-guide.md](../operators/macos-android-runner-guide.md)
   - [../operators/android-runtime-deployment-checklist.md](../operators/android-runtime-deployment-checklist.md)
-  - [../../infra/helm/README.md](../../infra/helm/README.md)
+  - [../../infra/README.md](../../infra/README.md)
 - Maintainer-facing impact:
   - [android-runtime-maintenance.md](./android-runtime-maintenance.md)
 - Import/export behavior:

@@ -1,43 +1,31 @@
 # Infrastructure
 
-This directory contains the deployment artifacts that should stay in sync with the application runtime.
+This directory contains local developer infrastructure artifacts that stay in sync with runtime behavior.
 
 ## Source Of Truth
 
-- `infra/helm/` is the only Kubernetes deployment source of truth.
-- `infra/docker/docker-compose.local.yml` is for local developer services only.
+- `infra/docker/docker-compose.local.yml` is the local development services stack.
+- Shared deployment orchestration is managed in `skytest-agent-deployment`.
 
-Do not keep a second set of raw Kubernetes manifests alongside the Helm chart. They drift.
+## Local Runtime Topology
 
-## Runtime Topology
+The local stack runs:
 
-SkyTest runs in Kubernetes as two workloads:
+- PostgreSQL for application state
+- MinIO for S3-compatible object storage
 
-- a control-plane `Deployment` for the Next.js web app, API routes, and browser test execution
-- a runner-maintenance `CronJob` for lease recovery, queue sanitization, and retention tasks
+Application processes (`web`, `browser`, `maintenance`) run from the repo workspace and connect to the local services above.
 
-Android execution does not run in the cluster. It is provided by external macOS runners paired to the deployed control plane.
-
-## External Dependencies
+## External Dependencies (Shared Deployments)
 
 Shared deployments require:
 
-- PostgreSQL
-- Google Cloud Storage (GCS)
+- Supabase Postgres
+- Fly Tigris (S3-compatible object storage)
 - Authgear
-- one or more external macOS runners if your teams run Android test cases
-
-## Image Requirements
-
-The application image must:
-
-- include Playwright Chromium
-- be environment-agnostic so the same image can be promoted across staging and production
-
-Deployment-specific configuration is supplied at runtime through Kubernetes secrets and values, not at image build time.
+- one or more external macOS runners for Android test execution
 
 ## Next Steps
 
-- [Helm chart deployment guide](./helm/README.md)
 - [Local development services](../docs/operators/local-development.md)
 - [Android runtime deployment checklist](../docs/operators/android-runtime-deployment-checklist.md)

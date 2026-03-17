@@ -1,11 +1,11 @@
 # Local Development
 
-This guide covers repo-local development. Shared Kubernetes deployment is documented in [infra/README.md](../../infra/README.md).
+This guide covers repo-local development.
 
 The local stack mirrors the production data plane:
 
 - PostgreSQL for application state
-- a GCS-compatible emulator (`fsouza/fake-gcs-server`) for files and artifacts
+- MinIO (S3-compatible) for files and artifacts
 - a local Next.js control plane process
 
 ## Prerequisites
@@ -32,7 +32,7 @@ make dev
 
 `make dev` does all of the following:
 
-- starts Postgres and local fake-gcs-server from `infra/docker/docker-compose.local.yml`
+- starts Postgres and MinIO from `infra/docker/docker-compose.local.yml`
 - generates the Prisma client and applies the schema
 - starts the Next.js control plane on `http://127.0.0.1:3000`
 - starts the runner maintenance loop
@@ -65,7 +65,7 @@ Use `make app` and `make maintenance` in separate terminals when you want to run
 Local defaults point to:
 
 - Postgres on `127.0.0.1:5432`
-- fake-gcs-server on `127.0.0.1:4443` (`STORAGE_EMULATOR_HOST`)
+- MinIO S3 endpoint on `127.0.0.1:9000`
 
 ## Android Runners
 
@@ -94,14 +94,14 @@ make bootstrap
 
 ### Port already in use
 
-If `5432` or `4443` is already in use, stop the conflicting process or change the host port mapping in `infra/docker/docker-compose.local.yml`.
+If `5432`, `9000`, or `9001` is already in use, stop the conflicting process or change host port mapping in `infra/docker/docker-compose.local.yml`.
 
 ### Bucket not created
 
 Re-run the bucket bootstrap container:
 
 ```bash
-docker compose -f infra/docker/docker-compose.local.yml run --rm create-gcs-bucket
+docker compose -f infra/docker/docker-compose.local.yml run --rm create-minio-bucket
 ```
 
 ### Browser runs fail before navigation

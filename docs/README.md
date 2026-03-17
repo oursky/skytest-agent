@@ -8,7 +8,7 @@ This repository keeps durable documentation in two tracks:
 ## Start Here
 
 - [Local development](./operators/local-development.md)
-- [Infrastructure and Kubernetes deployment](../infra/README.md)
+- [Infrastructure and local services](../infra/README.md)
 - [Android runtime deployment checklist](./operators/android-runtime-deployment-checklist.md)
 - [macOS Android runner guide](./operators/macos-android-runner-guide.md)
 - [macOS runner environment](./operators/macos-runner-environment.md)
@@ -27,6 +27,5 @@ This repository keeps durable documentation in two tracks:
 ## Maintenance Rules
 
 - Keep operator docs and maintainer docs aligned when runtime behavior changes.
-- Keep `infra/helm` as the only Kubernetes deployment source of truth.
 - Use relative links inside the repository instead of branch-specific GitHub URLs.
 - Update [test-case-excel-format.md](./maintainers/test-case-excel-format.md) whenever import or export behavior changes.
