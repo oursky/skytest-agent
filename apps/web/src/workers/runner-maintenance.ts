@@ -1,15 +1,26 @@
 import { config as appConfig } from '@/config/app';
 import { createLogger } from '@/lib/core/logger';
+import { prisma } from '@/lib/core/prisma';
 import { pruneOldRunEvents } from '@/lib/runners/event-retention-service';
 import { reapExpiredRunnerLeases } from '@/lib/runners/lease-reaper';
 import { failInvalidQueuedAndroidRuns } from '@/lib/runners/queue-sanitizer';
 import { enforceRunArtifactRetention } from '@/lib/runners/run-retention-service';
 
 const logger = createLogger('worker:runner-maintenance');
+let shutdownRequested = false;
+let wakeLoop: (() => void) | null = null;
 
-function sleep(ms: number): Promise<void> {
+function sleepOrWake(ms: number): Promise<void> {
     return new Promise((resolve) => {
-        setTimeout(resolve, ms);
+        const timeout = setTimeout(() => {
+            wakeLoop = null;
+            resolve();
+        }, ms);
+        wakeLoop = () => {
+            clearTimeout(timeout);
+            wakeLoop = null;
+            resolve();
+        };
     });
 }
 
@@ -61,13 +72,36 @@ async function main() {
         return;
     }
 
-    while (true) {
+    while (!shutdownRequested) {
         await runMaintenanceCycle();
-        await sleep(appConfig.runner.leaseReaperIntervalMs);
+        if (!shutdownRequested) {
+            await sleepOrWake(appConfig.runner.leaseReaperIntervalMs);
+        }
     }
+
+    logger.info('Runner maintenance worker stopping');
 }
+
+function requestShutdown(signal: NodeJS.Signals): void {
+    if (shutdownRequested) {
+        return;
+    }
+
+    shutdownRequested = true;
+    logger.info(`Received ${signal}, shutting down runner maintenance worker`);
+    wakeLoop?.();
+}
+
+process.on('SIGTERM', () => requestShutdown('SIGTERM'));
+process.on('SIGINT', () => requestShutdown('SIGINT'));
 
 void main().catch((error) => {
     logger.error('Runner maintenance worker crashed', error);
     process.exitCode = 1;
+}).finally(async () => {
+    try {
+        await prisma.$disconnect();
+    } catch (disconnectError) {
+        logger.warn('Failed to disconnect Prisma during maintenance shutdown', disconnectError);
+    }
 });

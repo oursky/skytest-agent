@@ -1,13 +1,25 @@
 import { config as appConfig } from '@/config/app';
 import { createLogger } from '@/lib/core/logger';
+import { prisma } from '@/lib/core/prisma';
 import { dispatchQueuedBrowserRuns } from '@/lib/runtime/browser-run-dispatcher';
 import { abortInactiveLocalBrowserRuns } from '@/lib/runtime/local-browser-runner';
 
 const logger = createLogger('worker:browser-runner');
+let shutdownRequested = false;
+let wakeLoop: (() => void) | null = null;
 
-function sleep(ms: number): Promise<void> {
+function sleepOrWake(ms: number): Promise<void> {
     return new Promise((resolve) => {
-        setTimeout(resolve, ms);
+        const timeout = setTimeout(() => {
+            wakeLoop = null;
+            resolve();
+        }, ms);
+
+        wakeLoop = () => {
+            clearTimeout(timeout);
+            wakeLoop = null;
+            resolve();
+        };
     });
 }
 
@@ -27,7 +39,7 @@ async function main() {
     });
 
     let nextDispatchIntervalMs = appConfig.browserWorker.dispatchIntervalMs;
-    while (true) {
+    while (!shutdownRequested) {
         let abortedRuns = 0;
         let dispatchedRuns = 0;
 
@@ -58,11 +70,34 @@ async function main() {
             );
         }
 
-        await sleep(nextDispatchIntervalMs);
+        if (!shutdownRequested) {
+            await sleepOrWake(nextDispatchIntervalMs);
+        }
     }
+
+    logger.info('Browser runner worker stopping');
 }
+
+function requestShutdown(signal: NodeJS.Signals): void {
+    if (shutdownRequested) {
+        return;
+    }
+
+    shutdownRequested = true;
+    logger.info(`Received ${signal}, shutting down browser runner worker`);
+    wakeLoop?.();
+}
+
+process.on('SIGTERM', () => requestShutdown('SIGTERM'));
+process.on('SIGINT', () => requestShutdown('SIGINT'));
 
 void main().catch((error) => {
     logger.error('Browser runner worker crashed', error);
     process.exitCode = 1;
+}).finally(async () => {
+    try {
+        await prisma.$disconnect();
+    } catch (disconnectError) {
+        logger.warn('Failed to disconnect Prisma during browser runner shutdown', disconnectError);
+    }
 });

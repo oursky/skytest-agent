@@ -18,7 +18,7 @@ This document records non-production completion evidence for the hard cutover to
 
 Executed on 2026-03-18:
 
-- `npm run --workspace @skytest/web test` -> pass (41 files, 150 tests)
+- `npm run --workspace @skytest/web test` -> pass (51 files, 167 tests)
 - `npm run --workspace @skytest/web lint` -> pass
 - `npm run --workspace @skytest/web build` -> pass
 - `npm run --workspace @skytest/web verify` -> pass (includes `npm audit`, 0 vulnerabilities)
@@ -39,6 +39,6 @@ Intentionally not executed here:
 - production deployment execution to `skytest-oursky.fly.dev`
 - post-deploy production soak and recovery drills
 
-## Known limitation to track
+## Midscene runtime note
 
-- Midscene API-key injection currently uses process-level environment mutation and a global lock in `apps/web/src/lib/runtime/midscene-env.ts`. This is acceptable for initial single-tenant launch but should be refactored to remove global mutation for higher-concurrency multi-tenant isolation.
+- Midscene configuration is now injected per-run via `modelConfig` on browser/Android agents, removing process-level environment mutation and the global lock path from runtime execution.

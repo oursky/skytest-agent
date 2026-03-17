@@ -6,7 +6,7 @@ import { config } from '@/config/app';
 import { ConfigurationError, TestExecutionError, PlaywrightCodeError, getErrorMessage } from '@/lib/core/errors';
 import { substituteAll } from '@/lib/test-config/substitution';
 import { createLogger as createServerLogger } from '@/lib/core/logger';
-import { withMidsceneApiKey } from '@/lib/runtime/midscene-env';
+import { buildMidsceneModelConfig } from '@/lib/runtime/midscene-env';
 import { validateTargetUrl } from '@/lib/security/url-security';
 import { createBrowserNetworkGuard, type BrowserNetworkGuard, type BrowserNetworkGuardSummary } from '@/lib/runtime/browser-network-guard';
 import { androidDeviceManager, type AndroidDeviceLease } from '@/lib/android/device-manager';
@@ -506,6 +506,7 @@ async function setupExecutionTargets(
     onEvent: EventHandler,
     runId: string,
     projectId: string | undefined,
+    midsceneModelConfig: Record<string, string | number>,
     signal?: AbortSignal,
     actionCounter?: ActionCounter
 ): Promise<ExecutionTargets> {
@@ -547,7 +548,13 @@ async function setupExecutionTargets(
             }
             assertValidAndroidPackageName(appId, targetLabel);
 
-            const handle = await androidDeviceManager.acquire(projectId, androidConfig.deviceSelector, runId, signal);
+            const handle = await androidDeviceManager.acquire(
+                projectId,
+                androidConfig.deviceSelector,
+                runId,
+                signal,
+                midsceneModelConfig
+            );
             handle.packageName = appId;
             handle.clearPackageDataOnRelease = androidConfig.clearAppState;
             androidDeviceLeases.set(targetId, handle);
@@ -827,6 +834,7 @@ async function setupExecutionTargets(
                     replanningCycleLimit: 15,
                     generateReport: config.test.midscene.generateReport,
                     autoPrintReportMsg: config.test.midscene.autoPrintReportMsg,
+                    modelConfig: midsceneModelConfig,
                     onTaskStartTip: async (tip) => {
                         if (actionCounter) {
                             actionCounter.count++;
@@ -1621,72 +1629,80 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
         };
     }
 
-    return await withMidsceneApiKey(openRouterApiKey, async () => {
-        const runAbortController = new AbortController();
-        const runSignal = runAbortController.signal;
-        const materializedExecutionFiles = await prepareExecutionFiles(files, resolvedFiles, runId);
-        const vars = resolvedVariables || {};
-        const fileRefs = materializedExecutionFiles.configFiles;
-        const sub = (text: string) => substituteAll(text, vars, fileRefs);
-        let timeoutExceeded = false;
-        const timeoutMessage = `Test exceeded maximum duration (${config.test.maxDuration}s)`;
-        const timeoutHandle = setTimeout(() => {
-            timeoutExceeded = true;
-            if (!runSignal.aborted) {
-                runAbortController.abort();
-            }
-        }, config.test.maxDuration * 1000);
-        const abortFromParent = () => {
-            if (!runSignal.aborted) {
-                runAbortController.abort();
-            }
-        };
-
-        if (signal?.aborted) {
-            abortFromParent();
-        } else {
-            signal?.addEventListener('abort', abortFromParent, { once: true });
+    const midsceneModelConfig = buildMidsceneModelConfig(openRouterApiKey);
+    const runAbortController = new AbortController();
+    const runSignal = runAbortController.signal;
+    const materializedExecutionFiles = await prepareExecutionFiles(files, resolvedFiles, runId);
+    const vars = resolvedVariables || {};
+    const fileRefs = materializedExecutionFiles.configFiles;
+    const sub = (text: string) => substituteAll(text, vars, fileRefs);
+    let timeoutExceeded = false;
+    const timeoutMessage = `Test exceeded maximum duration (${config.test.maxDuration}s)`;
+    const timeoutHandle = setTimeout(() => {
+        timeoutExceeded = true;
+        if (!runSignal.aborted) {
+            runAbortController.abort();
         }
+    }, config.test.maxDuration * 1000);
+    const abortFromParent = () => {
+        if (!runSignal.aborted) {
+            runAbortController.abort();
+        }
+    };
 
-        const resolvedUrl = url ? sub(url) : url;
-        const resolvedPrompt = prompt ? sub(prompt) : prompt;
-        const resolvedBrowserConfig = browserConfig
-            ? Object.fromEntries(
-                Object.entries(browserConfig).map(([id, tc]) => {
-                    if (isAndroidTarget(tc)) {
-                        return [id, { ...tc, appId: tc.appId ? sub(tc.appId) : tc.appId }];
-                    }
-                    const bc = tc as BrowserConfig;
-                    return [id, { ...bc, url: bc.url ? sub(bc.url) : bc.url }];
-                })
-            )
-            : browserConfig;
-        const resolvedSteps = steps
-            ? steps.map(s => ({ ...s, action: sub(s.action) }))
-            : steps;
+    if (signal?.aborted) {
+        abortFromParent();
+    } else {
+        signal?.addEventListener('abort', abortFromParent, { once: true });
+    }
 
-        const targetConfigs = validateConfiguration(resolvedUrl, resolvedPrompt, resolvedSteps, resolvedBrowserConfig);
-        const hasSteps = resolvedSteps && resolvedSteps.length > 0;
+    const resolvedUrl = url ? sub(url) : url;
+    const resolvedPrompt = prompt ? sub(prompt) : prompt;
+    const resolvedBrowserConfig = browserConfig
+        ? Object.fromEntries(
+            Object.entries(browserConfig).map(([id, tc]) => {
+                if (isAndroidTarget(tc)) {
+                    return [id, { ...tc, appId: tc.appId ? sub(tc.appId) : tc.appId }];
+                }
+                const bc = tc as BrowserConfig;
+                return [id, { ...bc, url: bc.url ? sub(bc.url) : bc.url }];
+            })
+        )
+        : browserConfig;
+    const resolvedSteps = steps
+        ? steps.map(s => ({ ...s, action: sub(s.action) }))
+        : steps;
 
-        let executionTargets: ExecutionTargets | null = null;
-        let cleanupDone = false;
-        const actionCounter: ActionCounter = { count: 0 };
+    const targetConfigs = validateConfiguration(resolvedUrl, resolvedPrompt, resolvedSteps, resolvedBrowserConfig);
+    const hasSteps = resolvedSteps && resolvedSteps.length > 0;
 
-        const cleanupExecutionTargets = async (targets: ExecutionTargets): Promise<void> => {
-            if (cleanupDone) {
-                return;
-            }
-            cleanupDone = true;
-            await cleanupTargets(targets);
-        };
+    let executionTargets: ExecutionTargets | null = null;
+    let cleanupDone = false;
+    const actionCounter: ActionCounter = { count: 0 };
 
-        try {
-            const hasAndroid = Object.values(targetConfigs).some(tc => 'type' in tc && tc.type === 'android');
-            if (runSignal.aborted) throw new Error('Aborted');
-            if (hasAndroid && onPreparing) await onPreparing();
-            if (runSignal.aborted) throw new Error('Aborted');
+    const cleanupExecutionTargets = async (targets: ExecutionTargets): Promise<void> => {
+        if (cleanupDone) {
+            return;
+        }
+        cleanupDone = true;
+        await cleanupTargets(targets);
+    };
 
-            executionTargets = await setupExecutionTargets(targetConfigs, onEvent, runId, projectId, runSignal, actionCounter);
+    try {
+        const hasAndroid = Object.values(targetConfigs).some(tc => 'type' in tc && tc.type === 'android');
+        if (runSignal.aborted) throw new Error('Aborted');
+        if (hasAndroid && onPreparing) await onPreparing();
+        if (runSignal.aborted) throw new Error('Aborted');
+
+        executionTargets = await setupExecutionTargets(
+            targetConfigs,
+            onEvent,
+            runId,
+            projectId,
+            midsceneModelConfig,
+            runSignal,
+            actionCounter
+        );
 
             if (onCleanup && executionTargets) {
                 const capturedTargets = executionTargets;
@@ -1774,7 +1790,7 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
                 actionCount: actionCounter.count
             };
 
-        } finally {
+    } finally {
             clearTimeout(timeoutHandle);
             signal?.removeEventListener('abort', abortFromParent);
             if (executionTargets) {
@@ -1782,6 +1798,5 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
                 await cleanupExecutionTargets(executionTargets);
             }
             await materializedExecutionFiles.cleanup();
-        }
-    });
+    }
 }

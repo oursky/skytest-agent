@@ -6,6 +6,7 @@ import { isTeamMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:teams:current');
 const CURRENT_TEAM_COOKIE = 'skytest_current_team';
+const isSecureCookie = process.env.NODE_ENV === 'production';
 
 async function getDefaultTeam(userId: string) {
     return prisma.teamMembership.findFirst({
@@ -77,6 +78,7 @@ export async function GET(request: Request) {
         response.cookies.set(CURRENT_TEAM_COOKIE, membership.team.id, {
             httpOnly: true,
             sameSite: 'lax',
+            secure: isSecureCookie,
             path: '/',
         });
         return response;
@@ -127,6 +129,7 @@ export async function POST(request: Request) {
         response.cookies.set(CURRENT_TEAM_COOKIE, team.id, {
             httpOnly: true,
             sameSite: 'lax',
+            secure: isSecureCookie,
             path: '/',
         });
         return response;

@@ -10,6 +10,7 @@ const logger = createLogger('android-device-manager');
 
 type DeviceLeaseState = EmulatorState;
 type ManagedDeviceKind = 'emulator' | 'physical';
+type MidsceneModelConfig = Record<string, string | number>;
 
 export interface AndroidDeviceLease {
     id: string;
@@ -63,6 +64,8 @@ interface PhysicalLeaseInstance {
     adb: ReliableAdb;
     device: AndroidDevice | null;
     agent: AndroidAgent | null;
+    runtimeDevice: MidsceneAndroidDevice | null;
+    androidAgentConstructor: MidsceneAndroidAgentConstructor | null;
     currentProjectId: string | null;
     runId: string | null;
     startedAt: number;
@@ -89,6 +92,7 @@ interface MidsceneAndroidAgentConstructor {
             aiActionContext?: string;
             generateReport?: boolean;
             autoPrintReportMsg?: boolean;
+            modelConfig?: MidsceneModelConfig;
         }
     ): AndroidAgent;
 }
@@ -213,14 +217,15 @@ export class AndroidDeviceManager {
         projectId: string,
         selector: AndroidDeviceSelector,
         runId: string,
-        signal?: AbortSignal
+        signal?: AbortSignal,
+        modelConfig?: MidsceneModelConfig
     ): Promise<AndroidDeviceLease> {
         if (selector.mode === 'emulator-profile') {
-            const handle = await emulatorPool.acquire(projectId, selector.emulatorProfileName, runId, signal);
+            const handle = await emulatorPool.acquire(projectId, selector.emulatorProfileName, runId, signal, modelConfig);
             return this.fromEmulatorHandle(handle);
         }
 
-        return this.acquirePhysicalDevice(projectId, selector.serial, runId, signal);
+        return this.acquirePhysicalDevice(projectId, selector.serial, runId, signal, modelConfig);
     }
 
     async release(handle: AndroidDeviceLease): Promise<void> {
@@ -387,7 +392,8 @@ export class AndroidDeviceManager {
         projectId: string,
         serial: string,
         runId: string,
-        signal?: AbortSignal
+        signal?: AbortSignal,
+        modelConfig?: MidsceneModelConfig
     ): Promise<AndroidDeviceLease> {
         if (signal?.aborted) {
             throw new Error('Acquisition cancelled');
@@ -432,6 +438,7 @@ export class AndroidDeviceManager {
             }
         }
 
+        instance.agent = this.createAndroidAgentForInstance(instance, projectId, modelConfig);
         instance.state = 'ACQUIRED';
         instance.currentProjectId = projectId;
         instance.runId = runId;
@@ -458,6 +465,8 @@ export class AndroidDeviceManager {
             adb: new ReliableAdb(serial, this.adbPath),
             device: null,
             agent: null,
+            runtimeDevice: null,
+            androidAgentConstructor: null,
             currentProjectId: projectId,
             runId: null,
             startedAt: Date.now(),
@@ -492,15 +501,30 @@ export class AndroidDeviceManager {
                     ? async () => runtimeDevice.screenshotBase64!()
                     : undefined,
             };
-            instance.agent = new runtimeModule.AndroidAgent(runtimeDevice, {
-                groupName: `${projectId}-device-${instance.serial}`,
-                generateReport: appConfig.test.midscene.generateReport,
-                autoPrintReportMsg: appConfig.test.midscene.autoPrintReportMsg,
-            });
+            instance.runtimeDevice = runtimeDevice;
+            instance.androidAgentConstructor = runtimeModule.AndroidAgent;
+            instance.agent = this.createAndroidAgentForInstance(instance, projectId);
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             throw new Error(`Failed to attach Android runtime for device "${instance.serial}": ${message}`);
         }
+    }
+
+    private createAndroidAgentForInstance(
+        instance: PhysicalLeaseInstance,
+        projectId: string,
+        modelConfig?: MidsceneModelConfig
+    ): AndroidAgent {
+        if (!instance.runtimeDevice || !instance.androidAgentConstructor) {
+            throw new Error(`Android runtime is not attached for "${instance.serial}"`);
+        }
+
+        return new instance.androidAgentConstructor(instance.runtimeDevice, {
+            groupName: `${projectId}-device-${instance.serial}`,
+            generateReport: appConfig.test.midscene.generateReport,
+            autoPrintReportMsg: appConfig.test.midscene.autoPrintReportMsg,
+            modelConfig,
+        });
     }
 
     private async isReusablePhysicalLeaseHealthy(instance: PhysicalLeaseInstance): Promise<boolean> {
@@ -523,6 +547,8 @@ export class AndroidDeviceManager {
         instance.acquiredAt = null;
         instance.device = null;
         instance.agent = null;
+        instance.runtimeDevice = null;
+        instance.androidAgentConstructor = null;
         this.physicalLeases.delete(instance.serial);
     }
 }

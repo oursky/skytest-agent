@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { checkDatabaseHealth } from '@/lib/core/prisma';
+import { createLogger } from '@/lib/core/logger';
 import { checkObjectStoreHealth } from '@/lib/storage/object-store';
 
 type ReadinessCheckStatus = 'ok' | 'error';
@@ -10,12 +11,11 @@ interface ReadinessCheckResult {
     error?: string;
 }
 
-function getErrorMessage(error: unknown): string {
-    if (error instanceof Error && error.message) {
-        return error.message;
-    }
+const logger = createLogger('api:health:ready');
 
-    return 'Unknown error';
+function getErrorMessage(error: unknown): string {
+    logger.warn('Readiness dependency check failed', error);
+    return 'Dependency unavailable';
 }
 
 async function runReadinessCheck(check: () => Promise<void>): Promise<ReadinessCheckResult> {

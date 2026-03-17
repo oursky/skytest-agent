@@ -79,11 +79,30 @@ jobs:
       - name: Install k6
         run: |
           set -euo pipefail
-          sudo mkdir -p /etc/apt/keyrings
-          curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /etc/apt/keyrings/k6-archive-keyring.gpg
-          echo "deb [signed-by=/etc/apt/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
-          sudo apt-get update
-          sudo apt-get install -y k6
+          VERSION="v0.53.0"
+          RELEASE_JSON="$(curl -fsSL "https://api.github.com/repos/grafana/k6/releases/tags/${VERSION}")"
+          ARCHIVE_URL="$(printf '%s' "$RELEASE_JSON" | jq -r '.assets[] | select(.name | test("linux-amd64\\.tar\\.gz$")) | .browser_download_url' | head -n1)"
+          CHECKSUM_URL="$(printf '%s' "$RELEASE_JSON" | jq -r '.assets[] | select(.name | test("checksums\\.txt$")) | .browser_download_url' | head -n1)"
+          if [ -z "$ARCHIVE_URL" ] || [ -z "$CHECKSUM_URL" ] || [ "$ARCHIVE_URL" = "null" ] || [ "$CHECKSUM_URL" = "null" ]; then
+            echo "Failed to resolve k6 release assets for ${VERSION}" >&2
+            exit 1
+          fi
+          ARCHIVE_NAME="$(basename "$ARCHIVE_URL")"
+          curl -fsSL "$ARCHIVE_URL" -o /tmp/k6.tar.gz
+          curl -fsSL "$CHECKSUM_URL" -o /tmp/k6_checksums.txt
+          expected_checksum="$(awk -v file="${ARCHIVE_NAME}" '$2 == file { print $1 }' /tmp/k6_checksums.txt)"
+          if [ -z "$expected_checksum" ]; then
+            echo "Failed to find checksum for ${ARCHIVE_NAME}" >&2
+            exit 1
+          fi
+          echo "${expected_checksum}  /tmp/k6.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/k6.tar.gz -C /tmp
+          k6_path="$(find /tmp -maxdepth 2 -type f -name k6 | head -n1)"
+          if [ -z "$k6_path" ]; then
+            echo "Failed to locate extracted k6 binary" >&2
+            exit 1
+          fi
+          sudo install "$k6_path" /usr/local/bin/k6
           k6 version
 
       - name: Install dependencies
