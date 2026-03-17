@@ -7,7 +7,7 @@ const storageSignedUrlTtlSeconds = Number.isFinite(storageSignedUrlTtlSecondsVal
 const streamPollIntervalMsValue = Number.parseInt(process.env.STREAM_POLL_INTERVAL_MS ?? '', 10);
 const streamPollIntervalMs = Number.isFinite(streamPollIntervalMsValue) && streamPollIntervalMsValue > 0
     ? streamPollIntervalMsValue
-    : 1_500;
+    : 3_000;
 const runnerLeaseDurationSecondsValue = Number.parseInt(process.env.RUNNER_LEASE_DURATION_SECONDS ?? '', 10);
 const runnerLeaseDurationSeconds = Number.isFinite(runnerLeaseDurationSecondsValue) && runnerLeaseDurationSecondsValue > 0
     ? runnerLeaseDurationSecondsValue
@@ -23,7 +23,16 @@ const projectMaxConcurrentRunsMax = Number.isFinite(projectMaxConcurrentRunsMaxV
 const runnerLeaseReaperIntervalMsValue = Number.parseInt(process.env.RUNNER_LEASE_REAPER_INTERVAL_MS ?? '', 10);
 const runnerLeaseReaperIntervalMs = Number.isFinite(runnerLeaseReaperIntervalMsValue) && runnerLeaseReaperIntervalMsValue > 0
     ? runnerLeaseReaperIntervalMsValue
-    : 15_000;
+    : 60_000;
+const runnerMaxLocalBrowserRunsValue = Number.parseInt(process.env.RUNNER_MAX_LOCAL_BROWSER_RUNS ?? '', 10);
+const runnerMaxLocalBrowserRuns = Number.isFinite(runnerMaxLocalBrowserRunsValue) && runnerMaxLocalBrowserRunsValue > 0
+    ? runnerMaxLocalBrowserRunsValue
+    : 1;
+const runnerRunStatusPollIntervalMsValue = Number.parseInt(process.env.RUNNER_RUN_STATUS_POLL_INTERVAL_MS ?? '', 10);
+const runnerRunStatusPollIntervalMs = Number.isFinite(runnerRunStatusPollIntervalMsValue)
+    && runnerRunStatusPollIntervalMsValue > 0
+    ? runnerRunStatusPollIntervalMsValue
+    : 3_000;
 const runnerEventRetentionDaysValue = Number.parseInt(process.env.RUNNER_EVENT_RETENTION_DAYS ?? '', 10);
 const runnerEventRetentionDays = Number.isFinite(runnerEventRetentionDaysValue) && runnerEventRetentionDaysValue > 0
     ? runnerEventRetentionDaysValue
@@ -80,6 +89,8 @@ export const config = {
         leaseDurationSeconds: runnerLeaseDurationSeconds,
         maxConcurrentRuns: runnerMaxConcurrentRuns,
         maxProjectConcurrentRuns: projectMaxConcurrentRunsMax,
+        maxLocalBrowserRuns: runnerMaxLocalBrowserRuns,
+        runStatusPollIntervalMs: runnerRunStatusPollIntervalMs,
         leaseReaperIntervalMs: runnerLeaseReaperIntervalMs,
         eventRetentionDays: runnerEventRetentionDays,
         artifactSoftDeleteDays: runnerArtifactSoftDeleteDays,

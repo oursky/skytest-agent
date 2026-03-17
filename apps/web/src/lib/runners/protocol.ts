@@ -8,9 +8,37 @@ import {
 
 const SEMVER_PATTERN = /^(\d+)\.(\d+)\.(\d+)$/;
 
-const HEARTBEAT_INTERVAL_SECONDS = 10;
-const CLAIM_LONG_POLL_TIMEOUT_SECONDS = 15;
-const DEVICE_SYNC_INTERVAL_SECONDS = 20;
+function parsePositiveIntEnv(input: {
+    name: string;
+    fallback: number;
+    min: number;
+    max: number;
+}): number {
+    const value = Number.parseInt(process.env[input.name] ?? '', 10);
+    if (!Number.isFinite(value)) {
+        return input.fallback;
+    }
+    return Math.min(input.max, Math.max(input.min, value));
+}
+
+const HEARTBEAT_INTERVAL_SECONDS = parsePositiveIntEnv({
+    name: 'RUNNER_HEARTBEAT_INTERVAL_SECONDS',
+    fallback: 30,
+    min: 5,
+    max: 300,
+});
+const CLAIM_LONG_POLL_TIMEOUT_SECONDS = parsePositiveIntEnv({
+    name: 'RUNNER_CLAIM_LONG_POLL_TIMEOUT_SECONDS',
+    fallback: 30,
+    min: 10,
+    max: 120,
+});
+const DEVICE_SYNC_INTERVAL_SECONDS = parsePositiveIntEnv({
+    name: 'RUNNER_DEVICE_SYNC_INTERVAL_SECONDS',
+    fallback: 60,
+    min: 10,
+    max: 600,
+});
 
 const parseSemver = (version: string): [number, number, number] | null => {
     const match = SEMVER_PATTERN.exec(version.trim());

@@ -70,7 +70,19 @@ interface LocalBrowserRunOptions {
 const logger = createLogger('runtime:local-browser-runner');
 const activeAbortControllers = new Map<string, AbortController>();
 const activeExecutions = new Map<string, Promise<void>>();
-const RUN_STATUS_WATCH_INTERVAL_MS = 1_000;
+const RUN_STATUS_WATCH_INTERVAL_MS = appConfig.runner.runStatusPollIntervalMs;
+
+export function getActiveLocalBrowserRunCount(): number {
+    return activeExecutions.size;
+}
+
+export function getMaxLocalBrowserRunCount(): number {
+    return appConfig.runner.maxLocalBrowserRuns;
+}
+
+export function hasLocalBrowserRunCapacity(): boolean {
+    return getActiveLocalBrowserRunCount() < getMaxLocalBrowserRunCount();
+}
 
 function triggerQueuedBrowserDispatch(reason: string, runId: string): void {
     void import('@/lib/runtime/browser-run-dispatcher')

@@ -112,9 +112,9 @@ const RUNNER_LOCK_PATH = path.join(runnerStateRoot, 'runner.lock');
 const RUNNER_CREDENTIAL_REVOKED_PATH = path.join(runnerStateRoot, 'credential-revoked.json');
 
 const DEFAULT_TRANSPORT: RunnerTransportMetadata = {
-    heartbeatIntervalSeconds: 10,
-    claimLongPollTimeoutSeconds: 15,
-    deviceSyncIntervalSeconds: 20,
+    heartbeatIntervalSeconds: 30,
+    claimLongPollTimeoutSeconds: 30,
+    deviceSyncIntervalSeconds: 60,
 };
 
 function buildRunnerDisplayId(seed: string): string {

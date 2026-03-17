@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
     projectFindUnique: vi.fn(),
     usageRecordUpsert: vi.fn(),
     usageRecordCreate: vi.fn(),
+    dispatchNextQueuedBrowserRun: vi.fn(),
 }));
 
 vi.mock('@/lib/runtime/test-runner', () => ({
@@ -29,6 +30,10 @@ vi.mock('@/lib/security/crypto', () => ({
 
 vi.mock('@/lib/runners/event-bus', () => ({
     publishRunUpdate: mocks.publishRunUpdate,
+}));
+
+vi.mock('@/lib/runtime/browser-run-dispatcher', () => ({
+    dispatchNextQueuedBrowserRun: mocks.dispatchNextQueuedBrowserRun,
 }));
 
 vi.mock('@/lib/core/prisma', () => ({
@@ -77,6 +82,8 @@ describe('local-browser-runner usage recording', () => {
         mocks.projectFindUnique.mockReset();
         mocks.usageRecordUpsert.mockReset();
         mocks.usageRecordCreate.mockReset();
+        mocks.dispatchNextQueuedBrowserRun.mockReset();
+        mocks.dispatchNextQueuedBrowserRun.mockResolvedValue(true);
 
         mocks.resolveConfigs.mockResolvedValue({ variables: {}, files: {} });
         mocks.decrypt.mockReturnValue('sk-test');
