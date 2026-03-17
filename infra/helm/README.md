@@ -7,10 +7,11 @@ This chart deploys the shared SkyTest control plane into Kubernetes.
 The chart creates:
 
 - a control-plane `Deployment` and `Service`
+- a browser-worker `Deployment`
 - a runner-maintenance `CronJob`
 - optional ingress, HPA, and PDB resources
 
-Browser runs execute inside the control-plane pods. Android execution remains external and is provided by paired macOS runners.
+Browser runs execute inside browser-worker pods. Android execution remains external and is provided by paired macOS runners.
 
 ## Prerequisites
 
@@ -53,6 +54,9 @@ Common optional values:
 - `RUNNER_MAX_LOCAL_BROWSER_RUNS`
 - `RUNNER_RUN_STATUS_POLL_INTERVAL_MS`
 - `RUNNER_RUN_STATUS_MAX_POLL_INTERVAL_MS`
+- `BROWSER_WORKER_DISPATCH_INTERVAL_MS`
+- `BROWSER_WORKER_MAX_DISPATCH_INTERVAL_MS`
+- `BROWSER_WORKER_MAX_DISPATCHES_PER_CYCLE`
 - `LOG_LEVEL`
 - `PRISMA_LOG_QUERIES`
 - `UI_DEVICE_STATUS_POLL_INTERVAL_MS`
@@ -135,7 +139,7 @@ Recommended runtime env tuning per profile:
 
 - `ingress.enabled` is `false` by default.
 - `autoscaling.enabled` applies to the control-plane deployment.
-- Scale browser throughput by changing control-plane resources or replica count.
+- Scale browser throughput by changing `browserWorker.replicas` and `RUNNER_MAX_LOCAL_BROWSER_RUNS`.
 - Pair Android macOS runners against the public control-plane URL after deployment.
 - Updating a referenced `Secret` does not restart pods automatically. Run a Helm upgrade or restart workloads after secret changes.
 

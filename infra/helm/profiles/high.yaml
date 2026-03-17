@@ -8,6 +8,16 @@ controlPlane:
       cpu: "4"
       memory: "8Gi"
 
+browserWorker:
+  replicas: 4
+  resources:
+    requests:
+      cpu: "2"
+      memory: "4Gi"
+    limits:
+      cpu: "6"
+      memory: "12Gi"
+
 runnerMaintenance:
   schedule: "*/1 * * * *"
   resources:

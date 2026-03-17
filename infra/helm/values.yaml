@@ -51,6 +51,27 @@ controlPlane:
   tolerations: []
   affinity: {}
 
+browserWorker:
+  enabled: true
+  replicas: 1
+  command:
+    - npm
+    - run
+    - --workspace
+    - "@skytest/web"
+    - browser:worker
+  podAnnotations: {}
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "2"
+      memory: "4Gi"
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
 runnerMaintenance:
   enabled: true
   schedule: "*/2 * * * *"
