@@ -2,11 +2,11 @@ controlPlane:
   replicas: 1
   resources:
     requests:
-      cpu: "250m"
-      memory: "768Mi"
+      cpu: "50m"
+      memory: "96Mi"
     limits:
-      cpu: "1"
-      memory: "2Gi"
+      cpu: "250m"
+      memory: "256Mi"
 
 browserWorker:
   replicas: 1
@@ -16,7 +16,7 @@ browserWorker:
       memory: "1Gi"
     limits:
       cpu: "2"
-      memory: "4Gi"
+      memory: "2Gi"
 
 runnerMaintenance:
   schedule: "*/5 * * * *"
