@@ -32,6 +32,16 @@ jobs:
             exit 1
           fi
 
+      - name: Enforce action SHA pinning
+        run: |
+          set -euo pipefail
+          violations="$(rg -n '^[[:space:]]*uses:[[:space:]]*[^[:space:]]+' .github/workflows | rg -v '@[0-9a-f]{40}$|docker://|uses:[[:space:]]*\./')"
+          if [ -n "$violations" ]; then
+            echo "Unpinned GitHub Action references detected:"
+            echo "$violations"
+            exit 1
+          fi
+
       - name: Setup Node.js
         uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8
         with:
