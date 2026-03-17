@@ -6,7 +6,7 @@ const RUNNER_TOKEN = __ENV.RUNNER_TOKEN || '';
 const RUNNER_PROTOCOL_VERSION = __ENV.RUNNER_PROTOCOL_VERSION || '0.1.0';
 const RUNNER_VERSION = __ENV.RUNNER_VERSION || '0.1.0';
 const CLAIM_RPS = Number(__ENV.CLAIM_RPS || 3);
-const DURATION = __ENV.K6_DURATION || '45s';
+const DURATION = __ENV.CLAIM_DURATION || '45s';
 
 if (!RUNNER_TOKEN) {
     throw new Error('RUNNER_TOKEN is required');

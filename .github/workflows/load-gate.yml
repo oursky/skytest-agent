@@ -42,7 +42,7 @@ jobs:
       RUNNER_RATE_LIMIT_STORE_MODE: memory
       RUNNER_CLAIM_LONG_POLL_TIMEOUT_SECONDS: "10"
       CLAIM_RPS: "3"
-      K6_DURATION: "45s"
+      CLAIM_DURATION: "45s"
       MAX_DB_TX_PER_SEC: "800"
       MAX_APP_RSS_MB: "1400"
       LOAD_GATE_RUN_COUNT: "3000"
@@ -59,8 +59,15 @@ jobs:
           node-version: '20'
           cache: npm
 
-      - name: Setup k6
-        uses: grafana/setup-k6-action@v1
+      - name: Install k6
+        run: |
+          set -euo pipefail
+          sudo mkdir -p /etc/apt/keyrings
+          curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /etc/apt/keyrings/k6-archive-keyring.gpg
+          echo "deb [signed-by=/etc/apt/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+          k6 version
 
       - name: Install dependencies
         run: npm ci
@@ -120,7 +127,7 @@ jobs:
             -e RUNNER_PROTOCOL_VERSION="$RUNNER_PROTOCOL_VERSION" \
             -e RUNNER_VERSION="$RUNNER_VERSION" \
             -e CLAIM_RPS="$CLAIM_RPS" \
-            -e K6_DURATION="$K6_DURATION" \
+            -e CLAIM_DURATION="$CLAIM_DURATION" \
             apps/web/scripts/load-gate/runner-claim.k6.js
           END_TS=$(date +%s)
           if kill -0 "$SAMPLER_PID" 2>/dev/null; then
@@ -137,8 +144,8 @@ jobs:
           APP_RSS_MB=$(awk "BEGIN {printf \"%.2f\", ${PEAK_RSS_KB}/1024}")
           echo "DB tx/s: $DB_TX_PER_SEC"
           echo "App peak RSS MB: $APP_RSS_MB"
-          awk "BEGIN {exit !(${DB_TX_PER_SEC} <= ${MAX_DB_TX_PER_SEC})}" || { echo \"DB tx/s threshold exceeded (${DB_TX_PER_SEC} > ${MAX_DB_TX_PER_SEC})\"; exit 1; }
-          awk "BEGIN {exit !(${APP_RSS_MB} <= ${MAX_APP_RSS_MB})}" || { echo \"App RSS threshold exceeded (${APP_RSS_MB} > ${MAX_APP_RSS_MB})\"; exit 1; }
+          awk "BEGIN {exit !(${DB_TX_PER_SEC} <= ${MAX_DB_TX_PER_SEC})}" || { echo "DB tx/s threshold exceeded (${DB_TX_PER_SEC} > ${MAX_DB_TX_PER_SEC})"; exit 1; }
+          awk "BEGIN {exit !(${APP_RSS_MB} <= ${MAX_APP_RSS_MB})}" || { echo "App RSS threshold exceeded (${APP_RSS_MB} > ${MAX_APP_RSS_MB})"; exit 1; }
 
       - name: Stop app and print logs
         if: always()
@@ -248,10 +255,10 @@ jobs:
           echo "Browser gate peak RSS MB: $RSS_MB"
           echo "Browser gate OOM count: $OOM_COUNT"
           echo "Browser run failed count: $FAIL_COUNT"
-          awk "BEGIN {exit !(${P95_MS} <= ${MAX_BROWSER_RUN_P95_MS})}" || { echo \"Browser p95 threshold exceeded (${P95_MS} > ${MAX_BROWSER_RUN_P95_MS})\"; exit 1; }
-          awk "BEGIN {exit !(${RSS_MB} <= ${MAX_BROWSER_GATE_RSS_MB})}" || { echo \"Browser RSS threshold exceeded (${RSS_MB} > ${MAX_BROWSER_GATE_RSS_MB})\"; exit 1; }
-          awk "BEGIN {exit !(${OOM_COUNT} <= ${MAX_BROWSER_OOM_COUNT})}" || { echo \"Browser OOM threshold exceeded (${OOM_COUNT} > ${MAX_BROWSER_OOM_COUNT})\"; exit 1; }
-          awk "BEGIN {exit !(${FAIL_COUNT} <= ${MAX_BROWSER_FAILED_RUNS})}" || { echo \"Browser failed-run threshold exceeded (${FAIL_COUNT} > ${MAX_BROWSER_FAILED_RUNS})\"; exit 1; }
+          awk "BEGIN {exit !(${P95_MS} <= ${MAX_BROWSER_RUN_P95_MS})}" || { echo "Browser p95 threshold exceeded (${P95_MS} > ${MAX_BROWSER_RUN_P95_MS})"; exit 1; }
+          awk "BEGIN {exit !(${RSS_MB} <= ${MAX_BROWSER_GATE_RSS_MB})}" || { echo "Browser RSS threshold exceeded (${RSS_MB} > ${MAX_BROWSER_GATE_RSS_MB})"; exit 1; }
+          awk "BEGIN {exit !(${OOM_COUNT} <= ${MAX_BROWSER_OOM_COUNT})}" || { echo "Browser OOM threshold exceeded (${OOM_COUNT} > ${MAX_BROWSER_OOM_COUNT})"; exit 1; }
+          awk "BEGIN {exit !(${FAIL_COUNT} <= ${MAX_BROWSER_FAILED_RUNS})}" || { echo "Browser failed-run threshold exceeded (${FAIL_COUNT} > ${MAX_BROWSER_FAILED_RUNS})"; exit 1; }
 
       - name: Print browser gate logs
         if: always()
