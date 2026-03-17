@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
     verifyAuth: vi.fn(),
     resolveUserId: vi.fn(),
+    resolveConfigs: vi.fn(),
     validateTargetUrl: vi.fn(),
     getTeamDevicesAvailability: vi.fn(),
     testCaseFindUnique: vi.fn(),
@@ -13,6 +14,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/security/auth', () => ({
     verifyAuth: mocks.verifyAuth,
     resolveUserId: mocks.resolveUserId,
+}));
+
+vi.mock('@/lib/test-config/resolver', () => ({
+    resolveConfigs: mocks.resolveConfigs,
 }));
 
 vi.mock('@/lib/security/url-security', () => ({
@@ -46,6 +51,7 @@ describe('POST /api/test-runs/dispatch', () => {
     beforeEach(() => {
         mocks.verifyAuth.mockReset();
         mocks.resolveUserId.mockReset();
+        mocks.resolveConfigs.mockReset();
         mocks.validateTargetUrl.mockReset();
         mocks.getTeamDevicesAvailability.mockReset();
         mocks.testCaseFindUnique.mockReset();
@@ -54,6 +60,11 @@ describe('POST /api/test-runs/dispatch', () => {
 
         mocks.verifyAuth.mockResolvedValue({ sub: 'auth-user' });
         mocks.resolveUserId.mockResolvedValue('user-1');
+        mocks.resolveConfigs.mockResolvedValue({
+            variables: { CMS: 'https://example.com' },
+            files: {},
+            allConfigs: [],
+        });
         mocks.validateTargetUrl.mockReturnValue({ valid: true });
         mocks.testCaseFindUnique.mockResolvedValue({
             id: 'tc-1',
@@ -127,6 +138,40 @@ describe('POST /api/test-runs/dispatch', () => {
             runId: 'run-1',
             status: 'QUEUED',
             requiredCapability: 'BROWSER',
+        });
+    });
+
+    it('resolves URL placeholders before validating and queueing', async () => {
+        const request = new Request('http://localhost/api/test-runs/dispatch', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                testCaseId: 'tc-1',
+                url: '{{CMS}}',
+                prompt: 'Open homepage and verify title',
+                browserConfig: {
+                    browserA: {
+                        type: 'browser',
+                        name: 'Browser A',
+                        url: '{{CMS}}',
+                        width: 1440,
+                        height: 900,
+                    },
+                },
+            }),
+        });
+
+        const response = await POST(request);
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(mocks.resolveConfigs).toHaveBeenCalledWith('project-1', 'tc-1');
+        expect(mocks.validateTargetUrl).toHaveBeenCalledWith('https://example.com');
+        expect(payload).toMatchObject({
+            runId: 'run-1',
+            status: 'QUEUED',
         });
     });
 

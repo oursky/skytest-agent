@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
-import { validateTargetUrl } from '@/lib/security/url-security';
 import { createLogger } from '@/lib/core/logger';
 import { getTeamDevicesAvailability } from '@/lib/runners/availability-service';
 import { config as appConfig } from '@/config/app';
 import { isAndroidTargetConfig, normalizeAndroidTargetConfig } from '@/lib/android/target-config';
+import { resolveConfigs } from '@/lib/test-config/resolver';
+import { hasTemplatedConfigUrls, validateConfigUrls } from '@/lib/test-config/url-validation';
 import {
     collectAndroidRequestedDeviceIds,
     collectAndroidRequestedRunnerIds,
@@ -42,26 +43,6 @@ function createConfigurationSnapshot(config: RunTestRequest) {
     void testCaseId;
 
     return sanitized;
-}
-
-function validateConfigUrls(config: RunTestRequest): string | null {
-    const urls: string[] = [];
-    if (config.url) urls.push(config.url);
-    if (config.browserConfig) {
-        for (const entry of Object.values(config.browserConfig)) {
-            if ('type' in entry && entry.type === 'android') continue;
-            if (entry.url) urls.push(entry.url);
-        }
-    }
-
-    for (const url of urls) {
-        const result = validateTargetUrl(url);
-        if (!result.valid) {
-            return result.error || 'Target URL is not allowed';
-        }
-    }
-
-    return null;
 }
 
 
@@ -139,14 +120,6 @@ export async function POST(request: Request) {
         );
     }
 
-    const urlValidationError = validateConfigUrls(config);
-    if (urlValidationError) {
-        return NextResponse.json(
-            { error: urlValidationError },
-            { status: 400 }
-        );
-    }
-
     try {
         if (!testCaseId) {
             return NextResponse.json(
@@ -189,6 +162,20 @@ export async function POST(request: Request) {
 
         if (testCase.project.team.memberships.length === 0) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+
+        let resolvedVariables: Record<string, string> = {};
+        if (hasTemplatedConfigUrls({ url, browserConfig })) {
+            const resolvedConfigs = await resolveConfigs(testCase.project.id, testCaseId);
+            resolvedVariables = resolvedConfigs.variables;
+        }
+
+        const urlValidationError = validateConfigUrls({ url, browserConfig }, resolvedVariables);
+        if (urlValidationError) {
+            return NextResponse.json(
+                { error: urlValidationError },
+                { status: 400 }
+            );
         }
 
         const androidValidationError = await validateAndroidTargets(browserConfig);

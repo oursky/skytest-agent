@@ -1,7 +1,8 @@
 import { prisma } from '@/lib/core/prisma';
 import { parseTestCaseJson, cleanStepsForStorage, normalizeTargetConfigMap } from '@/lib/runtime/test-case-utils';
-import { validateTargetUrl } from '@/lib/security/url-security';
 import { getTeamDevicesAvailability } from '@/lib/runners/availability-service';
+import { resolveConfigs } from '@/lib/test-config/resolver';
+import { hasTemplatedConfigUrls, validateConfigUrls } from '@/lib/test-config/url-validation';
 import {
     ANDROID_EXECUTION_CAPABILITY,
     ANDROID_EXECUTION_RUNNER_KIND,
@@ -17,29 +18,6 @@ import {
     isEmulatorProfileInventoryDevice,
 } from '@/lib/android/target-requests';
 import { TEST_STATUS, type BrowserConfig, type TargetConfig, type TestStep } from '@/types';
-
-function validateConfigUrls(config: {
-    url?: string;
-    browserConfig?: Record<string, BrowserConfig | TargetConfig>;
-}): string | null {
-    const urls: string[] = [];
-    if (config.url) urls.push(config.url);
-    if (config.browserConfig) {
-        for (const entry of Object.values(config.browserConfig)) {
-            if ('type' in entry && entry.type === 'android') continue;
-            if (entry.url) urls.push(entry.url);
-        }
-    }
-
-    for (const url of urls) {
-        const result = validateTargetUrl(url);
-        if (!result.valid) {
-            return result.error || 'Target URL is not allowed';
-        }
-    }
-
-    return null;
-}
 
 function validateAndroidTargets(
     browserConfig: Record<string, BrowserConfig | TargetConfig> | undefined
@@ -173,10 +151,19 @@ export async function queueTestCaseRun(
         return { ok: false, failure: { error: 'Instructions (Prompt or Steps) are required' } };
     }
 
-    const urlValidationError = validateConfigUrls({
-        url: normalizedUrl,
-        browserConfig: normalizedBrowserConfig,
-    });
+    let resolvedVariables: Record<string, string> = {};
+    if (hasTemplatedConfigUrls({ url: normalizedUrl, browserConfig: normalizedBrowserConfig })) {
+        const resolvedConfigs = await resolveConfigs(testCase.projectId, testCaseId);
+        resolvedVariables = resolvedConfigs.variables;
+    }
+
+    const urlValidationError = validateConfigUrls(
+        {
+            url: normalizedUrl,
+            browserConfig: normalizedBrowserConfig,
+        },
+        resolvedVariables
+    );
     if (urlValidationError) {
         return { ok: false, failure: { error: urlValidationError } };
     }
