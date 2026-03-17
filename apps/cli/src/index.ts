@@ -17,7 +17,7 @@ function printHelp(): void {
         'Usage:',
         '  skytest version',
         '  skytest pair runner <pairing-token>',
-        '  skytest start runner <runner-id>',
+        '  skytest start runner <runner-id> [--repair-token <pairing-token>]',
         '  skytest stop runner <runner-id>',
         '  skytest get runners [--json|--format text|json]',
         '  skytest describe runner <runner-id> [--json|--format text|json]',
@@ -59,7 +59,10 @@ async function main(): Promise<void> {
     }
 
     if (command.kind === 'start-runner') {
-        await runStartRunnerCommand({ runnerId: command.runnerId });
+        await runStartRunnerCommand({
+            runnerId: command.runnerId,
+            repairPairingToken: command.repairPairingToken,
+        });
         return;
     }
 

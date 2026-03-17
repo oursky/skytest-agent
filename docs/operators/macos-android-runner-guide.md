@@ -103,6 +103,7 @@ Lifecycle commands:
 ```bash
 npm run skytest -- get runners
 npm run skytest -- start runner <runner-id>
+npm run skytest -- start runner <runner-id> --repair-token "<pairing-token>"
 npm run skytest -- stop runner <runner-id>
 npm run skytest -- logs runner <runner-id> --tail 200
 npm run skytest -- unpair runner <runner-id>
@@ -134,12 +135,29 @@ emulator -list-avds
 
 ## 7. Troubleshooting
 
-### Invalid pairing token or `401` on runner startup
+### `401` unauthorized on runner startup
 
-- generate a fresh pairing token
-- confirm the control-plane URL is correct and reachable from the macOS host
+- If a runner was unpaired in web, the local CLI entry is now pruned automatically during `skytest get runners`, `skytest describe runner`, or `skytest start runner`.
+- Use a fresh pairing token to pair again:
 
-If the runner was unpaired in the web UI, the local CLI entry is cleaned up after the next unauthorized runner request.
+```bash
+skytest pair runner "<pairing-token>" --url "<control-plane-url>"
+```
+
+- You can also recover in one step with:
+
+```bash
+skytest start runner <runner-id> --repair-token "<pairing-token>"
+```
+
+### `409` host fingerprint mismatch on runner startup
+
+- `skytest start runner` now auto-repairs host binding and continues startup.
+- If startup still fails, inspect the runner log:
+
+```bash
+skytest logs runner <runner-id> --tail 200
+```
 
 ### Runner connected but no devices shown
 

@@ -60,6 +60,19 @@ export const heartbeatRunnerResponseSchema = z.object({
     rotationRequired: z.boolean(),
 });
 
+export const verifyRunnerCredentialRequestSchema = z.object({
+    protocolVersion: runnerProtocolVersionSchema,
+    runnerVersion: runnerVersionSchema,
+});
+
+export const verifyRunnerCredentialResponseSchema = z.object({
+    runnerId: z.string().min(1),
+    compatibility: compatibilityMetadataSchema,
+    transport: runnerTransportMetadataSchema,
+    credentialExpiresAt: z.string().datetime(),
+    rotationRequired: z.boolean(),
+});
+
 export const shutdownRunnerRequestSchema = z.object({
     protocolVersion: runnerProtocolVersionSchema,
     runnerVersion: runnerVersionSchema,
@@ -233,6 +246,8 @@ export type RegisterRunnerRequest = z.infer<typeof registerRunnerRequestSchema>;
 export type RegisterRunnerResponse = z.infer<typeof registerRunnerResponseSchema>;
 export type HeartbeatRunnerRequest = z.infer<typeof heartbeatRunnerRequestSchema>;
 export type HeartbeatRunnerResponse = z.infer<typeof heartbeatRunnerResponseSchema>;
+export type VerifyRunnerCredentialRequest = z.infer<typeof verifyRunnerCredentialRequestSchema>;
+export type VerifyRunnerCredentialResponse = z.infer<typeof verifyRunnerCredentialResponseSchema>;
 export type ShutdownRunnerRequest = z.infer<typeof shutdownRunnerRequestSchema>;
 export type ShutdownRunnerResponse = z.infer<typeof shutdownRunnerResponseSchema>;
 export type CreatePairingTokenResponse = z.infer<typeof createPairingTokenResponseSchema>;

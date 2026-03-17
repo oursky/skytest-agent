@@ -4,7 +4,7 @@ export type SkytestCliCommand =
     | { kind: 'help' }
     | { kind: 'version' }
     | { kind: 'pair-runner'; pairingToken: string; label?: string; controlPlaneBaseUrl?: string; autoStart: boolean }
-    | { kind: 'start-runner'; runnerId: string }
+    | { kind: 'start-runner'; runnerId: string; repairPairingToken?: string }
     | { kind: 'stop-runner'; runnerId: string }
     | { kind: 'get-runners'; format: 'text' | 'json' }
     | { kind: 'describe-runner'; runnerId: string; format: 'text' | 'json' }
@@ -102,6 +102,30 @@ function parsePairRunnerArguments(args: string[]): {
     return { pairingToken, label, controlPlaneBaseUrl, autoStart };
 }
 
+function parseStartRunnerArguments(args: string[]): { runnerId: string; repairPairingToken?: string } {
+    const runnerId = args[0];
+    if (!runnerId || isHelpFlag(runnerId)) {
+        throw new Error('Usage: skytest start runner <runner-id>');
+    }
+
+    let repairPairingToken: string | undefined;
+    for (let index = 1; index < args.length; index += 1) {
+        const token = args[index];
+        if (token === '--repair-token') {
+            const value = args[index + 1];
+            if (!value) {
+                throw new Error('Missing value for `--repair-token`.');
+            }
+            repairPairingToken = value;
+            index += 1;
+            continue;
+        }
+        throw new Error(`Unknown option for \`start runner\`: ${token}`);
+    }
+
+    return { runnerId, repairPairingToken };
+}
+
 export function parseSkytestCliCommand(args: string[]): SkytestCliCommand {
     if (args.length === 0 || isHelpFlag(args[0])) {
         return { kind: 'help' };
@@ -126,11 +150,8 @@ export function parseSkytestCliCommand(args: string[]): SkytestCliCommand {
     }
 
     if (action === 'start' && resource === 'runner') {
-        const runnerId = remainingArgs[0];
-        if (!runnerId || isHelpFlag(runnerId)) {
-            throw new Error('Usage: skytest start runner <runner-id>');
-        }
-        return { kind: 'start-runner', runnerId };
+        const parsed = parseStartRunnerArguments(remainingArgs);
+        return { kind: 'start-runner', ...parsed };
     }
 
     if (action === 'stop' && resource === 'runner') {

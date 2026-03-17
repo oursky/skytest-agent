@@ -26,7 +26,7 @@ vi.mock('@/lib/runners/availability-service', () => ({
     invalidateTeamAvailabilityCache,
 }));
 
-const { registerRunner, heartbeatRunner, shutdownRunner } = await import('@/lib/runners/registration-service');
+const { registerRunner, heartbeatRunner, shutdownRunner, repairRunnerHostBinding } = await import('@/lib/runners/registration-service');
 
 describe('registration-service', () => {
     beforeEach(() => {
@@ -136,5 +136,56 @@ describe('registration-service', () => {
             lastSeenAt: now,
         });
         expect(invalidateTeamAvailabilityCache).toHaveBeenCalledWith('team-1');
+    });
+
+    it('repairs runner host binding and marks runner online', async () => {
+        const now = new Date('2026-03-13T12:00:00.000Z');
+        vi.useFakeTimers();
+        vi.setSystemTime(now);
+        runnerUpdate.mockResolvedValue({
+            id: 'runner-1',
+            teamId: 'team-1',
+            status: 'ONLINE',
+            lastSeenAt: now,
+        });
+
+        const result = await repairRunnerHostBinding({
+            runnerId: 'runner-1',
+            hostFingerprint: 'host-b',
+            label: 'Runner B',
+            kind: 'MACOS_AGENT',
+            capabilities: ['ANDROID'],
+            protocolVersion: '1.0.0',
+            runnerVersion: '1.0.0',
+        });
+
+        expect(runnerUpdate).toHaveBeenCalledWith({
+            where: { id: 'runner-1' },
+            data: {
+                hostFingerprint: 'host-b',
+                label: 'Runner B',
+                kind: 'MACOS_AGENT',
+                capabilities: ['ANDROID'],
+                protocolVersion: '1.0.0',
+                runnerVersion: '1.0.0',
+                status: 'ONLINE',
+                lastSeenAt: now,
+            },
+            select: {
+                id: true,
+                teamId: true,
+                status: true,
+                lastSeenAt: true,
+            },
+        });
+        expect(result).toEqual({
+            id: 'runner-1',
+            teamId: 'team-1',
+            status: 'ONLINE',
+            lastSeenAt: now,
+        });
+        expect(invalidateTeamAvailabilityCache).toHaveBeenCalledWith('team-1');
+
+        vi.useRealTimers();
     });
 });

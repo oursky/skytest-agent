@@ -394,6 +394,33 @@ async function registerRunner(): Promise<void> {
     });
 }
 
+async function repairRunnerRegistration(): Promise<void> {
+    const payload = registerRunnerRequestSchema.parse({
+        protocolVersion: RUNNER_PROTOCOL_CURRENT_VERSION,
+        runnerVersion,
+        hostFingerprint,
+        label: runnerLabel,
+        kind: 'MACOS_AGENT',
+        capabilities,
+    });
+    const response = await postRunnerApi('/api/runners/v1/repair', payload);
+    const parsed = registerRunnerResponseSchema.parse(response);
+
+    authState = {
+        runnerToken: ensureRunnerToken(),
+        runnerId: parsed.runnerId,
+        credentialExpiresAt: parsed.credentialExpiresAt,
+        transport: parsed.transport,
+    };
+
+    await saveRunnerCredential(controlPlaneBaseUrl, {
+        runnerToken: ensureRunnerToken(),
+        runnerId: parsed.runnerId,
+        credentialExpiresAt: parsed.credentialExpiresAt,
+        updatedAt: new Date().toISOString(),
+    });
+}
+
 async function sendHeartbeat() {
     const payload = heartbeatRunnerRequestSchema.parse({
         protocolVersion: RUNNER_PROTOCOL_CURRENT_VERSION,
@@ -885,6 +912,9 @@ export async function startRunnerEngine() {
             if (error instanceof RunnerHttpError && error.status === 401 && pairingToken) {
                 authState = await exchangePairingCredential();
                 await registerRunner();
+            } else if (error instanceof RunnerHttpError && error.status === 409) {
+                logger.warn('Runner host fingerprint mismatch detected. Repairing runner registration.');
+                await repairRunnerRegistration();
             } else {
                 throw error;
             }
