@@ -8,7 +8,7 @@ vi.mock('node:dns/promises', () => ({
     lookup: mocks.lookup,
 }));
 
-const { DNS_REBINDING_DETECTED_CODE, validateRuntimeRequestUrl } = await import('@/lib/security/url-security-runtime');
+const { validateRuntimeRequestUrl } = await import('@/lib/security/url-security-runtime');
 const { config } = await import('@/config/app');
 const securityConfig = config.test.security as {
     dnsLookupRetryAttempts: number;
@@ -60,24 +60,24 @@ describe('validateRuntimeRequestUrl', () => {
         expect(mocks.lookup).toHaveBeenCalledTimes(1);
     });
 
-    it('blocks DNS rebinding when a host resolves to a new address after pinning', async () => {
+    it('allows hosts to rotate across public addresses after pinning', async () => {
         vi.useFakeTimers();
         try {
             mocks.lookup
                 .mockResolvedValueOnce([{ address: '93.184.216.34', family: 4 }])
-                .mockResolvedValueOnce([{ address: '93.184.216.35', family: 4 }]);
+                .mockResolvedValueOnce([{ address: '93.184.216.35', family: 4 }])
+                .mockResolvedValueOnce([{ address: '93.184.216.34', family: 4 }]);
 
             const first = await validateRuntimeRequestUrl('https://rebind.example.com/a');
             vi.advanceTimersByTime(6000);
             const second = await validateRuntimeRequestUrl('https://rebind.example.com/b');
+            vi.advanceTimersByTime(6000);
+            const third = await validateRuntimeRequestUrl('https://rebind.example.com/c');
 
             expect(first).toEqual({ valid: true });
-            expect(second).toEqual({
-                valid: false,
-                error: 'DNS rebinding detected',
-                code: DNS_REBINDING_DETECTED_CODE,
-            });
-            expect(mocks.lookup).toHaveBeenCalledTimes(2);
+            expect(second).toEqual({ valid: true });
+            expect(third).toEqual({ valid: true });
+            expect(mocks.lookup).toHaveBeenCalledTimes(3);
         } finally {
             vi.useRealTimers();
         }

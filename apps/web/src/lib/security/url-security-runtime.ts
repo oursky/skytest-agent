@@ -134,14 +134,8 @@ export async function validateRuntimeRequestUrl(rawUrl: string): Promise<UrlVali
         }
 
         if (pinned) {
-            const hasUnexpectedAddress = addresses.some((address) => !pinned.has(address));
-            if (hasUnexpectedAddress) {
-                const result = createUrlValidationFailure(
-                    'DNS rebinding detected',
-                    DNS_REBINDING_DETECTED_CODE
-                );
-                setCachedHostnameResult(hostname, result);
-                return result;
+            for (const address of addresses) {
+                pinned.add(address);
             }
         } else {
             hostnamePinnedAddresses.set(normalizedHostname, new Set(addresses));
