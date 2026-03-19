@@ -13,7 +13,7 @@ Use this checklist before exposing Android execution to users.
 - [ ] Keep S3-compatible object storage available to control plane for artifacts and uploaded files
 - [ ] Run at least one `MACOS_AGENT` runner for Android execution capacity
 - [ ] Run runner maintenance on a singleton worker or cron schedule
-- [ ] If cloud dependency provisioning/changes are needed, contact platform owners for Supabase/Tigris/Fly access
+- [ ] If cloud dependency provisioning/changes are needed, contact platform owners for Postgres/Tigris/Fly access
 
 References:
 

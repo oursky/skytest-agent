@@ -20,7 +20,7 @@ Application processes (`web`, `browser`, `maintenance`) run from the repo worksp
 
 Shared deployments require:
 
-- Supabase Postgres
+- Managed PostgreSQL (for example, Fly Postgres or company-managed Postgres)
 - Fly Tigris (S3-compatible object storage)
 - Authgear
 - one or more external macOS runners for Android test execution
