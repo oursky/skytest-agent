@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
     verifyAuth: vi.fn(),
     resolveUserId: vi.fn(),
-    isTeamOwner: vi.fn(),
+    isTeamMember: vi.fn(),
     teamMembershipFindUnique: vi.fn(),
     teamMembershipDelete: vi.fn(),
 }));
@@ -14,7 +14,7 @@ vi.mock('@/lib/security/auth', () => ({
 }));
 
 vi.mock('@/lib/security/permissions', () => ({
-    isTeamOwner: mocks.isTeamOwner,
+    isTeamMember: mocks.isTeamMember,
 }));
 
 vi.mock('@/lib/core/prisma', () => ({
@@ -32,7 +32,7 @@ describe('DELETE /api/teams/[id]/members/[memberId]', () => {
     beforeEach(() => {
         mocks.verifyAuth.mockReset();
         mocks.resolveUserId.mockReset();
-        mocks.isTeamOwner.mockReset();
+        mocks.isTeamMember.mockReset();
         mocks.teamMembershipFindUnique.mockReset();
         mocks.teamMembershipDelete.mockReset();
 
@@ -40,8 +40,8 @@ describe('DELETE /api/teams/[id]/members/[memberId]', () => {
         mocks.resolveUserId.mockResolvedValue('user-1');
     });
 
-    it('rejects non-owner callers', async () => {
-        mocks.isTeamOwner.mockResolvedValue(false);
+    it('rejects non-member callers', async () => {
+        mocks.isTeamMember.mockResolvedValue(false);
 
         const response = await DELETE(new Request('http://localhost/api/teams/team-1/members/member-1', {
             method: 'DELETE',

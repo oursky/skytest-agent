@@ -4,7 +4,6 @@ const mocks = vi.hoisted(() => ({
     verifyAuth: vi.fn(),
     resolveUserId: vi.fn(),
     isTeamMember: vi.fn(),
-    isTeamOwner: vi.fn(),
     teamMembershipFindMany: vi.fn(),
     userFindFirst: vi.fn(),
     teamMembershipFindFirst: vi.fn(),
@@ -18,7 +17,6 @@ vi.mock('@/lib/security/auth', () => ({
 
 vi.mock('@/lib/security/permissions', () => ({
     isTeamMember: mocks.isTeamMember,
-    isTeamOwner: mocks.isTeamOwner,
 }));
 
 vi.mock('@/lib/core/prisma', () => ({
@@ -36,12 +34,11 @@ vi.mock('@/lib/core/prisma', () => ({
 
 const { GET, POST } = await import('@/app/api/teams/[id]/members/route');
 
-describe('team members route ownership controls', () => {
+describe('team members route access controls', () => {
     beforeEach(() => {
         mocks.verifyAuth.mockReset();
         mocks.resolveUserId.mockReset();
         mocks.isTeamMember.mockReset();
-        mocks.isTeamOwner.mockReset();
         mocks.teamMembershipFindMany.mockReset();
         mocks.userFindFirst.mockReset();
         mocks.teamMembershipFindFirst.mockReset();
@@ -51,9 +48,8 @@ describe('team members route ownership controls', () => {
         mocks.resolveUserId.mockResolvedValue('user-1');
     });
 
-    it('returns canManageMembers=false for non-owner team members', async () => {
+    it('returns canManageMembers=true for team members', async () => {
         mocks.isTeamMember.mockResolvedValue(true);
-        mocks.isTeamOwner.mockResolvedValue(false);
         mocks.teamMembershipFindMany.mockResolvedValue([]);
 
         const response = await GET(new Request('http://localhost/api/teams/team-1/members'), {
@@ -62,11 +58,11 @@ describe('team members route ownership controls', () => {
         const payload = await response.json();
 
         expect(response.status).toBe(200);
-        expect(payload.canManageMembers).toBe(false);
+        expect(payload.canManageMembers).toBe(true);
     });
 
-    it('rejects member add when caller is not owner', async () => {
-        mocks.isTeamOwner.mockResolvedValue(false);
+    it('rejects member add when caller is not a team member', async () => {
+        mocks.isTeamMember.mockResolvedValue(false);
 
         const response = await POST(new Request('http://localhost/api/teams/team-1/members', {
             method: 'POST',

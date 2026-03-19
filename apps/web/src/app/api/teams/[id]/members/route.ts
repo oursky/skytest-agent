@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
-import { isTeamMember, isTeamOwner } from '@/lib/security/permissions';
+import { isTeamMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:teams:members');
 const DEFAULT_MEMBER_ROLE = 'MEMBER' as const;
@@ -30,8 +30,6 @@ export async function GET(
         if (!await isTeamMember(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
-        const owner = await isTeamOwner(userId, id);
-
         const members = await prisma.teamMembership.findMany({
             where: { teamId: id },
             orderBy: [
@@ -56,7 +54,7 @@ export async function GET(
         });
 
         return NextResponse.json({
-            canManageMembers: owner,
+            canManageMembers: true,
             members: members.map((member) => ({
                 id: member.id,
                 userId: member.userId,
@@ -88,7 +86,7 @@ export async function POST(
         }
 
         const { id } = await params;
-        if (!await isTeamOwner(userId, id)) {
+        if (!await isTeamMember(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
