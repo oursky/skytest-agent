@@ -7,7 +7,7 @@ This policy defines how SkyTest dependencies are reviewed and updated to keep th
 Applies to:
 
 - npm workspace dependencies (`package.json` + lockfile)
-- runtime infrastructure dependencies (Node.js, Playwright, Prisma, Helm chart API versions)
+- runtime infrastructure dependencies (Node.js, Playwright, Prisma)
 - schema and index lifecycle for PostgreSQL
 
 ## Update Cadence

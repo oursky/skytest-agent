@@ -34,8 +34,12 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/skytest_agent?schema=public
       ENCRYPTION_SECRET: load-gate-not-for-production
-      GCS_BUCKET: load-gate
-      GCS_PROJECT_ID: load-gate
+      S3_ENDPOINT: http://127.0.0.1:9000
+      S3_REGION: us-east-1
+      S3_BUCKET: load-gate
+      S3_ACCESS_KEY_ID: minioadmin
+      S3_SECRET_ACCESS_KEY: minioadmin
+      S3_FORCE_PATH_STYLE: "true"
       RUNNER_MAX_CONCURRENT_RUNS: "5000"
       PROJECT_MAX_CONCURRENT_RUNS_MAX: "5000"
       RATE_LIMIT_STORE_MODE: memory
@@ -62,15 +66,71 @@ jobs:
       - name: Install k6
         run: |
           set -euo pipefail
-          sudo mkdir -p /etc/apt/keyrings
-          curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /etc/apt/keyrings/k6-archive-keyring.gpg
-          echo "deb [signed-by=/etc/apt/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
-          sudo apt-get update
-          sudo apt-get install -y k6
+          VERSION="v0.53.0"
+          RELEASE_JSON="$(curl -fsSL "https://api.github.com/repos/grafana/k6/releases/tags/${VERSION}")"
+          ARCHIVE_URL="$(printf '%s' "$RELEASE_JSON" | jq -r '.assets[] | select(.name | test("linux-amd64\\.tar\\.gz$")) | .browser_download_url' | head -n1)"
+          CHECKSUM_URL="$(printf '%s' "$RELEASE_JSON" | jq -r '.assets[] | select(.name | test("checksums\\.txt$")) | .browser_download_url' | head -n1)"
+          if [ -z "$ARCHIVE_URL" ] || [ -z "$CHECKSUM_URL" ] || [ "$ARCHIVE_URL" = "null" ] || [ "$CHECKSUM_URL" = "null" ]; then
+            echo "Failed to resolve k6 release assets for ${VERSION}" >&2
+            exit 1
+          fi
+          ARCHIVE_NAME="$(basename "$ARCHIVE_URL")"
+          curl -fsSL "$ARCHIVE_URL" -o /tmp/k6.tar.gz
+          curl -fsSL "$CHECKSUM_URL" -o /tmp/k6_checksums.txt
+          expected_checksum="$(awk -v file="${ARCHIVE_NAME}" '$2 == file { print $1 }' /tmp/k6_checksums.txt)"
+          if [ -z "$expected_checksum" ]; then
+            echo "Failed to find checksum for ${ARCHIVE_NAME}" >&2
+            exit 1
+          fi
+          echo "${expected_checksum}  /tmp/k6.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/k6.tar.gz -C /tmp
+          EXTRACT_DIR="/tmp/${ARCHIVE_NAME%.tar.gz}"
+          k6_path="${EXTRACT_DIR}/k6"
+          if [ ! -x "$k6_path" ]; then
+            echo "Failed to locate extracted k6 binary" >&2
+            exit 1
+          fi
+          sudo install "$k6_path" /usr/local/bin/k6
           k6 version
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Start MinIO
+        run: |
+          set -euo pipefail
+          docker run -d \
+            --name load-gate-minio \
+            -p 9000:9000 \
+            -e MINIO_ROOT_USER="$S3_ACCESS_KEY_ID" \
+            -e MINIO_ROOT_PASSWORD="$S3_SECRET_ACCESS_KEY" \
+            minio/minio:RELEASE.2025-09-07T16-13-09Z server /data
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "MinIO failed to become healthy in time"
+          docker logs load-gate-minio || true
+          exit 1
+
+      - name: Bootstrap MinIO bucket
+        run: |
+          set -euo pipefail
+          if ! command -v aws >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y awscli
+          fi
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          AWS_ACCESS_KEY_ID="$S3_ACCESS_KEY_ID" \
+          AWS_SECRET_ACCESS_KEY="$S3_SECRET_ACCESS_KEY" \
+          aws --endpoint-url "$S3_ENDPOINT" s3api create-bucket --bucket "$S3_BUCKET" --region "$S3_REGION" >/dev/null 2>&1 || true
 
       - name: Prepare schema
         run: |
@@ -153,6 +213,8 @@ jobs:
           if [ -n "${APP_PID:-}" ] && kill -0 "$APP_PID" 2>/dev/null; then
             kill "$APP_PID" || true
           fi
+          docker logs load-gate-minio | tail -n 120 || true
+          docker rm -f load-gate-minio >/dev/null 2>&1 || true
           tail -n 120 /tmp/skytest-load-gate.log || true
 
   browser-run-load-gate:
@@ -174,9 +236,12 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/skytest_agent?schema=public
       ENCRYPTION_SECRET: load-gate-not-for-production
-      GCS_BUCKET: load-gate
-      GCS_PROJECT_ID: load-gate
-      STORAGE_EMULATOR_HOST: http://127.0.0.1:4443
+      S3_ENDPOINT: http://127.0.0.1:9000
+      S3_REGION: us-east-1
+      S3_BUCKET: load-gate
+      S3_ACCESS_KEY_ID: minioadmin
+      S3_SECRET_ACCESS_KEY: minioadmin
+      S3_FORCE_PATH_STYLE: "true"
       RUNNER_MAX_CONCURRENT_RUNS: "4"
       RUNNER_MAX_LOCAL_BROWSER_RUNS: "1"
       SKYTEST_BROWSER_WORKER: "true"
@@ -204,6 +269,42 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Start MinIO
+        run: |
+          set -euo pipefail
+          docker run -d \
+            --name browser-gate-minio \
+            -p 9000:9000 \
+            -e MINIO_ROOT_USER="$S3_ACCESS_KEY_ID" \
+            -e MINIO_ROOT_PASSWORD="$S3_SECRET_ACCESS_KEY" \
+            minio/minio:RELEASE.2025-09-07T16-13-09Z server /data
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "MinIO failed to become healthy in time"
+          docker logs browser-gate-minio || true
+          exit 1
+
+      - name: Bootstrap MinIO bucket
+        run: |
+          set -euo pipefail
+          if ! command -v aws >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y awscli
+          fi
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          AWS_ACCESS_KEY_ID="$S3_ACCESS_KEY_ID" \
+          AWS_SECRET_ACCESS_KEY="$S3_SECRET_ACCESS_KEY" \
+          aws --endpoint-url "$S3_ENDPOINT" s3api create-bucket --bucket "$S3_BUCKET" --region "$S3_REGION" >/dev/null 2>&1 || true
 
       - name: Install Playwright Chromium
         run: npm run --workspace @skytest/web playwright:install
@@ -263,5 +364,7 @@ jobs:
       - name: Print browser gate logs
         if: always()
         run: |
+          docker logs browser-gate-minio | tail -n 120 || true
+          docker rm -f browser-gate-minio >/dev/null 2>&1 || true
           tail -n 200 /tmp/skytest-browser-gate.log || true
           cat "$LOAD_GATE_BROWSER_METRICS_FILE" || true

@@ -19,7 +19,7 @@ Related docs:
 ## Deployment Model (Important)
 
 - Control plane and runner agents are separate processes.
-- Kubernetes packaging lives in `infra/helm`; Android runners stay outside the cluster.
+- Runtime deployment targets Fly process groups (`web`, `browser`, `maintenance`); Android runners stay outside the Fly app.
 - Control plane responsibilities:
   - durable run scheduling/state in Postgres
   - runner auth/claim/event APIs

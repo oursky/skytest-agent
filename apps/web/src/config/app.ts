@@ -1,6 +1,22 @@
 import { parseBoundedIntEnv } from '@/lib/core/env';
 import { TEST_STATUS } from '@/types';
 
+function parseBooleanEnv(name: string, fallback: boolean): boolean {
+    const raw = process.env[name];
+    if (typeof raw === 'undefined' || raw.trim() === '') {
+        return fallback;
+    }
+
+    if (raw === 'true') {
+        return true;
+    }
+    if (raw === 'false') {
+        return false;
+    }
+
+    throw new Error(`${name} must be "true" or "false" when set`);
+}
+
 const storageSignedUrlTtlSeconds = parseBoundedIntEnv({
     name: 'STORAGE_SIGNED_URL_TTL_SECONDS',
     fallback: 900,
@@ -121,6 +137,7 @@ const uiDeviceStatusPollIntervalMs = parseBoundedIntEnv({
 const browserWorkerEnabled = process.env.SKYTEST_BROWSER_WORKER === 'true';
 const midsceneGenerateReport = process.env.SKYTEST_MIDSCENE_GENERATE_REPORT === 'true';
 const midsceneAutoPrintReportMsg = process.env.SKYTEST_MIDSCENE_AUTO_PRINT_REPORT_MSG === 'true';
+const s3ForcePathStyle = parseBooleanEnv('S3_FORCE_PATH_STYLE', false);
 
 export const config = {
     app: {
@@ -311,10 +328,12 @@ export const config = {
     },
 
     storage: {
-        bucket: process.env.GCS_BUCKET ?? '',
-        projectId: process.env.GCS_PROJECT_ID ?? '',
-        serviceAccountJsonBase64: process.env.GCS_SERVICE_ACCOUNT_JSON_BASE64 ?? '',
-        emulatorHost: process.env.STORAGE_EMULATOR_HOST ?? '',
+        endpoint: process.env.S3_ENDPOINT ?? '',
+        region: process.env.S3_REGION ?? '',
+        bucket: process.env.S3_BUCKET ?? '',
+        accessKeyId: process.env.S3_ACCESS_KEY_ID ?? '',
+        secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? '',
+        forcePathStyle: s3ForcePathStyle,
         signedUrlTtlSeconds: storageSignedUrlTtlSeconds,
     },
 

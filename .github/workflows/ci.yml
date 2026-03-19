@@ -31,12 +31,3 @@ jobs:
 
       - name: Test
         run: npm test
-
-      - name: Install Helm
-        run: curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-
-      - name: Helm lint
-        run: helm lint infra/helm
-
-      - name: Helm template
-        run: helm template skytest infra/helm > /tmp/skytest-rendered.yaml

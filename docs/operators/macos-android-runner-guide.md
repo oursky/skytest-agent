@@ -4,7 +4,7 @@ This guide covers the macOS host that provides Android execution capacity to Sky
 
 Architecture summary:
 
-- the control plane runs locally or in Kubernetes
+- the control plane runs locally or on Fly
 - browser runs execute in the control-plane process
 - Android runs execute on external macOS runners managed by `skytest`
 - app installation on devices is manual

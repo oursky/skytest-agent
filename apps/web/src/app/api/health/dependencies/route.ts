@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { createLogger } from '@/lib/core/logger';
 import { checkObjectStoreHealth } from '@/lib/storage/object-store';
 
 type DependencyCheckStatus = 'ok' | 'error';
@@ -9,11 +10,11 @@ interface DependencyCheckResult {
     error?: string;
 }
 
+const logger = createLogger('api:health:dependencies');
+
 function getErrorMessage(error: unknown): string {
-    if (error instanceof Error && error.message) {
-        return error.message;
-    }
-    return 'Unknown error';
+    logger.warn('Dependency check failed', error);
+    return 'Dependency unavailable';
 }
 
 async function runCheck(check: () => Promise<void>): Promise<DependencyCheckResult> {

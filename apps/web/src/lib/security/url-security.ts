@@ -51,10 +51,48 @@ function isIpv6Blocked(hostname: string): boolean {
     return config.test.security.blockedIpv6Prefixes.some((prefix) => normalized.startsWith(prefix));
 }
 
+export function normalizeIpHostname(hostname: string): string {
+    const lower = hostname.trim().toLowerCase();
+    const withoutBrackets = lower.startsWith('[') && lower.endsWith(']') ? lower.slice(1, -1) : lower;
+    const zoneIndex = withoutBrackets.indexOf('%');
+    return zoneIndex >= 0 ? withoutBrackets.slice(0, zoneIndex) : withoutBrackets;
+}
+
+function parseIpv4FromMappedIpv6(hostname: string): string | null {
+    const normalized = normalizeIpHostname(hostname);
+    if (!normalized.startsWith('::ffff:')) {
+        return null;
+    }
+
+    const mapped = normalized.slice('::ffff:'.length);
+    if (isIP(mapped) === 4) {
+        return mapped;
+    }
+
+    const hextets = mapped.split(':');
+    if (hextets.length !== 2) {
+        return null;
+    }
+
+    const values = hextets.map((part) => Number.parseInt(part, 16));
+    if (values.some((value) => Number.isNaN(value) || value < 0 || value > 0xffff)) {
+        return null;
+    }
+
+    const [high, low] = values;
+    return `${(high >> 8) & 0xff}.${high & 0xff}.${(low >> 8) & 0xff}.${low & 0xff}`;
+}
+
 export function isBlockedIpAddress(hostname: string): boolean {
-    const ipVersion = isIP(hostname);
-    if (ipVersion === 4) return isIpv4Blocked(hostname);
-    if (ipVersion === 6) return isIpv6Blocked(hostname);
+    const normalizedHostname = normalizeIpHostname(hostname);
+    const mappedIpv4 = parseIpv4FromMappedIpv6(normalizedHostname);
+    if (mappedIpv4) {
+        return isIpv4Blocked(mappedIpv4);
+    }
+
+    const ipVersion = isIP(normalizedHostname);
+    if (ipVersion === 4) return isIpv4Blocked(normalizedHostname);
+    if (ipVersion === 6) return isIpv6Blocked(normalizedHostname);
     return false;
 }
 
@@ -91,12 +129,7 @@ export function validateTargetUrl(rawUrl: string): UrlValidationResult {
         return { valid: false, error: 'Target host is not allowed' };
     }
 
-    const ipVersion = isIP(hostname);
-    if (ipVersion === 4 && isIpv4Blocked(hostname)) {
-        return { valid: false, error: 'Private network addresses are not allowed' };
-    }
-
-    if (ipVersion === 6 && isIpv6Blocked(hostname)) {
+    if (isBlockedIpAddress(hostname)) {
         return { valid: false, error: 'Private network addresses are not allowed' };
     }
 

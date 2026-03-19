@@ -69,13 +69,12 @@ Don't want to self-host? We're building a managed version of SkyTest.
 - **Local Development**: Check the [Local Development Guide](./docs/operators/local-development.md) for the repo-local stack and reset workflow.
 - **Android Testing**: See the [macOS Android Runner Guide](./docs/operators/macos-android-runner-guide.md) to configure Android execution on macOS hosts.
 - **macOS CLI (Homebrew)**: `brew tap oursky/skytest && brew install skytest`
-- **Kubernetes**: Deployment packaging lives in `infra/helm`.
 
 ### Quick Troubleshooting
 
 - **Browsers not found**: Run `npm run playwright:install`
 - **Database errors**: Verify `DATABASE_URL`, then run `npx prisma db push`
-- **Object storage errors**: Verify `GCS_BUCKET`, `GCS_PROJECT_ID`, and `STORAGE_EMULATOR_HOST` (local only)
+- **Object storage errors**: Verify `S3_ENDPOINT`, `S3_BUCKET`, and MinIO credentials in `.env.local` for local development
 
 ## Community & Contributing
 

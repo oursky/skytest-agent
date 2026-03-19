@@ -9,6 +9,7 @@ const logger = createLogger('emulator-pool');
 
 export type EmulatorState = 'STARTING' | 'BOOTING' | 'IDLE' | 'ACQUIRED' | 'CLEANING' | 'STOPPING' | 'DEAD';
 export type EmulatorLaunchMode = 'headless' | 'window';
+type MidsceneModelConfig = Record<string, string | number>;
 
 interface BootOptions {
     headless?: boolean;
@@ -60,6 +61,8 @@ interface EmulatorInstance {
     serial: string;
     process: ChildProcess | null;
     adb: ReliableAdb;
+    runtimeDevice: MidsceneAndroidDevice | null;
+    androidAgentConstructor: MidsceneAndroidAgentConstructor | null;
     device: AndroidDevice | null;
     agent: AndroidAgent | null;
     runId: string | null;
@@ -90,6 +93,7 @@ interface MidsceneAndroidAgentConstructor {
             aiActionContext?: string;
             generateReport?: boolean;
             autoPrintReportMsg?: boolean;
+            modelConfig?: MidsceneModelConfig;
         }
     ): AndroidAgent;
 }
@@ -154,6 +158,8 @@ export class EmulatorPool {
             serial,
             process: null,
             adb,
+            runtimeDevice: null,
+            androidAgentConstructor: null,
             device: null,
             agent: null,
             runId: null,
@@ -195,7 +201,13 @@ export class EmulatorPool {
         return this.makeHandle(instance);
     }
 
-    async acquire(projectId: string, avdName: string, runId: string, signal?: AbortSignal): Promise<EmulatorHandle> {
+    async acquire(
+        projectId: string,
+        avdName: string,
+        runId: string,
+        signal?: AbortSignal,
+        modelConfig?: MidsceneModelConfig
+    ): Promise<EmulatorHandle> {
         if (signal?.aborted) throw new Error('Acquisition cancelled');
 
         await this.reclaimStaleBootingInstances();
@@ -207,7 +219,7 @@ export class EmulatorPool {
             logger.info(`Attempting to reuse idle emulator ${reusableIdleEmulator.id} for AVD ${avdName}`);
             const health = await reusableIdleEmulator.adb.healthCheck().catch(() => null);
             if (health?.healthy) {
-                return this.lockEmulator(reusableIdleEmulator, runId, projectId);
+                return this.lockEmulator(reusableIdleEmulator, runId, projectId, modelConfig);
             }
             logger.warn(`Idle emulator ${reusableIdleEmulator.id} is unhealthy, stopping before replacement`, health);
             await this.stopInstance(reusableIdleEmulator);
@@ -218,7 +230,7 @@ export class EmulatorPool {
         if (!instance) {
             throw new Error(`Emulator ${handle.id} disappeared after boot`);
         }
-        return this.lockEmulator(instance, runId, projectId);
+        return this.lockEmulator(instance, runId, projectId, modelConfig);
     }
 
     async canAcquireBatchImmediately(requests: ReadonlyArray<EmulatorAcquireProbeRequest>): Promise<boolean> {
@@ -422,11 +434,9 @@ export class EmulatorPool {
                     ? async () => runtimeDevice.screenshotBase64!()
                     : undefined,
             };
-            instance.agent = new runtimeModule.AndroidAgent(runtimeDevice, {
-                groupName: `${instance.currentProjectId ?? 'global'}-${instance.avdName}-${instance.port}`,
-                generateReport: appConfig.test.midscene.generateReport,
-                autoPrintReportMsg: appConfig.test.midscene.autoPrintReportMsg,
-            });
+            instance.runtimeDevice = runtimeDevice;
+            instance.androidAgentConstructor = runtimeModule.AndroidAgent;
+            instance.agent = this.createAndroidAgentForInstance(instance, instance.currentProjectId ?? 'global');
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             throw new Error(`Failed to attach Android runtime for ${instance.id}: ${message}`);
@@ -443,7 +453,12 @@ export class EmulatorPool {
         return null;
     }
 
-    private lockEmulator(instance: EmulatorInstance, runId: string, projectId: string): EmulatorHandle {
+    private lockEmulator(
+        instance: EmulatorInstance,
+        runId: string,
+        projectId: string,
+        modelConfig?: MidsceneModelConfig
+    ): EmulatorHandle {
         if (instance.idleTimer) {
             clearTimeout(instance.idleTimer);
             instance.idleTimer = null;
@@ -454,6 +469,7 @@ export class EmulatorPool {
             instance.healthCheckTimer = null;
         }
 
+        instance.agent = this.createAndroidAgentForInstance(instance, projectId, modelConfig);
         instance.state = 'ACQUIRED';
         instance.currentProjectId = projectId;
         instance.runId = runId;
@@ -466,6 +482,23 @@ export class EmulatorPool {
         }, forceReclaimMs);
 
         return this.makeHandle(instance);
+    }
+
+    private createAndroidAgentForInstance(
+        instance: EmulatorInstance,
+        projectId: string,
+        modelConfig?: MidsceneModelConfig
+    ): AndroidAgent {
+        if (!instance.runtimeDevice || !instance.androidAgentConstructor) {
+            throw new Error(`Android runtime not attached for emulator ${instance.id}`);
+        }
+
+        return new instance.androidAgentConstructor(instance.runtimeDevice, {
+            groupName: `${projectId}-${instance.avdName}-${instance.port}`,
+            generateReport: appConfig.test.midscene.generateReport,
+            autoPrintReportMsg: appConfig.test.midscene.autoPrintReportMsg,
+            modelConfig,
+        });
     }
 
     private makeHandle(instance: EmulatorInstance): EmulatorHandle {
@@ -547,6 +580,8 @@ export class EmulatorPool {
         this.clearInstanceTimers(instance);
         instance.state = 'DEAD';
         instance.process = null;
+        instance.runtimeDevice = null;
+        instance.androidAgentConstructor = null;
         instance.device = null;
         instance.agent = null;
         this.usedPorts.delete(instance.port);

@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
     testCaseFindUnique: vi.fn(),
     testRunCreate: vi.fn(),
     testRunFileCreateMany: vi.fn(),
+    resolveConfigs: vi.fn(),
     validateTargetUrl: vi.fn(),
     getTeamDevicesAvailability: vi.fn(),
 }));
@@ -26,6 +27,10 @@ vi.mock('@/lib/security/url-security', () => ({
     validateTargetUrl: mocks.validateTargetUrl,
 }));
 
+vi.mock('@/lib/test-config/resolver', () => ({
+    resolveConfigs: mocks.resolveConfigs,
+}));
+
 vi.mock('@/lib/runners/availability-service', () => ({
     getTeamDevicesAvailability: mocks.getTeamDevicesAvailability,
 }));
@@ -37,9 +42,15 @@ describe('queueTestCaseRun', () => {
         mocks.testCaseFindUnique.mockReset();
         mocks.testRunCreate.mockReset();
         mocks.testRunFileCreateMany.mockReset();
+        mocks.resolveConfigs.mockReset();
         mocks.validateTargetUrl.mockReset();
         mocks.getTeamDevicesAvailability.mockReset();
 
+        mocks.resolveConfigs.mockResolvedValue({
+            variables: { CMS: 'https://example.com' },
+            files: {},
+            allConfigs: [],
+        });
         mocks.validateTargetUrl.mockReturnValue({ valid: true });
         mocks.testRunCreate.mockResolvedValue({
             id: 'run-1',
@@ -92,6 +103,34 @@ describe('queueTestCaseRun', () => {
             }),
         });
         expect(mocks.testRunFileCreateMany).toHaveBeenCalledTimes(1);
+    });
+
+    it('resolves URL placeholders before validating and queueing', async () => {
+        mocks.testCaseFindUnique.mockResolvedValueOnce({
+            id: 'tc-1',
+            projectId: 'project-1',
+            url: '{{CMS}}',
+            prompt: 'Open homepage',
+            steps: JSON.stringify([{ id: 'step_1', target: 'browser_a', action: 'Open homepage' }]),
+            browserConfig: JSON.stringify({
+                browser_a: { type: 'browser', url: '{{CMS}}', width: 1280, height: 800 }
+            }),
+            files: [],
+            project: {
+                teamId: 'team-1',
+                team: {
+                    openRouterKeyEncrypted: 'encrypted-key',
+                    memberships: [{ id: 'm-1' }],
+                },
+            },
+        });
+
+        const result = await queueTestCaseRun('user-1', 'tc-1');
+
+        expect(result.ok).toBe(true);
+        expect(mocks.resolveConfigs).toHaveBeenCalledWith('project-1', 'tc-1');
+        expect(mocks.validateTargetUrl).toHaveBeenCalledWith('https://example.com');
+        expect(mocks.testRunCreate).toHaveBeenCalledTimes(1);
     });
 
     it('returns failure when requested Android device is unavailable', async () => {

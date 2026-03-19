@@ -7,6 +7,7 @@ import {
     canTransferTeamOwnership,
     getTeamRole,
     isTeamMember,
+    isTeamOwner,
 } from '@/lib/security/permissions';
 import { deleteObjectIfExists } from '@/lib/storage/object-store-utils';
 import { RUN_ACTIVE_STATUSES } from '@/types';
@@ -55,11 +56,12 @@ export async function GET(
         }
 
         const role = await getTeamRole(userId, id);
+        const owner = role === 'OWNER';
 
         return NextResponse.json({
             ...team,
             role,
-            canRename: true,
+            canRename: owner,
             canDelete: await canDeleteTeam(userId, id),
             canTransferOwnership: await canTransferTeamOwnership(userId, id),
         });
@@ -85,7 +87,7 @@ export async function PATCH(
         }
 
         const { id } = await params;
-        if (!await isTeamMember(userId, id)) {
+        if (!await isTeamOwner(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

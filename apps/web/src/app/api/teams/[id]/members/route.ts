@@ -30,7 +30,6 @@ export async function GET(
         if (!await isTeamMember(userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
-
         const members = await prisma.teamMembership.findMany({
             where: { teamId: id },
             orderBy: [

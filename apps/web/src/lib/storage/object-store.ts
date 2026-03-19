@@ -1,5 +1,5 @@
 import { config } from '@/config/app';
-import { GcsObjectStore, type StoredObject } from '@/lib/storage/object-store-gcs';
+import { S3ObjectStore, type StoredObject } from '@/lib/storage/object-store-s3';
 
 export interface ObjectStore {
     putObject(input: {
@@ -22,17 +22,44 @@ export interface ObjectStore {
 const globalForObjectStore = global as unknown as { objectStore?: ObjectStore };
 
 function createObjectStore(): ObjectStore {
-    const { bucket, projectId, serviceAccountJsonBase64, emulatorHost, signedUrlTtlSeconds } = config.storage;
+    const {
+        bucket,
+        endpoint,
+        region,
+        accessKeyId,
+        secretAccessKey,
+        forcePathStyle,
+        signedUrlTtlSeconds,
+    } = config.storage;
 
-    if (!bucket || !projectId) {
-        throw new Error('GCS object storage is not fully configured: missing GCS_BUCKET or GCS_PROJECT_ID');
+    const missingFields: string[] = [];
+    if (!bucket) {
+        missingFields.push('S3_BUCKET');
+    }
+    if (!endpoint) {
+        missingFields.push('S3_ENDPOINT');
+    }
+    if (!region) {
+        missingFields.push('S3_REGION');
+    }
+    if (!accessKeyId) {
+        missingFields.push('S3_ACCESS_KEY_ID');
+    }
+    if (!secretAccessKey) {
+        missingFields.push('S3_SECRET_ACCESS_KEY');
     }
 
-    return new GcsObjectStore({
+    if (missingFields.length > 0) {
+        throw new Error(`S3 object storage is not fully configured: missing ${missingFields.join(', ')}`);
+    }
+
+    return new S3ObjectStore({
         bucket,
-        projectId,
-        serviceAccountJsonBase64,
-        emulatorHost,
+        endpoint,
+        region,
+        accessKeyId,
+        secretAccessKey,
+        forcePathStyle,
         signedUrlTtlSeconds,
     });
 }
