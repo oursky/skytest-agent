@@ -61,7 +61,12 @@ Use `make app` and `make maintenance` in separate terminals when you want to run
 
 ## Environment
 
-`.env.example` contains the supported local defaults. Copy it to `.env.local` and adjust values for your machine or auth tenant.
+`.env.example` is split into two tiers:
+
+- active required keys for local startup
+- commented optional overrides (defaults are already in code)
+
+Copy `.env.example` to `.env.local`, then keep `.env.local` minimal: required keys plus only the overrides you intentionally changed.
 
 Local defaults point to:
 
