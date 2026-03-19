@@ -20,7 +20,7 @@ jobs:
       HOMEBREW_TAP_REPO: ${{ vars.HOMEBREW_TAP_REPO }}
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@v4
 
       - name: Resolve release version
         id: version
@@ -127,7 +127,7 @@ jobs:
             tools/release/homebrew-formula-template.rb > "skytest.rb"
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a
+        uses: actions/upload-artifact@v4
         with:
           name: skytest-cli-${{ steps.version.outputs.cli_version }}
           path: |
