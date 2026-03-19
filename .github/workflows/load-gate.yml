@@ -31,18 +31,6 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
-      minio:
-        image: minio/minio:RELEASE.2025-09-07T16-13-09Z
-        env:
-          MINIO_ROOT_USER: minioadmin
-          MINIO_ROOT_PASSWORD: minioadmin
-        ports:
-          - 9000:9000
-        options: >-
-          --health-cmd "curl -f http://127.0.0.1:9000/minio/health/live || exit 1"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 20
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/skytest_agent?schema=public
       ENCRYPTION_SECRET: load-gate-not-for-production
@@ -106,6 +94,25 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Start MinIO
+        run: |
+          set -euo pipefail
+          docker run -d \
+            --name load-gate-minio \
+            -p 9000:9000 \
+            -e MINIO_ROOT_USER="$S3_ACCESS_KEY_ID" \
+            -e MINIO_ROOT_PASSWORD="$S3_SECRET_ACCESS_KEY" \
+            minio/minio:RELEASE.2025-09-07T16-13-09Z server /data
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "MinIO failed to become healthy in time"
+          docker logs load-gate-minio || true
+          exit 1
 
       - name: Bootstrap MinIO bucket
         run: |
@@ -205,6 +212,8 @@ jobs:
           if [ -n "${APP_PID:-}" ] && kill -0 "$APP_PID" 2>/dev/null; then
             kill "$APP_PID" || true
           fi
+          docker logs load-gate-minio | tail -n 120 || true
+          docker rm -f load-gate-minio >/dev/null 2>&1 || true
           tail -n 120 /tmp/skytest-load-gate.log || true
 
   browser-run-load-gate:
@@ -220,18 +229,6 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd "pg_isready -U postgres -d skytest_agent"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 20
-      minio:
-        image: minio/minio:RELEASE.2025-09-07T16-13-09Z
-        env:
-          MINIO_ROOT_USER: minioadmin
-          MINIO_ROOT_PASSWORD: minioadmin
-        ports:
-          - 9000:9000
-        options: >-
-          --health-cmd "curl -f http://127.0.0.1:9000/minio/health/live || exit 1"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
@@ -271,6 +268,25 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Start MinIO
+        run: |
+          set -euo pipefail
+          docker run -d \
+            --name browser-gate-minio \
+            -p 9000:9000 \
+            -e MINIO_ROOT_USER="$S3_ACCESS_KEY_ID" \
+            -e MINIO_ROOT_PASSWORD="$S3_SECRET_ACCESS_KEY" \
+            minio/minio:RELEASE.2025-09-07T16-13-09Z server /data
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "MinIO failed to become healthy in time"
+          docker logs browser-gate-minio || true
+          exit 1
 
       - name: Bootstrap MinIO bucket
         run: |
@@ -347,5 +363,7 @@ jobs:
       - name: Print browser gate logs
         if: always()
         run: |
+          docker logs browser-gate-minio | tail -n 120 || true
+          docker rm -f browser-gate-minio >/dev/null 2>&1 || true
           tail -n 200 /tmp/skytest-browser-gate.log || true
           cat "$LOAD_GATE_BROWSER_METRICS_FILE" || true
