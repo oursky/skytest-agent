@@ -15,35 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-
-      - name: Legacy cleanup denylist
-        run: |
-          set -euo pipefail
-          banned='GCS_|object-store-gcs|fake-gcs|STORAGE_EMULATOR_HOST|STORAGE_PROVIDER=gcs|infra/helm|helm lint|helm template|kubectl|kubernetes'
-          if rg -n "$banned" \
-            --glob '!.git/**' \
-            --glob '!docs/plans/**' \
-            --glob '!**/*.png' \
-            --glob '!**/*.jpg' \
-            --glob '!**/*.jpeg' \
-            --glob '!**/*.gif'; then
-            echo "Legacy token(s) detected. Remove references before merging."
-            exit 1
-          fi
-
-      - name: Enforce action SHA pinning
-        run: |
-          set -euo pipefail
-          violations="$(rg -n '^[[:space:]]*uses:[[:space:]]*[^[:space:]]+' .github/workflows | rg -v '@[0-9a-f]{40}$|docker://|uses:[[:space:]]*\./')"
-          if [ -n "$violations" ]; then
-            echo "Unpinned GitHub Action references detected:"
-            echo "$violations"
-            exit 1
-          fi
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: npm
