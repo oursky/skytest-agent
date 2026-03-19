@@ -84,8 +84,9 @@ jobs:
           fi
           echo "${expected_checksum}  /tmp/k6.tar.gz" | sha256sum -c -
           tar -xzf /tmp/k6.tar.gz -C /tmp
-          k6_path="$(find /tmp -maxdepth 2 -type f -name k6 | head -n1)"
-          if [ -z "$k6_path" ]; then
+          EXTRACT_DIR="/tmp/${ARCHIVE_NAME%.tar.gz}"
+          k6_path="${EXTRACT_DIR}/k6"
+          if [ ! -x "$k6_path" ]; then
             echo "Failed to locate extracted k6 binary" >&2
             exit 1
           fi
