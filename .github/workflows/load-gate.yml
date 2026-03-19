@@ -32,7 +32,7 @@ jobs:
           --health-timeout 5s
           --health-retries 20
       minio:
-        image: minio/minio:RELEASE.2026-03-11T00-17-09Z
+        image: minio/minio:RELEASE.2025-09-07T16-13-09Z
         env:
           MINIO_ROOT_USER: minioadmin
           MINIO_ROOT_PASSWORD: minioadmin
@@ -224,7 +224,7 @@ jobs:
           --health-timeout 5s
           --health-retries 20
       minio:
-        image: minio/minio:RELEASE.2026-03-11T00-17-09Z
+        image: minio/minio:RELEASE.2025-09-07T16-13-09Z
         env:
           MINIO_ROOT_USER: minioadmin
           MINIO_ROOT_PASSWORD: minioadmin
