@@ -5,7 +5,7 @@ This directory contains local developer infrastructure artifacts that stay in sy
 ## Source Of Truth
 
 - `infra/docker/docker-compose.local.yml` is the local development services stack.
-- Shared deployment orchestration is managed in `skytest-agent-deployment`.
+- Shared deployment orchestration is managed in a private infrastructure repository.
 
 ## Local Runtime Topology
 
