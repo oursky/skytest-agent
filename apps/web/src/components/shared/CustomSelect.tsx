@@ -64,7 +64,13 @@ export default function CustomSelect<T extends SelectValue>({
     const menuRef = useRef<HTMLDivElement | null>(null);
     const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
     const [isOpen, setIsOpen] = useState(false);
-    const [menuStyle, setMenuStyle] = useState<{ top: number; left: number; minWidth: number } | null>(null);
+    const [menuStyle, setMenuStyle] = useState<{
+        top: number;
+        left: number;
+        minWidth: number;
+        maxHeight: number;
+        placement: 'top' | 'bottom';
+    } | null>(null);
 
     const selectedIndex = useMemo(
         () => options.findIndex((option) => option.value === value),
@@ -92,14 +98,37 @@ export default function CustomSelect<T extends SelectValue>({
             }
 
             const rect = button.getBoundingClientRect();
+            const menuHeight = menuRef.current?.getBoundingClientRect().height ?? 256;
+            const menuWidth = Math.max(
+                rect.width,
+                menuRef.current?.getBoundingClientRect().width ?? rect.width
+            );
+            const viewportPadding = 8;
+            const gap = 8;
+            const availableBelow = window.innerHeight - rect.bottom - viewportPadding;
+            const availableAbove = rect.top - viewportPadding;
+            const shouldOpenUpward = menuHeight > availableBelow && availableAbove > availableBelow;
+            const maxHeight = Math.max(
+                120,
+                (shouldOpenUpward ? availableAbove : availableBelow) - gap
+            );
+            const maxLeft = window.innerWidth - menuWidth - viewportPadding;
+            const left = Math.min(
+                Math.max(viewportPadding, rect.left),
+                Math.max(viewportPadding, maxLeft)
+            );
+
             setMenuStyle({
-                top: rect.bottom + 8,
-                left: rect.left,
+                top: shouldOpenUpward ? rect.top - gap : rect.bottom + gap,
+                left,
                 minWidth: rect.width,
+                maxHeight,
+                placement: shouldOpenUpward ? 'top' : 'bottom',
             });
         };
 
         updateMenuPosition();
+        const secondRafId = window.requestAnimationFrame(updateMenuPosition);
         window.addEventListener('resize', updateMenuPosition);
         window.addEventListener('scroll', updateMenuPosition, true);
 
@@ -109,6 +138,7 @@ export default function CustomSelect<T extends SelectValue>({
 
         return () => {
             window.cancelAnimationFrame(rafId);
+            window.cancelAnimationFrame(secondRafId);
             window.removeEventListener('resize', updateMenuPosition);
             window.removeEventListener('scroll', updateMenuPosition, true);
         };
@@ -201,6 +231,9 @@ export default function CustomSelect<T extends SelectValue>({
                 top: menuStyle.top,
                 left: menuStyle.left,
                 minWidth: menuStyle.minWidth,
+                maxHeight: menuStyle.maxHeight,
+                transform: menuStyle.placement === 'top' ? 'translateY(-100%)' : undefined,
+                transformOrigin: menuStyle.placement === 'top' ? 'bottom' : 'top',
                 ...(fullWidth ? { width: menuStyle.minWidth } : {}),
             }}
             className={`fixed z-[70] max-h-64 overflow-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg ${fullWidth ? 'w-full' : 'min-w-full'} ${menuClassName}`.trim()}
