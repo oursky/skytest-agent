@@ -9,14 +9,14 @@ COPY apps/web/package.json apps/web/package.json
 COPY apps/cli/package.json apps/cli/package.json
 COPY packages/runner-protocol/package.json packages/runner-protocol/package.json
 
-RUN npm ci
+RUN npm ci --include=dev --workspaces --include-workspace-root
 
 FROM base AS builder
 
-COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app /app
 COPY . .
 
-RUN npm run db:generate
+RUN npm exec --workspace @skytest/web -- prisma generate
 RUN npm run build
 
 FROM base AS runner
