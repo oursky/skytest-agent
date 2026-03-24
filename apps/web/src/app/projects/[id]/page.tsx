@@ -210,6 +210,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         }
     }, [resolvedParams.id, fetchProject, fetchTestCases]);
 
+    const hasActiveRuns = testCases.some((testCase) => (
+        testCase.testRuns.some((run) => isActiveRunStatus(run.status))
+    ));
+
     useEffect(() => {
         if (!isLoggedIn || isAuthLoading) return;
         if (!resolvedParams.id) return;
@@ -238,19 +242,31 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         window.addEventListener('focus', onFocus);
         document.addEventListener('visibilitychange', onVisibilityChange);
 
-        const shouldPoll = testCases.some((testCase) => (
-            testCase.testRuns.some((run) => isActiveRunStatus(run.status))
-        ));
-        const refreshIntervalId = shouldPoll ? setInterval(refreshTestCases, 60000) : null;
-
         return () => {
             window.removeEventListener('focus', onFocus);
             document.removeEventListener('visibilitychange', onVisibilityChange);
-            if (refreshIntervalId) {
-                clearInterval(refreshIntervalId);
+        };
+    }, [fetchData, fetchTestCases, isLoggedIn, isAuthLoading, resolvedParams.id]);
+
+    useEffect(() => {
+        if (!isLoggedIn || isAuthLoading) return;
+        if (!resolvedParams.id || !hasActiveRuns) return;
+
+        const refreshTestCases = async () => {
+            if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+
+            try {
+                await fetchTestCases();
+            } catch (err) {
+                console.error("Error fetching test cases:", err);
             }
         };
-    }, [fetchData, fetchTestCases, isLoggedIn, isAuthLoading, resolvedParams.id, testCases]);
+
+        const refreshIntervalId = setInterval(refreshTestCases, 60000);
+        return () => {
+            clearInterval(refreshIntervalId);
+        };
+    }, [fetchTestCases, hasActiveRuns, isLoggedIn, isAuthLoading, resolvedParams.id]);
 
     const handleDeleteTestCase = async () => {
         try {
