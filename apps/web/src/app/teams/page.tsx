@@ -61,6 +61,7 @@ export default function TeamsPage() {
     const [isEditingSettings, setIsEditingSettings] = useState(false);
     const [isDeleteOpen, setIsDeleteOpen] = useState(false);
     const [isTransferOpen, setIsTransferOpen] = useState(false);
+    const [isDeletingTeamTransition, setIsDeletingTeamTransition] = useState(false);
     const [deleteConfirmationValue, setDeleteConfirmationValue] = useState('');
     const [error, setError] = useState<string | null>(null);
 
@@ -109,12 +110,20 @@ export default function TeamsPage() {
     }, [isAuthLoading, isLoggedIn, router]);
 
     useEffect(() => {
+        if (isDeletingTeamTransition) {
+            return;
+        }
+
         if (!isAuthLoading && isLoggedIn && !areTeamsLoading && teams.length === 0) {
             router.push('/welcome');
         }
-    }, [areTeamsLoading, isAuthLoading, isLoggedIn, teams.length, router]);
+    }, [areTeamsLoading, isAuthLoading, isDeletingTeamTransition, isLoggedIn, teams.length, router]);
 
     useEffect(() => {
+        if (isDeletingTeamTransition) {
+            return;
+        }
+
         if (!currentTeam || teams.length === 0) {
             return;
         }
@@ -124,7 +133,7 @@ export default function TeamsPage() {
                 setError(t('team.page.error.load'));
             });
         });
-    }, [currentTeam, teams.length, loadTeamDetails, t]);
+    }, [currentTeam, isDeletingTeamTransition, teams.length, loadTeamDetails, t]);
 
     const activeTab = resolveTeamTab(searchParams.get('tab'));
 
@@ -249,6 +258,11 @@ export default function TeamsPage() {
             return;
         }
 
+        setIsDeletingTeamTransition(true);
+        setError(null);
+        setIsDeleteOpen(false);
+        setDeleteConfirmationValue('');
+
         try {
             const token = await getAccessToken();
             const response = await fetch(`/api/teams/${currentTeam.id}`, {
@@ -259,13 +273,12 @@ export default function TeamsPage() {
             const data = await response.json().catch(() => ({ error: t('team.page.error.delete') }));
             if (!response.ok) {
                 setError(data.error || t('team.page.error.delete'));
+                setIsDeletingTeamTransition(false);
                 return;
             }
 
             const nextTeamId = teams.find((team) => team.id !== currentTeam.id)?.id ?? null;
             dispatchTeamsChanged();
-            setIsDeleteOpen(false);
-            setDeleteConfirmationValue('');
             await refreshTeams();
             if (nextTeamId) {
                 await setCurrentTeam(nextTeamId);
@@ -273,9 +286,9 @@ export default function TeamsPage() {
             } else {
                 router.push('/welcome');
             }
-            setError(null);
         } catch {
             setError(t('team.page.error.delete'));
+            setIsDeletingTeamTransition(false);
         }
     };
 
@@ -289,7 +302,7 @@ export default function TeamsPage() {
         await loadTeamDetails(currentTeam.id);
     }, [currentTeam, loadTeamDetails, refreshTeams]);
 
-    if (isAuthLoading || areTeamsLoading || isCurrentTeamLoading) {
+    if (isAuthLoading || areTeamsLoading || isCurrentTeamLoading || isDeletingTeamTransition) {
         return <CenteredLoading className="min-h-screen" />;
     }
 
