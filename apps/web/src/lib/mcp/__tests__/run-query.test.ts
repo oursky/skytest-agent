@@ -89,6 +89,7 @@ describe('listTestRuns', () => {
                 createdAt: new Date('2026-03-09T00:00:05.000Z'),
             }])
             .mockResolvedValueOnce([{
+                runId: 'run-1',
                 artifactKey: 'runs/run-1/video.mp4',
                 createdAt: new Date('2026-03-09T00:00:06.000Z'),
             }]);

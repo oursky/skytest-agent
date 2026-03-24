@@ -5,6 +5,7 @@ import { isApiKeyFormat } from '@/lib/security/api-key';
 import { createLogger } from '@/lib/core/logger';
 
 const logger = createLogger('api:mcp');
+const SLOW_MCP_REQUEST_THRESHOLD_MS = 2_000;
 
 export const dynamic = 'force-dynamic';
 
@@ -32,8 +33,12 @@ async function resolveAuthenticatedUserId(request: Request): Promise<string | nu
 }
 
 async function handleMcpRequest(request: Request): Promise<Response> {
+    const startedAtMs = Date.now();
+    let authResolvedAtMs = startedAtMs;
+    let serverConnectedAtMs = startedAtMs;
     try {
         const userId = await resolveAuthenticatedUserId(request);
+        authResolvedAtMs = Date.now();
         if (!userId) {
             return new Response(JSON.stringify({ error: 'Unauthorized' }), {
                 status: 401,
@@ -47,9 +52,32 @@ async function handleMcpRequest(request: Request): Promise<Response> {
             enableJsonResponse: true,
         });
         await server.connect(transport);
+        serverConnectedAtMs = Date.now();
         const response = await transport.handleRequest(request, {
             authInfo: { token: 'api-key', clientId: userId, scopes: [] },
         });
+        const completedAtMs = Date.now();
+        const authLatencyMs = authResolvedAtMs - startedAtMs;
+        const setupLatencyMs = serverConnectedAtMs - authResolvedAtMs;
+        const handleLatencyMs = completedAtMs - serverConnectedAtMs;
+        const totalLatencyMs = completedAtMs - startedAtMs;
+        if (totalLatencyMs >= SLOW_MCP_REQUEST_THRESHOLD_MS) {
+            logger.warn('Slow MCP request', {
+                method: request.method,
+                authLatencyMs,
+                setupLatencyMs,
+                handleLatencyMs,
+                totalLatencyMs,
+            });
+        } else {
+            logger.debug('MCP request handled', {
+                method: request.method,
+                authLatencyMs,
+                setupLatencyMs,
+                handleLatencyMs,
+                totalLatencyMs,
+            });
+        }
         return response;
     } catch (error) {
         logger.error('MCP request failed', error);
