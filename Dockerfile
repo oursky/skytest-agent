@@ -18,12 +18,28 @@ COPY . .
 
 RUN npm exec --workspace @skytest/web -- prisma generate
 RUN npm run build
+RUN npm prune --omit=dev --workspaces --include-workspace-root
 
 FROM base AS runner
 
 WORKDIR /app/apps/web
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    dirmngr \
+    gnupg \
+    gnupg-l10n \
+    gnupg-utils \
+    gpg \
+    gpg-agent \
+    gpg-wks-client \
+    gpg-wks-server \
+    gpgconf \
+    gpgsm \
+    gpgv \
+  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder --chown=pwuser:pwuser /app/node_modules /app/node_modules
 COPY --from=builder --chown=pwuser:pwuser /app/apps/web /app/apps/web
