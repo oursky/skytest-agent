@@ -7,7 +7,8 @@ import { AppVersionConsoleLogger } from "@/components/layout/AppVersionConsoleLo
 import { Header } from "@/components/layout";
 import { DevRuntimeErrorLogger } from "@/components/layout/DevRuntimeErrorLogger";
 import { I18nProvider } from "@/i18n";
-import { LOCALE_META, type Locale } from "@/i18n/messages";
+import { LOCALE_META, type Locale } from "@/i18n";
+import { loadLocaleMessages } from "@/i18n/load-messages";
 import { getAuthgearRuntimeConfig } from "@/lib/security/authgear-config";
 
 export const metadata: Metadata = {
@@ -27,12 +28,13 @@ export default async function RootLayout({
   const cookieStore = await cookies();
   const cookieLocale = cookieStore.get("skyt_locale")?.value;
   const initialLocale: Locale = cookieLocale && isLocale(cookieLocale) ? cookieLocale : "en";
+  const initialMessages = await loadLocaleMessages(initialLocale);
   const authgearConfig = getAuthgearRuntimeConfig();
 
   return (
     <html lang={LOCALE_META[initialLocale].htmlLang}>
       <body className="antialiased">
-        <I18nProvider initialLocale={initialLocale}>
+        <I18nProvider initialLocale={initialLocale} initialMessages={initialMessages}>
           <AuthProvider authgearConfig={authgearConfig}>
             <AppVersionConsoleLogger />
             <DevRuntimeErrorLogger />
