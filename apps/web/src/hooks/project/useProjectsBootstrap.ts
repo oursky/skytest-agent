@@ -144,6 +144,7 @@ export function useProjectsBootstrap(
         teams,
         currentTeam,
         projects,
+        // Keep initial loading true before the first bootstrap fetch resolves.
         loading: loading || (enabled && !hasLoadedOnce),
         error,
         refresh,

@@ -46,10 +46,8 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
     const [projectName, setProjectName] = useState<string>("");
     const [isLoading, setIsLoading] = useState(true);
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; runId: string; status?: TestStatus | '' }>({ isOpen: false, runId: "", status: "" });
-    const [currentPage, setCurrentPage] = useState(() => {
-        const parsed = Number.parseInt(searchParams.get('page') || '1', 10);
-        return Number.isNaN(parsed) ? 1 : Math.max(1, parsed);
-    });
+    const parsedPage = Number.parseInt(searchParams.get('page') || '1', 10);
+    const currentPage = Number.isNaN(parsedPage) ? 1 : Math.max(1, parsedPage);
 
     useEffect(() => {
         if (!isAuthLoading && !isLoggedIn) {
@@ -93,14 +91,6 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
             console.error("Failed to fetch history", error);
         }
     }, [currentPage, getAccessToken, id, pageSize]);
-
-    useEffect(() => {
-        const parsed = Number.parseInt(searchParams.get('page') || '1', 10);
-        const nextPage = Number.isNaN(parsed) ? 1 : Math.max(1, parsed);
-        if (nextPage !== currentPage) {
-            setCurrentPage(nextPage);
-        }
-    }, [currentPage, searchParams]);
 
     useEffect(() => {
         const loadData = async () => {
@@ -175,7 +165,6 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
     const totalPages = Math.max(1, Math.ceil(totalRuns / pageSize));
 
     const handlePageChange = (page: number) => {
-        setCurrentPage(page);
         const params = new URLSearchParams(searchParams.toString());
         params.set('page', String(page));
         const query = params.toString();
@@ -183,7 +172,6 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
     };
 
     const handlePageSizeChange = (size: number) => {
-        setCurrentPage(1);
         const params = new URLSearchParams(searchParams.toString());
         params.set('limit', String(size));
         params.set('page', '1');

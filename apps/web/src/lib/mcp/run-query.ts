@@ -4,6 +4,7 @@ import { objectStore } from '@/lib/storage/object-store';
 import { isProjectMember, isTestCaseProjectMember } from '@/lib/security/permissions';
 
 export type RunListInclude = 'events' | 'artifacts';
+const RUN_EVENT_ROW_LIMIT = 100;
 
 export interface ListTestRunsInput {
     projectId?: string;
@@ -145,7 +146,7 @@ async function listRunEvents(runIds: ReadonlyArray<string>): Promise<RunEventRow
             re.payload,
             re."createdAt"
         FROM ranked_events re
-        WHERE re.rn <= 100
+        WHERE re.rn <= ${RUN_EVENT_ROW_LIMIT}
         ORDER BY re."runId" ASC, re.sequence ASC;
     `);
 }

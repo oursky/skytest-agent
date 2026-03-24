@@ -5,6 +5,7 @@ import { createLogger } from '@/lib/core/logger';
 import { deleteObjectIfExists } from '@/lib/storage/object-store-utils';
 import { config as appConfig } from '@/config/app';
 import { RUN_ACTIVE_STATUSES } from '@/types';
+import { resolveProjectForbiddenOrNotFound } from '@/lib/security/resource-access-errors';
 
 const logger = createLogger('api:projects:id');
 
@@ -54,22 +55,20 @@ export async function GET(
         });
 
         if (!project) {
-            const projectExists = await prisma.project.findUnique({
-                where: { id },
-                select: { id: true },
-            });
-            return NextResponse.json(
-                { error: projectExists ? 'Forbidden' : 'Project not found' },
-                { status: projectExists ? 403 : 404 }
-            );
+            const accessError = await resolveProjectForbiddenOrNotFound(id);
+            return NextResponse.json({ error: accessError.message }, { status: accessError.status });
         }
 
         const currentUserRole = project.team.memberships[0]?.role ?? null;
-        const { team, ...projectData } = project;
-        void team;
 
         return NextResponse.json({
-            ...projectData,
+            id: project.id,
+            name: project.name,
+            maxConcurrentRuns: project.maxConcurrentRuns,
+            teamId: project.teamId,
+            createdByUserId: project.createdByUserId,
+            createdAt: project.createdAt,
+            updatedAt: project.updatedAt,
             maxConcurrentRunsLimit: appConfig.runner.maxProjectConcurrentRuns,
             canManageProject: true,
             canDeleteProject: currentUserRole === 'OWNER',
@@ -111,14 +110,8 @@ export async function PUT(
         });
 
         if (!existingProject) {
-            const projectExists = await prisma.project.findUnique({
-                where: { id },
-                select: { id: true },
-            });
-            return NextResponse.json(
-                { error: projectExists ? 'Forbidden' : 'Project not found' },
-                { status: projectExists ? 403 : 404 }
-            );
+            const accessError = await resolveProjectForbiddenOrNotFound(id);
+            return NextResponse.json({ error: accessError.message }, { status: accessError.status });
         }
 
         const body = await request.json() as {
@@ -215,14 +208,8 @@ export async function DELETE(
         });
 
         if (!existingProject) {
-            const projectExists = await prisma.project.findUnique({
-                where: { id },
-                select: { id: true },
-            });
-            return NextResponse.json(
-                { error: projectExists ? 'Forbidden' : 'Project not found' },
-                { status: projectExists ? 403 : 404 }
-            );
+            const accessError = await resolveProjectForbiddenOrNotFound(id);
+            return NextResponse.json({ error: accessError.message }, { status: accessError.status });
         }
 
         const activeRuns = await prisma.testRun.findFirst({

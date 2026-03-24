@@ -24,6 +24,10 @@ import {
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { ServerRequest, ServerNotification } from '@modelcontextprotocol/sdk/types.js';
 import { isProjectMember, isTestCaseProjectMember, isTestRunProjectMember } from '@/lib/security/permissions';
+import {
+    resolveProjectForbiddenOrNotFound,
+    resolveTestCaseForbiddenOrNotFound,
+} from '@/lib/security/resource-access-errors';
 
 type Extra = RequestHandlerExtra<ServerRequest, ServerNotification>;
 const mcpToolLogger = createLogger('mcp:tool');
@@ -267,11 +271,8 @@ export function createMcpServer(): McpServer {
             include: { _count: { select: { testCases: true } }, configs: true }
         });
         if (!project) {
-            const projectExists = await prisma.project.findUnique({
-                where: { id: projectId },
-                select: { id: true },
-            });
-            return errorResult(projectExists ? 'Forbidden' : 'Project not found');
+            const accessError = await resolveProjectForbiddenOrNotFound(projectId);
+            return errorResult(accessError.message);
         }
         const configs = project.configs.sort(compareByGroupThenName).map(c => ({
             ...c, value: c.masked ? '' : c.value
@@ -323,11 +324,8 @@ export function createMcpServer(): McpServer {
             }
         });
         if (!tc) {
-            const testCaseExists = await prisma.testCase.findUnique({
-                where: { id: testCaseId },
-                select: { id: true },
-            });
-            return errorResult(testCaseExists ? 'Forbidden' : 'Not found');
+            const accessError = await resolveTestCaseForbiddenOrNotFound(testCaseId);
+            return errorResult(accessError.message);
         }
         const { configs, testRuns, ...tcData } = tc;
         const parsed = parseTestCaseJson(tcData);
