@@ -20,6 +20,16 @@ interface TestRun {
     error: string | null;
 }
 
+interface HistoryResponse {
+    data: TestRun[];
+    pagination?: {
+        page: number;
+        limit: number;
+        total: number;
+        totalPages: number;
+    };
+}
+
 export default function HistoryPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
     const { isLoggedIn, isLoading: isAuthLoading, getAccessToken } = useAuth();
@@ -30,12 +40,16 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
     const { t } = useI18n();
 
     const [testRuns, setTestRuns] = useState<TestRun[]>([]);
+    const [totalRuns, setTotalRuns] = useState(0);
     const [testCaseName, setTestCaseName] = useState<string>("");
     const [projectId, setProjectId] = useState<string>("");
     const [projectName, setProjectName] = useState<string>("");
     const [isLoading, setIsLoading] = useState(true);
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; runId: string; status?: TestStatus | '' }>({ isOpen: false, runId: "", status: "" });
-    const [currentPage, setCurrentPage] = useState(1);
+    const [currentPage, setCurrentPage] = useState(() => {
+        const parsed = Number.parseInt(searchParams.get('page') || '1', 10);
+        return Number.isNaN(parsed) ? 1 : Math.max(1, parsed);
+    });
 
     useEffect(() => {
         if (!isAuthLoading && !isLoggedIn) {
@@ -53,11 +67,7 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
                 const data = await response.json();
                 setTestCaseName(data.name);
                 setProjectId(data.projectId);
-                const projectResponse = await fetch(`/api/projects/${data.projectId}`, { headers });
-                if (projectResponse.ok) {
-                    const projectData = await projectResponse.json();
-                    setProjectName(projectData.name);
-                }
+                setProjectName(typeof data.projectName === 'string' ? data.projectName : '');
             }
         } catch (error) {
             console.error("Failed to fetch test case info", error);
@@ -68,15 +78,29 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
         try {
             const token = await getAccessToken();
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const response = await fetch(`/api/test-cases/${id}/history?limit=100`, { headers });
+            const historyParams = new URLSearchParams({
+                page: String(currentPage),
+                limit: String(pageSize),
+            });
+            const response = await fetch(`/api/test-cases/${id}/history?${historyParams.toString()}`, { headers });
             if (response.ok) {
-                const result = await response.json();
-                setTestRuns(result.data || result);
+                const result = await response.json() as HistoryResponse;
+                const runs = Array.isArray(result.data) ? result.data : [];
+                setTestRuns(runs);
+                setTotalRuns(result.pagination?.total ?? runs.length);
             }
         } catch (error) {
             console.error("Failed to fetch history", error);
         }
-    }, [getAccessToken, id]);
+    }, [currentPage, getAccessToken, id, pageSize]);
+
+    useEffect(() => {
+        const parsed = Number.parseInt(searchParams.get('page') || '1', 10);
+        const nextPage = Number.isNaN(parsed) ? 1 : Math.max(1, parsed);
+        if (nextPage !== currentPage) {
+            setCurrentPage(nextPage);
+        }
+    }, [currentPage, searchParams]);
 
     useEffect(() => {
         const loadData = async () => {
@@ -106,14 +130,19 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
             }
             void fetchHistory();
         };
-
-        const interval = setInterval(refreshHistory, 30000);
         const onFocus = () => refreshHistory();
         const onVisibilityChange = () => {
             if (document.visibilityState === 'visible') {
                 refreshHistory();
             }
         };
+
+        const shouldPoll = testRuns.some((run) => isRunActiveStatus(run.status));
+        if (!shouldPoll) {
+            return;
+        }
+
+        const interval = setInterval(refreshHistory, 30000);
 
         window.addEventListener('focus', onFocus);
         document.addEventListener('visibilitychange', onVisibilityChange);
@@ -123,7 +152,7 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
             window.removeEventListener('focus', onFocus);
             document.removeEventListener('visibilitychange', onVisibilityChange);
         };
-    }, [fetchHistory, isAuthLoading, isLoggedIn, projectId]);
+    }, [fetchHistory, isAuthLoading, isLoggedIn, projectId, testRuns]);
 
     const handleDeleteRun = async () => {
         try {
@@ -135,7 +164,7 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
             });
 
             if (response.ok) {
-                fetchHistory();
+                void fetchHistory();
                 setDeleteModal({ isOpen: false, runId: "", status: "" });
             }
         } catch (error) {
@@ -143,20 +172,21 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
         }
     };
 
-    const totalPages = Math.ceil(testRuns.length / pageSize);
-    const paginatedTestRuns = testRuns.slice(
-        (currentPage - 1) * pageSize,
-        currentPage * pageSize
-    );
+    const totalPages = Math.max(1, Math.ceil(totalRuns / pageSize));
 
     const handlePageChange = (page: number) => {
         setCurrentPage(page);
+        const params = new URLSearchParams(searchParams.toString());
+        params.set('page', String(page));
+        const query = params.toString();
+        router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
     };
 
     const handlePageSizeChange = (size: number) => {
         setCurrentPage(1);
         const params = new URLSearchParams(searchParams.toString());
         params.set('limit', String(size));
+        params.set('page', '1');
         const query = params.toString();
         router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
     };
@@ -217,7 +247,7 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
                     ) : (
                         <>
                         <div className="divide-y divide-gray-100">
-                            {paginatedTestRuns.map((run) => {
+                            {testRuns.map((run) => {
                                 const isRunRunningOrQueued = isRunActiveStatus(run.status);
                                 return (
                                     <div key={run.id} className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-gray-50 transition-colors">

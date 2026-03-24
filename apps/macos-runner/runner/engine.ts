@@ -172,6 +172,12 @@ class RunnerHttpError extends Error {
     }
 }
 
+function sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+        setTimeout(resolve, ms);
+    });
+}
+
 function isRunOwnershipLostError(error: unknown): boolean {
     return error instanceof RunnerHttpError && error.status === 403;
 }
@@ -931,6 +937,7 @@ export async function startRunnerEngine() {
             try {
                 const job = await claimJob();
                 if (!job) {
+                    await sleep(150 + Math.floor(Math.random() * 300));
                     continue;
                 }
 

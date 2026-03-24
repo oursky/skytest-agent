@@ -238,14 +238,19 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         window.addEventListener('focus', onFocus);
         document.addEventListener('visibilitychange', onVisibilityChange);
 
-        const refreshIntervalId = setInterval(refreshTestCases, 60000);
+        const shouldPoll = testCases.some((testCase) => (
+            testCase.testRuns.some((run) => isActiveRunStatus(run.status))
+        ));
+        const refreshIntervalId = shouldPoll ? setInterval(refreshTestCases, 60000) : null;
 
         return () => {
             window.removeEventListener('focus', onFocus);
             document.removeEventListener('visibilitychange', onVisibilityChange);
-            clearInterval(refreshIntervalId);
+            if (refreshIntervalId) {
+                clearInterval(refreshIntervalId);
+            }
         };
-    }, [fetchData, fetchTestCases, isLoggedIn, isAuthLoading, resolvedParams.id]);
+    }, [fetchData, fetchTestCases, isLoggedIn, isAuthLoading, resolvedParams.id, testCases]);
 
     const handleDeleteTestCase = async () => {
         try {
