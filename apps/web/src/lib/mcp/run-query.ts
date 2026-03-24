@@ -1,8 +1,10 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/core/prisma';
 import { objectStore } from '@/lib/storage/object-store';
 import { isProjectMember, isTestCaseProjectMember } from '@/lib/security/permissions';
 
 export type RunListInclude = 'events' | 'artifacts';
+const RUN_EVENT_ROW_LIMIT = 100;
 
 export interface ListTestRunsInput {
     projectId?: string;
@@ -62,6 +64,16 @@ interface ValidationFailure {
     details?: unknown;
 }
 
+interface RunEventRow {
+    runId: string;
+    sequence: number;
+    kind: string;
+    message: string | null;
+    artifactKey: string | null;
+    payload: unknown;
+    createdAt: Date;
+}
+
 function resolveArtifactFilename(artifactKey: string): string {
     const segments = artifactKey.split('/').filter(Boolean);
     return segments[segments.length - 1] || 'artifact.bin';
@@ -93,6 +105,50 @@ async function signArtifactKey(key: string): Promise<string | undefined> {
     } catch {
         return undefined;
     }
+}
+
+async function buildArtifactSignedUrlMap(keys: ReadonlySet<string>): Promise<Map<string, string | undefined>> {
+    const entries = await Promise.all(Array.from(keys).map(async (key) => {
+        const signedUrl = await signArtifactKey(key);
+        return [key, signedUrl] as const;
+    }));
+    return new Map(entries);
+}
+
+async function listRunEvents(runIds: ReadonlyArray<string>): Promise<RunEventRow[]> {
+    if (runIds.length === 0) {
+        return [];
+    }
+
+    return prisma.$queryRaw<RunEventRow[]>(Prisma.sql`
+        WITH ranked_events AS (
+            SELECT
+                tre."runId",
+                tre.sequence,
+                tre.kind,
+                tre.message,
+                tre."artifactKey",
+                tre.payload,
+                tre."createdAt",
+                ROW_NUMBER() OVER (
+                    PARTITION BY tre."runId"
+                    ORDER BY tre.sequence ASC
+                ) AS rn
+            FROM "TestRunEvent" tre
+            WHERE tre."runId" IN (${Prisma.join(runIds)})
+        )
+        SELECT
+            re."runId",
+            re.sequence,
+            re.kind,
+            re.message,
+            re."artifactKey",
+            re.payload,
+            re."createdAt"
+        FROM ranked_events re
+        WHERE re.rn <= ${RUN_EVENT_ROW_LIMIT}
+        ORDER BY re."runId" ASC, re.sequence ASC;
+    `);
 }
 
 export async function listTestRuns(
@@ -218,84 +274,109 @@ export async function listTestRuns(
     const hasMore = runRows.length > take;
     const rows = hasMore ? runRows.slice(0, take) : runRows;
     const runIds = rows.map((row) => row.id);
+    const runIdsSet = new Set(runIds);
 
     const eventsByRunId = new Map<string, ListRunEvent[]>();
     if (includeEvents && runIds.length > 0) {
-        await Promise.all(rows.map(async (run) => {
-            const runEvents = await prisma.testRunEvent.findMany({
-                where: { runId: run.id },
-                orderBy: { sequence: 'asc' },
-                take: 100,
-                select: {
-                    sequence: true,
-                    kind: true,
-                    message: true,
-                    artifactKey: true,
-                    payload: true,
-                    createdAt: true,
-                }
-            });
+        const runEvents = await listRunEvents(runIds);
+        for (const event of runEvents) {
+            if (!runIdsSet.has(event.runId)) {
+                continue;
+            }
 
-            eventsByRunId.set(run.id, runEvents.map((event) => ({
+            const events = eventsByRunId.get(event.runId) ?? [];
+            events.push({
                 sequence: event.sequence,
                 kind: event.kind,
                 message: event.message,
                 artifactKey: event.artifactKey,
                 payload: event.payload,
                 createdAt: event.createdAt.toISOString(),
-            })));
-        }));
+            });
+            eventsByRunId.set(event.runId, events);
+        }
     }
 
     const artifactsByRunId = new Map<string, ListRunArtifact[]>();
     if (includeArtifacts && runIds.length > 0) {
-        await Promise.all(rows.map(async (run) => {
-            const artifacts: ListRunArtifact[] = [];
+        const artifactSignKeys = new Set<string>();
 
-            for (const file of run.files) {
-                artifacts.push({
+        for (const run of rows) {
+            const fileArtifacts = run.files.map((file) => {
+                artifactSignKeys.add(file.storedName);
+                return {
                     key: file.storedName,
-                    source: 'run-file',
+                    source: 'run-file' as const,
                     filename: file.filename,
                     mimeType: file.mimeType,
                     size: file.size,
                     createdAt: file.createdAt.toISOString(),
-                    signedUrl: await signArtifactKey(file.storedName),
-                });
-            }
-
-            const eventArtifacts = await prisma.testRunEvent.findMany({
-                where: {
-                    runId: run.id,
-                    artifactKey: { not: null },
-                },
-                orderBy: { sequence: 'asc' },
-                take: 100,
-                select: {
-                    artifactKey: true,
-                    createdAt: true,
-                }
+                };
             });
+            artifactsByRunId.set(run.id, fileArtifacts);
+        }
 
-            const seen = new Set<string>();
-            for (const eventArtifact of eventArtifacts) {
-                const key = eventArtifact.artifactKey;
-                if (!key || seen.has(key)) {
-                    continue;
-                }
-                seen.add(key);
+        const eventArtifacts = await prisma.testRunEvent.findMany({
+            where: {
+                runId: { in: runIds },
+                artifactKey: { not: null },
+            },
+            orderBy: [
+                { runId: 'asc' },
+                { sequence: 'asc' },
+            ],
+            select: {
+                runId: true,
+                artifactKey: true,
+                createdAt: true,
+            }
+        });
 
-                artifacts.push({
-                    key,
-                    source: 'event',
-                    filename: resolveArtifactFilename(key),
-                    createdAt: eventArtifact.createdAt.toISOString(),
-                    signedUrl: await signArtifactKey(key),
-                });
+        const seenPerRun = new Map<string, Set<string>>();
+        const eventArtifactCountPerRun = new Map<string, number>();
+        for (const eventArtifact of eventArtifacts) {
+            const key = eventArtifact.artifactKey;
+            if (!key) {
+                continue;
             }
 
-            artifactsByRunId.set(run.id, artifacts);
-        }));
+            const runId = eventArtifact.runId;
+            const perRunCount = eventArtifactCountPerRun.get(runId) ?? 0;
+            if (perRunCount >= 100) {
+                continue;
+            }
+
+            let seen = seenPerRun.get(runId);
+            if (!seen) {
+                seen = new Set<string>();
+                seenPerRun.set(runId, seen);
+            }
+            if (seen.has(key)) {
+                continue;
+            }
+
+            seen.add(key);
+            eventArtifactCountPerRun.set(runId, perRunCount + 1);
+            artifactSignKeys.add(key);
+
+            const artifacts = artifactsByRunId.get(runId) ?? [];
+            artifacts.push({
+                key,
+                source: 'event',
+                filename: resolveArtifactFilename(key),
+                createdAt: eventArtifact.createdAt.toISOString(),
+            });
+            artifactsByRunId.set(runId, artifacts);
+        }
+
+        const signedUrlByArtifactKey = await buildArtifactSignedUrlMap(artifactSignKeys);
+        artifactsByRunId.forEach((artifacts, runId) => {
+            const withSignedUrls = artifacts.map((artifact) => ({
+                ...artifact,
+                signedUrl: signedUrlByArtifactKey.get(artifact.key),
+            }));
+            artifactsByRunId.set(runId, withSignedUrls);
+        });
     }
 
     const runs: RunListItem[] = rows.map((run) => ({

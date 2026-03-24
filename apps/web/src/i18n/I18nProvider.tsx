@@ -1,7 +1,9 @@
 'use client';
 
-import React, { createContext, useCallback, useEffect, useMemo, useState } from 'react';
-import { LOCALE_META, Locale, MESSAGES, TranslationVars } from './messages';
+import React, { createContext, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { LOCALE_META, type Locale } from './locale-meta';
+import type { Messages, TranslationVars } from './types';
+import { loadLocaleMessages } from './load-messages';
 
 interface I18nContextValue {
   locale: Locale;
@@ -66,12 +68,18 @@ function interpolate(template: string, vars?: TranslationVars): string {
 
 export function I18nProvider({
   children,
-  initialLocale
+  initialLocale,
+  initialMessages
 }: {
   children: React.ReactNode;
   initialLocale?: Locale;
+  initialMessages: Messages;
 }) {
   const [locale, setLocaleState] = useState<Locale>(initialLocale ?? 'en');
+  const [messagesByLocale, setMessagesByLocale] = useState<Partial<Record<Locale, Messages>>>(() => ({
+    [initialLocale ?? 'en']: initialMessages,
+  }));
+  const loadedLocalesRef = useRef<Set<Locale>>(new Set([initialLocale ?? 'en']));
 
   const setLocale = useCallback((next: Locale) => {
     setLocaleState(next);
@@ -79,6 +87,23 @@ export function I18nProvider({
       window.localStorage.setItem(STORAGE_KEY, next);
     }
     writeCookie(COOKIE_KEY, next);
+  }, []);
+
+  const ensureLocaleMessages = useCallback(async (target: Locale) => {
+    if (loadedLocalesRef.current.has(target)) {
+      return;
+    }
+
+    loadedLocalesRef.current.add(target);
+    try {
+      const loadedMessages = await loadLocaleMessages(target);
+      setMessagesByLocale((prev) => ({
+        ...prev,
+        [target]: loadedMessages,
+      }));
+    } catch {
+      loadedLocalesRef.current.delete(target);
+    }
   }, []);
 
   useEffect(() => {
@@ -108,12 +133,21 @@ export function I18nProvider({
     }
   }, [locale, setLocale]);
 
+  useEffect(() => {
+    queueMicrotask(() => {
+      void ensureLocaleMessages(locale);
+      void ensureLocaleMessages('en');
+    });
+  }, [ensureLocaleMessages, locale]);
+
   const t = useCallback(
     (key: string, vars?: TranslationVars) => {
-      const message = MESSAGES[locale][key] ?? MESSAGES.en[key] ?? key;
+      const localeMessages = messagesByLocale[locale];
+      const englishMessages = messagesByLocale.en;
+      const message = localeMessages?.[key] ?? englishMessages?.[key] ?? key;
       return interpolate(message, vars);
     },
-    [locale]
+    [locale, messagesByLocale]
   );
 
   const value = useMemo<I18nContextValue>(() => ({ locale, setLocale, t }), [locale, setLocale, t]);

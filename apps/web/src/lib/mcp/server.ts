@@ -12,6 +12,7 @@ import { queueTestCaseRun } from '@/lib/mcp/run-execution';
 import { listTestRuns } from '@/lib/mcp/run-query';
 import { manageProjectConfigs } from '@/lib/mcp/project-config-manager';
 import { getProjectRunnerInventory } from '@/lib/mcp/runner-inventory';
+import { createLogger } from '@/lib/core/logger';
 import {
     RUN_ACTIVE_STATUSES,
     TEST_STATUS,
@@ -23,8 +24,13 @@ import {
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { ServerRequest, ServerNotification } from '@modelcontextprotocol/sdk/types.js';
 import { isProjectMember, isTestCaseProjectMember, isTestRunProjectMember } from '@/lib/security/permissions';
+import {
+    resolveProjectForbiddenOrNotFound,
+    resolveTestCaseForbiddenOrNotFound,
+} from '@/lib/security/resource-access-errors';
 
 type Extra = RequestHandlerExtra<ServerRequest, ServerNotification>;
+const mcpToolLogger = createLogger('mcp:tool');
 
 function getUserId(extra: Extra): string | null {
     return extra.authInfo?.clientId ?? null;
@@ -39,6 +45,38 @@ function errorResult(message: string, details?: unknown) {
         ? { error: message }
         : { error: message, details };
     return { content: [{ type: 'text' as const, text: JSON.stringify(payload) }], isError: true as const };
+}
+
+type ToolResponse = ReturnType<typeof textResult> | ReturnType<typeof errorResult>;
+
+function calculateToolResponseBytes(result: ToolResponse): number {
+    return result.content.reduce((sum, entry) => sum + entry.text.length, 0);
+}
+
+// Telemetry is intentionally applied to the highest-volume MCP tools first to
+// keep overhead low while preserving hotspot visibility for performance work.
+async function withToolTelemetry(
+    toolName: string,
+    handler: () => Promise<ToolResponse>
+): Promise<ToolResponse> {
+    const startedAtMs = Date.now();
+    try {
+        const result = await handler();
+        mcpToolLogger.debug('MCP tool handled', {
+            toolName,
+            elapsedMs: Date.now() - startedAtMs,
+            responseBytes: calculateToolResponseBytes(result),
+            isError: 'isError' in result && result.isError === true,
+        });
+        return result;
+    } catch (error) {
+        mcpToolLogger.warn('MCP tool failed', {
+            toolName,
+            elapsedMs: Date.now() - startedAtMs,
+            error: error instanceof Error ? error.message : String(error),
+        });
+        throw error;
+    }
 }
 
 async function verifyProjectAccess(projectId: string, userId: string): Promise<boolean> {
@@ -223,12 +261,21 @@ export function createMcpServer(): McpServer {
     }, async ({ projectId }, extra) => {
         const userId = getUserId(extra);
         if (!userId) return errorResult('Unauthorized');
-        const project = await prisma.project.findUnique({
-            where: { id: projectId },
+        const project = await prisma.project.findFirst({
+            where: {
+                id: projectId,
+                team: {
+                    memberships: {
+                        some: { userId },
+                    },
+                },
+            },
             include: { _count: { select: { testCases: true } }, configs: true }
         });
-        if (!project) return errorResult('Project not found');
-        if (!await verifyProjectAccess(projectId, userId)) return errorResult('Forbidden');
+        if (!project) {
+            const accessError = await resolveProjectForbiddenOrNotFound(projectId);
+            return errorResult(accessError.message);
+        }
         const configs = project.configs.sort(compareByGroupThenName).map(c => ({
             ...c, value: c.masked ? '' : c.value
         }));
@@ -245,15 +292,33 @@ export function createMcpServer(): McpServer {
     }, async ({ projectId, status, limit }, extra) => {
         const userId = getUserId(extra);
         if (!userId) return errorResult('Unauthorized');
-        if (!await verifyProjectAccess(projectId, userId)) return errorResult('Forbidden');
         const take = Math.max(1, Math.min(limit ?? 50, 100));
-        const where: Record<string, unknown> = { projectId };
-        if (status) where.status = status;
-        const testCases = await prisma.testCase.findMany({
-            where, orderBy: { updatedAt: 'desc' }, take,
-            select: { id: true, displayId: true, status: true, name: true, source: true, updatedAt: true }
+
+        const project = await prisma.project.findFirst({
+            where: {
+                id: projectId,
+                team: {
+                    memberships: {
+                        some: { userId },
+                    },
+                },
+            },
+            select: {
+                testCases: {
+                    where: status ? { status } : undefined,
+                    orderBy: { updatedAt: 'desc' },
+                    take,
+                    select: { id: true, displayId: true, status: true, name: true, source: true, updatedAt: true },
+                },
+            },
         });
-        return textResult(testCases);
+
+        if (!project) {
+            const accessError = await resolveProjectForbiddenOrNotFound(projectId);
+            return errorResult(accessError.message);
+        }
+
+        return textResult(project.testCases);
     });
 
     server.registerTool('get_test_case', {
@@ -262,15 +327,26 @@ export function createMcpServer(): McpServer {
     }, async ({ testCaseId }, extra) => {
         const userId = getUserId(extra);
         if (!userId) return errorResult('Unauthorized');
-        const tc = await prisma.testCase.findUnique({
-            where: { id: testCaseId },
+        const tc = await prisma.testCase.findFirst({
+            where: {
+                id: testCaseId,
+                project: {
+                    team: {
+                        memberships: {
+                            some: { userId },
+                        },
+                    },
+                },
+            },
             include: {
                 configs: true,
                 testRuns: { take: 5, orderBy: { createdAt: 'desc' }, select: { id: true, status: true, error: true, createdAt: true, completedAt: true } }
             }
         });
-        if (!tc) return errorResult('Not found');
-        if (!await isTestCaseProjectMember(userId, testCaseId)) return errorResult('Forbidden');
+        if (!tc) {
+            const accessError = await resolveTestCaseForbiddenOrNotFound(testCaseId);
+            return errorResult(accessError.message);
+        }
         const { configs, testRuns, ...tcData } = tc;
         const parsed = parseTestCaseJson(tcData);
         const sortedConfigs = configs.sort(compareByGroupThenName).map(c => ({
@@ -285,7 +361,7 @@ export function createMcpServer(): McpServer {
             testCaseId: z.string().describe('Test case ID'),
             overrides: mcpRunOverridesSchema.optional().describe('Optional runtime overrides'),
         },
-    }, async ({ testCaseId, overrides }, extra) => {
+    }, async ({ testCaseId, overrides }, extra) => withToolTelemetry('run_test_case', async () => {
         const userId = getUserId(extra);
         if (!userId) return errorResult('Unauthorized');
         try {
@@ -306,7 +382,7 @@ export function createMcpServer(): McpServer {
         } catch {
             return errorResult('Failed to queue test run');
         }
-    });
+    }));
 
     server.registerTool('list_test_runs', {
         description: 'List test runs with filters and optional included events/artifacts.',
@@ -320,7 +396,7 @@ export function createMcpServer(): McpServer {
             cursor: z.string().optional().describe('Pagination cursor (previous response nextCursor)'),
             include: z.array(z.enum(['events', 'artifacts'])).optional().describe('Optional expansions'),
         },
-    }, async ({ projectId, testCaseId, status, from, to, limit, cursor, include }, extra) => {
+    }, async ({ projectId, testCaseId, status, from, to, limit, cursor, include }, extra) => withToolTelemetry('list_test_runs', async () => {
         const userId = getUserId(extra);
         if (!userId) return errorResult('Unauthorized');
         try {
@@ -343,7 +419,7 @@ export function createMcpServer(): McpServer {
         } catch {
             return errorResult('Failed to list test runs');
         }
-    });
+    }));
 
     server.registerTool('manage_project_configs', {
         description: 'Upsert and remove project-level configs in one call. FILE uploads are not supported via MCP.',
@@ -382,7 +458,7 @@ export function createMcpServer(): McpServer {
         inputSchema: {
             projectId: z.string().describe('Project ID'),
         },
-    }, async ({ projectId }, extra) => {
+    }, async ({ projectId }, extra) => withToolTelemetry('list_runner_inventory', async () => {
         const userId = getUserId(extra);
         if (!userId) return errorResult('Unauthorized');
         if (!await verifyProjectAccess(projectId, userId)) return errorResult('Forbidden');
@@ -397,7 +473,7 @@ export function createMcpServer(): McpServer {
         } catch {
             return errorResult('Failed to list runner inventory');
         }
-    });
+    }));
 
     const createTestCaseInputSchema = {
         projectId: z.string().describe('Project ID'),

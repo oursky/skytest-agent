@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/app/auth-provider';
 import { Button, CustomSelect, Modal } from '@/components/shared';
-import { LOCALE_META, Locale, useI18n } from '@/i18n';
+import { LOCALE_META, useI18n, type Locale } from '@/i18n';
 import { useTeams } from '@/hooks/team/useTeams';
 import { useCurrentTeam } from '@/hooks/team/useCurrentTeam';
 import { useCreateTeam } from '@/hooks/team/useCreateTeam';

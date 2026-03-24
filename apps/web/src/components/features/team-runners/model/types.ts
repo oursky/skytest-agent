@@ -48,3 +48,5 @@ export interface TeamDevicesResponse {
     refreshedAt: string;
     devices: TeamDeviceItem[];
 }
+
+export interface TeamRunnerInventoryResponse extends TeamRunnersResponse, TeamDevicesResponse {}

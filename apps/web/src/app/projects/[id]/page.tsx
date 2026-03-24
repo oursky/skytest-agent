@@ -170,8 +170,16 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         const projectRes = await fetch(`/api/projects/${resolvedParams.id}`, { headers, signal });
 
         if (!projectRes.ok) {
-            if (projectRes.status === 404) throw new Error("Project not found");
-            if (projectRes.status === 401) throw new Error("Unauthorized");
+            if (projectRes.status === 404) {
+                const notFoundError = new Error("Project not found");
+                notFoundError.name = "ProjectNotFoundError";
+                throw notFoundError;
+            }
+            if (projectRes.status === 401) {
+                const unauthorizedError = new Error("Unauthorized");
+                unauthorizedError.name = "UnauthorizedError";
+                throw unauthorizedError;
+            }
             throw new Error("Failed to fetch project data");
         }
 
@@ -198,17 +206,42 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
     const fetchData = useCallback(async (silent = false) => {
         if (!resolvedParams.id) return;
+        let keepLoading = false;
 
         try {
             if (!silent) setIsLoading(true);
             await Promise.all([fetchProject(), fetchTestCases()]);
         } catch (err: unknown) {
+            if (err instanceof Error) {
+                if (err.name === "ProjectNotFoundError") {
+                    keepLoading = true;
+                    setProject(null);
+                    setTestCases([]);
+                    router.replace("/projects");
+                    return;
+                }
+
+                if (err.name === "UnauthorizedError") {
+                    keepLoading = true;
+                    router.replace("/");
+                    return;
+                }
+
+                if (err.name === "AbortError") {
+                    return;
+                }
+            }
+
             const message = err instanceof Error ? err.message : "Failed to fetch project data";
             console.error("Error fetching project data:", message, err);
         } finally {
-            if (!silent) setIsLoading(false);
+            if (!silent && !keepLoading) setIsLoading(false);
         }
-    }, [resolvedParams.id, fetchProject, fetchTestCases]);
+    }, [resolvedParams.id, fetchProject, fetchTestCases, router]);
+
+    const hasActiveRuns = testCases.some((testCase) => (
+        testCase.testRuns.some((run) => isActiveRunStatus(run.status))
+    ));
 
     useEffect(() => {
         if (!isLoggedIn || isAuthLoading) return;
@@ -238,14 +271,31 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         window.addEventListener('focus', onFocus);
         document.addEventListener('visibilitychange', onVisibilityChange);
 
-        const refreshIntervalId = setInterval(refreshTestCases, 60000);
-
         return () => {
             window.removeEventListener('focus', onFocus);
             document.removeEventListener('visibilitychange', onVisibilityChange);
-            clearInterval(refreshIntervalId);
         };
     }, [fetchData, fetchTestCases, isLoggedIn, isAuthLoading, resolvedParams.id]);
+
+    useEffect(() => {
+        if (!isLoggedIn || isAuthLoading) return;
+        if (!resolvedParams.id || !hasActiveRuns) return;
+
+        const refreshTestCases = async () => {
+            if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+
+            try {
+                await fetchTestCases();
+            } catch (err) {
+                console.error("Error fetching test cases:", err);
+            }
+        };
+
+        const refreshIntervalId = setInterval(refreshTestCases, 60000);
+        return () => {
+            clearInterval(refreshIntervalId);
+        };
+    }, [fetchTestCases, hasActiveRuns, isLoggedIn, isAuthLoading, resolvedParams.id]);
 
     const handleDeleteTestCase = async () => {
         try {

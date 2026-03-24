@@ -48,35 +48,6 @@ async function getProjectTeamId(projectId: string): Promise<string | null> {
     return project?.teamId ?? null;
 }
 
-async function getTestCaseProjectId(testCaseId: string): Promise<string | null> {
-    const testCase = await prisma.testCase.findUnique({
-        where: { id: testCaseId },
-        select: { projectId: true }
-    });
-
-    return testCase?.projectId ?? null;
-}
-
-async function getTestRunProjectId(testRunId: string): Promise<string | null> {
-    const testRun = await prisma.testRun.findUnique({
-        where: { id: testRunId },
-        select: {
-            deletedAt: true,
-            testCase: {
-                select: {
-                    projectId: true,
-                }
-            }
-        }
-    });
-
-    if (!testRun || testRun.deletedAt) {
-        return null;
-    }
-
-    return testRun?.testCase.projectId ?? null;
-}
-
 export async function getTeamRole(userId: string, teamId: string): Promise<TeamRole | null> {
     const membership = await prisma.teamMembership.findUnique({
         where: {
@@ -114,12 +85,18 @@ export async function isTeamOwner(userId: string, teamId: string): Promise<boole
 }
 
 export async function isProjectMember(userId: string, projectId: string): Promise<boolean> {
-    const teamId = await getProjectTeamId(projectId);
-    if (!teamId) {
-        return false;
-    }
-
-    return isTeamMember(userId, teamId);
+    const project = await prisma.project.findFirst({
+        where: {
+            id: projectId,
+            team: {
+                memberships: {
+                    some: { userId },
+                },
+            },
+        },
+        select: { id: true },
+    });
+    return !!project;
 }
 
 export async function canDeleteTeam(userId: string, teamId: string): Promise<boolean> {
@@ -138,21 +115,40 @@ export async function canTransferTeamOwnership(userId: string, teamId: string): 
 }
 
 export async function isTestCaseProjectMember(userId: string, testCaseId: string): Promise<boolean> {
-    const projectId = await getTestCaseProjectId(testCaseId);
-    if (!projectId) {
-        return false;
-    }
-
-    return isProjectMember(userId, projectId);
+    const testCase = await prisma.testCase.findFirst({
+        where: {
+            id: testCaseId,
+            project: {
+                team: {
+                    memberships: {
+                        some: { userId },
+                    },
+                },
+            },
+        },
+        select: { id: true },
+    });
+    return !!testCase;
 }
 
 export async function isTestRunProjectMember(userId: string, testRunId: string): Promise<boolean> {
-    const projectId = await getTestRunProjectId(testRunId);
-    if (!projectId) {
-        return false;
-    }
-
-    return isProjectMember(userId, projectId);
+    const testRun = await prisma.testRun.findFirst({
+        where: {
+            id: testRunId,
+            deletedAt: null,
+            testCase: {
+                project: {
+                    team: {
+                        memberships: {
+                            some: { userId },
+                        },
+                    },
+                },
+            },
+        },
+        select: { id: true },
+    });
+    return !!testRun;
 }
 
 export async function getProjectTeamMembership(

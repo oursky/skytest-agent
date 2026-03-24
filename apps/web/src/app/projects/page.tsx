@@ -1,14 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../auth-provider";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button, CenteredLoading, Modal } from "@/components/shared";
 import { formatDateTime } from "@/utils/time/dateFormatter";
-import { useProjects } from "@/hooks/project/useProjects";
-import { useTeams } from "@/hooks/team/useTeams";
-import { useCurrentTeam } from "@/hooks/team/useCurrentTeam";
+import { useProjectsBootstrap } from "@/hooks/project/useProjectsBootstrap";
 import { useI18n } from "@/i18n";
 import { useCreateTeam } from "@/hooks/team/useCreateTeam";
 
@@ -18,33 +16,30 @@ export default function ProjectsPage() {
     const searchParams = useSearchParams();
     const { t } = useI18n();
 
-    const { teams, loading: isTeamsLoading, refresh: refreshTeams } = useTeams(getAccessToken, isLoggedIn);
+    const requestedTeamId = searchParams.get('teamId')?.trim() || '';
+    const isBootstrapEnabled = isLoggedIn && !isAuthLoading;
     const {
+        teams,
         currentTeam: selectedTeam,
-        loading: isCurrentTeamLoading,
+        projects,
+        loading: isProjectsBootstrapLoading,
+        refresh,
         setCurrentTeam,
-    } = useCurrentTeam(getAccessToken, isLoggedIn);
+        addProject,
+        removeProject,
+    } = useProjectsBootstrap(getAccessToken, requestedTeamId, isBootstrapEnabled);
+    const refreshTeams = useCallback(async () => {
+        await refresh();
+    }, [refresh]);
     const { createTeam } = useCreateTeam({
         getAccessToken,
         refreshTeams,
         setCurrentTeam,
     });
-    const requestedTeamId = searchParams.get('teamId')?.trim() || '';
-    const hasRequestedTeam = requestedTeamId.length > 0 && teams.some((team) => team.id === requestedTeamId);
-    const effectiveTeamId = selectedTeam?.id || (hasRequestedTeam ? requestedTeamId : '');
+    const effectiveTeamId = selectedTeam?.id || '';
     const currentTeam = teams.find((team) => team.id === effectiveTeamId) ?? null;
     const canManageProjects = currentTeam !== null;
     const canDeleteProjects = currentTeam?.role === 'OWNER';
-    const shouldLoadProjects = isLoggedIn
-        && !isAuthLoading
-        && !isTeamsLoading
-        && !isCurrentTeamLoading
-        && effectiveTeamId.length > 0;
-    const { projects, loading: isProjectsLoading, addProject, removeProject, refresh } = useProjects(
-        getAccessToken,
-        effectiveTeamId || undefined,
-        shouldLoadProjects
-    );
     const [isCreating, setIsCreating] = useState(false);
     const [newProjectName, setNewProjectName] = useState("");
     const [newTeamName, setNewTeamName] = useState("");
@@ -60,27 +55,10 @@ export default function ProjectsPage() {
     }, [isAuthLoading, isLoggedIn, router]);
 
     useEffect(() => {
-        if (!isAuthLoading && isLoggedIn && !isTeamsLoading && teams.length === 0 && !selectedTeam) {
+        if (!isAuthLoading && isLoggedIn && !isProjectsBootstrapLoading && teams.length === 0 && !selectedTeam) {
             router.push('/welcome');
         }
-    }, [isAuthLoading, isLoggedIn, isTeamsLoading, teams.length, selectedTeam, router]);
-
-    useEffect(() => {
-        if (!requestedTeamId || isCurrentTeamLoading || isTeamsLoading) {
-            return;
-        }
-        if (!hasRequestedTeam || selectedTeam?.id === requestedTeamId) {
-            return;
-        }
-        void setCurrentTeam(requestedTeamId);
-    }, [requestedTeamId, hasRequestedTeam, isCurrentTeamLoading, isTeamsLoading, selectedTeam, setCurrentTeam]);
-
-    useEffect(() => {
-        if (isCurrentTeamLoading || selectedTeam || teams.length === 0) {
-            return;
-        }
-        void setCurrentTeam(teams[0].id);
-    }, [isCurrentTeamLoading, selectedTeam, teams, setCurrentTeam]);
+    }, [isAuthLoading, isLoggedIn, isProjectsBootstrapLoading, teams.length, selectedTeam, router]);
 
     const handleCreateProject = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -163,7 +141,7 @@ export default function ProjectsPage() {
 
             if (response.ok) {
                 await response.json();
-                refresh();
+                await refresh();
                 setEditModal({ isOpen: false, projectId: "", currentName: "" });
             }
         } catch (error) {
@@ -176,17 +154,8 @@ export default function ProjectsPage() {
         setEditName("");
     };
 
-    const waitingForTeamSelection = isLoggedIn
-        && !isAuthLoading
-        && !isTeamsLoading
-        && teams.length > 0
-        && !selectedTeam
-        && !hasRequestedTeam;
     const isPageLoading = isAuthLoading
-        || isTeamsLoading
-        || isCurrentTeamLoading
-        || waitingForTeamSelection
-        || (shouldLoadProjects && isProjectsLoading);
+        || (isLoggedIn && isProjectsBootstrapLoading);
 
     if (isPageLoading) {
         return <CenteredLoading className="h-[calc(100dvh-4.5rem)]" />;

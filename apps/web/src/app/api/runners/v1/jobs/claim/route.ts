@@ -21,6 +21,12 @@ function sleep(ms: number): Promise<void> {
     });
 }
 
+function applyClaimRetryJitter(baseMs: number): number {
+    const jitterSpanMs = Math.max(25, Math.floor(baseMs * 0.2));
+    const jitterOffsetMs = Math.floor(Math.random() * (jitterSpanMs * 2 + 1)) - jitterSpanMs;
+    return Math.max(CLAIM_RETRY_INTERVAL_MIN_MS, baseMs + jitterOffsetMs);
+}
+
 export async function POST(request: Request) {
     const ipRateLimitKey = getRateLimitKey(request, 'runners-v1-claim-ip');
     if (await isRateLimited(ipRateLimitKey, { limit: 240, windowMs: 60_000 })) {
@@ -73,6 +79,7 @@ export async function POST(request: Request) {
         const deadlineMs = Date.now() + claimLongPollTimeoutMs;
         const claimStartedAt = Date.now();
         let retryIntervalMs = configuredRetryIntervalMs;
+        let claimAttempts = 1;
         let claimed = await claimNextRunForRunner({
             runnerId: auth.runnerId,
             teamId: auth.teamId,
@@ -81,7 +88,9 @@ export async function POST(request: Request) {
         });
 
         while (!claimed && Date.now() < deadlineMs) {
-            await sleep(Math.min(retryIntervalMs, Math.max(0, deadlineMs - Date.now())));
+            const jitteredRetryIntervalMs = applyClaimRetryJitter(retryIntervalMs);
+            await sleep(Math.min(jitteredRetryIntervalMs, Math.max(0, deadlineMs - Date.now())));
+            claimAttempts += 1;
             claimed = await claimNextRunForRunner({
                 runnerId: auth.runnerId,
                 teamId: auth.teamId,
@@ -104,12 +113,14 @@ export async function POST(request: Request) {
                 requiredCapability: claimed.requiredCapability,
                 leaseExpiresAt: claimed.leaseExpiresAt.toISOString(),
                 elapsedMs: Date.now() - claimStartedAt,
+                claimAttempts,
             });
         } else {
             const logMeta: Record<string, unknown> = {
                 runnerId: auth.runnerId,
                 teamId: auth.teamId,
                 elapsedMs: Date.now() - claimStartedAt,
+                claimAttempts,
             };
 
             if (shouldCollectClaimDiagnosis) {

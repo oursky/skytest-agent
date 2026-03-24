@@ -20,6 +20,11 @@ export async function GET(
 
     try {
         const { id } = await params;
+        const userId = await resolveUserId(authPayload);
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const testCase = await prisma.testCase.findUnique({
             where: { id },
             include: {
@@ -30,6 +35,21 @@ export async function GET(
                 },
                 files: {
                     orderBy: { createdAt: 'desc' }
+                },
+                project: {
+                    select: {
+                        teamId: true,
+                        name: true,
+                        team: {
+                            select: {
+                                memberships: {
+                                    where: { userId },
+                                    select: { id: true },
+                                    take: 1,
+                                }
+                            }
+                        }
+                    },
                 }
             }
         });
@@ -38,18 +58,17 @@ export async function GET(
             return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
         }
 
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        if (!await isProjectMember(userId, testCase.projectId)) {
+        if (testCase.project.team.memberships.length === 0) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
         const parsedTestCase = parseTestCaseJson(testCase);
-
-        return NextResponse.json(parsedTestCase);
+        const { project, ...testCasePayload } = parsedTestCase;
+        return NextResponse.json({
+            ...testCasePayload,
+            projectName: project.name,
+            projectTeamId: project.teamId,
+        });
     } catch (error) {
         logger.error('Failed to fetch test case', error);
         return NextResponse.json({ error: 'Failed to fetch test case' }, { status: 500 });

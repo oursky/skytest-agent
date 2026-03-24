@@ -6,9 +6,8 @@ import { Button, CopyableCodeBlock, LoadingSpinner, Modal } from '@/components/s
 import { useI18n } from '@/i18n';
 import type {
     TeamDeviceItem,
-    TeamDevicesResponse,
+    TeamRunnerInventoryResponse,
     TeamRunnerItem,
-    TeamRunnersResponse,
 } from '../model/types';
 import RunnerInventoryTables from './RunnerInventoryTables';
 import RunnerTroubleshootingSection from './RunnerTroubleshootingSection';
@@ -116,8 +115,7 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
     const [isLoading, setIsLoading] = useState(true);
-    const [runners, setRunners] = useState<TeamRunnersResponse | null>(null);
-    const [devices, setDevices] = useState<TeamDevicesResponse | null>(null);
+    const [inventory, setInventory] = useState<TeamRunnerInventoryResponse | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [isPairingModalOpen, setIsPairingModalOpen] = useState(false);
     const [pairingToken, setPairingToken] = useState<string | null>(null);
@@ -129,31 +127,34 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
     const [unpairCandidate, setUnpairCandidate] = useState<TeamRunnerItem | null>(null);
     const [pendingUnpairRunnerId, setPendingUnpairRunnerId] = useState<string | null>(null);
     const pollRef = useRef<NodeJS.Timeout | null>(null);
+    const fetchInFlightRef = useRef<Promise<void> | null>(null);
 
     const fetchData = useCallback(async () => {
-        if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
-            return;
+        if (fetchInFlightRef.current) {
+            return fetchInFlightRef.current;
         }
 
-        const token = await getAccessToken();
-        const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+        const run = (async () => {
+            if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+                return;
+            }
 
-        const [runnersRes, devicesRes] = await Promise.all([
-            fetch(`/api/teams/${encodeURIComponent(teamId)}/runners`, { headers }),
-            fetch(`/api/teams/${encodeURIComponent(teamId)}/devices`, { headers }),
-        ]);
+            const token = await getAccessToken();
+            const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
 
-        if (!runnersRes.ok || !devicesRes.ok) {
-            throw new Error('Failed to load team runners');
-        }
+            const response = await fetch(`/api/teams/${encodeURIComponent(teamId)}/runner-inventory`, { headers });
+            if (!response.ok) {
+                throw new Error('Failed to load team runners');
+            }
 
-        const [runnersPayload, devicesPayload] = await Promise.all([
-            runnersRes.json() as Promise<TeamRunnersResponse>,
-            devicesRes.json() as Promise<TeamDevicesResponse>,
-        ]);
+            const payload = await response.json() as TeamRunnerInventoryResponse;
+            setInventory(payload);
+        })().finally(() => {
+            fetchInFlightRef.current = null;
+        });
 
-        setRunners(runnersPayload);
-        setDevices(devicesPayload);
+        fetchInFlightRef.current = run;
+        return run;
     }, [getAccessToken, teamId]);
 
     useEffect(() => {
@@ -181,11 +182,12 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
             if (pollRef.current) {
                 clearInterval(pollRef.current);
             }
+            const intervalMs = inventory?.runnerConnected ? 15_000 : 45_000;
             pollRef.current = setInterval(() => {
                 void fetchData().catch(() => {
                     setError(t('team.runners.error.load'));
                 });
-            }, 15_000);
+            }, intervalMs);
         };
 
         const stopPolling = () => {
@@ -215,7 +217,7 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
             stopPolling();
             document.removeEventListener('visibilitychange', onVisibilityChange);
         };
-    }, [fetchData, t]);
+    }, [fetchData, inventory?.runnerConnected, t]);
 
     const createPairingToken = useCallback(async () => {
         setError(null);
@@ -302,7 +304,7 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
         }
     }, [fetchData, getAccessToken, pendingUnpairRunnerId, teamId, t, unpairCandidate]);
 
-    const offlineRunners = runners?.runners.filter((runner) => (
+    const offlineRunners = inventory?.runners.filter((runner) => (
         runner.status !== 'ONLINE' || !runner.isFresh
     )) ?? [];
 
@@ -446,7 +448,7 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
                         <h2 className="text-base font-semibold text-gray-900">{t('team.runners.title')}</h2>
                         <p className="mt-1 text-sm text-gray-500">{t('team.runners.subtitle')}</p>
                     </div>
-                    {runners?.canManageRunners && (
+                    {inventory?.canManageRunners && (
                         <Button
                             onClick={() => setIsPairingModalOpen(true)}
                             variant="primary"
@@ -463,15 +465,15 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
                     </div>
                 )}
 
-                {isLoading || !runners || !devices ? (
+                {isLoading || !inventory ? (
                     <div className="mt-4 flex items-center gap-3 rounded-md bg-gray-50 px-4 py-3 text-sm text-gray-600">
                         <LoadingSpinner size={16} />
                         <span>{t('common.loading')}</span>
                     </div>
                 ) : (
                     <RunnerInventoryTables
-                        runners={runners}
-                        devices={devices}
+                        runners={inventory}
+                        devices={inventory}
                         pendingUnpairRunnerId={pendingUnpairRunnerId}
                         onRequestUnpair={(runner) => {
                             setError(null);
@@ -489,7 +491,7 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
 
             <RunnerTroubleshootingSection
                 isLoading={isLoading}
-                runners={runners}
+                runners={inventory}
                 offlineRunners={offlineRunners}
                 copiedCommandKey={copiedCommandKey}
                 onCopyCommand={copyCommand}
