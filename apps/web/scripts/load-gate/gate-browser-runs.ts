@@ -41,8 +41,9 @@ async function ensureParentDirectory(filePath: string): Promise<void> {
 
 async function main() {
     const { dispatchQueuedBrowserRuns } = await import('../../src/lib/runtime/browser-run-dispatcher');
+    const { getActiveLocalBrowserRunIds } = await import('../../src/lib/runtime/local-browser-runner');
     const runSeed = `load-gate-browser-${Date.now()}`;
-    const targetUrl = process.env.LOAD_GATE_BROWSER_URL ?? 'https://example.com';
+    const targetUrl = process.env.LOAD_GATE_BROWSER_URL?.trim();
     const metricsFilePath = process.env.LOAD_GATE_BROWSER_METRICS_FILE ?? '/tmp/skytest-browser-gate-metrics.json';
     const runCount = parseBoundedIntEnv({
         name: 'LOAD_GATE_BROWSER_RUN_COUNT',
@@ -114,20 +115,20 @@ async function main() {
         data: {
             name: `${runSeed}-browser-test-case`,
             projectId: project.id,
-            url: targetUrl,
+            url: targetUrl || 'https://example.com',
             steps: JSON.stringify([
                 {
                     id: 'step-1',
                     target: 'main',
                     type: 'playwright-code',
-                    action: 'await page.waitForTimeout(50);',
+                    action: 'await page.waitForTimeout(10);',
                 },
             ]),
             browserConfig: JSON.stringify({
                 main: {
-                    url: targetUrl,
                     width: 1280,
                     height: 800,
+                    ...(targetUrl ? { url: targetUrl } : {}),
                 },
             }),
         },
@@ -152,11 +153,36 @@ async function main() {
         const runs = await prisma.testRun.findMany({
             where: { testCaseId: testCase.id },
             select: {
+                id: true,
                 status: true,
+                startedAt: true,
                 createdAt: true,
                 completedAt: true,
             },
         });
+
+        const activeLocalRunIds = new Set(getActiveLocalBrowserRunIds());
+        const orphanedRunIds = runs
+            .filter((run) => (
+                (run.status === 'PREPARING' || run.status === 'RUNNING')
+                && !activeLocalRunIds.has(run.id)
+                && !!run.startedAt
+            ))
+            .map((run) => run.id);
+
+        if (orphanedRunIds.length > 0) {
+            await prisma.testRun.updateMany({
+                where: {
+                    id: { in: orphanedRunIds },
+                    status: { in: ['PREPARING', 'RUNNING'] },
+                },
+                data: {
+                    status: 'QUEUED',
+                    startedAt: null,
+                },
+            });
+            continue;
+        }
 
         terminalRuns = runs.filter((run) => TERMINAL_STATUSES.has(run.status)).length;
         if (terminalRuns >= runCount) {
@@ -164,7 +190,10 @@ async function main() {
         }
 
         const activeRuns = runs.filter((run) => ACTIVE_STATUSES.has(run.status)).length;
-        if (activeRuns > 0) {
+        const queuedRuns = runs.filter((run) => run.status === 'QUEUED').length;
+
+        // Keep claiming queued runs whenever there is remaining work; capacity checks are handled by the dispatcher.
+        if (activeRuns > 0 || queuedRuns > 0) {
             await dispatchQueuedBrowserRuns(dispatchBatchSize);
         }
 
