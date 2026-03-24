@@ -63,6 +63,12 @@ async function main() {
         min: 10_000,
         max: 1_800_000,
     });
+    const orphanPreparingRequeueAfterMs = parseBoundedIntEnv({
+        name: 'LOAD_GATE_BROWSER_ORPHAN_REQUEUE_AFTER_MS',
+        fallback: 30_000,
+        min: 5_000,
+        max: 300_000,
+    });
     const dispatchBatchSize = parseBoundedIntEnv({
         name: 'LOAD_GATE_BROWSER_DISPATCH_BATCH',
         fallback: runCount,
@@ -161,12 +167,14 @@ async function main() {
             },
         });
 
+        const nowMs = Date.now();
         const activeLocalRunIds = new Set(getActiveLocalBrowserRunIds());
         const orphanedRunIds = runs
             .filter((run) => (
-                (run.status === 'PREPARING' || run.status === 'RUNNING')
+                run.status === 'PREPARING'
                 && !activeLocalRunIds.has(run.id)
                 && !!run.startedAt
+                && nowMs - run.startedAt.getTime() >= orphanPreparingRequeueAfterMs
             ))
             .map((run) => run.id);
 
@@ -174,7 +182,7 @@ async function main() {
             await prisma.testRun.updateMany({
                 where: {
                     id: { in: orphanedRunIds },
-                    status: { in: ['PREPARING', 'RUNNING'] },
+                    status: 'PREPARING',
                 },
                 data: {
                     status: 'QUEUED',
