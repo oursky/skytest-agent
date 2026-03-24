@@ -8,9 +8,10 @@ This project now includes structured diagnostics to troubleshoot runs stuck in `
 - Success log includes:
   - `runnerId`, `teamId`, `runId`
   - `requestedDeviceId`, `requiredCapability`
-  - `leaseExpiresAt`, `elapsedMs`
+  - `leaseExpiresAt`, `elapsedMs`, `claimAttempts`
 - Empty-claim log includes:
   - `reasonCode`
+  - `claimAttempts`
   - queue counters (`queuedAndroidRuns`, `queuedCompatibleKindRuns`, `explicitRequestedRuns`, `genericQueuedRuns`)
   - host-lock counters (`explicitRequestedRunsBlockedByHostLocks`, `blockedHostResourceKeys`)
   - `claimableDeviceIds`
@@ -34,6 +35,17 @@ Response includes:
 - per-runner no-claim diagnostics from claim service.
 
 This endpoint is intended for operator debugging and support workflows.
+
+## Team runner inventory endpoint
+
+- Endpoint: `GET /api/teams/:id/runner-inventory`
+- Access: authenticated team members only.
+- Returns:
+  - team runner overview (`runners`, `runnerConnected`, `macRunnerOnlineCount`)
+  - team device availability snapshot (`devices`, `availableDeviceCount`, `staleDeviceCount`)
+  - management capability flag (`canManageRunners`)
+
+This endpoint consolidates runner and device polling into a single request for the team runners UI.
 
 ## Lifecycle logs
 

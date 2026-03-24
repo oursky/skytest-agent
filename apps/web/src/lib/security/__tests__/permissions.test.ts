@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
+    projectFindFirst,
     projectFindUnique,
     teamMembershipFindUnique,
 } = vi.hoisted(() => ({
+    projectFindFirst: vi.fn(),
     projectFindUnique: vi.fn(),
     teamMembershipFindUnique: vi.fn(),
 }));
@@ -11,6 +13,7 @@ const {
 vi.mock('@/lib/core/prisma', () => ({
     prisma: {
         project: {
+            findFirst: projectFindFirst,
             findUnique: projectFindUnique,
         },
         teamMembership: {
@@ -29,23 +32,27 @@ const {
 
 describe('team permissions', () => {
     beforeEach(() => {
+        projectFindFirst.mockReset();
         projectFindUnique.mockReset();
         teamMembershipFindUnique.mockReset();
     });
 
     it('allows team members to access their project', async () => {
-        projectFindUnique.mockResolvedValueOnce({ teamId: 'org-1' });
-        teamMembershipFindUnique.mockResolvedValueOnce({ role: 'MEMBER' });
+        projectFindFirst.mockResolvedValueOnce({ id: 'project-1' });
 
         await expect(isProjectMember('user-1', 'project-1')).resolves.toBe(true);
-        expect(teamMembershipFindUnique).toHaveBeenCalledWith({
+        expect(projectFindFirst).toHaveBeenCalledWith({
             where: {
-                teamId_userId: {
-                    teamId: 'org-1',
-                    userId: 'user-1',
-                }
+                id: 'project-1',
+                team: {
+                    memberships: {
+                        some: {
+                            userId: 'user-1',
+                        },
+                    },
+                },
             },
-            select: { role: true }
+            select: { id: true },
         });
     });
 

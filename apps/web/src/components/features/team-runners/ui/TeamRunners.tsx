@@ -127,22 +127,34 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
     const [unpairCandidate, setUnpairCandidate] = useState<TeamRunnerItem | null>(null);
     const [pendingUnpairRunnerId, setPendingUnpairRunnerId] = useState<string | null>(null);
     const pollRef = useRef<NodeJS.Timeout | null>(null);
+    const fetchInFlightRef = useRef<Promise<void> | null>(null);
 
     const fetchData = useCallback(async () => {
-        if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
-            return;
+        if (fetchInFlightRef.current) {
+            return fetchInFlightRef.current;
         }
 
-        const token = await getAccessToken();
-        const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+        const run = (async () => {
+            if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+                return;
+            }
 
-        const response = await fetch(`/api/teams/${encodeURIComponent(teamId)}/runner-inventory`, { headers });
-        if (!response.ok) {
-            throw new Error('Failed to load team runners');
-        }
+            const token = await getAccessToken();
+            const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
 
-        const payload = await response.json() as TeamRunnerInventoryResponse;
-        setInventory(payload);
+            const response = await fetch(`/api/teams/${encodeURIComponent(teamId)}/runner-inventory`, { headers });
+            if (!response.ok) {
+                throw new Error('Failed to load team runners');
+            }
+
+            const payload = await response.json() as TeamRunnerInventoryResponse;
+            setInventory(payload);
+        })().finally(() => {
+            fetchInFlightRef.current = null;
+        });
+
+        fetchInFlightRef.current = run;
+        return run;
     }, [getAccessToken, teamId]);
 
     useEffect(() => {
