@@ -38,6 +38,7 @@ export async function GET(
                 },
                 project: {
                     select: {
+                        teamId: true,
                         name: true,
                         team: {
                             select: {
@@ -66,6 +67,7 @@ export async function GET(
         return NextResponse.json({
             ...testCasePayload,
             projectName: project.name,
+            projectTeamId: project.teamId,
         });
     } catch (error) {
         logger.error('Failed to fetch test case', error);

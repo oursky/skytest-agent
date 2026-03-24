@@ -402,7 +402,7 @@ function RunPageContent() {
         try {
             const token = await getAccessToken();
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const response = await fetch(`/api/test-cases/${id}`, { headers, cache: 'no-store' });
+            const response = await fetch(`/api/test-cases/${id}`, { headers });
             if (response.ok) {
                 const data = await response.json();
 
@@ -415,7 +415,14 @@ function RunPageContent() {
                 });
 
                 setProjectIdFromTestCase(data.projectId);
-                fetchProjectName(data.projectId);
+                if (typeof data.projectName === 'string') {
+                    setProjectName(data.projectName);
+                } else {
+                    fetchProjectName(data.projectId);
+                }
+                if (typeof data.projectTeamId === 'string') {
+                    setTeamIdFromProject(data.projectTeamId);
+                }
                 setDisplayId(data.displayId || '');
                 setTestCaseStatus(data.status || null);
 
@@ -534,7 +541,7 @@ function RunPageContent() {
         try {
             const token = await getAccessToken();
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const response = await fetch(`/api/test-cases/${id}/files`, { headers, cache: 'no-store' });
+            const response = await fetch(`/api/test-cases/${id}/files`, { headers });
             if (response.ok) {
                 const files = await response.json();
                 setTestCaseFiles(files);
@@ -667,8 +674,8 @@ function RunPageContent() {
     }, [projectId, fetchProjectName]);
 
     useEffect(() => {
-        if (projectIdFromTestCase && !projectId) fetchProjectName(projectIdFromTestCase);
-    }, [projectIdFromTestCase, projectId, fetchProjectName]);
+        if (projectIdFromTestCase && !projectId && !projectName) fetchProjectName(projectIdFromTestCase);
+    }, [projectIdFromTestCase, projectId, projectName, fetchProjectName]);
 
     useEffect(() => {
         if (!runId || isAuthLoading || !isLoggedIn) return;
