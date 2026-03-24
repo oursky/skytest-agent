@@ -37,6 +37,8 @@ jobs:
           context: .
           push: true
           tags: ghcr.io/oursky/skytest-agent:latest,ghcr.io/oursky/skytest-agent:${{ github.sha }}
+          build-args: |
+            SKYTEST_VERSION=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

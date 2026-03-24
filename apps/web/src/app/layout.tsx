@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import "./globals.css";
 
 import { AuthProvider } from "./auth-provider";
+import { AppVersionConsoleLogger } from "@/components/layout/AppVersionConsoleLogger";
 import { Header } from "@/components/layout";
 import { DevRuntimeErrorLogger } from "@/components/layout/DevRuntimeErrorLogger";
 import { I18nProvider } from "@/i18n";
@@ -33,6 +34,7 @@ export default async function RootLayout({
       <body className="antialiased">
         <I18nProvider initialLocale={initialLocale}>
           <AuthProvider authgearConfig={authgearConfig}>
+            <AppVersionConsoleLogger />
             <DevRuntimeErrorLogger />
             <Header />
             {children}

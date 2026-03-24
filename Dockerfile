@@ -16,6 +16,9 @@ FROM base AS builder
 COPY --from=deps /app /app
 COPY . .
 
+ARG SKYTEST_VERSION=dev
+ENV NEXT_PUBLIC_SKYTEST_VERSION=$SKYTEST_VERSION
+
 RUN npm exec --workspace @skytest/web -- prisma generate
 RUN npm run build
 RUN npm prune --omit=dev --workspaces --include-workspace-root
