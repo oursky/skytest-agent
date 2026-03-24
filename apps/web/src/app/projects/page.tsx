@@ -60,10 +60,10 @@ export default function ProjectsPage() {
     }, [isAuthLoading, isLoggedIn, router]);
 
     useEffect(() => {
-        if (!isAuthLoading && isLoggedIn && !isTeamsLoading && teams.length === 0) {
+        if (!isAuthLoading && isLoggedIn && !isTeamsLoading && teams.length === 0 && !selectedTeam) {
             router.push('/welcome');
         }
-    }, [isAuthLoading, isLoggedIn, isTeamsLoading, teams.length, router]);
+    }, [isAuthLoading, isLoggedIn, isTeamsLoading, teams.length, selectedTeam, router]);
 
     useEffect(() => {
         if (!requestedTeamId || isCurrentTeamLoading || isTeamsLoading) {
@@ -189,11 +189,11 @@ export default function ProjectsPage() {
         || (shouldLoadProjects && isProjectsLoading);
 
     if (isPageLoading) {
-        return <CenteredLoading className="min-h-screen" />;
+        return <CenteredLoading className="h-[calc(100dvh-4.5rem)]" />;
     }
 
     return (
-        <main className="min-h-screen bg-gray-50">
+        <main className="min-h-[calc(100dvh-4.5rem)] bg-gray-50">
             <Modal
                 isOpen={deleteModal.isOpen}
                 onClose={() => setDeleteModal({ isOpen: false, projectId: "", projectName: "" })}
@@ -293,7 +293,7 @@ export default function ProjectsPage() {
                     )}
                 </div>
 
-                {teams.length === 0 && (
+                {teams.length === 0 && !selectedTeam && (
                     <div className="mb-8 bg-white p-6 rounded-lg shadow-sm border border-gray-200">
                         <h2 className="text-xl font-semibold text-gray-900 mb-2">{t('projects.team.emptyTitle')}</h2>
                         <p className="text-sm text-gray-500 mb-4">{t('projects.team.emptySubtitle')}</p>

@@ -22,6 +22,7 @@ export default function WelcomePage() {
     });
     const [name, setName] = useState('');
     const [error, setError] = useState<string | null>(null);
+    const [isRedirecting, setIsRedirecting] = useState(false);
 
     useEffect(() => {
         if (!isAuthLoading && !isLoggedIn) {
@@ -30,7 +31,7 @@ export default function WelcomePage() {
         }
 
         if (!isTeamsLoading && teams.length > 0) {
-            router.push('/projects');
+            router.replace('/projects');
         }
     }, [isAuthLoading, isLoggedIn, isTeamsLoading, teams.length, router]);
 
@@ -50,15 +51,16 @@ export default function WelcomePage() {
             return;
         }
 
-        router.push('/projects');
+        setIsRedirecting(true);
+        router.replace(`/projects?teamId=${encodeURIComponent(result.teamId)}`);
     };
 
-    if (isAuthLoading || isTeamsLoading) {
-        return <CenteredLoading className="min-h-screen" />;
+    if (isAuthLoading || isTeamsLoading || isRedirecting || !isLoggedIn || teams.length > 0) {
+        return <CenteredLoading className="h-[calc(100dvh-4.5rem)]" />;
     }
 
     return (
-        <main className="min-h-screen bg-gray-50 flex items-center justify-center px-6 py-12">
+        <main className="h-[calc(100dvh-4.5rem)] box-border bg-gray-50 flex items-center justify-center px-6 py-12">
             <div className="w-full max-w-xl rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
                 <div className="space-y-3">
                     <p className="text-sm font-medium text-blue-600">{t('welcome.badge')}</p>

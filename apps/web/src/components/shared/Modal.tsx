@@ -53,6 +53,19 @@ export default function Modal({
     }, [closeOnConfirm, confirmDisabled, onClose, onConfirm]);
 
     useEffect(() => {
+        if (!isOpen) {
+            return;
+        }
+
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+
+        return () => {
+            document.body.style.overflow = previousOverflow;
+        };
+    }, [isOpen]);
+
+    useEffect(() => {
         const handleEnterToConfirm = (e: KeyboardEvent) => {
             if (
                 e.key === 'Enter'
@@ -67,12 +80,10 @@ export default function Modal({
 
         if (shouldHandleEnterToConfirm) {
             document.addEventListener('keydown', handleEnterToConfirm);
-            document.body.style.overflow = 'hidden';
         }
 
         return () => {
             document.removeEventListener('keydown', handleEnterToConfirm);
-            document.body.style.overflow = 'unset';
         };
     }, [handleConfirm, shouldHandleEnterToConfirm]);
 
