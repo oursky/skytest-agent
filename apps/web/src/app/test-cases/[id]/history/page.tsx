@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, use } from "react";
+import { useState, useEffect, useCallback, use, useRef } from "react";
 import { useAuth } from "../../../auth-provider";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -91,6 +91,12 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
             console.error("Failed to fetch history", error);
         }
     }, [currentPage, getAccessToken, id, pageSize]);
+    const fetchHistoryRef = useRef(fetchHistory);
+
+    useEffect(() => {
+        fetchHistoryRef.current = fetchHistory;
+    }, [fetchHistory]);
+    const hasActiveRuns = testRuns.some((run) => isRunActiveStatus(run.status));
 
     useEffect(() => {
         const loadData = async () => {
@@ -113,12 +119,15 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
     useEffect(() => {
         if (!isLoggedIn || isAuthLoading) return;
         if (!projectId) return;
+        if (!hasActiveRuns) {
+            return;
+        }
 
         const refreshHistory = () => {
             if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
                 return;
             }
-            void fetchHistory();
+            void fetchHistoryRef.current();
         };
         const onFocus = () => refreshHistory();
         const onVisibilityChange = () => {
@@ -126,11 +135,6 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
                 refreshHistory();
             }
         };
-
-        const shouldPoll = testRuns.some((run) => isRunActiveStatus(run.status));
-        if (!shouldPoll) {
-            return;
-        }
 
         const interval = setInterval(refreshHistory, 30000);
 
@@ -142,7 +146,7 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
             window.removeEventListener('focus', onFocus);
             document.removeEventListener('visibilitychange', onVisibilityChange);
         };
-    }, [fetchHistory, isAuthLoading, isLoggedIn, projectId, testRuns]);
+    }, [hasActiveRuns, isAuthLoading, isLoggedIn, projectId]);
 
     const handleDeleteRun = async () => {
         try {

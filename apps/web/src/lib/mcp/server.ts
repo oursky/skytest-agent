@@ -53,6 +53,8 @@ function calculateToolResponseBytes(result: ToolResponse): number {
     return result.content.reduce((sum, entry) => sum + entry.text.length, 0);
 }
 
+// Telemetry is intentionally applied to the highest-volume MCP tools first to
+// keep overhead low while preserving hotspot visibility for performance work.
 async function withToolTelemetry(
     toolName: string,
     handler: () => Promise<ToolResponse>
@@ -290,15 +292,33 @@ export function createMcpServer(): McpServer {
     }, async ({ projectId, status, limit }, extra) => {
         const userId = getUserId(extra);
         if (!userId) return errorResult('Unauthorized');
-        if (!await verifyProjectAccess(projectId, userId)) return errorResult('Forbidden');
         const take = Math.max(1, Math.min(limit ?? 50, 100));
-        const where: Record<string, unknown> = { projectId };
-        if (status) where.status = status;
-        const testCases = await prisma.testCase.findMany({
-            where, orderBy: { updatedAt: 'desc' }, take,
-            select: { id: true, displayId: true, status: true, name: true, source: true, updatedAt: true }
+
+        const project = await prisma.project.findFirst({
+            where: {
+                id: projectId,
+                team: {
+                    memberships: {
+                        some: { userId },
+                    },
+                },
+            },
+            select: {
+                testCases: {
+                    where: status ? { status } : undefined,
+                    orderBy: { updatedAt: 'desc' },
+                    take,
+                    select: { id: true, displayId: true, status: true, name: true, source: true, updatedAt: true },
+                },
+            },
         });
-        return textResult(testCases);
+
+        if (!project) {
+            const accessError = await resolveProjectForbiddenOrNotFound(projectId);
+            return errorResult(accessError.message);
+        }
+
+        return textResult(project.testCases);
     });
 
     server.registerTool('get_test_case', {
