@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
     isTestCaseProjectMember: vi.fn(),
     testRunFindFirst: vi.fn(),
     testRunFindMany: vi.fn(),
+    queryRaw: vi.fn(),
     testRunEventFindMany: vi.fn(),
     getSignedDownloadUrl: vi.fn(),
 }));
@@ -26,6 +27,7 @@ vi.mock('@/lib/core/prisma', () => ({
             findFirst: mocks.testRunFindFirst,
             findMany: mocks.testRunFindMany,
         },
+        $queryRaw: mocks.queryRaw,
         testRunEvent: {
             findMany: mocks.testRunEventFindMany,
         },
@@ -40,6 +42,7 @@ describe('listTestRuns', () => {
         mocks.isTestCaseProjectMember.mockReset();
         mocks.testRunFindFirst.mockReset();
         mocks.testRunFindMany.mockReset();
+        mocks.queryRaw.mockReset();
         mocks.testRunEventFindMany.mockReset();
         mocks.getSignedDownloadUrl.mockReset();
 
@@ -79,15 +82,17 @@ describe('listTestRuns', () => {
                 createdAt: new Date('2026-03-09T00:00:01.000Z'),
             }],
         }]);
-        mocks.testRunEventFindMany
+        mocks.queryRaw
             .mockResolvedValueOnce([{
+                runId: 'run-1',
                 sequence: 1,
                 kind: 'STEP_LOG',
                 message: 'step failed',
                 artifactKey: null,
                 payload: { type: 'log', data: { message: 'x', level: 'error' }, timestamp: 1 },
                 createdAt: new Date('2026-03-09T00:00:05.000Z'),
-            }])
+            }]);
+        mocks.testRunEventFindMany
             .mockResolvedValueOnce([{
                 runId: 'run-1',
                 artifactKey: 'runs/run-1/video.mp4',

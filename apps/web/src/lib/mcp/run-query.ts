@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/core/prisma';
 import { objectStore } from '@/lib/storage/object-store';
 import { isProjectMember, isTestCaseProjectMember } from '@/lib/security/permissions';
@@ -62,6 +63,16 @@ interface ValidationFailure {
     details?: unknown;
 }
 
+interface RunEventRow {
+    runId: string;
+    sequence: number;
+    kind: string;
+    message: string | null;
+    artifactKey: string | null;
+    payload: unknown;
+    createdAt: Date;
+}
+
 function resolveArtifactFilename(artifactKey: string): string {
     const segments = artifactKey.split('/').filter(Boolean);
     return segments[segments.length - 1] || 'artifact.bin';
@@ -101,6 +112,42 @@ async function buildArtifactSignedUrlMap(keys: ReadonlySet<string>): Promise<Map
         return [key, signedUrl] as const;
     }));
     return new Map(entries);
+}
+
+async function listRunEvents(runIds: ReadonlyArray<string>): Promise<RunEventRow[]> {
+    if (runIds.length === 0) {
+        return [];
+    }
+
+    return prisma.$queryRaw<RunEventRow[]>(Prisma.sql`
+        WITH ranked_events AS (
+            SELECT
+                tre."runId",
+                tre.sequence,
+                tre.kind,
+                tre.message,
+                tre."artifactKey",
+                tre.payload,
+                tre."createdAt",
+                ROW_NUMBER() OVER (
+                    PARTITION BY tre."runId"
+                    ORDER BY tre.sequence ASC
+                ) AS rn
+            FROM "TestRunEvent" tre
+            WHERE tre."runId" IN (${Prisma.join(runIds)})
+        )
+        SELECT
+            re."runId",
+            re.sequence,
+            re.kind,
+            re.message,
+            re."artifactKey",
+            re.payload,
+            re."createdAt"
+        FROM ranked_events re
+        WHERE re.rn <= 100
+        ORDER BY re."runId" ASC, re.sequence ASC;
+    `);
 }
 
 export async function listTestRuns(
@@ -226,33 +273,27 @@ export async function listTestRuns(
     const hasMore = runRows.length > take;
     const rows = hasMore ? runRows.slice(0, take) : runRows;
     const runIds = rows.map((row) => row.id);
+    const runIdsSet = new Set(runIds);
 
     const eventsByRunId = new Map<string, ListRunEvent[]>();
     if (includeEvents && runIds.length > 0) {
-        await Promise.all(rows.map(async (run) => {
-            const runEvents = await prisma.testRunEvent.findMany({
-                where: { runId: run.id },
-                orderBy: { sequence: 'asc' },
-                take: 100,
-                select: {
-                    sequence: true,
-                    kind: true,
-                    message: true,
-                    artifactKey: true,
-                    payload: true,
-                    createdAt: true,
-                }
-            });
+        const runEvents = await listRunEvents(runIds);
+        for (const event of runEvents) {
+            if (!runIdsSet.has(event.runId)) {
+                continue;
+            }
 
-            eventsByRunId.set(run.id, runEvents.map((event) => ({
+            const events = eventsByRunId.get(event.runId) ?? [];
+            events.push({
                 sequence: event.sequence,
                 kind: event.kind,
                 message: event.message,
                 artifactKey: event.artifactKey,
                 payload: event.payload,
                 createdAt: event.createdAt.toISOString(),
-            })));
-        }));
+            });
+            eventsByRunId.set(event.runId, events);
+        }
     }
 
     const artifactsByRunId = new Map<string, ListRunArtifact[]>();
