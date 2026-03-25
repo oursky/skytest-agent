@@ -11,6 +11,7 @@ const ALLOWED_METRICS = new Set([
     'TTFB',
     'LCP',
     'INP',
+    'FID',
     'CLS',
     'FCP',
     'LOAD_DATA_READY',
@@ -41,7 +42,6 @@ function parsePayload(input: WebVitalPayload) {
     if (
         !id
         || id.length > MAX_METRIC_ID_LENGTH
-        || !ALLOWED_METRICS.has(name)
         || value === null
         || !ALLOWED_RATINGS.has(rating)
         || navigationType.length > MAX_NAVIGATION_TYPE_LENGTH
@@ -73,6 +73,14 @@ export async function POST(request: Request) {
         const payload = parsePayload(await request.json() as WebVitalPayload);
         if (!payload) {
             return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+        }
+
+        if (!ALLOWED_METRICS.has(payload.name)) {
+            logger.debug('Ignoring unsupported web vitals metric', {
+                id: payload.id,
+                name: payload.name,
+            });
+            return new NextResponse(null, { status: 204 });
         }
 
         logger.info('Web vitals metric', payload);
