@@ -182,7 +182,7 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
             if (pollRef.current) {
                 clearInterval(pollRef.current);
             }
-            const intervalMs = inventory?.runnerConnected ? 15_000 : 45_000;
+            const intervalMs = inventory?.runnerConnected ? 30_000 : 90_000;
             pollRef.current = setInterval(() => {
                 void fetchData().catch(() => {
                     setError(t('team.runners.error.load'));

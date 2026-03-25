@@ -8,26 +8,11 @@ import TeamAiSettings from '@/components/features/team-ai/ui/TeamAiSettings';
 import TeamMembers from '@/components/features/team-members/ui/TeamMembers';
 import TeamUsage from '@/components/features/team-usage/ui/TeamUsage';
 import { TeamRunners } from '@/components/features/team-runners';
-import { useCurrentTeam } from '@/hooks/team/useCurrentTeam';
-import { dispatchTeamsChanged, useTeams } from '@/hooks/team/useTeams';
+import { useTeamsBootstrap, type TeamMemberBootstrap } from '@/hooks/team/useTeamsBootstrap';
+import { dispatchTeamsChanged } from '@/hooks/team/useTeams';
 import { useI18n } from '@/i18n';
 import { runOnEnterKey } from '@/utils/keyboard/enterKey';
-
-interface TeamDetails {
-    id: string;
-    name: string;
-    role: 'OWNER' | 'MEMBER';
-    canRename: boolean;
-    canDelete: boolean;
-    canTransferOwnership: boolean;
-}
-
-interface TeamMemberOption {
-    id: string;
-    userId: string | null;
-    email: string | null;
-    role: 'OWNER' | 'MEMBER';
-}
+type TeamMemberOption = TeamMemberBootstrap;
 
 type TeamTab = 'api' | 'members' | 'runners' | 'settings';
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -46,14 +31,17 @@ export default function TeamsPage() {
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const { t } = useI18n();
-    const { teams, loading: areTeamsLoading, refresh: refreshTeams } = useTeams(getAccessToken, isLoggedIn);
+    const requestedTeamId = searchParams.get('teamId')?.trim() || '';
     const {
+        teams,
         currentTeam: selectedTeam,
-        loading: isCurrentTeamLoading,
+        teamDetails,
+        members,
+        loading: isTeamsBootstrapLoading,
+        error: bootstrapError,
+        refresh: refreshTeamsBootstrap,
         setCurrentTeam,
-    } = useCurrentTeam(getAccessToken, isLoggedIn);
-    const [teamDetails, setTeamDetails] = useState<TeamDetails | null>(null);
-    const [transferCandidates, setTransferCandidates] = useState<TeamMemberOption[]>([]);
+    } = useTeamsBootstrap(getAccessToken, requestedTeamId, isLoggedIn && !isAuthLoading);
     const [renameValue, setRenameValue] = useState('');
     const [transferEmail, setTransferEmail] = useState('');
     const [transferTarget, setTransferTarget] = useState<TeamMemberOption | null>(null);
@@ -74,34 +62,9 @@ export default function TeamsPage() {
     }, [selectedTeam, teams]);
 
     const eligibleTransferCandidates = useMemo(
-        () => transferCandidates.filter((member) => member.role !== 'OWNER' && member.userId && member.email),
-        [transferCandidates]
+        () => members.filter((member) => member.role !== 'OWNER' && member.userId && member.email),
+        [members]
     );
-
-    const loadTeamDetails = useCallback(async (teamId: string) => {
-        const token = await getAccessToken();
-        const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
-
-        const [detailsResponse, membersResponse] = await Promise.all([
-            fetch(`/api/teams/${teamId}`, { headers }),
-            fetch(`/api/teams/${teamId}/members`, { headers }),
-        ]);
-
-        if (!detailsResponse.ok || !membersResponse.ok) {
-            throw new Error('Failed to load team details');
-        }
-
-        const details = await detailsResponse.json() as TeamDetails;
-        const membersData = await membersResponse.json() as { members: TeamMemberOption[] };
-        setTeamDetails(details);
-        setRenameValue(details.name);
-        setIsEditingSettings(false);
-        setTransferCandidates(membersData.members);
-        setTransferEmail('');
-        setTransferEmailError(null);
-        setTransferTarget(null);
-        setIsTransferOpen(false);
-    }, [getAccessToken]);
 
     useEffect(() => {
         if (!isAuthLoading && !isLoggedIn) {
@@ -114,28 +77,13 @@ export default function TeamsPage() {
             return;
         }
 
-        if (!isAuthLoading && isLoggedIn && !areTeamsLoading && teams.length === 0) {
+        if (!isAuthLoading && isLoggedIn && !isTeamsBootstrapLoading && teams.length === 0) {
             router.push('/welcome');
         }
-    }, [areTeamsLoading, isAuthLoading, isDeletingTeamTransition, isLoggedIn, teams.length, router]);
-
-    useEffect(() => {
-        if (isDeletingTeamTransition) {
-            return;
-        }
-
-        if (!currentTeam || teams.length === 0) {
-            return;
-        }
-
-        queueMicrotask(() => {
-            void loadTeamDetails(currentTeam.id).catch(() => {
-                setError(t('team.page.error.load'));
-            });
-        });
-    }, [currentTeam, isDeletingTeamTransition, teams.length, loadTeamDetails, t]);
+    }, [isTeamsBootstrapLoading, isAuthLoading, isDeletingTeamTransition, isLoggedIn, teams.length, router]);
 
     const activeTab = resolveTeamTab(searchParams.get('tab'));
+    const visibleError = error || (bootstrapError ? t('team.page.error.load') : null);
 
     const canAccessSettings = teamDetails !== null && (
         teamDetails.canRename ||
@@ -184,9 +132,8 @@ export default function TeamsPage() {
 
             setIsEditingSettings(false);
             dispatchTeamsChanged();
-            await refreshTeams();
+            await refreshTeamsBootstrap();
             setError(null);
-            await loadTeamDetails(currentTeam.id);
         } catch {
             setError(t('team.page.error.rename'));
         }
@@ -241,13 +188,12 @@ export default function TeamsPage() {
                 return;
             }
 
-            await refreshTeams();
+            await refreshTeamsBootstrap();
             setIsTransferOpen(false);
             setTransferEmail('');
             setTransferEmailError(null);
             setTransferTarget(null);
             setError(null);
-            await loadTeamDetails(currentTeam.id);
         } catch {
             setTransferEmailError(t('team.page.error.transfer'));
         }
@@ -279,7 +225,7 @@ export default function TeamsPage() {
 
             const nextTeamId = teams.find((team) => team.id !== currentTeam.id)?.id ?? null;
             dispatchTeamsChanged();
-            await refreshTeams();
+            await refreshTeamsBootstrap();
             if (nextTeamId) {
                 await setCurrentTeam(nextTeamId);
                 router.push('/projects');
@@ -298,11 +244,10 @@ export default function TeamsPage() {
         }
 
         dispatchTeamsChanged();
-        await refreshTeams();
-        await loadTeamDetails(currentTeam.id);
-    }, [currentTeam, loadTeamDetails, refreshTeams]);
+        await refreshTeamsBootstrap();
+    }, [currentTeam, refreshTeamsBootstrap]);
 
-    if (isAuthLoading || areTeamsLoading || isCurrentTeamLoading || isDeletingTeamTransition) {
+    if (isAuthLoading || isTeamsBootstrapLoading || isDeletingTeamTransition) {
         return <CenteredLoading className="min-h-screen" />;
     }
 
@@ -365,9 +310,9 @@ export default function TeamsPage() {
             <div className="max-w-7xl mx-auto px-8 py-8">
                 <h1 className="text-3xl font-bold text-gray-900 mb-4">{t('team.page.title')}</h1>
 
-                {error && (
+                {visibleError && (
                     <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                        {error}
+                        {visibleError}
                     </div>
                 )}
 
@@ -406,7 +351,7 @@ export default function TeamsPage() {
                                     <div className="mt-4 flex flex-wrap items-center gap-3">
                                         <input
                                             type="text"
-                                            value={renameValue}
+                                            value={isEditingSettings ? renameValue : teamDetails.name}
                                             onChange={(event) => setRenameValue(event.target.value)}
                                             onKeyDown={(event) => {
                                                 runOnEnterKey(event, () => {
@@ -441,7 +386,10 @@ export default function TeamsPage() {
                                                 </div>
                                             ) : (
                                                 <Button
-                                                    onClick={() => setIsEditingSettings(true)}
+                                                    onClick={() => {
+                                                        setRenameValue(teamDetails.name);
+                                                        setIsEditingSettings(true);
+                                                    }}
                                                     variant="secondary"
                                                     size="sm"
                                                 >

@@ -9,6 +9,7 @@ import { authenticateRunnerRequest } from '@/lib/runners/auth';
 import { claimNextRunForRunner, diagnoseNoClaimForRunner } from '@/lib/runners/claim-service';
 import { evaluateRunnerCompatibility, getRunnerTransportMetadata } from '@/lib/runners/protocol';
 import { getRateLimitKey, isRateLimited } from '@/lib/runners/rate-limit';
+import { createRoutePerfTracker, measureJsonBytes } from '@/lib/core/route-perf';
 
 const logger = createLogger('api:runners:v1:claim');
 const shouldCollectClaimDiagnosis = (process.env.LOG_LEVEL ?? 'info').toLowerCase() === 'debug';
@@ -28,26 +29,35 @@ function applyClaimRetryJitter(baseMs: number): number {
 }
 
 export async function POST(request: Request) {
+    const perf = createRoutePerfTracker('/api/runners/v1/jobs/claim', request);
     const ipRateLimitKey = getRateLimitKey(request, 'runners-v1-claim-ip');
-    if (await isRateLimited(ipRateLimitKey, { limit: 240, windowMs: 60_000 })) {
-        return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+    if (await perf.measureAuth(() => isRateLimited(ipRateLimitKey, { limit: 240, windowMs: 60_000 }))) {
+        const body = { error: 'Too many requests' };
+        perf.log(logger, { statusCode: 429, responseBytes: measureJsonBytes(body) });
+        return NextResponse.json(body, { status: 429 });
     }
 
-    const auth = await authenticateRunnerRequest(request);
+    const auth = await perf.measureAuth(() => authenticateRunnerRequest(request));
     if (!auth) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        const body = { error: 'Unauthorized' };
+        perf.log(logger, { statusCode: 401, responseBytes: measureJsonBytes(body) });
+        return NextResponse.json(body, { status: 401 });
     }
 
     const tokenRateLimitKey = `runners-v1-claim-token:${auth.tokenId}`;
-    if (await isRateLimited(tokenRateLimitKey, { limit: 360, windowMs: 60_000 })) {
-        return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+    if (await perf.measureAuth(() => isRateLimited(tokenRateLimitKey, { limit: 360, windowMs: 60_000 }))) {
+        const body = { error: 'Too many requests' };
+        perf.log(logger, { statusCode: 429, responseBytes: measureJsonBytes(body) });
+        return NextResponse.json(body, { status: 429 });
     }
 
     try {
         const body = await request.json();
         const parsed = claimJobRequestSchema.safeParse(body);
         if (!parsed.success) {
-            return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+            const responseBody = { error: 'Invalid payload' };
+            perf.log(logger, { statusCode: 400, responseBytes: measureJsonBytes(responseBody) });
+            return NextResponse.json(responseBody, { status: 400 });
         }
 
         const compatibility = evaluateRunnerCompatibility({
@@ -55,13 +65,12 @@ export async function POST(request: Request) {
             runnerVersion: parsed.data.runnerVersion,
         });
         if (compatibility.upgradeRequired) {
-            return NextResponse.json(
-                {
-                    error: 'Runner upgrade required',
-                    compatibility,
-                },
-                { status: 426 }
-            );
+            const responseBody = {
+                error: 'Runner upgrade required',
+                compatibility,
+            };
+            perf.log(logger, { statusCode: 426, responseBytes: measureJsonBytes(responseBody) });
+            return NextResponse.json(responseBody, { status: 426 });
         }
 
         const transport = getRunnerTransportMetadata();
@@ -80,23 +89,19 @@ export async function POST(request: Request) {
         const claimStartedAt = Date.now();
         let retryIntervalMs = configuredRetryIntervalMs;
         let claimAttempts = 1;
-        let claimed = await claimNextRunForRunner({
+        const claimInput = {
             runnerId: auth.runnerId,
             teamId: auth.teamId,
             runnerKind: auth.runnerKind,
             capabilities: auth.capabilities,
-        });
+        };
+        let claimed = await perf.measureDb(() => claimNextRunForRunner(claimInput));
 
         while (!claimed && Date.now() < deadlineMs) {
             const jitteredRetryIntervalMs = applyClaimRetryJitter(retryIntervalMs);
             await sleep(Math.min(jitteredRetryIntervalMs, Math.max(0, deadlineMs - Date.now())));
             claimAttempts += 1;
-            claimed = await claimNextRunForRunner({
-                runnerId: auth.runnerId,
-                teamId: auth.teamId,
-                runnerKind: auth.runnerKind,
-                capabilities: auth.capabilities,
-            });
+            claimed = await perf.measureDb(() => claimNextRunForRunner(claimInput));
             retryIntervalMs = Math.min(
                 CLAIM_RETRY_INTERVAL_MAX_MS,
                 Math.floor(retryIntervalMs * 1.5)
@@ -124,12 +129,7 @@ export async function POST(request: Request) {
             };
 
             if (shouldCollectClaimDiagnosis) {
-                const diagnosis = await diagnoseNoClaimForRunner({
-                    runnerId: auth.runnerId,
-                    teamId: auth.teamId,
-                    runnerKind: auth.runnerKind,
-                    capabilities: auth.capabilities,
-                });
+                const diagnosis = await perf.measureDb(() => diagnoseNoClaimForRunner(claimInput));
 
                 logMeta.reasonCode = diagnosis.reasonCode;
                 logMeta.queuedAndroidRuns = diagnosis.queuedAndroidRuns;
@@ -159,9 +159,12 @@ export async function POST(request: Request) {
                 : null,
         });
 
+        perf.log(logger, { statusCode: 200, responseBytes: measureJsonBytes(responseBody) });
         return NextResponse.json(responseBody);
     } catch (error) {
         logger.error('Failed to claim run', error);
-        return NextResponse.json({ error: 'Failed to claim run' }, { status: 500 });
+        const body = { error: 'Failed to claim run' };
+        perf.log(logger, { statusCode: 500, responseBytes: measureJsonBytes(body) });
+        return NextResponse.json(body, { status: 500 });
     }
 }

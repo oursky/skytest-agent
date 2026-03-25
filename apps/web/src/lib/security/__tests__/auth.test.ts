@@ -41,12 +41,18 @@ vi.mock('jose', () => ({
     jwtVerify,
 }));
 
-const { resolveUserId, resolveOrCreateUserId, verifyAuth } = await import('@/lib/security/auth');
+const {
+    resolveUserId,
+    resolveOrCreateUserId,
+    verifyAuth,
+    __resetAuthCachesForTests,
+} = await import('@/lib/security/auth');
 
 type ResolveUserIdPayload = Parameters<typeof resolveUserId>[0];
 
 describe('resolveUserId', () => {
     beforeEach(() => {
+        __resetAuthCachesForTests();
         process.env.AUTHGEAR_ENDPOINT = 'https://example.authgear.com';
         createRemoteJWKSet.mockReset();
         jwtVerify.mockReset();
@@ -163,6 +169,7 @@ describe('resolveUserId', () => {
 
 describe('resolveOrCreateUserId', () => {
     beforeEach(() => {
+        __resetAuthCachesForTests();
         process.env.AUTHGEAR_ENDPOINT = 'https://example.authgear.com';
         createRemoteJWKSet.mockReset();
         jwtVerify.mockReset();
@@ -208,7 +215,9 @@ describe('verifyAuth', () => {
     const fetchMock = vi.fn();
 
     beforeEach(() => {
+        __resetAuthCachesForTests();
         process.env.AUTHGEAR_ENDPOINT = 'https://example.authgear.com';
+        delete process.env.AUTHGEAR_USERINFO_FALLBACK_ENABLED;
         createRemoteJWKSet.mockReset();
         jwtVerify.mockReset();
         findUnique.mockReset();
@@ -244,6 +253,48 @@ describe('verifyAuth', () => {
             sub: 'auth-1',
             email: 'user@example.com',
             userId: 'user-1',
+        });
+    });
+
+    it('caches userinfo fallback responses by auth subject', async () => {
+        jwtVerify.mockResolvedValue({ payload: { sub: 'auth-cache' } });
+        findUnique.mockResolvedValue({ id: 'user-cache', authId: 'auth-cache', email: null });
+        fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ email: 'cache@example.com' }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+        }));
+
+        const request = new Request('http://localhost/api/test', {
+            headers: { Authorization: 'Bearer access-token-cache' },
+        });
+
+        await expect(verifyAuth(request)).resolves.toEqual({
+            sub: 'auth-cache',
+            email: 'cache@example.com',
+            userId: 'user-cache',
+        });
+        await expect(verifyAuth(request)).resolves.toEqual({
+            sub: 'auth-cache',
+            email: 'cache@example.com',
+            userId: 'user-cache',
+        });
+
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('skips userinfo fallback when disabled', async () => {
+        process.env.AUTHGEAR_USERINFO_FALLBACK_ENABLED = 'false';
+        jwtVerify.mockResolvedValueOnce({ payload: { sub: 'auth-no-fallback' } });
+        findUnique.mockResolvedValueOnce({ id: 'user-2', authId: 'auth-no-fallback', email: null });
+
+        const result = await verifyAuth(new Request('http://localhost/api/test', {
+            headers: { Authorization: 'Bearer access-token-no-fallback' }
+        }));
+
+        expect(fetchMock).not.toHaveBeenCalled();
+        expect(result).toEqual({
+            sub: 'auth-no-fallback',
+            userId: 'user-2',
         });
     });
 });
