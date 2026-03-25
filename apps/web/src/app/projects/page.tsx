@@ -168,7 +168,7 @@ export default function ProjectsPage() {
     const isPageLoading = isAuthLoading
         || (isLoggedIn && isProjectsInitialLoading && projects.length === 0 && teams.length === 0);
 
-    const visibleError = createError || teamError || (bootstrapError ? t('projects.createError') : '');
+    const visibleError = createError || teamError || (bootstrapError ? t('projects.loadError') : '');
 
     if (isPageLoading) {
         return (

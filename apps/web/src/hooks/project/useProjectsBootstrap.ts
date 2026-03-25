@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Project } from '@/types';
 import type { TeamOption } from '@/hooks/team/useTeams';
 import type { CurrentTeam } from '@/hooks/team/useCurrentTeam';
-import { rateDurationMetric, reportClientMetric } from '@/lib/telemetry/client-metrics';
+import { reportLoadMetric } from '@/lib/telemetry/client-metrics';
 
 const TEAMS_CHANGED_EVENT = 'skytest:teams-changed';
 const CURRENT_TEAM_EVENT = 'skytest:current-team-changed';
@@ -75,20 +75,11 @@ export function useProjectsBootstrap(
             setCurrentTeam(payload.currentTeam);
             setProjects(payload.projects);
             setError(null);
-            const elapsedMs = Math.max(0, performance.now() - requestStartedAt);
-            reportClientMetric({
-                name: wasRefreshRequest ? 'LOAD_REFRESH_VISIBLE' : 'LOAD_DATA_READY',
-                value: elapsedMs,
-                rating: rateDurationMetric(elapsedMs),
+            reportLoadMetric({
+                elapsedMs: performance.now() - requestStartedAt,
+                isRefreshRequest: wasRefreshRequest,
+                context: 'projects-bootstrap',
             });
-            if (elapsedMs >= 1_500) {
-                reportClientMetric({
-                    name: 'LOAD_SLOW_WARNING',
-                    value: elapsedMs,
-                    rating: elapsedMs >= 3_000 ? 'poor' : 'needs-improvement',
-                });
-                console.warn('[projects-bootstrap] slow load detected', { elapsedMs });
-            }
         } catch (bootstrapError) {
             console.error('Error fetching projects bootstrap payload:', bootstrapError);
             setError('Failed to load projects page data');

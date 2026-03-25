@@ -1,45 +1,38 @@
-import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveOrCreateUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { config as appConfig } from '@/config/app';
 import { RUN_ACTIVE_STATUSES } from '@/types';
-import { createRoutePerfTracker, measureJsonBytes } from '@/lib/core/route-perf';
+import { createMeasuredJsonResponse, createRoutePerfTracker } from '@/lib/core/route-perf';
+import {
+    parseCurrentTeamCookie,
+    setCurrentTeamCookie,
+} from '@/lib/core/current-team-cookie';
 
 const logger = createLogger('api:projects:bootstrap');
-const CURRENT_TEAM_COOKIE = 'skytest_current_team';
-const isSecureCookie = process.env.NODE_ENV === 'production';
-
-function parseCookieValue(cookieHeader: string, name: string): string | null {
-    const encoded = cookieHeader
-        .split(';')
-        .map((item) => item.trim())
-        .find((item) => item.startsWith(`${name}=`))
-        ?.slice(name.length + 1);
-
-    return encoded ? decodeURIComponent(encoded) : null;
-}
 
 export async function GET(request: Request) {
     const perf = createRoutePerfTracker('/api/projects/bootstrap', request);
     const authPayload = await perf.measureAuth(() => verifyAuth(request));
     if (!authPayload) {
         const body = { error: 'Unauthorized' };
-        perf.log(logger, { statusCode: 401, responseBytes: measureJsonBytes(body) });
-        return NextResponse.json(body, { status: 401 });
+        const { response, responseBytes } = createMeasuredJsonResponse(body, { status: 401 });
+        perf.log(logger, { statusCode: 401, responseBytes });
+        return response;
     }
 
     const userId = await perf.measureAuth(() => resolveOrCreateUserId(authPayload));
     if (!userId) {
         const body = { error: 'Unauthorized' };
-        perf.log(logger, { statusCode: 401, responseBytes: measureJsonBytes(body) });
-        return NextResponse.json(body, { status: 401 });
+        const { response, responseBytes } = createMeasuredJsonResponse(body, { status: 401 });
+        perf.log(logger, { statusCode: 401, responseBytes });
+        return response;
     }
 
     try {
         const url = new URL(request.url);
         const requestedTeamId = url.searchParams.get('teamId')?.trim() || null;
-        const cookieTeamId = parseCookieValue(request.headers.get('cookie') ?? '', CURRENT_TEAM_COOKIE);
+        const cookieTeamId = parseCurrentTeamCookie(request);
 
         const memberships = await perf.measureDb(() => prisma.teamMembership.findMany({
             where: { userId },
@@ -136,23 +129,19 @@ export async function GET(request: Request) {
                 team: undefined,
             })),
         };
-        const response = NextResponse.json(responseBody);
-        perf.log(logger, { statusCode: 200, responseBytes: measureJsonBytes(responseBody) });
+        const { response, responseBytes } = createMeasuredJsonResponse(responseBody);
+        perf.log(logger, { statusCode: 200, responseBytes });
 
         if (teamId && teamId !== cookieTeamId) {
-            response.cookies.set(CURRENT_TEAM_COOKIE, teamId, {
-                httpOnly: true,
-                sameSite: 'lax',
-                secure: isSecureCookie,
-                path: '/',
-            });
+            setCurrentTeamCookie(response, teamId);
         }
 
         return response;
     } catch (error) {
         logger.error('Failed to resolve projects bootstrap payload', error);
         const body = { error: 'Failed to fetch projects bootstrap payload' };
-        perf.log(logger, { statusCode: 500, responseBytes: measureJsonBytes(body) });
-        return NextResponse.json(body, { status: 500 });
+        const { response, responseBytes } = createMeasuredJsonResponse(body, { status: 500 });
+        perf.log(logger, { statusCode: 500, responseBytes });
+        return response;
     }
 }

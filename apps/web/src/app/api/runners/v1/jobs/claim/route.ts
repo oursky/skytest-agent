@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server';
 import {
     claimJobRequestSchema,
     claimJobResponseSchema,
@@ -9,7 +8,7 @@ import { authenticateRunnerRequest } from '@/lib/runners/auth';
 import { claimNextRunForRunner, diagnoseNoClaimForRunner } from '@/lib/runners/claim-service';
 import { evaluateRunnerCompatibility, getRunnerTransportMetadata } from '@/lib/runners/protocol';
 import { getRateLimitKey, isRateLimited } from '@/lib/runners/rate-limit';
-import { createRoutePerfTracker, measureJsonBytes } from '@/lib/core/route-perf';
+import { createMeasuredJsonResponse, createRoutePerfTracker } from '@/lib/core/route-perf';
 
 const logger = createLogger('api:runners:v1:claim');
 const shouldCollectClaimDiagnosis = (process.env.LOG_LEVEL ?? 'info').toLowerCase() === 'debug';
@@ -31,24 +30,27 @@ function applyClaimRetryJitter(baseMs: number): number {
 export async function POST(request: Request) {
     const perf = createRoutePerfTracker('/api/runners/v1/jobs/claim', request);
     const ipRateLimitKey = getRateLimitKey(request, 'runners-v1-claim-ip');
-    if (await perf.measureAuth(() => isRateLimited(ipRateLimitKey, { limit: 240, windowMs: 60_000 }))) {
+    if (await isRateLimited(ipRateLimitKey, { limit: 240, windowMs: 60_000 })) {
         const body = { error: 'Too many requests' };
-        perf.log(logger, { statusCode: 429, responseBytes: measureJsonBytes(body) });
-        return NextResponse.json(body, { status: 429 });
+        const { response, responseBytes } = createMeasuredJsonResponse(body, { status: 429 });
+        perf.log(logger, { statusCode: 429, responseBytes });
+        return response;
     }
 
     const auth = await perf.measureAuth(() => authenticateRunnerRequest(request));
     if (!auth) {
         const body = { error: 'Unauthorized' };
-        perf.log(logger, { statusCode: 401, responseBytes: measureJsonBytes(body) });
-        return NextResponse.json(body, { status: 401 });
+        const { response, responseBytes } = createMeasuredJsonResponse(body, { status: 401 });
+        perf.log(logger, { statusCode: 401, responseBytes });
+        return response;
     }
 
     const tokenRateLimitKey = `runners-v1-claim-token:${auth.tokenId}`;
-    if (await perf.measureAuth(() => isRateLimited(tokenRateLimitKey, { limit: 360, windowMs: 60_000 }))) {
+    if (await isRateLimited(tokenRateLimitKey, { limit: 360, windowMs: 60_000 })) {
         const body = { error: 'Too many requests' };
-        perf.log(logger, { statusCode: 429, responseBytes: measureJsonBytes(body) });
-        return NextResponse.json(body, { status: 429 });
+        const { response, responseBytes } = createMeasuredJsonResponse(body, { status: 429 });
+        perf.log(logger, { statusCode: 429, responseBytes });
+        return response;
     }
 
     try {
@@ -56,8 +58,9 @@ export async function POST(request: Request) {
         const parsed = claimJobRequestSchema.safeParse(body);
         if (!parsed.success) {
             const responseBody = { error: 'Invalid payload' };
-            perf.log(logger, { statusCode: 400, responseBytes: measureJsonBytes(responseBody) });
-            return NextResponse.json(responseBody, { status: 400 });
+            const { response, responseBytes } = createMeasuredJsonResponse(responseBody, { status: 400 });
+            perf.log(logger, { statusCode: 400, responseBytes });
+            return response;
         }
 
         const compatibility = evaluateRunnerCompatibility({
@@ -69,8 +72,9 @@ export async function POST(request: Request) {
                 error: 'Runner upgrade required',
                 compatibility,
             };
-            perf.log(logger, { statusCode: 426, responseBytes: measureJsonBytes(responseBody) });
-            return NextResponse.json(responseBody, { status: 426 });
+            const { response, responseBytes } = createMeasuredJsonResponse(responseBody, { status: 426 });
+            perf.log(logger, { statusCode: 426, responseBytes });
+            return response;
         }
 
         const transport = getRunnerTransportMetadata();
@@ -159,12 +163,14 @@ export async function POST(request: Request) {
                 : null,
         });
 
-        perf.log(logger, { statusCode: 200, responseBytes: measureJsonBytes(responseBody) });
-        return NextResponse.json(responseBody);
+        const { response, responseBytes } = createMeasuredJsonResponse(responseBody);
+        perf.log(logger, { statusCode: 200, responseBytes });
+        return response;
     } catch (error) {
         logger.error('Failed to claim run', error);
         const body = { error: 'Failed to claim run' };
-        perf.log(logger, { statusCode: 500, responseBytes: measureJsonBytes(body) });
-        return NextResponse.json(body, { status: 500 });
+        const { response, responseBytes } = createMeasuredJsonResponse(body, { status: 500 });
+        perf.log(logger, { statusCode: 500, responseBytes });
+        return response;
     }
 }

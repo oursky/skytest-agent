@@ -1,3 +1,4 @@
+import { NextResponse } from 'next/server';
 import type { Logger } from '@/lib/core/logger';
 
 interface RoutePerfLogMeta {
@@ -19,12 +20,20 @@ function resolveRequestId(request: Request): string | null {
         || null;
 }
 
-export function measureJsonBytes(payload: unknown): number {
-    try {
-        return Buffer.byteLength(JSON.stringify(payload));
-    } catch {
-        return 0;
+export function createMeasuredJsonResponse(payload: unknown, init?: ResponseInit): { response: NextResponse; responseBytes: number } {
+    const serializedPayload = JSON.stringify(payload);
+    const headers = new Headers(init?.headers);
+    if (!headers.has('content-type')) {
+        headers.set('content-type', 'application/json; charset=utf-8');
     }
+
+    return {
+        response: new NextResponse(serializedPayload, {
+            ...init,
+            headers,
+        }),
+        responseBytes: Buffer.byteLength(serializedPayload),
+    };
 }
 
 export function createRoutePerfTracker(route: string, request: Request) {

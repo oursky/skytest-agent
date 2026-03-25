@@ -4,6 +4,9 @@ import { getRateLimitKey, isRateLimited } from '@/lib/runners/rate-limit';
 
 const logger = createLogger('api:telemetry:web-vitals');
 const WEB_VITALS_RATE_LIMIT = { limit: 180, windowMs: 60_000 };
+const MAX_METRIC_ID_LENGTH = 128;
+const MAX_NAVIGATION_TYPE_LENGTH = 64;
+const MAX_PATH_LENGTH = 512;
 const ALLOWED_METRICS = new Set([
     'TTFB',
     'LCP',
@@ -35,7 +38,15 @@ function parsePayload(input: WebVitalPayload) {
     const path = typeof input.path === 'string' ? input.path.trim() : '';
     const ts = typeof input.ts === 'number' && Number.isFinite(input.ts) ? input.ts : Date.now();
 
-    if (!id || !ALLOWED_METRICS.has(name) || value === null || !ALLOWED_RATINGS.has(rating)) {
+    if (
+        !id
+        || id.length > MAX_METRIC_ID_LENGTH
+        || !ALLOWED_METRICS.has(name)
+        || value === null
+        || !ALLOWED_RATINGS.has(rating)
+        || navigationType.length > MAX_NAVIGATION_TYPE_LENGTH
+        || path.length > MAX_PATH_LENGTH
+    ) {
         return null;
     }
 
@@ -51,6 +62,8 @@ function parsePayload(input: WebVitalPayload) {
 }
 
 export async function POST(request: Request) {
+    // Intentionally unauthenticated: browser `sendBeacon` telemetry must work during navigation
+    // and before auth state is ready. Abuse is constrained by strict payload validation + IP rate limiting.
     const rateLimitKey = getRateLimitKey(request, 'web-vitals');
     if (await isRateLimited(rateLimitKey, WEB_VITALS_RATE_LIMIT)) {
         return NextResponse.json({ error: 'Too many requests' }, { status: 429 });

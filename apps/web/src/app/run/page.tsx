@@ -1096,8 +1096,8 @@ function RunPageSkeleton() {
         <div className="max-w-7xl mx-auto">
             <PageHeaderSkeleton withAction={false} />
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 items-start">
-                <PanelSkeleton className="h-[800px]" lines={8} />
-                <PanelSkeleton className="h-[800px]" lines={8} />
+                <PanelSkeleton className="min-h-[30rem] lg:min-h-[40rem]" lines={8} />
+                <PanelSkeleton className="min-h-[30rem] lg:min-h-[40rem]" lines={8} />
             </div>
         </div>
     );

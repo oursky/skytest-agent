@@ -20,6 +20,12 @@ interface ReportClientMetricInput {
     path?: string;
 }
 
+interface ReportLoadMetricInput {
+    elapsedMs: number;
+    isRefreshRequest: boolean;
+    context: string;
+}
+
 function createMetricId(): string {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
         return crypto.randomUUID();
@@ -46,7 +52,7 @@ function postMetric(payload: ClientMetricPayload): void {
     }).catch(() => {});
 }
 
-export function rateDurationMetric(durationMs: number): MetricRating {
+function rateDurationMetric(durationMs: number): MetricRating {
     if (durationMs < 1_000) {
         return 'good';
     }
@@ -72,4 +78,22 @@ export function reportClientMetric(input: ReportClientMetricInput): void {
     });
 }
 
-export type { MetricRating, ReportClientMetricInput };
+export function reportLoadMetric(input: ReportLoadMetricInput): void {
+    const elapsedMs = Math.max(0, input.elapsedMs);
+    reportClientMetric({
+        name: input.isRefreshRequest ? 'LOAD_REFRESH_VISIBLE' : 'LOAD_DATA_READY',
+        value: elapsedMs,
+        rating: rateDurationMetric(elapsedMs),
+    });
+
+    if (elapsedMs >= 1_500) {
+        reportClientMetric({
+            name: 'LOAD_SLOW_WARNING',
+            value: elapsedMs,
+            rating: elapsedMs >= 3_000 ? 'poor' : 'needs-improvement',
+        });
+        console.warn(`[${input.context}] slow load detected`, { elapsedMs });
+    }
+}
+
+export type { MetricRating, ReportClientMetricInput, ReportLoadMetricInput };

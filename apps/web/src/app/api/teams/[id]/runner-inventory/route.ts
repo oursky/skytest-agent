@@ -1,9 +1,8 @@
-import { NextResponse } from 'next/server';
 import { createLogger } from '@/lib/core/logger';
 import { getTeamDevicesAvailability, getTeamRunnersOverview } from '@/lib/runners/availability-service';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { getTeamAccess } from '@/lib/security/permissions';
-import { createRoutePerfTracker, measureJsonBytes } from '@/lib/core/route-perf';
+import { createMeasuredJsonResponse, createRoutePerfTracker } from '@/lib/core/route-perf';
 
 const logger = createLogger('api:teams:runner-inventory');
 
@@ -15,24 +14,27 @@ export async function GET(
     const authPayload = await perf.measureAuth(() => verifyAuth(request));
     if (!authPayload) {
         const body = { error: 'Unauthorized' };
-        perf.log(logger, { statusCode: 401, responseBytes: measureJsonBytes(body) });
-        return NextResponse.json(body, { status: 401 });
+        const { response, responseBytes } = createMeasuredJsonResponse(body, { status: 401 });
+        perf.log(logger, { statusCode: 401, responseBytes });
+        return response;
     }
 
     try {
         const userId = await perf.measureAuth(() => resolveUserId(authPayload));
         if (!userId) {
             const body = { error: 'Unauthorized' };
-            perf.log(logger, { statusCode: 401, responseBytes: measureJsonBytes(body) });
-            return NextResponse.json(body, { status: 401 });
+            const { response, responseBytes } = createMeasuredJsonResponse(body, { status: 401 });
+            perf.log(logger, { statusCode: 401, responseBytes });
+            return response;
         }
 
         const { id: teamId } = await params;
         const access = await perf.measureDb(() => getTeamAccess(userId, teamId));
         if (!access.isMember) {
             const body = { error: 'Forbidden' };
-            perf.log(logger, { statusCode: 403, responseBytes: measureJsonBytes(body) });
-            return NextResponse.json(body, { status: 403 });
+            const { response, responseBytes } = createMeasuredJsonResponse(body, { status: 403 });
+            perf.log(logger, { statusCode: 403, responseBytes });
+            return response;
         }
 
         const [overview, availability] = await perf.measureDb(() => Promise.all([
@@ -47,12 +49,14 @@ export async function GET(
             devices: availability.devices,
             canManageRunners: access.isMember,
         };
-        perf.log(logger, { statusCode: 200, responseBytes: measureJsonBytes(body) });
-        return NextResponse.json(body);
+        const { response, responseBytes } = createMeasuredJsonResponse(body);
+        perf.log(logger, { statusCode: 200, responseBytes });
+        return response;
     } catch (error) {
         logger.error('Failed to load team runner inventory', error);
         const body = { error: 'Failed to load team runner inventory' };
-        perf.log(logger, { statusCode: 500, responseBytes: measureJsonBytes(body) });
-        return NextResponse.json(body, { status: 500 });
+        const { response, responseBytes } = createMeasuredJsonResponse(body, { status: 500 });
+        perf.log(logger, { statusCode: 500, responseBytes });
+        return response;
     }
 }

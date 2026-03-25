@@ -1,12 +1,10 @@
 'use client';
 
+import { joinClasses } from './class-names';
+
 interface PanelSkeletonProps {
     className?: string;
     lines?: number;
-}
-
-function joinClasses(...parts: Array<string | false | null | undefined>): string {
-    return parts.filter(Boolean).join(' ');
 }
 
 export default function PanelSkeleton({ className, lines = 3 }: PanelSkeletonProps) {

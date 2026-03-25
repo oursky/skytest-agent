@@ -10,7 +10,7 @@ Use it together with the deployment repo runbook:
 
 Helper:
 
-1. [apps/web/src/lib/core/route-perf.ts](/Users/joyzng/Documents/projects-test/skytest/skytest-agent/apps/web/src/lib/core/route-perf.ts)
+1. [apps/web/src/lib/core/route-perf.ts](../../apps/web/src/lib/core/route-perf.ts)
 
 Log message:
 
@@ -32,12 +32,12 @@ Structured fields:
 
 Client reporter:
 
-1. [apps/web/src/components/layout/WebVitalsReporter.tsx](/Users/joyzng/Documents/projects-test/skytest/skytest-agent/apps/web/src/components/layout/WebVitalsReporter.tsx)
-2. [apps/web/src/lib/telemetry/client-metrics.ts](/Users/joyzng/Documents/projects-test/skytest/skytest-agent/apps/web/src/lib/telemetry/client-metrics.ts)
+1. [apps/web/src/components/layout/WebVitalsReporter.tsx](../../apps/web/src/components/layout/WebVitalsReporter.tsx)
+2. [apps/web/src/lib/telemetry/client-metrics.ts](../../apps/web/src/lib/telemetry/client-metrics.ts)
 
 Ingestion endpoint:
 
-1. [apps/web/src/app/api/telemetry/web-vitals/route.ts](/Users/joyzng/Documents/projects-test/skytest/skytest-agent/apps/web/src/app/api/telemetry/web-vitals/route.ts)
+1. [apps/web/src/app/api/telemetry/web-vitals/route.ts](../../apps/web/src/app/api/telemetry/web-vitals/route.ts)
 
 Allowed metric names:
 
@@ -68,7 +68,7 @@ Payload fields:
 
 Source:
 
-1. [apps/web/src/lib/mcp/server.ts](/Users/joyzng/Documents/projects-test/skytest/skytest-agent/apps/web/src/lib/mcp/server.ts)
+1. [apps/web/src/lib/mcp/server.ts](../../apps/web/src/lib/mcp/server.ts)
 
 Log messages:
 
@@ -87,7 +87,7 @@ Fields:
 
 Reference:
 
-1. [runner-queue-diagnostics.md](/Users/joyzng/Documents/projects-test/skytest/skytest-agent/docs/maintainers/runner-queue-diagnostics.md)
+1. [runner-queue-diagnostics.md](./runner-queue-diagnostics.md)
 
 Primary endpoint:
 
@@ -97,9 +97,9 @@ Primary endpoint:
 
 Scripts:
 
-1. [gate-browser-runs.ts](/Users/joyzng/Documents/projects-test/skytest/skytest-agent/apps/web/scripts/load-gate/gate-browser-runs.ts)
-2. [seed-runner-claim.ts](/Users/joyzng/Documents/projects-test/skytest/skytest-agent/apps/web/scripts/load-gate/seed-runner-claim.ts)
-3. [runner-claim.k6.js](/Users/joyzng/Documents/projects-test/skytest/skytest-agent/apps/web/scripts/load-gate/runner-claim.k6.js)
+1. [gate-browser-runs.ts](../../apps/web/scripts/load-gate/gate-browser-runs.ts)
+2. [seed-runner-claim.ts](../../apps/web/scripts/load-gate/seed-runner-claim.ts)
+3. [runner-claim.k6.js](../../apps/web/scripts/load-gate/runner-claim.k6.js)
 
 ## 6) Quick verification checklist (after deploy)
 

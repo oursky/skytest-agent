@@ -10,6 +10,7 @@ let jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
 const USERINFO_EMAIL_CACHE_TTL_MS = 5 * 60 * 1000;
 const USERINFO_EMAIL_NEGATIVE_CACHE_TTL_MS = 60 * 1000;
 const USERINFO_EMAIL_CACHE_CLEANUP_INTERVAL_MS = 2 * 60 * 1000;
+const USERINFO_EMAIL_CACHE_MAX_ENTRIES = 10_000;
 
 interface CachedUserInfoEmail {
     value: string | null;
@@ -50,15 +51,29 @@ function getCachedUserInfoEmail(cacheKey: string): string | null | undefined {
         userInfoEmailCache.delete(cacheKey);
         return undefined;
     }
+    userInfoEmailCache.delete(cacheKey);
+    userInfoEmailCache.set(cacheKey, entry);
     return entry.value;
+}
+
+function trimUserInfoEmailCache(): void {
+    while (userInfoEmailCache.size > USERINFO_EMAIL_CACHE_MAX_ENTRIES) {
+        const oldestCacheKey = userInfoEmailCache.keys().next().value;
+        if (typeof oldestCacheKey !== 'string') {
+            break;
+        }
+        userInfoEmailCache.delete(oldestCacheKey);
+    }
 }
 
 function setCachedUserInfoEmail(cacheKey: string, value: string | null): void {
     const ttlMs = value ? USERINFO_EMAIL_CACHE_TTL_MS : USERINFO_EMAIL_NEGATIVE_CACHE_TTL_MS;
+    userInfoEmailCache.delete(cacheKey);
     userInfoEmailCache.set(cacheKey, {
         value,
         expiresAtMs: Date.now() + ttlMs,
     });
+    trimUserInfoEmailCache();
 }
 
 export function __resetAuthCachesForTests(): void {

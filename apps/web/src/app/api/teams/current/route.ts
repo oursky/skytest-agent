@@ -3,10 +3,12 @@ import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveOrCreateUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { isTeamMember } from '@/lib/security/permissions';
+import {
+    parseCurrentTeamCookie,
+    setCurrentTeamCookie,
+} from '@/lib/core/current-team-cookie';
 
 const logger = createLogger('api:teams:current');
-const CURRENT_TEAM_COOKIE = 'skytest_current_team';
-const isSecureCookie = process.env.NODE_ENV === 'production';
 
 async function getDefaultTeam(userId: string) {
     return prisma.teamMembership.findFirst({
@@ -41,15 +43,10 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const cookieHeader = request.headers.get('cookie') ?? '';
-        const cookieValue = cookieHeader
-            .split(';')
-            .map((item) => item.trim())
-            .find((item) => item.startsWith(`${CURRENT_TEAM_COOKIE}=`))
-            ?.split('=')[1];
+        const cookieValue = parseCurrentTeamCookie(request);
 
         if (cookieValue) {
-            const teamId = decodeURIComponent(cookieValue);
+            const teamId = cookieValue;
             const hasAccess = await isTeamMember(userId, teamId);
 
             if (hasAccess) {
@@ -75,12 +72,7 @@ export async function GET(request: Request) {
         }
 
         const response = NextResponse.json(membership.team);
-        response.cookies.set(CURRENT_TEAM_COOKIE, membership.team.id, {
-            httpOnly: true,
-            sameSite: 'lax',
-            secure: isSecureCookie,
-            path: '/',
-        });
+        setCurrentTeamCookie(response, membership.team.id);
         return response;
     } catch (error) {
         logger.error('Failed to resolve current team', error);
@@ -126,12 +118,7 @@ export async function POST(request: Request) {
         }
 
         const response = NextResponse.json(team);
-        response.cookies.set(CURRENT_TEAM_COOKIE, team.id, {
-            httpOnly: true,
-            sameSite: 'lax',
-            secure: isSecureCookie,
-            path: '/',
-        });
+        setCurrentTeamCookie(response, team.id);
         return response;
     } catch (error) {
         logger.error('Failed to persist current team', error);

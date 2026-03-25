@@ -12,12 +12,11 @@ export function useLoadGuard(isLoading: boolean, options: UseLoadGuardOptions = 
 
     useEffect(() => {
         if (!isLoading) {
+            queueMicrotask(() => {
+                setPhase('idle');
+            });
             return;
         }
-
-        const resetTimer = setTimeout(() => {
-            setPhase('idle');
-        }, 0);
         const slowTimer = setTimeout(() => {
             setPhase('slow');
         }, slowAfterMs);
@@ -26,7 +25,6 @@ export function useLoadGuard(isLoading: boolean, options: UseLoadGuardOptions = 
         }, stalledAfterMs);
 
         return () => {
-            clearTimeout(resetTimer);
             clearTimeout(slowTimer);
             clearTimeout(stalledTimer);
         };

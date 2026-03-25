@@ -1,9 +1,8 @@
-import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { isProjectMember } from '@/lib/security/permissions';
-import { createRoutePerfTracker, measureJsonBytes } from '@/lib/core/route-perf';
+import { createMeasuredJsonResponse, createRoutePerfTracker } from '@/lib/core/route-perf';
 
 const logger = createLogger('api:test-cases:history');
 
@@ -15,8 +14,9 @@ export async function GET(
     const authPayload = await perf.measureAuth(() => verifyAuth(request));
     if (!authPayload) {
         const body = { error: 'Unauthorized' };
-        perf.log(logger, { statusCode: 401, responseBytes: measureJsonBytes(body) });
-        return NextResponse.json(body, { status: 401 });
+        const { response, responseBytes } = createMeasuredJsonResponse(body, { status: 401 });
+        perf.log(logger, { statusCode: 401, responseBytes });
+        return response;
     }
 
     try {
@@ -34,20 +34,23 @@ export async function GET(
 
         if (!testCase) {
             const body = { error: 'Test case not found' };
-            perf.log(logger, { statusCode: 404, responseBytes: measureJsonBytes(body) });
-            return NextResponse.json(body, { status: 404 });
+            const { response, responseBytes } = createMeasuredJsonResponse(body, { status: 404 });
+            perf.log(logger, { statusCode: 404, responseBytes });
+            return response;
         }
 
         const userId = await perf.measureAuth(() => resolveUserId(authPayload));
         if (!userId) {
             const body = { error: 'Unauthorized' };
-            perf.log(logger, { statusCode: 401, responseBytes: measureJsonBytes(body) });
-            return NextResponse.json(body, { status: 401 });
+            const { response, responseBytes } = createMeasuredJsonResponse(body, { status: 401 });
+            perf.log(logger, { statusCode: 401, responseBytes });
+            return response;
         }
         if (!await perf.measureDb(() => isProjectMember(userId, testCase.projectId))) {
             const body = { error: 'Forbidden' };
-            perf.log(logger, { statusCode: 403, responseBytes: measureJsonBytes(body) });
-            return NextResponse.json(body, { status: 403 });
+            const { response, responseBytes } = createMeasuredJsonResponse(body, { status: 403 });
+            perf.log(logger, { statusCode: 403, responseBytes });
+            return response;
         }
 
         const testRunsPromise = includePayload
@@ -91,12 +94,14 @@ export async function GET(
             data: testRuns,
             pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
         };
-        perf.log(logger, { statusCode: 200, responseBytes: measureJsonBytes(body) });
-        return NextResponse.json(body);
+        const { response, responseBytes } = createMeasuredJsonResponse(body);
+        perf.log(logger, { statusCode: 200, responseBytes });
+        return response;
     } catch (error) {
         logger.error('Failed to fetch test history', error);
         const body = { error: 'Failed to fetch test history' };
-        perf.log(logger, { statusCode: 500, responseBytes: measureJsonBytes(body) });
-        return NextResponse.json(body, { status: 500 });
+        const { response, responseBytes } = createMeasuredJsonResponse(body, { status: 500 });
+        perf.log(logger, { statusCode: 500, responseBytes });
+        return response;
     }
 }

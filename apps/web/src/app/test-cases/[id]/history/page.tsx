@@ -12,7 +12,7 @@ import { getStatusBadgeClass } from '@/utils/status/statusBadge';
 import { parsePageSize } from '@/utils/pagination/pagination';
 import { isRunActiveStatus, type TestStatus } from '@/types';
 import { useLoadGuard } from "@/hooks/ui/useLoadGuard";
-import { rateDurationMetric, reportClientMetric } from "@/lib/telemetry/client-metrics";
+import { reportLoadMetric } from "@/lib/telemetry/client-metrics";
 
 interface TestRun {
     id: string;
@@ -102,28 +102,19 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
                 setTestRuns(runs);
                 setTotalRuns(result.pagination?.total ?? runs.length);
                 setLoadError(null);
-                const elapsedMs = Math.max(0, performance.now() - requestStartedAt);
-                reportClientMetric({
-                    name: wasRefreshRequest ? 'LOAD_REFRESH_VISIBLE' : 'LOAD_DATA_READY',
-                    value: elapsedMs,
-                    rating: rateDurationMetric(elapsedMs),
+                reportLoadMetric({
+                    elapsedMs: performance.now() - requestStartedAt,
+                    isRefreshRequest: wasRefreshRequest,
+                    context: 'history-page',
                 });
-                if (elapsedMs >= 1_500) {
-                    reportClientMetric({
-                        name: 'LOAD_SLOW_WARNING',
-                        value: elapsedMs,
-                        rating: elapsedMs >= 3_000 ? 'poor' : 'needs-improvement',
-                    });
-                    console.warn('[history-page] slow load detected', { elapsedMs });
-                }
             } else {
-                setLoadError('Failed to load test history.');
+                setLoadError(t('history.error.load'));
             }
         } catch (error) {
             console.error("Failed to fetch history", error);
-            setLoadError('Failed to load test history.');
+            setLoadError(t('history.error.load'));
         }
-    }, [currentPage, getAccessToken, id, pageSize]);
+    }, [currentPage, getAccessToken, id, pageSize, t]);
     const fetchHistoryRef = useRef(fetchHistory);
 
     useEffect(() => {
@@ -196,9 +187,12 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
 
             if (response.ok) {
                 setIsLoading(true);
-                await fetchHistory();
-                setIsLoading(false);
-                setDeleteModal({ isOpen: false, runId: "", status: "" });
+                try {
+                    await fetchHistory();
+                    setDeleteModal({ isOpen: false, runId: "", status: "" });
+                } finally {
+                    setIsLoading(false);
+                }
             }
         } catch (error) {
             console.error("Failed to delete test run", error);

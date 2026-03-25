@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TeamOption } from '@/hooks/team/useTeams';
 import type { CurrentTeam } from '@/hooks/team/useCurrentTeam';
-import { rateDurationMetric, reportClientMetric } from '@/lib/telemetry/client-metrics';
+import { reportLoadMetric } from '@/lib/telemetry/client-metrics';
 
 const TEAMS_CHANGED_EVENT = 'skytest:teams-changed';
 const CURRENT_TEAM_EVENT = 'skytest:current-team-changed';
@@ -93,20 +93,11 @@ export function useTeamsBootstrap(
             setTeamDetails(payload.teamDetails);
             setMembers(payload.members);
             setError(null);
-            const elapsedMs = Math.max(0, performance.now() - requestStartedAt);
-            reportClientMetric({
-                name: wasRefreshRequest ? 'LOAD_REFRESH_VISIBLE' : 'LOAD_DATA_READY',
-                value: elapsedMs,
-                rating: rateDurationMetric(elapsedMs),
+            reportLoadMetric({
+                elapsedMs: performance.now() - requestStartedAt,
+                isRefreshRequest: wasRefreshRequest,
+                context: 'teams-bootstrap',
             });
-            if (elapsedMs >= 1_500) {
-                reportClientMetric({
-                    name: 'LOAD_SLOW_WARNING',
-                    value: elapsedMs,
-                    rating: elapsedMs >= 3_000 ? 'poor' : 'needs-improvement',
-                });
-                console.warn('[teams-bootstrap] slow load detected', { elapsedMs });
-            }
         } catch (bootstrapError) {
             console.error('Error fetching teams bootstrap payload:', bootstrapError);
             setError('Failed to load teams page data');

@@ -1,6 +1,8 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { useI18n } from '@/i18n';
+import { joinClasses } from './class-names';
 
 type SectionState = 'idle' | 'loading' | 'refreshing' | 'error';
 
@@ -14,10 +16,6 @@ interface SectionLoadingStateProps {
     className?: string;
 }
 
-function joinClasses(...parts: Array<string | false | null | undefined>): string {
-    return parts.filter(Boolean).join(' ');
-}
-
 export default function SectionLoadingState({
     state,
     children,
@@ -27,31 +25,33 @@ export default function SectionLoadingState({
     onRetry = null,
     className,
 }: SectionLoadingStateProps) {
+    const { t } = useI18n();
+
     return (
         <div className={joinClasses('space-y-3', className)}>
             {state === 'refreshing' && (
                 <div className="flex justify-end">
                     <span className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs text-gray-600 shadow-sm">
                         <span className="loading-dot-pulse h-2 w-2 rounded-full bg-blue-500" />
-                        Refreshing
+                        {t('section.loading.refreshing')}
                     </span>
                 </div>
             )}
-            {(state === 'loading' || state === 'refreshing') && isSlow && (
+            {(state === 'loading' || state === 'refreshing') && isSlow && !isStalled && (
                 <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
-                    Loading is slower than usual.
+                    {t('section.loading.slow')}
                 </div>
             )}
             {(state === 'loading' || state === 'refreshing') && isStalled && (
                 <div className="flex items-center justify-between rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                    <span>Loading is taking longer than expected.</span>
+                    <span>{t('section.loading.stalled')}</span>
                     {onRetry && (
                         <button
                             type="button"
                             onClick={onRetry}
                             className="ml-3 rounded border border-amber-300 px-2 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100"
                         >
-                            Retry
+                            {t('common.retry')}
                         </button>
                     )}
                 </div>
@@ -65,7 +65,7 @@ export default function SectionLoadingState({
                             onClick={onRetry}
                             className="ml-3 rounded border border-red-300 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-100"
                         >
-                            Retry
+                            {t('common.retry')}
                         </button>
                     )}
                 </div>
