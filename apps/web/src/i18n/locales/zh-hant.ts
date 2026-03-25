@@ -277,7 +277,6 @@ export const ZH_HANT_MESSAGES: Messages = {
   "run.error.failedCreateTestCaseUpload": "建立用於上傳檔案的測試案例失敗。請確認必填欄位已填寫（URL 以及 prompt 或 steps）。",
   "run.error.nameRequired": "測試案例名稱為必填",
   "run.error.testCaseIdRequired": "測試案例 ID 為必填",
-  "run.unsavedChangesWarning": "您有未儲存的變更。確定要離開嗎？",
   "history.title": "執行紀錄",
   "history.table.status": "狀態",
   "history.table.date": "日期",

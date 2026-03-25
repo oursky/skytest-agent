@@ -84,7 +84,7 @@ function RunPageContent() {
     const [importReviewData, setImportReviewData] = useState<TestCaseImportReviewData | null>(null);
     const [isImportReviewProcessing, setIsImportReviewProcessing] = useState(false);
     const refreshFilesRef = useRef<string | null>(null);
-    useUnsavedChanges(isDirty, t('run.unsavedChangesWarning'));
+    useUnsavedChanges(isDirty);
 
     const importVariablesToTestCase = async (
         variables: Array<{ name: string; type: 'URL' | 'APP_ID' | 'VARIABLE' | 'RANDOM_STRING'; value: string; masked?: boolean; group?: string | null }>,

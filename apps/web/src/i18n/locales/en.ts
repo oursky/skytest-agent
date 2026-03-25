@@ -277,7 +277,6 @@ export const EN_MESSAGES: Messages = {
   "run.error.failedCreateTestCaseUpload": "Failed to create test case for file uploads. Please ensure required fields are filled (URL and a prompt or steps).",
   "run.error.nameRequired": "Test case name is required",
   "run.error.testCaseIdRequired": "Test case ID is required",
-  "run.unsavedChangesWarning": "You have unsaved changes. Are you sure you want to leave?",
   "history.title": "Test History",
   "history.table.status": "Status",
   "history.table.date": "Date",

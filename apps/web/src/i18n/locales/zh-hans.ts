@@ -277,7 +277,6 @@ export const ZH_HANS_MESSAGES: Messages = {
   "run.error.failedCreateTestCaseUpload": "为上传文件创建测试用例失败。请确保必填字段已填写（URL 以及 prompt 或 steps）。",
   "run.error.nameRequired": "测试用例名称为必填",
   "run.error.testCaseIdRequired": "测试用例 ID 为必填",
-  "run.unsavedChangesWarning": "您有未保存的更改。确定要离开吗？",
   "history.title": "运行记录",
   "history.table.status": "状态",
   "history.table.date": "日期",
