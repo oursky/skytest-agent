@@ -4,13 +4,7 @@ import { useState, useEffect, useCallback, use, useRef } from "react";
 import { useAuth } from "../../../auth-provider";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import {
-    LastUpdatedBadge,
-    Modal,
-    Pagination,
-    SectionLoadingState,
-    TableRowsSkeleton,
-} from "@/components/shared";
+import { LastUpdatedBadge, Modal, Pagination, SectionLoadingState } from "@/components/shared";
 import { Breadcrumbs } from "@/components/layout";
 import { formatDateTime } from "@/utils/time/dateFormatter";
 import { useI18n } from "@/i18n";
@@ -234,11 +228,38 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
         return (
             <main className="min-h-screen bg-gray-50">
                 <div className="max-w-7xl mx-auto px-8 py-8">
+                    <div className="mb-4 space-y-2">
+                        <div className="skeleton-block h-4 w-56" />
+                    </div>
                     <div className="mb-8 flex items-center justify-between">
                         <div className="skeleton-block h-8 w-64" />
                         <div className="skeleton-block h-7 w-28" />
                     </div>
-                    <TableRowsSkeleton rows={8} columns={3} />
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                        <div className="grid grid-cols-12 gap-4 p-4 border-b border-gray-200 bg-gray-50 items-center">
+                            <div className="col-span-3 skeleton-block h-4 w-20" />
+                            <div className="col-span-5 skeleton-block h-4 w-16" />
+                            <div className="col-span-4 flex justify-end">
+                                <div className="skeleton-block h-4 w-16" />
+                            </div>
+                        </div>
+                        <div className="divide-y divide-gray-100">
+                            {Array.from({ length: 8 }, (_, index) => (
+                                <div key={`history-skeleton-${index}`} className="grid grid-cols-12 gap-4 p-4 items-center">
+                                    <div className="col-span-3">
+                                        <div className="skeleton-block h-6 w-20 rounded-full" />
+                                    </div>
+                                    <div className="col-span-5">
+                                        <div className="skeleton-block h-4 w-40" />
+                                    </div>
+                                    <div className="col-span-4 flex justify-end gap-2">
+                                        <div className="skeleton-block h-8 w-20" />
+                                        <div className="skeleton-block h-8 w-8" />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
                 </div>
             </main>
         );

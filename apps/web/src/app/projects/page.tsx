@@ -9,7 +9,6 @@ import {
     LastUpdatedBadge,
     Modal,
     PageHeaderSkeleton,
-    PanelSkeleton,
     SectionLoadingState,
 } from "@/components/shared";
 import { formatDateTime } from "@/utils/time/dateFormatter";
@@ -179,9 +178,24 @@ export default function ProjectsPage() {
                 <div className="max-w-7xl mx-auto px-8 py-8">
                     <PageHeaderSkeleton />
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        <PanelSkeleton className="h-40" />
-                        <PanelSkeleton className="h-40" />
-                        <PanelSkeleton className="h-40" />
+                        {Array.from({ length: 6 }, (_, index) => (
+                            <div
+                                key={`project-skeleton-${index}`}
+                                className="bg-white p-6 rounded-lg shadow-sm border border-gray-200"
+                            >
+                                <div className="flex items-start justify-between mb-3">
+                                    <div className="skeleton-block h-6 w-40" />
+                                    <div className="flex gap-2">
+                                        <div className="skeleton-block h-8 w-8" />
+                                        <div className="skeleton-block h-8 w-8" />
+                                    </div>
+                                </div>
+                                <div className="space-y-3">
+                                    <div className="skeleton-block h-4 w-28" />
+                                    <div className="skeleton-block h-3 w-40" />
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 </div>
             </main>
