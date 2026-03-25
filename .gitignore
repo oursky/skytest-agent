@@ -68,7 +68,7 @@ Thumbs.db
 *.tsbuildinfo
 
 # Plans
-docs/plans/
+plans/
 
 # Local CLI runner state
 .skytest-dev/
