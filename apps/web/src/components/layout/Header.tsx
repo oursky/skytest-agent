@@ -14,8 +14,8 @@ export default function Header() {
     const router = useRouter();
     const pathname = usePathname();
     const { locale, setLocale, t } = useI18n();
-    const { teams, refresh: refreshTeams } = useTeams(getAccessToken, isLoggedIn);
-    const { currentTeam, setCurrentTeam } = useCurrentTeam(getAccessToken, isLoggedIn);
+    const { teams, loading: isTeamsLoading, refresh: refreshTeams } = useTeams(getAccessToken, isLoggedIn);
+    const { currentTeam, loading: isCurrentTeamLoading, setCurrentTeam } = useCurrentTeam(getAccessToken, isLoggedIn);
 
     const localeOptions = useMemo(() => Object.keys(LOCALE_META) as Locale[], []);
 
@@ -155,6 +155,9 @@ export default function Header() {
                                                 setNewTeamName('');
                                             }}
                                         />
+                                    )}
+                                    {(isTeamsLoading || isCurrentTeamLoading) && teams.length === 0 && (
+                                        <div className="skeleton-block h-9 min-w-40 lg:min-w-56" />
                                     )}
 
                                     <div className="relative">

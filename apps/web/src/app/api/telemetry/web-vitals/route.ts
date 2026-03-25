@@ -4,7 +4,16 @@ import { getRateLimitKey, isRateLimited } from '@/lib/runners/rate-limit';
 
 const logger = createLogger('api:telemetry:web-vitals');
 const WEB_VITALS_RATE_LIMIT = { limit: 180, windowMs: 60_000 };
-const ALLOWED_METRICS = new Set(['TTFB', 'LCP', 'INP', 'CLS', 'FCP']);
+const ALLOWED_METRICS = new Set([
+    'TTFB',
+    'LCP',
+    'INP',
+    'CLS',
+    'FCP',
+    'LOAD_DATA_READY',
+    'LOAD_REFRESH_VISIBLE',
+    'LOAD_SLOW_WARNING',
+]);
 const ALLOWED_RATINGS = new Set(['good', 'needs-improvement', 'poor']);
 
 interface WebVitalPayload {

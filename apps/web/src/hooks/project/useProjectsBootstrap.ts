@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Project } from '@/types';
 import type { TeamOption } from '@/hooks/team/useTeams';
 import type { CurrentTeam } from '@/hooks/team/useCurrentTeam';
+import { rateDurationMetric, reportClientMetric } from '@/lib/telemetry/client-metrics';
 
 const TEAMS_CHANGED_EVENT = 'skytest:teams-changed';
 const CURRENT_TEAM_EVENT = 'skytest:current-team-changed';
@@ -31,6 +32,11 @@ export function useProjectsBootstrap(
     const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
+    const hasLoadedOnceRef = useRef(false);
+
+    useEffect(() => {
+        hasLoadedOnceRef.current = hasLoadedOnce;
+    }, [hasLoadedOnce]);
 
     const fetchBootstrap = useCallback(async (teamIdOverride?: string) => {
         if (!enabled) {
@@ -45,6 +51,8 @@ export function useProjectsBootstrap(
         }
 
         try {
+            const requestStartedAt = performance.now();
+            const wasRefreshRequest = hasLoadedOnceRef.current;
             setLoading(true);
 
             const token = await getAccessToken();
@@ -70,6 +78,20 @@ export function useProjectsBootstrap(
             setProjects(payload.projects);
             setError(null);
             setLastUpdatedAt(Date.now());
+            const elapsedMs = Math.max(0, performance.now() - requestStartedAt);
+            reportClientMetric({
+                name: wasRefreshRequest ? 'LOAD_REFRESH_VISIBLE' : 'LOAD_DATA_READY',
+                value: elapsedMs,
+                rating: rateDurationMetric(elapsedMs),
+            });
+            if (elapsedMs >= 1_500) {
+                reportClientMetric({
+                    name: 'LOAD_SLOW_WARNING',
+                    value: elapsedMs,
+                    rating: elapsedMs >= 3_000 ? 'poor' : 'needs-improvement',
+                });
+                console.warn('[projects-bootstrap] slow load detected', { elapsedMs });
+            }
         } catch (bootstrapError) {
             console.error('Error fetching projects bootstrap payload:', bootstrapError);
             setError('Failed to load projects page data');

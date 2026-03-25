@@ -18,6 +18,7 @@ import { getStatusBadgeClass } from '@/utils/status/statusBadge';
 import { parsePageSize } from '@/utils/pagination/pagination';
 import { isRunActiveStatus, type TestStatus } from '@/types';
 import { useLoadGuard } from "@/hooks/ui/useLoadGuard";
+import { rateDurationMetric, reportClientMetric } from "@/lib/telemetry/client-metrics";
 
 interface TestRun {
     id: string;
@@ -58,10 +59,15 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; runId: string; status?: TestStatus | '' }>({ isOpen: false, runId: "", status: "" });
     const parsedPage = Number.parseInt(searchParams.get('page') || '1', 10);
     const currentPage = Number.isNaN(parsedPage) ? 1 : Math.max(1, parsedPage);
+    const hasLoadedOnceRef = useRef(false);
 
     const isInitialLoading = isLoading && !hasLoadedOnce;
     const isRefreshing = isLoading && hasLoadedOnce;
     const { isSlow, isStalled } = useLoadGuard(isInitialLoading || isRefreshing);
+
+    useEffect(() => {
+        hasLoadedOnceRef.current = hasLoadedOnce;
+    }, [hasLoadedOnce]);
 
     useEffect(() => {
         if (!isAuthLoading && !isLoggedIn) {
@@ -88,6 +94,8 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
 
     const fetchHistory = useCallback(async () => {
         try {
+            const requestStartedAt = performance.now();
+            const wasRefreshRequest = hasLoadedOnceRef.current;
             const token = await getAccessToken();
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
             const historyParams = new URLSearchParams({
@@ -102,6 +110,20 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
                 setTotalRuns(result.pagination?.total ?? runs.length);
                 setLastUpdatedAt(Date.now());
                 setLoadError(null);
+                const elapsedMs = Math.max(0, performance.now() - requestStartedAt);
+                reportClientMetric({
+                    name: wasRefreshRequest ? 'LOAD_REFRESH_VISIBLE' : 'LOAD_DATA_READY',
+                    value: elapsedMs,
+                    rating: rateDurationMetric(elapsedMs),
+                });
+                if (elapsedMs >= 1_500) {
+                    reportClientMetric({
+                        name: 'LOAD_SLOW_WARNING',
+                        value: elapsedMs,
+                        rating: elapsedMs >= 3_000 ? 'poor' : 'needs-improvement',
+                    });
+                    console.warn('[history-page] slow load detected', { elapsedMs });
+                }
             } else {
                 setLoadError('Failed to load test history.');
             }
