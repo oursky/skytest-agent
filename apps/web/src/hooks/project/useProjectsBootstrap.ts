@@ -30,6 +30,7 @@ export function useProjectsBootstrap(
     const [loading, setLoading] = useState(false);
     const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
 
     const fetchBootstrap = useCallback(async (teamIdOverride?: string) => {
         if (!enabled) {
@@ -39,6 +40,7 @@ export function useProjectsBootstrap(
             setCurrentTeam(null);
             setProjects([]);
             setError(null);
+            setLastUpdatedAt(null);
             return;
         }
 
@@ -67,6 +69,7 @@ export function useProjectsBootstrap(
             setCurrentTeam(payload.currentTeam);
             setProjects(payload.projects);
             setError(null);
+            setLastUpdatedAt(Date.now());
         } catch (bootstrapError) {
             console.error('Error fetching projects bootstrap payload:', bootstrapError);
             setError('Failed to load projects page data');
@@ -146,6 +149,10 @@ export function useProjectsBootstrap(
         projects,
         // Keep initial loading true before the first bootstrap fetch resolves.
         loading: loading || (enabled && !hasLoadedOnce),
+        isInitialLoading: enabled && !hasLoadedOnce,
+        isRefreshing: enabled && hasLoadedOnce && loading,
+        hasLoadedOnce,
+        lastUpdatedAt,
         error,
         refresh,
         setCurrentTeam: persistCurrentTeam,

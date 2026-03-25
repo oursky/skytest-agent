@@ -47,6 +47,7 @@ export function useTeamsBootstrap(
     const [loading, setLoading] = useState(false);
     const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
 
     const fetchBootstrap = useCallback(async (teamIdOverride?: string) => {
         if (!enabled) {
@@ -57,6 +58,7 @@ export function useTeamsBootstrap(
             setLoading(false);
             setHasLoadedOnce(false);
             setError(null);
+            setLastUpdatedAt(null);
             return;
         }
 
@@ -85,6 +87,7 @@ export function useTeamsBootstrap(
             setTeamDetails(payload.teamDetails);
             setMembers(payload.members);
             setError(null);
+            setLastUpdatedAt(Date.now());
         } catch (bootstrapError) {
             console.error('Error fetching teams bootstrap payload:', bootstrapError);
             setError('Failed to load teams page data');
@@ -156,6 +159,10 @@ export function useTeamsBootstrap(
         teamDetails,
         members,
         loading: loading || (enabled && !hasLoadedOnce),
+        isInitialLoading: enabled && !hasLoadedOnce,
+        isRefreshing: enabled && hasLoadedOnce && loading,
+        hasLoadedOnce,
+        lastUpdatedAt,
         error,
         refresh,
         setCurrentTeam: persistCurrentTeam,

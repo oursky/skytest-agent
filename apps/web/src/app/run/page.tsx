@@ -6,6 +6,7 @@ import { useAuth } from "../auth-provider";
 import { TestForm } from "@/components/features/test-builder";
 import { ResultViewer } from "@/components/features/run-results";
 import { Breadcrumbs } from "@/components/layout";
+import { PageHeaderSkeleton, PanelSkeleton } from "@/components/shared";
 import TestCaseImportReviewDialog, { type TestCaseImportReviewData } from "@/components/features/test-cases/ui/TestCaseImportReviewDialog";
 import {
     TEST_STATUS,
@@ -965,7 +966,9 @@ function RunPageContent() {
         || !!activeRunId
         || testCaseHasActiveRun;
 
-    if (isAuthLoading) return null;
+    if (isAuthLoading) {
+        return <RunPageSkeleton />;
+    }
 
     return (
         <>
@@ -1077,15 +1080,25 @@ function RunPageContent() {
 }
 
 export default function RunPage() {
-    const { t } = useI18n();
-
     return (
         <main className="min-h-screen bg-gray-50 p-8">
             <div className="max-w-7xl mx-auto">
-                <Suspense fallback={<div>{t('common.loading')}</div>}>
+                <Suspense fallback={<RunPageSkeleton />}>
                     <RunPageContent />
                 </Suspense>
             </div>
         </main>
+    );
+}
+
+function RunPageSkeleton() {
+    return (
+        <div className="max-w-7xl mx-auto">
+            <PageHeaderSkeleton withAction={false} />
+            <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 items-start">
+                <PanelSkeleton className="h-[800px]" lines={8} />
+                <PanelSkeleton className="h-[800px]" lines={8} />
+            </div>
+        </div>
     );
 }
