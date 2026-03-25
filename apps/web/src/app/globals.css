@@ -255,3 +255,49 @@ pre,
 .animation-delay-4000 {
   animation-delay: 4s;
 }
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton-block {
+  background: linear-gradient(
+    90deg,
+    rgb(229 231 235) 25%,
+    rgb(243 244 246) 37%,
+    rgb(229 231 235) 63%
+  );
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 3.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  border-radius: 0.375rem;
+}
+
+@keyframes loading-dot-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.92);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.loading-dot-pulse {
+  animation: loading-dot-pulse 2.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-block,
+  .loading-dot-pulse {
+    animation: none;
+  }
+}

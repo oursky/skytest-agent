@@ -4,6 +4,7 @@ import "./globals.css";
 
 import { AuthProvider } from "./auth-provider";
 import { AppVersionConsoleLogger } from "@/components/layout/AppVersionConsoleLogger";
+import { WebVitalsReporter } from "@/components/layout/WebVitalsReporter";
 import { Header } from "@/components/layout";
 import { DevRuntimeErrorLogger } from "@/components/layout/DevRuntimeErrorLogger";
 import { I18nProvider } from "@/i18n";
@@ -37,6 +38,7 @@ export default async function RootLayout({
         <I18nProvider initialLocale={initialLocale} initialMessages={initialMessages}>
           <AuthProvider authgearConfig={authgearConfig}>
             <AppVersionConsoleLogger />
+            <WebVitalsReporter />
             <DevRuntimeErrorLogger />
             <Header />
             {children}

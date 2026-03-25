@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Project } from '@/types';
 import type { TeamOption } from '@/hooks/team/useTeams';
 import type { CurrentTeam } from '@/hooks/team/useCurrentTeam';
 import { reportLoadMetric } from '@/lib/telemetry/client-metrics';
@@ -7,10 +6,27 @@ import { reportLoadMetric } from '@/lib/telemetry/client-metrics';
 const TEAMS_CHANGED_EVENT = 'skytest:teams-changed';
 const CURRENT_TEAM_EVENT = 'skytest:current-team-changed';
 
-interface ProjectsBootstrapPayload {
+export interface TeamDetailsBootstrap {
+    id: string;
+    name: string;
+    role: 'OWNER' | 'MEMBER';
+    canRename: boolean;
+    canDelete: boolean;
+    canTransferOwnership: boolean;
+}
+
+export interface TeamMemberBootstrap {
+    id: string;
+    userId: string | null;
+    email: string | null;
+    role: 'OWNER' | 'MEMBER';
+}
+
+interface TeamsBootstrapPayload {
     teams: TeamOption[];
     currentTeam: CurrentTeam | null;
-    projects: Project[];
+    teamDetails: TeamDetailsBootstrap | null;
+    members: TeamMemberBootstrap[];
 }
 
 function getRequestedTeamId(teamId: string | undefined, fallbackTeamId: string): string {
@@ -20,14 +36,15 @@ function getRequestedTeamId(teamId: string | undefined, fallbackTeamId: string):
     return fallbackTeamId;
 }
 
-export function useProjectsBootstrap(
+export function useTeamsBootstrap(
     getAccessToken: () => Promise<string | null>,
     requestedTeamId: string,
     enabled = true,
 ) {
     const [teams, setTeams] = useState<TeamOption[]>([]);
     const [currentTeam, setCurrentTeam] = useState<CurrentTeam | null>(null);
-    const [projects, setProjects] = useState<Project[]>([]);
+    const [teamDetails, setTeamDetails] = useState<TeamDetailsBootstrap | null>(null);
+    const [members, setMembers] = useState<TeamMemberBootstrap[]>([]);
     const [loading, setLoading] = useState(false);
     const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -39,11 +56,12 @@ export function useProjectsBootstrap(
 
     const fetchBootstrap = useCallback(async (teamIdOverride?: string) => {
         if (!enabled) {
-            setLoading(false);
-            setHasLoadedOnce(false);
             setTeams([]);
             setCurrentTeam(null);
-            setProjects([]);
+            setTeamDetails(null);
+            setMembers([]);
+            setLoading(false);
+            setHasLoadedOnce(false);
             setError(null);
             return;
         }
@@ -52,14 +70,13 @@ export function useProjectsBootstrap(
             const requestStartedAt = performance.now();
             const wasRefreshRequest = hasLoadedOnceRef.current;
             setLoading(true);
-
             const token = await getAccessToken();
             const headers: HeadersInit = {};
             if (token) {
                 headers.Authorization = `Bearer ${token}`;
             }
 
-            const url = new URL('/api/projects/bootstrap', window.location.origin);
+            const url = new URL('/api/teams/bootstrap', window.location.origin);
             const teamId = getRequestedTeamId(teamIdOverride, requestedTeamId);
             if (teamId) {
                 url.searchParams.set('teamId', teamId);
@@ -67,22 +84,23 @@ export function useProjectsBootstrap(
 
             const response = await fetch(url.toString(), { headers });
             if (!response.ok) {
-                throw new Error('Failed to fetch projects bootstrap payload');
+                throw new Error('Failed to fetch teams bootstrap payload');
             }
 
-            const payload = await response.json() as ProjectsBootstrapPayload;
+            const payload = await response.json() as TeamsBootstrapPayload;
             setTeams(payload.teams);
             setCurrentTeam(payload.currentTeam);
-            setProjects(payload.projects);
+            setTeamDetails(payload.teamDetails);
+            setMembers(payload.members);
             setError(null);
             reportLoadMetric({
                 elapsedMs: performance.now() - requestStartedAt,
                 isRefreshRequest: wasRefreshRequest,
-                context: 'projects-bootstrap',
+                context: 'teams-bootstrap',
             });
         } catch (bootstrapError) {
-            console.error('Error fetching projects bootstrap payload:', bootstrapError);
-            setError('Failed to load projects page data');
+            console.error('Error fetching teams bootstrap payload:', bootstrapError);
+            setError('Failed to load teams page data');
         } finally {
             setLoading(false);
             setHasLoadedOnce(true);
@@ -145,19 +163,11 @@ export function useProjectsBootstrap(
         await fetchBootstrap();
     }, [fetchBootstrap]);
 
-    const addProject = useCallback((newProject: Project) => {
-        setProjects((previous) => [newProject, ...previous]);
-    }, []);
-
-    const removeProject = useCallback((projectId: string) => {
-        setProjects((previous) => previous.filter((project) => project.id !== projectId));
-    }, []);
-
     return {
         teams,
         currentTeam,
-        projects,
-        // Keep initial loading true before the first bootstrap fetch resolves.
+        teamDetails,
+        members,
         loading: loading || (enabled && !hasLoadedOnce),
         isInitialLoading: enabled && !hasLoadedOnce,
         isRefreshing: enabled && hasLoadedOnce && loading,
@@ -165,7 +175,7 @@ export function useProjectsBootstrap(
         error,
         refresh,
         setCurrentTeam: persistCurrentTeam,
-        addProject,
-        removeProject,
+        setTeamDetails,
+        setMembers,
     };
 }

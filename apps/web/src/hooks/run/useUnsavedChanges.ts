@@ -7,18 +7,15 @@ import { useEffect, useCallback } from 'react';
  * Shows a browser confirmation dialog when the user tries to leave the page.
  *
  * @param isDirty - Whether the form has unsaved changes
- * @param message - Optional custom message (note: modern browsers typically ignore custom messages)
  */
-export function useUnsavedChanges(isDirty: boolean, message?: string) {
+export function useUnsavedChanges(isDirty: boolean) {
     const handleBeforeUnload = useCallback((event: BeforeUnloadEvent) => {
         if (isDirty) {
             event.preventDefault();
-            // Modern browsers ignore custom messages and show a generic message
-            // but we set returnValue for legacy browser support
-            event.returnValue = message || 'You have unsaved changes. Are you sure you want to leave?';
-            return event.returnValue;
+            // Modern browsers show a generic message.
+            event.returnValue = '';
         }
-    }, [isDirty, message]);
+    }, [isDirty]);
 
     useEffect(() => {
         if (isDirty) {

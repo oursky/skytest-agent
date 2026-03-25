@@ -1,18 +1,20 @@
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveOrCreateUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
-import { config as appConfig } from '@/config/app';
-import { RUN_ACTIVE_STATUSES } from '@/types';
+import {
+    canDeleteTeam,
+    canTransferTeamOwnership,
+} from '@/lib/security/permissions';
 import { createMeasuredJsonResponse, createRoutePerfTracker } from '@/lib/core/route-perf';
 import {
     parseCurrentTeamCookie,
     setCurrentTeamCookie,
 } from '@/lib/core/current-team-cookie';
 
-const logger = createLogger('api:projects:bootstrap');
+const logger = createLogger('api:teams:bootstrap');
 
 export async function GET(request: Request) {
-    const perf = createRoutePerfTracker('/api/projects/bootstrap', request);
+    const perf = createRoutePerfTracker('/api/teams/bootstrap', request);
     const authPayload = await perf.measureAuth(() => verifyAuth(request));
     if (!authPayload) {
         const body = { error: 'Unauthorized' };
@@ -66,52 +68,67 @@ export async function GET(request: Request) {
             ?? teams[0]
             ?? null;
 
-        const teamId = selectedTeam?.id ?? null;
-        const projects = teamId
-            ? await perf.measureDb(() => prisma.project.findMany({
-                where: {
-                    teamId,
-                },
-                orderBy: {
-                    updatedAt: 'desc',
-                },
-                include: {
-                    _count: {
-                        select: { testCases: true },
-                    },
-                    team: {
+        const selectedTeamId = selectedTeam?.id ?? null;
+        let teamDetails: {
+            id: string;
+            name: string;
+            role: 'OWNER' | 'MEMBER';
+            canRename: boolean;
+            canDelete: boolean;
+            canTransferOwnership: boolean;
+        } | null = null;
+        let members: Array<{
+            id: string;
+            userId: string | null;
+            email: string | null;
+            role: 'OWNER' | 'MEMBER';
+        }> = [];
+
+        if (selectedTeam && selectedTeamId) {
+            const memberRows = await perf.measureDb(() => prisma.teamMembership.findMany({
+                where: { teamId: selectedTeamId },
+                orderBy: [
+                    { role: 'asc' },
+                    { email: 'asc' },
+                    { createdAt: 'asc' },
+                ],
+                select: {
+                    id: true,
+                    userId: true,
+                    email: true,
+                    role: true,
+                    user: {
                         select: {
-                            memberships: {
-                                where: { userId },
-                                select: { role: true },
-                                take: 1,
-                            }
+                            email: true,
                         }
                     }
-                },
-            }))
-            : [];
+                }
+            }));
+            const role = selectedTeam.role;
+            const owner = role === 'OWNER';
+            const [canDelete, canTransferOwnership] = await perf.measureDb(() => Promise.all([
+                canDeleteTeam(userId, selectedTeamId),
+                canTransferTeamOwnership(userId, selectedTeamId),
+            ]));
 
-        const projectIds = projects.map((project) => project.id);
-        const activeProjectRows = projectIds.length > 0
-            ? await perf.measureDb(() => prisma.testCase.findMany({
-                where: {
-                    projectId: { in: projectIds },
-                    testRuns: {
-                        some: {
-                            status: {
-                                in: [...RUN_ACTIVE_STATUSES]
-                            }
-                        }
-                    }
-                },
-                select: { projectId: true },
-                distinct: ['projectId'],
-            }))
-            : [];
-        const activeProjectIds = new Set(activeProjectRows.map((row) => row.projectId));
+            teamDetails = {
+                id: selectedTeam.id,
+                name: selectedTeam.name,
+                role,
+                canRename: owner,
+                canDelete,
+                canTransferOwnership,
+            };
 
-        const responseBody = {
+            members = memberRows.map((member) => ({
+                id: member.id,
+                userId: member.userId,
+                email: member.email ?? member.user?.email ?? null,
+                role: member.role,
+            }));
+        }
+
+        const body = {
             teams,
             currentTeam: selectedTeam
                 ? {
@@ -121,25 +138,19 @@ export async function GET(request: Request) {
                     updatedAt: selectedTeam.updatedAt,
                 }
                 : null,
-            projects: projects.map((project) => ({
-                ...project,
-                hasActiveRuns: activeProjectIds.has(project.id),
-                currentUserRole: project.team.memberships[0]?.role ?? null,
-                maxConcurrentRunsLimit: appConfig.runner.maxProjectConcurrentRuns,
-                team: undefined,
-            })),
+            teamDetails,
+            members,
         };
-        const { response, responseBytes } = createMeasuredJsonResponse(responseBody);
-        perf.log(logger, { statusCode: 200, responseBytes });
 
-        if (teamId && teamId !== cookieTeamId) {
-            setCurrentTeamCookie(response, teamId);
+        const { response, responseBytes } = createMeasuredJsonResponse(body);
+        if (selectedTeamId && selectedTeamId !== cookieTeamId) {
+            setCurrentTeamCookie(response, selectedTeamId);
         }
-
+        perf.log(logger, { statusCode: 200, responseBytes });
         return response;
     } catch (error) {
-        logger.error('Failed to resolve projects bootstrap payload', error);
-        const body = { error: 'Failed to fetch projects bootstrap payload' };
+        logger.error('Failed to resolve teams bootstrap payload', error);
+        const body = { error: 'Failed to fetch teams bootstrap payload' };
         const { response, responseBytes } = createMeasuredJsonResponse(body, { status: 500 });
         perf.log(logger, { statusCode: 500, responseBytes });
         return response;

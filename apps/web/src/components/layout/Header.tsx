@@ -10,12 +10,12 @@ import { useCurrentTeam } from '@/hooks/team/useCurrentTeam';
 import { useCreateTeam } from '@/hooks/team/useCreateTeam';
 
 export default function Header() {
-    const { isLoggedIn, user, logout, openSettings, getAccessToken } = useAuth();
+    const { isLoggedIn, isLoading: isAuthLoading, user, logout, openSettings, getAccessToken } = useAuth();
     const router = useRouter();
     const pathname = usePathname();
     const { locale, setLocale, t } = useI18n();
-    const { teams, refresh: refreshTeams } = useTeams(getAccessToken, isLoggedIn);
-    const { currentTeam, setCurrentTeam } = useCurrentTeam(getAccessToken, isLoggedIn);
+    const { teams, loading: isTeamsLoading, refresh: refreshTeams } = useTeams(getAccessToken, isLoggedIn);
+    const { currentTeam, loading: isCurrentTeamLoading, setCurrentTeam } = useCurrentTeam(getAccessToken, isLoggedIn);
 
     const localeOptions = useMemo(() => Object.keys(LOCALE_META) as Locale[], []);
 
@@ -73,6 +73,9 @@ export default function Header() {
     if (pathname === '/') {
         return null;
     }
+
+    const showSessionControls = isLoggedIn || isAuthLoading;
+    const showTeamPlaceholder = isAuthLoading || isTeamsLoading || isCurrentTeamLoading;
 
     return (
         <>
@@ -136,100 +139,110 @@ export default function Header() {
                         </div>
 
                         <div className="flex items-center gap-3">
-                            {isLoggedIn ? (
+                            {showSessionControls ? (
                                 <div className="flex items-center gap-3">
-                                    {teams.length > 0 && (
-                                        <CustomSelect
-                                            value={currentTeam?.id ?? teams[0]?.id ?? ''}
-                                            options={teams.map((team) => ({
-                                                value: team.id,
-                                                label: team.name,
-                                            }))}
-                                            onChange={(teamId) => void handleTeamChange(teamId)}
-                                            ariaLabel={t('header.team')}
-                                            buttonClassName="h-9 min-w-40 lg:min-w-56 border-gray-200 px-3 focus:ring-blue-500"
-                                            menuClassName="min-w-40 lg:min-w-56"
-                                            footerActionLabel={t('header.addTeam')}
-                                            onFooterAction={() => {
-                                                setIsCreateTeamOpen(true);
-                                                setNewTeamName('');
-                                            }}
-                                        />
-                                    )}
-
-                                    <div className="relative">
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setIsDropdownOpen(!isDropdownOpen);
-                                            }}
-                                            className="flex items-center gap-2 rounded-lg p-2 transition-colors hover:bg-gray-50 focus:outline-none"
-                                        >
-                                            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 font-semibold text-white">
-                                                {(user?.email?.[0] || 'U').toUpperCase()}
-                                            </div>
-                                            <span className="hidden max-w-[180px] truncate text-sm font-medium text-gray-700 md:block">
-                                                {user?.email || 'User'}
-                                            </span>
-                                            <svg
-                                                className={`h-4 w-4 text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`}
-                                                fill="none"
-                                                viewBox="0 0 24 24"
-                                                stroke="currentColor"
-                                            >
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                            </svg>
-                                        </button>
-
-                                        {isDropdownOpen && (
-                                            <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-lg border border-gray-100 bg-white py-2 shadow-lg">
-                                                <button
-                                                    onClick={() => openSettings()}
-                                                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                                                >
-                                                    {t('header.accountSettings')}
-                                                </button>
-
-                                                <button
-                                                    onClick={() => router.push('/teams')}
-                                                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                                                >
-                                                    {t('header.myTeams')}
-                                                </button>
-
-                                                <button
-                                                    onClick={() => router.push('/mcp')}
-                                                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                                                >
-                                                    {t('header.connectMcp')}
-                                                </button>
-
-                                                <div className="mt-2 border-t border-gray-50 px-4 pt-3">
-                                                    <div className="grid grid-cols-3 gap-1 rounded-lg bg-gray-100 p-1">
-                                                        {localeOptions.map((option) => (
-                                                            <button
-                                                                key={option}
-                                                                type="button"
-                                                                onClick={() => setLocale(option)}
-                                                                className={`rounded-md px-2 py-1.5 text-sm font-medium transition-colors ${option === locale ? 'bg-white text-primary shadow-sm' : 'text-gray-600 hover:bg-white/70'}`}
-                                                            >
-                                                                {LOCALE_META[option].label}
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                </div>
-
-                                                <div className="mt-2 border-t border-gray-50 pt-1">
-                                                    <button
-                                                        onClick={handleLogout}
-                                                        className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-                                                    >
-                                                        {t('header.logout')}
-                                                    </button>
-                                                </div>
-                                            </div>
+                                    <div className="h-9 min-w-40 lg:min-w-56">
+                                        {isLoggedIn && teams.length > 0 ? (
+                                            <CustomSelect
+                                                value={currentTeam?.id ?? teams[0]?.id ?? ''}
+                                                options={teams.map((team) => ({
+                                                    value: team.id,
+                                                    label: team.name,
+                                                }))}
+                                                onChange={(teamId) => void handleTeamChange(teamId)}
+                                                ariaLabel={t('header.team')}
+                                                buttonClassName="h-9 w-full border-gray-200 px-3 focus:ring-blue-500"
+                                                menuClassName="min-w-40 lg:min-w-56"
+                                                footerActionLabel={t('header.addTeam')}
+                                                onFooterAction={() => {
+                                                    setIsCreateTeamOpen(true);
+                                                    setNewTeamName('');
+                                                }}
+                                            />
+                                        ) : showTeamPlaceholder ? (
+                                            <div className="skeleton-block h-9 w-full" aria-hidden="true" />
+                                        ) : (
+                                            <div className="h-9 w-full" aria-hidden="true" />
                                         )}
                                     </div>
+
+                                    {isLoggedIn ? (
+                                        <div className="relative">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setIsDropdownOpen(!isDropdownOpen);
+                                                }}
+                                                className="flex items-center gap-2 rounded-lg p-2 transition-colors hover:bg-gray-50 focus:outline-none"
+                                            >
+                                                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 font-semibold text-white">
+                                                    {(user?.email?.[0] || 'U').toUpperCase()}
+                                                </div>
+                                                <span className="hidden max-w-[180px] truncate text-sm font-medium text-gray-700 md:block">
+                                                    {user?.email || 'User'}
+                                                </span>
+                                                <svg
+                                                    className={`h-4 w-4 text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`}
+                                                    fill="none"
+                                                    viewBox="0 0 24 24"
+                                                    stroke="currentColor"
+                                                >
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            </button>
+
+                                            {isDropdownOpen && (
+                                                <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-lg border border-gray-100 bg-white py-2 shadow-lg">
+                                                    <button
+                                                        onClick={() => openSettings()}
+                                                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                                    >
+                                                        {t('header.accountSettings')}
+                                                    </button>
+
+                                                    <button
+                                                        onClick={() => router.push('/teams')}
+                                                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                                    >
+                                                        {t('header.myTeams')}
+                                                    </button>
+
+                                                    <button
+                                                        onClick={() => router.push('/mcp')}
+                                                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                                    >
+                                                        {t('header.connectMcp')}
+                                                    </button>
+
+                                                    <div className="mt-2 border-t border-gray-50 px-4 pt-3">
+                                                        <div className="grid grid-cols-3 gap-1 rounded-lg bg-gray-100 p-1">
+                                                            {localeOptions.map((option) => (
+                                                                <button
+                                                                    key={option}
+                                                                    type="button"
+                                                                    onClick={() => setLocale(option)}
+                                                                    className={`rounded-md px-2 py-1.5 text-sm font-medium transition-colors ${option === locale ? 'bg-white text-primary shadow-sm' : 'text-gray-600 hover:bg-white/70'}`}
+                                                                >
+                                                                    {LOCALE_META[option].label}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="mt-2 border-t border-gray-50 pt-1">
+                                                        <button
+                                                            onClick={handleLogout}
+                                                            className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                                                        >
+                                                            {t('header.logout')}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="skeleton-block h-9 w-24 rounded-lg md:w-40" aria-hidden="true" />
+                                    )}
                                 </div>
                             ) : null}
                         </div>

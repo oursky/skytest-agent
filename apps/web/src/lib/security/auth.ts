@@ -7,8 +7,79 @@ import { getAuthgearRuntimeConfig } from '@/lib/security/authgear-config';
 const logger = createLogger('auth');
 
 let jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
+const USERINFO_EMAIL_CACHE_TTL_MS = 5 * 60 * 1000;
+const USERINFO_EMAIL_NEGATIVE_CACHE_TTL_MS = 60 * 1000;
+const USERINFO_EMAIL_CACHE_CLEANUP_INTERVAL_MS = 2 * 60 * 1000;
+const USERINFO_EMAIL_CACHE_MAX_ENTRIES = 10_000;
+
+interface CachedUserInfoEmail {
+    value: string | null;
+    expiresAtMs: number;
+}
+
+const userInfoEmailCache = new Map<string, CachedUserInfoEmail>();
+let nextUserInfoEmailCacheCleanupAtMs = 0;
 
 export type AuthPayload = NonNullable<Awaited<ReturnType<typeof verifyAuth>>>;
+
+function isUserInfoFallbackEnabled(): boolean {
+    const raw = process.env.AUTHGEAR_USERINFO_FALLBACK_ENABLED?.trim().toLowerCase();
+    return raw !== 'false';
+}
+
+function cleanupUserInfoEmailCache(nowMs: number): void {
+    if (nowMs < nextUserInfoEmailCacheCleanupAtMs) {
+        return;
+    }
+
+    nextUserInfoEmailCacheCleanupAtMs = nowMs + USERINFO_EMAIL_CACHE_CLEANUP_INTERVAL_MS;
+    for (const [key, entry] of userInfoEmailCache.entries()) {
+        if (entry.expiresAtMs <= nowMs) {
+            userInfoEmailCache.delete(key);
+        }
+    }
+}
+
+function getCachedUserInfoEmail(cacheKey: string): string | null | undefined {
+    const nowMs = Date.now();
+    cleanupUserInfoEmailCache(nowMs);
+    const entry = userInfoEmailCache.get(cacheKey);
+    if (!entry) {
+        return undefined;
+    }
+    if (entry.expiresAtMs <= nowMs) {
+        userInfoEmailCache.delete(cacheKey);
+        return undefined;
+    }
+    userInfoEmailCache.delete(cacheKey);
+    userInfoEmailCache.set(cacheKey, entry);
+    return entry.value;
+}
+
+function trimUserInfoEmailCache(): void {
+    while (userInfoEmailCache.size > USERINFO_EMAIL_CACHE_MAX_ENTRIES) {
+        const oldestCacheKey = userInfoEmailCache.keys().next().value;
+        if (typeof oldestCacheKey !== 'string') {
+            break;
+        }
+        userInfoEmailCache.delete(oldestCacheKey);
+    }
+}
+
+function setCachedUserInfoEmail(cacheKey: string, value: string | null): void {
+    const ttlMs = value ? USERINFO_EMAIL_CACHE_TTL_MS : USERINFO_EMAIL_NEGATIVE_CACHE_TTL_MS;
+    userInfoEmailCache.delete(cacheKey);
+    userInfoEmailCache.set(cacheKey, {
+        value,
+        expiresAtMs: Date.now() + ttlMs,
+    });
+    trimUserInfoEmailCache();
+}
+
+export function __resetAuthCachesForTests(): void {
+    userInfoEmailCache.clear();
+    nextUserInfoEmailCacheCleanupAtMs = 0;
+}
 
 function normalizeEmail(value: unknown): string | null {
     if (typeof value !== 'string') {
@@ -37,7 +108,14 @@ function getPayloadEmail(authPayload: Record<string, unknown>): string | null {
     return null;
 }
 
-async function fetchUserInfoEmail(accessToken: string): Promise<string | null> {
+async function fetchUserInfoEmail(accessToken: string, cacheKey?: string): Promise<string | null> {
+    if (cacheKey) {
+        const cached = getCachedUserInfoEmail(cacheKey);
+        if (cached !== undefined) {
+            return cached;
+        }
+    }
+
     const endpoint = getAuthgearRuntimeConfig().endpoint;
     if (!endpoint) {
         return null;
@@ -52,13 +130,23 @@ async function fetchUserInfoEmail(accessToken: string): Promise<string | null> {
         });
 
         if (!response.ok) {
+            if (cacheKey) {
+                setCachedUserInfoEmail(cacheKey, null);
+            }
             return null;
         }
 
         const payload = await response.json() as Record<string, unknown>;
-        return getPayloadEmail(payload);
+        const resolvedEmail = getPayloadEmail(payload);
+        if (cacheKey) {
+            setCachedUserInfoEmail(cacheKey, resolvedEmail);
+        }
+        return resolvedEmail;
     } catch (error) {
         logger.warn('Failed to fetch Authgear user info', error);
+        if (cacheKey) {
+            setCachedUserInfoEmail(cacheKey, null);
+        }
         return null;
     }
 }
@@ -235,7 +323,12 @@ export async function verifyAuth(request: Request) {
         }
 
         const { payload } = await jwtVerify(finalToken, jwks);
-        const email = getPayloadEmail(payload) ?? await fetchUserInfoEmail(finalToken);
+        const payloadEmail = getPayloadEmail(payload);
+        const authSubject = typeof payload.sub === 'string' ? payload.sub : '';
+        const email = payloadEmail
+            ?? (isUserInfoFallbackEnabled()
+                ? await fetchUserInfoEmail(finalToken, authSubject || undefined)
+                : null);
         const enrichedPayload = email ? { ...payload, email } : payload;
         try {
             const authId = (enrichedPayload.sub as string | undefined) || undefined;

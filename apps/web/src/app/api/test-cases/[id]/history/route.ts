@@ -1,8 +1,8 @@
-import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { isProjectMember } from '@/lib/security/permissions';
+import { createMeasuredJsonResponse, createRoutePerfTracker } from '@/lib/core/route-perf';
 
 const logger = createLogger('api:test-cases:history');
 
@@ -10,9 +10,13 @@ export async function GET(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
+    const perf = createRoutePerfTracker('/api/test-cases/[id]/history', request);
+    const authPayload = await perf.measureAuth(() => verifyAuth(request));
     if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        const body = { error: 'Unauthorized' };
+        const { response, responseBytes } = createMeasuredJsonResponse(body, { status: 401 });
+        perf.log(logger, { statusCode: 401, responseBytes });
+        return response;
     }
 
     try {
@@ -23,21 +27,30 @@ export async function GET(
         const skip = (page - 1) * limit;
         const includePayload = url.searchParams.get('includePayload') === '1';
 
-        const testCase = await prisma.testCase.findUnique({
+        const testCase = await perf.measureDb(() => prisma.testCase.findUnique({
             where: { id },
             select: { id: true, projectId: true }
-        });
+        }));
 
         if (!testCase) {
-            return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
+            const body = { error: 'Test case not found' };
+            const { response, responseBytes } = createMeasuredJsonResponse(body, { status: 404 });
+            perf.log(logger, { statusCode: 404, responseBytes });
+            return response;
         }
 
-        const userId = await resolveUserId(authPayload);
+        const userId = await perf.measureAuth(() => resolveUserId(authPayload));
         if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+            const body = { error: 'Unauthorized' };
+            const { response, responseBytes } = createMeasuredJsonResponse(body, { status: 401 });
+            perf.log(logger, { statusCode: 401, responseBytes });
+            return response;
         }
-        if (!await isProjectMember(userId, testCase.projectId)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        if (!await perf.measureDb(() => isProjectMember(userId, testCase.projectId))) {
+            const body = { error: 'Forbidden' };
+            const { response, responseBytes } = createMeasuredJsonResponse(body, { status: 403 });
+            perf.log(logger, { statusCode: 403, responseBytes });
+            return response;
         }
 
         const testRunsPromise = includePayload
@@ -67,7 +80,7 @@ export async function GET(
                 take: limit
             });
 
-        const [testRuns, total] = await Promise.all([
+        const [testRuns, total] = await perf.measureDb(() => Promise.all([
             testRunsPromise,
             prisma.testRun.count({
                 where: {
@@ -75,14 +88,20 @@ export async function GET(
                     deletedAt: null,
                 },
             })
-        ]);
+        ]));
 
-        return NextResponse.json({
+        const body = {
             data: testRuns,
             pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
-        });
+        };
+        const { response, responseBytes } = createMeasuredJsonResponse(body);
+        perf.log(logger, { statusCode: 200, responseBytes });
+        return response;
     } catch (error) {
         logger.error('Failed to fetch test history', error);
-        return NextResponse.json({ error: 'Failed to fetch test history' }, { status: 500 });
+        const body = { error: 'Failed to fetch test history' };
+        const { response, responseBytes } = createMeasuredJsonResponse(body, { status: 500 });
+        perf.log(logger, { statusCode: 500, responseBytes });
+        return response;
     }
 }

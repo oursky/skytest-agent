@@ -3,31 +3,23 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/app/auth-provider';
-import { Button, CenteredLoading, Modal, UnderlineTabs } from '@/components/shared';
+import {
+    Button,
+    Modal,
+    PageHeaderSkeleton,
+    SectionLoadingState,
+    UnderlineTabs,
+} from '@/components/shared';
 import TeamAiSettings from '@/components/features/team-ai/ui/TeamAiSettings';
 import TeamMembers from '@/components/features/team-members/ui/TeamMembers';
 import TeamUsage from '@/components/features/team-usage/ui/TeamUsage';
 import { TeamRunners } from '@/components/features/team-runners';
-import { useCurrentTeam } from '@/hooks/team/useCurrentTeam';
-import { dispatchTeamsChanged, useTeams } from '@/hooks/team/useTeams';
+import { useTeamsBootstrap, type TeamMemberBootstrap } from '@/hooks/team/useTeamsBootstrap';
+import { dispatchTeamsChanged } from '@/hooks/team/useTeams';
 import { useI18n } from '@/i18n';
 import { runOnEnterKey } from '@/utils/keyboard/enterKey';
-
-interface TeamDetails {
-    id: string;
-    name: string;
-    role: 'OWNER' | 'MEMBER';
-    canRename: boolean;
-    canDelete: boolean;
-    canTransferOwnership: boolean;
-}
-
-interface TeamMemberOption {
-    id: string;
-    userId: string | null;
-    email: string | null;
-    role: 'OWNER' | 'MEMBER';
-}
+import { useLoadGuard } from '@/hooks/ui/useLoadGuard';
+type TeamMemberOption = TeamMemberBootstrap;
 
 type TeamTab = 'api' | 'members' | 'runners' | 'settings';
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -46,14 +38,19 @@ export default function TeamsPage() {
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const { t } = useI18n();
-    const { teams, loading: areTeamsLoading, refresh: refreshTeams } = useTeams(getAccessToken, isLoggedIn);
+    const requestedTeamId = searchParams.get('teamId')?.trim() || '';
     const {
+        teams,
         currentTeam: selectedTeam,
-        loading: isCurrentTeamLoading,
+        teamDetails,
+        members,
+        loading: isTeamsBootstrapLoading,
+        isInitialLoading: isTeamsInitialLoading,
+        isRefreshing: isTeamsRefreshing,
+        error: bootstrapError,
+        refresh: refreshTeamsBootstrap,
         setCurrentTeam,
-    } = useCurrentTeam(getAccessToken, isLoggedIn);
-    const [teamDetails, setTeamDetails] = useState<TeamDetails | null>(null);
-    const [transferCandidates, setTransferCandidates] = useState<TeamMemberOption[]>([]);
+    } = useTeamsBootstrap(getAccessToken, requestedTeamId, isLoggedIn && !isAuthLoading);
     const [renameValue, setRenameValue] = useState('');
     const [transferEmail, setTransferEmail] = useState('');
     const [transferTarget, setTransferTarget] = useState<TeamMemberOption | null>(null);
@@ -64,6 +61,7 @@ export default function TeamsPage() {
     const [isDeletingTeamTransition, setIsDeletingTeamTransition] = useState(false);
     const [deleteConfirmationValue, setDeleteConfirmationValue] = useState('');
     const [error, setError] = useState<string | null>(null);
+    const { isSlow, isStalled } = useLoadGuard(isTeamsInitialLoading || isTeamsRefreshing || isDeletingTeamTransition);
 
     const currentTeam = useMemo(() => {
         if (!selectedTeam) {
@@ -74,34 +72,9 @@ export default function TeamsPage() {
     }, [selectedTeam, teams]);
 
     const eligibleTransferCandidates = useMemo(
-        () => transferCandidates.filter((member) => member.role !== 'OWNER' && member.userId && member.email),
-        [transferCandidates]
+        () => members.filter((member) => member.role !== 'OWNER' && member.userId && member.email),
+        [members]
     );
-
-    const loadTeamDetails = useCallback(async (teamId: string) => {
-        const token = await getAccessToken();
-        const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
-
-        const [detailsResponse, membersResponse] = await Promise.all([
-            fetch(`/api/teams/${teamId}`, { headers }),
-            fetch(`/api/teams/${teamId}/members`, { headers }),
-        ]);
-
-        if (!detailsResponse.ok || !membersResponse.ok) {
-            throw new Error('Failed to load team details');
-        }
-
-        const details = await detailsResponse.json() as TeamDetails;
-        const membersData = await membersResponse.json() as { members: TeamMemberOption[] };
-        setTeamDetails(details);
-        setRenameValue(details.name);
-        setIsEditingSettings(false);
-        setTransferCandidates(membersData.members);
-        setTransferEmail('');
-        setTransferEmailError(null);
-        setTransferTarget(null);
-        setIsTransferOpen(false);
-    }, [getAccessToken]);
 
     useEffect(() => {
         if (!isAuthLoading && !isLoggedIn) {
@@ -114,28 +87,13 @@ export default function TeamsPage() {
             return;
         }
 
-        if (!isAuthLoading && isLoggedIn && !areTeamsLoading && teams.length === 0) {
+        if (!isAuthLoading && isLoggedIn && !isTeamsBootstrapLoading && teams.length === 0) {
             router.push('/welcome');
         }
-    }, [areTeamsLoading, isAuthLoading, isDeletingTeamTransition, isLoggedIn, teams.length, router]);
-
-    useEffect(() => {
-        if (isDeletingTeamTransition) {
-            return;
-        }
-
-        if (!currentTeam || teams.length === 0) {
-            return;
-        }
-
-        queueMicrotask(() => {
-            void loadTeamDetails(currentTeam.id).catch(() => {
-                setError(t('team.page.error.load'));
-            });
-        });
-    }, [currentTeam, isDeletingTeamTransition, teams.length, loadTeamDetails, t]);
+    }, [isTeamsBootstrapLoading, isAuthLoading, isDeletingTeamTransition, isLoggedIn, teams.length, router]);
 
     const activeTab = resolveTeamTab(searchParams.get('tab'));
+    const visibleError = error || (bootstrapError ? t('team.page.error.load') : null);
 
     const canAccessSettings = teamDetails !== null && (
         teamDetails.canRename ||
@@ -184,9 +142,8 @@ export default function TeamsPage() {
 
             setIsEditingSettings(false);
             dispatchTeamsChanged();
-            await refreshTeams();
+            await refreshTeamsBootstrap();
             setError(null);
-            await loadTeamDetails(currentTeam.id);
         } catch {
             setError(t('team.page.error.rename'));
         }
@@ -241,13 +198,12 @@ export default function TeamsPage() {
                 return;
             }
 
-            await refreshTeams();
+            await refreshTeamsBootstrap();
             setIsTransferOpen(false);
             setTransferEmail('');
             setTransferEmailError(null);
             setTransferTarget(null);
             setError(null);
-            await loadTeamDetails(currentTeam.id);
         } catch {
             setTransferEmailError(t('team.page.error.transfer'));
         }
@@ -279,7 +235,7 @@ export default function TeamsPage() {
 
             const nextTeamId = teams.find((team) => team.id !== currentTeam.id)?.id ?? null;
             dispatchTeamsChanged();
-            await refreshTeams();
+            await refreshTeamsBootstrap();
             if (nextTeamId) {
                 await setCurrentTeam(nextTeamId);
                 router.push('/projects');
@@ -298,12 +254,41 @@ export default function TeamsPage() {
         }
 
         dispatchTeamsChanged();
-        await refreshTeams();
-        await loadTeamDetails(currentTeam.id);
-    }, [currentTeam, loadTeamDetails, refreshTeams]);
+        await refreshTeamsBootstrap();
+    }, [currentTeam, refreshTeamsBootstrap]);
 
-    if (isAuthLoading || areTeamsLoading || isCurrentTeamLoading || isDeletingTeamTransition) {
-        return <CenteredLoading className="min-h-screen" />;
+    if (isAuthLoading || (isTeamsInitialLoading && !currentTeam && teams.length === 0)) {
+        return (
+            <main className="min-h-screen bg-gray-50">
+                <div className="max-w-7xl mx-auto px-8 py-8">
+                    <PageHeaderSkeleton withAction={false} />
+                    <div className="mb-6 flex gap-3">
+                        <div className="skeleton-block h-9 w-20 rounded-full" />
+                        <div className="skeleton-block h-9 w-24 rounded-full" />
+                        <div className="skeleton-block h-9 w-24 rounded-full" />
+                        <div className="skeleton-block h-9 w-24 rounded-full" />
+                    </div>
+                    <div className="space-y-6">
+                        <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+                            <div className="skeleton-block h-5 w-40" />
+                            <div className="mt-4 space-y-3">
+                                <div className="skeleton-block h-4 w-full" />
+                                <div className="skeleton-block h-4 w-10/12" />
+                                <div className="skeleton-block h-4 w-8/12" />
+                            </div>
+                        </section>
+                        <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+                            <div className="skeleton-block h-5 w-36" />
+                            <div className="mt-4 space-y-3">
+                                <div className="skeleton-block h-4 w-full" />
+                                <div className="skeleton-block h-4 w-9/12" />
+                                <div className="skeleton-block h-4 w-11/12" />
+                            </div>
+                        </section>
+                    </div>
+                </div>
+            </main>
+        );
     }
 
     return (
@@ -363,150 +348,159 @@ export default function TeamsPage() {
             </Modal>
 
             <div className="max-w-7xl mx-auto px-8 py-8">
-                <h1 className="text-3xl font-bold text-gray-900 mb-4">{t('team.page.title')}</h1>
+                <div className="mb-4 flex items-center justify-between">
+                    <h1 className="text-3xl font-bold text-gray-900">{t('team.page.title')}</h1>
+                </div>
 
-                {error && (
-                    <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                        {error}
-                    </div>
-                )}
-
-                {currentTeam && teamDetails?.id === currentTeam.id && (
-                    <>
-                        <div className="mb-6">
-                            <UnderlineTabs
-                                tabs={tabItems}
-                                activeTab={visibleTab}
-                                onChange={handleTabChange}
-                            />
-                        </div>
-
-                        {visibleTab === 'api' && (
-                            <div className="space-y-6">
-                                <TeamAiSettings teamId={currentTeam.id} />
-                                <TeamUsage teamId={currentTeam.id} />
+                <SectionLoadingState
+                    state={visibleError ? 'error' : ((isTeamsRefreshing || isDeletingTeamTransition) ? 'refreshing' : 'idle')}
+                    errorMessage={visibleError}
+                    isSlow={isSlow}
+                    isStalled={isStalled}
+                    onRetry={() => {
+                        void refreshTeamsBootstrap();
+                    }}
+                >
+                    {currentTeam && teamDetails?.id === currentTeam.id && (
+                        <>
+                            <div className="mb-6">
+                                <UnderlineTabs
+                                    tabs={tabItems}
+                                    activeTab={visibleTab}
+                                    onChange={handleTabChange}
+                                />
                             </div>
-                        )}
 
-                        {visibleTab === 'members' && (
-                            <TeamMembers
-                                teamId={currentTeam.id}
-                                onMembersChanged={handleMembersChanged}
-                            />
-                        )}
+                            {visibleTab === 'api' && (
+                                <div className="space-y-6">
+                                    <TeamAiSettings teamId={currentTeam.id} />
+                                    <TeamUsage teamId={currentTeam.id} />
+                                </div>
+                            )}
 
-                        {visibleTab === 'runners' && (
-                            <TeamRunners teamId={currentTeam.id} />
-                        )}
+                            {visibleTab === 'members' && (
+                                <TeamMembers
+                                    teamId={currentTeam.id}
+                                    onMembersChanged={handleMembersChanged}
+                                />
+                            )}
 
-                        {visibleTab === 'settings' && canAccessSettings && (
-                            <div className="space-y-6">
-                                <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-                                    <h2 className="text-base font-semibold text-gray-900">{t('team.page.settings.name')}</h2>
-                                    <div className="mt-4 flex flex-wrap items-center gap-3">
-                                        <input
-                                            type="text"
-                                            value={renameValue}
-                                            onChange={(event) => setRenameValue(event.target.value)}
-                                            onKeyDown={(event) => {
-                                                runOnEnterKey(event, () => {
-                                                    void renameTeam();
-                                                }, {
-                                                    enabled: isEditingSettings && teamDetails.canRename,
-                                                });
-                                            }}
-                                            disabled={!teamDetails.canRename || !isEditingSettings}
-                                            className="h-10 w-full max-w-sm rounded-md border border-gray-300 px-4 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:bg-gray-50"
-                                        />
-                                        {teamDetails.canRename && (
-                                            isEditingSettings ? (
-                                                <div className="flex gap-2">
-                                                    <Button
-                                                        onClick={() => void renameTeam()}
-                                                        variant="primary"
-                                                        size="sm"
-                                                    >
-                                                        {t('team.page.settings.save')}
-                                                    </Button>
+                            {visibleTab === 'runners' && (
+                                <TeamRunners teamId={currentTeam.id} />
+                            )}
+
+                            {visibleTab === 'settings' && canAccessSettings && (
+                                <div className="space-y-6">
+                                    <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+                                        <h2 className="text-base font-semibold text-gray-900">{t('team.page.settings.name')}</h2>
+                                        <div className="mt-4 flex flex-wrap items-center gap-3">
+                                            <input
+                                                type="text"
+                                                value={isEditingSettings ? renameValue : teamDetails.name}
+                                                onChange={(event) => setRenameValue(event.target.value)}
+                                                onKeyDown={(event) => {
+                                                    runOnEnterKey(event, () => {
+                                                        void renameTeam();
+                                                    }, {
+                                                        enabled: isEditingSettings && teamDetails.canRename,
+                                                    });
+                                                }}
+                                                disabled={!teamDetails.canRename || !isEditingSettings}
+                                                className="h-10 w-full max-w-sm rounded-md border border-gray-300 px-4 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:bg-gray-50"
+                                            />
+                                            {teamDetails.canRename && (
+                                                isEditingSettings ? (
+                                                    <div className="flex gap-2">
+                                                        <Button
+                                                            onClick={() => void renameTeam()}
+                                                            variant="primary"
+                                                            size="sm"
+                                                        >
+                                                            {t('team.page.settings.save')}
+                                                        </Button>
+                                                        <Button
+                                                            onClick={() => {
+                                                                setRenameValue(teamDetails.name);
+                                                                setIsEditingSettings(false);
+                                                            }}
+                                                            variant="secondary"
+                                                            size="sm"
+                                                        >
+                                                            {t('common.cancel')}
+                                                        </Button>
+                                                    </div>
+                                                ) : (
                                                     <Button
                                                         onClick={() => {
                                                             setRenameValue(teamDetails.name);
-                                                            setIsEditingSettings(false);
+                                                            setIsEditingSettings(true);
                                                         }}
                                                         variant="secondary"
                                                         size="sm"
                                                     >
-                                                        {t('common.cancel')}
+                                                        {t('team.page.settings.edit')}
                                                     </Button>
-                                                </div>
-                                            ) : (
-                                                <Button
-                                                    onClick={() => setIsEditingSettings(true)}
-                                                    variant="secondary"
-                                                    size="sm"
-                                                >
-                                                    {t('team.page.settings.edit')}
-                                                </Button>
-                                            )
-                                        )}
-                                    </div>
-                                </section>
-
-                                {teamDetails.canTransferOwnership && (
-                                    <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-                                        <h2 className="text-base font-semibold text-gray-900">{t('team.page.transfer.title')}</h2>
-                                        <p className="mt-1 text-sm text-gray-500">{t('team.page.transfer.subtitle')}</p>
-                                        <div className="mt-4 max-w-sm space-y-2">
-                                            <label className="block text-sm font-medium text-gray-700">
-                                                {t('team.page.transfer.emailLabel')}
-                                            </label>
-                                            <input
-                                                type="email"
-                                                value={transferEmail}
-                                                onChange={(event) => {
-                                                    setTransferEmail(event.target.value);
-                                                    setTransferEmailError(null);
-                                                }}
-                                                placeholder={t('team.page.transfer.emailPlaceholder')}
-                                                className="h-10 w-full rounded-md border border-gray-300 px-3 focus:outline-none focus:ring-2 focus:ring-primary/50"
-                                            />
-                                            {transferEmailError && (
-                                                <p className="text-sm text-red-600">{transferEmailError}</p>
+                                                )
                                             )}
                                         </div>
-                                        <Button
-                                            onClick={openTransferDialog}
-                                            disabled={eligibleTransferCandidates.length === 0}
-                                            variant="danger"
-                                            size="sm"
-                                            className="mt-3"
-                                        >
-                                            {t('team.page.transfer.confirm')}
-                                        </Button>
-                                        {eligibleTransferCandidates.length === 0 && (
-                                            <p className="mt-2 text-sm text-gray-500">{t('team.page.transfer.noEligibleMembers')}</p>
-                                        )}
                                     </section>
-                                )}
 
-                                {teamDetails.canDelete && (
-                                    <section className="rounded-lg border border-red-200 bg-red-50 p-6 shadow-sm">
-                                        <h2 className="text-base font-semibold text-red-700">{t('team.page.delete.zoneTitle')}</h2>
-                                        <p className="mt-1 text-sm text-red-600">{t('team.page.delete.zoneSubtitle')}</p>
-                                        <Button
-                                            onClick={() => setIsDeleteOpen(true)}
-                                            variant="danger"
-                                            size="sm"
-                                            className="mt-4"
-                                        >
-                                            {t('team.page.delete.open')}
-                                        </Button>
-                                    </section>
-                                )}
-                            </div>
-                        )}
-                    </>
-                )}
+                                    {teamDetails.canTransferOwnership && (
+                                        <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+                                            <h2 className="text-base font-semibold text-gray-900">{t('team.page.transfer.title')}</h2>
+                                            <p className="mt-1 text-sm text-gray-500">{t('team.page.transfer.subtitle')}</p>
+                                            <div className="mt-4 max-w-sm space-y-2">
+                                                <label className="block text-sm font-medium text-gray-700">
+                                                    {t('team.page.transfer.emailLabel')}
+                                                </label>
+                                                <input
+                                                    type="email"
+                                                    value={transferEmail}
+                                                    onChange={(event) => {
+                                                        setTransferEmail(event.target.value);
+                                                        setTransferEmailError(null);
+                                                    }}
+                                                    placeholder={t('team.page.transfer.emailPlaceholder')}
+                                                    className="h-10 w-full rounded-md border border-gray-300 px-3 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                                />
+                                                {transferEmailError && (
+                                                    <p className="text-sm text-red-600">{transferEmailError}</p>
+                                                )}
+                                            </div>
+                                            <Button
+                                                onClick={openTransferDialog}
+                                                disabled={eligibleTransferCandidates.length === 0}
+                                                variant="danger"
+                                                size="sm"
+                                                className="mt-3"
+                                            >
+                                                {t('team.page.transfer.confirm')}
+                                            </Button>
+                                            {eligibleTransferCandidates.length === 0 && (
+                                                <p className="mt-2 text-sm text-gray-500">{t('team.page.transfer.noEligibleMembers')}</p>
+                                            )}
+                                        </section>
+                                    )}
+
+                                    {teamDetails.canDelete && (
+                                        <section className="rounded-lg border border-red-200 bg-red-50 p-6 shadow-sm">
+                                            <h2 className="text-base font-semibold text-red-700">{t('team.page.delete.zoneTitle')}</h2>
+                                            <p className="mt-1 text-sm text-red-600">{t('team.page.delete.zoneSubtitle')}</p>
+                                            <Button
+                                                onClick={() => setIsDeleteOpen(true)}
+                                                variant="danger"
+                                                size="sm"
+                                                className="mt-4"
+                                            >
+                                                {t('team.page.delete.open')}
+                                            </Button>
+                                        </section>
+                                    )}
+                                </div>
+                            )}
+                        </>
+                    )}
+                </SectionLoadingState>
             </div>
         </main>
     );
