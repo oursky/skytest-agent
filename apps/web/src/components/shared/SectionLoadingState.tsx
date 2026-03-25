@@ -32,7 +32,7 @@ export default function SectionLoadingState({
             {state === 'refreshing' && (
                 <div className="flex justify-end">
                     <span className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs text-gray-600 shadow-sm">
-                        <span className="h-2 w-2 animate-pulse rounded-full bg-blue-500" />
+                        <span className="loading-dot-pulse h-2 w-2 rounded-full bg-blue-500" />
                         Refreshing
                     </span>
                 </div>
