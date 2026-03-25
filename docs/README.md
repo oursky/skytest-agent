@@ -18,6 +18,7 @@ This repository keeps durable documentation in two tracks:
 - [Coding agent maintenance guide](./maintainers/coding-agent-maintenance-guide.md)
 - [Android runtime maintenance](./maintainers/android-runtime-maintenance.md)
 - [Runner queue diagnostics](./maintainers/runner-queue-diagnostics.md)
+- [Performance observability reference](./maintainers/performance-observability-reference.md)
 - [Frontend runtime debugging](./maintainers/frontend-runtime-debugging.md)
 - [MCP server tooling](./maintainers/mcp-server-tooling.md)
 - [CLI release and Homebrew flow](./maintainers/cli-release-homebrew.md)
