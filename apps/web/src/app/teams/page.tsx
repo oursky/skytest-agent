@@ -5,7 +5,6 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/app/auth-provider';
 import {
     Button,
-    LastUpdatedBadge,
     Modal,
     PageHeaderSkeleton,
     SectionLoadingState,
@@ -48,7 +47,6 @@ export default function TeamsPage() {
         loading: isTeamsBootstrapLoading,
         isInitialLoading: isTeamsInitialLoading,
         isRefreshing: isTeamsRefreshing,
-        lastUpdatedAt,
         error: bootstrapError,
         refresh: refreshTeamsBootstrap,
         setCurrentTeam,
@@ -352,7 +350,6 @@ export default function TeamsPage() {
             <div className="max-w-7xl mx-auto px-8 py-8">
                 <div className="mb-4 flex items-center justify-between">
                     <h1 className="text-3xl font-bold text-gray-900">{t('team.page.title')}</h1>
-                    <LastUpdatedBadge lastUpdatedAt={lastUpdatedAt} />
                 </div>
 
                 <SectionLoadingState

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, use, useRef } from "react";
 import { useAuth } from "../../../auth-provider";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { LastUpdatedBadge, Modal, Pagination, SectionLoadingState } from "@/components/shared";
+import { Modal, Pagination, SectionLoadingState } from "@/components/shared";
 import { Breadcrumbs } from "@/components/layout";
 import { formatDateTime } from "@/utils/time/dateFormatter";
 import { useI18n } from "@/i18n";
@@ -48,7 +48,6 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
     const [projectName, setProjectName] = useState<string>("");
     const [isLoading, setIsLoading] = useState(true);
     const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
-    const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; runId: string; status?: TestStatus | '' }>({ isOpen: false, runId: "", status: "" });
     const parsedPage = Number.parseInt(searchParams.get('page') || '1', 10);
@@ -102,7 +101,6 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
                 const runs = Array.isArray(result.data) ? result.data : [];
                 setTestRuns(runs);
                 setTotalRuns(result.pagination?.total ?? runs.length);
-                setLastUpdatedAt(Date.now());
                 setLoadError(null);
                 const elapsedMs = Math.max(0, performance.now() - requestStartedAt);
                 reportClientMetric({
@@ -297,7 +295,6 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
 
                 <div className="mb-8 flex items-center justify-between">
                     <h1 className="text-3xl font-bold text-gray-900">{t('history.title')}</h1>
-                    <LastUpdatedBadge lastUpdatedAt={lastUpdatedAt} />
                 </div>
 
                 <SectionLoadingState

@@ -31,7 +31,6 @@ export function useProjectsBootstrap(
     const [loading, setLoading] = useState(false);
     const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
     const hasLoadedOnceRef = useRef(false);
 
     useEffect(() => {
@@ -46,7 +45,6 @@ export function useProjectsBootstrap(
             setCurrentTeam(null);
             setProjects([]);
             setError(null);
-            setLastUpdatedAt(null);
             return;
         }
 
@@ -77,7 +75,6 @@ export function useProjectsBootstrap(
             setCurrentTeam(payload.currentTeam);
             setProjects(payload.projects);
             setError(null);
-            setLastUpdatedAt(Date.now());
             const elapsedMs = Math.max(0, performance.now() - requestStartedAt);
             reportClientMetric({
                 name: wasRefreshRequest ? 'LOAD_REFRESH_VISIBLE' : 'LOAD_DATA_READY',
@@ -174,7 +171,6 @@ export function useProjectsBootstrap(
         isInitialLoading: enabled && !hasLoadedOnce,
         isRefreshing: enabled && hasLoadedOnce && loading,
         hasLoadedOnce,
-        lastUpdatedAt,
         error,
         refresh,
         setCurrentTeam: persistCurrentTeam,

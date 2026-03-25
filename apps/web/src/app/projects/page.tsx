@@ -6,7 +6,6 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
     Button,
-    LastUpdatedBadge,
     Modal,
     PageHeaderSkeleton,
     SectionLoadingState,
@@ -32,7 +31,6 @@ export default function ProjectsPage() {
         loading: isProjectsBootstrapLoading,
         isInitialLoading: isProjectsInitialLoading,
         isRefreshing: isProjectsRefreshing,
-        lastUpdatedAt,
         refresh,
         error: bootstrapError,
         setCurrentTeam,
@@ -293,7 +291,6 @@ export default function ProjectsPage() {
                 <div className="flex justify-between items-center mb-8">
                     <h1 className="text-3xl font-bold text-gray-900">{t('projects.title')}</h1>
                     <div className="flex items-center gap-3">
-                        <LastUpdatedBadge lastUpdatedAt={lastUpdatedAt} />
                         {teams.length > 0 && canManageProjects && (
                             <Button
                                 onClick={() => setIsCreating(true)}

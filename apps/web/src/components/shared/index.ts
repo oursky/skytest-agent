@@ -11,5 +11,4 @@ export { default as UnderlineTabs } from './UnderlineTabs';
 export { default as PageHeaderSkeleton } from './PageHeaderSkeleton';
 export { default as PanelSkeleton } from './PanelSkeleton';
 export { default as TableRowsSkeleton } from './TableRowsSkeleton';
-export { default as LastUpdatedBadge } from './LastUpdatedBadge';
 export { default as SectionLoadingState } from './SectionLoadingState';

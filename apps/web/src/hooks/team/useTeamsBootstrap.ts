@@ -48,7 +48,6 @@ export function useTeamsBootstrap(
     const [loading, setLoading] = useState(false);
     const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
     const hasLoadedOnceRef = useRef(false);
 
     useEffect(() => {
@@ -64,7 +63,6 @@ export function useTeamsBootstrap(
             setLoading(false);
             setHasLoadedOnce(false);
             setError(null);
-            setLastUpdatedAt(null);
             return;
         }
 
@@ -95,7 +93,6 @@ export function useTeamsBootstrap(
             setTeamDetails(payload.teamDetails);
             setMembers(payload.members);
             setError(null);
-            setLastUpdatedAt(Date.now());
             const elapsedMs = Math.max(0, performance.now() - requestStartedAt);
             reportClientMetric({
                 name: wasRefreshRequest ? 'LOAD_REFRESH_VISIBLE' : 'LOAD_DATA_READY',
@@ -184,7 +181,6 @@ export function useTeamsBootstrap(
         isInitialLoading: enabled && !hasLoadedOnce,
         isRefreshing: enabled && hasLoadedOnce && loading,
         hasLoadedOnce,
-        lastUpdatedAt,
         error,
         refresh,
         setCurrentTeam: persistCurrentTeam,
