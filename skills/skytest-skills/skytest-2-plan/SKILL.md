@@ -2,9 +2,9 @@
 name: skytest-2-plan
 description: >
   Design prioritized test cases from a UI skeleton document produced by
-  skytest-1-learn. Classifies flows by business risk, designs happy path
+  skytest-1-explore. Classifies flows by business risk, designs happy path
   and edge case coverage, and produces a step-by-step test plan referencing
-  specific UI elements. Output feeds into skytest-3-manage for MCP execution.
+  specific UI elements. Output feeds into skytest-3-tools for MCP execution.
   Use when the user has a UI skeleton and wants to design test cases before
   creating them in SkyTest.
 ---
@@ -15,22 +15,22 @@ Design test cases with risk-based prioritization from a UI skeleton.
 
 ## Non-Negotiable Rules
 
-- **Never guess a UI step** — if the skeleton is unclear about an element's label, type, or location, ask the user or suggest re-running `/skytest-1-learn` for that screen.
+- **Never guess a UI step** — if the skeleton is unclear about an element's label, type, or location, ask the user or suggest re-running `/skytest-1-explore` for that screen.
 - **Never design test cases for un-automatable flows** without explicitly flagging them (see Automation Boundaries below).
 - **Every test case must be self-contained** — no test depends on another test having run first.
-- **Do not proceed to `/skytest-3-manage`** until the user explicitly confirms the test plan.
+- **Do not proceed to `/skytest-3-tools`** until the user explicitly confirms the test plan.
 - **Never force a test case that can't be fully automated.** If a step requires something outside SkyTest's capabilities, flag it honestly and suggest manual testing.
 
 ## Input
 
-Expects a **UI skeleton document** from `/skytest-1-learn`. The skeleton must include:
+Expects a **UI skeleton document** from `/skytest-1-explore`. The skeleton must include:
 - Screens with interactive elements and display elements
 - Navigation flow between screens
-- Authentication details and login flow selectors (if captured)
+- Authentication details, login flow selectors, and login Playwright code (if browser-verified)
 - Any automation flags
 
 If the user doesn't have a skeleton, either:
-1. Suggest running `/skytest-1-learn` first, or
+1. Suggest running `/skytest-1-explore` first, or
 2. Accept equivalent information (screenshots + written descriptions) and work from that — but note that coverage quality depends on input completeness.
 
 ## Automation Boundaries
@@ -102,51 +102,17 @@ Every test case must be self-contained:
 - Does not depend on another test case having run first
 - Notes any preconditions requiring manual data setup (e.g., "requires at least one existing record in the list")
 
-### 5. Generate Login Step
+### 5. Adopt Login Step from UI Skeleton
 
-The login step is the first step in most test cases. It must be accurate because every test case reuses it.
+The login step is the first step in most test cases. Its accuracy depends on how it was captured during `/skytest-1-explore`.
 
-#### When the skeleton has verified login selectors (`Verified: yes`)
+#### When the skeleton includes login Playwright code (`Verified: yes`)
 
-Generate a **single `playwright-code` step** that covers the entire login flow. Build the code directly from the Login Flow Selectors table — each row maps to one Playwright call:
+The UI skeleton from `/skytest-1-explore` includes pre-generated and verified Playwright code for the login flow. **Adopt it as-is** — include it verbatim as a single `playwright-code` Step 1. Do not modify the selectors or assertions.
 
-| Selector Action | Playwright Code |
-|-----------------|----------------|
-| `assert` heading "X" | `await expect(page.getByRole('heading', { name: 'X' })).toBeVisible();` |
-| `assert` text "X" | `await expect(page.getByText('X')).toBeVisible();` |
-| `fill` textbox "X" → VAR | `await page.getByRole('textbox', { name: 'X' }).fill(vars['VAR']);` |
-| `click` button "X" | `await page.getByRole('button', { name: 'X' }).click();` |
-| `click` link "X" | `await page.getByRole('link', { name: 'X' }).click();` |
-| `click` text "X" | `await page.getByText('X').click();` |
+#### When the skeleton does NOT have Playwright code (`Verified: no` or missing)
 
-**Rules for login Playwright code:**
-- Walk through each state in order, translating every row to its Playwright equivalent
-- Insert `await expect(...).toBeVisible()` assertions **between screen transitions** to confirm the next state loaded before interacting with it
-- Use `vars['VARIABLE_NAME']` for all credential values — never hardcode
-- End with a post-login assertion (e.g., `await expect(page.getByText('Hi, User')).toBeVisible();`)
-- Use `{ name: 'X' }` with the **exact text** from the selector table — do not paraphrase or translate
-- Use `{ exact: true }` when the name could partially match other elements on the page
-
-**Example** (from a multi-step login with ID → password → OTP):
-
-```javascript
-await expect(page.getByText('登入平台管理系統')).toBeVisible();
-await page.getByText('登入').click();
-await expect(page.getByRole('heading', { name: '登入管理系統' })).toBeVisible();
-await page.getByRole('textbox', { name: '員工編號' }).fill(vars['LOGIN_ID']);
-await page.getByRole('button', { name: '登入' }).click();
-await expect(page.getByRole('heading', { name: '輸入密碼' })).toBeVisible();
-await page.getByRole('textbox', { name: '目前密碼' }).fill(vars['LOGIN_PW']);
-await page.getByRole('button', { name: '繼續' }).click();
-await expect(page.getByRole('heading', { name: '驗證碼', exact: true })).toBeVisible();
-await page.getByRole('textbox').click();
-await page.getByRole('textbox').fill(vars['LOGIN_FIXED_OTP']);
-await expect(page.getByText('Hi, User')).toBeVisible();
-```
-
-#### When the skeleton does NOT have verified selectors (`Verified: no` or missing)
-
-**Do NOT attempt to generate Playwright code.** Guessing selectors from screenshots produces code that fails at runtime — a test case that fails every run is worse than one that uses AI actions.
+**Do NOT attempt to generate Playwright code.** Guessing selectors produces code that fails at runtime — a test case that fails every run is worse than one that uses AI actions.
 
 Fall back to `ai-action` steps for login:
 ```
@@ -157,7 +123,7 @@ Fall back to `ai-action` steps for login:
 5. [LOGIN] Verify "Hi, User" is visible
 ```
 
-Note in the plan: "Login uses ai-action — selectors were not verified. To upgrade to playwright-code, re-run `/skytest-1-learn` with a browser tool for the login flow."
+Note in the plan: "Login uses ai-action — selectors were not verified. To upgrade to playwright-code, re-run `/skytest-1-explore` with a browser tool for the login flow."
 
 #### Reuse across test cases
 
@@ -244,12 +210,13 @@ Ask: "Does this test plan cover the right scenarios? Any cases to add, modify, o
 ## Login Step
 
 **Type:** playwright-code | ai-action
+**Source:** UI skeleton from `/skytest-1-explore`
 **Selectors verified:** yes | no
 
-(If playwright-code, include the full code block here once. All test cases reference it as Step 1.)
+(If playwright-code, copy the login code from the UI skeleton's **Login Playwright Code** section. All test cases reference it as Step 1.)
 
 ```javascript
-// Example — only include if selectors are verified
+// Copied from UI skeleton — do not modify
 await expect(page.getByRole('heading', { name: 'Sign In' })).toBeVisible();
 await page.getByRole('textbox', { name: 'Email address' }).fill(vars['LOGIN_EMAIL']);
 await page.getByRole('textbox', { name: 'Password' }).fill(vars['LOGIN_PASSWORD']);
@@ -322,6 +289,6 @@ Every test case name must follow: `[Section] Short description` (e.g., `[Auth] L
 
 ## Next Step
 
-Once the user confirms the test plan, suggest: **"Run `/skytest-3-manage` with this test plan to create the test cases in SkyTest."**
+Once the user confirms the test plan, suggest: **"Run `/skytest-3-tools` with this test plan to create the test cases in SkyTest."**
 
-If the user wants to add coverage for another section, suggest running `/skytest-1-learn` for the new section first.
+If the user wants to add coverage for another section, suggest running `/skytest-1-explore` for the new section first.

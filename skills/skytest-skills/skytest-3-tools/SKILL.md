@@ -1,5 +1,5 @@
 ---
-name: skytest-3-manage
+name: skytest-3-tools
 description: >
   Execute SkyTest MCP operations: create, update, delete, and run test cases.
   Takes a test plan from skytest-2-plan and translates it into MCP API calls
@@ -51,7 +51,7 @@ Expects a **confirmed test plan** from `/skytest-2-plan`. The plan provides:
 - Variables needed (test-case level) and project-level reuse notes
 - Target platform (browser or Android)
 
-If the user doesn't have a test plan, accept direct instructions for individual operations (create, update, run, delete, etc.). For best coverage quality, recommend running `/skytest-1-learn` then `/skytest-2-plan` first.
+If the user doesn't have a test plan, accept direct instructions for individual operations (create, update, run, delete, etc.). For best coverage quality, recommend running `/skytest-1-explore` then `/skytest-2-plan` first.
 
 ## Workflow
 
@@ -111,7 +111,7 @@ Use `delete_test_case` with confirmation. Deletion removes the test case and all
 Steps default to `type: "ai-action"` — natural language executed by Midscene AI.
 
 Use `type: "playwright-code"` when the step needs precise, deterministic interaction that AI might interpret ambiguously. Common cases:
-- **Login flows** — when the test plan includes verified Playwright code from `/skytest-2-plan`
+- **Login flows** — when the test plan includes verified Playwright code (originally generated in `/skytest-1-explore`)
 - **Navigation** — sidebar menus, hierarchical menu clicks, tab switching where labels may be ambiguous
 - **Dropdown selection** — selecting specific options from `<select>` elements
 - **Any step the user provides explicit Playwright code for**
@@ -131,7 +131,7 @@ The login step is typically Step 1 in every test case. How it is created depends
 - These use `{{VARIABLE_NAME}}` syntax for credentials
 - This is the safe fallback — Midscene AI will locate elements at runtime
 
-**Never generate Playwright code for login yourself.** Login code accuracy is established in `/skytest-1-learn` (selector capture) and `/skytest-2-plan` (code generation). If the plan says ai-action, use ai-action. Do not attempt to upgrade it.
+**Never generate Playwright code for login yourself.** Login code accuracy is established in `/skytest-1-explore` (selector capture and code generation). If the plan says ai-action, use ai-action. Do not attempt to upgrade it.
 
 ### ai-action Steps
 

@@ -1,15 +1,16 @@
 ---
-name: skytest-1-learn
+name: skytest-1-explore
 description: >
-  Study a target web or mobile app section and produce a structured UI skeleton
-  document. Use when starting test coverage for a new feature or section. Accepts
+  Explore a target web or mobile app section, produce a structured UI skeleton
+  document, and generate verified Playwright login code when browser tools are
+  available. Use when starting test coverage for a new feature or section. Accepts
   input from Chrome DevTools MCP, browser-use CLI, Claude in Chrome, or user-provided
   screenshots. Output feeds into skytest-2-plan for test case design.
 ---
 
-# SkyTest Understand Skill
+# SkyTest Explore Skill
 
-Study the target app section and produce a structured UI skeleton document.
+Explore the target app section, produce a structured UI skeleton document, and generate verified login Playwright code.
 
 ## Non-Negotiable Rules
 
@@ -124,7 +125,7 @@ Before studying any feature screen, establish:
 
 Record these as future variable candidates: `LOGIN_EMAIL`, `LOGIN_PASSWORD`, etc.
 
-If the user mentions an existing login test case or project-level credentials, note them for reuse — the actual variable creation happens later in `/skytest-3-manage`.
+If the user mentions an existing login test case or project-level credentials, note them for reuse — the actual variable creation happens later in `/skytest-3-tools`.
 
 #### Login Flow Deep Capture
 
@@ -141,11 +142,39 @@ Even if using screenshots (Method A) for the rest of the section, **escalate to 
 3. Perform each login action (fill credentials, click submit) and capture the **next screen state** before proceeding
 4. Continue until login completes and the post-login landing page is reached
 5. Record the final assertion target (e.g., a heading, a welcome message, or user identity in the nav bar)
+6. Generate the login Playwright code immediately from the captured selectors — see **Generate Login Playwright Code** below
 
 **If only screenshots are available:**
-Capture screenshots of each login screen state. Record the visible text labels for each field, button, and heading. Note in the output that login selectors are **not verified** — `/skytest-2-plan` will use ai-action fallback instead of Playwright code.
+Capture screenshots of each login screen state. Record the visible text labels for each field, button, and heading. Note in the output that login selectors are **not verified** — `/skytest-2-plan` will use ai-action fallback for login steps.
 
-The captured data goes into the **Login Flow Selectors** section of the UI skeleton output.
+The captured data goes into the **Login Flow Selectors** section of the UI skeleton output. When selectors are verified, also generate login Playwright code (see below).
+
+#### Generate Login Playwright Code
+
+When browser tool data has been captured for the login flow, **generate the Playwright code immediately** while the selectors are verified and the browser context is live. This is the most accurate moment to produce login code — the selectors are freshly captured from the actual DOM/accessibility tree, and any issues can be caught while the page is still open.
+
+Build the code directly from the Login Flow Selectors table — each row maps to one Playwright call:
+
+| Selector Action | Playwright Code |
+|-----------------|----------------|
+| `assert` heading "X" | `await expect(page.getByRole('heading', { name: 'X' })).toBeVisible();` |
+| `assert` text "X" | `await expect(page.getByText('X')).toBeVisible();` |
+| `fill` textbox "X" → VAR | `await page.getByRole('textbox', { name: 'X' }).fill(vars['VAR']);` |
+| `click` button "X" | `await page.getByRole('button', { name: 'X' }).click();` |
+| `click` link "X" | `await page.getByRole('link', { name: 'X' }).click();` |
+| `click` text "X" | `await page.getByText('X').click();` |
+
+**Rules for login Playwright code:**
+- Walk through each state in order, translating every row to its Playwright equivalent
+- Insert `await expect(...).toBeVisible()` assertions **between screen transitions** to confirm the next state loaded before interacting with it
+- Use `vars['VARIABLE_NAME']` for all credential values — never hardcode
+- End with a post-login assertion (e.g., `await expect(page.getByText('Hi, User')).toBeVisible();`)
+- Use `{ name: 'X' }` with the **exact text** from the selector table — do not paraphrase or translate
+- Use `{ exact: true }` when the name could partially match other elements on the page
+
+**If only screenshots were used for login:** Do not generate Playwright code. Note in the skeleton: "Login selectors not verified — `/skytest-2-plan` will use ai-action fallback for login steps."
+
+Include the generated code in the **Login Playwright Code** section of the UI skeleton output.
 
 ### 3. Capture All Screens in Section
 
@@ -237,6 +266,27 @@ Ask: "Does this skeleton accurately represent the section? Any screens missing? 
 | assert | text | "Hi, User" | — |
 
 (Repeat states as needed for multi-step login flows. Each state represents a distinct screen the user sees during login.)
+
+### Login Playwright Code
+
+(Include this section ONLY when `Verified: yes`. Generated from the selector tables above during exploration while the browser context was live — this is the most accurate moment to produce login code.)
+
+```javascript
+// Example — generated from verified selectors
+await expect(page.getByText('登入平台管理系統')).toBeVisible();
+await page.getByText('登入').click();
+await expect(page.getByRole('heading', { name: '登入管理系統' })).toBeVisible();
+await page.getByRole('textbox', { name: '用戶編號' }).fill(vars['LOGIN_ID']);
+await page.getByRole('button', { name: '登入' }).click();
+await expect(page.getByRole('heading', { name: '輸入密碼' })).toBeVisible();
+await page.getByRole('textbox', { name: '目前密碼' }).fill(vars['LOGIN_PW']);
+await page.getByRole('button', { name: '繼續' }).click();
+await expect(page.getByRole('heading', { name: '驗證碼', exact: true })).toBeVisible();
+await page.getByRole('textbox').fill(vars['LOGIN_FIXED_OTP']);
+await expect(page.getByText('Hi, User')).toBeVisible();
+```
+
+(If `Verified: no`, omit this section entirely. `/skytest-2-plan` will use ai-action fallback for login steps.)
 
 ## Screens
 
