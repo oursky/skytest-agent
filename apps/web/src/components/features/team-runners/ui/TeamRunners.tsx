@@ -489,6 +489,34 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
                 )}
             </section>
 
+            <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+                <h2 className="text-base font-semibold text-gray-900">{t('team.runners.installation.title')}</h2>
+                <p className="mt-1 text-sm text-gray-500">{t('team.runners.installation.subtitle')}</p>
+
+                <div className="mt-4 space-y-4">
+                    <div>
+                        <p className="mb-1.5 text-xs font-medium text-gray-700">{t('team.runners.installation.install')}</p>
+                        <CopyableCodeBlock
+                            code="brew tap oursky/skytest && brew install skytest"
+                            copied={copiedCommandKey === 'brew-install'}
+                            onCopy={() => void copyCommand('brew-install', 'brew tap oursky/skytest && brew install skytest')}
+                            copyLabel={copyLabel}
+                            copiedLabel={copiedLabel}
+                        />
+                    </div>
+                    <div>
+                        <p className="mb-1.5 text-xs font-medium text-gray-700">{t('team.runners.installation.update')}</p>
+                        <CopyableCodeBlock
+                            code="brew upgrade skytest"
+                            copied={copiedCommandKey === 'brew-upgrade'}
+                            onCopy={() => void copyCommand('brew-upgrade', 'brew upgrade skytest')}
+                            copyLabel={copyLabel}
+                            copiedLabel={copiedLabel}
+                        />
+                    </div>
+                </div>
+            </section>
+
             <RunnerTroubleshootingSection
                 isLoading={isLoading}
                 runners={inventory}
