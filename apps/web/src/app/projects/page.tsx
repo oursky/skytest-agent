@@ -14,7 +14,6 @@ import { formatDateTime } from "@/utils/time/dateFormatter";
 import { useProjectsBootstrap } from "@/hooks/project/useProjectsBootstrap";
 import { useI18n } from "@/i18n";
 import { useCreateTeam } from "@/hooks/team/useCreateTeam";
-import { useLoadGuard } from "@/hooks/ui/useLoadGuard";
 
 export default function ProjectsPage() {
     const { isLoggedIn, isLoading: isAuthLoading, getAccessToken } = useAuth();
@@ -30,9 +29,7 @@ export default function ProjectsPage() {
         projects,
         loading: isProjectsBootstrapLoading,
         isInitialLoading: isProjectsInitialLoading,
-        isRefreshing: isProjectsRefreshing,
         refresh,
-        error: bootstrapError,
         setCurrentTeam,
         addProject,
         removeProject,
@@ -57,7 +54,6 @@ export default function ProjectsPage() {
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; projectId: string; projectName: string }>({ isOpen: false, projectId: "", projectName: "" });
     const [editModal, setEditModal] = useState<{ isOpen: boolean; projectId: string; currentName: string }>({ isOpen: false, projectId: "", currentName: "" });
     const [editName, setEditName] = useState("");
-    const { isSlow, isStalled } = useLoadGuard(isProjectsInitialLoading || isProjectsRefreshing);
 
     useEffect(() => {
         if (!isAuthLoading && !isLoggedIn) {
@@ -167,8 +163,6 @@ export default function ProjectsPage() {
 
     const isPageLoading = isAuthLoading
         || (isLoggedIn && isProjectsInitialLoading && projects.length === 0 && teams.length === 0);
-
-    const visibleError = createError || teamError || (bootstrapError ? t('projects.loadError') : '');
 
     if (isPageLoading) {
         return (
@@ -303,15 +297,7 @@ export default function ProjectsPage() {
                     </div>
                 </div>
 
-                <SectionLoadingState
-                    state={visibleError ? 'error' : (isProjectsRefreshing ? 'refreshing' : 'idle')}
-                    isSlow={isSlow}
-                    isStalled={isStalled}
-                    errorMessage={visibleError || null}
-                    onRetry={() => {
-                        void refresh();
-                    }}
-                >
+                <SectionLoadingState>
                     {teams.length === 0 && !selectedTeam && (
                         <div className="mb-8 bg-white p-6 rounded-lg shadow-sm border border-gray-200">
                             <h2 className="text-xl font-semibold text-gray-900 mb-2">{t('projects.team.emptyTitle')}</h2>

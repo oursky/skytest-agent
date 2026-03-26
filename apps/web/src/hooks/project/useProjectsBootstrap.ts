@@ -160,7 +160,6 @@ export function useProjectsBootstrap(
         // Keep initial loading true before the first bootstrap fetch resolves.
         loading: loading || (enabled && !hasLoadedOnce),
         isInitialLoading: enabled && !hasLoadedOnce,
-        isRefreshing: enabled && hasLoadedOnce && loading,
         hasLoadedOnce,
         error,
         refresh,

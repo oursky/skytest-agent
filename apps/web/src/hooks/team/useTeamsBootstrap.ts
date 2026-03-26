@@ -170,7 +170,6 @@ export function useTeamsBootstrap(
         members,
         loading: loading || (enabled && !hasLoadedOnce),
         isInitialLoading: enabled && !hasLoadedOnce,
-        isRefreshing: enabled && hasLoadedOnce && loading,
         hasLoadedOnce,
         error,
         refresh,

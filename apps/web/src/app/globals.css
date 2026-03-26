@@ -278,26 +278,8 @@ pre,
   border-radius: 0.375rem;
 }
 
-@keyframes loading-dot-pulse {
-  0%,
-  100% {
-    opacity: 0.45;
-    transform: scale(0.92);
-  }
-
-  50% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.loading-dot-pulse {
-  animation: loading-dot-pulse 2.8s ease-in-out infinite;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .skeleton-block,
-  .loading-dot-pulse {
+  .skeleton-block {
     animation: none;
   }
 }

@@ -11,7 +11,6 @@ import { useI18n } from "@/i18n";
 import { getStatusBadgeClass } from '@/utils/status/statusBadge';
 import { parsePageSize } from '@/utils/pagination/pagination';
 import { isRunActiveStatus, type TestStatus } from '@/types';
-import { useLoadGuard } from "@/hooks/ui/useLoadGuard";
 import { reportLoadMetric } from "@/lib/telemetry/client-metrics";
 
 interface TestRun {
@@ -48,15 +47,13 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
     const [projectName, setProjectName] = useState<string>("");
     const [isLoading, setIsLoading] = useState(true);
     const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
-    const [loadError, setLoadError] = useState<string | null>(null);
+    const [, setLoadError] = useState<string | null>(null);
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; runId: string; status?: TestStatus | '' }>({ isOpen: false, runId: "", status: "" });
     const parsedPage = Number.parseInt(searchParams.get('page') || '1', 10);
     const currentPage = Number.isNaN(parsedPage) ? 1 : Math.max(1, parsedPage);
     const hasLoadedOnceRef = useRef(false);
 
     const isInitialLoading = isLoading && !hasLoadedOnce;
-    const isRefreshing = isLoading && hasLoadedOnce;
-    const { isSlow, isStalled } = useLoadGuard(isInitialLoading || isRefreshing);
 
     useEffect(() => {
         hasLoadedOnceRef.current = hasLoadedOnce;
@@ -291,16 +288,7 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
                     <h1 className="text-3xl font-bold text-gray-900">{t('history.title')}</h1>
                 </div>
 
-                <SectionLoadingState
-                    state={loadError ? 'error' : (isRefreshing ? 'refreshing' : 'idle')}
-                    errorMessage={loadError}
-                    isSlow={isSlow}
-                    isStalled={isStalled}
-                    onRetry={() => {
-                        setIsLoading(true);
-                        void fetchHistory().finally(() => setIsLoading(false));
-                    }}
-                >
+                <SectionLoadingState>
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                         <div className="grid grid-cols-12 gap-4 p-4 border-b border-gray-200 bg-gray-50 text-sm font-medium text-gray-500 items-center">
                             <div className="col-span-3">{t('history.table.status')}</div>

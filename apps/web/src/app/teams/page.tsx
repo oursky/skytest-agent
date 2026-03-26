@@ -18,7 +18,6 @@ import { useTeamsBootstrap, type TeamMemberBootstrap } from '@/hooks/team/useTea
 import { dispatchTeamsChanged } from '@/hooks/team/useTeams';
 import { useI18n } from '@/i18n';
 import { runOnEnterKey } from '@/utils/keyboard/enterKey';
-import { useLoadGuard } from '@/hooks/ui/useLoadGuard';
 type TeamMemberOption = TeamMemberBootstrap;
 
 type TeamTab = 'api' | 'members' | 'runners' | 'settings';
@@ -46,8 +45,6 @@ export default function TeamsPage() {
         members,
         loading: isTeamsBootstrapLoading,
         isInitialLoading: isTeamsInitialLoading,
-        isRefreshing: isTeamsRefreshing,
-        error: bootstrapError,
         refresh: refreshTeamsBootstrap,
         setCurrentTeam,
     } = useTeamsBootstrap(getAccessToken, requestedTeamId, isLoggedIn && !isAuthLoading);
@@ -60,8 +57,7 @@ export default function TeamsPage() {
     const [isTransferOpen, setIsTransferOpen] = useState(false);
     const [isDeletingTeamTransition, setIsDeletingTeamTransition] = useState(false);
     const [deleteConfirmationValue, setDeleteConfirmationValue] = useState('');
-    const [error, setError] = useState<string | null>(null);
-    const { isSlow, isStalled } = useLoadGuard(isTeamsInitialLoading || isTeamsRefreshing || isDeletingTeamTransition);
+    const [, setError] = useState<string | null>(null);
 
     const currentTeam = useMemo(() => {
         if (!selectedTeam) {
@@ -93,8 +89,6 @@ export default function TeamsPage() {
     }, [isTeamsBootstrapLoading, isAuthLoading, isDeletingTeamTransition, isLoggedIn, teams.length, router]);
 
     const activeTab = resolveTeamTab(searchParams.get('tab'));
-    const visibleError = error || (bootstrapError ? t('team.page.error.load') : null);
-
     const canAccessSettings = teamDetails !== null && (
         teamDetails.canRename ||
         teamDetails.canDelete ||
@@ -352,15 +346,7 @@ export default function TeamsPage() {
                     <h1 className="text-3xl font-bold text-gray-900">{t('team.page.title')}</h1>
                 </div>
 
-                <SectionLoadingState
-                    state={visibleError ? 'error' : ((isTeamsRefreshing || isDeletingTeamTransition) ? 'refreshing' : 'idle')}
-                    errorMessage={visibleError}
-                    isSlow={isSlow}
-                    isStalled={isStalled}
-                    onRetry={() => {
-                        void refreshTeamsBootstrap();
-                    }}
-                >
+                <SectionLoadingState>
                     {currentTeam && teamDetails?.id === currentTeam.id && (
                         <>
                             <div className="mb-6">
