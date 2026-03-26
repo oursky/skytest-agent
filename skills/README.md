@@ -4,11 +4,13 @@ This project includes reusable skills for SkyTest workflows and codebase mainten
 
 ## For SkyTest Users
 
-SkyTest generation/maintenance skill for MCP-capable agents.
+SkyTest skills for MCP-capable agents. The workflow is split into three phases — learn, plan, manage — that can be run individually or chained in sequence.
 
 | Skill | Command | Description |
 |-------|---------|-------------|
-| [skytest-generate](./skytest-skills/skytest-generate/SKILL.md) | `/skytest-generate` | Generate, run, and maintain test cases from feature descriptions, screenshots, or user flows via MCP (includes run query, project config management, and runner inventory guidance) |
+| [skytest-1-learn](./skytest-skills/skytest-1-learn/SKILL.md) | `/skytest-1-learn` | Study a web/mobile app section and produce a UI skeleton document |
+| [skytest-2-plan](./skytest-skills/skytest-2-plan/SKILL.md) | `/skytest-2-plan` | Design prioritized test cases from a UI skeleton |
+| [skytest-3-manage](./skytest-skills/skytest-3-manage/SKILL.md) | `/skytest-3-manage` | Create, update, delete, and run test cases via SkyTest MCP |
 
 ## For Linear Integration
 
