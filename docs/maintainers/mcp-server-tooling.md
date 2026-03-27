@@ -7,6 +7,12 @@ This document defines SkyTest MCP tool behavior for maintainers.
 - MCP server implementation: `apps/web/src/lib/mcp/server.ts`
 - HTTP transport endpoint: `apps/web/src/app/api/mcp/route.ts`
 
+## Transport Authentication
+
+- Authenticated requests must provide an API key (`sk_test_...`) in either:
+  - `Authorization: Bearer <AGENT_API_KEY>`
+  - `X-SkyTest-Api-Key: <AGENT_API_KEY>`
+
 ## Tool Contracts
 
 ### list_projects

@@ -11,11 +11,19 @@ export const dynamic = 'force-dynamic';
 
 function getBearerToken(request: Request): string | null {
     const authHeader = request.headers.get('Authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return null;
+    if (authHeader) {
+        const [scheme, ...parts] = authHeader.trim().split(/\s+/);
+        if (scheme?.toLowerCase() === 'bearer' && parts.length > 0) {
+            return parts.join(' ');
+        }
     }
 
-    return authHeader.split(' ')[1] ?? null;
+    const apiKeyHeader = request.headers.get('X-SkyTest-Api-Key')?.trim();
+    if (apiKeyHeader) {
+        return apiKeyHeader;
+    }
+
+    return null;
 }
 
 async function resolveAuthenticatedUserId(request: Request): Promise<string | null> {

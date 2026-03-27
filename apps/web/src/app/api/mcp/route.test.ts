@@ -85,4 +85,58 @@ describe('MCP route authentication', () => {
             }
         );
     });
+
+    it('accepts lowercase bearer scheme in Authorization header', async () => {
+        mocks.isApiKeyFormat.mockReturnValue(true);
+        mocks.verifyAuth.mockResolvedValue({ sub: 'auth-user' });
+        mocks.resolveUserId.mockResolvedValue('user-2');
+
+        const request = new Request('http://localhost/api/mcp', {
+            method: 'GET',
+            headers: {
+                Authorization: 'bearer sk_test_lowercase_scheme',
+            },
+        });
+
+        const response = await GET(request);
+
+        expect(response.status).toBe(200);
+        expect(mocks.handleRequest).toHaveBeenCalledWith(
+            request,
+            {
+                authInfo: {
+                    token: 'api-key',
+                    clientId: 'user-2',
+                    scopes: [],
+                },
+            }
+        );
+    });
+
+    it('accepts X-SkyTest-Api-Key header', async () => {
+        mocks.isApiKeyFormat.mockReturnValue(true);
+        mocks.verifyAuth.mockResolvedValue({ sub: 'auth-user' });
+        mocks.resolveUserId.mockResolvedValue('user-3');
+
+        const request = new Request('http://localhost/api/mcp', {
+            method: 'GET',
+            headers: {
+                'X-SkyTest-Api-Key': 'sk_test_header_key',
+            },
+        });
+
+        const response = await GET(request);
+
+        expect(response.status).toBe(200);
+        expect(mocks.handleRequest).toHaveBeenCalledWith(
+            request,
+            {
+                authInfo: {
+                    token: 'api-key',
+                    clientId: 'user-3',
+                    scopes: [],
+                },
+            }
+        );
+    });
 });
