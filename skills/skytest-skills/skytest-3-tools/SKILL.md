@@ -16,12 +16,16 @@ Translate confirmed test plans into SkyTest MCP operations and manage test cases
 ## Non-Negotiable Rules
 
 - **Never create or update multiple test cases in one call.** One `create_test_case` or `update_test_case` call = one test case.
-- **Always confirm with the user before each create, update, delete, or run operation.**
+- **Always confirm with the user before create, update, delete, or run operations.** For batch creation from a test plan, present all cases first, then accept bulk confirmation (e.g., "create all" or "create 1-8, skip 9"). Still confirm deletes and runs individually.
 - **Do not send `FILE` variables through MCP.** SkyTest does not support file attachments via MCP — skip file-type configs entirely.
 - **For every create or update that sets a test case `name`**, enforce format: `[Section] Short description` (e.g., `[Auth] Login Happy Path`).
-- **For every new test case, use a `testCaseId`** following the user's established convention. Default: `XXXXX-NNN` (5 uppercase letters + hyphen + 3-digit zero-padded number). Ask the user if not established.
+- **For every new test case, use a `testCaseId`** following the user's established convention. Default: `XXXX-YY-ZZZ` (2-4 uppercase letters for the page/feature + 2-digit section number + 3-digit test case number, e.g., `AUTH-01-001`). Ask the user if not established.
+- **`testCaseId` in all MCP operations refers to the display ID** (e.g., `AUTH-01-001`), not the internal database UUID.
 - **Never attempt to read, download, or process video files.**
+- **Never hardcode credential values.** Use `vars['VARIABLE_NAME']` in playwright-code steps and `{{VARIABLE_NAME}}` in ai-action steps. Credentials must always come from project-level or test-case-level variables — never as literal strings in step text.
+- **Browser target names must be descriptive.** Derive from the app name or section (e.g., "Admin Portal", "Customer App"). Never use "Primary Browser" as the target name — confirm the name with the user before creating the first test case.
 - `stop_all_runs` cancels everything active (QUEUED + PREPARING + RUNNING). `stop_all_queues` cancels only QUEUED items.
+- **Do not proactively suggest or queue test runs after creating test cases.** Only queue runs when the user explicitly asks.
 
 ## MCP Operations
 
@@ -62,21 +66,32 @@ Before creating any test cases:
 1. **List projects** — call `list_projects` and let the user pick the target project
 2. **Get project details** — call `get_project` to retrieve project-level configs
 3. **Identify reusable variables** — if `BASE_URL`, `LOGIN_EMAIL`, `LOGIN_PASSWORD`, or other variables already exist at the project level, do NOT duplicate them as test-case-level variables. Tell the user: "Your project already has [variables] configured — I'll reuse those."
-4. **Check existing coverage** — call `list_test_cases` for the project. If cases already cover the same feature/flow, tell the user: "There are already test cases covering [area]. Want me to complement them, or start fresh?"
+4. **Check existing coverage** — call `list_test_cases` for the project. If cases already cover the same feature/flow, prefer updating existing test cases over creating duplicates. Tell the user: "There are already test cases covering [area] — I'll update them with the revised plan. Want me to update existing cases, complement with new ones, or start fresh?"
 5. **For Android flows** — call `list_runner_inventory` before drafting targets. Present available connected devices and emulator profiles, then confirm which selector to use.
 
-### 2. Create Test Cases One at a Time
+### 2. Confirm Browser Config Before Creating
+
+Before creating the first test case, explicitly confirm with the user:
+
+- **Browser target name** — what should the target be called? (e.g., "Admin Portal", "Customer App") — never default to "Primary Browser"
+- **Viewport size** — suggest a viewport based on the target website (e.g., 1920x1080 for desktop admin panels, 1366x768 for typical laptop displays). Confirm with the user before creating the first test case
+- **Starting URL** — confirm the URL each test case launches from (app root vs. a specific path)
+- **Credential variables** — confirm `LOGIN_EMAIL`, `LOGIN_PASSWORD` (or equivalent) are configured at the project level. If not, set them via `manage_project_configs` before creating test cases
+
+Do not skip this step even if answers seem obvious from the test plan — confirming prevents bulk updates later.
+
+### 3. Create Test Cases One at a Time
 
 For each test case from the plan (or from user instructions):
 
-1. **Present** exactly one test case: name, ID, priority, steps, assertions, configs, and targets
+1. **Present** all test cases from the plan: name, ID, priority, steps, assertions, configs, and targets
 2. **Show** which project-level variables are being reused and which new test-case-level variables are needed
-3. **Ask:** confirm/create, modify, or skip
-4. **Create** only after explicit confirmation via `create_test_case`
-5. If modified, revise and re-present before creating
+3. **Ask:** confirm all, confirm selectively (e.g., "create 1-8, skip 9"), modify specific cases, or skip
+4. **Create** only after explicit confirmation via `create_test_case` — one call per case
+5. If the user requests modifications, revise and re-present before creating
 6. If skipped, move to the next case
 
-### 3. Update Existing Test Cases
+### 4. Update Existing Test Cases
 
 Use `update_test_case` with one test case ID per call.
 
@@ -88,11 +103,11 @@ If active runs exist, include `activeRunResolution`:
 - `cancel_and_save` — cancel runs and save changes (test case becomes DRAFT)
 - `do_not_save` — keep active runs, skip saving
 
-### 4. Delete Test Cases
+### 5. Delete Test Cases
 
 Use `delete_test_case` with confirmation. Deletion removes the test case and all related data (runs, files, configs). This is irreversible.
 
-### 5. Run and Monitor
+### 6. Run and Monitor
 
 - **Queue a run** with `run_test_case` only after explicit run confirmation (separate from create/update confirmation).
 - **Override at runtime** — `run_test_case` accepts optional overrides: `url`, `prompt`, `steps`, `browserConfig`, `requestedDeviceId`, `requestedRunnerId`.
@@ -100,13 +115,23 @@ Use `delete_test_case` with confirmation. Deletion removes the test case and all
 - **Get single run** with `get_test_run` for status and result.
 - **For environment changes** (base URL, credentials) that apply to many test cases, use `manage_project_configs` instead of updating each test case individually.
 
-### 6. Stop Runs/Queues
+### 7. Stop Runs/Queues
 
 - `stop_all_runs` — cancels QUEUED + PREPARING + RUNNING runs for a project
 - `stop_all_queues` — cancels QUEUED runs only for a project
 - Both require `projectId` and accept an optional `reason`
 
+### 8. Handle MCP Errors
+
+If any MCP operation returns an error, report the full error message to the user. Do not retry automatically. Common errors:
+- **Project not found** — wrong project ID or no access
+- **Duplicate display ID** — a test case with that `testCaseId` already exists
+- **Active runs blocking update** — include `activeRunResolution` in the update call
+- **Invalid payload** — missing required fields or malformed step structure
+
 ## Step Writing Rules
+
+Always use `steps` for test case definition when a test plan with structured steps is available. The `prompt` field is for freeform AI-directed testing without structured steps — do not use it when working from a `/skytest-2-plan` test plan.
 
 Steps default to `type: "ai-action"` — natural language executed by Midscene AI.
 
@@ -131,7 +156,7 @@ The login step is typically Step 1 in every test case. How it is created depends
 - These use `{{VARIABLE_NAME}}` syntax for credentials
 - This is the safe fallback — Midscene AI will locate elements at runtime
 
-**Never generate Playwright code for login yourself.** Login code accuracy is established in `/skytest-1-explore` (selector capture and code generation). If the plan says ai-action, use ai-action. Do not attempt to upgrade it.
+**Never generate Playwright code for login yourself.** Login code accuracy is established in `/skytest-1-explore` via Playwright MCP interactions. If the plan says ai-action, use ai-action. Do not attempt to upgrade it.
 
 ### ai-action Steps
 
@@ -155,6 +180,8 @@ The login step is typically Step 1 in every test case. How it is created depends
 - **Using `page.goto()` for in-app navigation** — always click through the UI instead
 - **Combining verify + action + verify** in one ai-action step — split into atomic steps
 - **Using playwright-code for scrolling** — use ai-action instead (e.g., "Scroll to the bottom of the page")
+- **Designing steps that require file uploads** — SkyTest MCP does not support file input; flag these flows as un-automatable
+- **Designing steps that switch browser tabs or windows** — SkyTest executes within a single browser context; tab/window switching may not be supported. Flag multi-tab flows to the user as a limitation
 
 ### Atomic Step Principle
 
@@ -198,6 +225,7 @@ Establish navigation code once per menu path and reuse across all cases targetin
 - `APP_ID` type for Android app identifiers
 - `FILE` type excluded — SkyTest does not support file attachments via MCP. Skip file-type configs entirely.
 - Only include test-case-level variables for values NOT already in the project config
+- The `group` field on configs is for team-scoped variable sharing. Include it when the user's project uses config groups
 
 ## Target Config Defaults
 
@@ -220,10 +248,12 @@ When inventory is available, prefer explicit selectors from `list_runner_invento
 Before each `create_test_case` call, verify:
 - [ ] Single `testCase` object (never batch)
 - [ ] `name` follows `[Section] Short description` format
-- [ ] `testCaseId` follows the user's established ID convention
+- [ ] `testCaseId` follows the user's established ID convention (default: `XXXX-YY-ZZZ`)
+- [ ] Browser target name is descriptive (not "Primary Browser") — confirmed with user in step 2
 - [ ] Target IDs used consistently in every step's `target` field
 - [ ] Complete target definitions for all referenced targets
 - [ ] All `{{VAR}}` references have matching variables (test-case-level or project-level)
+- [ ] No credential values are hardcoded — all credentials use `vars['VARIABLE_NAME']` or `{{VARIABLE_NAME}}`
 - [ ] Step `type` set correctly (`ai-action` or `playwright-code`)
 - [ ] No `FILE` variable in payload
 - [ ] Only test-case-specific variables included (not duplicating project-level configs)
@@ -238,12 +268,12 @@ When the test plan provides verified login Playwright code, the login becomes a 
 {
   "projectId": "proj_123",
   "testCase": {
-    "name": "[Settings] Update Display Name",
-    "testCaseId": "SETNГ-001",
+    "name": "[Profile] Update Display Name",
+    "testCaseId": "SET-01-001",
     "browserTargets": [
       {
         "id": "browser_a",
-        "name": "Primary Browser",
+        "name": "[App Name]",
         "url": "https://myapp.com/login",
         "width": 1920,
         "height": 1080
@@ -283,7 +313,13 @@ When the test plan provides verified login Playwright code, the login becomes a 
       {
         "id": "step_6",
         "target": "browser_a",
-        "action": "Verify success toast 'Profile updated' appears and the 'Display Name' field shows '{{TEST_DISPLAY_NAME}}'",
+        "action": "Verify success toast 'Profile updated' appears",
+        "type": "ai-action"
+      },
+      {
+        "id": "step_7",
+        "target": "browser_a",
+        "action": "Verify the 'Display Name' field shows '{{TEST_DISPLAY_NAME}}'",
         "type": "ai-action"
       }
     ],
@@ -303,11 +339,11 @@ When login selectors were not verified, use ai-action steps:
   "projectId": "proj_123",
   "testCase": {
     "name": "[Auth] Login Happy Path",
-    "testCaseId": "LOGIN-001",
+    "testCaseId": "AUTH-01-001",
     "browserTargets": [
       {
         "id": "browser_a",
-        "name": "Primary Browser",
+        "name": "[App Name]",
         "url": "https://myapp.com/login",
         "width": 1920,
         "height": 1080
@@ -332,11 +368,8 @@ When login selectors were not verified, use ai-action steps:
         "action": "Verify the page displays the 'Dashboard' heading and the user's email '{{LOGIN_EMAIL}}' appears in the top navigation bar",
         "type": "ai-action"
       }
-    ],
-    "variables": [
-      { "name": "LOGIN_EMAIL", "type": "VARIABLE", "value": "john.smith@company.com" },
-      { "name": "LOGIN_PASSWORD", "type": "VARIABLE", "value": "Abcd1234!", "masked": true }
     ]
+    // LOGIN_EMAIL and LOGIN_PASSWORD are project-level configs — do not include them as test-case-level variables
   }
 }
 ```

@@ -48,12 +48,18 @@ SkyTest can only automate what happens inside a **clean browser session** or an 
 - File system operations on the user's machine (e.g., verifying a downloaded file's contents)
 - Backend-only validation (e.g., checking database records, API responses, logs)
 - Waiting for async processes that have no visible UI indicator (e.g., background jobs, webhooks)
+- CAPTCHA challenges (image, reCAPTCHA, hCaptcha) — blocks both exploration and automated test execution
+- File upload fields requiring actual file input (not supported via SkyTest MCP)
+- Multi-tab or new-window flows (SkyTest executes within a single browser context — tab/window switching may not be supported)
+- Iframe-embedded content (automation reliability varies — flag for the user's awareness)
 
 **When you encounter these:**
 1. Do NOT design a test case that includes the un-automatable step — it will fail every run.
 2. Tell the user clearly: "This step requires [email/OTP/etc.] which SkyTest can't automate."
 3. Suggest splitting the flow: automate what you can (everything before and after the manual step), and recommend the user test the un-automatable part manually.
 4. If an entire scenario is un-automatable, skip it and note it as "recommended for manual testing" in the test plan.
+
+**CAPTCHA-specific:** If the login or any critical flow includes a CAPTCHA, warn the user that both exploration and automated test execution will be blocked. Confirm whether they still want to create test cases knowing this limitation.
 
 ## Workflow
 
@@ -79,7 +85,7 @@ From the UI skeleton's screens and navigation flow, identify all testable flows 
 - **P2 — Error Handling & Edge Cases**: Input validation, error recovery, boundary conditions. Failure = degraded experience.
 - **P3 — Polish & Rare Scenarios**: Unusual inputs, cosmetic issues, rare configurations. Failure = minor inconvenience.
 
-**Present the classification to the user.** Design cases starting from P0 downward. The user may adjust priorities or skip P3 entirely.
+**Present the classification to the user.** Ask what coverage depth they want — e.g., "P0-P1 only for now" or "full P0-P3." This avoids designing 20+ cases when the user only wants the critical paths first. Design cases starting from the agreed priority level downward. The user may adjust priorities or skip lower tiers entirely.
 
 ### 3. Design Test Cases
 
@@ -92,7 +98,9 @@ For each flow, apply structured test design:
 - **Error recovery**: User triggers error, corrects input, completes flow without restarting
 - **Authorization boundaries**: Users cannot access resources beyond their role (if roles exist in the skeleton)
 
-**Before designing each test case, check:** Can every step be fully automated inside the browser or APK? If a flow involves email, OTP, third-party payment, or any un-automatable step, flag it immediately. Don't design a test case you know will fail.
+**Before designing each test case, check:** Can every step be fully automated inside the browser or APK? If a flow involves email, OTP, CAPTCHA, file upload, third-party payment, or any un-automatable step, flag it immediately. Don't design a test case you know will fail.
+
+**If test cases already exist for this section** (the user mentions them or they were found via `/skytest-3-tools`), prefer updating existing cases over creating duplicates. Note in the plan which cases are updates vs. new.
 
 ### 4. Ensure Test Independence
 
@@ -102,13 +110,15 @@ Every test case must be self-contained:
 - Does not depend on another test case having run first
 - Notes any preconditions requiring manual data setup (e.g., "requires at least one existing record in the list")
 
+**Fixture-only entities**: If `/skytest-1-explore` flagged any entity as fixture-only (create/edit permissions restricted), do not design test cases that attempt to create those entities. Design around reading or modifying pre-existing records only, and state the required fixture in the Preconditions block.
+
 ### 5. Adopt Login Step from UI Skeleton
 
 The login step is the first step in most test cases. Its accuracy depends on how it was captured during `/skytest-1-explore`.
 
 #### When the skeleton includes login Playwright code (`Verified: yes`)
 
-The UI skeleton from `/skytest-1-explore` includes pre-generated and verified Playwright code for the login flow. **Adopt it as-is** — include it verbatim as a single `playwright-code` Step 1. Do not modify the selectors or assertions.
+The UI skeleton from `/skytest-1-explore` includes Playwright code for the login flow, recorded and verified via Playwright MCP. **Adopt it as-is** — include it verbatim as a single `playwright-code` Step 1. Do not modify the selectors or assertions.
 
 #### When the skeleton does NOT have Playwright code (`Verified: no` or missing)
 
@@ -117,13 +127,12 @@ The UI skeleton from `/skytest-1-explore` includes pre-generated and verified Pl
 Fall back to `ai-action` steps for login:
 ```
 1. [LOGIN] Navigate to {{BASE_URL}}/login
-2. [LOGIN] Fill "Employee ID" with {{LOGIN_ID}}, click "Login"
-3. [LOGIN] Fill "Password" with {{LOGIN_PW}}, click "Continue"
-4. [LOGIN] Fill OTP field with {{LOGIN_FIXED_OTP}}
-5. [LOGIN] Verify "Hi, User" is visible
+2. [LOGIN] Fill "Email address" with {{LOGIN_EMAIL}} and "Password" with {{LOGIN_PASSWORD}}
+3. [LOGIN] Click "Sign In"
+4. [LOGIN] Verify "Welcome back" is visible
 ```
 
-Note in the plan: "Login uses ai-action — selectors were not verified. To upgrade to playwright-code, re-run `/skytest-1-explore` with a browser tool for the login flow."
+Note in the plan: "Login uses ai-action — selectors were not verified. To upgrade to playwright-code, re-run `/skytest-1-explore` with Playwright MCP connected for the login flow."
 
 #### Reuse across test cases
 
@@ -182,7 +191,29 @@ Test data should come from the user's actual context, not generic templates.
 
 **Never use** "test123", "foo@bar.com", or "Lorem ipsum". For error paths, use realistic invalid inputs (typos, too-short passwords, text in number fields).
 
-### 9. Produce Test Plan Document
+### 9. Establish Test Data Conventions
+
+Before writing test case steps, establish and **present these conventions to the user for confirmation**. Getting conventions wrong requires updating every test case after the fact.
+
+**Unique field strategy**: Identify fields that must be unique across runs (e.g., email addresses, codes, usernames). Confirm the approach — typically `{{TIMESTAMP}}` appended to a base value, or a `RANDOM_STRING` variable.
+
+**Naming prefix**: Agree on a prefix for QA-created records to distinguish them from real data in shared environments (e.g., a "QA" or initials prefix on names and codes).
+
+**Fixture vs. generated data**:
+- **Generated per run** — records the test creates fresh. Use timestamp-based unique values. Note which entities fall here.
+- **Fixture data** — pre-existing records the test reads or edits. Specify exact IDs, emails, or conditions required. Entities flagged as fixture-only by `/skytest-1-explore` always fall here — confirm the safe record range with the user.
+
+**Browser target name**: Confirm the name that will be used for the browser target across all test cases (e.g., "Admin Portal", "Customer App"). This is set once and reused in every case.
+
+**Viewport size**: Suggest a viewport based on the target website (e.g., 1920x1080 for desktop admin panels, 1366x768 for typical laptop displays, 390x844 for mobile). Confirm with the user — all test cases in this section will use this viewport.
+
+**Starting URL**: Confirm whether test cases start at the app root or a specific entry path.
+
+**Credential variables**: Confirm `LOGIN_EMAIL`, `LOGIN_PASSWORD` (or equivalent) will be configured as project-level variables. These must never be hardcoded in steps.
+
+**Present this as a summary and wait for explicit user confirmation before proceeding to step 10.**
+
+### 10. Produce Test Plan Document
 
 Assemble all test cases into the output format below. Present to the user for review.
 
@@ -207,6 +238,19 @@ Ask: "Does this test plan cover the right scenarios? Any cases to add, modify, o
 - **Target users:** [who uses this section]
 - **Critical flows:** [revenue/security/compliance impacts]
 
+## Test Data Conventions
+
+- **Browser target name:** [e.g., "Admin Portal"]
+- **Viewport size:** [e.g., 1920x1080 — confirmed with user]
+- **Starting URL:** [app root or specific entry path]
+- **Credential variables:** LOGIN_EMAIL, LOGIN_PASSWORD (project-level — never hardcoded)
+- **Unique field strategy:** [e.g., `{{TIMESTAMP}}` suffix on emails and codes]
+- **Naming prefix:** [e.g., "QA" prefix on all QA-created record names]
+- **Generated per run:** [list entity types created fresh by tests]
+- **Fixture-only:** [list entity types requiring pre-existing records + safe record range]
+
+*(User confirmed: yes | pending)*
+
 ## Login Step
 
 **Type:** playwright-code | ai-action
@@ -229,7 +273,7 @@ await expect(page.getByText('Welcome back')).toBeVisible();
 ## Test Cases
 
 ### TC-1: [Section] Short Description
-**ID:** [XXXXX-NNN or user's convention]
+**ID:** [XXXX-YY-ZZZ or user's convention]
 **Priority:** P0 | P1 | P2 | P3
 **Category:** Happy path | Validation | Edge case | Error recovery | Authorization
 
@@ -281,7 +325,14 @@ await expect(page.getByText('Welcome back')).toBeVisible();
 
 ### ID Convention
 
-Use the format the user has established. If no convention exists, **ask the user for their preferred ID pattern.** The default is `XXXXX-NNN`: 5 uppercase letters derived from the section/feature name + hyphen + 3-digit zero-padded sequence (e.g., `LOGIN-001`, `PAYMT-002`). Users may prefer different patterns like `CMS-02-001`. Once established, follow it exactly.
+Use the format the user has established. If no convention exists, **ask the user for their preferred ID pattern.** The default is `XXXX-YY-ZZZ`:
+- `XXXX` — 2-4 uppercase letters, a short-form abbreviation of the target page or feature (e.g., `AUTH` for authentication, `NEWS` for news management, `PAY` for payments)
+- `YY` — 2-digit section number representing a distinct section on the page (e.g., `01`, `02`, `03`). All test cases in the same section share the same `[Section]` title prefix
+- `ZZZ` — 3-digit zero-padded test case number within that section (e.g., `001`, `002`, `003`)
+
+Examples: `AUTH-01-001`, `AUTH-01-002` (both in `[Login]` section), `AUTH-02-001` (in `[Password Reset]` section), `NEWS-01-001` (in `[Article List]` section).
+
+Once established, follow the convention exactly.
 
 ### Name Format
 

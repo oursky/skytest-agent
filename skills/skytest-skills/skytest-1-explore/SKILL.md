@@ -12,6 +12,8 @@ description: >
 
 Explore the target app section, produce a structured UI skeleton document, and generate verified login Playwright code.
 
+> **Browser-first:** This skill is optimized for browser-based web apps. For Android apps, use Method A (user-provided screenshots) — capture each app screen manually from the device or emulator. All other input methods (Chrome DevTools MCP, Playwright MCP, etc.) are browser-only.
+
 ## Non-Negotiable Rules
 
 - **Never attempt to read, download, or process video files** (`.mov`, `.mp4`, `.webm`, `.avi`, `.mkv`) — they burn through context tokens and cannot be processed. Ask for screenshots or text descriptions instead.
@@ -110,13 +112,18 @@ Collect from the user:
 - Which section or feature of the app to study
 - Entry point URL (for browser) or app screen name (for Android)
 - Platform: browser or Android
+- Environment: test/staging or production? (Production exploration may trigger analytics, audit logs, or side effects during permission probing — prefer staging when available)
 - Any specific flows or sub-sections to focus on within the section
 
 **Do not proceed without a clear, bounded scope.** If the user says "the whole app," push back: "Which section should we start with? Studying one section at a time produces better results and avoids burning through tokens."
 
 ### 2. Establish Authentication and Capture Login Flow
 
-Before studying any feature screen, establish:
+Before studying any feature screen, establish whether the section requires authentication.
+
+**If the section is publicly accessible (no login required):** Note "Authentication: none" in the output, skip the rest of step 2, and proceed directly to step 3.
+
+**If authentication is required**, establish:
 - How does the user log in? (email/password form, SSO, API key, magic link, etc.)
 - What is the login URL or entry point?
 - Are there multiple roles? Which role is needed for this section?
@@ -129,50 +136,29 @@ If the user mentions an existing login test case or project-level credentials, n
 
 #### Login Flow Deep Capture
 
-The login flow is the most reused step across all test cases. Accurate Playwright code for login requires **verified element selectors** — exact roles, names, and text from the DOM or accessibility tree. Screenshots show text labels but cannot confirm the semantic structure needed for reliable `getByRole` / `getByText` selectors.
+The login flow is the most reused step across all test cases. Only Playwright MCP can produce verified login Playwright code — all other methods fall back to ai-action.
 
-**If a browser tool is available (Playwright MCP, Chrome DevTools MCP, or browser-use CLI):**
-Even if using screenshots (Method A) for the rest of the section, **escalate to a browser tool for the login flow specifically.** The token cost is small (login is usually 1-3 screens) and the payoff is high (accurate Playwright code reused across every test case).
+- **Playwright MCP connected** → perform login, verify, record as Playwright code
+- **Anything else** → capture login screen info for documentation, ai-action fallback only
 
-1. Navigate to the login entry point
-2. At each login screen state, capture the **accessibility tree or DOM structure** — specifically:
-   - Every interactive element's **role** (button, textbox, link, heading, etc.)
-   - Every element's **accessible name** (the `name` attribute in the accessibility tree, or visible label)
-   - Every heading and landmark text visible on screen (used for `expect` assertions between steps)
-3. Perform each login action (fill credentials, click submit) and capture the **next screen state** before proceeding
-4. Continue until login completes and the post-login landing page is reached
-5. Record the final assertion target (e.g., a heading, a welcome message, or user identity in the nav bar)
-6. Generate the login Playwright code immediately from the captured selectors — see **Generate Login Playwright Code** below
+If Playwright MCP is not connected, recommend the user connect it. If they cannot, proceed with ai-action — it works reliably at runtime via Midscene AI.
 
-**If only screenshots are available:**
-Capture screenshots of each login screen state. Record the visible text labels for each field, button, and heading. Note in the output that login selectors are **not verified** — `/skytest-2-plan` will use ai-action fallback for login steps.
+**With Playwright MCP:** Perform the login flow step by step using Playwright MCP tools (`browser_navigate`, `browser_snapshot`, `browser_click`, `browser_type`). After each action, snapshot to confirm the next screen loaded. Continue until login completes and the post-login page is reached. Record each screen state's elements in the **Login Flow Selectors** table for documentation.
 
-The captured data goes into the **Login Flow Selectors** section of the UI skeleton output. When selectors are verified, also generate login Playwright code (see below).
+**Verify before reporting:** After completing the login once, assemble the Playwright code from the recorded actions (see below), then **navigate back to the login entry point and replay the entire login sequence a second time** following the assembled code exactly. This confirms the steps are repeatable and the code works as a complete block. If any step fails during verification, diagnose and fix before including the code in the skeleton. Do not present unverified login code to the user.
+
+**Without Playwright MCP:** Capture screenshots or DOM data of each login screen. Record visible labels in the Login Flow Selectors table. Do not generate Playwright code. Note in the output: "Login not verified via Playwright MCP — `/skytest-2-plan` will use ai-action fallback."
 
 #### Generate Login Playwright Code
 
-When browser tool data has been captured for the login flow, **generate the Playwright code immediately** while the selectors are verified and the browser context is live. This is the most accurate moment to produce login code — the selectors are freshly captured from the actual DOM/accessibility tree, and any issues can be caught while the page is still open.
+Applies ONLY when login was performed and verified via Playwright MCP. Each MCP tool call maps directly to its Playwright API equivalent — assemble the code from the verified actions in execution order.
 
-Build the code directly from the Login Flow Selectors table — each row maps to one Playwright call:
-
-| Selector Action | Playwright Code |
-|-----------------|----------------|
-| `assert` heading "X" | `await expect(page.getByRole('heading', { name: 'X' })).toBeVisible();` |
-| `assert` text "X" | `await expect(page.getByText('X')).toBeVisible();` |
-| `fill` textbox "X" → VAR | `await page.getByRole('textbox', { name: 'X' }).fill(vars['VAR']);` |
-| `click` button "X" | `await page.getByRole('button', { name: 'X' }).click();` |
-| `click` link "X" | `await page.getByRole('link', { name: 'X' }).click();` |
-| `click` text "X" | `await page.getByText('X').click();` |
-
-**Rules for login Playwright code:**
-- Walk through each state in order, translating every row to its Playwright equivalent
-- Insert `await expect(...).toBeVisible()` assertions **between screen transitions** to confirm the next state loaded before interacting with it
+**Rules:**
 - Use `vars['VARIABLE_NAME']` for all credential values — never hardcode
-- End with a post-login assertion (e.g., `await expect(page.getByText('Hi, User')).toBeVisible();`)
-- Use `{ name: 'X' }` with the **exact text** from the selector table — do not paraphrase or translate
-- Use `{ exact: true }` when the name could partially match other elements on the page
-
-**If only screenshots were used for login:** Do not generate Playwright code. Note in the skeleton: "Login selectors not verified — `/skytest-2-plan` will use ai-action fallback for login steps."
+- Insert `await expect(...).toBeVisible()` assertions between screen transitions
+- Use element names exactly as they appeared in Playwright MCP snapshots — do not paraphrase
+- Use `{ exact: true }` when a name could partially match other elements
+- End with a post-login assertion (e.g., heading or user identity on the landing page)
 
 Include the generated code in the **Login Playwright Code** section of the UI skeleton output.
 
@@ -202,18 +188,39 @@ Document how screens connect:
 - Sidebar or top-nav entries that provide direct access
 - Any conditional navigation (e.g., different paths based on user role or data state)
 
-### 5. Flag Automation Concerns
+### 5. Probe Create/Edit Permissions
+
+For each entity type in the section, attempt a minimal operation to detect permission restrictions:
+- **Create**: attempt to open the "New [Entity]" form or equivalent entry point
+- **Edit**: attempt to open an edit form on an existing record
+
+**If using user-provided screenshots only:** You cannot attempt these operations directly. Instead, ask the user: "Can you create and edit [entity type] in your test environment, or are these operations restricted?"
+
+If any operation is blocked (HTTP 403, hidden button, disabled form):
+- Flag the entity as **fixture-only** in the Automation Flags section of the skeleton
+- Note: "[Entity] creation/editing is restricted — tests must use pre-existing fixture data"
+- Ask the user to provide a safe range of records that can be modified (e.g., specific IDs or email ranges reserved for QA use)
+
+This information flows into `/skytest-2-plan` to avoid designing test cases that will fail due to permission errors.
+
+### 6. Flag Automation Concerns
 
 While studying screens, note any elements or flows that may not be automatable:
 - Email verification or OTP entry screens
+- CAPTCHA challenges (image, reCAPTCHA, hCaptcha, etc.)
 - Third-party auth popups leaving the app domain
 - Payment flows (Stripe, PayPal, etc.)
+- File upload fields requiring actual file input (not supported via SkyTest MCP)
 - File download verification
+- Multi-tab or new-window flows (SkyTest executes within a single browser context — tab/window switching may not be supported)
+- Iframe-embedded content (may be explorable but automation reliability varies — proceed with caution)
 - Backend-only validation with no visible UI indicator
+
+**If the login flow includes a CAPTCHA:** Stop exploration and ask the user to provide screenshots manually past the CAPTCHA. Warn them that SkyTest's automated test execution will also be blocked by the CAPTCHA at runtime — confirm whether they still want to proceed with test case creation knowing this limitation.
 
 These are flagged here for awareness — the full automation boundary rules are in `/skytest-2-plan`.
 
-### 6. Produce UI Skeleton Document
+### 7. Produce UI Skeleton Document
 
 Assemble all captured information into the output format below. Present it to the user for review.
 
@@ -240,50 +247,37 @@ Ask: "Does this skeleton accurately represent the section? Any screens missing? 
 
 ### Login Flow Selectors
 
-**Source:** Playwright MCP accessibility snapshot | Chrome DevTools DOM | browser-use CLI | screenshots only
-**Verified:** yes | no
+**Source:** Playwright MCP (performed + recorded) | Chrome DevTools DOM | browser-use CLI | screenshots only
+**Verified:** yes (Playwright MCP) | no (all other methods)
 
-(Include this section ONLY if browser tool data was captured for the login flow. If only screenshots were used, write: "**Verified:** no — selectors not verified, recommend ai-action fallback for login steps.")
+(Include this section ONLY if login flow data was captured. If Playwright MCP was not used, write: "**Verified:** no — login not performed via Playwright MCP, recommend connecting Playwright MCP for accurate login code, or use ai-action fallback.")
 
-#### State 1: [Screen title, e.g., "Login Entry"]
+#### State 1: [Screen title, e.g., "Login Page"]
 **URL:** /login
-**Visible heading/landmark:** "登入平台管理系統"
+**Visible heading/landmark:** "Sign In"
 | Action | Element Role | Element Name/Text | Variable |
 |--------|-------------|-------------------|----------|
-| assert | heading | "登入平台管理系統" | — |
-| fill | textbox | "用戶編號" | LOGIN_ID |
-| click | button | "登入" | — |
-
-#### State 2: [Screen title, e.g., "Password Entry"]
-**Visible heading/landmark:** "輸入密碼"
-| Action | Element Role | Element Name/Text | Variable |
-|--------|-------------|-------------------|----------|
-| assert | heading | "輸入密碼" | — |
-| fill | textbox | "目前密碼" | LOGIN_PW |
-| click | button | "繼續" | — |
+| assert | heading | "Sign In" | — |
+| fill | textbox | "Email address" | LOGIN_EMAIL |
+| fill | textbox | "Password" | LOGIN_PASSWORD |
+| click | button | "Sign In" | — |
 
 #### Post-login assertion
-| assert | text | "Hi, User" | — |
+| assert | text | "Welcome back, User" | — |
 
 (Repeat states as needed for multi-step login flows. Each state represents a distinct screen the user sees during login.)
 
 ### Login Playwright Code
 
-(Include this section ONLY when `Verified: yes`. Generated from the selector tables above during exploration while the browser context was live — this is the most accurate moment to produce login code.)
+(Include this section ONLY when `Verified: yes` — i.e., login was performed via Playwright MCP. Code is derived from verified MCP actions, not from selector tables.)
 
 ```javascript
-// Example — generated from verified selectors
-await expect(page.getByText('登入平台管理系統')).toBeVisible();
-await page.getByText('登入').click();
-await expect(page.getByRole('heading', { name: '登入管理系統' })).toBeVisible();
-await page.getByRole('textbox', { name: '用戶編號' }).fill(vars['LOGIN_ID']);
-await page.getByRole('button', { name: '登入' }).click();
-await expect(page.getByRole('heading', { name: '輸入密碼' })).toBeVisible();
-await page.getByRole('textbox', { name: '目前密碼' }).fill(vars['LOGIN_PW']);
-await page.getByRole('button', { name: '繼續' }).click();
-await expect(page.getByRole('heading', { name: '驗證碼', exact: true })).toBeVisible();
-await page.getByRole('textbox').fill(vars['LOGIN_FIXED_OTP']);
-await expect(page.getByText('Hi, User')).toBeVisible();
+// Example — recorded from Playwright MCP login interactions
+await expect(page.getByRole('heading', { name: 'Sign In' })).toBeVisible();
+await page.getByRole('textbox', { name: 'Email address' }).fill(vars['LOGIN_EMAIL']);
+await page.getByRole('textbox', { name: 'Password' }).fill(vars['LOGIN_PASSWORD']);
+await page.getByRole('button', { name: 'Sign In' }).click();
+await expect(page.getByText('Welcome back, User')).toBeVisible();
 ```
 
 (If `Verified: no`, omit this section entirely. `/skytest-2-plan` will use ai-action fallback for login steps.)
