@@ -27,7 +27,7 @@ vi.mock('@/lib/core/prisma', () => ({
     },
 }));
 
-const { reapExpiredRunnerLeases } = await import('@/lib/runners/lease-reaper');
+const { reapExpiredRunnerLeases, reapStaleLocalBrowserRuns } = await import('@/lib/runners/lease-reaper');
 
 describe('reapExpiredRunnerLeases', () => {
     beforeEach(() => {
@@ -126,5 +126,101 @@ describe('reapExpiredRunnerLeases', () => {
             },
         });
         expect(result).toEqual({ recoveredRuns: 0, requeuedRuns: 0, failedRuns: 0 });
+    });
+});
+
+describe('reapStaleLocalBrowserRuns', () => {
+    beforeEach(() => {
+        findMany.mockReset();
+        updateManyRuns.mockReset();
+        updateManyTestCases.mockReset();
+        deleteManyLocks.mockReset();
+    });
+
+    it('requeues PREPARING local browser runs and fails RUNNING local browser runs when stale', async () => {
+        const now = new Date('2026-03-07T05:00:00.000Z');
+        findMany.mockResolvedValueOnce([
+            { id: 'run-3', testCaseId: 'tc-3', status: 'PREPARING' },
+            { id: 'run-4', testCaseId: 'tc-4', status: 'RUNNING' },
+        ]);
+
+        const result = await reapStaleLocalBrowserRuns(now);
+
+        expect(findMany).toHaveBeenCalledWith({
+            where: {
+                status: { in: ['PREPARING', 'RUNNING'] },
+                deletedAt: null,
+                assignedRunnerId: null,
+                requiredCapability: 'BROWSER',
+                OR: [
+                    { lastEventAt: { lt: result.staleBefore } },
+                    {
+                        lastEventAt: null,
+                        startedAt: { lt: result.staleBefore },
+                    },
+                ],
+            },
+            select: {
+                id: true,
+                testCaseId: true,
+                status: true,
+            },
+        });
+        expect(updateManyRuns).toHaveBeenNthCalledWith(1, {
+            where: {
+                id: { in: ['run-3'] },
+                status: 'PREPARING',
+                assignedRunnerId: null,
+                requiredCapability: 'BROWSER',
+            },
+            data: {
+                status: 'QUEUED',
+                error: 'Local browser run became stale during preparation; run re-queued',
+                startedAt: null,
+            },
+        });
+        expect(updateManyRuns).toHaveBeenNthCalledWith(2, {
+            where: {
+                id: { in: ['run-4'] },
+                status: 'RUNNING',
+                assignedRunnerId: null,
+                requiredCapability: 'BROWSER',
+            },
+            data: {
+                status: 'FAIL',
+                error: 'Local browser run became stale before completion',
+                completedAt: now,
+            },
+        });
+        expect(updateManyTestCases).toHaveBeenNthCalledWith(1, {
+            where: { id: { in: ['tc-3'] } },
+            data: { status: 'QUEUED' },
+        });
+        expect(updateManyTestCases).toHaveBeenNthCalledWith(2, {
+            where: { id: { in: ['tc-4'] } },
+            data: { status: 'FAIL' },
+        });
+        expect(result).toEqual({
+            recoveredRuns: 2,
+            requeuedRuns: 1,
+            failedRuns: 1,
+            staleBefore: result.staleBefore,
+        });
+    });
+
+    it('does nothing when no stale local browser run is found', async () => {
+        const now = new Date('2026-03-07T05:00:00.000Z');
+        findMany.mockResolvedValueOnce([]);
+
+        const result = await reapStaleLocalBrowserRuns(now);
+
+        expect(updateManyRuns).not.toHaveBeenCalled();
+        expect(updateManyTestCases).not.toHaveBeenCalled();
+        expect(result).toEqual({
+            recoveredRuns: 0,
+            requeuedRuns: 0,
+            failedRuns: 0,
+            staleBefore: result.staleBefore,
+        });
     });
 });

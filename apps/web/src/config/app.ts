@@ -59,6 +59,12 @@ const runnerLeaseReaperIntervalMs = parseBoundedIntEnv({
     min: 5_000,
     max: 600_000,
 });
+const runnerLocalBrowserStaleTimeoutMs = parseBoundedIntEnv({
+    name: 'RUNNER_LOCAL_BROWSER_STALE_TIMEOUT_MS',
+    fallback: 15 * 60 * 1000,
+    min: 60_000,
+    max: 24 * 60 * 60 * 1000,
+});
 const runnerMaxLocalBrowserRuns = parseBoundedIntEnv({
     name: 'RUNNER_MAX_LOCAL_BROWSER_RUNS',
     fallback: 1,
@@ -178,6 +184,7 @@ export const config = {
         runStatusMaxPollIntervalMs: runnerRunStatusMaxPollIntervalMs,
         runStatusMaxCancellationPollIntervalMs: runnerRunStatusMaxCancellationPollIntervalMs,
         leaseReaperIntervalMs: runnerLeaseReaperIntervalMs,
+        localBrowserStaleTimeoutMs: runnerLocalBrowserStaleTimeoutMs,
         eventRetentionDays: runnerEventRetentionDays,
         artifactSoftDeleteDays: runnerArtifactSoftDeleteDays,
         artifactHardDeleteDays: runnerArtifactHardDeleteDays,

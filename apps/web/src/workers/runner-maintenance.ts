@@ -2,7 +2,7 @@ import { config as appConfig } from '@/config/app';
 import { createLogger } from '@/lib/core/logger';
 import { prisma } from '@/lib/core/prisma';
 import { pruneOldRunEvents } from '@/lib/runners/event-retention-service';
-import { reapExpiredRunnerLeases } from '@/lib/runners/lease-reaper';
+import { reapExpiredRunnerLeases, reapStaleLocalBrowserRuns } from '@/lib/runners/lease-reaper';
 import { failInvalidQueuedAndroidRuns } from '@/lib/runners/queue-sanitizer';
 import { enforceRunArtifactRetention } from '@/lib/runners/run-retention-service';
 
@@ -25,8 +25,9 @@ function sleepOrWake(ms: number): Promise<void> {
 }
 
 async function runMaintenanceCycle() {
-    const [leaseResult, retentionResult, queueSanitizerResult] = await Promise.all([
+    const [leaseResult, staleLocalBrowserRunResult, retentionResult, queueSanitizerResult] = await Promise.all([
         reapExpiredRunnerLeases(),
+        reapStaleLocalBrowserRuns(),
         pruneOldRunEvents(),
         failInvalidQueuedAndroidRuns(),
     ]);
@@ -34,6 +35,7 @@ async function runMaintenanceCycle() {
 
     if (
         leaseResult.recoveredRuns > 0
+        || staleLocalBrowserRunResult.recoveredRuns > 0
         || retentionResult.deletedEvents > 0
         || queueSanitizerResult.failedRuns > 0
         || runRetentionResult.softDeletedRuns > 0
@@ -44,6 +46,10 @@ async function runMaintenanceCycle() {
             recoveredRuns: leaseResult.recoveredRuns,
             requeuedRuns: leaseResult.requeuedRuns,
             failedRuns: leaseResult.failedRuns,
+            staleLocalBrowserRecoveredRuns: staleLocalBrowserRunResult.recoveredRuns,
+            staleLocalBrowserRequeuedRuns: staleLocalBrowserRunResult.requeuedRuns,
+            staleLocalBrowserFailedRuns: staleLocalBrowserRunResult.failedRuns,
+            staleLocalBrowserCutoff: staleLocalBrowserRunResult.staleBefore.toISOString(),
             deletedEvents: retentionResult.deletedEvents,
             retentionCutoff: retentionResult.cutoff.toISOString(),
             failedInvalidQueuedRuns: queueSanitizerResult.failedRuns,
@@ -60,6 +66,7 @@ async function runMaintenanceCycle() {
 async function main() {
     logger.info('Runner maintenance worker started', {
         leaseReaperIntervalMs: appConfig.runner.leaseReaperIntervalMs,
+        localBrowserStaleTimeoutMs: appConfig.runner.localBrowserStaleTimeoutMs,
         eventRetentionDays: appConfig.runner.eventRetentionDays,
         artifactSoftDeleteDays: appConfig.runner.artifactSoftDeleteDays,
         artifactHardDeleteDays: appConfig.runner.artifactHardDeleteDays,

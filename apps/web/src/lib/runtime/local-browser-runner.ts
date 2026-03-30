@@ -125,8 +125,9 @@ export async function abortInactiveLocalBrowserRuns(options?: LocalBrowserRunOpt
             continue;
         }
 
-        cancelLocalBrowserRun(runId);
-        abortedCount += 1;
+        if (cancelLocalBrowserRun(runId)) {
+            abortedCount += 1;
+        }
     }
 
     return abortedCount;
@@ -917,10 +918,11 @@ export function startLocalBrowserRun(runId: string, options?: LocalBrowserRunOpt
     return execution;
 }
 
-export function cancelLocalBrowserRun(runId: string): void {
+export function cancelLocalBrowserRun(runId: string): boolean {
     const controller = activeAbortControllers.get(runId);
     if (!controller || controller.signal.aborted) {
-        return;
+        return false;
     }
     controller.abort();
+    return true;
 }

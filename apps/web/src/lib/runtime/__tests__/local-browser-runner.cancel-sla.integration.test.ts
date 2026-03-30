@@ -201,6 +201,8 @@ describe('local-browser-runner cancellation SLA integration', () => {
         persistedStatus = 'CANCELLED';
         const abortedRuns = await abortInactiveLocalBrowserRuns();
         expect(abortedRuns).toBe(1);
+        const repeatedAbortedRuns = await abortInactiveLocalBrowserRuns();
+        expect(repeatedAbortedRuns).toBe(0);
 
         for (let elapsedMs = 0; elapsedMs < 1000 && !finished; elapsedMs += 5) {
             await vi.advanceTimersByTimeAsync(5);
