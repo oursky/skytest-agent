@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+    userFindUnique: vi.fn(),
     testCaseFindUnique: vi.fn(),
     testRunCreate: vi.fn(),
     testRunFileCreateMany: vi.fn(),
@@ -11,6 +12,9 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/core/prisma', () => ({
     prisma: {
+        user: {
+            findUnique: mocks.userFindUnique,
+        },
         testCase: {
             findUnique: mocks.testCaseFindUnique,
         },
@@ -40,6 +44,7 @@ const { queueTestCaseRun } = await import('@/lib/mcp/run-execution');
 describe('queueTestCaseRun', () => {
     beforeEach(() => {
         mocks.testCaseFindUnique.mockReset();
+        mocks.userFindUnique.mockReset();
         mocks.testRunCreate.mockReset();
         mocks.testRunFileCreateMany.mockReset();
         mocks.resolveConfigs.mockReset();
@@ -51,6 +56,7 @@ describe('queueTestCaseRun', () => {
             files: {},
             allConfigs: [],
         });
+        mocks.userFindUnique.mockResolvedValue({ email: 'runner@example.com' });
         mocks.validateTargetUrl.mockReturnValue({ valid: true });
         mocks.testRunCreate.mockResolvedValue({
             id: 'run-1',
@@ -100,6 +106,7 @@ describe('queueTestCaseRun', () => {
                 status: 'QUEUED',
                 requiredCapability: 'BROWSER',
                 requiredRunnerKind: null,
+                triggeredByEmail: 'runner@example.com',
             }),
         });
         expect(mocks.testRunFileCreateMany).toHaveBeenCalledTimes(1);

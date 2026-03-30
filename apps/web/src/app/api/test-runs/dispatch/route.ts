@@ -45,6 +45,15 @@ function createConfigurationSnapshot(config: RunTestRequest) {
     return sanitized;
 }
 
+async function resolveTriggeredByEmail(userId: string): Promise<string | null> {
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { email: true },
+    });
+
+    return typeof user?.email === 'string' ? user.email : null;
+}
+
 
 async function validateAndroidTargets(
     browserConfig: RunTestRequest['browserConfig']
@@ -132,6 +141,7 @@ export async function POST(request: Request) {
         if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+        const triggeredByEmail = await resolveTriggeredByEmail(userId);
         const requestHasAndroidTargets = hasAndroidTargets(browserConfig);
 
         const testCase = await prisma.testCase.findUnique({
@@ -302,6 +312,7 @@ export async function POST(request: Request) {
                     : null,
                 requestedDeviceId,
                 requestedRunnerId,
+                triggeredByEmail,
             }
         });
 

@@ -21,6 +21,7 @@ interface TestRun {
     logs: string | null;
     error: string | null;
     configurationSnapshot: string | null;
+    triggeredByEmail?: string | null;
     events?: TestEvent[];
     files?: Array<{ id: string; filename: string; storedName: string; mimeType: string; size: number; createdAt: string }>;
 }
@@ -241,6 +242,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
     const runPageHref = projectId
         ? `/run?testCaseId=${id}&projectId=${projectId}`
         : `/run?testCaseId=${id}`;
+    const runByEmail = testRun.triggeredByEmail || '-';
 
     return (
         <main className="min-h-screen bg-gray-50 p-8">
@@ -251,8 +253,11 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                     { label: t('runDetail.breadcrumb.runPrefix', { time: formatDateTime(testRun.createdAt) }) }
                 ]} />
 
-                <div className="flex items-center justify-between mb-8">
+                <div className="mb-8 grid grid-cols-1 lg:grid-cols-2 gap-8 items-end">
                     <h1 className="text-3xl font-bold text-gray-900">{t('runDetail.title')}</h1>
+                    <p className="text-xs text-gray-500 lg:justify-self-end">
+                        {t('runDetail.runBy', { email: runByEmail })}
+                    </p>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">

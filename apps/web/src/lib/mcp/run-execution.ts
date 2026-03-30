@@ -93,6 +93,12 @@ export async function queueTestCaseRun(
     testCaseId: string,
     overrides?: RunTestOverrides
 ): Promise<{ ok: true; data: QueueTestCaseRunResult } | { ok: false; failure: QueueTestCaseRunFailure }> {
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { email: true },
+    });
+    const triggeredByEmail = typeof user?.email === 'string' ? user.email : null;
+
     const testCase = await prisma.testCase.findUnique({
         where: { id: testCaseId },
         include: {
@@ -283,6 +289,7 @@ export async function queueTestCaseRun(
                 : null,
             requestedDeviceId,
             requestedRunnerId,
+            triggeredByEmail,
         }
     });
 

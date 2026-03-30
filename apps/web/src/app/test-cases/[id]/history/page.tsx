@@ -19,6 +19,7 @@ interface TestRun {
     createdAt: string;
     result: string;
     error: string | null;
+    triggeredByEmail?: string | null;
 }
 
 interface HistoryResponse {
@@ -226,22 +227,26 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
                     </div>
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                         <div className="grid grid-cols-12 gap-4 p-4 border-b border-gray-200 bg-gray-50 items-center">
+                            <div className="col-span-2 skeleton-block h-4 w-20" />
+                            <div className="col-span-4 skeleton-block h-4 w-16" />
                             <div className="col-span-3 skeleton-block h-4 w-20" />
-                            <div className="col-span-5 skeleton-block h-4 w-16" />
-                            <div className="col-span-4 flex justify-end">
+                            <div className="col-span-3 flex justify-end">
                                 <div className="skeleton-block h-4 w-16" />
                             </div>
                         </div>
                         <div className="divide-y divide-gray-100">
                             {Array.from({ length: 8 }, (_, index) => (
                                 <div key={`history-skeleton-${index}`} className="grid grid-cols-12 gap-4 p-4 items-center">
-                                    <div className="col-span-3">
+                                    <div className="col-span-2">
                                         <div className="skeleton-block h-6 w-20 rounded-full" />
                                     </div>
-                                    <div className="col-span-5">
+                                    <div className="col-span-4">
                                         <div className="skeleton-block h-4 w-40" />
                                     </div>
-                                    <div className="col-span-4 flex justify-end gap-2">
+                                    <div className="col-span-3">
+                                        <div className="skeleton-block h-4 w-32" />
+                                    </div>
+                                    <div className="col-span-3 flex justify-end gap-2">
                                         <div className="skeleton-block h-8 w-20" />
                                         <div className="skeleton-block h-8 w-8" />
                                     </div>
@@ -291,9 +296,10 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
                 <SectionLoadingState>
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                         <div className="grid grid-cols-12 gap-4 p-4 border-b border-gray-200 bg-gray-50 text-sm font-medium text-gray-500 items-center">
-                            <div className="col-span-3">{t('history.table.status')}</div>
-                            <div className="col-span-5">{t('history.table.date')}</div>
-                            <div className="col-span-4 flex justify-end">{t('history.table.actions')}</div>
+                            <div className="col-span-2">{t('history.table.status')}</div>
+                            <div className="col-span-4">{t('history.table.date')}</div>
+                            <div className="col-span-3">{t('history.table.runBy')}</div>
+                            <div className="col-span-3 flex justify-end">{t('history.table.actions')}</div>
                         </div>
 
                         {testRuns.length === 0 ? (
@@ -313,15 +319,18 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
                                     const isRunRunningOrQueued = isRunActiveStatus(run.status);
                                     return (
                                         <div key={run.id} className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-gray-50 transition-colors">
-                                            <div className="col-span-3">
+                                            <div className="col-span-2">
                                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadgeClass(run.status)}`}>
                                                     {run.status}
                                                 </span>
                                             </div>
-                                            <div className="col-span-5 text-sm text-gray-500">
+                                            <div className="col-span-4 text-sm text-gray-500">
                                                 {formatDateTime(run.createdAt)}
                                             </div>
-                                            <div className="col-span-4 flex items-center justify-end gap-2">
+                                            <div className="col-span-3 text-sm text-gray-500 truncate">
+                                                {run.triggeredByEmail || '-'}
+                                            </div>
+                                            <div className="col-span-3 flex items-center justify-end gap-2">
                                                 {isRunRunningOrQueued ? (
                                                     <Link
                                                         href={`/run?runId=${run.id}&testCaseId=${id}`}
