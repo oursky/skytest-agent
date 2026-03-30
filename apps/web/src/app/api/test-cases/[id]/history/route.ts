@@ -75,6 +75,7 @@ export async function GET(
                     status: true,
                     createdAt: true,
                     error: true,
+                    triggeredByEmail: true,
                 },
                 skip,
                 take: limit

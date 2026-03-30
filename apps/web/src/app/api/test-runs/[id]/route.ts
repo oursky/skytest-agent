@@ -165,6 +165,7 @@ export async function GET(
             completedAt: testRun.completedAt,
             createdAt: testRun.createdAt,
             testCaseId: testRun.testCaseId,
+            triggeredByEmail: testRun.triggeredByEmail,
             files,
             events,
         });

@@ -143,6 +143,7 @@ model TestRun {
   id                      String   @id @default(cuid())
   testCaseId              String
   testCase                TestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  triggeredByEmail        String?
   requiredCapability      String?
   requiredRunnerKind      String?
   requestedDeviceId       String?

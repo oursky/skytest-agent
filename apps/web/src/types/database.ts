@@ -63,6 +63,7 @@ export interface TestCase {
 export interface TestRun {
     id: string;
     testCaseId: string;
+    triggeredByEmail?: string | null;
     requiredCapability?: string | null;
     requiredRunnerKind?: string | null;
     requestedDeviceId?: string | null;

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
     verifyAuth: vi.fn(),
     resolveUserId: vi.fn(),
+    userFindUnique: vi.fn(),
     resolveConfigs: vi.fn(),
     validateTargetUrl: vi.fn(),
     getTeamDevicesAvailability: vi.fn(),
@@ -33,6 +34,9 @@ vi.mock('@/lib/core/prisma', () => ({
         testCase: {
             findUnique: mocks.testCaseFindUnique,
         },
+        user: {
+            findUnique: mocks.userFindUnique,
+        },
         testCaseFile: {
             findMany: mocks.testCaseFileFindMany,
         },
@@ -51,6 +55,7 @@ describe('POST /api/test-runs/dispatch', () => {
     beforeEach(() => {
         mocks.verifyAuth.mockReset();
         mocks.resolveUserId.mockReset();
+        mocks.userFindUnique.mockReset();
         mocks.resolveConfigs.mockReset();
         mocks.validateTargetUrl.mockReset();
         mocks.getTeamDevicesAvailability.mockReset();
@@ -60,6 +65,7 @@ describe('POST /api/test-runs/dispatch', () => {
 
         mocks.verifyAuth.mockResolvedValue({ sub: 'auth-user' });
         mocks.resolveUserId.mockResolvedValue('user-1');
+        mocks.userFindUnique.mockResolvedValue({ email: 'runner@example.com' });
         mocks.resolveConfigs.mockResolvedValue({
             variables: { CMS: 'https://example.com' },
             files: {},
@@ -132,6 +138,7 @@ describe('POST /api/test-runs/dispatch', () => {
                 status: 'QUEUED',
                 requiredCapability: 'BROWSER',
                 requiredRunnerKind: null,
+                triggeredByEmail: 'runner@example.com',
             },
         });
         expect(payload).toMatchObject({
