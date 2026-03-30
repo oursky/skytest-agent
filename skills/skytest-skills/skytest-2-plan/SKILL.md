@@ -195,12 +195,12 @@ Test data should come from the user's actual context, not generic templates.
 
 Before writing test case steps, establish and **present these conventions to the user for confirmation**. Getting conventions wrong requires updating every test case after the fact.
 
-**Unique field strategy**: Identify fields that must be unique across runs (e.g., email addresses, codes, usernames). Confirm the approach — typically `{{TIMESTAMP}}` appended to a base value, or a `RANDOM_STRING` variable.
+**Unique field strategy**: Identify fields that must be unique across runs (e.g., email addresses, codes, usernames). The standard approach is a `RANDOM_STRING` variable with generation type `TIMESTAMP_DATETIME` (produces `YYYYMMDDHHmmssSSS`). **`{{TIMESTAMP}}` is NOT a built-in** — you must declare it as a test-case variable of type `RANDOM_STRING` with value `TIMESTAMP_DATETIME` (or `TIMESTAMP_UNIX` / `UUID`). Every `{{VAR}}` placeholder in step text requires a matching variable.
 
 **Naming prefix**: Agree on a prefix for QA-created records to distinguish them from real data in shared environments (e.g., a "QA" or initials prefix on names and codes).
 
 **Fixture vs. generated data**:
-- **Generated per run** — records the test creates fresh. Use timestamp-based unique values. Note which entities fall here.
+- **Generated per run** — records the test creates fresh. Use `RANDOM_STRING` variables for unique values. Note which entities fall here.
 - **Fixture data** — pre-existing records the test reads or edits. Specify exact IDs, emails, or conditions required. Entities flagged as fixture-only by `/skytest-1-explore` always fall here — confirm the safe record range with the user.
 
 **Browser target name**: Confirm the name that will be used for the browser target across all test cases (e.g., "Admin Portal", "Customer App"). This is set once and reused in every case.
@@ -244,7 +244,7 @@ Ask: "Does this test plan cover the right scenarios? Any cases to add, modify, o
 - **Viewport size:** [e.g., 1920x1080 — confirmed with user]
 - **Starting URL:** [app root or specific entry path]
 - **Credential variables:** LOGIN_EMAIL, LOGIN_PASSWORD (project-level — never hardcoded)
-- **Unique field strategy:** [e.g., `{{TIMESTAMP}}` suffix on emails and codes]
+- **Unique field strategy:** [e.g., RANDOM_STRING variable `TIMESTAMP` with generation type `TIMESTAMP_DATETIME`, used as `{{TIMESTAMP}}` suffix on codes and names]
 - **Naming prefix:** [e.g., "QA" prefix on all QA-created record names]
 - **Generated per run:** [list entity types created fresh by tests]
 - **Fixture-only:** [list entity types requiring pre-existing records + safe record range]
@@ -295,9 +295,9 @@ await expect(page.getByText('Welcome back')).toBeVisible();
 - Steps 3-7: ai-action
 
 **Variables (test-case level only):**
-| Name | Type | Example Value | Masked | Notes |
-|------|------|---------------|--------|-------|
-| TEST_DISPLAY_NAME | RANDOM_STRING | — | no | unique per run |
+| Name | Type | Value (generation type) | Masked | Notes |
+|------|------|------------------------|--------|-------|
+| TEST_DISPLAY_NAME | RANDOM_STRING | TIMESTAMP_DATETIME | no | unique per run; generation types: `TIMESTAMP_DATETIME`, `TIMESTAMP_UNIX`, or `UUID` |
 
 **Reuses from project:** BASE_URL, LOGIN_EMAIL, LOGIN_PASSWORD
 

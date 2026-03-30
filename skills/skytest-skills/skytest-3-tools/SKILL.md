@@ -221,7 +221,7 @@ Establish navigation code once per menu path and reuse across all cases targetin
 - Names: `UPPER_SNAKE_CASE`
 - `VARIABLE` type for credentials (`masked: true` for passwords)
 - `URL` type for base URLs
-- `RANDOM_STRING` for unique test data per run
+- `RANDOM_STRING` for unique test data per run — **must include a `value` field** with the generation type: `TIMESTAMP_DATETIME` (YYYYMMDDHHmmssSSS), `TIMESTAMP_UNIX` (milliseconds), or `UUID` (hex without dashes). `{{TIMESTAMP}}` is NOT a built-in variable — it must be declared as a `RANDOM_STRING` variable
 - `APP_ID` type for Android app identifiers
 - `FILE` type excluded — SkyTest does not support file attachments via MCP. Skip file-type configs entirely.
 - Only include test-case-level variables for values NOT already in the project config
@@ -252,7 +252,8 @@ Before each `create_test_case` call, verify:
 - [ ] Browser target name is descriptive (not "Primary Browser") — confirmed with user in step 2
 - [ ] Target IDs used consistently in every step's `target` field
 - [ ] Complete target definitions for all referenced targets
-- [ ] All `{{VAR}}` references have matching variables (test-case-level or project-level)
+- [ ] All `{{VAR}}` references have matching variables (test-case-level or project-level) — `{{TIMESTAMP}}` is NOT built-in and requires a RANDOM_STRING variable
+- [ ] Every `RANDOM_STRING` variable includes a `value` field with the generation type (`TIMESTAMP_DATETIME`, `TIMESTAMP_UNIX`, or `UUID`)
 - [ ] No credential values are hardcoded — all credentials use `vars['VARIABLE_NAME']` or `{{VARIABLE_NAME}}`
 - [ ] Step `type` set correctly (`ai-action` or `playwright-code`)
 - [ ] No `FILE` variable in payload
@@ -324,7 +325,7 @@ When the test plan provides verified login Playwright code, the login becomes a 
       }
     ],
     "variables": [
-      { "name": "TEST_DISPLAY_NAME", "type": "RANDOM_STRING" }
+      { "name": "TEST_DISPLAY_NAME", "type": "RANDOM_STRING", "value": "TIMESTAMP_DATETIME" }
     ]
   }
 }
