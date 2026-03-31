@@ -140,7 +140,7 @@ If changing operator-facing runtime behavior, also read:
 - `npm run audit` - Audit lockfile dependencies for moderate/high/critical vulnerabilities
 - `npm run verify` - Run lint and audit checks
 - `npx prisma studio --schema apps/web/prisma/schema.prisma` - Open DB GUI
-- `npx prisma db push --schema apps/web/prisma/schema.prisma` - Apply schema changes
+- `npx prisma migrate deploy --schema apps/web/prisma/schema.prisma` - Apply committed migrations
 
 ## Common Patterns
 
@@ -224,7 +224,7 @@ return NextResponse.json({
 
 ### Adding a Database Field
 1. Edit `apps/web/prisma/schema.prisma`
-2. Run `npx prisma db push --schema apps/web/prisma/schema.prisma`
+2. Run `npx prisma migrate dev --schema apps/web/prisma/schema.prisma`
 3. Update types in `apps/web/src/types/` if needed
 4. Re-export from `apps/web/src/types/index.ts`
 

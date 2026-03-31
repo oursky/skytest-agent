@@ -14,6 +14,8 @@ CONTROL_PLANE_URL ?= http://$(CONTROL_PLANE_HOST):$(CONTROL_PLANE_PORT)
 	services-down \
 	services-logs \
 	db-generate \
+	db-migrate-deploy \
+	db-migrate-test \
 	db-push \
 	db-setup \
 	app \
@@ -43,10 +45,16 @@ services-logs: ## Tail local Postgres and MinIO service logs
 db-generate: ## Generate Prisma client
 	$(NODE_PM) run db:generate
 
+db-migrate-deploy: ## Apply committed Prisma migrations
+	$(NODE_PM) run db:migrate:deploy
+
+db-migrate-test: ## Replay migrations from first migration and simulate rollback
+	$(NODE_PM) run db:migrate:test
+
 db-push: ## Apply Prisma schema to the configured database
 	$(NODE_PM) run db:push
 
-db-setup: db-generate db-push ## Generate Prisma client and apply schema
+db-setup: db-generate db-migrate-deploy ## Generate Prisma client and apply committed migrations
 
 app: ## Start the local Next.js control plane
 	$(NODE_PM) run dev -- --hostname $(CONTROL_PLANE_HOST) --port $(CONTROL_PLANE_PORT)
@@ -63,12 +71,12 @@ playwright-install: ## Install Playwright Chromium locally
 runner-reset: ## Stop all local runner processes and remove local runner state
 	$(NODE_PM) run skytest -- reset --force
 
-bootstrap: ## Install deps, start local services, and apply the database schema
+bootstrap: ## Install deps, start local services, and apply committed migrations
 	$(MAKE) install
 	$(MAKE) services-up
 	$(MAKE) db-setup
 
-dev: ## Boot local services, apply schema, and start the web app with maintenance + browser worker
+dev: ## Boot local services, apply committed migrations, and start the web app with maintenance + browser worker
 	$(MAKE) services-up
 	$(MAKE) db-setup
 	@set -a; \

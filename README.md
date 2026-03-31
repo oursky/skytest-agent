@@ -73,7 +73,7 @@ Don't want to self-host? We're building a managed version of SkyTest.
 ### Quick Troubleshooting
 
 - **Browsers not found**: Run `npm run playwright:install`
-- **Database errors**: Verify `DATABASE_URL`, then run `npx prisma db push`
+- **Database errors**: Verify `DATABASE_URL`, then run `npm run db:migrate:deploy`
 - **Object storage errors**: Verify `S3_ENDPOINT`, `S3_BUCKET`, and MinIO credentials in `.env.local` for local development
 
 ## Community & Contributing
