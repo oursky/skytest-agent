@@ -2,11 +2,13 @@
 name: skytest-2-plan
 description: >
   Design prioritized test cases from a UI skeleton document produced by
-  skytest-1-explore. Classifies flows by business risk, designs happy path
-  and edge case coverage, and produces a step-by-step test plan referencing
-  specific UI elements. Output feeds into skytest-3-tools for MCP execution.
-  Use when the user has a UI skeleton and wants to design test cases before
-  creating them in SkyTest.
+  skytest-1-explore. Detects app archetypes (CRUD admin, CMS portals, etc.)
+  and applies proven decomposition patterns — one focused test case per
+  concern with variable-driven data and self-cleanup. Classifies flows by
+  business risk, designs happy path and edge case coverage, and produces a
+  step-by-step test plan referencing specific UI elements. Output feeds into
+  skytest-3-tools for MCP execution. Use when the user has a UI skeleton and
+  wants to design test cases before creating them in SkyTest.
 ---
 
 # SkyTest Plan Skill
@@ -87,7 +89,102 @@ From the UI skeleton's screens and navigation flow, identify all testable flows 
 
 **Present the classification to the user.** Ask what coverage depth they want — e.g., "P0-P1 only for now" or "full P0-P3." This avoids designing 20+ cases when the user only wants the critical paths first. Design cases starting from the agreed priority level downward. The user may adjust priorities or skip lower tiers entirely.
 
-### 3. Design Test Cases
+### 3. Detect App Archetype & Apply Decomposition
+
+After classifying flows by priority, check whether the target section matches a **common app archetype**. Archetype patterns provide battle-tested test case decomposition — use them to generate focused, maintainable test cases instead of designing from scratch.
+
+If the section doesn't cleanly match an archetype, skip to step 4 and design test cases from the generic approach.
+
+**Present the detected archetype (or "Custom") to the user alongside the priority classification from step 2. Confirm both before designing cases.**
+
+#### Archetype A: CRUD Admin / CMS Portal
+
+**Recognize by:** Table or list views with search, filters, pagination, and column sorting. Detail views for individual records. Create / Edit / Delete actions for managing records. Sidebar or top-nav with multiple entity sections (e.g., Users, Products, Orders, Articles).
+
+**Decomposition — one test case per concern:**
+
+**A-1. Navigation Smoke Test** (1 per app, P1)
+Navigate to every main page/section via the primary navigation. At each page, assert the page heading and key layout landmarks are present. This single test case covers the full navigation skeleton — if it passes, all pages load and route correctly.
+
+**Per entity section (up to 6 test cases):**
+
+**A-2. List View & Record Detail** (P1)
+- Navigate to the section's list page
+- Assert list layout: page heading, table column headers, search input, "Create"/"Add" button presence
+- Search for a known fixture record using `{{SEARCH_KEYWORD}}`
+- Click on a result row to open the detail view
+- Assert detail layout: key field labels and dynamic values visible, edit/delete/back actions present
+- *Focus: read-only verification that list view and detail view render correctly with real data*
+
+**A-3. Pagination** (P2)
+- Navigate to the list page
+- Assert initial pagination state (page indicator, record count if visible)
+- Navigate to page 2, verify different records appear
+- Navigate back to page 1, verify original records return
+- *Focus: pagination controls function correctly*
+- *Skip if:* section has no pagination or insufficient records
+
+**A-4. Table Columns & Sorting** (P2)
+- Navigate to the list page
+- Assert all expected column headers are present
+- Click a sortable column header — verify sort indicator and row order change
+- Click again — verify reverse sort
+- *Focus: table structure and sort behavior*
+- *Skip if:* columns are not sortable
+
+**A-5. Create Record** (P1)
+- Click "Create"/"Add"/"New" to open the form
+- Fill required fields using variables (`{{NEW_RECORD_NAME}}`, `{{NEW_RECORD_EMAIL}}`, etc.)
+- Submit the form
+- Assert success: confirmation message AND the record visible in list or detail view
+- Clean up: if the UI allows, delete the created record at the end to keep the environment tidy
+- *Focus: the create/add happy path*
+
+**A-6. Create → Edit Record** (P1)
+- **Setup:** Create a new record (same flow as A-5, using its own set of variables)
+- Navigate to the created record's edit form
+- Modify fields with new variable values (`{{EDITED_RECORD_NAME}}`)
+- Submit the edit
+- Assert the updated values are reflected in the detail or list view
+- Clean up: delete the record if possible
+- *Focus: the edit/update flow — creation is setup, not the subject under test*
+
+**A-7. Create → Delete Record** (P1)
+- **Setup:** Create a new record (same flow as A-5)
+- Navigate to the created record
+- Trigger delete action, confirm in the deletion dialog
+- Assert the record no longer appears in the list
+- *Focus: the delete flow — creation is setup*
+
+**Key principles for this archetype:**
+
+- **One focus per test case.** Mutation tests (A-5 through A-7) each validate exactly one operation. Steps that create prerequisite data are labeled as setup — they exist to produce the data needed for the focused operation, not to be tested themselves.
+- **Variable-first design.** Every dynamic value — record names, search keywords, edited values, emails — must be a test case variable (`{{VARIABLE}}`). This makes tests re-runnable with different data without editing steps. Use `RANDOM_STRING` variables (generation type `TIMESTAMP_DATETIME`) for fields that must be unique across runs.
+- **Self-cleanup.** Mutation tests that create data should delete it at the end when the UI supports deletion. This prevents test data accumulation in shared environments. If deletion is not available via UI, note it as an environment maintenance requirement in preconditions.
+- **Fixture data for read tests.** List/detail (A-2), pagination (A-3), and sorting (A-4) tests rely on pre-existing data. Identify the fixture records and their search keywords with the user — store them as variables so the same tests work across environments.
+- **Assertion specificity by test type.** Layout verification tests (A-2 through A-4) assert structure — headings, labels, column headers, button presence — not exact data values (which are dynamic). Mutation tests (A-5 through A-7) assert the specific variable values that were entered, confirming the operation persisted correctly.
+
+**Adapting the pattern:**
+- If the section has advanced filters beyond basic search, add a dedicated filter test case
+- If the create form has complex interactions (multi-step wizard, conditional fields, rich text, date pickers), the create test may need additional steps or split into multiple cases
+- If bulk actions exist (select multiple, bulk delete/export), add a dedicated test case
+- If the section is read-only or permissions are restricted (fixture-only), only A-1 through A-4 apply — skip mutation tests entirely
+- Validation tests (empty required fields, invalid formats, duplicate entries) can be added as P2 extension test cases alongside the create happy path
+
+#### Other Archetypes (use generic design in step 4)
+
+The following are common app patterns not yet formalized into decomposition templates. Design test cases for these using the generic approach in step 4, adapting the principles above (one focus per test, variable-first, self-cleanup):
+
+- **E-commerce Storefront** — browse catalog, search/filter, add to cart, checkout flow, order history
+- **Multi-step Wizard / Onboarding** — sequential form completion, back/forward navigation, progress persistence, completion state
+- **Dashboard / Analytics** — chart rendering, date range filters, data refresh, widget interactions
+- **Settings / Configuration Panel** — toggle features, save preferences, reset to defaults, confirmation flows
+
+If a section clearly fits one of these, mention it in the test plan and design accordingly — but do not force-fit into CRUD patterns.
+
+### 4. Design Test Cases
+
+**If an archetype was applied in step 3**, the primary decomposition is already defined. Use the techniques below to identify additional edge-case or validation tests beyond the archetype's happy-path coverage, if the user's agreed priority scope includes P2–P3. If no archetype matched, use this section as the primary design approach.
 
 For each flow, apply structured test design:
 
@@ -102,7 +199,7 @@ For each flow, apply structured test design:
 
 **If test cases already exist for this section** (the user mentions them or they were found via `/skytest-3-tools`), prefer updating existing cases over creating duplicates. Note in the plan which cases are updates vs. new.
 
-### 4. Ensure Test Independence
+### 5. Ensure Test Independence
 
 Every test case must be self-contained:
 - Starts from the entry point (URL or app launch)
@@ -112,7 +209,7 @@ Every test case must be self-contained:
 
 **Fixture-only entities**: If `/skytest-1-explore` flagged any entity as fixture-only (create/edit permissions restricted), do not design test cases that attempt to create those entities. Design around reading or modifying pre-existing records only, and state the required fixture in the Preconditions block.
 
-### 5. Adopt Login Step from UI Skeleton
+### 6. Adopt Login Step from UI Skeleton
 
 The login step is the first step in most test cases. Its accuracy depends on how it was captured during `/skytest-1-explore`.
 
@@ -138,7 +235,7 @@ Note in the plan: "Login uses ai-action — selectors were not verified. To upgr
 
 Once the login step (playwright-code or ai-action) is established, **reuse it identically** as Step 1 in every test case that requires authentication. Do not re-design the login per test case.
 
-### 6. Design Remaining Steps
+### 7. Design Remaining Steps
 
 For each test case, write concrete steps that reference **exact UI element labels from the skeleton**.
 
@@ -161,7 +258,7 @@ For each test case, write concrete steps that reference **exact UI element label
 
 **Use `{{VARIABLE}}` placeholders** for all configurable values (credentials, URLs, test data that varies per environment).
 
-### 7. Apply Assertion Depth
+### 8. Apply Assertion Depth
 
 Verify *consequences*, not just appearance:
 - **After create**: Item appears in list/table, not just success toast
@@ -178,7 +275,7 @@ Verify *consequences*, not just appearance:
 
 **Form default states:** Check actual defaults from the skeleton's "Defaults & Pre-filled State" section. Don't assume all checkboxes are unchecked.
 
-### 8. Choose Context-Driven Test Data
+### 9. Choose Context-Driven Test Data
 
 Test data should come from the user's actual context, not generic templates.
 
@@ -191,7 +288,7 @@ Test data should come from the user's actual context, not generic templates.
 
 **Never use** "test123", "foo@bar.com", or "Lorem ipsum". For error paths, use realistic invalid inputs (typos, too-short passwords, text in number fields).
 
-### 9. Establish Test Data Conventions
+### 10. Establish Test Data Conventions
 
 Before writing test case steps, establish and **present these conventions to the user for confirmation**. Getting conventions wrong requires updating every test case after the fact.
 
@@ -211,9 +308,9 @@ Before writing test case steps, establish and **present these conventions to the
 
 **Credential variables**: Confirm `LOGIN_EMAIL`, `LOGIN_PASSWORD` (or equivalent) will be configured as project-level variables. These must never be hardcoded in steps.
 
-**Present this as a summary and wait for explicit user confirmation before proceeding to step 10.**
+**Present this as a summary and wait for explicit user confirmation before proceeding to step 11.**
 
-### 10. Produce Test Plan Document
+### 11. Produce Test Plan Document
 
 Assemble all test cases into the output format below. Present to the user for review.
 
@@ -237,6 +334,8 @@ Ask: "Does this test plan cover the right scenarios? Any cases to add, modify, o
 - **Domain:** [e.g., e-commerce, healthcare, SaaS]
 - **Target users:** [who uses this section]
 - **Critical flows:** [revenue/security/compliance impacts]
+- **App archetype:** CRUD Admin/CMS | E-commerce Storefront | Wizard/Onboarding | Dashboard | Custom
+- **Decomposition pattern:** [archetype pattern reference, e.g., "CRUD Admin A-1 through A-7" | "generic"]
 
 ## Test Data Conventions
 
@@ -276,6 +375,7 @@ await expect(page.getByText('Welcome back')).toBeVisible();
 **ID:** [XXXX-YY-ZZZ or user's convention]
 **Priority:** P0 | P1 | P2 | P3
 **Category:** Happy path | Validation | Edge case | Error recovery | Authorization
+**Focus:** [one-line statement of what this test case specifically validates]
 
 **Preconditions:**
 - [any data or state needed before test starts, or "None"]
@@ -288,6 +388,9 @@ await expect(page.getByText('Welcome back')).toBeVisible();
 5. [ACTION] Click "Save Changes"
 6. [ASSERT] Verify success toast "Profile updated" appears
 7. [ASSERT] Verify "Display Name" field shows "{{TEST_DISPLAY_NAME}}"
+
+**Setup steps:** 1-2 (login and navigation — prerequisites, not the subject under test)
+**Focus steps:** 3-7 (the edit profile flow)
 
 **Step type hints:**
 - Step 1: playwright-code (login — verified selectors) | ai-action (login — unverified)
