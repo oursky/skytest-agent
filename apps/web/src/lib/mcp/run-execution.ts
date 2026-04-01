@@ -17,7 +17,7 @@ import {
     hasAndroidTargets,
     isEmulatorProfileInventoryDevice,
 } from '@/lib/android/target-requests';
-import { TEST_STATUS, type BrowserConfig, type TargetConfig, type TestStep } from '@/types';
+import { TEST_STATUS, type BrowserConfig, type ResolvedConfig, type TargetConfig, type TestStep } from '@/types';
 
 function validateAndroidTargets(
     browserConfig: Record<string, BrowserConfig | TargetConfig> | undefined
@@ -62,6 +62,7 @@ function createConfigurationSnapshot(config: {
     browserConfig?: Record<string, BrowserConfig | TargetConfig>;
     requestedDeviceId?: string | null;
     requestedRunnerId?: string | null;
+    resolvedConfigurations?: ResolvedConfig[];
 }) {
     return config;
 }
@@ -157,10 +158,19 @@ export async function queueTestCaseRun(
         return { ok: false, failure: { error: 'Instructions (Prompt or Steps) are required' } };
     }
 
+    const requiresResolvedVariables = hasTemplatedConfigUrls({ url: normalizedUrl, browserConfig: normalizedBrowserConfig });
     let resolvedVariables: Record<string, string> = {};
-    if (hasTemplatedConfigUrls({ url: normalizedUrl, browserConfig: normalizedBrowserConfig })) {
+    let resolvedConfigurations: ResolvedConfig[] = [];
+    try {
         const resolvedConfigs = await resolveConfigs(testCase.projectId, testCaseId);
-        resolvedVariables = resolvedConfigs.variables;
+        resolvedConfigurations = resolvedConfigs.allConfigs;
+        if (requiresResolvedVariables) {
+            resolvedVariables = resolvedConfigs.variables;
+        }
+    } catch (error) {
+        if (requiresResolvedVariables) {
+            throw error;
+        }
     }
 
     const urlValidationError = validateConfigUrls(
@@ -274,6 +284,7 @@ export async function queueTestCaseRun(
         browserConfig: normalizedBrowserConfig,
         requestedDeviceId,
         requestedRunnerId,
+        resolvedConfigurations,
     }));
 
     const testRun = await prisma.testRun.create({

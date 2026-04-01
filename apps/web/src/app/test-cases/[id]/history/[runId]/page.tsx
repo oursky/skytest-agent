@@ -10,6 +10,7 @@ import { CenteredLoading } from "@/components/shared";
 import { formatDateTime } from "@/utils/time/dateFormatter";
 import { useI18n } from "@/i18n";
 import { parseStoredEvents } from "@/lib/runtime/test-events";
+import { resolveSnapshotTestCaseIdentity } from "./snapshot-utils";
 
 import { type TestStep, type BrowserConfig, type TargetConfig, type ConfigItem, type TestEvent, type TestStatus } from "@/types";
 
@@ -21,6 +22,8 @@ interface TestRun {
     logs: string | null;
     error: string | null;
     configurationSnapshot: string | null;
+    testCaseDisplayId?: string | null;
+    testCaseName?: string | null;
     triggeredByEmail?: string | null;
     events?: TestEvent[];
     files?: Array<{ id: string; filename: string; storedName: string; mimeType: string; size: number; createdAt: string }>;
@@ -187,13 +190,19 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                 const savedConfig = JSON.parse(testRun.configurationSnapshot) as Partial<TestCase> & {
                     resolvedConfigurations?: Array<{ name: string; type: string; value: string; filename?: string; source: string }>;
                 };
-                const data = {
+                const snapshotIdentity = resolveSnapshotTestCaseIdentity({
                     displayId: savedConfig.displayId,
                     name: savedConfig.name,
-                    url: savedConfig.url ?? '',
-                    prompt: savedConfig.prompt ?? '',
-                    steps: savedConfig.steps,
-                    browserConfig: savedConfig.browserConfig,
+                    fallbackDisplayId: baseConfig?.displayId ?? testRun.testCaseDisplayId ?? undefined,
+                    fallbackName: baseConfig?.name ?? testRun.testCaseName ?? undefined,
+                });
+                const data = {
+                    displayId: snapshotIdentity.displayId,
+                    name: snapshotIdentity.name,
+                    url: savedConfig.url ?? baseConfig?.url ?? '',
+                    prompt: savedConfig.prompt ?? baseConfig?.prompt ?? '',
+                    steps: savedConfig.steps ?? baseConfig?.steps,
+                    browserConfig: savedConfig.browserConfig ?? baseConfig?.browserConfig,
                 };
 
                 const projectSnapshotConfigs: ConfigItem[] = [];

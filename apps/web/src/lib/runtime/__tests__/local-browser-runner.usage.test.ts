@@ -143,4 +143,63 @@ describe('local-browser-runner usage recording', () => {
             }
         });
     });
+
+    it('prefers snapshot resolved configurations over fresh resolver lookups', async () => {
+        mocks.testRunFindUnique.mockResolvedValue({
+            id: 'run-1',
+            testCaseId: 'tc-1',
+            status: 'RUNNING',
+            assignedRunnerId: null,
+            leaseExpiresAt: null,
+            configurationSnapshot: JSON.stringify({
+                resolvedConfigurations: [
+                    {
+                        name: 'ENV',
+                        type: 'VARIABLE',
+                        value: 'staging',
+                        source: 'project',
+                    },
+                    {
+                        name: 'seedCsv',
+                        type: 'FILE',
+                        value: 'objects/seed.csv',
+                        filename: 'seed.csv',
+                        source: 'test-case',
+                    },
+                ],
+            }),
+            files: [],
+            testCase: {
+                id: 'tc-1',
+                name: 'Checkout flow',
+                url: 'https://example.com',
+                prompt: null,
+                steps: null,
+                browserConfig: null,
+                projectId: 'project-1',
+                project: {
+                    name: 'Shop',
+                    createdByUserId: 'user-1',
+                    team: {
+                        openRouterKeyEncrypted: 'encrypted',
+                    }
+                }
+            }
+        });
+
+        await startLocalBrowserRun('run-1');
+
+        expect(mocks.resolveConfigs).not.toHaveBeenCalled();
+        const runTestInput = mocks.runTest.mock.calls[0]?.[0] as {
+            config?: {
+                resolvedVariables?: Record<string, string>;
+                resolvedFiles?: Record<string, string>;
+            };
+        };
+        expect(runTestInput.config?.resolvedVariables).toEqual({ ENV: 'staging' });
+        expect(runTestInput.config?.resolvedFiles).toEqual({
+            seedCsv: 'objects/seed.csv',
+            'seed.csv': 'objects/seed.csv',
+        });
+    });
 });

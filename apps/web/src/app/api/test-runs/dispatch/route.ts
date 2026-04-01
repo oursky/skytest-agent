@@ -20,7 +20,7 @@ import {
     ANDROID_EXECUTION_RUNNER_KIND,
     BROWSER_EXECUTION_CAPABILITY,
 } from '@/lib/runners/constants';
-import { TEST_STATUS, type BrowserConfig, type TargetConfig, type TestStep } from '@/types';
+import { TEST_STATUS, type BrowserConfig, type ResolvedConfig, type TargetConfig, type TestStep } from '@/types';
 
 const logger = createLogger('api:test-runs-dispatch');
 
@@ -38,11 +38,17 @@ interface RunTestRequest {
     testCaseId?: string;
 }
 
-function createConfigurationSnapshot(config: RunTestRequest) {
+function createConfigurationSnapshot(
+    config: RunTestRequest,
+    resolvedConfigurations: ResolvedConfig[] = []
+) {
     const { testCaseId, ...sanitized } = config;
     void testCaseId;
 
-    return sanitized;
+    return {
+        ...sanitized,
+        resolvedConfigurations,
+    };
 }
 
 async function resolveTriggeredByEmail(userId: string): Promise<string | null> {
@@ -174,10 +180,20 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
+        const requiresResolvedVariables = hasTemplatedConfigUrls({ url, browserConfig });
         let resolvedVariables: Record<string, string> = {};
-        if (hasTemplatedConfigUrls({ url, browserConfig })) {
+        let resolvedConfigurations: ResolvedConfig[] = [];
+        try {
             const resolvedConfigs = await resolveConfigs(testCase.project.id, testCaseId);
-            resolvedVariables = resolvedConfigs.variables;
+            resolvedConfigurations = resolvedConfigs.allConfigs;
+            if (requiresResolvedVariables) {
+                resolvedVariables = resolvedConfigs.variables;
+            }
+        } catch (error) {
+            if (requiresResolvedVariables) {
+                throw error;
+            }
+            logger.warn('Failed to resolve configs for run snapshot', error);
         }
 
         const urlValidationError = validateConfigUrls({ url, browserConfig }, resolvedVariables);
@@ -205,7 +221,7 @@ export async function POST(request: Request) {
             select: { id: true, filename: true, storedName: true, mimeType: true, size: true }
         });
 
-        const configurationSnapshot = JSON.stringify(createConfigurationSnapshot(config));
+        const configurationSnapshot = JSON.stringify(createConfigurationSnapshot(config, resolvedConfigurations));
         const requestedDeviceIdInput = typeof config.requestedDeviceId === 'string'
             ? config.requestedDeviceId.trim()
             : '';

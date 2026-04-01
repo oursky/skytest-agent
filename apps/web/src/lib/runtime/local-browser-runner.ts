@@ -16,6 +16,8 @@ import {
     isScreenshotData,
     isRunTerminalStatus,
     type BrowserConfig,
+    type ConfigType,
+    type ResolvedConfig,
     type RunInProgressStatus,
     type TargetConfig,
     type TestCaseFile,
@@ -28,6 +30,7 @@ interface SnapshotPayload {
     prompt?: string;
     steps?: TestStep[];
     browserConfig?: Record<string, BrowserConfig | TargetConfig>;
+    resolvedConfigurations?: ResolvedConfig[];
 }
 
 interface LoadedRunConfig {
@@ -162,6 +165,51 @@ function parseConfigurationSnapshot(snapshot: string | null): SnapshotPayload {
     }
 }
 
+function isConfigType(value: string): value is ConfigType {
+    return value === 'URL'
+        || value === 'APP_ID'
+        || value === 'VARIABLE'
+        || value === 'RANDOM_STRING'
+        || value === 'FILE';
+}
+
+function buildResolvedConfigMapsFromSnapshot(snapshot: SnapshotPayload): {
+    resolvedVariables: Record<string, string>;
+    resolvedFiles: Record<string, string>;
+} | null {
+    if (!Array.isArray(snapshot.resolvedConfigurations)) {
+        return null;
+    }
+
+    const resolvedVariables: Record<string, string> = {};
+    const resolvedFiles: Record<string, string> = {};
+
+    for (const config of snapshot.resolvedConfigurations) {
+        if (
+            !config
+            || typeof config !== 'object'
+            || typeof config.name !== 'string'
+            || typeof config.type !== 'string'
+            || typeof config.value !== 'string'
+            || !isConfigType(config.type)
+        ) {
+            continue;
+        }
+
+        if (config.type === 'FILE') {
+            resolvedFiles[config.name] = config.value;
+            if (typeof config.filename === 'string' && config.filename.length > 0) {
+                resolvedFiles[config.filename] = config.value;
+            }
+            continue;
+        }
+
+        resolvedVariables[config.name] = config.value;
+    }
+
+    return { resolvedVariables, resolvedFiles };
+}
+
 function parseSerializedJson<T>(value: string | null): T | undefined {
     if (!value) {
         return undefined;
@@ -277,7 +325,18 @@ async function loadRunConfig(runId: string, options?: LocalBrowserRunOptions): P
     }
 
     const snapshot = parseConfigurationSnapshot(run.configurationSnapshot);
-    const resolved = await resolveConfigs(run.testCase.projectId, run.testCaseId);
+    const resolvedFromSnapshot = buildResolvedConfigMapsFromSnapshot(snapshot);
+    let resolvedVariables: Record<string, string>;
+    let resolvedFiles: Record<string, string>;
+
+    if (resolvedFromSnapshot) {
+        resolvedVariables = resolvedFromSnapshot.resolvedVariables;
+        resolvedFiles = resolvedFromSnapshot.resolvedFiles;
+    } else {
+        const resolved = await resolveConfigs(run.testCase.projectId, run.testCaseId);
+        resolvedVariables = resolved.variables;
+        resolvedFiles = resolved.files;
+    }
     const fallbackSteps = parseSerializedJson<TestStep[]>(run.testCase.steps);
     const fallbackBrowserConfig = parseSerializedJson<Record<string, BrowserConfig | TargetConfig>>(run.testCase.browserConfig);
 
@@ -296,8 +355,8 @@ async function loadRunConfig(runId: string, options?: LocalBrowserRunOptions): P
             browserConfig: snapshot.browserConfig ?? fallbackBrowserConfig,
             openRouterApiKey: decrypt(encryptedKey),
             files: run.files,
-            resolvedVariables: resolved.variables,
-            resolvedFiles: resolved.files,
+            resolvedVariables,
+            resolvedFiles,
         },
     };
 }

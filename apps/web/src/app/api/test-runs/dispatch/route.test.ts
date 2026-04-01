@@ -148,6 +148,65 @@ describe('POST /api/test-runs/dispatch', () => {
         });
     });
 
+    it('stores resolved configurations in the run snapshot for history views', async () => {
+        mocks.resolveConfigs.mockResolvedValueOnce({
+            variables: { BASE_URL: 'https://project.example.com' },
+            files: { seedCsv: 'objects/seed.csv' },
+            allConfigs: [
+                {
+                    name: 'BASE_URL',
+                    type: 'URL',
+                    value: 'https://project.example.com',
+                    source: 'project',
+                },
+                {
+                    name: 'LOGIN_EMAIL',
+                    type: 'VARIABLE',
+                    value: 'user@example.com',
+                    source: 'test-case',
+                },
+            ],
+        });
+
+        const request = new Request('http://localhost/api/test-runs/dispatch', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                testCaseId: 'tc-1',
+                url: 'https://example.com',
+                prompt: 'Run smoke check',
+            }),
+        });
+
+        const response = await POST(request);
+
+        expect(response.status).toBe(200);
+        expect(mocks.resolveConfigs).toHaveBeenCalledWith('project-1', 'tc-1');
+
+        const createCall = mocks.testRunCreate.mock.calls[0]?.[0] as { data?: { configurationSnapshot?: string } } | undefined;
+        expect(createCall?.data?.configurationSnapshot).toBeTypeOf('string');
+        const snapshot = JSON.parse(createCall?.data?.configurationSnapshot || '{}') as {
+            resolvedConfigurations?: Array<{ name: string; type: string; value: string; source: string }>;
+        };
+
+        expect(snapshot.resolvedConfigurations).toEqual([
+            {
+                name: 'BASE_URL',
+                type: 'URL',
+                value: 'https://project.example.com',
+                source: 'project',
+            },
+            {
+                name: 'LOGIN_EMAIL',
+                type: 'VARIABLE',
+                value: 'user@example.com',
+                source: 'test-case',
+            },
+        ]);
+    });
+
     it('resolves URL placeholders before validating and queueing', async () => {
         const request = new Request('http://localhost/api/test-runs/dispatch', {
             method: 'POST',

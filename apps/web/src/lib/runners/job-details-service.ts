@@ -1,13 +1,14 @@
 import { prisma } from '@/lib/core/prisma';
 import { resolveConfigs } from '@/lib/test-config/resolver';
 import { decrypt } from '@/lib/security/crypto';
-import { isRunInProgressStatus, type BrowserConfig, type TargetConfig, type TestStep } from '@/types';
+import { isRunInProgressStatus, type BrowserConfig, type ConfigType, type ResolvedConfig, type TargetConfig, type TestStep } from '@/types';
 
 interface SnapshotPayload {
     url?: string;
     prompt?: string;
     steps?: TestStep[];
     browserConfig?: Record<string, BrowserConfig | TargetConfig>;
+    resolvedConfigurations?: ResolvedConfig[];
 }
 
 function parseConfigurationSnapshot(snapshot: string | null): SnapshotPayload {
@@ -21,6 +22,51 @@ function parseConfigurationSnapshot(snapshot: string | null): SnapshotPayload {
     } catch {
         return {};
     }
+}
+
+function isConfigType(value: string): value is ConfigType {
+    return value === 'URL'
+        || value === 'APP_ID'
+        || value === 'VARIABLE'
+        || value === 'RANDOM_STRING'
+        || value === 'FILE';
+}
+
+function buildResolvedConfigMapsFromSnapshot(snapshot: SnapshotPayload): {
+    resolvedVariables: Record<string, string>;
+    resolvedFiles: Record<string, string>;
+} | null {
+    if (!Array.isArray(snapshot.resolvedConfigurations)) {
+        return null;
+    }
+
+    const resolvedVariables: Record<string, string> = {};
+    const resolvedFiles: Record<string, string> = {};
+
+    for (const config of snapshot.resolvedConfigurations) {
+        if (
+            !config
+            || typeof config !== 'object'
+            || typeof config.name !== 'string'
+            || typeof config.type !== 'string'
+            || typeof config.value !== 'string'
+            || !isConfigType(config.type)
+        ) {
+            continue;
+        }
+
+        if (config.type === 'FILE') {
+            resolvedFiles[config.name] = config.value;
+            if (typeof config.filename === 'string' && config.filename.length > 0) {
+                resolvedFiles[config.filename] = config.value;
+            }
+            continue;
+        }
+
+        resolvedVariables[config.name] = config.value;
+    }
+
+    return { resolvedVariables, resolvedFiles };
 }
 
 function parseSerializedJson<T>(value: string | null): T | undefined {
@@ -102,7 +148,18 @@ export async function loadRunnerJobDetails(input: { runId: string; runnerId: str
     }
 
     const snapshot = parseConfigurationSnapshot(run.configurationSnapshot);
-    const resolved = await resolveConfigs(run.testCase.projectId, run.testCaseId);
+    const resolvedFromSnapshot = buildResolvedConfigMapsFromSnapshot(snapshot);
+    let resolvedVariables: Record<string, string>;
+    let resolvedFiles: Record<string, string>;
+
+    if (resolvedFromSnapshot) {
+        resolvedVariables = resolvedFromSnapshot.resolvedVariables;
+        resolvedFiles = resolvedFromSnapshot.resolvedFiles;
+    } else {
+        const resolved = await resolveConfigs(run.testCase.projectId, run.testCaseId);
+        resolvedVariables = resolved.variables;
+        resolvedFiles = resolved.files;
+    }
     const encryptedKey = run.testCase.project.team.openRouterKeyEncrypted;
 
     if (!encryptedKey) {
@@ -125,8 +182,8 @@ export async function loadRunnerJobDetails(input: { runId: string; runnerId: str
             browserConfig: snapshot.browserConfig ?? fallbackBrowserConfig,
             openRouterApiKey,
             files: run.files,
-            resolvedVariables: resolved.variables,
-            resolvedFiles: resolved.files,
+            resolvedVariables,
+            resolvedFiles,
         },
     };
 }

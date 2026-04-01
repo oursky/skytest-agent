@@ -118,4 +118,58 @@ describe('loadRunnerJobDetails', () => {
 
         expect(result).toBeNull();
     });
+
+    it('uses resolved configurations from snapshot when available', async () => {
+        findUnique.mockResolvedValueOnce({
+            id: 'run-2',
+            testCaseId: 'tc-1',
+            status: 'RUNNING',
+            configurationSnapshot: JSON.stringify({
+                url: 'https://example.com',
+                resolvedConfigurations: [
+                    {
+                        name: 'ENV',
+                        type: 'VARIABLE',
+                        value: 'staging',
+                        source: 'project',
+                    },
+                    {
+                        name: 'seedCsv',
+                        type: 'FILE',
+                        value: 'objects/seed.csv',
+                        filename: 'seed.csv',
+                        source: 'test-case',
+                    },
+                ],
+            }),
+            assignedRunnerId: 'runner-1',
+            leaseExpiresAt: new Date(Date.now() + 60_000),
+            files: [],
+            testCase: {
+                id: 'tc-1',
+                url: 'https://fallback.com',
+                prompt: null,
+                steps: null,
+                browserConfig: null,
+                projectId: 'project-1',
+                project: {
+                    team: {
+                        openRouterKeyEncrypted: 'encrypted',
+                    },
+                },
+            },
+        });
+
+        const result = await loadRunnerJobDetails({
+            runId: 'run-2',
+            runnerId: 'runner-1',
+        });
+
+        expect(resolveConfigs).not.toHaveBeenCalled();
+        expect(result?.config.resolvedVariables).toEqual({ ENV: 'staging' });
+        expect(result?.config.resolvedFiles).toEqual({
+            seedCsv: 'objects/seed.csv',
+            'seed.csv': 'objects/seed.csv',
+        });
+    });
 });
