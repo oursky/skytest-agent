@@ -1,28 +1,12 @@
 # Skills
 
-This project includes reusable skills for SkyTest workflows and codebase maintenance.
+This directory is organized into three skill sets:
 
-## For SkyTest Users
+- [development-skills](./development-skills/README.md): skills for contributors working on this codebase (planning, debugging, reviewing, and commit workflows).
+- [linear-skills](./linear-skills/README.md): skills for creating/revising Linear bug reports and converting bug tickets into regression tests.
+- [skytest-skills](./skytest-skills/README.md): skills for exploring apps, planning tests, managing tests via MCP, and fixing unstable test flows.
 
-SkyTest skills for MCP-capable agents. The workflow is split into three phases — explore, plan, tools — that can be run individually or chained in sequence.
-
-| Skill | Command | Description |
-|-------|---------|-------------|
-| [skytest-1-explore](./skytest-skills/skytest-1-explore/SKILL.md) | `/skytest-1-explore` | Explore a web/mobile app section, produce a UI skeleton, and generate login Playwright code |
-| [skytest-2-plan](./skytest-skills/skytest-2-plan/SKILL.md) | `/skytest-2-plan` | Design prioritized test cases from a UI skeleton |
-| [skytest-3-tools](./skytest-skills/skytest-3-tools/SKILL.md) | `/skytest-3-tools` | Create, update, delete, and run test cases via SkyTest MCP |
-
-## For Linear Integration
-
-Skills for creating and managing Linear bug reports, and converting them into SkyTest regression tests.
-
-| Skill | Command | Description |
-|-------|---------|-------------|
-| [linear-bug-report](./linear-skills/linear-bug-report/SKILL.md) | `/linear-bug-report` | Create structured bug reports in Linear from screenshots and brief descriptions |
-| [linear-bug-revise](./linear-skills/linear-bug-revise/SKILL.md) | `/linear-bug-revise` | Revise an existing Linear bug report to follow the team's standard format |
-| [linear-bug-to-skytest](./linear-skills/linear-bug-to-skytest/SKILL.md) | `/linear-bug-to-skytest` | Convert a Linear bug report into SkyTest regression test cases |
-
-### Installation
+## Installation
 
 Copy the skill folders to your local skills directory for your agent client.
 
@@ -34,39 +18,17 @@ mkdir -p ~/.agents/skills/linear-skills
 cp -r skills/linear-skills/. ~/.agents/skills/linear-skills/
 ```
 
-Common client-specific linking examples:
-
-- Claude Code / Claude Desktop: link to `~/.claude/skills/`
-- Codex: link/copy to `~/.codex/skills/`
-- Antigravity: use its configured skills directory
-
----
-
-## For Developers
-
-Skills for contributors working on the SkyTest Agent codebase.
-
-Current development practice for this repo:
-- optimize for the current control-plane + runner architecture
-- prefer direct implementation over temporary compatibility layers
-- use an epic integration branch plus short-lived topic branches for major refactors
-- keep OpenRouter key ownership and usage reporting at the project/team level
-- keep Android execution on macOS runners only; hosted web stays browser-first
-
-| Skill | Command | Description |
-|-------|---------|-------------|
-| [commit](./development-skills/commit/SKILL.md) | `/commit` | Plan logical commit units from staged changes, suggest titles, commit after approval |
-| [review](./development-skills/review/SKILL.md) | `/review` | Two-pass code review (spec compliance then code quality) |
-| [plan](./development-skills/plan/SKILL.md) | `/plan` | Align on intent and create step-by-step implementation plans |
-| [debug](./development-skills/debug/SKILL.md) | `/debug` | Structured debugging: reproduce, trace root cause, minimal fix |
-| [pull-request](./development-skills/pull-request/SKILL.md) | `/pull-request` | Draft and prepare PRs with the repo's epic-branch workflow, validation summary, breaking changes, and rollout notes |
-
-### Installation
+For development skills:
 
 ```bash
 mkdir -p ~/.agents/skills ~/.claude/skills
-for s in commit review plan debug pull-request; do
+for s in commit review plan debug; do
   cp -r skills/development-skills/$s ~/.agents/skills/$s
   ln -sf ~/.agents/skills/$s ~/.claude/skills/$s
 done
 ```
+
+Common client-specific linking examples:
+- Claude Code / Claude Desktop: link to `~/.claude/skills/`
+- Codex: link/copy to `~/.codex/skills/`
+- Antigravity: use its configured skills directory
