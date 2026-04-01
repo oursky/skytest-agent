@@ -32,6 +32,7 @@ import {
     extractFileName,
     isExcelFilename,
     isSupportedVariableConfig,
+    mergeRunFormData,
     RunViewerResult,
 } from "./utils";
 
@@ -451,35 +452,75 @@ function RunPageContent() {
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
             const response = await fetch(`/api/test-runs/${id}`, { headers });
             if (response.ok) {
-                const data = await response.json();
+                const data = await response.json() as {
+                    configurationSnapshot?: string | null;
+                    testCaseId?: string;
+                    testCaseDisplayId?: string | null;
+                    testCaseName?: string;
+                    testCaseUrl?: string;
+                    testCasePrompt?: string | null;
+                    testCaseSteps?: TestStep[];
+                    testCaseBrowserConfig?: Record<string, BrowserConfig | TargetConfig>;
+                    projectId?: string;
+                    projectName?: string;
+                    projectTeamId?: string | null;
+                    files?: TestCaseFile[];
+                };
 
+                const fallbackData: Partial<TestData> = {
+                    name: data.testCaseName ?? undefined,
+                    displayId: data.testCaseDisplayId ?? undefined,
+                    url: data.testCaseUrl ?? undefined,
+                    prompt: data.testCasePrompt ?? undefined,
+                    steps: data.testCaseSteps ?? undefined,
+                    browserConfig: data.testCaseBrowserConfig ?? undefined,
+                };
+
+                let snapshotData: Partial<TestData> | null = null;
                 if (data.configurationSnapshot) {
                     try {
-                        const snapshot = JSON.parse(data.configurationSnapshot) as Partial<TestData> & { testCaseId?: string };
-                        setInitialData({
-                            url: snapshot.url || '',
-                            prompt: snapshot.prompt || '',
-                            name: snapshot.name,
-                            displayId: snapshot.displayId,
-                            steps: snapshot.steps,
-                            browserConfig: snapshot.browserConfig,
-                        });
-                        if (typeof snapshot.displayId === 'string') {
-                            setDisplayId(snapshot.displayId);
-                        }
-
-                        if (snapshot.testCaseId) {
-                            fetchTestCase(snapshot.testCaseId);
-                        }
+                        snapshotData = JSON.parse(data.configurationSnapshot) as Partial<TestData>;
                     } catch (e) {
                         console.error("Failed to parse configuration snapshot", e);
+                    }
+                }
+
+                setInitialData((previous) => mergeRunFormData({
+                    snapshot: snapshotData,
+                    fallback: fallbackData,
+                    previous,
+                }));
+
+                if (typeof snapshotData?.displayId === 'string') {
+                    setDisplayId(snapshotData.displayId);
+                } else if (typeof data.testCaseDisplayId === 'string') {
+                    setDisplayId(data.testCaseDisplayId);
+                }
+
+                if (typeof data.projectId === 'string') {
+                    setProjectIdFromTestCase(data.projectId);
+                }
+                if (typeof data.projectName === 'string') {
+                    setProjectName(data.projectName);
+                }
+                if (typeof data.projectTeamId === 'string') {
+                    setTeamIdFromProject(data.projectTeamId);
+                }
+                if (Array.isArray(data.files)) {
+                    setTestCaseFiles(data.files);
+                }
+                if (typeof data.testCaseId === 'string') {
+                    setCurrentTestCaseId(data.testCaseId);
+                    refreshFilesRef.current = data.testCaseId;
+                    if (!testCaseId) {
+                        fetchTestCase(data.testCaseId);
                     }
                 }
             }
         } catch (error) {
             console.error("Failed to fetch test run", error);
         }
-    }, [fetchTestCase, getAccessToken]);
+    }, [fetchTestCase, getAccessToken, testCaseId]);
 
     const fetchProjectConfigs = useCallback(async (projId: string) => {
         try {

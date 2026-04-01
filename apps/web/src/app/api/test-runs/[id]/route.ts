@@ -116,6 +116,18 @@ export async function GET(
                     select: {
                         id: true,
                         projectId: true,
+                        displayId: true,
+                        name: true,
+                        url: true,
+                        prompt: true,
+                        steps: true,
+                        browserConfig: true,
+                        project: {
+                            select: {
+                                name: true,
+                                teamId: true,
+                            }
+                        }
                     }
                 }
             }
@@ -165,6 +177,15 @@ export async function GET(
             completedAt: testRun.completedAt,
             createdAt: testRun.createdAt,
             testCaseId: testRun.testCaseId,
+            testCaseDisplayId: testRun.testCase.displayId,
+            testCaseName: testRun.testCase.name,
+            testCaseUrl: testRun.testCase.url,
+            testCasePrompt: testRun.testCase.prompt,
+            testCaseSteps: testRun.testCase.steps,
+            testCaseBrowserConfig: testRun.testCase.browserConfig,
+            projectId: testRun.testCase.projectId,
+            projectName: testRun.testCase.project.name,
+            projectTeamId: testRun.testCase.project.teamId,
             triggeredByEmail: testRun.triggeredByEmail,
             files,
             events,

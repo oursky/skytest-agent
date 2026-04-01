@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
     appendRunStreamEvent,
     applyRunStreamStatusUpdate,
+    mergeRunFormData,
     type RunViewerResult,
     type RunStreamStatusUpdate,
 } from './utils';
@@ -67,5 +68,72 @@ describe('run stream updates', () => {
 
         const { shouldStopLoading } = applyRunStreamStatusUpdate(previous, statusUpdate);
         expect(shouldStopLoading).toBe(false);
+    });
+});
+
+describe('mergeRunFormData', () => {
+    it('keeps fallback values when snapshot omits them', () => {
+        const merged = mergeRunFormData({
+            snapshot: {
+                url: 'https://run.example',
+                prompt: 'run prompt',
+            },
+            fallback: {
+                name: 'Checkout flow',
+                displayId: 'TC-100',
+                steps: [],
+            },
+        });
+
+        expect(merged).toEqual({
+            url: 'https://run.example',
+            prompt: 'run prompt',
+            name: 'Checkout flow',
+            displayId: 'TC-100',
+            steps: [],
+            browserConfig: undefined,
+        });
+    });
+
+    it('prefers snapshot values when present', () => {
+        const merged = mergeRunFormData({
+            snapshot: {
+                name: 'Snapshot name',
+                displayId: 'SNAP-1',
+                url: 'https://snapshot.example',
+                prompt: 'snapshot prompt',
+            },
+            fallback: {
+                name: 'Fallback name',
+                displayId: 'FB-1',
+                url: 'https://fallback.example',
+                prompt: 'fallback prompt',
+            },
+        });
+
+        expect(merged.name).toBe('Snapshot name');
+        expect(merged.displayId).toBe('SNAP-1');
+        expect(merged.url).toBe('https://snapshot.example');
+        expect(merged.prompt).toBe('snapshot prompt');
+    });
+
+    it('uses previous values when both snapshot and fallback are missing', () => {
+        const merged = mergeRunFormData({
+            previous: {
+                name: 'Previous name',
+                displayId: 'PREV-1',
+                url: 'https://prev.example',
+                prompt: 'previous prompt',
+            },
+        });
+
+        expect(merged).toEqual({
+            name: 'Previous name',
+            displayId: 'PREV-1',
+            url: 'https://prev.example',
+            prompt: 'previous prompt',
+            steps: undefined,
+            browserConfig: undefined,
+        });
     });
 });

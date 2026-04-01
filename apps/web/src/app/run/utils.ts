@@ -1,11 +1,14 @@
 import {
     isRunTerminalStatus,
     type ConfigItem,
+    type BrowserConfig,
     type RunActiveStatus,
     type RunTerminalStatus,
     type TestEvent,
     type TestFailureCategory,
     type TestFailureCode,
+    type TestStep,
+    type TargetConfig,
 } from '@/types';
 
 export type RunViewerStatus = RunActiveStatus | RunTerminalStatus;
@@ -29,6 +32,43 @@ export interface RunStreamStatusUpdate {
 export interface RunStreamUpdateResult {
     next: RunViewerResult;
     shouldStopLoading: boolean;
+}
+
+export interface RunFormData {
+    url: string;
+    prompt: string;
+    name?: string;
+    displayId?: string;
+    steps?: TestStep[];
+    browserConfig?: Record<string, BrowserConfig | TargetConfig>;
+}
+
+function firstDefined<T>(...values: Array<T | undefined>): T | undefined {
+    for (const value of values) {
+        if (value !== undefined) {
+            return value;
+        }
+    }
+    return undefined;
+}
+
+export function mergeRunFormData(input: {
+    snapshot?: Partial<RunFormData> | null;
+    fallback?: Partial<RunFormData> | null;
+    previous?: Partial<RunFormData> | null;
+}): RunFormData {
+    const snapshot = input.snapshot ?? undefined;
+    const fallback = input.fallback ?? undefined;
+    const previous = input.previous ?? undefined;
+
+    return {
+        url: firstDefined(snapshot?.url, fallback?.url, previous?.url, '') ?? '',
+        prompt: firstDefined(snapshot?.prompt, fallback?.prompt, previous?.prompt, '') ?? '',
+        name: firstDefined(snapshot?.name, fallback?.name, previous?.name),
+        displayId: firstDefined(snapshot?.displayId, fallback?.displayId, previous?.displayId),
+        steps: firstDefined(snapshot?.steps, fallback?.steps, previous?.steps),
+        browserConfig: firstDefined(snapshot?.browserConfig, fallback?.browserConfig, previous?.browserConfig),
+    };
 }
 
 export function applyRunStreamStatusUpdate(
