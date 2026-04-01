@@ -49,7 +49,7 @@ export default function ProjectSettingsPanel({
                         type="number"
                         inputMode="numeric"
                         min={1}
-                        max={maxConcurrentRunsLimit ?? 5}
+                        max={maxConcurrentRunsLimit ?? 2}
                         value={maxConcurrentRunsInput}
                         onChange={(event) => onInputChange(event.target.value)}
                         onKeyDown={(event) => {
@@ -92,7 +92,7 @@ export default function ProjectSettingsPanel({
                     )}
                 </div>
                 <p className="text-xs text-gray-500">
-                    {t('project.settings.concurrentRuns.help', { max: maxConcurrentRunsLimit ?? 5 })}
+                    {t('project.settings.concurrentRuns.help', { max: maxConcurrentRunsLimit ?? 2 })}
                 </p>
             </div>
 

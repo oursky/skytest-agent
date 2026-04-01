@@ -69,7 +69,7 @@ async function claimBrowserRunWithFilter(filterSql: Prisma.Sql): Promise<string 
                   WHERE activeTr."deletedAt" IS NULL
                     AND activeTr.status IN (${Prisma.join(RUN_IN_PROGRESS_STATUSES)})
                     AND activeTc."projectId" = tc."projectId"
-              ) < p."maxConcurrentRuns"
+              ) < LEAST(p."maxConcurrentRuns", ${appConfig.runner.maxProjectConcurrentRuns})
               AND ${filterSql}
             ORDER BY tr."createdAt" ASC
             FOR UPDATE SKIP LOCKED

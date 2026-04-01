@@ -87,6 +87,7 @@ describe('browser-run-dispatcher', () => {
         const [query] = queryRaw.mock.calls[0];
         const sql = query.strings.join('');
         expect(sql).toContain('activeTr.status IN');
+        expect(sql).toContain('LEAST(p."maxConcurrentRuns"');
         expect(query.values).toEqual(expect.arrayContaining([...RUN_IN_PROGRESS_STATUSES]));
         const queuedValueCount = query.values.filter((value: unknown) => value === TEST_STATUS.QUEUED).length;
         expect(queuedValueCount).toBe(1);

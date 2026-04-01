@@ -73,6 +73,14 @@ Local defaults point to:
 - Postgres on `127.0.0.1:5432`
 - MinIO S3 endpoint on `127.0.0.1:9000`
 
+Concurrency defaults:
+
+- `RUNNER_MAX_CONCURRENT_RUNS=4` controls the global active-run ceiling.
+- Project setting `Max concurrent runs` is applied per project (default `1`).
+- Project setting upper bound is derived as `floor(RUNNER_MAX_CONCURRENT_RUNS / 2)`.
+- `RUNNER_MAX_LOCAL_BROWSER_RUNS` is optional. When unset, it inherits `RUNNER_MAX_CONCURRENT_RUNS`.
+- `RUNNER_MAX_CONCURRENT_RUNS_PER_ANDROID_RUNNER=2` limits active Android runs per macOS runner.
+
 ## Android Runners
 
 Android execution requires a separate macOS runner process. Use these guides instead of duplicating runner setup here:

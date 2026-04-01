@@ -131,6 +131,8 @@ describe('claimNextRunForRunner', () => {
         expect(firstQuery.strings.join('')).toContain('"requestedRunnerId"');
         expect(firstQuery.strings.join('')).toContain(`'OFFLINE'`);
         expect(firstQuery.strings.join('')).toContain('NOT EXISTS');
+        expect(firstQuery.strings.join('')).toContain('LEAST(p."maxConcurrentRuns"');
+        expect(firstQuery.strings.join('')).toContain('activeTr."assignedRunnerId" =');
         expect(firstQuery.values).toContain('connected-device:');
     });
 

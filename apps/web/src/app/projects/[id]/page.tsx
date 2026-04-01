@@ -320,7 +320,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         }
 
         const parsedValue = Number.parseInt(maxConcurrentRunsInput, 10);
-        const maxLimit = project.maxConcurrentRunsLimit ?? 5;
+        const maxLimit = project.maxConcurrentRunsLimit ?? 2;
 
         if (!Number.isInteger(parsedValue)) {
             setSettingsError(t('project.settings.error.invalidInteger'));

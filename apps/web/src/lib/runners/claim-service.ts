@@ -131,7 +131,14 @@ async function claimExplicitDeviceRun(input: {
                   WHERE activeTr."deletedAt" IS NULL
                     AND activeTr.status IN (${Prisma.join(ACTIVE_RUN_STATUSES)})
                     AND activeTc."projectId" = tc."projectId"
-              ) < p."maxConcurrentRuns"
+              ) < LEAST(p."maxConcurrentRuns", ${appConfig.runner.maxProjectConcurrentRuns})
+              AND (
+                  SELECT COUNT(*)
+                  FROM "TestRun" activeTr
+                  WHERE activeTr."deletedAt" IS NULL
+                    AND activeTr.status IN (${Prisma.join(ACTIVE_RUN_STATUSES)})
+                    AND activeTr."assignedRunnerId" = ${input.runnerId}
+              ) < ${appConfig.runner.maxConcurrentRunsPerAndroidRunner}
               AND EXISTS (
                   SELECT 1
                   FROM "RunnerDevice" rd

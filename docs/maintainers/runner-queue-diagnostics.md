@@ -54,3 +54,17 @@ Additional logs were added at key transitions:
 - local browser execution start (`POST /api/test-runs/dispatch`)
 - run completion/failure by runner (`apps/web/src/lib/runners/event-service.ts`)
 - run cancellation (`POST /api/test-runs/:id/cancel`)
+
+## Browser Concurrency Gates
+
+Local browser dispatch is gated by all of the following:
+
+- global queue cap: `RUNNER_MAX_CONCURRENT_RUNS`
+- project-level cap: `LEAST(Project.maxConcurrentRuns, floor(RUNNER_MAX_CONCURRENT_RUNS / 2))`
+- local worker cap: `RUNNER_MAX_LOCAL_BROWSER_RUNS`
+
+If `RUNNER_MAX_LOCAL_BROWSER_RUNS` is unset, it falls back to `RUNNER_MAX_CONCURRENT_RUNS`.
+
+Android runner claim is additionally gated by:
+
+- per-runner Android cap: `RUNNER_MAX_CONCURRENT_RUNS_PER_ANDROID_RUNNER` (default `2`)

@@ -47,12 +47,7 @@ const runnerMaxConcurrentRuns = parseBoundedIntEnv({
     min: 1,
     max: 200,
 });
-const projectMaxConcurrentRunsMax = parseBoundedIntEnv({
-    name: 'PROJECT_MAX_CONCURRENT_RUNS_MAX',
-    fallback: 5,
-    min: 1,
-    max: 50,
-});
+const projectMaxConcurrentRunsMax = Math.max(1, Math.floor(runnerMaxConcurrentRuns / 2));
 const runnerLeaseReaperIntervalMs = parseBoundedIntEnv({
     name: 'RUNNER_LEASE_REAPER_INTERVAL_MS',
     fallback: 60_000,
@@ -67,9 +62,15 @@ const runnerLocalBrowserStaleTimeoutMs = parseBoundedIntEnv({
 });
 const runnerMaxLocalBrowserRuns = parseBoundedIntEnv({
     name: 'RUNNER_MAX_LOCAL_BROWSER_RUNS',
-    fallback: 1,
+    fallback: runnerMaxConcurrentRuns,
     min: 1,
     max: 20,
+});
+const runnerMaxConcurrentRunsPerAndroidRunner = parseBoundedIntEnv({
+    name: 'RUNNER_MAX_CONCURRENT_RUNS_PER_ANDROID_RUNNER',
+    fallback: 2,
+    min: 1,
+    max: 10,
 });
 const runnerRunStatusPollIntervalMs = parseBoundedIntEnv({
     name: 'RUNNER_RUN_STATUS_POLL_INTERVAL_MS',
@@ -180,6 +181,7 @@ export const config = {
         maxConcurrentRuns: runnerMaxConcurrentRuns,
         maxProjectConcurrentRuns: projectMaxConcurrentRunsMax,
         maxLocalBrowserRuns: runnerMaxLocalBrowserRuns,
+        maxConcurrentRunsPerAndroidRunner: runnerMaxConcurrentRunsPerAndroidRunner,
         runStatusPollIntervalMs: runnerRunStatusPollIntervalMs,
         runStatusMaxPollIntervalMs: runnerRunStatusMaxPollIntervalMs,
         runStatusMaxCancellationPollIntervalMs: runnerRunStatusMaxCancellationPollIntervalMs,

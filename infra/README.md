@@ -16,6 +16,16 @@ The local stack runs:
 
 Application processes (`web`, `browser`, `maintenance`) run from the repo workspace and connect to the local services above.
 
+Browser run concurrency in local topology is controlled by environment config:
+
+- `RUNNER_MAX_CONCURRENT_RUNS` (global active-run ceiling)
+- `RUNNER_MAX_LOCAL_BROWSER_RUNS` (local browser worker ceiling; defaults to `RUNNER_MAX_CONCURRENT_RUNS` when unset)
+- `RUNNER_MAX_CONCURRENT_RUNS_PER_ANDROID_RUNNER` (per-runner Android active-run ceiling; default `2`)
+
+Project-level concurrency UI limits are derived from global capacity:
+
+- max project setting = `floor(RUNNER_MAX_CONCURRENT_RUNS / 2)`
+
 ## External Dependencies (Shared Deployments)
 
 Shared deployments require:
