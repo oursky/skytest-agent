@@ -25,6 +25,20 @@ describe('parseTestResultMetadata', () => {
         expect(result).toEqual({});
     });
 
+    it('extracts AI assertion failure metadata', () => {
+        const result = parseTestResultMetadata(JSON.stringify({
+            status: 'FAIL',
+            error: 'Verification failed.',
+            errorCode: 'AI_ASSERTION_FAILED',
+            errorCategory: 'TEST_ASSERTION',
+        }));
+
+        expect(result).toEqual({
+            errorCode: 'AI_ASSERTION_FAILED',
+            errorCategory: 'TEST_ASSERTION',
+        });
+    });
+
     it('returns empty metadata for malformed result payload', () => {
         expect(parseTestResultMetadata('not-json')).toEqual({});
         expect(parseTestResultMetadata(undefined)).toEqual({});

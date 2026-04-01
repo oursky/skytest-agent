@@ -12,8 +12,9 @@ const PLAYWRIGHT_ASSERTION_PATTERNS = [
     /tobevisible/i,
     /tohave/i,
     /locator:/i,
-    /verification failed/i,
 ];
+
+const AI_ASSERTION_FAILURE_PATTERN = /^verification failed\.\s*\nstep:\s+/i;
 
 const DNS_FAILURE_PATTERNS = [
     /dns lookup failed/i,
@@ -32,7 +33,11 @@ function hasNetworkBlocks(summaries: BrowserNetworkGuardSummary[]): boolean {
 }
 
 function isPlaywrightAssertionFailure(error: unknown, message: string): boolean {
-    if (error instanceof PlaywrightCodeError && error.originalError) {
+    if (!(error instanceof PlaywrightCodeError)) {
+        return false;
+    }
+
+    if (error.originalError) {
         const originalMessage = getErrorMessage(error.originalError);
         if (PLAYWRIGHT_ASSERTION_PATTERNS.some((pattern) => pattern.test(originalMessage))) {
             return true;
@@ -40,6 +45,14 @@ function isPlaywrightAssertionFailure(error: unknown, message: string): boolean 
     }
 
     return PLAYWRIGHT_ASSERTION_PATTERNS.some((pattern) => pattern.test(message));
+}
+
+function isAiAssertionFailure(error: unknown, message: string): boolean {
+    if (error instanceof PlaywrightCodeError) {
+        return false;
+    }
+
+    return AI_ASSERTION_FAILURE_PATTERN.test(message);
 }
 
 export function classifyRunFailure(
@@ -66,6 +79,10 @@ export function classifyRunFailure(
 
     if (isPlaywrightAssertionFailure(error, message)) {
         return { code: 'PLAYWRIGHT_ASSERTION_FAILED', category: 'TEST_ASSERTION' };
+    }
+
+    if (isAiAssertionFailure(error, message)) {
+        return { code: 'AI_ASSERTION_FAILED', category: 'TEST_ASSERTION' };
     }
 
     if (error instanceof PlaywrightCodeError) {

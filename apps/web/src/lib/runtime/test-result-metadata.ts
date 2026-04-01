@@ -8,6 +8,7 @@ interface ParsedResultShape {
 const FAILURE_CODES: ReadonlySet<TestFailureCode> = new Set([
     'DNS_RESOLUTION_FAILED',
     'NETWORK_REQUEST_BLOCKED',
+    'AI_ASSERTION_FAILED',
     'PLAYWRIGHT_ASSERTION_FAILED',
     'PLAYWRIGHT_CODE_FAILED',
     'CONFIGURATION_ERROR',

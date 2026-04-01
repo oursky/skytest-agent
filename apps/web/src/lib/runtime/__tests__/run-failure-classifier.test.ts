@@ -46,6 +46,17 @@ describe('classifyRunFailure', () => {
         });
     });
 
+    it('classifies AI assertion failures distinctly from Playwright assertion failures', () => {
+        const result = classifyRunFailure(new Error(
+            'Verification failed.\nStep: verify that "Welcome" is visible\nReason: Expected to find exact text "Welcome".'
+        ));
+
+        expect(result).toEqual({
+            code: 'AI_ASSERTION_FAILED',
+            category: 'TEST_ASSERTION',
+        });
+    });
+
     it('classifies non-assertion Playwright code errors as script failures', () => {
         const error = new PlaywrightCodeError('Playwright code execution failed: TypeError', 0, 'await page.foo();');
         const result = classifyRunFailure(error);
