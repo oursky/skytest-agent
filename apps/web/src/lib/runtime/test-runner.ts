@@ -975,6 +975,8 @@ async function executePlaywrightCode(
 ): Promise<void> {
     const timeoutMs = config.test.playwrightCode.statementTimeoutMs;
     const syncTimeoutMs = config.test.playwrightCode.syncTimeoutMs;
+    const expectTimeoutMs = config.test.playwrightCode.expectTimeoutMs;
+    const configuredExpect = playwrightExpect.configure({ timeout: expectTimeoutMs });
     const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
     const targetLabel = getBrowserNiceName(browserId || 'main');
     const trimmedCode = code.trim();
@@ -1050,7 +1052,7 @@ async function executePlaywrightCode(
     const context = createContext(
         {
             page: safePage,
-            expect: playwrightExpect,
+            expect: configuredExpect,
             setTimeout: setTimeoutWrapped,
             clearTimeout: clearTimeoutWrapped,
             setInterval: setIntervalWrapped,

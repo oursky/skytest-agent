@@ -141,6 +141,12 @@ const uiDeviceStatusPollIntervalMs = parseBoundedIntEnv({
     min: 1_000,
     max: 120_000,
 });
+const playwrightCodeExpectTimeoutMs = parseBoundedIntEnv({
+    name: 'PLAYWRIGHT_CODE_EXPECT_TIMEOUT_MS',
+    fallback: 10_000,
+    min: 1_000,
+    max: 120_000,
+});
 const browserWorkerEnabled = process.env.SKYTEST_BROWSER_WORKER === 'true';
 const midsceneGenerateReport = process.env.SKYTEST_MIDSCENE_GENERATE_REPORT === 'true';
 const midsceneAutoPrintReportMsg = process.env.SKYTEST_MIDSCENE_AUTO_PRINT_REPORT_MSG === 'true';
@@ -277,6 +283,7 @@ export const config = {
         playwrightCode: {
             statementTimeoutMs: 30000,
             syncTimeoutMs: 5000,
+            expectTimeoutMs: playwrightCodeExpectTimeoutMs,
         },
         midscene: {
             generateReport: midsceneGenerateReport,
