@@ -7,6 +7,7 @@ export type SkytestCliCommand =
     | { kind: 'start-runner'; runnerId: string; repairPairingToken?: string }
     | { kind: 'stop-runner'; runnerId: string }
     | { kind: 'get-runners'; format: 'text' | 'json' }
+    | { kind: 'sync-runners'; format: 'text' | 'json' }
     | { kind: 'describe-runner'; runnerId: string; format: 'text' | 'json' }
     | { kind: 'logs-runner'; runnerId: string; follow: boolean; tail: number | null }
     | { kind: 'unpair-runner'; runnerId: string }
@@ -168,6 +169,14 @@ export function parseSkytestCliCommand(args: string[]): SkytestCliCommand {
             throw new Error(`Unknown argument(s) for \`get runners\`: ${extraArgs.join(', ')}`);
         }
         return { kind: 'get-runners', format };
+    }
+
+    if (action === 'sync' && resource === 'runners') {
+        const { format, remainingArgs: extraArgs } = resolveOutputFormat(remainingArgs);
+        if (extraArgs.length > 0) {
+            throw new Error(`Unknown argument(s) for \`sync runners\`: ${extraArgs.join(', ')}`);
+        }
+        return { kind: 'sync-runners', format };
     }
 
     if (action === 'describe' && resource === 'runner') {

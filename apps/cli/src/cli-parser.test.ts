@@ -46,6 +46,27 @@ describe('parseSkytestCliCommand', () => {
         });
     });
 
+    it('parses sync runners with text format', () => {
+        expect(parseSkytestCliCommand(['sync', 'runners', '--format', 'text'])).toEqual({
+            kind: 'sync-runners',
+            format: 'text',
+        });
+    });
+
+    it('parses sync runners with default text format', () => {
+        expect(parseSkytestCliCommand(['sync', 'runners'])).toEqual({
+            kind: 'sync-runners',
+            format: 'text',
+        });
+    });
+
+    it('parses sync runners with json format', () => {
+        expect(parseSkytestCliCommand(['sync', 'runners', '--json'])).toEqual({
+            kind: 'sync-runners',
+            format: 'json',
+        });
+    });
+
     it('parses start runner with repair token option', () => {
         expect(parseSkytestCliCommand(['start', 'runner', 'abc123', '--repair-token', 'st_pair_token'])).toEqual({
             kind: 'start-runner',

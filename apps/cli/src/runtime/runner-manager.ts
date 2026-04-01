@@ -20,7 +20,13 @@ import {
     writeRunnerPid,
 } from '../state/store';
 import { generateLocalRunnerId } from '../state/id';
-import { ControlPlaneHttpError, exchangePairingToken, notifyRunnerShutdown, verifyRunnerCredential } from './control-plane';
+import {
+    ControlPlaneHttpError,
+    exchangePairingToken,
+    notifyRunnerShutdown,
+    unpairRunnerRegistration,
+    verifyRunnerCredential,
+} from './control-plane';
 import { isProcessAlive, startDetachedRunnerProcess, stopProcessWithTimeout } from './process';
 
 const DEFAULT_CONTROL_PLANE_URL = process.env.RUNNER_CONTROL_PLANE_URL ?? 'http://127.0.0.1:3000';
@@ -82,6 +88,20 @@ function resolveMidsceneDefaultEnv(): RunnerEnv {
         MIDSCENE_INSIGHT_MODEL_FAMILY: 'qwen3.5',
         MIDSCENE_MODEL_TEMPERATURE: '0.2',
     };
+}
+
+export function resolveManagedMidsceneRunDir(input: {
+    runtimeStateDir: string;
+    loadedEnv: Record<string, string | undefined>;
+}): string {
+    const configured = process.env.MIDSCENE_RUN_DIR?.trim() || input.loadedEnv.MIDSCENE_RUN_DIR?.trim();
+    if (!configured) {
+        return path.join(input.runtimeStateDir, 'midscene');
+    }
+    if (path.isAbsolute(configured)) {
+        return configured;
+    }
+    return path.join(input.runtimeStateDir, configured);
 }
 
 async function loadLocalRunnerEnv(): Promise<RunnerEnv> {
@@ -463,6 +483,10 @@ export async function startRunner(
             SKYTEST_RUNNER_STATE_DIR: runnerPaths.runtimeStateDir,
             SKYTEST_RUNNER_DISABLE_KEYCHAIN: '1',
             SKYTEST_RUNNER_QUIET: '1',
+            MIDSCENE_RUN_DIR: resolveManagedMidsceneRunDir({
+                runtimeStateDir: runnerPaths.runtimeStateDir,
+                loadedEnv,
+            }),
             ...(useBundledRunnerEntry ? {} : {
                 TSX_TSCONFIG_PATH: path.join(repoRoot, 'apps', 'web', 'tsconfig.json'),
             }),
@@ -543,8 +567,19 @@ export async function stopRunner(runnerIdentifier: string): Promise<{
 }
 
 export async function getRunners(): Promise<LocalRunnerDescriptor[]> {
+    const synced = await syncRunners();
+    return synced.runners;
+}
+
+export interface SyncRunnersResult {
+    runners: LocalRunnerDescriptor[];
+    removedLocalRunnerIds: string[];
+}
+
+export async function syncRunners(): Promise<SyncRunnersResult> {
     const localRunnerIds = await listLocalRunnerIds();
     const descriptors: LocalRunnerDescriptor[] = [];
+    const removedLocalRunnerIds: string[] = [];
 
     for (const localRunnerId of localRunnerIds) {
         if (await isRunnerCredentialRevoked(localRunnerId)) {
@@ -553,6 +588,7 @@ export async function getRunners(): Promise<LocalRunnerDescriptor[]> {
             } catch {
             }
             await deleteRunner(localRunnerId);
+            removedLocalRunnerIds.push(localRunnerId);
             continue;
         }
 
@@ -569,6 +605,7 @@ export async function getRunners(): Promise<LocalRunnerDescriptor[]> {
             bestEffort: true,
         });
         if (!reconciled) {
+            removedLocalRunnerIds.push(localRunnerId);
             continue;
         }
 
@@ -582,7 +619,10 @@ export async function getRunners(): Promise<LocalRunnerDescriptor[]> {
         });
     }
 
-    return descriptors;
+    return {
+        runners: descriptors,
+        removedLocalRunnerIds,
+    };
 }
 
 export async function describeRunner(runnerIdentifier: string): Promise<LocalRunnerDescriptor & { maskedRunnerToken: string }> {
@@ -623,8 +663,23 @@ export async function unpairRunner(runnerIdentifier: string): Promise<{ localRun
         return { localRunnerId, removed: false };
     }
 
-    await stopRunner(localRunnerId);
-    await deleteRunner(localRunnerId);
+    const credential = await readRunnerCredential(localRunnerId);
+    if (credential) {
+        try {
+            await unpairRunnerRegistration({
+                controlPlaneBaseUrl: metadata.controlPlaneBaseUrl,
+                runnerToken: credential.runnerToken,
+                runnerVersion: DEFAULT_RUNNER_VERSION,
+                reason: 'CLI unpair command',
+            });
+        } catch (error) {
+            if (!(error instanceof ControlPlaneHttpError) || (error.status !== 401 && error.status !== 404)) {
+                throw error;
+            }
+        }
+    }
+
+    await removeLocalRunnerState(localRunnerId);
     return { localRunnerId, removed: true };
 }
 

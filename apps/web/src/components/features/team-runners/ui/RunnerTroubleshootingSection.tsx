@@ -38,6 +38,7 @@ export default function RunnerTroubleshootingSection({
             <div className="mt-4 space-y-4">
                 {[
                     { key: 'get-runners', label: t('team.runners.troubleshooting.listRunners'), command: 'skytest get runners' },
+                    { key: 'sync-runners', label: t('team.runners.troubleshooting.syncRunners'), command: 'skytest sync runners' },
                     { key: 'pair-runner', label: t('team.runners.troubleshooting.pairRunner'), command: buildPairCommand(null) },
                     { key: 'start-runner', label: t('team.runners.troubleshooting.start'), command: "skytest start runner '<runner-id>'" },
                     { key: 'stop-runner', label: t('team.runners.troubleshooting.stop'), command: "skytest stop runner '<runner-id>'" },

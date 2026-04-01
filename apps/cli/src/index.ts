@@ -5,6 +5,7 @@ import { runGetRunnersCommand } from './commands/get-runners';
 import { runLogsRunnerCommand } from './commands/logs-runner';
 import { runPairRunnerCommand } from './commands/pair-runner';
 import { runResetCommand } from './commands/reset';
+import { runSyncRunnersCommand } from './commands/sync-runners';
 import { runStartRunnerCommand } from './commands/start-runner';
 import { runStopRunnerCommand } from './commands/stop-runner';
 import { runUnpairRunnerCommand } from './commands/unpair-runner';
@@ -20,6 +21,7 @@ function printHelp(): void {
         '  skytest start runner <runner-id> [--repair-token <pairing-token>]',
         '  skytest stop runner <runner-id>',
         '  skytest get runners [--json|--format text|json]',
+        '  skytest sync runners [--json|--format text|json]',
         '  skytest describe runner <runner-id> [--json|--format text|json]',
         '  skytest logs runner <runner-id> [-f|--follow] [--tail <n>]',
         '  skytest unpair runner <runner-id>',
@@ -73,6 +75,11 @@ async function main(): Promise<void> {
 
     if (command.kind === 'get-runners') {
         await runGetRunnersCommand({ format: command.format });
+        return;
+    }
+
+    if (command.kind === 'sync-runners') {
+        await runSyncRunnersCommand({ format: command.format });
         return;
     }
 

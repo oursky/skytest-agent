@@ -217,6 +217,8 @@ export const EN_MESSAGES: Messages = {
   "team.runners.troubleshooting.referenceTitle": "CLI reference",
   "team.runners.troubleshooting.listRunners": "List runners",
   "team.runners.troubleshooting.listRunnersDesc": "Check all paired runners and their current status.",
+  "team.runners.troubleshooting.syncRunners": "Sync runners",
+  "team.runners.troubleshooting.syncRunnersDesc": "Reconcile local runners with server state and remove stale local entries.",
   "team.runners.troubleshooting.pairRunner": "Pair a new runner",
   "team.runners.troubleshooting.pairRunnerDesc": "Link a runner to this team. Get a one-time token from the Add Runner button above.",
   "team.runners.troubleshooting.offlineTitle": "Offline runners",

@@ -4,9 +4,12 @@ import {
     pairingExchangeResponseSchema,
     shutdownRunnerRequestSchema,
     shutdownRunnerResponseSchema,
+    unpairRunnerRequestSchema,
+    unpairRunnerResponseSchema,
     verifyRunnerCredentialRequestSchema,
     verifyRunnerCredentialResponseSchema,
     type PairingExchangeResponse,
+    type UnpairRunnerResponse,
     type VerifyRunnerCredentialResponse,
 } from '@skytest/runner-protocol';
 
@@ -32,7 +35,15 @@ interface VerifyRunnerCredentialOptions {
     runnerVersion: string;
 }
 
+interface UnpairRunnerOptions {
+    controlPlaneBaseUrl: string;
+    runnerToken: string;
+    runnerVersion: string;
+    reason?: string;
+}
+
 const SHUTDOWN_NOTIFY_TIMEOUT_MS = 3_000;
+const UNPAIR_TIMEOUT_MS = 3_000;
 
 function normalizeBaseUrl(input: string): string {
     return input.endsWith('/') ? input.slice(0, -1) : input;
@@ -141,4 +152,46 @@ export async function verifyRunnerCredential(
 
     const responseJson = await response.json();
     return verifyRunnerCredentialResponseSchema.parse(responseJson);
+}
+
+export async function unpairRunnerRegistration(
+    options: UnpairRunnerOptions
+): Promise<UnpairRunnerResponse> {
+    const payload = unpairRunnerRequestSchema.parse({
+        protocolVersion: RUNNER_PROTOCOL_CURRENT_VERSION,
+        runnerVersion: options.runnerVersion,
+        reason: options.reason,
+    });
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+        controller.abort();
+    }, UNPAIR_TIMEOUT_MS);
+
+    try {
+        const response = await fetch(`${normalizeBaseUrl(options.controlPlaneBaseUrl)}/api/runners/v1/unpair`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${options.runnerToken}`,
+            },
+            body: JSON.stringify(payload),
+            signal: controller.signal,
+        });
+
+        if (!response.ok) {
+            const responseBody = await response.text();
+            throw new ControlPlaneHttpError('Runner unpair failed', response.status, responseBody);
+        }
+
+        const responseJson = await response.json();
+        return unpairRunnerResponseSchema.parse(responseJson);
+    } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+            throw new Error('Runner unpair request timed out. Control plane may be unreachable.');
+        }
+        throw error;
+    } finally {
+        clearTimeout(timeout);
+    }
 }

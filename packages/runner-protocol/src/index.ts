@@ -86,6 +86,19 @@ export const shutdownRunnerResponseSchema = z.object({
     rotationRequired: z.boolean(),
 });
 
+export const unpairRunnerRequestSchema = z.object({
+    protocolVersion: runnerProtocolVersionSchema,
+    runnerVersion: runnerVersionSchema,
+    reason: z.string().trim().min(1).max(200).optional(),
+});
+
+export const unpairRunnerResponseSchema = z.object({
+    runnerId: z.string().min(1),
+    unpaired: z.literal(true),
+    compatibility: compatibilityMetadataSchema,
+    rotationRequired: z.boolean(),
+});
+
 export const createPairingTokenResponseSchema = z.object({
     token: z.string().min(1),
     expiresAt: z.string().datetime(),
@@ -250,6 +263,8 @@ export type VerifyRunnerCredentialRequest = z.infer<typeof verifyRunnerCredentia
 export type VerifyRunnerCredentialResponse = z.infer<typeof verifyRunnerCredentialResponseSchema>;
 export type ShutdownRunnerRequest = z.infer<typeof shutdownRunnerRequestSchema>;
 export type ShutdownRunnerResponse = z.infer<typeof shutdownRunnerResponseSchema>;
+export type UnpairRunnerRequest = z.infer<typeof unpairRunnerRequestSchema>;
+export type UnpairRunnerResponse = z.infer<typeof unpairRunnerResponseSchema>;
 export type CreatePairingTokenResponse = z.infer<typeof createPairingTokenResponseSchema>;
 export type PairingExchangeRequest = z.infer<typeof pairingExchangeRequestSchema>;
 export type PairingExchangeResponse = z.infer<typeof pairingExchangeResponseSchema>;
