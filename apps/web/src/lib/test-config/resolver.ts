@@ -11,14 +11,14 @@ interface ResolvedConfigs {
 
 const RESOLVABLE_CONFIG_TYPES: ConfigType[] = ['URL', 'APP_ID', 'VARIABLE', 'RANDOM_STRING', 'FILE'];
 
-function generateRandomStringValue(generationType: string): string {
+function generateRandomStringValue(generationType: string, attempt = 0): string {
     switch (generationType) {
         case 'TIMESTAMP_UNIX':
             return Date.now().toString();
         case 'TIMESTAMP_DATETIME': {
-            const now = new Date();
+            const now = new Date(Date.now() + attempt * 1000);
             const pad = (n: number, len = 2) => String(n).padStart(len, '0');
-            return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}${pad(now.getMilliseconds(), 3)}`;
+            return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
         }
         case 'UUID':
             return randomUUID().replace(/-/g, '');
@@ -79,9 +79,11 @@ export async function resolveConfigs(projectId: string, testCaseId?: string): Pr
     const generatedValues = new Set<string>();
     for (const config of merged.values()) {
         if (config.type === 'RANDOM_STRING') {
-            let value = generateRandomStringValue(config.value);
+            let attempt = 0;
+            let value = generateRandomStringValue(config.value, attempt);
             while (generatedValues.has(value)) {
-                value = generateRandomStringValue(config.value);
+                attempt += 1;
+                value = generateRandomStringValue(config.value, attempt);
             }
             generatedValues.add(value);
             config.value = value;
