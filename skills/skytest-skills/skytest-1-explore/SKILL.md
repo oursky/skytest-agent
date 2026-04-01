@@ -176,7 +176,8 @@ Using the chosen input method:
    - **Form field types** — text, password, email, number, date, textarea, select, etc.
    - **Defaults and pre-filled state** — any checkboxes checked by default, dropdown default selections, pre-populated fields
 3. Navigate to the next screen and repeat
-4. Continue until all screens in the section have been captured
+4. **Note scroll depth** — if the page extends below the viewport, note it in the screen description (e.g., "form continues below fold", "table has 20+ rows requiring scroll"). This directly informs `/skytest-2-plan` to add scroll steps and prevents element-not-found failures.
+5. Continue until all screens in the section have been captured
 
 **If any screen is unclear or partially visible:** Ask the user for additional screenshots or clarification. Do not fill gaps with assumptions.
 

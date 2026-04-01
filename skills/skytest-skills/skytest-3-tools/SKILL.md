@@ -88,8 +88,9 @@ For each test case from the plan (or from user instructions):
 2. **Show** which project-level variables are being reused and which new test-case-level variables are needed
 3. **Ask:** confirm all, confirm selectively (e.g., "create 1-8, skip 9"), modify specific cases, or skip
 4. **Create** only after explicit confirmation via `create_test_case` — one call per case
-5. If the user requests modifications, revise and re-present before creating
-6. If skipped, move to the next case
+5. **Validate the first case** — after creating the first test case in a batch, suggest running it before creating the rest. This catches systemic issues early (wrong login code, missing project variables, incorrect base URL) before they're duplicated across all cases. If it fails, fix the issue before creating more.
+6. If the user requests modifications, revise and re-present before creating
+7. If skipped, move to the next case
 
 ### 4. Update Existing Test Cases
 

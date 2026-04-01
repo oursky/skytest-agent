@@ -1,9 +1,10 @@
 # SkyTest Skills
 
-SkyTest skills for MCP-capable agents. The workflow is split into four phases that can be run individually or chained in sequence.
+SkyTest skills for MCP-capable agents. The workflow is split into four phases that can be run individually or chained in sequence. Use `/skytest` if you're unsure which skill to start with.
 
 | Skill | Command | Description |
 |-------|---------|-------------|
+| [skytest](./skytest/SKILL.md) | `/skytest` | Router — pick the right skill based on your situation |
 | [skytest-1-explore](./skytest-1-explore/SKILL.md) | `/skytest-1-explore` | Explore a web/mobile app section, produce a UI skeleton, and understand login flow |
 | [skytest-2-plan](./skytest-2-plan/SKILL.md) | `/skytest-2-plan` | Design prioritized test cases from a UI skeleton |
 | [skytest-3-tools](./skytest-3-tools/SKILL.md) | `/skytest-3-tools` | Create, update, delete, and run test cases via SkyTest MCP |

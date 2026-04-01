@@ -17,6 +17,7 @@ Diagnose failed test runs and fix test cases systematically.
 
 - **Never apply fixes without user confirmation.** Present the diagnosis and proposed fix first. Apply only after explicit approval.
 - **Never guess Playwright selectors.** If converting an ai-action to playwright-code, inspect the actual target app (via Chrome DevTools MCP, user screenshots, or user guidance) to get real selectors. Do not fabricate selectors.
+- **Verify fixes with browser tools when available.** If Chrome DevTools MCP, Playwright MCP, or browser-use CLI is connected, use them during investigation to confirm selectors and interactions actually work before proposing the fix. Do this silently as part of your investigation — do not ask the user for permission to verify.
 - **Always trace the root cause before proposing fixes.** A step may fail because of an issue in a *previous* step. Read the full event log and check screenshots — don't just look at the error message.
 - **One fix at a time.** When multiple issues exist, fix the first failing step, then suggest re-running. Don't speculate about downstream failures — they may resolve once the upstream step is fixed.
 - **For anything unclear, ask the user.** Do not assume page structure, element names, or expected behavior. If evidence is ambiguous, ask.
@@ -196,8 +197,12 @@ Based on the classification, dig deeper:
 **For F2 / F3 (element issues):**
 - Examine the failing step's action text — is it specific enough?
 - Check screenshots: is the target element visible? Is it a small icon, unlabeled button, or complex widget?
-- If Chrome DevTools MCP is connected: navigate to the same page state as the failing step and inspect the element. Get the accessible role, name, and a reliable selector.
+- If browser tools are available (Chrome DevTools MCP, Playwright MCP, or browser-use CLI): navigate to the same page state, inspect the element, get the accessible role/name and a reliable selector, and **test the proposed selector/interaction right there** before including it in your fix proposal. This is the single biggest way to avoid back-and-forth re-run cycles.
 - If no browser tools: ask the user for a screenshot of the page at the failing step, or ask them to describe the element.
+
+**For F8 (playwright code errors):**
+- Identify which line failed (from error trace) and which selector is broken
+- If browser tools are available: navigate to the failing page state, try the updated selector in the browser, and confirm it resolves to the right element before proposing. If the page requires deep navigation to reach, ask the user for a direct URL instead of clicking through.
 
 **For F4 (assertion failures):**
 - Compare expected text in the step against the actual page content visible in screenshots
@@ -209,9 +214,8 @@ Based on the classification, dig deeper:
 - Look for page transitions, loading indicators, or state changes in screenshots
 - Determine if adding a verification gate or wait would resolve it
 
-**For F7 / F8 (variable/playwright issues):**
-- For variables: compare step text `{{VAR}}` references against test case variables and project configs
-- For playwright: identify which line failed (from error trace) and which selector is broken
+**For F7 (variable issues):**
+- Compare step text `{{VAR}}` references against test case variables and project configs
 
 ### 4. Propose Fix
 
@@ -253,10 +257,10 @@ Present the diagnosis and one or more fix options. Use this format:
 - **F8 (playwright code):** Update selectors from actual DOM inspection. If the UI changed heavily, consider falling back to ai-action.
 - **F9 (environment):** Do not modify the test. Recommend re-run after checking infrastructure.
 
-**When playwright-code is needed but browser tools are unavailable:**
+**When playwright-code is needed but browser tools are NOT available:**
 1. Ask the user to provide a screenshot of the failing page with the target element visible
 2. Ask the user to inspect the element in their browser and share the selector
-3. Or suggest connecting Chrome DevTools MCP for the investigation
+3. Or suggest connecting Chrome DevTools MCP / Playwright MCP — it will save re-run cycles
 4. If none are feasible, propose a more descriptive ai-action as a best-effort alternative
 
 ### 5. Apply Fix After Confirmation

@@ -258,6 +258,12 @@ For each test case, write concrete steps that reference **exact UI element label
 
 **Use `{{VARIABLE}}` placeholders** for all configurable values (credentials, URLs, test data that varies per environment).
 
+**Failure prevention** — apply these to every test case to prevent the most common runtime failures:
+- **After every page navigation** (clicking a link, submitting a form, hitting back) → add a verify step asserting a landmark on the destination page. Prevents F5 (wrong page) and F6 (timing) failures.
+- **After every mutation** (save, create, delete) → add a verify step asserting the success indicator (toast, redirect, updated value). Catches F4 and F6 issues.
+- **Before interacting with elements below the fold** → add a scroll step. Check the skeleton for pages marked with scroll depth.
+- **For every `{{VARIABLE}}` in step text** → confirm a matching variable exists at test-case or project level. Unresolved variables are the #1 hidden cause of F1 (AI model surface errors).
+
 ### 8. Apply Assertion Depth
 
 Verify *consequences*, not just appearance:
