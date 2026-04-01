@@ -38,6 +38,7 @@
       "fast-xml-parser": "5.5.7"
     },
     "fast-xml-parser": "5.5.7",
+    "@xmldom/xmldom": "0.8.12",
     "flatted": "3.4.2",
     "socket.io-parser": "4.2.6",
     "yauzl": "3.2.1",
