@@ -7,7 +7,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "npm run db:generate && eslint && npx tsc --noEmit --incremental false",
-    "audit": "npm audit --audit-level=moderate --package-lock-only",
+    "audit": "node scripts/security/audit-ci.mjs",
     "verify": "npm run lint && npm run audit",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
