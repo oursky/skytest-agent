@@ -2,13 +2,13 @@ export type MidsceneModelConfig = Record<string, string | number>;
 
 const MIDSCENE_MODEL_ENV_DEFAULTS = {
     MIDSCENE_MODEL_BASE_URL: 'https://openrouter.ai/api/v1',
-    MIDSCENE_MODEL_NAME: 'bytedance-seed/seed-1.6-flash',
-    MIDSCENE_MODEL_FAMILY: 'doubao-vision',
+    MIDSCENE_MODEL_NAME: 'google/gemini-3.1-flash-lite-preview',
+    MIDSCENE_MODEL_FAMILY: 'gemini',
     MIDSCENE_PLANNING_MODEL_BASE_URL: 'https://openrouter.ai/api/v1',
-    MIDSCENE_PLANNING_MODEL_NAME: 'qwen/qwen3.5-35b-a3b',
+    MIDSCENE_PLANNING_MODEL_NAME: 'qwen/qwen3.5-27b',
     MIDSCENE_PLANNING_MODEL_FAMILY: 'qwen3.5',
     MIDSCENE_INSIGHT_MODEL_BASE_URL: 'https://openrouter.ai/api/v1',
-    MIDSCENE_INSIGHT_MODEL_NAME: 'qwen/qwen3.5-35b-a3b',
+    MIDSCENE_INSIGHT_MODEL_NAME: 'qwen/qwen3.5-27b',
     MIDSCENE_INSIGHT_MODEL_FAMILY: 'qwen3.5',
     MIDSCENE_MODEL_TEMPERATURE: '0.2',
 } as const;

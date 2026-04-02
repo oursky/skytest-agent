@@ -74,7 +74,7 @@ skytest start runner <runner-id> --repair-token "<pairing-token>"
 If you start `skytest` from this repository, `<repo>/.env.local` is a convenient place for optional overrides:
 
 ```env
-SKYTEST_MIDSCENE_MODEL_NAME=bytedance-seed/seed-1.6-flash
+SKYTEST_MIDSCENE_MODEL_NAME=google/gemini-3.1-flash-lite-preview
 SKYTEST_MIDSCENE_MODEL_TEMPERATURE=0.2
 ```
 
@@ -83,7 +83,7 @@ SKYTEST_MIDSCENE_MODEL_TEMPERATURE=0.2
 For Homebrew-managed runners, prefer `~/.config/skytest/runner.env`:
 
 ```env
-SKYTEST_MIDSCENE_MODEL_NAME=bytedance-seed/seed-1.6-flash
+SKYTEST_MIDSCENE_MODEL_NAME=google/gemini-3.1-flash-lite-preview
 SKYTEST_MIDSCENE_MODEL_TEMPERATURE=0.2
 ```
 
