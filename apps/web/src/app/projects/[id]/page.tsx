@@ -13,6 +13,7 @@ import { isActiveRunStatus } from '@/utils/status/statusHelpers';
 import { parsePageSize } from '@/utils/pagination/pagination';
 import { ProjectConfigs } from '@/components/features/project-configurations';
 import ProjectSettingsPanel from '@/components/features/projects/ui/ProjectSettingsPanel';
+import { useCurrentTeam } from '@/hooks/team/useCurrentTeam';
 import TestCaseImportReviewDialog, {
     type TestCaseImportReviewData,
 } from '@/components/features/test-cases/ui/TestCaseImportReviewDialog';
@@ -40,6 +41,7 @@ interface ProjectPageProps {
 interface Project {
     id: string;
     name: string;
+    teamId: string;
     maxConcurrentRuns: number;
     maxConcurrentRunsLimit?: number;
     canManageProject?: boolean;
@@ -81,6 +83,7 @@ function downloadBlob(blob: Blob, filename: string): void {
 
 export default function ProjectPage({ params }: ProjectPageProps) {
     const { isLoggedIn, isLoading: isAuthLoading, getAccessToken } = useAuth();
+    const { currentTeam } = useCurrentTeam(getAccessToken, isLoggedIn);
     const resolvedParams = use(params);
     const { id } = resolvedParams;
     const router = useRouter();
@@ -120,6 +123,16 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             router.push("/");
         }
     }, [isAuthLoading, isLoggedIn, router]);
+
+    useEffect(() => {
+        if (!project || !currentTeam) {
+            return;
+        }
+
+        if (project.teamId !== currentTeam.id) {
+            router.replace(`/projects?teamId=${encodeURIComponent(currentTeam.id)}`);
+        }
+    }, [project, currentTeam, router]);
 
     useEffect(() => {
         const tab = searchParams.get('tab');
