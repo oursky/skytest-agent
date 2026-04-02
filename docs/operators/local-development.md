@@ -12,13 +12,7 @@ The local stack mirrors the production data plane:
 
 - Docker Engine with Compose
 - Node.js matching the repo toolchain
-- Playwright Chromium installed on the machine that will execute browser runs
-
-Install Chromium once per machine:
-
-```bash
-make playwright-install
-```
+- Playwright Chromium (auto-installed by `make bootstrap` and `make dev` when missing)
 
 ## Quick Start
 
@@ -34,6 +28,7 @@ make dev
 
 - starts Postgres and MinIO from `infra/docker/docker-compose.local.yml`
 - generates the Prisma client and applies the schema
+- installs Playwright Chromium when it is not already available locally
 - starts the Next.js control plane on `http://127.0.0.1:3000`
 - starts the runner maintenance loop
 

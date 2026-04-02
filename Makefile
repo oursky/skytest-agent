@@ -22,6 +22,7 @@ CONTROL_PLANE_URL ?= http://$(CONTROL_PLANE_HOST):$(CONTROL_PLANE_PORT)
 	maintenance \
 	browser-worker \
 	playwright-install \
+	playwright-ensure \
 	runner-reset \
 	bootstrap \
 	dev \
@@ -68,17 +69,23 @@ browser-worker: ## Start the browser run dispatch worker loop
 playwright-install: ## Install Playwright Chromium locally
 	$(NODE_PM) run playwright:install
 
+playwright-ensure: ## Install Playwright Chromium when it is missing locally
+	@node -e "const fs=require('node:fs'); const { chromium }=require('playwright'); process.exit(fs.existsSync(chromium.executablePath()) ? 0 : 1)" \
+		|| $(NODE_PM) run playwright:install
+
 runner-reset: ## Stop all local runner processes and remove local runner state
 	$(NODE_PM) run skytest -- reset --force
 
 bootstrap: ## Install deps, start local services, and apply committed migrations
 	$(MAKE) install
+	$(MAKE) playwright-ensure
 	$(MAKE) services-up
 	$(MAKE) db-setup
 
 dev: ## Boot local services, apply committed migrations, and start the web app with maintenance + browser worker
 	$(MAKE) services-up
 	$(MAKE) db-setup
+	$(MAKE) playwright-ensure
 	@set -a; \
 	[ -f .env.local ] && . ./.env.local; \
 	set +a; \
