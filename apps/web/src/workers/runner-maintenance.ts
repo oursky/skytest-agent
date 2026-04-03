@@ -14,6 +14,7 @@ const shutdown = createWorkerShutdownController({
     workerLabel: 'runner maintenance worker',
     wake: sleeper.wake,
 });
+const MAX_MAINTENANCE_RETRY_INTERVAL_MS = 60_000;
 
 async function runMaintenanceCycle() {
     const [leaseResult, staleLocalBrowserRunResult, retentionResult, queueSanitizerResult] = await Promise.all([
@@ -70,10 +71,21 @@ async function main() {
         return;
     }
 
+    let nextIntervalMs = appConfig.runner.leaseReaperIntervalMs;
     while (!shutdown.isShutdownRequested()) {
-        await runMaintenanceCycle();
+        try {
+            await runMaintenanceCycle();
+            nextIntervalMs = appConfig.runner.leaseReaperIntervalMs;
+        } catch (error) {
+            logger.warn('Runner maintenance cycle failed', {
+                error: error instanceof Error ? error.message : String(error),
+                retryInMs: nextIntervalMs,
+            });
+            nextIntervalMs = Math.min(MAX_MAINTENANCE_RETRY_INTERVAL_MS, Math.floor(nextIntervalMs * 2));
+        }
+
         if (!shutdown.isShutdownRequested()) {
-            await sleeper.sleepOrWake(appConfig.runner.leaseReaperIntervalMs);
+            await sleeper.sleepOrWake(nextIntervalMs);
         }
     }
 
