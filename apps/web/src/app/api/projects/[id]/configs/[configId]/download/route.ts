@@ -3,8 +3,7 @@ import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
 import { buildContentDisposition } from '@/lib/security/http-headers';
 import { readObjectBuffer } from '@/lib/storage/object-store-utils';
-import { isProjectMember } from '@/lib/security/permissions';
-import { guardAuthenticatedUser } from '@/lib/security/api-route-standards';
+import { guardProjectRouteRequest } from '@/lib/security/project-route-access';
 
 const logger = createLogger('api:projects:config:download');
 
@@ -12,13 +11,13 @@ export async function GET(
     request: Request,
     { params }: { params: Promise<{ id: string; configId: string }> }
 ) {
-    const auth = await guardAuthenticatedUser(request);
-    if (!auth.ok) {
-        return auth.response;
+    const guard = await guardProjectRouteRequest({ request, params });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const { id, configId } = await params;
+        const { id, configId } = guard.params;
 
         const config = await prisma.projectConfig.findUnique({
             where: { id: configId },
@@ -36,10 +35,6 @@ export async function GET(
 
         if (!config || config.projectId !== id || config.type !== 'FILE') {
             return NextResponse.json({ error: 'Not found' }, { status: 404 });
-        }
-
-        if (!await isProjectMember(auth.context.userId, id)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
         const object = await readObjectBuffer(config.value);

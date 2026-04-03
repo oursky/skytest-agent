@@ -5,8 +5,7 @@ import { createLogger } from '@/lib/core/logger';
 import { isGroupableConfigType, normalizeConfigGroup } from '@/lib/test-config/sort';
 import type { ConfigType } from '@/types';
 import { deleteObjectIfExists } from '@/lib/storage/object-store-utils';
-import { isProjectMember } from '@/lib/security/permissions';
-import { guardAuthenticatedUser } from '@/lib/security/api-route-standards';
+import { guardProjectRouteRequest } from '@/lib/security/project-route-access';
 
 const logger = createLogger('api:projects:config');
 
@@ -14,13 +13,13 @@ export async function PUT(
     request: Request,
     { params }: { params: Promise<{ id: string; configId: string }> }
 ) {
-    const auth = await guardAuthenticatedUser(request);
-    if (!auth.ok) {
-        return auth.response;
+    const guard = await guardProjectRouteRequest({ request, params });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const { id, configId } = await params;
+        const { id, configId } = guard.params;
 
         const existing = await prisma.projectConfig.findUnique({
             where: { id: configId },
@@ -37,10 +36,6 @@ export async function PUT(
 
         if (!existing || existing.projectId !== id) {
             return NextResponse.json({ error: 'Config not found' }, { status: 404 });
-        }
-
-        if (!await isProjectMember(auth.context.userId, id)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
         const body = await request.json() as {
@@ -100,13 +95,13 @@ export async function DELETE(
     request: Request,
     { params }: { params: Promise<{ id: string; configId: string }> }
 ) {
-    const auth = await guardAuthenticatedUser(request);
-    if (!auth.ok) {
-        return auth.response;
+    const guard = await guardProjectRouteRequest({ request, params });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const { id, configId } = await params;
+        const { id, configId } = guard.params;
 
         const existing = await prisma.projectConfig.findUnique({
             where: { id: configId },
@@ -120,10 +115,6 @@ export async function DELETE(
 
         if (!existing || existing.projectId !== id) {
             return NextResponse.json({ error: 'Config not found' }, { status: 404 });
-        }
-
-        if (!await isProjectMember(auth.context.userId, id)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
         if (existing.type === 'FILE' && existing.value) {

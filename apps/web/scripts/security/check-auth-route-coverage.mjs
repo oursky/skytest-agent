@@ -56,7 +56,11 @@ function parseAllowlist(markdown) {
 }
 
 function hasStandardGuard(source) {
-    return /\bverifyAuth\(/.test(source) || /\bguardAuthenticatedUser\(/.test(source);
+    return (
+        /\bverifyAuth\(/.test(source)
+        || /\bguardAuthenticatedUser\(/.test(source)
+        || /\bguardProjectRouteRequest\(/.test(source)
+    );
 }
 
 function validateAllowlistedGuardMode(input) {

@@ -3,11 +3,10 @@ import archiver from 'archiver';
 import { PassThrough } from 'stream';
 import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
-import { verifyAuth, resolveUserId } from '@/lib/security/auth';
-import { isProjectMember } from '@/lib/security/permissions';
 import { parseTestCaseJson } from '@/lib/runtime/test-case-utils';
 import { buildContentDisposition } from '@/lib/security/http-headers';
 import { exportToExcelBuffer } from '@/utils/excel/testCaseExcel';
+import { guardProjectRouteRequest } from '@/lib/security/project-route-access';
 
 const logger = createLogger('api:projects:test-cases:export-selected');
 
@@ -54,20 +53,13 @@ export async function POST(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardProjectRouteRequest({ request, params });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const { id } = await params;
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        if (!await isProjectMember(userId, id)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
+        const { id } = guard.params;
 
         const body = await request.json() as { testCaseIds?: string[] };
         const selectedIds = Array.isArray(body.testCaseIds)

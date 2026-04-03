@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
-import { verifyAuth, resolveUserId } from '@/lib/security/auth';
-import { isProjectMember } from '@/lib/security/permissions';
 import { processProjectBatchImport, type BatchImportMode } from '@/lib/test-cases/batch-import-service';
+import { guardProjectRouteRequest } from '@/lib/security/project-route-access';
 
 const logger = createLogger('api:projects:test-cases:batch-import');
 
@@ -13,28 +11,13 @@ export async function POST(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardProjectRouteRequest({ request, params });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const { id } = await params;
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const project = await prisma.project.findUnique({
-            where: { id },
-            select: { id: true },
-        });
-        if (!project) {
-            return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-        }
-        if (!await isProjectMember(userId, id)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
+        const { id } = guard.params;
 
         const formData = await request.formData();
         const modeRaw = formData.get('mode');
