@@ -435,9 +435,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         currentPage * pageSize
     );
 
-    const handlePageChange = (page: number) => {
-        setCurrentPage(page);
-    };
+    const handlePageChange = (page: number) => setCurrentPage(page);
 
     const handlePageSizeChange = (size: number) => {
         setCurrentPage(1);
@@ -452,19 +450,11 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         && sortedTestCases.every((testCase) => selectedTestCaseIds.has(testCase.id));
 
     const handleToggleSelectAllFiltered = () => {
-        setSelectedTestCaseIds((prev) => {
-            return toggleSelectAllFilteredTestCases({
-                previous: prev,
-                sortedTestCases,
-                allFilteredSelected,
-            });
-        });
+        setSelectedTestCaseIds((prev) => toggleSelectAllFilteredTestCases({ previous: prev, sortedTestCases, allFilteredSelected }));
     };
 
     const handleToggleSelectTestCase = (testCaseId: string) => {
-        setSelectedTestCaseIds((prev) => {
-            return toggleSelectedTestCase(prev, testCaseId);
-        });
+        setSelectedTestCaseIds((prev) => toggleSelectedTestCase(prev, testCaseId));
     };
 
     const runBatchImportRequest = useCallback(async (

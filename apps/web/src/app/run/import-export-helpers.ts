@@ -19,6 +19,21 @@ export interface VariableConfigInput {
     group?: string | null;
 }
 
+export function filterSupportedVariableConfigs(input: Array<{
+    name: string;
+    type: string;
+    value: string;
+    masked?: boolean;
+    group?: string | null;
+}>): VariableConfigInput[] {
+    return input.filter((variable): variable is VariableConfigInput => (
+        variable.type === 'URL'
+        || variable.type === 'APP_ID'
+        || variable.type === 'VARIABLE'
+        || variable.type === 'RANDOM_STRING'
+    ));
+}
+
 export async function importVariablesToTestCaseHelper(input: {
     variables: VariableConfigInput[];
     sourceData: RunPageTestData;

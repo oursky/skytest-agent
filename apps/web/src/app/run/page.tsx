@@ -32,10 +32,17 @@ import {
     RunViewerResult,
 } from "./utils";
 import {
+    filterSupportedVariableConfigs,
     handleExportHelper,
     importVariablesToProjectHelper,
     importVariablesToTestCaseHelper,
 } from "./import-export-helpers";
+import {
+    buildImportReviewData,
+    discardImportReviewHelper,
+    handleProceedImportReviewHelper,
+} from "./run-page-import-review";
+import { ensureTestCaseFromDataHelper } from "./run-page-test-case-helper";
 
 interface TestData {
     url: string;
@@ -138,78 +145,23 @@ function RunPageContent() {
             setDisplayId(data.testCaseId);
         }
         setIsDirty(true);
-
-        const supportedProjectVariables = data.projectVariables.filter((variable): variable is {
-            name: string;
-            type: 'URL' | 'APP_ID' | 'VARIABLE' | 'RANDOM_STRING';
-            value: string;
-            masked?: boolean;
-            group?: string | null;
-        } => (
-            variable.type === 'URL' || variable.type === 'APP_ID' || variable.type === 'VARIABLE' || variable.type === 'RANDOM_STRING'
-        ));
-
-        const supportedTestCaseVariables = data.testCaseVariables.filter((variable): variable is {
-            name: string;
-            type: 'URL' | 'APP_ID' | 'VARIABLE' | 'RANDOM_STRING';
-            value: string;
-            masked?: boolean;
-            group?: string | null;
-        } => (
-            variable.type === 'URL' || variable.type === 'APP_ID' || variable.type === 'VARIABLE' || variable.type === 'RANDOM_STRING'
-        ));
-
+        const supportedProjectVariables = filterSupportedVariableConfigs(data.projectVariables);
+        const supportedTestCaseVariables = filterSupportedVariableConfigs(data.testCaseVariables);
         await importVariablesToProject(supportedProjectVariables);
         await importVariablesToTestCase(supportedTestCaseVariables, data.testData);
     };
 
-    const buildImportReviewData = (
-        filename: string,
-        issues: Array<{ code: string; severity: 'warning' | 'error'; reason: string; sheet?: string; row?: number; }>
-    ): TestCaseImportReviewData => {
-        const hasErrors = issues.some((issue) => issue.severity === 'error');
-        const hasWarnings = issues.some((issue) => issue.severity === 'warning');
-        return {
-            summary: {
-                totalFiles: 1,
-                validFiles: hasErrors ? 0 : 1,
-                invalidFiles: hasErrors ? 1 : 0,
-                warningFiles: hasWarnings ? 1 : 0,
-                importedFiles: 0,
-                skippedFiles: 0,
-            },
-            files: [{
-                filename,
-                status: hasErrors ? 'invalid' : 'valid',
-                issues: issues.map((issue) => ({
-                    ...issue,
-                    filename,
-                })),
-            }],
-        };
-    };
-
     const handleProceedImportReview = async () => {
-        if (!pendingImportData) {
-            setImportReviewData(null);
-            return;
-        }
-        setIsImportReviewProcessing(true);
-        try {
-            await applyImportedExcelData(pendingImportData);
-            setImportReviewData(null);
-            setPendingImportData(null);
-        } catch (error) {
-            console.error('Failed to import test case', error);
-        } finally {
-            setIsImportReviewProcessing(false);
-        }
+        await handleProceedImportReviewHelper({
+            pendingImportData,
+            setImportReviewData,
+            setPendingImportData,
+            setIsImportReviewProcessing,
+            applyImportedExcelData,
+        });
     };
 
-    const handleDiscardImportReview = () => {
-        setImportReviewData(null);
-        setPendingImportData(null);
-    };
+    const handleDiscardImportReview = () => discardImportReviewHelper({ setImportReviewData, setPendingImportData });
 
     const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -771,85 +723,30 @@ function RunPageContent() {
         }
     }, [projectId, projectIdFromTestCase, router]);
 
-    const handleDisplayIdChange = useCallback((newDisplayId: string) => {
-        setDisplayId(newDisplayId);
-        setIsDirty(true);
-    }, []);
+    const handleDisplayIdChange = useCallback((newDisplayId: string) => { setDisplayId(newDisplayId); setIsDirty(true); }, []);
 
     const ensureTestCaseFromData = async (
         data: TestData,
         options?: { suppressAlert?: boolean }
     ): Promise<string> => {
-        const suppressAlert = options?.suppressAlert === true;
-        if (testCaseId) return testCaseId;
-        if (currentTestCaseId) return currentTestCaseId;
-
-        const effectiveProjectId = projectId || projectIdFromTestCase;
-        if (!effectiveProjectId) {
-            if (!suppressAlert) {
-                alert(t('run.error.selectProjectUpload'));
-            }
-            throw new Error(t('run.error.noProjectSelected'));
-        }
-        const normalizedDisplayId = (data.displayId ?? displayId ?? '').trim();
-        if (!normalizedDisplayId) {
-            if (!suppressAlert) {
-                alert(t('run.error.testCaseIdRequired'));
-            }
-            throw new Error(t('run.error.testCaseIdRequired'));
-        }
-
-        try {
-            const token = await getAccessToken();
-            const headers: HeadersInit = {
-                'Content-Type': 'application/json',
-                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-            };
-
-            const usedPlaceholderName = !data.name || data.name.trim() === '';
-            const untitledName = t('testCase.untitled');
-
-            const payload: TestData = {
-                ...data,
-                name: !usedPlaceholderName ? data.name : untitledName,
-                displayId: normalizedDisplayId,
-            };
-            if (!payload.url || payload.url.trim() === '') {
-                payload.url = 'about:blank';
-            }
-            const payloadHasSteps = Array.isArray(payload.steps) && payload.steps.length > 0;
-            if (!payload.prompt && !payloadHasSteps) {
-                payload.prompt = 'Draft';
-            }
-
-            const response = await fetch(`/api/projects/${effectiveProjectId}/test-cases`, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify(payload),
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.error || 'Failed to create test case');
-            }
-
-            const newTestCase = await response.json();
-            setCurrentTestCaseId(newTestCase.id);
-            refreshFilesRef.current = newTestCase.id;
-            window.history.replaceState(null, "", `?testCaseId=${newTestCase.id}&projectId=${effectiveProjectId}`);
-
-            if (usedPlaceholderName) {
-                setInitialData({ ...data, name: untitledName });
-            }
-
-            return newTestCase.id as string;
-        } catch (error) {
-            console.error('Failed to create test case for upload', error);
-            if (!suppressAlert) {
-                alert(t('run.error.failedCreateTestCaseUpload'));
-            }
-            throw error;
-        }
+        return await ensureTestCaseFromDataHelper({
+            data,
+            suppressAlert: options?.suppressAlert === true,
+            testCaseId,
+            currentTestCaseId,
+            projectId,
+            projectIdFromTestCase,
+            displayId,
+            getAccessToken,
+            t,
+            setCurrentTestCaseId,
+            setInitialData: (nextInitialData) => {
+                setInitialData(nextInitialData);
+            },
+            setRefreshFilesTestCaseId: (newTestCaseId) => {
+                refreshFilesRef.current = newTestCaseId;
+            },
+        });
     };
 
     const testCaseHasActiveRun = isRunActiveStatus(testCaseStatus);
