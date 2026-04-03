@@ -25,7 +25,9 @@ Plan: `plans/2026-04-03-architecture-sustainability-review-plan.md`
   - protocol boundary recurrence gate is enforced in `npm run verify`
   - API dedup expanded from project-config pilot to additional project test-case/config route groups using `guardProjectRouteRequest`
   - API dedup expanded beyond project routes with `guardTeamRouteRequest` across 10 `teams/[id]/**` route files
-  - auth-route coverage gate recognizes `guardTeamRouteRequest` as a standardized route guard
+  - test-case route guard dedup expanded with `guardTestCaseRouteRequest` across 9 `test-cases/[id]/**` route files
+  - standardized guard helper adoption now covers 27 of 65 API route files (~41.5%), meeting the 40% rollout floor target
+  - auth-route coverage gate recognizes `guardTeamRouteRequest` and `guardTestCaseRouteRequest` as standardized route guards
 
 ### Phase 2b
 - status: complete

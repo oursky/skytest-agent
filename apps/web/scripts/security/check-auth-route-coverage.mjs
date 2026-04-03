@@ -61,6 +61,7 @@ function hasStandardGuard(source) {
         || /\bguardAuthenticatedUser\(/.test(source)
         || /\bguardProjectRouteRequest\(/.test(source)
         || /\bguardTeamRouteRequest\(/.test(source)
+        || /\bguardTestCaseRouteRequest\(/.test(source)
     );
 }
 

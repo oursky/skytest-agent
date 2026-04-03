@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { parseTestCaseJson, cleanStepsForStorage, normalizeTargetConfigMap } from '@/lib/runtime/test-case-utils';
 import { BrowserConfig, TargetConfig, TEST_STATUS } from '@/types';
 import { deleteObjectIfExists } from '@/lib/storage/object-store-utils';
-import { isProjectMember } from '@/lib/security/permissions';
+import { guardTestCaseRouteRequest } from '@/lib/security/test-case-route-access';
 
 const logger = createLogger('api:test-cases:id');
 
@@ -13,17 +12,13 @@ export async function GET(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardTestCaseRouteRequest({ request, params });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const { id } = await params;
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { testCaseId: id } = guard;
 
         const testCase = await prisma.testCase.findUnique({
             where: { id },
@@ -40,15 +35,6 @@ export async function GET(
                     select: {
                         teamId: true,
                         name: true,
-                        team: {
-                            select: {
-                                memberships: {
-                                    where: { userId },
-                                    select: { id: true },
-                                    take: 1,
-                                }
-                            }
-                        }
                     },
                 }
             }
@@ -56,10 +42,6 @@ export async function GET(
 
         if (!testCase) {
             return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
-        }
-
-        if (testCase.project.team.memberships.length === 0) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
         const parsedTestCase = parseTestCaseJson(testCase);
@@ -80,13 +62,13 @@ export async function PUT(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardTestCaseRouteRequest({ request, params });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const { id } = await params;
+        const { testCaseId: id } = guard;
         const body = await request.json();
         const { name, url, prompt, steps, browserConfig, displayId, preserveStatus } = body as {
             name?: string;
@@ -114,14 +96,6 @@ export async function PUT(
             return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
         }
 
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        if (!await isProjectMember(userId, existingTestCase.projectId)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
         if (!normalizedDisplayId) {
             return NextResponse.json({ error: 'Test case ID is required' }, { status: 400 });
         }
@@ -162,13 +136,13 @@ export async function DELETE(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardTestCaseRouteRequest({ request, params });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const { id } = await params;
+        const { testCaseId: id } = guard;
 
         const existingTestCase = await prisma.testCase.findUnique({
             where: { id },
@@ -183,15 +157,6 @@ export async function DELETE(
 
         if (!existingTestCase) {
             return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
-        }
-
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        if (!await isProjectMember(userId, existingTestCase.projectId)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
         await prisma.testCase.delete({
