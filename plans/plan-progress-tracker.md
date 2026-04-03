@@ -58,6 +58,7 @@ Plan: `plans/2026-04-03-architecture-sustainability-review-plan.md`
   - macOS runner engine decomposition slice merged (`engine.ts` at 898 LOC)
   - overlap-prevention reliability check automated via `apps/macos-runner/runner/__tests__/process-lock.test.ts`
   - process-lock tests validate stale-lock recovery, single-owner enforcement, and cleanup release behavior
+  - worker loop utility extraction merged in `apps/web/src/workers/loop-utils.ts` and adopted by `browser-runner.ts` / `runner-maintenance.ts`
 
 ### Phase 4
 - status: complete
