@@ -7,6 +7,9 @@ import { normalizeBrowserConfig } from '@/lib/test-config/browser-target';
 import { validateConfigName, normalizeConfigName, validateConfigType } from '@/lib/test-config/validation';
 import { resolveAndroidDeviceSelector, type AndroidDeviceSelectorInventory } from '@/lib/mcp/android-selector';
 import { cancelRunDurably } from '@/lib/mcp/run-cancellation';
+import { getUserId, type McpHandlerExtra, verifyProjectAccess } from '@/lib/mcp/server-auth';
+import { errorResult, textResult, withToolTelemetry, type ToolResponse } from '@/lib/mcp/server-response';
+import { mcpConfigSchema, mcpStepSchema } from '@/lib/mcp/server-schemas';
 import {
     RUN_ACTIVE_STATUSES,
     TEST_STATUS,
@@ -15,35 +18,7 @@ import {
     type TargetConfig,
     type TestStep,
 } from '@/types';
-import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
-import type { ServerNotification, ServerRequest } from '@modelcontextprotocol/sdk/types.js';
-import { isProjectMember, isTestCaseProjectMember } from '@/lib/security/permissions';
-
-type Extra = RequestHandlerExtra<ServerRequest, ServerNotification>;
-
-type ToolResponse = {
-    content: Array<{ type: 'text'; text: string }>;
-    isError?: true;
-};
-
-function getUserId(extra: Extra): string | null {
-    return extra.authInfo?.clientId ?? null;
-}
-
-function textResult(data: unknown): ToolResponse {
-    return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
-}
-
-function errorResult(message: string, details?: unknown): ToolResponse {
-    const payload = details === undefined
-        ? { error: message }
-        : { error: message, details };
-    return { content: [{ type: 'text', text: JSON.stringify(payload) }], isError: true };
-}
-
-async function verifyProjectAccess(projectId: string, userId: string): Promise<boolean> {
-    return isProjectMember(userId, projectId);
-}
+import { isTestCaseProjectMember } from '@/lib/security/permissions';
 
 function readMetadataString(metadata: unknown, field: string): string | undefined {
     if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
@@ -135,21 +110,6 @@ function buildTargetIdGenerator(existingIds: Set<string>, prefix: 'browser' | 'a
     };
 }
 
-const mcpStepSchema = z.object({
-    id: z.string().describe('Step ID (e.g. "step_1")'),
-    target: z.string().describe('Target ID (e.g. "browser_a")'),
-    action: z.string().describe('Natural language action or verification'),
-    type: z.enum(['ai-action', 'playwright-code']).optional().describe('Step type, default ai-action'),
-});
-
-const mcpConfigSchema = z.object({
-    name: z.string().describe('Variable/config name (UPPER_SNAKE_CASE)'),
-    type: z.string().describe('URL | VARIABLE | RANDOM_STRING | APP_ID'),
-    value: z.string().optional().describe('Config value'),
-    masked: z.boolean().optional().describe('Mask value in UI (VARIABLE type only)'),
-    group: z.string().nullable().optional().describe('Group name for team'),
-});
-
 const mcpCreateTestCaseSchema = z.object({
     name: z.string().optional().describe('Test case name'),
     displayId: z.string().optional().describe('User-facing display ID'),
@@ -193,215 +153,217 @@ export function registerTestCaseMutationTools(server: McpServer): void {
 
     const createTestCaseHandler = async (
         { projectId, testCase }: { projectId: string; testCase: McpCreateTestCaseInput },
-        extra: Extra
+        extra: McpHandlerExtra
     ): Promise<ToolResponse> => {
-        const userId = getUserId(extra);
-        if (!userId) return errorResult('Unauthorized');
-        if (!await verifyProjectAccess(projectId, userId)) return errorResult('Forbidden');
+        return withToolTelemetry('create_test_case', async () => {
+            const userId = getUserId(extra);
+            if (!userId) return errorResult('Unauthorized');
+            if (!await verifyProjectAccess(projectId, userId)) return errorResult('Forbidden');
 
-        const name = testCase.name?.trim();
-        if (!name) {
-            return errorResult('Name is required');
-        }
-
-        const warnings: string[] = [];
-        const targetConfigMap: Record<string, BrowserConfig | TargetConfig> = {};
-        const hasBrowserConfig = !!testCase.browserConfig
-            && typeof testCase.browserConfig === 'object'
-            && !Array.isArray(testCase.browserConfig)
-            && Object.keys(testCase.browserConfig).length > 0;
-        if (hasBrowserConfig) {
-            Object.assign(
-                targetConfigMap,
-                normalizeTargetConfigMap(testCase.browserConfig as Record<string, BrowserConfig | TargetConfig>)
-            );
-        }
-
-        const targetIds = new Set(Object.keys(targetConfigMap));
-        const nextBrowserTargetId = buildTargetIdGenerator(targetIds, 'browser');
-        const nextAndroidTargetId = buildTargetIdGenerator(targetIds, 'android');
-        const androidInventory = Array.isArray(testCase.androidTargets) && testCase.androidTargets.length > 0
-            ? await listRunnerAndroidInventory(projectId)
-            : null;
-
-        if (Array.isArray(testCase.browserTargets)) {
-            for (const target of testCase.browserTargets) {
-                const requestedId = target.id?.trim();
-                let targetId = requestedId;
-                if (targetId) {
-                    if (targetIds.has(targetId)) {
-                        warnings.push(`Browser target "${targetId}" already exists, generated a new target ID instead.`);
-                        targetId = nextBrowserTargetId();
-                    } else {
-                        targetIds.add(targetId);
-                    }
-                } else {
-                    targetId = nextBrowserTargetId();
-                }
-
-                targetConfigMap[targetId] = normalizeBrowserConfig({
-                    name: target.name?.trim() || undefined,
-                    url: target.url,
-                    width: target.width,
-                    height: target.height,
-                });
+            const name = testCase.name?.trim();
+            if (!name) {
+                return errorResult('Name is required');
             }
-        }
 
-        if (Array.isArray(testCase.androidTargets)) {
-            for (const target of testCase.androidTargets) {
-                const deviceSelector = resolveAndroidDeviceSelector(
-                    target.device,
-                    target.deviceSelector,
-                    androidInventory ?? undefined
+            const warnings: string[] = [];
+            const targetConfigMap: Record<string, BrowserConfig | TargetConfig> = {};
+            const hasBrowserConfig = !!testCase.browserConfig
+                && typeof testCase.browserConfig === 'object'
+                && !Array.isArray(testCase.browserConfig)
+                && Object.keys(testCase.browserConfig).length > 0;
+            if (hasBrowserConfig) {
+                Object.assign(
+                    targetConfigMap,
+                    normalizeTargetConfigMap(testCase.browserConfig as Record<string, BrowserConfig | TargetConfig>)
                 );
-                if (!deviceSelector) {
-                    warnings.push(`Android target "${target.name || target.id || 'unnamed'}" skipped: missing or invalid device selector.`);
-                    continue;
-                }
-
-                if (androidInventory) {
-                    let foundInInventory = false;
-                    let deviceLabel = target.device || 'unknown';
-                    if (deviceSelector.mode === 'emulator-profile') {
-                        deviceLabel = target.device || deviceSelector.emulatorProfileName;
-                        foundInInventory = androidInventory.emulatorProfiles.some(
-                            (profile) => profile.name === deviceSelector.emulatorProfileName
-                        );
-                    } else if (deviceSelector.mode === 'connected-device') {
-                        deviceLabel = target.device || deviceSelector.serial;
-                        foundInInventory = androidInventory.connectedDevices.some(
-                            (device) => device.serial === deviceSelector.serial
-                        );
-                    }
-                    if (!foundInInventory) {
-                        warnings.push(`Android device "${deviceLabel}" was not found in the device inventory. Verify with the user before running.`);
-                    }
-                }
-
-                const requestedId = target.id?.trim();
-                let targetId = requestedId;
-                if (targetId) {
-                    if (targetIds.has(targetId)) {
-                        warnings.push(`Android target "${targetId}" already exists, generated a new target ID instead.`);
-                        targetId = nextAndroidTargetId();
-                    } else {
-                        targetIds.add(targetId);
-                    }
-                } else {
-                    targetId = nextAndroidTargetId();
-                }
-
-                targetConfigMap[targetId] = {
-                    type: 'android',
-                    name: target.name?.trim() || undefined,
-                    deviceSelector,
-                    runnerScope: target.runnerId ? { runnerId: target.runnerId.trim() } : undefined,
-                    appId: target.appId || '',
-                    clearAppState: target.clearAppState ?? true,
-                    allowAllPermissions: target.allowAllPermissions ?? true,
-                };
             }
-        }
 
-        const hasSteps = Array.isArray(testCase.steps) && testCase.steps.length > 0;
-        const cleanedSteps = hasSteps ? cleanStepsForStorage(testCase.steps as TestStep[]) : undefined;
-        const hasTargetConfig = Object.keys(targetConfigMap).length > 0;
-        const normalizedBrowserConfig = hasTargetConfig ? normalizeTargetConfigMap(targetConfigMap) : undefined;
-        const displayId = testCase.displayId || testCase.testCaseId || undefined;
-        const firstBrowserTarget = normalizedBrowserConfig
-            ? Object.values(normalizedBrowserConfig).find((targetConfig) => !('type' in targetConfig && targetConfig.type === 'android')) as BrowserConfig | undefined
-            : undefined;
-        const normalizedUrl = testCase.url || firstBrowserTarget?.url || '';
+            const targetIds = new Set(Object.keys(targetConfigMap));
+            const nextBrowserTargetId = buildTargetIdGenerator(targetIds, 'browser');
+            const nextAndroidTargetId = buildTargetIdGenerator(targetIds, 'android');
+            const androidInventory = Array.isArray(testCase.androidTargets) && testCase.androidTargets.length > 0
+                ? await listRunnerAndroidInventory(projectId)
+                : null;
 
-        const createResult = await prisma.$transaction(async (tx) => {
-            const created = await tx.testCase.create({
-                data: {
-                    name,
-                    url: normalizedUrl,
-                    prompt: testCase.prompt,
-                    steps: cleanedSteps ? JSON.stringify(cleanedSteps) : undefined,
-                    browserConfig: normalizedBrowserConfig ? JSON.stringify(normalizedBrowserConfig) : undefined,
-                    projectId,
-                    displayId,
-                    status: TEST_STATUS.DRAFT,
-                    source: 'agent',
-                },
-            });
-
-            let createdTestCaseVariableCount = 0;
-            const testCaseVariables = [...(testCase.configs || []), ...(testCase.variables || [])];
-            if (testCaseVariables.length > 0) {
-                const projectConfigs = await tx.projectConfig.findMany({ where: { projectId } });
-
-                for (const configInput of testCaseVariables) {
-                    const nameError = validateConfigName(configInput.name);
-                    if (nameError) {
-                        warnings.push(`Config "${configInput.name}": ${nameError}`);
-                        continue;
-                    }
-                    if (!validateConfigType(configInput.type)) {
-                        warnings.push(`Config "${configInput.name}": invalid type "${configInput.type}"`);
-                        continue;
-                    }
-
-                    const normalizedName = normalizeConfigName(configInput.name);
-                    const configType = configInput.type as ConfigType;
-                    const configValue = configInput.value ?? '';
-                    if (configType === 'FILE') {
-                        warnings.push(`Config "${normalizedName}" skipped: FILE upload is not supported in MCP create_test_case.`);
-                        continue;
-                    }
-
-                    const projectConfigWithSameName = projectConfigs.find(
-                        (projectConfig) => normalizeConfigName(projectConfig.name) === normalizedName && projectConfig.type === configType
-                    );
-                    if (configValue.length === 0 && projectConfigWithSameName) {
-                        warnings.push(`Config "${normalizedName}" skipped: empty test-case value would override project config "${projectConfigWithSameName.name}".`);
-                        continue;
-                    }
-
-                    const matchingProjectConfig = projectConfigs.find(
-                        (projectConfig) => projectConfig.value === configValue && projectConfig.type === configType
-                    );
-                    if (matchingProjectConfig) {
-                        warnings.push(`Config "${normalizedName}" skipped: project variable "${matchingProjectConfig.name}" already has the same value — use it instead`);
-                        continue;
-                    }
-
-                    const groupable = isGroupableConfigType(configType);
-                    try {
-                        await tx.testCaseConfig.create({
-                            data: {
-                                testCaseId: created.id,
-                                name: normalizedName,
-                                type: configType,
-                                value: configValue,
-                                masked: configType === 'VARIABLE' ? (configInput.masked ?? false) : false,
-                                group: groupable ? (normalizeConfigGroup(configInput.group) || null) : null,
-                            }
-                        });
-                        createdTestCaseVariableCount += 1;
-                    } catch (error: unknown) {
-                        if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'P2002') {
-                            warnings.push(`Config "${normalizedName}" already exists, skipped`);
+            if (Array.isArray(testCase.browserTargets)) {
+                for (const target of testCase.browserTargets) {
+                    const requestedId = target.id?.trim();
+                    let targetId = requestedId;
+                    if (targetId) {
+                        if (targetIds.has(targetId)) {
+                            warnings.push(`Browser target "${targetId}" already exists, generated a new target ID instead.`);
+                            targetId = nextBrowserTargetId();
                         } else {
-                            warnings.push(`Config "${normalizedName}" creation failed`);
+                            targetIds.add(targetId);
+                        }
+                    } else {
+                        targetId = nextBrowserTargetId();
+                    }
+
+                    targetConfigMap[targetId] = normalizeBrowserConfig({
+                        name: target.name?.trim() || undefined,
+                        url: target.url,
+                        width: target.width,
+                        height: target.height,
+                    });
+                }
+            }
+
+            if (Array.isArray(testCase.androidTargets)) {
+                for (const target of testCase.androidTargets) {
+                    const deviceSelector = resolveAndroidDeviceSelector(
+                        target.device,
+                        target.deviceSelector,
+                        androidInventory ?? undefined
+                    );
+                    if (!deviceSelector) {
+                        warnings.push(`Android target "${target.name || target.id || 'unnamed'}" skipped: missing or invalid device selector.`);
+                        continue;
+                    }
+
+                    if (androidInventory) {
+                        let foundInInventory = false;
+                        let deviceLabel = target.device || 'unknown';
+                        if (deviceSelector.mode === 'emulator-profile') {
+                            deviceLabel = target.device || deviceSelector.emulatorProfileName;
+                            foundInInventory = androidInventory.emulatorProfiles.some(
+                                (profile) => profile.name === deviceSelector.emulatorProfileName
+                            );
+                        } else if (deviceSelector.mode === 'connected-device') {
+                            deviceLabel = target.device || deviceSelector.serial;
+                            foundInInventory = androidInventory.connectedDevices.some(
+                                (device) => device.serial === deviceSelector.serial
+                            );
+                        }
+                        if (!foundInInventory) {
+                            warnings.push(`Android device "${deviceLabel}" was not found in the device inventory. Verify with the user before running.`);
+                        }
+                    }
+
+                    const requestedId = target.id?.trim();
+                    let targetId = requestedId;
+                    if (targetId) {
+                        if (targetIds.has(targetId)) {
+                            warnings.push(`Android target "${targetId}" already exists, generated a new target ID instead.`);
+                            targetId = nextAndroidTargetId();
+                        } else {
+                            targetIds.add(targetId);
+                        }
+                    } else {
+                        targetId = nextAndroidTargetId();
+                    }
+
+                    targetConfigMap[targetId] = {
+                        type: 'android',
+                        name: target.name?.trim() || undefined,
+                        deviceSelector,
+                        runnerScope: target.runnerId ? { runnerId: target.runnerId.trim() } : undefined,
+                        appId: target.appId || '',
+                        clearAppState: target.clearAppState ?? true,
+                        allowAllPermissions: target.allowAllPermissions ?? true,
+                    };
+                }
+            }
+
+            const hasSteps = Array.isArray(testCase.steps) && testCase.steps.length > 0;
+            const cleanedSteps = hasSteps ? cleanStepsForStorage(testCase.steps as TestStep[]) : undefined;
+            const hasTargetConfig = Object.keys(targetConfigMap).length > 0;
+            const normalizedBrowserConfig = hasTargetConfig ? normalizeTargetConfigMap(targetConfigMap) : undefined;
+            const displayId = testCase.displayId || testCase.testCaseId || undefined;
+            const firstBrowserTarget = normalizedBrowserConfig
+                ? Object.values(normalizedBrowserConfig).find((targetConfig) => !('type' in targetConfig && targetConfig.type === 'android')) as BrowserConfig | undefined
+                : undefined;
+            const normalizedUrl = testCase.url || firstBrowserTarget?.url || '';
+
+            const createResult = await prisma.$transaction(async (tx) => {
+                const created = await tx.testCase.create({
+                    data: {
+                        name,
+                        url: normalizedUrl,
+                        prompt: testCase.prompt,
+                        steps: cleanedSteps ? JSON.stringify(cleanedSteps) : undefined,
+                        browserConfig: normalizedBrowserConfig ? JSON.stringify(normalizedBrowserConfig) : undefined,
+                        projectId,
+                        displayId,
+                        status: TEST_STATUS.DRAFT,
+                        source: 'agent',
+                    },
+                });
+
+                let createdTestCaseVariableCount = 0;
+                const testCaseVariables = [...(testCase.configs || []), ...(testCase.variables || [])];
+                if (testCaseVariables.length > 0) {
+                    const projectConfigs = await tx.projectConfig.findMany({ where: { projectId } });
+
+                    for (const configInput of testCaseVariables) {
+                        const nameError = validateConfigName(configInput.name);
+                        if (nameError) {
+                            warnings.push(`Config "${configInput.name}": ${nameError}`);
+                            continue;
+                        }
+                        if (!validateConfigType(configInput.type)) {
+                            warnings.push(`Config "${configInput.name}": invalid type "${configInput.type}"`);
+                            continue;
+                        }
+
+                        const normalizedName = normalizeConfigName(configInput.name);
+                        const configType = configInput.type as ConfigType;
+                        const configValue = configInput.value ?? '';
+                        if (configType === 'FILE') {
+                            warnings.push(`Config "${normalizedName}" skipped: FILE upload is not supported in MCP create_test_case.`);
+                            continue;
+                        }
+
+                        const projectConfigWithSameName = projectConfigs.find(
+                            (projectConfig) => normalizeConfigName(projectConfig.name) === normalizedName && projectConfig.type === configType
+                        );
+                        if (configValue.length === 0 && projectConfigWithSameName) {
+                            warnings.push(`Config "${normalizedName}" skipped: empty test-case value would override project config "${projectConfigWithSameName.name}".`);
+                            continue;
+                        }
+
+                        const matchingProjectConfig = projectConfigs.find(
+                            (projectConfig) => projectConfig.value === configValue && projectConfig.type === configType
+                        );
+                        if (matchingProjectConfig) {
+                            warnings.push(`Config "${normalizedName}" skipped: project variable "${matchingProjectConfig.name}" already has the same value — use it instead`);
+                            continue;
+                        }
+
+                        const groupable = isGroupableConfigType(configType);
+                        try {
+                            await tx.testCaseConfig.create({
+                                data: {
+                                    testCaseId: created.id,
+                                    name: normalizedName,
+                                    type: configType,
+                                    value: configValue,
+                                    masked: configType === 'VARIABLE' ? (configInput.masked ?? false) : false,
+                                    group: groupable ? (normalizeConfigGroup(configInput.group) || null) : null,
+                                }
+                            });
+                            createdTestCaseVariableCount += 1;
+                        } catch (error: unknown) {
+                            if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'P2002') {
+                                warnings.push(`Config "${normalizedName}" already exists, skipped`);
+                            } else {
+                                warnings.push(`Config "${normalizedName}" creation failed`);
+                            }
                         }
                     }
                 }
-            }
 
-            return { created, createdTestCaseVariableCount };
-        });
+                return { created, createdTestCaseVariableCount };
+            });
 
-        return textResult({
-            id: createResult.created.id,
-            name: createResult.created.name,
-            displayId: createResult.created.displayId,
-            createdTargets: normalizedBrowserConfig ? Object.keys(normalizedBrowserConfig).length : 0,
-            createdTestCaseVariables: createResult.createdTestCaseVariableCount,
-            warnings
+            return textResult({
+                id: createResult.created.id,
+                name: createResult.created.name,
+                displayId: createResult.created.displayId,
+                createdTargets: normalizedBrowserConfig ? Object.keys(normalizedBrowserConfig).length : 0,
+                createdTestCaseVariables: createResult.createdTestCaseVariableCount,
+                warnings
+            });
         });
     };
 
@@ -410,24 +372,7 @@ export function registerTestCaseMutationTools(server: McpServer): void {
         inputSchema: createTestCaseInputSchema,
     }, createTestCaseHandler);
 
-    server.registerTool('update_test_case', {
-        description: 'Update one test case per call (name, steps, browserConfig, url, prompt, and test-case variables/configs)',
-        inputSchema: {
-            testCaseId: z.string().describe('Test case ID'),
-            name: z.string().optional(),
-            url: z.string().optional(),
-            prompt: z.string().optional(),
-            steps: z.array(mcpStepSchema).optional(),
-            browserConfig: z.record(z.string(), z.unknown()).optional(),
-            configs: z.array(mcpConfigSchema).optional().describe('Upsert test-case variables/configs'),
-            variables: z.array(mcpConfigSchema).optional().describe('Alias of configs (import-style test case variables)'),
-            removeConfigNames: z.array(z.string()).optional().describe('Remove test-case configs by name'),
-            removeVariableNames: z.array(z.string()).optional().describe('Alias of removeConfigNames'),
-            activeRunResolution: z.enum(['cancel_and_save', 'do_not_save']).optional().describe(
-                'Required when the test case has active runs. cancel_and_save: cancel queued/running runs and save as DRAFT. do_not_save: keep active runs and skip saving.'
-            ),
-        },
-    }, async ({
+    const updateTestCaseHandler = async ({
         testCaseId,
         activeRunResolution,
         name,
@@ -439,7 +384,19 @@ export function registerTestCaseMutationTools(server: McpServer): void {
         variables,
         removeConfigNames,
         removeVariableNames
-    }, extra) => {
+    }: {
+        testCaseId: string;
+        activeRunResolution?: 'cancel_and_save' | 'do_not_save';
+        name?: string;
+        url?: string;
+        prompt?: string;
+        steps?: Array<z.infer<typeof mcpStepSchema>>;
+        browserConfig?: Record<string, unknown>;
+        configs?: Array<z.infer<typeof mcpConfigSchema>>;
+        variables?: Array<z.infer<typeof mcpConfigSchema>>;
+        removeConfigNames?: string[];
+        removeVariableNames?: string[];
+    }, extra: McpHandlerExtra): Promise<ToolResponse> => withToolTelemetry('update_test_case', async () => {
         const userId = getUserId(extra);
         if (!userId) return errorResult('Unauthorized');
         const testCase = await prisma.testCase.findUnique({
@@ -670,4 +627,23 @@ export function registerTestCaseMutationTools(server: McpServer): void {
             warnings,
         });
     });
+
+    server.registerTool('update_test_case', {
+        description: 'Update one test case per call (name, steps, browserConfig, url, prompt, and test-case variables/configs)',
+        inputSchema: {
+            testCaseId: z.string().describe('Test case ID'),
+            name: z.string().optional(),
+            url: z.string().optional(),
+            prompt: z.string().optional(),
+            steps: z.array(mcpStepSchema).optional(),
+            browserConfig: z.record(z.string(), z.unknown()).optional(),
+            configs: z.array(mcpConfigSchema).optional().describe('Upsert test-case variables/configs'),
+            variables: z.array(mcpConfigSchema).optional().describe('Alias of configs (import-style test case variables)'),
+            removeConfigNames: z.array(z.string()).optional().describe('Remove test-case configs by name'),
+            removeVariableNames: z.array(z.string()).optional().describe('Alias of removeConfigNames'),
+            activeRunResolution: z.enum(['cancel_and_save', 'do_not_save']).optional().describe(
+                'Required when the test case has active runs. cancel_and_save: cancel queued/running runs and save as DRAFT. do_not_save: keep active runs and skip saving.'
+            ),
+        },
+    }, updateTestCaseHandler);
 }

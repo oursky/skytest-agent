@@ -875,6 +875,9 @@ export async function startRunnerEngine() {
         while (!stopped) {
             try {
                 const job = await claimJob();
+                if (stopped) {
+                    break;
+                }
                 if (!job) {
                     await sleep(150 + Math.floor(Math.random() * 300));
                     continue;

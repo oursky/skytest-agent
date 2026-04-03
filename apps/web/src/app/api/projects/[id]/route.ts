@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { deleteObjectIfExists } from '@/lib/storage/object-store-utils';
 import { config as appConfig } from '@/config/app';
 import { RUN_ACTIVE_STATUSES } from '@/types';
-import { resolveProjectForbiddenOrNotFound } from '@/lib/security/resource-access-errors';
+import { guardProjectRouteRequest } from '@/lib/security/project-route-access';
 
 const logger = createLogger('api:projects:id');
 
@@ -13,18 +12,14 @@ export async function GET(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardProjectRouteRequest({ request, params });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const { id } = await params;
+        const { id } = guard.params;
+        const { userId } = guard;
         const project = await prisma.project.findFirst({
             where: {
                 id,
@@ -53,10 +48,8 @@ export async function GET(
                 },
             },
         });
-
         if (!project) {
-            const accessError = await resolveProjectForbiddenOrNotFound(id);
-            return NextResponse.json({ error: accessError.message }, { status: accessError.status });
+            return NextResponse.json({ error: 'Project not found' }, { status: 404 });
         }
 
         const currentUserRole = project.team.memberships[0]?.role ?? null;
@@ -84,35 +77,13 @@ export async function PUT(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardProjectRouteRequest({ request, params });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const { id } = await params;
-
-        const existingProject = await prisma.project.findFirst({
-            where: {
-                id,
-                team: {
-                    memberships: {
-                        some: { userId },
-                    },
-                },
-            },
-            select: { id: true },
-        });
-
-        if (!existingProject) {
-            const accessError = await resolveProjectForbiddenOrNotFound(id);
-            return NextResponse.json({ error: accessError.message }, { status: accessError.status });
-        }
+        const { id } = guard.params;
 
         const body = await request.json() as {
             name?: unknown;
@@ -179,37 +150,34 @@ export async function DELETE(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardProjectRouteRequest({ request, params });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        const { id } = guard.params;
+        const { userId } = guard;
+        const project = await prisma.project.findUnique({
+            where: { id },
+            select: { teamId: true },
+        });
+        if (!project) {
+            return NextResponse.json({ error: 'Project not found' }, { status: 404 });
         }
 
-        const { id } = await params;
-
-        const existingProject = await prisma.project.findFirst({
+        const ownerMembership = await prisma.teamMembership.findUnique({
             where: {
-                id,
-                team: {
-                    memberships: {
-                        some: {
-                            userId,
-                            role: 'OWNER',
-                        },
-                    },
+                teamId_userId: {
+                    teamId: project.teamId,
+                    userId,
                 },
             },
-            select: { id: true },
+            select: { role: true },
         });
 
-        if (!existingProject) {
-            const accessError = await resolveProjectForbiddenOrNotFound(id);
-            return NextResponse.json({ error: accessError.message }, { status: accessError.status });
+        if (ownerMembership?.role !== 'OWNER') {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
         const activeRuns = await prisma.testRun.findFirst({
