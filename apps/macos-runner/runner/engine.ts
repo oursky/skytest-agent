@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import {
+    RUNNER_MINIMUM_VERSION,
     RUNNER_PROTOCOL_CURRENT_VERSION,
     claimJobResponseSchema,
     completeRunRequestSchema,
@@ -99,7 +100,7 @@ const logger: RunnerLogger = quietMode
         error: (message: string, meta?: unknown) => baseLogger.error(message, meta),
     }
     : baseLogger;
-const runnerVersion = process.env.RUNNER_VERSION ?? '0.1.0';
+const runnerVersion = process.env.RUNNER_VERSION ?? RUNNER_MINIMUM_VERSION;
 const controlPlaneBaseUrl = process.env.RUNNER_CONTROL_PLANE_URL ?? 'http://127.0.0.1:3000';
 const pairingToken = process.env.RUNNER_PAIRING_TOKEN?.trim() || null;
 const envRunnerToken = process.env.RUNNER_TOKEN?.trim() || null;

@@ -32,8 +32,9 @@ Plan: `plans/2026-04-03-architecture-sustainability-review-plan.md`
 - completed:
   - runtime and macOS/CLI decomposition scopes documented
   - first runtime seam extraction implemented in `test-runner.ts` (assertion shortcut and network-guard summary modules extracted)
+  - first CLI/runner alignment code slice implemented (shared runner version fallback now sourced from protocol constant)
 - remaining:
-  - implement first CLI/runner alignment code slice with integration checks
+  - expand CLI/runner alignment beyond version fallback and add deeper integration checks
 
 ### Phase 3a
 - status: not started
