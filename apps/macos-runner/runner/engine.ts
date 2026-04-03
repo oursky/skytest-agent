@@ -22,10 +22,10 @@ import {
     registerRunnerResponseSchema,
     uploadArtifactRequestSchema,
     uploadArtifactResponseSchema,
+    resolveHostFingerprint,
     type RunnerEventInput,
     type RunnerTransportMetadata,
 } from '@skytest/runner-protocol';
-import { resolveHostFingerprint } from '@skytest/runner-protocol/src/host-fingerprint';
 import * as loggerModule from '../../web/src/lib/core/logger';
 import * as testRunnerModule from '../../web/src/lib/runtime/test-runner';
 import * as deviceDisplayModule from '../../web/src/lib/android/device-display';

@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
-import { resolveHostFingerprint } from '@skytest/runner-protocol/src/host-fingerprint';
+import { resolveHostFingerprint } from '@skytest/runner-protocol';
 import type { LocalRunnerCredential, LocalRunnerDescriptor, LocalRunnerMetadata } from '../state/types';
 import {
     clearRunnerPid,

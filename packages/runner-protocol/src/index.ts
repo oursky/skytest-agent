@@ -1,4 +1,5 @@
 import { z } from 'zod';
+export { resolveHostFingerprint } from './host-fingerprint';
 
 export const RUNNER_PROTOCOL_CURRENT_VERSION = '1.0.0';
 export const RUNNER_PROTOCOL_MINIMUM_VERSION = '1.0.0';
