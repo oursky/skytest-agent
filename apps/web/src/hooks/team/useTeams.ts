@@ -1,22 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
+import type { TeamOption } from './types';
+import {
+    dispatchTeamsChanged,
+    TEAMS_CHANGED_EVENT,
+} from './team-session-events';
 
-export interface TeamOption {
-    id: string;
-    name: string;
-    role: 'OWNER' | 'MEMBER';
-    createdAt: string;
-    updatedAt: string;
-}
-
-const TEAMS_CHANGED_EVENT = 'skytest:teams-changed';
-
-export function dispatchTeamsChanged() {
-    if (typeof window === 'undefined') {
-        return;
-    }
-
-    window.dispatchEvent(new CustomEvent(TEAMS_CHANGED_EVENT));
-}
+export { dispatchTeamsChanged };
+export type { TeamOption } from './types';
 
 export function useTeams(
     getAccessToken?: () => Promise<string | null>,

@@ -1,23 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
+import { persistCurrentTeamSelection } from './persist-current-team';
+import {
+    CURRENT_TEAM_CHANGED_EVENT,
+    dispatchCurrentTeamChanged,
+} from './team-session-events';
+import type { CurrentTeam } from './types';
 
-export interface CurrentTeam {
-    id: string;
-    name: string;
-    createdAt: string;
-    updatedAt: string;
-}
-
-const CURRENT_TEAM_EVENT = 'skytest:current-team-changed';
-
-export function dispatchCurrentTeamChanged(teamId: string | null) {
-    if (typeof window === 'undefined') {
-        return;
-    }
-
-    window.dispatchEvent(new CustomEvent(CURRENT_TEAM_EVENT, {
-        detail: { teamId }
-    }));
-}
+export { dispatchCurrentTeamChanged };
+export type { CurrentTeam } from './types';
 
 export function useCurrentTeam(
     getAccessToken?: () => Promise<string | null>,
@@ -69,31 +59,9 @@ export function useCurrentTeam(
     }, [enabled, getAccessToken]);
 
     const persistCurrentTeam = useCallback(async (teamId: string) => {
-        const headers: HeadersInit = {
-            'Content-Type': 'application/json',
-        };
-
-        if (getAccessToken) {
-            const token = await getAccessToken();
-            if (token) {
-                headers.Authorization = `Bearer ${token}`;
-            }
-        }
-
-        const response = await fetch('/api/teams/current', {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({ teamId }),
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to persist current team');
-        }
-
-        const data = await response.json() as CurrentTeam;
+        const data = await persistCurrentTeamSelection(getAccessToken, teamId);
         setCurrentTeam(data);
         setError(null);
-        dispatchCurrentTeamChanged(data.id);
         return data;
     }, [getAccessToken]);
 
@@ -110,9 +78,9 @@ export function useCurrentTeam(
             void fetchCurrentTeam();
         };
 
-        window.addEventListener(CURRENT_TEAM_EVENT, handleCurrentTeamChange);
+        window.addEventListener(CURRENT_TEAM_CHANGED_EVENT, handleCurrentTeamChange);
         return () => {
-            window.removeEventListener(CURRENT_TEAM_EVENT, handleCurrentTeamChange);
+            window.removeEventListener(CURRENT_TEAM_CHANGED_EVENT, handleCurrentTeamChange);
         };
     }, [fetchCurrentTeam]);
 

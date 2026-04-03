@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Project } from '@/types';
-import type { TeamOption } from '@/hooks/team/useTeams';
-import type { CurrentTeam } from '@/hooks/team/useCurrentTeam';
+import type { CurrentTeam, TeamOption } from '@/hooks/team/types';
+import { persistCurrentTeamSelection } from '@/hooks/team/persist-current-team';
+import {
+    CURRENT_TEAM_CHANGED_EVENT,
+    TEAMS_CHANGED_EVENT,
+} from '@/hooks/team/team-session-events';
 import { reportLoadMetric } from '@/lib/telemetry/client-metrics';
-
-const TEAMS_CHANGED_EVENT = 'skytest:teams-changed';
-const CURRENT_TEAM_EVENT = 'skytest:current-team-changed';
 
 interface ProjectsBootstrapPayload {
     teams: TeamOption[];
@@ -32,12 +33,15 @@ export function useProjectsBootstrap(
     const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const hasLoadedOnceRef = useRef(false);
+    const latestRequestIdRef = useRef(0);
 
     useEffect(() => {
         hasLoadedOnceRef.current = hasLoadedOnce;
     }, [hasLoadedOnce]);
 
     const fetchBootstrap = useCallback(async (teamIdOverride?: string) => {
+        const requestId = ++latestRequestIdRef.current;
+
         if (!enabled) {
             setLoading(false);
             setHasLoadedOnce(false);
@@ -71,6 +75,9 @@ export function useProjectsBootstrap(
             }
 
             const payload = await response.json() as ProjectsBootstrapPayload;
+            if (requestId !== latestRequestIdRef.current) {
+                return;
+            }
             setTeams(payload.teams);
             setCurrentTeam(payload.currentTeam);
             setProjects(payload.projects);
@@ -81,35 +88,22 @@ export function useProjectsBootstrap(
                 context: 'projects-bootstrap',
             });
         } catch (bootstrapError) {
+            if (requestId !== latestRequestIdRef.current) {
+                return;
+            }
             console.error('Error fetching projects bootstrap payload:', bootstrapError);
             setError('Failed to load projects page data');
         } finally {
+            if (requestId !== latestRequestIdRef.current) {
+                return;
+            }
             setLoading(false);
             setHasLoadedOnce(true);
         }
     }, [enabled, getAccessToken, requestedTeamId]);
 
     const persistCurrentTeam = useCallback(async (teamId: string) => {
-        const headers: HeadersInit = {
-            'Content-Type': 'application/json',
-        };
-
-        const token = await getAccessToken();
-        if (token) {
-            headers.Authorization = `Bearer ${token}`;
-        }
-
-        const response = await fetch('/api/teams/current', {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({ teamId }),
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to persist current team');
-        }
-
-        const payload = await response.json() as CurrentTeam;
+        const payload = await persistCurrentTeamSelection(getAccessToken, teamId);
         setCurrentTeam(payload);
         await fetchBootstrap(teamId);
         return payload;
@@ -134,10 +128,10 @@ export function useProjectsBootstrap(
         };
 
         window.addEventListener(TEAMS_CHANGED_EVENT, handleTeamsChanged);
-        window.addEventListener(CURRENT_TEAM_EVENT, handleCurrentTeamChanged);
+        window.addEventListener(CURRENT_TEAM_CHANGED_EVENT, handleCurrentTeamChanged);
         return () => {
             window.removeEventListener(TEAMS_CHANGED_EVENT, handleTeamsChanged);
-            window.removeEventListener(CURRENT_TEAM_EVENT, handleCurrentTeamChanged);
+            window.removeEventListener(CURRENT_TEAM_CHANGED_EVENT, handleCurrentTeamChanged);
         };
     }, [fetchBootstrap]);
 

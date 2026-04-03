@@ -18,6 +18,13 @@ export default function Header() {
     const { currentTeam, loading: isCurrentTeamLoading, setCurrentTeam } = useCurrentTeam(getAccessToken, isLoggedIn);
 
     const localeOptions = useMemo(() => Object.keys(LOCALE_META) as Locale[], []);
+    const selectedTeamId = useMemo(() => {
+        if (currentTeam && teams.some((team) => team.id === currentTeam.id)) {
+            return currentTeam.id;
+        }
+
+        return teams[0]?.id ?? '';
+    }, [currentTeam, teams]);
 
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isCreateTeamOpen, setIsCreateTeamOpen] = useState(false);
@@ -144,7 +151,7 @@ export default function Header() {
                                     <div className="h-9 min-w-40 lg:min-w-56">
                                         {isLoggedIn && teams.length > 0 ? (
                                             <CustomSelect
-                                                value={currentTeam?.id ?? teams[0]?.id ?? ''}
+                                                value={selectedTeamId}
                                                 options={teams.map((team) => ({
                                                     value: team.id,
                                                     label: team.name,
