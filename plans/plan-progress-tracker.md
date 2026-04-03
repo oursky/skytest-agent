@@ -51,9 +51,11 @@ Plan: `plans/2026-04-03-architecture-sustainability-review-plan.md`
   - frontend hotspot decomposition (`run/page.tsx`, `projects/[id]/page.tsx`)
 
 ### Phase 3c
-- status: not started
+- status: in progress
+- completed:
+  - macOS runner process-lock and runtime utility seams extracted (`engine.ts` reduced to 898 LOC)
 - remaining:
-  - macOS runner engine deep decomposition
+  - deeper macOS runner engine decomposition on lifecycle boundaries
   - worker/runner reliability acceptance checks
 
 ### Phase 4

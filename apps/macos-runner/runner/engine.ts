@@ -1,5 +1,4 @@
-import { mkdir, open, readFile, rm, writeFile } from 'node:fs/promises';
-import crypto from 'node:crypto';
+import { mkdir, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {
@@ -35,6 +34,8 @@ import * as eventsModule from '../../web/src/types/events';
 import type { ConnectedAndroidDeviceInfo } from '../../web/src/lib/android/device-display';
 import type { BrowserConfig, TargetConfig, TestCaseFile, TestEvent, TestStep } from '../../web/src/types';
 import { loadStoredRunnerCredential, saveRunnerCredential, type StoredRunnerCredential } from './credential-store';
+import { acquireRunnerProcessLock } from './process-lock';
+import { buildRunnerDisplayId, sleep } from './runtime-utils';
 
 type CreateLoggerFn = typeof import('../../web/src/lib/core/logger').createLogger;
 type RunTestFn = typeof import('../../web/src/lib/runtime/test-runner').runTest;
@@ -118,9 +119,6 @@ const DEFAULT_TRANSPORT: RunnerTransportMetadata = {
     deviceSyncIntervalSeconds: 45,
 };
 
-function buildRunnerDisplayId(seed: string): string {
-    return crypto.createHash('sha256').update(seed).digest('hex').slice(0, 6);
-}
 const hostFingerprint = resolveHostFingerprint(process.env.RUNNER_HOST_FINGERPRINT);
 
 const JSON_HEADERS = {
@@ -173,12 +171,6 @@ class RunnerHttpError extends Error {
     }
 }
 
-function sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => {
-        setTimeout(resolve, ms);
-    });
-}
-
 function isRunOwnershipLostError(error: unknown): boolean {
     return error instanceof RunnerHttpError && error.status === 403;
 }
@@ -219,62 +211,6 @@ function stopBackgroundLoops() {
         clearInterval(deviceSyncTimer);
         deviceSyncTimer = null;
     }
-}
-
-function isProcessAlive(pid: number): boolean {
-    if (!Number.isInteger(pid) || pid <= 0) {
-        return false;
-    }
-    try {
-        process.kill(pid, 0);
-        return true;
-    } catch {
-        return false;
-    }
-}
-
-async function tryReadLockPid(): Promise<number | null> {
-    try {
-        const raw = await readFile(RUNNER_LOCK_PATH, 'utf8');
-        const parsed = JSON.parse(raw) as { pid?: unknown };
-        return typeof parsed.pid === 'number' ? parsed.pid : null;
-    } catch {
-        return null;
-    }
-}
-
-async function acquireRunnerLock(): Promise<() => Promise<void>> {
-    await mkdir(path.dirname(RUNNER_LOCK_PATH), { recursive: true });
-
-    const writeLock = async () => {
-        const handle = await open(RUNNER_LOCK_PATH, 'wx');
-        try {
-            await handle.writeFile(JSON.stringify({
-                pid: process.pid,
-                startedAt: new Date().toISOString(),
-                controlPlaneBaseUrl,
-                runnerLabel,
-            }));
-        } finally {
-            await handle.close();
-        }
-    };
-
-    try {
-        await writeLock();
-    } catch {
-        const lockPid = await tryReadLockPid();
-        if (!lockPid || !isProcessAlive(lockPid)) {
-            await rm(RUNNER_LOCK_PATH, { force: true });
-            await writeLock();
-        } else {
-            throw new Error(`Another macOS runner process is already running (pid ${lockPid})`);
-        }
-    }
-
-    return async () => {
-        await rm(RUNNER_LOCK_PATH, { force: true });
-    };
 }
 
 function ensureRunnerToken(): string {
@@ -908,7 +844,11 @@ export function requestRunnerStop(reason?: string): void {
 
 export async function startRunnerEngine() {
     stopped = false;
-    const releaseLock = await acquireRunnerLock();
+    const releaseLock = await acquireRunnerProcessLock({
+        lockPath: RUNNER_LOCK_PATH,
+        controlPlaneBaseUrl,
+        runnerLabel,
+    });
 
     try {
         try {
