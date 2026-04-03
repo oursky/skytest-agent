@@ -2,6 +2,8 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {
+    RUNNER_DEFAULT_CAPABILITIES,
+    RUNNER_DEFAULT_TRANSPORT,
     RUNNER_MINIMUM_VERSION,
     RUNNER_PROTOCOL_CURRENT_VERSION,
     claimJobResponseSchema,
@@ -107,17 +109,13 @@ const pairingToken = process.env.RUNNER_PAIRING_TOKEN?.trim() || null;
 const envRunnerToken = process.env.RUNNER_TOKEN?.trim() || null;
 const runnerLabel = process.env.RUNNER_LABEL ?? 'macOS Runner';
 const runnerDisplayId = (process.env.RUNNER_DISPLAY_ID?.trim() || '').toLowerCase();
-const capabilities = ['ANDROID'] as const;
+const capabilities = [...RUNNER_DEFAULT_CAPABILITIES];
 const EMULATOR_PROFILE_DEVICE_PREFIX = 'emulator-profile:';
 const runnerStateRoot = process.env.SKYTEST_RUNNER_STATE_DIR?.trim() || path.join(os.homedir(), '.skytest-agent');
 const RUNNER_LOCK_PATH = path.join(runnerStateRoot, 'runner.lock');
 const RUNNER_CREDENTIAL_REVOKED_PATH = path.join(runnerStateRoot, 'credential-revoked.json');
 
-const DEFAULT_TRANSPORT: RunnerTransportMetadata = {
-    heartbeatIntervalSeconds: 45,
-    claimLongPollTimeoutSeconds: 30,
-    deviceSyncIntervalSeconds: 45,
-};
+const DEFAULT_TRANSPORT: RunnerTransportMetadata = RUNNER_DEFAULT_TRANSPORT;
 
 const hostFingerprint = resolveHostFingerprint(process.env.RUNNER_HOST_FINGERPRINT);
 

@@ -1,4 +1,5 @@
 import {
+    RUNNER_DEFAULT_TRANSPORT,
     RUNNER_MINIMUM_VERSION,
     RUNNER_PROTOCOL_CURRENT_VERSION,
     RUNNER_PROTOCOL_MINIMUM_VERSION,
@@ -10,19 +11,19 @@ import { parseBoundedIntEnv } from '@/lib/core/env';
 const SEMVER_PATTERN = /^(\d+)\.(\d+)\.(\d+)$/;
 const HEARTBEAT_INTERVAL_SECONDS = parseBoundedIntEnv({
     name: 'RUNNER_HEARTBEAT_INTERVAL_SECONDS',
-    fallback: 45,
+    fallback: RUNNER_DEFAULT_TRANSPORT.heartbeatIntervalSeconds,
     min: 5,
     max: 300,
 });
 const CLAIM_LONG_POLL_TIMEOUT_SECONDS = parseBoundedIntEnv({
     name: 'RUNNER_CLAIM_LONG_POLL_TIMEOUT_SECONDS',
-    fallback: 30,
+    fallback: RUNNER_DEFAULT_TRANSPORT.claimLongPollTimeoutSeconds,
     min: 10,
     max: 120,
 });
 const DEVICE_SYNC_INTERVAL_SECONDS = parseBoundedIntEnv({
     name: 'RUNNER_DEVICE_SYNC_INTERVAL_SECONDS',
-    fallback: 45,
+    fallback: RUNNER_DEFAULT_TRANSPORT.deviceSyncIntervalSeconds,
     min: 10,
     max: 600,
 });

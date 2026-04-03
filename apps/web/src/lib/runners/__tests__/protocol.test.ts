@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateRunnerCompatibility } from '@/lib/runners/protocol';
+import { RUNNER_DEFAULT_TRANSPORT } from '@skytest/runner-protocol';
+import { evaluateRunnerCompatibility, getRunnerTransportMetadata } from '@/lib/runners/protocol';
 
 describe('evaluateRunnerCompatibility', () => {
     it('accepts current protocol and minimum runner version', () => {
@@ -30,5 +31,11 @@ describe('evaluateRunnerCompatibility', () => {
         });
 
         expect(result.upgradeRequired).toBe(true);
+    });
+});
+
+describe('getRunnerTransportMetadata', () => {
+    it('stays aligned with shared protocol defaults when env overrides are absent', () => {
+        expect(getRunnerTransportMetadata()).toEqual(RUNNER_DEFAULT_TRANSPORT);
     });
 });
