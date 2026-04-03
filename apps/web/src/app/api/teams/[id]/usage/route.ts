@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/security/api-route-standards';
 import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
 import { isTeamMember } from '@/lib/security/permissions';
@@ -178,6 +179,6 @@ export async function GET(
         });
     } catch (error) {
         logger.error('Failed to fetch team usage', error);
-        return NextResponse.json({ error: 'Failed to load team usage' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to load team usage' });
     }
 }

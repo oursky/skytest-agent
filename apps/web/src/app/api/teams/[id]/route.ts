@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/security/api-route-standards';
 import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
 import {
@@ -48,7 +49,7 @@ export async function GET(
         });
 
         if (!team) {
-            return NextResponse.json({ error: 'Team not found' }, { status: 404 });
+            return apiError({ status: 404, code: 'NOT_FOUND', error: 'Team not found' });
         }
 
         const role = await getTeamRole(userId, id);
@@ -63,7 +64,7 @@ export async function GET(
         });
     } catch (error) {
         logger.error('Failed to fetch team', error);
-        return NextResponse.json({ error: 'Failed to fetch team' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to fetch team' });
     }
 }
 
@@ -86,7 +87,7 @@ export async function PATCH(
         const body = await request.json() as { name?: string };
         const name = typeof body.name === 'string' ? body.name.trim() : '';
         if (!name) {
-            return NextResponse.json({ error: 'Team name is required' }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Team name is required' });
         }
 
         const team = await prisma.team.update({
@@ -103,7 +104,7 @@ export async function PATCH(
         return NextResponse.json(team);
     } catch (error) {
         logger.error('Failed to update team', error);
-        return NextResponse.json({ error: 'Failed to update team' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to update team' });
     }
 }
 
@@ -138,7 +139,7 @@ export async function DELETE(
         });
 
         if (activeRun) {
-            return NextResponse.json({ error: 'Cannot delete team while tests are running or queued' }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Cannot delete team while tests are running or queued' });
         }
 
         const projects = await prisma.project.findMany({
@@ -182,6 +183,6 @@ export async function DELETE(
         return NextResponse.json({ success: true });
     } catch (error) {
         logger.error('Failed to delete team', error);
-        return NextResponse.json({ error: 'Failed to delete team' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to delete team' });
     }
 }

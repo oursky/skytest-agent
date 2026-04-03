@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/security/api-route-standards';
 import archiver from 'archiver';
 import { PassThrough } from 'stream';
 import { prisma } from '@/lib/core/prisma';
@@ -66,7 +67,7 @@ export async function POST(
             ? [...new Set(body.testCaseIds.map((value) => String(value).trim()).filter(Boolean))]
             : [];
         if (selectedIds.length === 0) {
-            return NextResponse.json({ error: 'No test cases selected' }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'No test cases selected' });
         }
 
         const selectedOrder = new Map(selectedIds.map((value, index) => [value, index]));
@@ -87,7 +88,7 @@ export async function POST(
             },
         });
         if (testCases.length === 0) {
-            return NextResponse.json({ error: 'No matching test cases found' }, { status: 404 });
+            return apiError({ status: 404, code: 'NOT_FOUND', error: 'No matching test cases found' });
         }
 
         const sortedTestCases = [...testCases].sort((a, b) => {
@@ -194,6 +195,6 @@ export async function POST(
         });
     } catch (error) {
         logger.error('Failed to export selected test cases', error);
-        return NextResponse.json({ error: 'Failed to export selected test cases' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to export selected test cases' });
     }
 }

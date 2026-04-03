@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/security/api-route-standards';
 import { prisma } from '@/lib/core/prisma';
 import { buildTestCaseFileObjectKey, validateAndSanitizeFile } from '@/lib/security/file-security';
 import { createLogger } from '@/lib/core/logger';
@@ -30,7 +31,7 @@ export async function GET(
         return NextResponse.json(dbFiles);
     } catch (error) {
         logger.error('Failed to fetch files', error);
-        return NextResponse.json({ error: 'Failed to fetch files' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to fetch files' });
     }
 }
 
@@ -56,26 +57,23 @@ export async function POST(
         });
 
         if (!testCase) {
-            return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
+            return apiError({ status: 404, code: 'NOT_FOUND', error: 'Test case not found' });
         }
 
         if (testCase.files.length >= config.files.maxFilesPerTestCase) {
-            return NextResponse.json(
-                { error: `Maximum ${config.files.maxFilesPerTestCase} files per test case` },
-                { status: 400 }
-            );
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: `Maximum ${config.files.maxFilesPerTestCase} files per test case` });
         }
 
         const formData = await request.formData();
         const file = formData.get('file') as File | null;
 
         if (!file) {
-            return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'No file provided' });
         }
 
         const validation = validateAndSanitizeFile(file.name, file.type, file.size);
         if (!validation.valid) {
-            return NextResponse.json({ error: validation.error }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: validation.error ?? 'Invalid file' });
         }
 
         const extension = validation.sanitizedFilename!.includes('.')
@@ -114,6 +112,6 @@ export async function POST(
         return NextResponse.json(dbFile, { status: 201 });
     } catch (error) {
         logger.error('Failed to upload file', error);
-        return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to upload file' });
     }
 }

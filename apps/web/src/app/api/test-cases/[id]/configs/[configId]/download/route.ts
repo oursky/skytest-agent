@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/security/api-route-standards';
 import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
 import { buildContentDisposition } from '@/lib/security/http-headers';
@@ -24,12 +25,12 @@ export async function GET(
         });
 
         if (!config || config.testCaseId !== id || config.type !== 'FILE') {
-            return NextResponse.json({ error: 'Not found' }, { status: 404 });
+            return apiError({ status: 404, code: 'NOT_FOUND', error: 'Not found' });
         }
 
         const object = await readObjectBuffer(config.value);
         if (!object) {
-            return NextResponse.json({ error: 'File not found in object storage' }, { status: 404 });
+            return apiError({ status: 404, code: 'NOT_FOUND', error: 'File not found in object storage' });
         }
 
         return new NextResponse(new Uint8Array(object.body), {
@@ -41,6 +42,6 @@ export async function GET(
         });
     } catch (error) {
         logger.error('Failed to download config file', error);
-        return NextResponse.json({ error: 'Failed to download file' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to download file' });
     }
 }

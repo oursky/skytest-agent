@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/security/api-route-standards';
 import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
 import { isTeamMember } from '@/lib/security/permissions';
@@ -62,7 +63,7 @@ export async function GET(
         });
     } catch (error) {
         logger.error('Failed to list team members', error);
-        return NextResponse.json({ error: 'Failed to load team members' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to load team members' });
     }
 }
 
@@ -86,7 +87,7 @@ export async function POST(
         const email = typeof body.email === 'string' ? normalizeEmail(body.email) : '';
 
         if (!email) {
-            return NextResponse.json({ error: 'Email is required' }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Email is required' });
         }
 
         const existingUser = await prisma.user.findFirst({
@@ -106,7 +107,7 @@ export async function POST(
         });
 
         if (existingMembership) {
-            return NextResponse.json({ error: 'Member already exists in this team' }, { status: 409 });
+            return apiError({ status: 409, code: 'CONFLICT', error: 'Member already exists in this team' });
         }
 
         const membership = await prisma.teamMembership.create({
@@ -129,6 +130,6 @@ export async function POST(
         return NextResponse.json(membership, { status: 201 });
     } catch (error) {
         logger.error('Failed to add team member', error);
-        return NextResponse.json({ error: 'Failed to add team member' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to add team member' });
     }
 }

@@ -39,7 +39,7 @@ export type ApiUserGuardResult =
 
 export function apiError(
     input: {
-        status: 400 | 401 | 403 | 404 | 409 | 413 | 422 | 429 | 500;
+        status: 400 | 401 | 403 | 404 | 409 | 413 | 422 | 429 | 500 | 502;
         code: ApiErrorCode;
         error: string;
         details?: Record<string, unknown>;

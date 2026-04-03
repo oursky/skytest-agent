@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/security/api-route-standards';
 import { prisma } from '@/lib/core/prisma';
 import { GROUPABLE_CONFIG_TYPES, normalizeConfigGroup } from '@/lib/test-config/sort';
 import { createLogger } from '@/lib/core/logger';
@@ -21,7 +22,7 @@ export async function DELETE(
         const normalizedGroup = normalizeConfigGroup(body.group);
 
         if (!normalizedGroup) {
-            return NextResponse.json({ error: 'Group is required' }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Group is required' });
         }
 
         const groupableConfigs = await prisma.testCaseConfig.findMany({
@@ -54,6 +55,6 @@ export async function DELETE(
         return NextResponse.json({ success: true, updated: result.count });
     } catch (error) {
         logger.error('Failed to remove test case config group', error);
-        return NextResponse.json({ error: 'Failed to remove group' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to remove group' });
     }
 }

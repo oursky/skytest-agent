@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/security/api-route-standards';
 import { createLogger } from '@/lib/core/logger';
 import { getRateLimitKey, isRateLimited } from '@/lib/runners/rate-limit';
 
@@ -66,13 +67,13 @@ export async function POST(request: Request) {
     // and before auth state is ready. Abuse is constrained by strict payload validation + IP rate limiting.
     const rateLimitKey = getRateLimitKey(request, 'web-vitals');
     if (await isRateLimited(rateLimitKey, WEB_VITALS_RATE_LIMIT)) {
-        return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+        return apiError({ status: 429, code: 'RATE_LIMITED', error: 'Too many requests' });
     }
 
     try {
         const payload = parsePayload(await request.json() as WebVitalPayload);
         if (!payload) {
-            return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Invalid payload' });
         }
 
         if (!ALLOWED_METRICS.has(payload.name)) {
@@ -86,6 +87,6 @@ export async function POST(request: Request) {
         logger.info('Web vitals metric', payload);
         return new NextResponse(null, { status: 204 });
     } catch {
-        return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+        return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Invalid payload' });
     }
 }

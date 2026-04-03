@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/security/api-route-standards';
 import { prisma } from '@/lib/core/prisma';
 import { buildTestCaseConfigObjectKey, validateAndSanitizeFile } from '@/lib/security/file-security';
 import { validateConfigName, normalizeConfigName } from '@/lib/test-config/validation';
@@ -27,16 +28,16 @@ export async function POST(
         const group = formData.get('group') as string | null;
 
         if (!file) {
-            return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'No file provided' });
         }
 
         if (!name) {
-            return NextResponse.json({ error: 'Config name is required' }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Config name is required' });
         }
 
         const nameError = validateConfigName(name);
         if (nameError) {
-            return NextResponse.json({ error: nameError }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: nameError });
         }
 
         const normalizedName = normalizeConfigName(name);
@@ -44,7 +45,7 @@ export async function POST(
 
         const validation = validateAndSanitizeFile(file.name, file.type, file.size);
         if (!validation.valid) {
-            return NextResponse.json({ error: validation.error }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: validation.error ?? 'Invalid file' });
         }
 
         const storedName = validation.storedName!;
@@ -73,9 +74,9 @@ export async function POST(
         return NextResponse.json(config, { status: 201 });
     } catch (error: unknown) {
         if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'P2002') {
-            return NextResponse.json({ error: 'A config with this name already exists' }, { status: 409 });
+            return apiError({ status: 409, code: 'CONFLICT', error: 'A config with this name already exists' });
         }
         logger.error('Failed to upload config file', error);
-        return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to upload file' });
     }
 }

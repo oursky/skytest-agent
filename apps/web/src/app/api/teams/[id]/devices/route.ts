@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/security/api-route-standards';
 import { createLogger } from '@/lib/core/logger';
 import { getTeamDevicesAvailability } from '@/lib/runners/availability-service';
 import { isTeamMember } from '@/lib/security/permissions';
@@ -26,6 +27,6 @@ export async function GET(
         return NextResponse.json(availability);
     } catch (error) {
         logger.error('Failed to load team devices', error);
-        return NextResponse.json({ error: 'Failed to load team devices' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to load team devices' });
     }
 }

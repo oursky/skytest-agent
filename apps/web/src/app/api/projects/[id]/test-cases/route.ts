@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/security/api-route-standards';
 import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
 import { cleanStepsForStorage } from '@/lib/runtime/test-case-utils';
@@ -45,7 +46,7 @@ export async function GET(
         return NextResponse.json(testCases);
     } catch (error) {
         logger.error('Failed to fetch test cases', error);
-        return NextResponse.json({ error: 'Failed to fetch test cases' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to fetch test cases' });
     }
 }
 
@@ -78,13 +79,13 @@ export async function POST(
         const normalizedDisplayId = typeof displayId === 'string' ? displayId.trim() : '';
 
         if (!name) {
-            return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Name is required' });
         }
         if (!normalizedDisplayId) {
-            return NextResponse.json({ error: 'Test case ID is required' }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Test case ID is required' });
         }
         if (!saveDraft && ((!url && !hasBrowserConfig) || (!prompt && !hasSteps))) {
-            return NextResponse.json({ error: 'Name, and either URL or BrowserConfig, and either Prompt or Steps are required' }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Name, and either URL or BrowserConfig, and either Prompt or Steps are required' });
         }
 
         const testCase = await prisma.testCase.create({
@@ -103,6 +104,6 @@ export async function POST(
         return NextResponse.json(testCase);
     } catch (error) {
         logger.error('Failed to create test case', error);
-        return NextResponse.json({ error: 'Failed to create test case' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to create test case' });
     }
 }

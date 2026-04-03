@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/security/api-route-standards';
 import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
 import { parseTestCaseJson } from '@/lib/runtime/test-case-utils';
@@ -194,6 +195,6 @@ export async function GET(
         });
     } catch (error) {
         logger.error('Failed to export test case', error);
-        return NextResponse.json({ error: 'Failed to export test case' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to export test case' });
     }
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/security/api-route-standards';
 import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
 import { encrypt, decrypt, maskApiKey } from '@/lib/security/crypto';
@@ -44,7 +45,7 @@ export async function GET(
         });
     } catch (error) {
         logger.error('Failed to fetch team AI key', error);
-        return NextResponse.json({ error: 'Failed to load team key' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to load team key' });
     }
 }
 
@@ -66,11 +67,11 @@ export async function POST(
 
         const { apiKey } = await request.json() as { apiKey?: string };
         if (!apiKey || typeof apiKey !== 'string') {
-            return NextResponse.json({ error: 'API key is required' }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'API key is required' });
         }
 
         if (!apiKey.startsWith('sk-')) {
-            return NextResponse.json({ error: 'Invalid API key format' }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Invalid API key format' });
         }
 
         await prisma.team.update({
@@ -87,7 +88,7 @@ export async function POST(
         });
     } catch (error) {
         logger.error('Failed to save team AI key', error);
-        return NextResponse.json({ error: 'Failed to save team key' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to save team key' });
     }
 }
 
@@ -118,6 +119,6 @@ export async function DELETE(
         return NextResponse.json({ success: true });
     } catch (error) {
         logger.error('Failed to remove team AI key', error);
-        return NextResponse.json({ error: 'Failed to remove team key' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to remove team key' });
     }
 }

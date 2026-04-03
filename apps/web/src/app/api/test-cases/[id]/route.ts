@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/security/api-route-standards';
 import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
 import { parseTestCaseJson, cleanStepsForStorage, normalizeTargetConfigMap } from '@/lib/runtime/test-case-utils';
@@ -50,7 +51,7 @@ export async function GET(
         });
     } catch (error) {
         logger.error('Failed to fetch test case', error);
-        return NextResponse.json({ error: 'Failed to fetch test case' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to fetch test case' });
     }
 }
 
@@ -90,11 +91,11 @@ export async function PUT(
         });
 
         if (!existingTestCase) {
-            return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
+            return apiError({ status: 404, code: 'NOT_FOUND', error: 'Test case not found' });
         }
 
         if (!normalizedDisplayId) {
-            return NextResponse.json({ error: 'Test case ID is required' }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Test case ID is required' });
         }
 
         const hasSteps = steps && Array.isArray(steps) && steps.length > 0;
@@ -125,7 +126,7 @@ export async function PUT(
         return NextResponse.json(testCase);
     } catch (error) {
         logger.error('Failed to update test case', error);
-        return NextResponse.json({ error: 'Failed to update test case' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to update test case' });
     }
 }
 
@@ -153,7 +154,7 @@ export async function DELETE(
         });
 
         if (!existingTestCase) {
-            return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
+            return apiError({ status: 404, code: 'NOT_FOUND', error: 'Test case not found' });
         }
 
         await prisma.testCase.delete({
@@ -176,6 +177,6 @@ export async function DELETE(
         return NextResponse.json({ success: true });
     } catch (error) {
         logger.error('Failed to delete test case', error);
-        return NextResponse.json({ error: 'Failed to delete test case' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to delete test case' });
     }
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/security/api-route-standards';
 import { createLogger } from '@/lib/core/logger';
 import { getTeamRunnersOverview } from '@/lib/runners/availability-service';
 import { getTeamAccess } from '@/lib/security/permissions';
@@ -33,6 +34,6 @@ export async function GET(
         });
     } catch (error) {
         logger.error('Failed to load team runners', error);
-        return NextResponse.json({ error: 'Failed to load team runners' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to load team runners' });
     }
 }

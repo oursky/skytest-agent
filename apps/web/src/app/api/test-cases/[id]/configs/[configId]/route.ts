@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/security/api-route-standards';
 import { prisma } from '@/lib/core/prisma';
 import { validateConfigName, validateConfigType, normalizeConfigName } from '@/lib/test-config/validation';
 import { createLogger } from '@/lib/core/logger';
@@ -26,7 +27,7 @@ export async function PUT(
         });
 
         if (!existing || existing.testCaseId !== id) {
-            return NextResponse.json({ error: 'Config not found' }, { status: 404 });
+            return apiError({ status: 404, code: 'NOT_FOUND', error: 'Config not found' });
         }
 
         const body = await request.json() as {
@@ -41,12 +42,12 @@ export async function PUT(
         if (rawName !== undefined) {
             const nameError = validateConfigName(rawName);
             if (nameError) {
-                return NextResponse.json({ error: nameError }, { status: 400 });
+                return apiError({ status: 400, code: 'VALIDATION_ERROR', error: nameError });
             }
         }
 
         if (type !== undefined && !validateConfigType(type)) {
-            return NextResponse.json({ error: 'Invalid config type' }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Invalid config type' });
         }
 
         const name = rawName !== undefined ? normalizeConfigName(rawName) : undefined;
@@ -75,10 +76,10 @@ export async function PUT(
         return NextResponse.json(config);
     } catch (error: unknown) {
         if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'P2002') {
-            return NextResponse.json({ error: 'A config with this name already exists' }, { status: 409 });
+            return apiError({ status: 409, code: 'CONFLICT', error: 'A config with this name already exists' });
         }
         logger.error('Failed to update test case config', error);
-        return NextResponse.json({ error: 'Failed to update config' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to update config' });
     }
 }
 
@@ -99,7 +100,7 @@ export async function DELETE(
         });
 
         if (!existing || existing.testCaseId !== id) {
-            return NextResponse.json({ error: 'Config not found' }, { status: 404 });
+            return apiError({ status: 404, code: 'NOT_FOUND', error: 'Config not found' });
         }
 
         if (existing.type === 'FILE' && existing.value) {
@@ -117,6 +118,6 @@ export async function DELETE(
         return NextResponse.json({ success: true });
     } catch (error) {
         logger.error('Failed to delete test case config', error);
-        return NextResponse.json({ error: 'Failed to delete config' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to delete config' });
     }
 }

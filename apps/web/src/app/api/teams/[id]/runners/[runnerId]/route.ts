@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/security/api-route-standards';
 import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
 import { invalidateTeamAvailabilityCache } from '@/lib/runners/availability-service';
@@ -34,7 +35,7 @@ export async function DELETE(
         });
 
         if (deleted.count === 0) {
-            return NextResponse.json({ error: 'Runner not found' }, { status: 404 });
+            return apiError({ status: 404, code: 'NOT_FOUND', error: 'Runner not found' });
         }
 
         invalidateTeamAvailabilityCache(teamId);
@@ -42,6 +43,6 @@ export async function DELETE(
         return NextResponse.json({ success: true });
     } catch (error) {
         logger.error('Failed to unpair runner', error);
-        return NextResponse.json({ error: 'Failed to unpair runner' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to unpair runner' });
     }
 }

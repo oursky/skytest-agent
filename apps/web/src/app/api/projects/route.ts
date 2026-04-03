@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/security/api-route-standards';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveOrCreateUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
@@ -12,13 +13,13 @@ const logger = createLogger('api:projects');
 export async function GET(request: Request) {
     const authPayload = await verifyAuth(request);
     if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        return apiError({ status: 401, code: 'UNAUTHORIZED', error: 'Unauthorized' });
     }
 
     const userId = await resolveOrCreateUserId(authPayload);
 
     if (!userId) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        return apiError({ status: 401, code: 'UNAUTHORIZED', error: 'Unauthorized' });
     }
 
     try {
@@ -28,7 +29,7 @@ export async function GET(request: Request) {
         if (teamId) {
             const hasTeamAccess = await isTeamMember(userId, teamId);
             if (!hasTeamAccess) {
-                return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+                return apiError({ status: 403, code: 'FORBIDDEN', error: 'Forbidden' });
             }
         }
 
@@ -94,7 +95,7 @@ export async function GET(request: Request) {
         return NextResponse.json(projectsWithStatus);
     } catch (error) {
         logger.error('Failed to fetch projects', error);
-        return NextResponse.json({ error: 'Failed to fetch projects' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to fetch projects' });
     }
 }
 
@@ -106,11 +107,11 @@ export async function POST(request: Request) {
         const maxConcurrentRunsInput = body.maxConcurrentRuns;
 
         if (!name) {
-            return NextResponse.json({ error: 'Valid project name is required' }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Valid project name is required' });
         }
 
         if (!teamId) {
-            return NextResponse.json({ error: 'Team is required' }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Team is required' });
         }
 
         const guard = await guardTeamRouteRequest({
@@ -126,12 +127,10 @@ export async function POST(request: Request) {
         let maxConcurrentRuns = 1;
         if (maxConcurrentRunsInput !== undefined) {
             if (typeof maxConcurrentRunsInput !== 'number' || !Number.isInteger(maxConcurrentRunsInput)) {
-                return NextResponse.json({ error: 'maxConcurrentRuns must be an integer' }, { status: 400 });
+                return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'maxConcurrentRuns must be an integer' });
             }
             if (maxConcurrentRunsInput < 1 || maxConcurrentRunsInput > appConfig.runner.maxProjectConcurrentRuns) {
-                return NextResponse.json({
-                    error: `maxConcurrentRuns must be between 1 and ${appConfig.runner.maxProjectConcurrentRuns}`,
-                }, { status: 400 });
+                return apiError({ status: 400, code: 'VALIDATION_ERROR', error: `maxConcurrentRuns must be between 1 and ${appConfig.runner.maxProjectConcurrentRuns}` });
             }
             maxConcurrentRuns = maxConcurrentRunsInput;
         }
@@ -160,6 +159,6 @@ export async function POST(request: Request) {
         });
     } catch (error) {
         logger.error('Failed to create project', error);
-        return NextResponse.json({ error: 'Failed to create project' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to create project' });
     }
 }

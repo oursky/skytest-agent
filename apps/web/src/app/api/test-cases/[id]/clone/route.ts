@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/security/api-route-standards';
 import { prisma } from '@/lib/core/prisma';
 import {
     buildTestCaseConfigObjectKey,
@@ -123,6 +124,6 @@ export async function POST(
         return NextResponse.json(clonedTestCase);
     } catch (error) {
         logger.error('Failed to clone test case', error);
-        return NextResponse.json({ error: 'Failed to clone test case' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to clone test case' });
     }
 }
