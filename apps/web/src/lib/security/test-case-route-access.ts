@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { isProjectMember } from '@/lib/security/permissions';
 import { resolveUserId, verifyAuth } from '@/lib/security/auth';
+import { apiError, type ApiErrorResponse } from '@/lib/security/api-route-standards';
 
 type DefaultTestCaseRoutePayload = Prisma.TestCaseGetPayload<{
     select: {
@@ -30,7 +31,7 @@ export type TestCaseRouteGuardResult<
     }
     | {
         ok: false;
-        response: NextResponse<{ error: string }>;
+        response: NextResponse<ApiErrorResponse>;
     };
 
 export async function guardTestCaseRouteRequest<
@@ -45,7 +46,11 @@ export async function guardTestCaseRouteRequest<
     if (!authPayload) {
         return {
             ok: false,
-            response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+            response: apiError({
+                status: 401,
+                code: 'UNAUTHORIZED',
+                error: 'Unauthorized',
+            }),
         };
     }
 
@@ -53,7 +58,11 @@ export async function guardTestCaseRouteRequest<
     if (!userId) {
         return {
             ok: false,
-            response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+            response: apiError({
+                status: 401,
+                code: 'UNAUTHORIZED',
+                error: 'Unauthorized',
+            }),
         };
     }
 
@@ -76,7 +85,11 @@ export async function guardTestCaseRouteRequest<
     if (!testCase) {
         return {
             ok: false,
-            response: NextResponse.json({ error: 'Test case not found' }, { status: 404 }),
+            response: apiError({
+                status: 404,
+                code: 'NOT_FOUND',
+                error: 'Test case not found',
+            }),
         };
     }
 
@@ -84,7 +97,11 @@ export async function guardTestCaseRouteRequest<
     if (!await isProjectMember(userId, projectId)) {
         return {
             ok: false,
-            response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }),
+            response: apiError({
+                status: 403,
+                code: 'FORBIDDEN',
+                error: 'Forbidden',
+            }),
         };
     }
 

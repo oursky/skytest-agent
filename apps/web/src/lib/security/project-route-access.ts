@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { isProjectMember } from '@/lib/security/permissions';
 import { resolveUserId, verifyAuth } from '@/lib/security/auth';
+import { apiError, type ApiErrorResponse } from '@/lib/security/api-route-standards';
 
 export type ProjectRouteAccessResult =
     | { kind: 'ok' }
@@ -37,7 +38,7 @@ export type ProjectRouteGuardResult<TParams extends { id: string }> =
     }
     | {
         ok: false;
-        response: NextResponse<{ error: string }>;
+        response: NextResponse<ApiErrorResponse>;
     };
 
 export async function guardProjectRouteRequest<TParams extends { id: string }>(input: {
@@ -48,7 +49,11 @@ export async function guardProjectRouteRequest<TParams extends { id: string }>(i
     if (!authPayload) {
         return {
             ok: false,
-            response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+            response: apiError({
+                status: 401,
+                code: 'UNAUTHORIZED',
+                error: 'Unauthorized',
+            }),
         };
     }
 
@@ -56,7 +61,11 @@ export async function guardProjectRouteRequest<TParams extends { id: string }>(i
     if (!userId) {
         return {
             ok: false,
-            response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+            response: apiError({
+                status: 401,
+                code: 'UNAUTHORIZED',
+                error: 'Unauthorized',
+            }),
         };
     }
 
@@ -69,14 +78,22 @@ export async function guardProjectRouteRequest<TParams extends { id: string }>(i
     if (access.kind === 'project_not_found') {
         return {
             ok: false,
-            response: NextResponse.json({ error: 'Project not found' }, { status: 404 }),
+            response: apiError({
+                status: 404,
+                code: 'NOT_FOUND',
+                error: 'Project not found',
+            }),
         };
     }
 
     if (access.kind === 'forbidden') {
         return {
             ok: false,
-            response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }),
+            response: apiError({
+                status: 403,
+                code: 'FORBIDDEN',
+                error: 'Forbidden',
+            }),
         };
     }
 

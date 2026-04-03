@@ -1,4 +1,4 @@
-import { mkdir, open, readFile, rm } from 'node:fs/promises';
+import { mkdir, open, readFile, rename, rm } from 'node:fs/promises';
 import path from 'node:path';
 
 function isProcessAlive(pid: number): boolean {
@@ -22,6 +22,18 @@ async function tryReadLockPid(lockPath: string): Promise<number | null> {
     } catch {
         return null;
     }
+}
+
+async function moveStaleLockAside(lockPath: string): Promise<boolean> {
+    const stalePath = `${lockPath}.stale.${process.pid}.${Date.now()}`;
+    try {
+        await rename(lockPath, stalePath);
+    } catch {
+        return false;
+    }
+
+    await rm(stalePath, { force: true });
+    return true;
 }
 
 export async function acquireRunnerProcessLock(input: {
@@ -52,8 +64,20 @@ export async function acquireRunnerProcessLock(input: {
     } catch {
         const lockPid = await tryReadLockPid(lockPath);
         if (!lockPid || !isProcessAlive(lockPid)) {
-            await rm(lockPath, { force: true });
-            await writeLock();
+            const staleLockMoved = await moveStaleLockAside(lockPath);
+            if (!staleLockMoved) {
+                await writeLock();
+            } else {
+                try {
+                    await writeLock();
+                } catch {
+                    const competingPid = await tryReadLockPid(lockPath);
+                    if (competingPid && isProcessAlive(competingPid)) {
+                        throw new Error(`Another macOS runner process is already running (pid ${competingPid})`);
+                    }
+                    throw new Error('Failed to acquire runner process lock after recovering stale lock');
+                }
+            }
         } else {
             throw new Error(`Another macOS runner process is already running (pid ${lockPid})`);
         }

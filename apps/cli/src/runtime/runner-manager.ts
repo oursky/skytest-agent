@@ -11,11 +11,12 @@ import {
     listLocalRunnerIds,
     readRunnerCredential,
     readRunnerMetadata,
-    readRunnerPid,
+    readRunnerPidState,
     resolveRunnerPaths,
     saveRunnerCredential,
     saveRunnerMetadata,
     writeRunnerPid,
+    type LocalRunnerPidState,
 } from '../state/store';
 import { generateLocalRunnerId } from '../state/id';
 import {
@@ -24,7 +25,7 @@ import {
     notifyRunnerShutdown,
     unpairRunnerRegistration,
 } from './control-plane';
-import { isProcessAlive, stopProcessWithTimeout } from './process';
+import { isProcessAlive, readProcessStartedAt, stopProcessWithTimeout } from './process';
 import { reconcileRunnerCredential } from './runner-credential-reconcile';
 import {
     startManagedRunnerProcess,
@@ -112,17 +113,29 @@ async function resolveLocalRunnerId(runnerIdentifier: string): Promise<string> {
 }
 
 async function determineRunnerStatus(localRunnerId: string): Promise<{ pid: number | null; status: 'RUNNING' | 'STOPPED' }> {
-    const pid = await readRunnerPid(localRunnerId);
-    if (!pid) {
+    const pidState = await readRunnerPidState(localRunnerId);
+    if (!pidState) {
         return { pid: null, status: 'STOPPED' };
     }
 
-    if (!isProcessAlive(pid)) {
+    if (!await matchesRunnerProcess(pidState)) {
         await clearRunnerPid(localRunnerId);
         return { pid: null, status: 'STOPPED' };
     }
 
-    return { pid, status: 'RUNNING' };
+    return { pid: pidState.pid, status: 'RUNNING' };
+}
+
+async function matchesRunnerProcess(pidState: LocalRunnerPidState): Promise<boolean> {
+    if (!isProcessAlive(pidState.pid)) {
+        return false;
+    }
+    if (!pidState.processStartedAt) {
+        return true;
+    }
+
+    const processStartedAt = await readProcessStartedAt(pidState.pid);
+    return processStartedAt === pidState.processStartedAt;
 }
 
 async function isRunnerCredentialRevoked(localRunnerId: string): Promise<boolean> {
@@ -136,9 +149,9 @@ async function isRunnerCredentialRevoked(localRunnerId: string): Promise<boolean
 }
 
 async function removeLocalRunnerState(localRunnerId: string): Promise<void> {
-    const pid = await readRunnerPid(localRunnerId);
-    if (pid && isProcessAlive(pid)) {
-        await stopProcessWithTimeout(pid, STOP_TIMEOUT_MS);
+    const pidState = await readRunnerPidState(localRunnerId);
+    if (pidState && await matchesRunnerProcess(pidState)) {
+        await stopProcessWithTimeout(pidState.pid, STOP_TIMEOUT_MS);
     }
     await clearRunnerPid(localRunnerId);
     await deleteRunner(localRunnerId);
@@ -258,18 +271,18 @@ export async function startRunner(
     metadata = reconciled.metadata;
     credential = reconciled.credential;
 
-    const existingPid = await readRunnerPid(localRunnerId);
-    if (existingPid && isProcessAlive(existingPid)) {
+    const existingPidState = await readRunnerPidState(localRunnerId);
+    if (existingPidState && await matchesRunnerProcess(existingPidState)) {
         return {
             localRunnerId,
-            pid: existingPid,
+            pid: existingPidState.pid,
             alreadyRunning: true,
             logPath: runnerPaths.logPath,
             autoRepaired,
         };
     }
 
-    if (existingPid && !isProcessAlive(existingPid)) {
+    if (existingPidState) {
         await clearRunnerPid(localRunnerId);
     }
 
@@ -281,7 +294,9 @@ export async function startRunner(
         logPath: runnerPaths.logPath,
     });
 
-    await writeRunnerPid(localRunnerId, pid);
+    await writeRunnerPid(localRunnerId, pid, {
+        processStartedAt: await readProcessStartedAt(pid),
+    });
     await saveRunnerMetadata(localRunnerId, {
         ...metadata,
         updatedAt: new Date().toISOString(),
@@ -319,9 +334,9 @@ export async function stopRunner(runnerIdentifier: string): Promise<{
     } catch {
     }
 
-    const pid = await readRunnerPid(localRunnerId);
+    const pidState = await readRunnerPidState(localRunnerId);
 
-    if (!pid) {
+    if (!pidState) {
         return {
             localRunnerId,
             stopped: false,
@@ -330,9 +345,19 @@ export async function stopRunner(runnerIdentifier: string): Promise<{
         };
     }
 
-    const stopResult = await stopProcessWithTimeout(pid, STOP_TIMEOUT_MS);
+    if (!await matchesRunnerProcess(pidState)) {
+        await clearRunnerPid(localRunnerId);
+        return {
+            localRunnerId,
+            stopped: false,
+            pid: null,
+            serverMarkedOffline,
+        };
+    }
+
+    const stopResult = await stopProcessWithTimeout(pidState.pid, STOP_TIMEOUT_MS);
     if (stopResult === 'failed') {
-        throw new Error(`Failed to stop runner process ${pid}.`);
+        throw new Error(`Failed to stop runner process ${pidState.pid}.`);
     }
     await clearRunnerPid(localRunnerId);
     await saveRunnerMetadata(localRunnerId, {
@@ -344,7 +369,7 @@ export async function stopRunner(runnerIdentifier: string): Promise<{
     return {
         localRunnerId,
         stopped: true,
-        pid,
+        pid: pidState.pid,
         serverMarkedOffline,
     };
 }
@@ -475,11 +500,11 @@ export async function resetAllRunners(force: boolean): Promise<{ removedRunners:
 
     const localRunnerIds = await listLocalRunnerIds();
     for (const localRunnerId of localRunnerIds) {
-        const pid = await readRunnerPid(localRunnerId);
-        if (pid && isProcessAlive(pid)) {
-            const stopResult = await stopProcessWithTimeout(pid, STOP_TIMEOUT_MS);
+        const pidState = await readRunnerPidState(localRunnerId);
+        if (pidState && await matchesRunnerProcess(pidState)) {
+            const stopResult = await stopProcessWithTimeout(pidState.pid, STOP_TIMEOUT_MS);
             if (stopResult === 'failed') {
-                throw new Error(`Failed to stop runner process ${pid} during reset.`);
+                throw new Error(`Failed to stop runner process ${pidState.pid} during reset.`);
             }
         }
     }

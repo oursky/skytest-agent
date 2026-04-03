@@ -44,7 +44,7 @@ export async function POST(
                         userId,
                     }
                 },
-                select: { id: true, role: true }
+                select: { id: true }
             }),
             prisma.teamMembership.findFirst({
                 where: {
@@ -69,7 +69,7 @@ export async function POST(
             }),
         ]);
 
-        if (!currentOwnerMembership || currentOwnerMembership.role !== 'OWNER') {
+        if (!currentOwnerMembership) {
             return NextResponse.json({ error: 'Only the current owner can transfer ownership' }, { status: 403 });
         }
 

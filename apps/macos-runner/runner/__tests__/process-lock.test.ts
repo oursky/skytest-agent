@@ -78,4 +78,32 @@ describe('acquireRunnerProcessLock', () => {
             runnerLabel: 'Blocked Runner',
         })).rejects.toThrow(/already running/);
     });
+
+    it('allows only one winner when stale lock recovery races', async () => {
+        const dir = await createTempDir();
+        const lockPath = path.join(dir, 'runner.lock');
+
+        await writeFile(lockPath, JSON.stringify({ pid: -1 }), 'utf8');
+
+        const [first, second] = await Promise.allSettled([
+            acquireRunnerProcessLock({
+                lockPath,
+                controlPlaneBaseUrl: 'http://127.0.0.1:3000',
+                runnerLabel: 'Recovery Runner A',
+            }),
+            acquireRunnerProcessLock({
+                lockPath,
+                controlPlaneBaseUrl: 'http://127.0.0.1:3000',
+                runnerLabel: 'Recovery Runner B',
+            }),
+        ]);
+
+        const winners = [first, second].filter((item): item is PromiseFulfilledResult<() => Promise<void>> => item.status === 'fulfilled');
+        const losers = [first, second].filter((item): item is PromiseRejectedResult => item.status === 'rejected');
+
+        expect(winners).toHaveLength(1);
+        expect(losers).toHaveLength(1);
+
+        await winners[0].value();
+    });
 });

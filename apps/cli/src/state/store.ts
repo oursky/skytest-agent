@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { LocalRunnerCredential, LocalRunnerMetadata, LocalRunnerPaths } from './types';
@@ -9,8 +9,14 @@ const RUNNERS_DIRNAME = 'runners';
 const RUNNER_METADATA_FILE = 'runner.json';
 const RUNNER_CREDENTIAL_FILE = 'credential.json';
 const RUNNER_PID_FILE = 'runner.pid';
+const RUNNER_PID_STATE_FILE = 'runner.pid.json';
 const RUNNER_LOG_FILE = 'runner.log';
 const RUNNER_RUNTIME_DIR = 'runtime';
+
+export interface LocalRunnerPidState {
+    pid: number;
+    processStartedAt: string | null;
+}
 
 function resolveRepoRoot(): string {
     const filePath = fileURLToPath(import.meta.url);
@@ -54,7 +60,9 @@ async function readJsonFile<T>(filePath: string): Promise<T | null> {
 
 async function writeJsonFile(filePath: string, value: unknown): Promise<void> {
     await mkdir(path.dirname(filePath), { recursive: true });
-    await writeFile(filePath, JSON.stringify(value, null, 2), 'utf8');
+    const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+    await writeFile(tempPath, JSON.stringify(value, null, 2), 'utf8');
+    await rename(tempPath, filePath);
 }
 
 export async function listLocalRunnerIds(): Promise<string[]> {
@@ -90,22 +98,69 @@ export async function ensureRunnerDirectories(localRunnerId: string): Promise<vo
 }
 
 export async function readRunnerPid(localRunnerId: string): Promise<number | null> {
+    const state = await readRunnerPidState(localRunnerId);
+    if (state) {
+        return state.pid;
+    }
+
+    return null;
+}
+
+export async function readRunnerPidState(localRunnerId: string): Promise<LocalRunnerPidState | null> {
+    const runnerPaths = resolveRunnerPaths(localRunnerId);
+    const stateFromJson = await readJsonFile<{
+        pid?: unknown;
+        processStartedAt?: unknown;
+    }>(path.join(runnerPaths.runnerDir, RUNNER_PID_STATE_FILE));
+    if (stateFromJson) {
+        const pid = typeof stateFromJson.pid === 'number' ? stateFromJson.pid : null;
+        if (pid && Number.isInteger(pid) && pid > 0) {
+            return {
+                pid,
+                processStartedAt: typeof stateFromJson.processStartedAt === 'string'
+                    ? stateFromJson.processStartedAt
+                    : null,
+            };
+        }
+    }
+
     try {
-        const raw = await readFile(resolveRunnerPaths(localRunnerId).pidPath, 'utf8');
+        const raw = await readFile(runnerPaths.pidPath, 'utf8');
         const parsed = Number.parseInt(raw.trim(), 10);
-        return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+        if (!Number.isInteger(parsed) || parsed <= 0) {
+            return null;
+        }
+        return {
+            pid: parsed,
+            processStartedAt: null,
+        };
     } catch {
         return null;
     }
 }
 
-export async function writeRunnerPid(localRunnerId: string, pid: number): Promise<void> {
+export async function writeRunnerPid(
+    localRunnerId: string,
+    pid: number,
+    options?: { processStartedAt?: string | null }
+): Promise<void> {
     await ensureRunnerDirectories(localRunnerId);
-    await writeFile(resolveRunnerPaths(localRunnerId).pidPath, String(pid), 'utf8');
+    const runnerPaths = resolveRunnerPaths(localRunnerId);
+    await Promise.all([
+        writeFile(runnerPaths.pidPath, String(pid), 'utf8'),
+        writeJsonFile(path.join(runnerPaths.runnerDir, RUNNER_PID_STATE_FILE), {
+            pid,
+            processStartedAt: options?.processStartedAt ?? null,
+        } satisfies LocalRunnerPidState),
+    ]);
 }
 
 export async function clearRunnerPid(localRunnerId: string): Promise<void> {
-    await rm(resolveRunnerPaths(localRunnerId).pidPath, { force: true });
+    const runnerPaths = resolveRunnerPaths(localRunnerId);
+    await Promise.all([
+        rm(runnerPaths.pidPath, { force: true }),
+        rm(path.join(runnerPaths.runnerDir, RUNNER_PID_STATE_FILE), { force: true }),
+    ]);
 }
 
 export async function deleteRunner(localRunnerId: string): Promise<void> {

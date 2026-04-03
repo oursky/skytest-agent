@@ -46,8 +46,10 @@ async function repairRunnerCredential(input: {
         updatedAt: now,
     };
 
-    await saveRunnerMetadata(input.localRunnerId, nextMetadata);
-    await saveRunnerCredential(input.localRunnerId, nextCredential);
+    await Promise.all([
+        saveRunnerMetadata(input.localRunnerId, nextMetadata),
+        saveRunnerCredential(input.localRunnerId, nextCredential),
+    ]);
     await rm(path.join(resolveRunnerPaths(input.localRunnerId).runtimeStateDir, RUNNER_CREDENTIAL_REVOKED_FILE), { force: true });
 
     return { metadata: nextMetadata, credential: nextCredential };

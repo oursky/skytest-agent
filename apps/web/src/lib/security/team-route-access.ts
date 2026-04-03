@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { resolveUserId, verifyAuth } from '@/lib/security/auth';
+import { apiError, type ApiErrorResponse } from '@/lib/security/api-route-standards';
 
 export type TeamRouteGuardResult<TParams extends { id: string }> =
     | {
@@ -10,7 +11,7 @@ export type TeamRouteGuardResult<TParams extends { id: string }> =
     }
     | {
         ok: false;
-        response: NextResponse<{ error: string }>;
+        response: NextResponse<ApiErrorResponse>;
     };
 
 export type TeamRouteAuthorizer<TParams extends { id: string }> = (input: {
@@ -29,7 +30,11 @@ export async function guardTeamRouteRequest<TParams extends { id: string }>(inpu
     if (!authPayload) {
         return {
             ok: false,
-            response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+            response: apiError({
+                status: 401,
+                code: 'UNAUTHORIZED',
+                error: 'Unauthorized',
+            }),
         };
     }
 
@@ -37,7 +42,11 @@ export async function guardTeamRouteRequest<TParams extends { id: string }>(inpu
     if (!userId) {
         return {
             ok: false,
-            response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+            response: apiError({
+                status: 401,
+                code: 'UNAUTHORIZED',
+                error: 'Unauthorized',
+            }),
         };
     }
 
@@ -53,7 +62,11 @@ export async function guardTeamRouteRequest<TParams extends { id: string }>(inpu
     if (!allowed) {
         return {
             ok: false,
-            response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }),
+            response: apiError({
+                status: 403,
+                code: 'FORBIDDEN',
+                error: 'Forbidden',
+            }),
         };
     }
 
