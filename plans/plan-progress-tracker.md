@@ -40,8 +40,9 @@ Plan: `plans/2026-04-03-architecture-sustainability-review-plan.md`
 - status: in progress
 - completed:
   - MCP manifest compatibility snapshot gate added (`src/lib/mcp/__tests__/manifest-compatibility.test.ts`)
+  - runtime seam extraction added for `local-browser-runner.ts` parser utilities
 - remaining:
-  - runtime hotspot decomposition (`test-runner.ts`, `local-browser-runner.ts`)
+  - deeper runtime hotspot decomposition (`test-runner.ts`, `local-browser-runner.ts`)
   - MCP server decomposition on top of manifest gate
 
 ### Phase 3b
