@@ -59,9 +59,11 @@ Plan: `plans/2026-04-03-architecture-sustainability-review-plan.md`
   - worker/runner reliability acceptance checks
 
 ### Phase 4
-- status: not started
+- status: in progress
+- completed:
+  - hotspot LOC quality gate added to `npm run verify` with explicit ADR exception registry
 - remaining:
-  - complexity/duplication/boundary CI gates
+  - additional complexity/duplication/boundary CI gates
   - temporary adapter cleanup
   - final maintainer/operator doc refresh
 
