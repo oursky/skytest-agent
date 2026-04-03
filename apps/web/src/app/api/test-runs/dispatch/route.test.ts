@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
     verifyAuth: vi.fn(),
     resolveUserId: vi.fn(),
+    isProjectMember: vi.fn(),
     userFindUnique: vi.fn(),
     resolveConfigs: vi.fn(),
     validateTargetUrl: vi.fn(),
@@ -15,6 +16,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/security/auth', () => ({
     verifyAuth: mocks.verifyAuth,
     resolveUserId: mocks.resolveUserId,
+}));
+
+vi.mock('@/lib/security/permissions', () => ({
+    isProjectMember: mocks.isProjectMember,
 }));
 
 vi.mock('@/lib/test-config/resolver', () => ({
@@ -55,6 +60,7 @@ describe('POST /api/test-runs/dispatch', () => {
     beforeEach(() => {
         mocks.verifyAuth.mockReset();
         mocks.resolveUserId.mockReset();
+        mocks.isProjectMember.mockReset();
         mocks.userFindUnique.mockReset();
         mocks.resolveConfigs.mockReset();
         mocks.validateTargetUrl.mockReset();
@@ -65,6 +71,7 @@ describe('POST /api/test-runs/dispatch', () => {
 
         mocks.verifyAuth.mockResolvedValue({ sub: 'auth-user' });
         mocks.resolveUserId.mockResolvedValue('user-1');
+        mocks.isProjectMember.mockResolvedValue(true);
         mocks.userFindUnique.mockResolvedValue({ email: 'runner@example.com' });
         mocks.resolveConfigs.mockResolvedValue({
             variables: { CMS: 'https://example.com' },

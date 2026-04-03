@@ -121,7 +121,7 @@ describe('POST /api/test-runs/[id]/cancel', () => {
     });
 
     it('does not overwrite terminal run statuses', async () => {
-        mocks.testRunFindUnique.mockResolvedValueOnce({
+        const terminalRun = {
             id: 'run-1',
             status: 'PASS',
             testCaseId: 'tc-1',
@@ -130,7 +130,10 @@ describe('POST /api/test-runs/[id]/cancel', () => {
             testCase: {
                 projectId: 'project-1',
             },
-        });
+        };
+        mocks.testRunFindUnique
+            .mockResolvedValueOnce(terminalRun) // guardTestRunRouteRequest lookup
+            .mockResolvedValueOnce(terminalRun); // route lookup
 
         const request = new Request('http://localhost/api/test-runs/run-1/cancel', { method: 'POST' });
 
@@ -148,7 +151,7 @@ describe('POST /api/test-runs/[id]/cancel', () => {
     });
 
     it('does not overwrite terminal status when run transitions before guarded update', async () => {
-        mocks.testRunFindUnique.mockResolvedValueOnce({
+        const activeRun = {
             id: 'run-1',
             status: 'RUNNING',
             testCaseId: 'tc-1',
@@ -157,7 +160,10 @@ describe('POST /api/test-runs/[id]/cancel', () => {
             testCase: {
                 projectId: 'project-1',
             },
-        });
+        };
+        mocks.testRunFindUnique
+            .mockResolvedValueOnce(activeRun) // guardTestRunRouteRequest lookup
+            .mockResolvedValueOnce(activeRun); // route lookup
         mocks.testRunUpdateMany.mockResolvedValueOnce({ count: 0 });
         mocks.testRunFindUnique.mockResolvedValueOnce({
             status: 'PASS',
