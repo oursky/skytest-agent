@@ -104,6 +104,24 @@ The top-level `Makefile` is the source of truth for multi-step local workflows:
 
 Do not duplicate those workflows in new scripts or stale runbooks.
 
+## Verification Gates
+
+`npm run verify` (workspace `@skytest/web`) is the baseline pre-commit gate and now enforces:
+
+- lint + TypeScript compile
+- auth-route deny-by-default coverage (`auth:check-routes`)
+- runner-protocol import boundary check (`protocol:check-boundary`)
+- hotspot LOC threshold + ADR exceptions (`quality:check-hotspots`)
+- runner contract centralization check (`quality:check-runner-contracts`)
+- dependency audit allowlist policy (`audit`)
+
+Runner defaults are centralized in `@skytest/runner-protocol`:
+
+- `RUNNER_DEFAULT_CAPABILITIES`
+- `RUNNER_DEFAULT_TRANSPORT`
+
+Do not re-introduce hardcoded runner capabilities or transport fallbacks in CLI, macOS runner, or web runner protocol modules.
+
 ## Browser Network Guard And Failure Metadata
 
 When changing browser execution behavior, keep these invariants stable:

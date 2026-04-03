@@ -4,23 +4,8 @@
   "exceptions": [
     {
       "path": "apps/web/src/lib/runtime/test-runner.ts",
-      "reason": "Runtime hotspot decomposition in progress (phase 3a-runtime)",
-      "expiryTask": "Split pipeline stages and side-effect adapters"
-    },
-    {
-      "path": "apps/web/src/lib/mcp/server.ts",
-      "reason": "MCP monolith decomposition gated by manifest snapshot rollout",
-      "expiryTask": "Extract transport/registry/dispatcher modules"
-    },
-    {
-      "path": "apps/web/src/app/run/page.tsx",
-      "reason": "Frontend orchestration decomposition pending phase 3b",
-      "expiryTask": "Move orchestration/state flow into hooks/models"
-    },
-    {
-      "path": "apps/web/src/app/projects/[id]/page.tsx",
-      "reason": "Frontend project detail page decomposition pending phase 3b",
-      "expiryTask": "Split selectors/orchestration/render layers"
+      "reason": "Runtime orchestration remains intentionally centralized while extracted seams preserve deterministic execution behavior.",
+      "expiryTask": "Continue staged extraction when parity suite for pipeline stages is expanded."
     }
   ]
 }

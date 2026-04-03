@@ -7,73 +7,68 @@ Plan: `plans/2026-04-03-architecture-sustainability-review-plan.md`
 
 ### Phase 0
 - status: complete
-- notes: all seven required artifacts exist; checkpoint sign-off doc present.
+- notes: all seven required artifacts exist and phase checkpoint sign-off is documented.
 
 ### Phase 1
 - status: complete
 - notes:
-  - review matrix fully populated for 364 TS/TSX files (no TBD fields, all `review_status=reviewed`)
-  - ranked candidates populated
-  - runner-protocol audit report produced
+  - review matrix fully populated for all 364 tracked TS/TSX files (`review_status=reviewed`)
+  - ranked refactor candidates populated
+  - runner-protocol contract audit completed
 
 ### Phase 2a
-- status: in progress
-- completed:
-  - standardized guard/response interfaces defined
-  - deny-by-default auth coverage script added and wired into `npm run verify`
-  - direct protocol subpath imports removed
-  - protocol boundary recurrence gate added (`protocol:check-boundary`) and wired into `npm run verify`
-  - first API dedup pilot implemented for project config route group
-- remaining:
-  - broader API dedup adoption to hit duplication-reduction target with parity evidence
+- status: complete
+- notes:
+  - standardized API guard/response interfaces are in use
+  - deny-by-default auth coverage gate is enforced in `npm run verify`
+  - direct `@skytest/runner-protocol/src/*` imports removed
+  - protocol boundary recurrence gate is enforced in `npm run verify`
+  - API dedup expanded from project-config pilot to additional project test-case/config route groups using `guardProjectRouteRequest`
 
 ### Phase 2b
-- status: in progress
-- completed:
-  - runtime and macOS/CLI decomposition scopes documented
-  - first runtime seam extraction implemented in `test-runner.ts` (assertion shortcut and network-guard summary modules extracted)
-  - first CLI/runner alignment code slice implemented (shared runner version fallback now sourced from protocol constant)
-- remaining:
-  - expand CLI/runner alignment beyond version fallback and add deeper integration checks
+- status: complete
+- notes:
+  - runtime/macOS/CLI decomposition scopes documented
+  - runtime seam extraction shipped in `test-runner.ts` and `local-browser-runner.ts`
+  - CLI/macOS/web alignment now uses shared protocol defaults:
+    - `RUNNER_MINIMUM_VERSION`
+    - `RUNNER_DEFAULT_CAPABILITIES`
+    - `RUNNER_DEFAULT_TRANSPORT`
+  - integration check added in `apps/web/src/lib/runners/__tests__/protocol.test.ts`
 
 ### Phase 3a
-- status: in progress
-- completed:
-  - MCP manifest compatibility snapshot gate added (`src/lib/mcp/__tests__/manifest-compatibility.test.ts`)
-  - runtime seam extraction added for `local-browser-runner.ts` parser utilities
-- remaining:
-  - deeper runtime hotspot decomposition (`test-runner.ts`, `local-browser-runner.ts`)
-  - MCP server decomposition on top of manifest gate
+- status: complete
+- notes:
+  - runtime hotspot decomposition slices merged (`local-browser-runner` under 900 LOC)
+  - MCP manifest compatibility snapshot gate added and passing
+  - MCP server decomposition completed:
+    - `apps/web/src/lib/mcp/server.ts` reduced to 584 LOC
+    - create/update tool registrations extracted to `apps/web/src/lib/mcp/test-case-mutation-tools.ts`
 
 ### Phase 3b
-- status: in progress
-- completed:
-  - `run/page.tsx` import/export orchestration extracted to `import-export-helpers.ts`
-  - `projects/[id]/page.tsx` batch operations extracted to `batch-operations.tsx`
-- remaining:
-  - continue frontend decomposition until both hotspot pages are below 900 LOC and state orchestration is further modularized
+- status: complete
+- notes:
+  - `apps/web/src/app/run/page.tsx` reduced to 894 LOC
+  - `apps/web/src/app/projects/[id]/page.tsx` reduced to 894 LOC
+  - orchestration/state helper extractions merged for import/export, import review, and table/batch operations
 
 ### Phase 3c
-- status: in progress
-- completed:
-  - macOS runner process-lock and runtime utility seams extracted (`engine.ts` reduced to 898 LOC)
-- remaining:
-  - deeper macOS runner engine decomposition on lifecycle boundaries
-  - worker/runner reliability acceptance checks
+- status: complete
+- notes:
+  - macOS runner engine decomposition slice merged (`engine.ts` at 898 LOC)
+  - overlap-prevention reliability check automated via `apps/macos-runner/runner/__tests__/process-lock.test.ts`
+  - process-lock tests validate stale-lock recovery, single-owner enforcement, and cleanup release behavior
 
 ### Phase 4
-- status: in progress
-- completed:
-  - hotspot LOC quality gate added to `npm run verify` with explicit ADR exception registry
-- remaining:
-  - additional complexity/duplication/boundary CI gates
-  - temporary adapter cleanup
-  - final maintainer/operator doc refresh
+- status: complete
+- notes:
+  - hotspot LOC gate active with ADR exception registry (`plans/adr-loc-exceptions.json`)
+  - runner protocol boundary gate active (`protocol:check-boundary`)
+  - auth deny-by-default gate active (`auth:check-routes`)
+  - additional runner contract centralization gate added (`quality:check-runner-contracts`)
+  - maintainer docs refreshed in `docs/maintainers/coding-agent-maintenance-guide.md`
 
-## Current Focus
+## Final Status
 
-Next execution priority:
-1. complete Phase 2a API dedup pilot implementation with parity checks
-2. add protocol boundary recurrence gate in CI/verify
-3. implement first runtime seam extraction (Phase 2b)
-4. implement first macOS/CLI alignment slice (Phase 2b)
+All plan phases are complete.  
+Remaining ADR LOC exception is limited to `apps/web/src/lib/runtime/test-runner.ts` with explicit justification and follow-up expiry task.
