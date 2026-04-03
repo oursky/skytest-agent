@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 const workspaceRoot = process.cwd();
@@ -16,20 +16,77 @@ const exceptionPaths = new Set(
         : []
 );
 
-const filesRaw = execFileSync(
-    'rg',
-    ['--files', 'apps/web/src', 'apps/cli/src', 'apps/macos-runner/runner', 'packages/runner-protocol/src'],
-    {
-        cwd: repoRoot,
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'pipe'],
-    }
-);
+const searchRoots = [
+    'apps/web/src',
+    'apps/cli/src',
+    'apps/macos-runner/runner',
+    'packages/runner-protocol/src',
+];
 
-const files = filesRaw
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0 && /\.(ts|tsx)$/.test(line));
+function listFilesWithRipgrep() {
+    const filesRaw = execFileSync(
+        'rg',
+        ['--files', ...searchRoots],
+        {
+            cwd: repoRoot,
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'pipe'],
+        }
+    );
+
+    return filesRaw
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+}
+
+function walkFiles(relativeDir) {
+    const absoluteDir = path.resolve(repoRoot, relativeDir);
+    const entries = readdirSync(absoluteDir, { withFileTypes: true });
+    const files = [];
+
+    for (const entry of entries) {
+        const absolutePath = path.resolve(absoluteDir, entry.name);
+        const relativePath = path.relative(repoRoot, absolutePath).split(path.sep).join('/');
+
+        if (entry.isDirectory()) {
+            files.push(...walkFiles(relativePath));
+            continue;
+        }
+
+        if (!entry.isFile()) {
+            continue;
+        }
+
+        files.push(relativePath);
+    }
+
+    return files;
+}
+
+function listFilesWithNode() {
+    return searchRoots.flatMap((root) => walkFiles(root));
+}
+
+function listFiles() {
+    try {
+        return listFilesWithRipgrep();
+    } catch (error) {
+        if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+            return listFilesWithNode();
+        }
+
+        const stderr = error && typeof error === 'object' && 'stderr' in error
+            ? String(error.stderr || '')
+            : '';
+        if (stderr.trim()) {
+            console.error(stderr.trim());
+        }
+        throw error;
+    }
+}
+
+const files = listFiles().filter((line) => /\.(ts|tsx)$/.test(line));
 
 const oversized = [];
 for (const file of files) {
