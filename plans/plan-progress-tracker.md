@@ -32,6 +32,10 @@ Plan: `plans/2026-04-03-architecture-sustainability-review-plan.md`
 - notes:
   - runtime/macOS/CLI decomposition scopes documented
   - runtime seam extraction shipped in `test-runner.ts` and `local-browser-runner.ts`
+  - CLI runner manager decomposition shipped:
+    - control-plane credential reconciliation extracted to `apps/cli/src/runtime/runner-credential-reconcile.ts`
+    - process bootstrap/supervision extracted to `apps/cli/src/runtime/runner-process-supervision.ts`
+    - `apps/cli/src/runtime/runner-manager.ts` reduced to 500 LOC
   - CLI/macOS/web alignment now uses shared protocol defaults:
     - `RUNNER_MINIMUM_VERSION`
     - `RUNNER_DEFAULT_CAPABILITIES`
