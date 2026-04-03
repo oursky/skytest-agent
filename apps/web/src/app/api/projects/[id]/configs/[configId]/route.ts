@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { validateConfigName, validateConfigType, normalizeConfigName } from '@/lib/test-config/validation';
 import { createLogger } from '@/lib/core/logger';
 import { isGroupableConfigType, normalizeConfigGroup } from '@/lib/test-config/sort';
 import type { ConfigType } from '@/types';
 import { deleteObjectIfExists } from '@/lib/storage/object-store-utils';
 import { isProjectMember } from '@/lib/security/permissions';
+import { guardAuthenticatedUser } from '@/lib/security/api-route-standards';
 
 const logger = createLogger('api:projects:config');
 
@@ -14,17 +14,13 @@ export async function PUT(
     request: Request,
     { params }: { params: Promise<{ id: string; configId: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const auth = await guardAuthenticatedUser(request);
+    if (!auth.ok) {
+        return auth.response;
     }
 
     try {
         const { id, configId } = await params;
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
 
         const existing = await prisma.projectConfig.findUnique({
             where: { id: configId },
@@ -43,7 +39,7 @@ export async function PUT(
             return NextResponse.json({ error: 'Config not found' }, { status: 404 });
         }
 
-        if (!await isProjectMember(userId, id)) {
+        if (!await isProjectMember(auth.context.userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -104,17 +100,13 @@ export async function DELETE(
     request: Request,
     { params }: { params: Promise<{ id: string; configId: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const auth = await guardAuthenticatedUser(request);
+    if (!auth.ok) {
+        return auth.response;
     }
 
     try {
         const { id, configId } = await params;
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
 
         const existing = await prisma.projectConfig.findUnique({
             where: { id: configId },
@@ -130,7 +122,7 @@ export async function DELETE(
             return NextResponse.json({ error: 'Config not found' }, { status: 404 });
         }
 
-        if (!await isProjectMember(userId, id)) {
+        if (!await isProjectMember(auth.context.userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

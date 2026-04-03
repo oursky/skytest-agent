@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { buildContentDisposition } from '@/lib/security/http-headers';
 import { readObjectBuffer } from '@/lib/storage/object-store-utils';
 import { isProjectMember } from '@/lib/security/permissions';
+import { guardAuthenticatedUser } from '@/lib/security/api-route-standards';
 
 const logger = createLogger('api:projects:config:download');
 
@@ -12,17 +12,13 @@ export async function GET(
     request: Request,
     { params }: { params: Promise<{ id: string; configId: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const auth = await guardAuthenticatedUser(request);
+    if (!auth.ok) {
+        return auth.response;
     }
 
     try {
         const { id, configId } = await params;
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
 
         const config = await prisma.projectConfig.findUnique({
             where: { id: configId },
@@ -42,7 +38,7 @@ export async function GET(
             return NextResponse.json({ error: 'Not found' }, { status: 404 });
         }
 
-        if (!await isProjectMember(userId, id)) {
+        if (!await isProjectMember(auth.context.userId, id)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

@@ -22,9 +22,10 @@ Plan: `plans/2026-04-03-architecture-sustainability-review-plan.md`
   - standardized guard/response interfaces defined
   - deny-by-default auth coverage script added and wired into `npm run verify`
   - direct protocol subpath imports removed
+  - protocol boundary recurrence gate added (`protocol:check-boundary`) and wired into `npm run verify`
+  - first API dedup pilot implemented for project config route group
 - remaining:
   - broader API dedup adoption to hit duplication-reduction target with parity evidence
-  - protocol boundary enforcement gate in CI for recurrence prevention
 
 ### Phase 2b
 - status: in progress

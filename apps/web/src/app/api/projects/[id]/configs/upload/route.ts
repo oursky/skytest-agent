@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { buildProjectConfigObjectKey, validateAndSanitizeFile } from '@/lib/security/file-security';
 import { validateConfigName, normalizeConfigName } from '@/lib/test-config/validation';
 import { createLogger } from '@/lib/core/logger';
 import { normalizeConfigGroup } from '@/lib/test-config/sort';
 import { putObjectBuffer } from '@/lib/storage/object-store-utils';
-import { isProjectMember } from '@/lib/security/permissions';
+import { getProjectRouteAccess } from '@/lib/security/project-route-access';
+import { apiError, guardAuthenticatedUser } from '@/lib/security/api-route-standards';
 
 const logger = createLogger('api:projects:configs:upload');
 
@@ -14,29 +14,22 @@ export async function POST(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const auth = await guardAuthenticatedUser(request);
+    if (!auth.ok) {
+        return auth.response;
     }
 
     try {
         const { id } = await params;
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const project = await prisma.project.findUnique({
-            where: { id },
-            select: { id: true }
+        const access = await getProjectRouteAccess({
+            projectId: id,
+            userId: auth.context.userId,
         });
-
-        if (!project) {
-            return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+        if (access.kind === 'project_not_found') {
+            return apiError({ status: 404, code: 'NOT_FOUND', error: 'Project not found' });
         }
-
-        if (!await isProjectMember(userId, id)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        if (access.kind === 'forbidden') {
+            return apiError({ status: 403, code: 'FORBIDDEN', error: 'Forbidden' });
         }
 
         const formData = await request.formData();
