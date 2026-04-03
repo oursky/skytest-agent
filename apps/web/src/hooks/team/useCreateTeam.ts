@@ -1,24 +1,15 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { dispatchTeamsChanged } from './useTeams';
-
-interface UseCreateTeamOptions {
-    getAccessToken: () => Promise<string | null>;
-    refreshTeams: () => Promise<void>;
-    setCurrentTeam: (teamId: string) => Promise<unknown>;
-}
+import { useTeamSession } from './useTeamSession';
 
 interface CreateTeamResult {
     teamId: string | null;
     error: string | null;
 }
 
-export function useCreateTeam({
-    getAccessToken,
-    refreshTeams,
-    setCurrentTeam,
-}: UseCreateTeamOptions) {
+export function useCreateTeam() {
+    const { createTeam: createTeamInSession } = useTeamSession();
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const createTeam = useCallback(async (name: string, fallbackError: string): Promise<CreateTeamResult> => {
@@ -29,34 +20,17 @@ export function useCreateTeam({
 
         setIsSubmitting(true);
         try {
-            const token = await getAccessToken();
-            const response = await fetch('/api/teams', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                },
-                body: JSON.stringify({ name: trimmedName }),
-            });
-
-            const payload = await response.json().catch(() => null);
-            if (!response.ok || !payload || typeof payload.id !== 'string') {
-                return {
-                    teamId: null,
-                    error: payload && typeof payload.error === 'string' ? payload.error : fallbackError,
-                };
-            }
-
-            dispatchTeamsChanged();
-            await refreshTeams();
-            await setCurrentTeam(payload.id);
-            return { teamId: payload.id, error: null };
-        } catch {
-            return { teamId: null, error: fallbackError };
+            const result = await createTeamInSession(trimmedName);
+            return { teamId: result.teamId, error: null };
+        } catch (error) {
+            const message = error instanceof Error && error.message
+                ? error.message
+                : fallbackError;
+            return { teamId: null, error: message };
         } finally {
             setIsSubmitting(false);
         }
-    }, [getAccessToken, refreshTeams, setCurrentTeam]);
+    }, [createTeamInSession]);
 
     return {
         createTeam,
@@ -64,4 +38,4 @@ export function useCreateTeam({
     };
 }
 
-export type { CreateTeamResult, UseCreateTeamOptions };
+export type { CreateTeamResult };

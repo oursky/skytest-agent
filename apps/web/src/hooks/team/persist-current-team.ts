@@ -1,5 +1,4 @@
 import type { CurrentTeam } from './types';
-import { dispatchCurrentTeamChanged } from './team-session-events';
 
 export async function persistCurrentTeamSelection(
     getAccessToken: (() => Promise<string | null>) | undefined,
@@ -27,6 +26,5 @@ export async function persistCurrentTeamSelection(
     }
 
     const payload = await response.json() as CurrentTeam;
-    dispatchCurrentTeamChanged(payload.id);
     return payload;
 }

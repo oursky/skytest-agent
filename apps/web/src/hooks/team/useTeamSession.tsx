@@ -10,102 +10,147 @@ import {
     useState,
 } from 'react';
 import { useAuth } from '@/app/auth-provider';
-import { persistCurrentTeamSelection } from '@/hooks/team/persist-current-team';
 import {
     CURRENT_TEAM_CHANGED_EVENT,
     TEAMS_CHANGED_EVENT,
 } from '@/hooks/team/team-session-events';
+import { assertTeamSessionInvariants } from '@/hooks/team/team-session-invariants';
+import {
+    createTeamAndFetchSession,
+    deleteTeamAndFetchSession,
+    fetchTeamSessionPayload,
+    removeMemberAndFetchSession,
+    switchTeamAndFetchSession,
+} from '@/hooks/team/team-session-mutations';
+import { createRequestIdGuard } from '@/hooks/team/request-id-guard';
 import type { CurrentTeam, TeamOption } from '@/hooks/team/types';
+import type { TeamSessionPayload } from '@/hooks/team/team-session-mutations';
 
 interface TeamSessionContextValue {
     teams: TeamOption[];
     currentTeam: CurrentTeam | null;
+    currentTeamId: string | null;
     loading: boolean;
     error: string | null;
-    refresh: () => Promise<void>;
+    refresh: (teamIdOverride?: string) => Promise<TeamSessionPayload | null>;
     setCurrentTeam: (teamId: string) => Promise<CurrentTeam>;
+    createTeam: (name: string) => Promise<{ teamId: string }>;
+    deleteTeam: (teamId: string) => Promise<{ nextTeamId: string | null }>;
+    removeMember: (teamId: string, memberId: string) => Promise<void>;
 }
 
 const TeamSessionContext = createContext<TeamSessionContextValue | null>(null);
-
-interface TeamsBootstrapPayload {
-    teams: TeamOption[];
-    currentTeam: CurrentTeam | null;
-}
 
 export function TeamSessionProvider({ children }: { children: React.ReactNode }) {
     const { isLoggedIn, isLoading: isAuthLoading, getAccessToken } = useAuth();
     const enabled = isLoggedIn && !isAuthLoading;
 
     const [teams, setTeams] = useState<TeamOption[]>([]);
-    const [currentTeam, setCurrentTeamState] = useState<CurrentTeam | null>(null);
+    const [currentTeam, setCurrentTeam] = useState<CurrentTeam | null>(null);
     const [loading, setLoading] = useState(false);
     const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const latestRequestIdRef = useRef(0);
+    const requestIdGuardRef = useRef(createRequestIdGuard());
+    const mutationIdGuardRef = useRef(createRequestIdGuard());
 
-    const fetchSession = useCallback(async (teamIdOverride?: string) => {
-        const requestId = ++latestRequestIdRef.current;
+    const applyCanonicalPayload = useCallback((payload: TeamSessionPayload) => {
+        assertTeamSessionInvariants(payload.teams, payload.currentTeam);
+        setTeams(payload.teams);
+        setCurrentTeam(payload.currentTeam);
+        setError(null);
+    }, []);
+
+    const getMutationContext = useCallback(() => ({
+        getAccessToken,
+        fetchLike: fetch,
+        origin: window.location.origin,
+    }), [getAccessToken]);
+
+    const refresh = useCallback(async (teamIdOverride?: string): Promise<TeamSessionPayload | null> => {
+        const requestId = requestIdGuardRef.current.next();
 
         if (!enabled) {
             setTeams([]);
-            setCurrentTeamState(null);
+            setCurrentTeam(null);
             setLoading(false);
             setHasLoadedOnce(false);
             setError(null);
-            return;
+            return null;
         }
 
         try {
             setLoading(true);
-            const token = await getAccessToken();
-            const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
-
-            const url = new URL('/api/teams/bootstrap', window.location.origin);
-            if (teamIdOverride) {
-                url.searchParams.set('teamId', teamIdOverride);
+            const payload = await fetchTeamSessionPayload(getMutationContext(), teamIdOverride);
+            if (!requestIdGuardRef.current.isLatest(requestId)) {
+                return null;
             }
 
-            const response = await fetch(url.toString(), { headers });
-            if (!response.ok) {
-                throw new Error('Failed to fetch teams session payload');
+            applyCanonicalPayload(payload);
+            return payload;
+        } catch (refreshError) {
+            if (!requestIdGuardRef.current.isLatest(requestId)) {
+                return null;
             }
 
-            const payload = await response.json() as TeamsBootstrapPayload;
-            if (requestId !== latestRequestIdRef.current) {
-                return;
-            }
-
-            setTeams(payload.teams);
-            setCurrentTeamState(payload.currentTeam);
-            setError(null);
-        } catch (sessionError) {
-            if (requestId !== latestRequestIdRef.current) {
-                return;
-            }
-
-            console.error('Error fetching team session payload:', sessionError);
+            console.error('Error fetching team session payload:', refreshError);
             setError('Failed to load team session data');
+            return null;
         } finally {
-            if (requestId !== latestRequestIdRef.current) {
-                return;
+            if (!requestIdGuardRef.current.isLatest(requestId)) {
+                return null;
             }
 
             setLoading(false);
             setHasLoadedOnce(true);
         }
-    }, [enabled, getAccessToken]);
+    }, [applyCanonicalPayload, enabled, getMutationContext]);
 
-    const persistCurrentTeam = useCallback(async (teamId: string) => {
-        const payload = await persistCurrentTeamSelection(getAccessToken, teamId);
-        setCurrentTeamState(payload);
-        await fetchSession(teamId);
-        return payload;
-    }, [fetchSession, getAccessToken]);
+    const switchTeam = useCallback(async (teamId: string): Promise<CurrentTeam> => {
+        const mutationId = mutationIdGuardRef.current.next();
+        requestIdGuardRef.current.next();
+        const result = await switchTeamAndFetchSession(getMutationContext(), teamId);
+        if (!mutationIdGuardRef.current.isLatest(mutationId)) {
+            return result.switchedTeam;
+        }
+        applyCanonicalPayload(result.session);
+        return result.switchedTeam;
+    }, [applyCanonicalPayload, getMutationContext]);
+
+    const createTeam = useCallback(async (name: string): Promise<{ teamId: string }> => {
+        const mutationId = mutationIdGuardRef.current.next();
+        requestIdGuardRef.current.next();
+        const result = await createTeamAndFetchSession(getMutationContext(), name);
+        if (!mutationIdGuardRef.current.isLatest(mutationId)) {
+            return { teamId: result.teamId };
+        }
+        applyCanonicalPayload(result.session);
+        return { teamId: result.teamId };
+    }, [applyCanonicalPayload, getMutationContext]);
+
+    const deleteTeam = useCallback(async (teamId: string): Promise<{ nextTeamId: string | null }> => {
+        const mutationId = mutationIdGuardRef.current.next();
+        requestIdGuardRef.current.next();
+        const result = await deleteTeamAndFetchSession(getMutationContext(), teamId);
+        if (!mutationIdGuardRef.current.isLatest(mutationId)) {
+            return { nextTeamId: result.nextTeamId };
+        }
+        applyCanonicalPayload(result.session);
+        return { nextTeamId: result.nextTeamId };
+    }, [applyCanonicalPayload, getMutationContext]);
+
+    const removeMember = useCallback(async (teamId: string, memberId: string): Promise<void> => {
+        const mutationId = mutationIdGuardRef.current.next();
+        requestIdGuardRef.current.next();
+        const payload = await removeMemberAndFetchSession(getMutationContext(), teamId, memberId);
+        if (!mutationIdGuardRef.current.isLatest(mutationId)) {
+            return;
+        }
+        applyCanonicalPayload(payload);
+    }, [applyCanonicalPayload, getMutationContext]);
 
     useEffect(() => {
-        void fetchSession();
-    }, [fetchSession]);
+        void refresh();
+    }, [refresh]);
 
     useEffect(() => {
         if (typeof window === 'undefined') {
@@ -113,32 +158,47 @@ export function TeamSessionProvider({ children }: { children: React.ReactNode })
         }
 
         const handleTeamsChanged = () => {
-            void fetchSession();
+            void refresh();
         };
 
         const handleCurrentTeamChanged = (event: Event) => {
             const teamId = (event as CustomEvent<{ teamId?: string | null }>).detail?.teamId;
-            void fetchSession(typeof teamId === 'string' ? teamId : undefined);
+            void refresh(typeof teamId === 'string' ? teamId : undefined);
         };
 
         window.addEventListener(TEAMS_CHANGED_EVENT, handleTeamsChanged);
         window.addEventListener(CURRENT_TEAM_CHANGED_EVENT, handleCurrentTeamChanged);
+
         return () => {
             window.removeEventListener(TEAMS_CHANGED_EVENT, handleTeamsChanged);
             window.removeEventListener(CURRENT_TEAM_CHANGED_EVENT, handleCurrentTeamChanged);
         };
-    }, [fetchSession]);
+    }, [refresh]);
 
     const value = useMemo<TeamSessionContextValue>(() => ({
         teams,
         currentTeam,
+        currentTeamId: currentTeam?.id ?? null,
         loading: loading || (enabled && !hasLoadedOnce),
         error,
-        refresh: async () => {
-            await fetchSession();
-        },
-        setCurrentTeam: persistCurrentTeam,
-    }), [currentTeam, enabled, error, fetchSession, hasLoadedOnce, loading, persistCurrentTeam, teams]);
+        refresh,
+        setCurrentTeam: switchTeam,
+        createTeam,
+        deleteTeam,
+        removeMember,
+    }), [
+        createTeam,
+        currentTeam,
+        deleteTeam,
+        enabled,
+        error,
+        hasLoadedOnce,
+        loading,
+        refresh,
+        removeMember,
+        switchTeam,
+        teams,
+    ]);
 
     return (
         <TeamSessionContext.Provider value={value}>
@@ -152,6 +212,5 @@ export function useTeamSession() {
     if (!context) {
         throw new Error('useTeamSession must be used within TeamSessionProvider');
     }
-
     return context;
 }

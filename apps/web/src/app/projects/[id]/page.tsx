@@ -30,7 +30,7 @@ import type { Project, ProjectPageProps, ProjectTab, SortColumn, TestCase } from
 
 export default function ProjectPage({ params }: ProjectPageProps) {
     const { isLoggedIn, isLoading: isAuthLoading, getAccessToken } = useAuth();
-    const { currentTeam } = useCurrentTeam(getAccessToken, isLoggedIn);
+    const { currentTeam } = useCurrentTeam();
     const resolvedParams = use(params);
     const { id } = resolvedParams;
     const router = useRouter();

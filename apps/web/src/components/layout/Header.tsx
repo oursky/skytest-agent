@@ -9,11 +9,11 @@ import { useTeamSession } from '@/hooks/team/useTeamSession';
 import { useCreateTeam } from '@/hooks/team/useCreateTeam';
 
 export default function Header() {
-    const { isLoggedIn, isLoading: isAuthLoading, user, logout, openSettings, getAccessToken } = useAuth();
+    const { isLoggedIn, isLoading: isAuthLoading, user, logout, openSettings } = useAuth();
     const router = useRouter();
     const pathname = usePathname();
     const { locale, setLocale, t } = useI18n();
-    const { teams, currentTeam, loading: isTeamSessionLoading, refresh: refreshTeams, setCurrentTeam } = useTeamSession();
+    const { teams, currentTeam, loading: isTeamSessionLoading, setCurrentTeam } = useTeamSession();
 
     const localeOptions = useMemo(() => Object.keys(LOCALE_META) as Locale[], []);
     const selectedTeamId = useMemo(() => {
@@ -27,11 +27,7 @@ export default function Header() {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isCreateTeamOpen, setIsCreateTeamOpen] = useState(false);
     const [newTeamName, setNewTeamName] = useState('');
-    const { createTeam, isSubmitting: isCreateTeamSubmitting } = useCreateTeam({
-        getAccessToken,
-        refreshTeams,
-        setCurrentTeam,
-    });
+    const { createTeam, isSubmitting: isCreateTeamSubmitting } = useCreateTeam();
 
     useEffect(() => {
         const closeDropdown = () => {

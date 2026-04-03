@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/app/auth-provider';
 import { Button, DangerTextButton, LoadingSpinner, Modal } from '@/components/shared';
+import { useTeamSession } from '@/hooks/team/useTeamSession';
 import { useI18n } from '@/i18n';
 import { formatDateTimeCompact } from '@/utils/time/dateFormatter';
 
@@ -26,6 +27,7 @@ interface TeamMembersResponse {
 
 export default function TeamMembers({ teamId, onMembersChanged }: TeamMembersProps) {
     const { getAccessToken } = useAuth();
+    const { removeMember: removeMemberFromSession } = useTeamSession();
     const { t } = useI18n();
     const [members, setMembers] = useState<Member[]>([]);
     const [canManage, setCanManage] = useState(false);
@@ -108,24 +110,17 @@ export default function TeamMembers({ teamId, onMembersChanged }: TeamMembersPro
         }
 
         try {
-            const token = await getAccessToken();
-            const response = await fetch(`/api/teams/${teamId}/members/${memberToRemove.id}`, {
-                method: 'DELETE',
-                headers: token ? { Authorization: `Bearer ${token}` } : {},
-            });
-
-            const data = await response.json().catch(() => ({ error: t('team.members.error.remove') }));
-            if (!response.ok) {
-                setError(data.error || t('team.members.error.remove'));
-                return;
-            }
+            await removeMemberFromSession(teamId, memberToRemove.id);
 
             setMembers((current) => current.filter((member) => member.id !== memberToRemove.id));
             setMemberToRemove(null);
             await notifyMembersChanged();
             setError(null);
-        } catch {
-            setError(t('team.members.error.remove'));
+        } catch (error) {
+            const message = error instanceof Error && error.message
+                ? error.message
+                : t('team.members.error.remove');
+            setError(message);
         }
     };
 

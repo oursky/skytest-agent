@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "../auth-provider";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -30,18 +30,10 @@ export default function ProjectsPage() {
         loading: isProjectsBootstrapLoading,
         isInitialLoading: isProjectsInitialLoading,
         refresh,
-        setCurrentTeam,
         addProject,
         removeProject,
     } = useProjectsBootstrap(getAccessToken, requestedTeamId, isBootstrapEnabled);
-    const refreshTeams = useCallback(async () => {
-        await refresh();
-    }, [refresh]);
-    const { createTeam } = useCreateTeam({
-        getAccessToken,
-        refreshTeams,
-        setCurrentTeam,
-    });
+    const { createTeam } = useCreateTeam();
     const effectiveTeamId = selectedTeam?.id || '';
     const currentTeam = teams.find((team) => team.id === effectiveTeamId) ?? null;
     const canManageProjects = currentTeam !== null;

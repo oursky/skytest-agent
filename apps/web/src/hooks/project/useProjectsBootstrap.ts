@@ -1,143 +1,119 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Project } from '@/types';
-import type { CurrentTeam, TeamOption } from '@/hooks/team/types';
-import { persistCurrentTeamSelection } from '@/hooks/team/persist-current-team';
-import {
-    CURRENT_TEAM_CHANGED_EVENT,
-    TEAMS_CHANGED_EVENT,
-} from '@/hooks/team/team-session-events';
+import { createRequestIdGuard } from '@/hooks/team/request-id-guard';
+import { useTeamSession } from '@/hooks/team/useTeamSession';
 import { reportLoadMetric } from '@/lib/telemetry/client-metrics';
-
-interface ProjectsBootstrapPayload {
-    teams: TeamOption[];
-    currentTeam: CurrentTeam | null;
-    projects: Project[];
-}
-
-function getRequestedTeamId(teamId: string | undefined, fallbackTeamId: string): string {
-    if (teamId && teamId.length > 0) {
-        return teamId;
-    }
-    return fallbackTeamId;
-}
 
 export function useProjectsBootstrap(
     getAccessToken: () => Promise<string | null>,
     requestedTeamId: string,
     enabled = true,
 ) {
-    const [teams, setTeams] = useState<TeamOption[]>([]);
-    const [currentTeam, setCurrentTeam] = useState<CurrentTeam | null>(null);
+    const {
+        teams,
+        currentTeam,
+        loading: isTeamSessionLoading,
+        error: teamSessionError,
+        refresh: refreshTeamSession,
+        setCurrentTeam,
+    } = useTeamSession();
     const [projects, setProjects] = useState<Project[]>([]);
-    const [loading, setLoading] = useState(false);
+    const [loadingProjects, setLoadingProjects] = useState(false);
     const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const hasLoadedOnceRef = useRef(false);
-    const latestRequestIdRef = useRef(0);
+    const requestIdGuardRef = useRef(createRequestIdGuard());
 
     useEffect(() => {
         hasLoadedOnceRef.current = hasLoadedOnce;
     }, [hasLoadedOnce]);
 
-    const fetchBootstrap = useCallback(async (teamIdOverride?: string) => {
-        const requestId = ++latestRequestIdRef.current;
+    const fetchProjects = useCallback(async () => {
+        const requestId = requestIdGuardRef.current.next();
 
         if (!enabled) {
-            setLoading(false);
+            setLoadingProjects(false);
             setHasLoadedOnce(false);
-            setTeams([]);
-            setCurrentTeam(null);
             setProjects([]);
             setError(null);
+            return;
+        }
+
+        const hasRequestedTeam = requestedTeamId.length > 0
+            && teams.some((team) => team.id === requestedTeamId);
+
+        if (hasRequestedTeam && currentTeam?.id !== requestedTeamId) {
+            try {
+                await setCurrentTeam(requestedTeamId);
+            } catch {
+                if (!requestIdGuardRef.current.isLatest(requestId)) {
+                    return;
+                }
+                setError('Failed to switch team');
+                setHasLoadedOnce(true);
+            }
+            return;
+        }
+
+        const effectiveTeamId = currentTeam?.id ?? '';
+        if (!effectiveTeamId) {
+            if (!requestIdGuardRef.current.isLatest(requestId)) {
+                return;
+            }
+            setProjects([]);
+            setError(null);
+            setLoadingProjects(false);
+            setHasLoadedOnce(true);
             return;
         }
 
         try {
             const requestStartedAt = performance.now();
             const wasRefreshRequest = hasLoadedOnceRef.current;
-            setLoading(true);
+            setLoadingProjects(true);
 
             const token = await getAccessToken();
-            const headers: HeadersInit = {};
-            if (token) {
-                headers.Authorization = `Bearer ${token}`;
-            }
-
-            const url = new URL('/api/projects/bootstrap', window.location.origin);
-            const teamId = getRequestedTeamId(teamIdOverride, requestedTeamId);
-            if (teamId) {
-                url.searchParams.set('teamId', teamId);
-            }
-
-            const response = await fetch(url.toString(), { headers });
+            const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+            const response = await fetch(`/api/projects?teamId=${encodeURIComponent(effectiveTeamId)}`, { headers });
             if (!response.ok) {
-                throw new Error('Failed to fetch projects bootstrap payload');
+                throw new Error('Failed to fetch projects');
             }
 
-            const payload = await response.json() as ProjectsBootstrapPayload;
-            if (requestId !== latestRequestIdRef.current) {
+            const payload = await response.json() as Project[];
+            if (!requestIdGuardRef.current.isLatest(requestId)) {
                 return;
             }
-            setTeams(payload.teams);
-            setCurrentTeam(payload.currentTeam);
-            setProjects(payload.projects);
+
+            setProjects(payload);
             setError(null);
             reportLoadMetric({
                 elapsedMs: performance.now() - requestStartedAt,
                 isRefreshRequest: wasRefreshRequest,
                 context: 'projects-bootstrap',
             });
-        } catch (bootstrapError) {
-            if (requestId !== latestRequestIdRef.current) {
+        } catch (projectsError) {
+            if (!requestIdGuardRef.current.isLatest(requestId)) {
                 return;
             }
-            console.error('Error fetching projects bootstrap payload:', bootstrapError);
+            console.error('Error fetching projects payload:', projectsError);
             setError('Failed to load projects page data');
         } finally {
-            if (requestId !== latestRequestIdRef.current) {
+            if (!requestIdGuardRef.current.isLatest(requestId)) {
                 return;
             }
-            setLoading(false);
+            setLoadingProjects(false);
             setHasLoadedOnce(true);
         }
-    }, [enabled, getAccessToken, requestedTeamId]);
-
-    const persistCurrentTeam = useCallback(async (teamId: string) => {
-        const payload = await persistCurrentTeamSelection(getAccessToken, teamId);
-        setCurrentTeam(payload);
-        await fetchBootstrap(teamId);
-        return payload;
-    }, [fetchBootstrap, getAccessToken]);
+    }, [currentTeam?.id, enabled, getAccessToken, requestedTeamId, setCurrentTeam, teams]);
 
     useEffect(() => {
-        void fetchBootstrap();
-    }, [fetchBootstrap]);
-
-    useEffect(() => {
-        if (typeof window === 'undefined') {
-            return;
-        }
-
-        const handleTeamsChanged = () => {
-            void fetchBootstrap();
-        };
-
-        const handleCurrentTeamChanged = (event: Event) => {
-            const teamId = (event as CustomEvent<{ teamId?: string | null }>).detail?.teamId;
-            void fetchBootstrap(typeof teamId === 'string' ? teamId : undefined);
-        };
-
-        window.addEventListener(TEAMS_CHANGED_EVENT, handleTeamsChanged);
-        window.addEventListener(CURRENT_TEAM_CHANGED_EVENT, handleCurrentTeamChanged);
-        return () => {
-            window.removeEventListener(TEAMS_CHANGED_EVENT, handleTeamsChanged);
-            window.removeEventListener(CURRENT_TEAM_CHANGED_EVENT, handleCurrentTeamChanged);
-        };
-    }, [fetchBootstrap]);
+        void fetchProjects();
+    }, [fetchProjects]);
 
     const refresh = useCallback(async () => {
-        await fetchBootstrap();
-    }, [fetchBootstrap]);
+        await refreshTeamSession(requestedTeamId || undefined);
+        await fetchProjects();
+    }, [fetchProjects, refreshTeamSession, requestedTeamId]);
 
     const addProject = useCallback((newProject: Project) => {
         setProjects((previous) => [newProject, ...previous]);
@@ -151,13 +127,12 @@ export function useProjectsBootstrap(
         teams,
         currentTeam,
         projects,
-        // Keep initial loading true before the first bootstrap fetch resolves.
-        loading: loading || (enabled && !hasLoadedOnce),
+        loading: loadingProjects || isTeamSessionLoading || (enabled && !hasLoadedOnce),
         isInitialLoading: enabled && !hasLoadedOnce,
         hasLoadedOnce,
-        error,
+        error: error ?? teamSessionError,
         refresh,
-        setCurrentTeam: persistCurrentTeam,
+        setCurrentTeam,
         addProject,
         removeProject,
     };
