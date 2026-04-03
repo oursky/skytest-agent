@@ -6,7 +6,7 @@ import path from 'node:path';
 const workspaceRoot = process.cwd();
 const repoRoot = path.resolve(workspaceRoot, '../..');
 const apiRoot = path.resolve(workspaceRoot, 'src/app/api');
-const allowlistPath = path.resolve(repoRoot, 'plans/auth-route-allowlist.md');
+const allowlistPath = path.resolve(workspaceRoot, 'scripts/security/auth-route-allowlist.md');
 
 function normalizePath(inputPath) {
     return inputPath.split(path.sep).join('/');
@@ -111,7 +111,7 @@ async function main() {
 
         const allowlistEntry = allowlist.get(routePath);
         if (!allowlistEntry) {
-            violations.push(`${routePath}: missing standard guard and not present in plans/auth-route-allowlist.md`);
+            violations.push(`${routePath}: missing standard guard and not present in apps/web/scripts/security/auth-route-allowlist.md`);
             continue;
         }
 

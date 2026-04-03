@@ -3,6 +3,7 @@ import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
 import { canTransferTeamOwnership } from '@/lib/security/permissions';
 import { guardTeamRouteRequest } from '@/lib/security/team-route-access';
+import { apiError } from '@/lib/security/api-route-standards';
 
 const logger = createLogger('api:teams:ownership');
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -30,10 +31,18 @@ export async function POST(
         const body = await request.json() as { email?: string };
         const nextOwnerEmail = typeof body.email === 'string' ? normalizeEmail(body.email) : '';
         if (!nextOwnerEmail) {
-            return NextResponse.json({ error: 'Email is required' }, { status: 400 });
+            return apiError({
+                status: 400,
+                code: 'VALIDATION_ERROR',
+                error: 'Email is required',
+            });
         }
         if (!EMAIL_PATTERN.test(nextOwnerEmail)) {
-            return NextResponse.json({ error: 'Valid email is required' }, { status: 400 });
+            return apiError({
+                status: 400,
+                code: 'VALIDATION_ERROR',
+                error: 'Valid email is required',
+            });
         }
 
         const [currentOwnerMembership, nextOwnerMembership] = await Promise.all([
@@ -70,17 +79,33 @@ export async function POST(
         ]);
 
         if (!currentOwnerMembership) {
-            return NextResponse.json({ error: 'Only the current owner can transfer ownership' }, { status: 403 });
+            return apiError({
+                status: 403,
+                code: 'FORBIDDEN',
+                error: 'Only the current owner can transfer ownership',
+            });
         }
 
         if (!nextOwnerMembership) {
-            return NextResponse.json({ error: 'Team member not found' }, { status: 404 });
+            return apiError({
+                status: 404,
+                code: 'NOT_FOUND',
+                error: 'Team member not found',
+            });
         }
         if (nextOwnerMembership.role === 'OWNER') {
-            return NextResponse.json({ error: 'Choose a different member as the next owner' }, { status: 400 });
+            return apiError({
+                status: 400,
+                code: 'VALIDATION_ERROR',
+                error: 'Choose a different member as the next owner',
+            });
         }
         if (!nextOwnerMembership.userId || !nextOwnerMembership.user) {
-            return NextResponse.json({ error: 'Team member must join before ownership transfer' }, { status: 400 });
+            return apiError({
+                status: 400,
+                code: 'VALIDATION_ERROR',
+                error: 'Team member must join before ownership transfer',
+            });
         }
 
         await prisma.$transaction([
@@ -103,6 +128,10 @@ export async function POST(
         });
     } catch (error) {
         logger.error('Failed to transfer team ownership', error);
-        return NextResponse.json({ error: 'Failed to transfer team ownership' }, { status: 500 });
+        return apiError({
+            status: 500,
+            code: 'INTERNAL_ERROR',
+            error: 'Failed to transfer team ownership',
+        });
     }
 }

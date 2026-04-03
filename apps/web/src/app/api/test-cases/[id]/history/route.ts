@@ -2,6 +2,7 @@ import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
 import { createMeasuredJsonResponse, createRoutePerfTracker } from '@/lib/core/route-perf';
 import { guardTestCaseRouteRequest } from '@/lib/security/test-case-route-access';
+import { apiError } from '@/lib/security/api-route-standards';
 
 const logger = createLogger('api:test-cases:history');
 
@@ -72,8 +73,12 @@ export async function GET(
         return response;
     } catch (error) {
         logger.error('Failed to fetch test history', error);
-        const body = { error: 'Failed to fetch test history' };
-        const { response, responseBytes } = createMeasuredJsonResponse(body, { status: 500 });
+        const response = apiError({
+            status: 500,
+            code: 'INTERNAL_ERROR',
+            error: 'Failed to fetch test history',
+        });
+        const responseBytes = new TextEncoder().encode(await response.clone().text()).length;
         perf.log(logger, { statusCode: 500, responseBytes });
         return response;
     }

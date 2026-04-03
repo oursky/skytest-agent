@@ -1,0 +1,11 @@
+{
+  "generatedAt": "2026-04-03",
+  "maxLines": 900,
+  "exceptions": [
+    {
+      "path": "apps/web/src/lib/runtime/test-runner.ts",
+      "reason": "Runtime orchestration remains intentionally centralized while extracted seams preserve deterministic execution behavior.",
+      "expiryTask": "Continue staged extraction when parity suite for pipeline stages is expanded."
+    }
+  ]
+}

@@ -6,7 +6,7 @@ import path from 'node:path';
 
 const workspaceRoot = process.cwd();
 const repoRoot = path.resolve(workspaceRoot, '../..');
-const exceptionsPath = path.resolve(repoRoot, 'plans/adr-loc-exceptions.json');
+const exceptionsPath = path.resolve(workspaceRoot, 'scripts/quality/adr-loc-exceptions.json');
 
 const exceptionConfig = JSON.parse(readFileSync(exceptionsPath, 'utf8'));
 const maxLines = Number(exceptionConfig.maxLines ?? 900);
