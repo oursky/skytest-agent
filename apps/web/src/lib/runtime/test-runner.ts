@@ -8,7 +8,7 @@ import { substituteAll } from '@/lib/test-config/substitution';
 import { createLogger as createServerLogger } from '@/lib/core/logger';
 import { buildMidsceneModelConfig } from '@/lib/runtime/midscene-env';
 import { validateTargetUrl } from '@/lib/security/url-security';
-import { createBrowserNetworkGuard, type BrowserNetworkGuard, type BrowserNetworkGuardSummary } from '@/lib/runtime/browser-network-guard';
+import { createBrowserNetworkGuard, type BrowserNetworkGuard } from '@/lib/runtime/browser-network-guard';
 import { androidDeviceManager, type AndroidDeviceLease } from '@/lib/android/device-manager';
 import { normalizeAndroidTargetConfig } from '@/lib/android/target-config';
 import { normalizeBrowserConfig } from '@/lib/test-config/browser-target';
@@ -17,6 +17,8 @@ import { resolveAndroidToolPath } from '@/lib/android/sdk';
 import { createSafePage, validatePlaywrightCode } from '@/lib/runtime/playwright-code-sandbox';
 import { splitPlaywrightCodeStatements, summarizePlaywrightCodeStatement } from '@/lib/runtime/playwright-code-trace';
 import { classifyRunFailure } from '@/lib/runtime/run-failure-classifier';
+import { extractQuotedStrings, shouldUseQuotedStringShortcut, formatAssertionFailureMessage } from '@/lib/runtime/assertion-shortcuts';
+import { collectBrowserNetworkGuardSummaries, emitBrowserNetworkGuardSummaries } from '@/lib/runtime/network-guard-summary';
 import { createTempDirectory, materializeObjectToFile, removeTempDirectory } from '@/lib/storage/object-store-utils';
 import { validateRuntimeRequestUrl } from '@/lib/security/url-security-runtime';
 import { Script, createContext } from 'node:vm';
@@ -871,40 +873,6 @@ async function setupExecutionTargets(
 }
 
 /**
- * Extracts quoted strings from an assertion instruction.
- * Supports both double quotes ("text") and single quotes ('text').
- */
-function extractQuotedStrings(instruction: string): string[] {
-    const matches: string[] = [];
-    const regex = /["']([^"']+)["']/g;
-    let match;
-    while ((match = regex.exec(instruction)) !== null) {
-        matches.push(match[1]);
-    }
-    return matches;
-}
-
-function shouldUseQuotedStringShortcut(instruction: string, quotedStrings: string[]): boolean {
-    if (quotedStrings.length === 0) {
-        return false;
-    }
-
-    const normalized = instruction.trim().replace(/\s+/g, ' ');
-
-    const simplePresencePatterns = [
-        /^(verify|assert|check|confirm|ensure|validate)\s+(that\s+)?["'][^"']+["']\s+(is\s+)?(visible|shown|displayed|present|on the page|exists?)\.?$/i,
-        /^(verify|assert|check|confirm|ensure|validate)\s+(that\s+)?text\s+["'][^"']+["']\s+(is\s+)?(visible|shown|displayed|present|on the page|exists?)\.?$/i,
-        /^(verify|assert|check|confirm|ensure|validate)\s+(that\s+)?["'][^"']+["']\s*(appears?)\.?$/i
-    ];
-
-    return simplePresencePatterns.some((pattern) => pattern.test(normalized));
-}
-
-function formatAssertionFailureMessage(stepAction: string, reason: string): string {
-    return `Verification failed.\nStep: ${stepAction}\nReason: ${reason}`;
-}
-
-/**
  * Verifies that all quoted strings in an assertion instruction exist exactly on the page.
  */
 async function verifyQuotedStringsExist(
@@ -1571,36 +1539,6 @@ async function captureErrorScreenshots(
     }
 }
 
-function collectBrowserNetworkGuardSummaries(targets: ExecutionTargets): BrowserNetworkGuardSummary[] {
-    return Array.from(targets.browserNetworkGuards.values(), (networkGuard) => networkGuard.getSummary());
-}
-
-function emitBrowserNetworkGuardSummaries(
-    targets: ExecutionTargets,
-    onEvent: EventHandler
-): void {
-    const log = createLogger(onEvent);
-    for (const [browserId, summary] of Array.from(targets.browserNetworkGuards.entries(), ([id, guard]) => [id, guard.getSummary()] as const)) {
-        if (summary.blockedRequestCount === 0) {
-            continue;
-        }
-
-        const targetLabel = getBrowserNiceName(browserId);
-        const level = summary.dnsLookupFailureCount > 0 ? 'error' : 'info';
-        log(
-            `[${targetLabel}] Network guard summary: ${JSON.stringify({
-                blockedRequestCount: summary.blockedRequestCount,
-                dnsLookupFailureCount: summary.dnsLookupFailureCount,
-                blockedByCode: summary.blockedByCode,
-                blockedByReason: summary.blockedByReason,
-                blockedByHostname: summary.blockedByHostname,
-            })}`,
-            level,
-            browserId
-        );
-    }
-}
-
 async function cleanupTargets(targets: ExecutionTargets): Promise<void> {
     try {
         if (targets.browser) await targets.browser.close();
@@ -1770,7 +1708,7 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
             }
 
             const networkGuardSummaries = executionTargets
-                ? collectBrowserNetworkGuardSummaries(executionTargets)
+                ? collectBrowserNetworkGuardSummaries(executionTargets.browserNetworkGuards)
                 : [];
             const failureClassification = classifyRunFailure(error, { networkGuardSummaries });
             const msg = getErrorMessage(error);
@@ -1796,7 +1734,11 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
             clearTimeout(timeoutHandle);
             signal?.removeEventListener('abort', abortFromParent);
             if (executionTargets) {
-                emitBrowserNetworkGuardSummaries(executionTargets, onEvent);
+                emitBrowserNetworkGuardSummaries({
+                    browserNetworkGuards: executionTargets.browserNetworkGuards,
+                    log: createLogger(onEvent),
+                    getBrowserNiceName,
+                });
                 await cleanupExecutionTargets(executionTargets);
             }
             await materializedExecutionFiles.cleanup();

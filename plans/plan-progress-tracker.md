@@ -31,8 +31,8 @@ Plan: `plans/2026-04-03-architecture-sustainability-review-plan.md`
 - status: in progress
 - completed:
   - runtime and macOS/CLI decomposition scopes documented
+  - first runtime seam extraction implemented in `test-runner.ts` (assertion shortcut and network-guard summary modules extracted)
 - remaining:
-  - implement first runtime seam extraction with parity evidence
   - implement first CLI/runner alignment code slice with integration checks
 
 ### Phase 3a
