@@ -5,8 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/app/auth-provider';
 import { Button, CustomSelect, Modal } from '@/components/shared';
 import { LOCALE_META, useI18n, type Locale } from '@/i18n';
-import { useTeams } from '@/hooks/team/useTeams';
-import { useCurrentTeam } from '@/hooks/team/useCurrentTeam';
+import { useTeamSession } from '@/hooks/team/useTeamSession';
 import { useCreateTeam } from '@/hooks/team/useCreateTeam';
 
 export default function Header() {
@@ -14,8 +13,7 @@ export default function Header() {
     const router = useRouter();
     const pathname = usePathname();
     const { locale, setLocale, t } = useI18n();
-    const { teams, loading: isTeamsLoading, refresh: refreshTeams } = useTeams(getAccessToken, isLoggedIn);
-    const { currentTeam, loading: isCurrentTeamLoading, setCurrentTeam } = useCurrentTeam(getAccessToken, isLoggedIn);
+    const { teams, currentTeam, loading: isTeamSessionLoading, refresh: refreshTeams, setCurrentTeam } = useTeamSession();
 
     const localeOptions = useMemo(() => Object.keys(LOCALE_META) as Locale[], []);
     const selectedTeamId = useMemo(() => {
@@ -82,7 +80,7 @@ export default function Header() {
     }
 
     const showSessionControls = isLoggedIn || isAuthLoading;
-    const showTeamPlaceholder = isAuthLoading || isTeamsLoading || isCurrentTeamLoading;
+    const showTeamPlaceholder = isAuthLoading || isTeamSessionLoading;
 
     return (
         <>
