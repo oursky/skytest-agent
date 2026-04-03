@@ -54,9 +54,13 @@ Plan: `plans/2026-04-03-architecture-sustainability-review-plan.md`
     - `apps/web/src/lib/runtime/execution-files.ts`
     - `apps/web/src/lib/runtime/assertion-verifier.ts`
   - MCP manifest compatibility snapshot gate added and passing
-  - MCP server decomposition completed:
-    - `apps/web/src/lib/mcp/server.ts` reduced to 584 LOC
-    - create/update tool registrations extracted to `apps/web/src/lib/mcp/test-case-mutation-tools.ts`
+  - MCP server decomposition completed with explicit responsibility separation:
+    - transport/bootstrap: `apps/web/src/lib/mcp/server.ts`
+    - tool registry: `apps/web/src/lib/mcp/server-registry.ts`
+    - execution routing/handlers: `apps/web/src/lib/mcp/server-tools.ts`
+    - response shaping + telemetry: `apps/web/src/lib/mcp/server-response.ts`
+    - auth/access context helpers: `apps/web/src/lib/mcp/server-auth.ts`
+    - create/update tool registrations remain isolated in `apps/web/src/lib/mcp/test-case-mutation-tools.ts`
 
 ### Phase 3b
 - status: complete
