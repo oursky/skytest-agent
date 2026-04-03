@@ -52,6 +52,16 @@ Responsibilities:
 - shared browser/Android execution logic used by runner clients
 - step execution, event generation, and cleanup behavior
 
+Decomposed into focused modules:
+
+- `android-runtime-helpers.ts` - Android ADB recovery, wake/unlock, permissions, app lifecycle
+- `assertion-verifier.ts` - Quoted string AI verification
+- `assertion-shortcuts.ts` - Assertion pattern detection and formatting
+- `execution-files.ts` - Temp file materialization for run-time file configs
+- `playwright-code-execution.ts` - Playwright code step sandbox execution
+- `network-guard-summary.ts` - Browser network guard log emission
+- `local-browser-runner-parsers.ts` - Config snapshot/image data URL parsers
+
 Key invariants:
 
 - cleanup must stay idempotent when cancellation races run completion
