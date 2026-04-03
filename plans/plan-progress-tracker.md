@@ -46,9 +46,12 @@ Plan: `plans/2026-04-03-architecture-sustainability-review-plan.md`
   - MCP server decomposition on top of manifest gate
 
 ### Phase 3b
-- status: not started
+- status: in progress
+- completed:
+  - `run/page.tsx` import/export orchestration extracted to `import-export-helpers.ts`
+  - `projects/[id]/page.tsx` batch operations extracted to `batch-operations.tsx`
 - remaining:
-  - frontend hotspot decomposition (`run/page.tsx`, `projects/[id]/page.tsx`)
+  - continue frontend decomposition until both hotspot pages are below 900 LOC and state orchestration is further modularized
 
 ### Phase 3c
 - status: in progress

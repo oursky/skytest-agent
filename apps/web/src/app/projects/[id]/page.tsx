@@ -14,72 +14,19 @@ import { parsePageSize } from '@/utils/pagination/pagination';
 import { ProjectConfigs } from '@/components/features/project-configurations';
 import ProjectSettingsPanel from '@/components/features/projects/ui/ProjectSettingsPanel';
 import { useCurrentTeam } from '@/hooks/team/useCurrentTeam';
-import TestCaseImportReviewDialog, {
-    type TestCaseImportReviewData,
-} from '@/components/features/test-cases/ui/TestCaseImportReviewDialog';
+import TestCaseImportReviewDialog from '@/components/features/test-cases/ui/TestCaseImportReviewDialog';
 import ProjectTestCasesToolbar from '@/components/features/test-cases/ui/ProjectTestCasesToolbar';
-
-interface TestRun {
-    id: string;
-    status: string;
-    createdAt: string;
-}
-
-interface TestCase {
-    id: string;
-    displayId?: string;
-    status?: string;
-    name: string;
-    updatedAt: string;
-    testRuns: TestRun[];
-}
-
-interface ProjectPageProps {
-    params: Promise<{ id: string }>;
-}
-
-interface Project {
-    id: string;
-    name: string;
-    teamId: string;
-    maxConcurrentRuns: number;
-    maxConcurrentRunsLimit?: number;
-    canManageProject?: boolean;
-}
-
-interface BatchImportResponse extends TestCaseImportReviewData {
-    mode: 'validate' | 'import-valid';
-}
-
-type ProjectTab = 'test-cases' | 'variables' | 'settings';
-
-function extractFilenameFromContentDisposition(headerValue: string | null, fallbackName: string): string {
-    if (!headerValue) {
-        return fallbackName;
-    }
-    const utf8Match = headerValue.match(/filename\*=UTF-8''([^;]+)/i);
-    if (utf8Match?.[1]) {
-        try {
-            return decodeURIComponent(utf8Match[1].replace(/["']/g, '').trim());
-        } catch {
-            return utf8Match[1].replace(/["']/g, '').trim();
-        }
-    }
-    const asciiMatch = headerValue.match(/filename="?([^";]+)"?/i);
-    if (!asciiMatch?.[1]) {
-        return fallbackName;
-    }
-    return asciiMatch[1].trim();
-}
-
-function downloadBlob(blob: Blob, filename: string): void {
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    link.click();
-    URL.revokeObjectURL(url);
-}
+import {
+    BatchImportResponse,
+    SortIcon,
+    handleBatchImportSelectedFilesHelper,
+    handleDiscardBatchImportHelper,
+    handleExportSelectedHelper,
+    handleProceedBatchImportHelper,
+    runBatchImportRequestHelper,
+} from './batch-operations';
+import { filterProjectTestCases, sortProjectTestCases, toggleSelectAllFilteredTestCases, toggleSelectedTestCase } from './project-page-table';
+import type { Project, ProjectPageProps, ProjectTab, SortColumn, TestCase } from './project-page.types';
 
 export default function ProjectPage({ params }: ProjectPageProps) {
     const { isLoggedIn, isLoading: isAuthLoading, getAccessToken } = useAuth();
@@ -96,7 +43,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     const [testCases, setTestCases] = useState<TestCase[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; testCaseId: string; testCaseName: string }>({ isOpen: false, testCaseId: "", testCaseName: "" });
-    const [sortColumn, setSortColumn] = useState<'id' | 'name' | 'status' | 'updated'>('id');
+    const [sortColumn, setSortColumn] = useState<SortColumn>('id');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
     const [currentPage, setCurrentPage] = useState(1);
     const [searchInput, setSearchInput] = useState('');
@@ -459,7 +406,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         }
     }, [clearDisplayIdEditState, editingDisplayIdValue, getAccessToken]);
 
-    const handleSort = (column: 'id' | 'name' | 'status' | 'updated') => {
+    const handleSort = (column: SortColumn) => {
         if (sortColumn === column) {
             setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
         } else {
@@ -479,38 +426,8 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         }
     };
 
-    const filteredTestCases = testCases.filter((tc) => {
-        if (!searchQuery) return true;
-        const query = searchQuery.toLowerCase();
-        const matchesId = tc.displayId?.toLowerCase().includes(query);
-        const matchesName = tc.name.toLowerCase().includes(query);
-        return matchesId || matchesName;
-    });
-
-    const sortedTestCases = [...filteredTestCases].sort((a, b) => {
-        let comparison = 0;
-        
-        switch (sortColumn) {
-            case 'id':
-                const idA = a.displayId || '';
-                const idB = b.displayId || '';
-                comparison = idA.localeCompare(idB);
-                break;
-            case 'name':
-                comparison = a.name.localeCompare(b.name);
-                break;
-            case 'status':
-                const statusA = a.testRuns[0]?.status || a.status || '';
-                const statusB = b.testRuns[0]?.status || b.status || '';
-                comparison = statusA.localeCompare(statusB);
-                break;
-            case 'updated':
-                comparison = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
-                break;
-        }
-        
-        return sortDirection === 'asc' ? comparison : -comparison;
-    });
+    const filteredTestCases = filterProjectTestCases(testCases, searchQuery);
+    const sortedTestCases = sortProjectTestCases(filteredTestCases, sortColumn, sortDirection);
 
     const totalPages = Math.ceil(sortedTestCases.length / pageSize);
     const paginatedTestCases = sortedTestCases.slice(
@@ -536,25 +453,17 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
     const handleToggleSelectAllFiltered = () => {
         setSelectedTestCaseIds((prev) => {
-            const next = new Set(prev);
-            if (allFilteredSelected) {
-                sortedTestCases.forEach((testCase) => next.delete(testCase.id));
-            } else {
-                sortedTestCases.forEach((testCase) => next.add(testCase.id));
-            }
-            return next;
+            return toggleSelectAllFilteredTestCases({
+                previous: prev,
+                sortedTestCases,
+                allFilteredSelected,
+            });
         });
     };
 
     const handleToggleSelectTestCase = (testCaseId: string) => {
         setSelectedTestCaseIds((prev) => {
-            const next = new Set(prev);
-            if (next.has(testCaseId)) {
-                next.delete(testCaseId);
-            } else {
-                next.add(testCaseId);
-            }
-            return next;
+            return toggleSelectedTestCase(prev, testCaseId);
         });
     };
 
@@ -562,53 +471,29 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         files: File[],
         mode: 'validate' | 'import-valid'
     ): Promise<BatchImportResponse | null> => {
-        const token = await getAccessToken();
-        const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-        const formData = new FormData();
-        formData.append('mode', mode);
-        files.forEach((file) => formData.append('files', file));
-        const response = await fetch(`/api/projects/${id}/test-cases/batch-import`, {
-            method: 'POST',
-            headers,
-            body: formData,
+        return await runBatchImportRequestHelper({
+            getAccessToken,
+            projectId: id,
+            files,
+            mode,
         });
-
-        if (!response.ok) {
-            throw new Error(`Batch import request failed (${response.status})`);
-        }
-        return await response.json() as BatchImportResponse;
     }, [getAccessToken, id]);
 
     const handleBatchImportSelectedFiles = useCallback(async (files: File[]) => {
-        if (files.length === 0) {
-            return;
-        }
-
-        setIsBatchImportProcessing(true);
-        try {
-            const validationResult = await runBatchImportRequest(files, 'validate');
-            if (!validationResult) {
-                return;
-            }
-
-            const hasErrors = validationResult.files.some((file) => file.issues.some((issue) => issue.severity === 'error'));
-            const hasWarnings = validationResult.files.some((file) => file.issues.some((issue) => issue.severity === 'warning'));
-
-            if (!hasErrors && !hasWarnings) {
-                await runBatchImportRequest(files, 'import-valid');
-                await fetchTestCases();
-                setBatchImportReviewData(null);
-                setPendingBatchImportFiles([]);
-                return;
-            }
-
-            setBatchImportReviewData(validationResult);
-            setPendingBatchImportFiles(files);
-        } catch (error) {
-            console.error('Failed to validate batch import', error);
-        } finally {
-            setIsBatchImportProcessing(false);
-        }
+        await handleBatchImportSelectedFilesHelper({
+            files,
+            runBatchImportRequest: async (requestFiles, mode) => {
+                const response = await runBatchImportRequest(requestFiles, mode);
+                if (!response) {
+                    throw new Error('Batch import request returned no response');
+                }
+                return response;
+            },
+            fetchTestCases,
+            setBatchImportReviewData,
+            setPendingBatchImportFiles,
+            setIsBatchImportProcessing,
+        });
     }, [fetchTestCases, runBatchImportRequest]);
 
     const handleBatchImportInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -618,26 +503,27 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     };
 
     const handleProceedBatchImport = async () => {
-        if (pendingBatchImportFiles.length === 0) {
-            setBatchImportReviewData(null);
-            return;
-        }
-        setIsBatchImportProcessing(true);
-        try {
-            await runBatchImportRequest(pendingBatchImportFiles, 'import-valid');
-            await fetchTestCases();
-            setBatchImportReviewData(null);
-            setPendingBatchImportFiles([]);
-        } catch (error) {
-            console.error('Failed to import valid batch records', error);
-        } finally {
-            setIsBatchImportProcessing(false);
-        }
+        await handleProceedBatchImportHelper({
+            pendingBatchImportFiles,
+            runBatchImportRequest: async (requestFiles, mode) => {
+                const response = await runBatchImportRequest(requestFiles, mode);
+                if (!response) {
+                    throw new Error('Batch import request returned no response');
+                }
+                return response;
+            },
+            fetchTestCases,
+            setBatchImportReviewData,
+            setPendingBatchImportFiles,
+            setIsBatchImportProcessing,
+        });
     };
 
     const handleDiscardBatchImport = () => {
-        setBatchImportReviewData(null);
-        setPendingBatchImportFiles([]);
+        handleDiscardBatchImportHelper({
+            setBatchImportReviewData,
+            setPendingBatchImportFiles,
+        });
     };
 
     const handleExportSelected = async () => {
@@ -647,51 +533,17 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
         setIsExportingSelected(true);
         try {
-            const token = await getAccessToken();
-            const headers: HeadersInit = {
-                'Content-Type': 'application/json',
-                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-            };
-            const response = await fetch(`/api/projects/${id}/test-cases/export`, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify({ testCaseIds: Array.from(selectedTestCaseIds) }),
+            await handleExportSelectedHelper({
+                getAccessToken,
+                projectId: id,
+                selectedTestCaseIds,
+                fallbackProjectName: project?.name || 'project',
             });
-
-            if (!response.ok) {
-                throw new Error(`Export request failed (${response.status})`);
-            }
-
-            const blob = await response.blob();
-            const filename = extractFilenameFromContentDisposition(
-                response.headers.get('Content-Disposition'),
-                `${project?.name || 'project'}_selected_test_cases.zip`
-            );
-            downloadBlob(blob, filename);
         } catch (error) {
             console.error('Failed to export selected test cases', error);
         } finally {
             setIsExportingSelected(false);
         }
-    };
-
-    const SortIcon = ({ column }: { column: 'id' | 'name' | 'status' | 'updated' }) => {
-        if (sortColumn !== column) {
-            return (
-                <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                </svg>
-            );
-        }
-        return sortDirection === 'asc' ? (
-            <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-            </svg>
-        ) : (
-            <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-        );
     };
 
     if (isAuthLoading || isLoading) {
@@ -829,28 +681,28 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                             className="col-span-3 flex items-center gap-1 hover:text-gray-700 transition-colors text-left"
                         >
                             {t('project.table.id')}
-                            <SortIcon column="id" />
+                            <SortIcon column="id" sortColumn={sortColumn} sortDirection={sortDirection} />
                         </button>
                         <button
                             onClick={() => handleSort('name')}
                             className="col-span-8 flex items-center gap-1 hover:text-gray-700 transition-colors text-left"
                         >
                             {t('project.table.name')}
-                            <SortIcon column="name" />
+                            <SortIcon column="name" sortColumn={sortColumn} sortDirection={sortDirection} />
                         </button>
                         <button
                             onClick={() => handleSort('status')}
                             className="col-span-3 flex items-center gap-1 hover:text-gray-700 transition-colors text-left"
                         >
                             {t('project.table.status')}
-                            <SortIcon column="status" />
+                            <SortIcon column="status" sortColumn={sortColumn} sortDirection={sortDirection} />
                         </button>
                         <button
                             onClick={() => handleSort('updated')}
                             className="col-span-4 flex items-center gap-1 hover:text-gray-700 transition-colors text-left"
                         >
                             {t('project.table.updated')}
-                            <SortIcon column="updated" />
+                            <SortIcon column="updated" sortColumn={sortColumn} sortDirection={sortDirection} />
                         </button>
                         <div className="col-span-5 text-right">{t('project.table.actions')}</div>
                     </div>
