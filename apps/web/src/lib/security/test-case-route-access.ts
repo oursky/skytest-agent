@@ -1,25 +1,46 @@
+import { Prisma } from '@prisma/client';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { isProjectMember } from '@/lib/security/permissions';
 import { resolveUserId, verifyAuth } from '@/lib/security/auth';
 
-export type TestCaseRouteGuardResult<TParams extends { id: string }> =
+type DefaultTestCaseRoutePayload = Prisma.TestCaseGetPayload<{
+    select: {
+        id: true;
+        projectId: true;
+    };
+}>;
+type TestCaseRouteQuery = Pick<Prisma.TestCaseDefaultArgs, 'select' | 'include'>;
+type GuardedTestCasePayload<TQuery extends TestCaseRouteQuery | undefined> =
+    TQuery extends TestCaseRouteQuery
+        ? Prisma.TestCaseGetPayload<TQuery> & { id: string; projectId: string }
+        : DefaultTestCaseRoutePayload;
+
+export type TestCaseRouteGuardResult<
+    TParams extends { id: string },
+    TTestCase extends { id: string; projectId: string },
+> =
     | {
         ok: true;
         params: TParams;
         userId: string;
         testCaseId: string;
         projectId: string;
+        testCase: TTestCase;
     }
     | {
         ok: false;
         response: NextResponse<{ error: string }>;
     };
 
-export async function guardTestCaseRouteRequest<TParams extends { id: string }>(input: {
+export async function guardTestCaseRouteRequest<
+    TParams extends { id: string },
+    TQuery extends TestCaseRouteQuery | undefined = undefined,
+>(input: {
     request: Request;
     params: Promise<TParams>;
-}): Promise<TestCaseRouteGuardResult<TParams>> {
+    query?: TQuery;
+}): Promise<TestCaseRouteGuardResult<TParams, GuardedTestCasePayload<TQuery>>> {
     const authPayload = await verifyAuth(input.request);
     if (!authPayload) {
         return {
@@ -37,13 +58,20 @@ export async function guardTestCaseRouteRequest<TParams extends { id: string }>(
     }
 
     const params = await input.params;
-    const testCase = await prisma.testCase.findUnique({
-        where: { id: params.id },
-        select: {
-            id: true,
-            projectId: true,
-        },
-    });
+    const testCaseQueryArgs: Prisma.TestCaseFindUniqueArgs = input.query?.include
+        ? {
+            where: { id: params.id },
+            include: input.query.include,
+        }
+        : {
+            where: { id: params.id },
+            select: {
+                ...(input.query?.select ?? {}),
+                id: true,
+                projectId: true,
+            },
+        };
+    const testCase = await prisma.testCase.findUnique(testCaseQueryArgs);
 
     if (!testCase) {
         return {
@@ -52,7 +80,8 @@ export async function guardTestCaseRouteRequest<TParams extends { id: string }>(
         };
     }
 
-    if (!await isProjectMember(userId, testCase.projectId)) {
+    const projectId = testCase.projectId;
+    if (!await isProjectMember(userId, projectId)) {
         return {
             ok: false,
             response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }),
@@ -64,6 +93,7 @@ export async function guardTestCaseRouteRequest<TParams extends { id: string }>(
         params,
         userId,
         testCaseId: testCase.id,
-        projectId: testCase.projectId,
+        projectId,
+        testCase: testCase as GuardedTestCasePayload<TQuery>,
     };
 }

@@ -5,8 +5,7 @@ import { validateConfigName, normalizeConfigName } from '@/lib/test-config/valid
 import { createLogger } from '@/lib/core/logger';
 import { normalizeConfigGroup } from '@/lib/test-config/sort';
 import { putObjectBuffer } from '@/lib/storage/object-store-utils';
-import { getProjectRouteAccess } from '@/lib/security/project-route-access';
-import { apiError, guardAuthenticatedUser } from '@/lib/security/api-route-standards';
+import { guardProjectRouteRequest } from '@/lib/security/project-route-access';
 
 const logger = createLogger('api:projects:configs:upload');
 
@@ -14,23 +13,13 @@ export async function POST(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const auth = await guardAuthenticatedUser(request);
-    if (!auth.ok) {
-        return auth.response;
+    const guard = await guardProjectRouteRequest({ request, params });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const { id } = await params;
-        const access = await getProjectRouteAccess({
-            projectId: id,
-            userId: auth.context.userId,
-        });
-        if (access.kind === 'project_not_found') {
-            return apiError({ status: 404, code: 'NOT_FOUND', error: 'Project not found' });
-        }
-        if (access.kind === 'forbidden') {
-            return apiError({ status: 403, code: 'FORBIDDEN', error: 'Forbidden' });
-        }
+        const { id } = guard.params;
 
         const formData = await request.formData();
         const file = formData.get('file') as File | null;

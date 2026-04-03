@@ -4,15 +4,10 @@ import { config } from '@/config/app';
 import { PlaywrightCodeError, getErrorMessage } from '@/lib/core/errors';
 import { createSafePage, validatePlaywrightCode } from '@/lib/runtime/playwright-code-sandbox';
 import { splitPlaywrightCodeStatements, summarizePlaywrightCodeStatement } from '@/lib/runtime/playwright-code-trace';
+import type { RuntimeLogger } from '@/lib/runtime/android-runtime-helpers';
 import { TestStep } from '@/types';
 import { Script, createContext } from 'node:vm';
 import path from 'node:path';
-
-export type RuntimeLogger = (
-    message: string,
-    level?: 'info' | 'error' | 'success',
-    browserId?: string
-) => void;
 
 export interface PlaywrightCodeStepContext {
     allowedFilePaths: ReadonlySet<string>;

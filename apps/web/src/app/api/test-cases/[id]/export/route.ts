@@ -16,25 +16,22 @@ export async function GET(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const guard = await guardTestCaseRouteRequest({ request, params });
+    const guard = await guardTestCaseRouteRequest({
+        request,
+        params,
+        query: {
+            include: {
+                files: true,
+            }
+        }
+    });
     if (!guard.ok) {
         return guard.response;
     }
 
     try {
-        const { testCaseId: id } = guard;
+        const testCase = guard.testCase;
         const xlsxOnly = new URL(request.url).searchParams.get('xlsxOnly') === 'true';
-
-        const testCase = await prisma.testCase.findUnique({
-            where: { id },
-            include: {
-                files: true
-            }
-        });
-
-        if (!testCase) {
-            return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
-        }
 
         const projectVariables = await prisma.projectConfig.findMany({
             where: {

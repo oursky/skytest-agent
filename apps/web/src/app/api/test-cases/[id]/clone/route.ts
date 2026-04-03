@@ -18,15 +18,10 @@ export async function POST(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const guard = await guardTestCaseRouteRequest({ request, params });
-    if (!guard.ok) {
-        return guard.response;
-    }
-
-    try {
-        const { testCaseId: id } = guard;
-        const existingTestCase = await prisma.testCase.findUnique({
-            where: { id },
+    const guard = await guardTestCaseRouteRequest({
+        request,
+        params,
+        query: {
             include: {
                 files: {
                     orderBy: { createdAt: 'desc' }
@@ -35,11 +30,14 @@ export async function POST(
                     orderBy: { createdAt: 'asc' }
                 }
             }
-        });
-
-        if (!existingTestCase) {
-            return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
         }
+    });
+    if (!guard.ok) {
+        return guard.response;
+    }
+
+    try {
+        const existingTestCase = guard.testCase;
 
         const clonedTestCase = await prisma.testCase.create({
             data: {

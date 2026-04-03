@@ -23,7 +23,7 @@ export type TeamRouteAuthorizer<TParams extends { id: string }> = (input: {
 export async function guardTeamRouteRequest<TParams extends { id: string }>(input: {
     request: Request;
     params: Promise<TParams>;
-    authorize?: TeamRouteAuthorizer<TParams>;
+    authorize: TeamRouteAuthorizer<TParams>;
 }): Promise<TeamRouteGuardResult<TParams>> {
     const authPayload = await verifyAuth(input.request);
     if (!authPayload) {
@@ -44,19 +44,17 @@ export async function guardTeamRouteRequest<TParams extends { id: string }>(inpu
     const params = await input.params;
     const teamId = params.id;
 
-    if (input.authorize) {
-        const allowed = await input.authorize({
-            userId,
-            teamId,
-            params,
-            request: input.request,
-        });
-        if (!allowed) {
-            return {
-                ok: false,
-                response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }),
-            };
-        }
+    const allowed = await input.authorize({
+        userId,
+        teamId,
+        params,
+        request: input.request,
+    });
+    if (!allowed) {
+        return {
+            ok: false,
+            response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }),
+        };
     }
 
     return {

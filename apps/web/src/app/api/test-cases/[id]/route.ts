@@ -12,16 +12,10 @@ export async function GET(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const guard = await guardTestCaseRouteRequest({ request, params });
-    if (!guard.ok) {
-        return guard.response;
-    }
-
-    try {
-        const { testCaseId: id } = guard;
-
-        const testCase = await prisma.testCase.findUnique({
-            where: { id },
+    const guard = await guardTestCaseRouteRequest({
+        request,
+        params,
+        query: {
             include: {
                 testRuns: {
                     take: 1,
@@ -38,11 +32,14 @@ export async function GET(
                     },
                 }
             }
-        });
-
-        if (!testCase) {
-            return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
         }
+    });
+    if (!guard.ok) {
+        return guard.response;
+    }
+
+    try {
+        const testCase = guard.testCase;
 
         const parsedTestCase = parseTestCaseJson(testCase);
         const { project, ...testCasePayload } = parsedTestCase;

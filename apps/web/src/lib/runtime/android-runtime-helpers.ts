@@ -5,7 +5,7 @@ import { type AndroidDeviceLease } from '@/lib/android/device-manager';
 import { ReliableAdb } from '@/lib/android/adb-reliable';
 import { resolveAndroidToolPath } from '@/lib/android/sdk';
 
-export type AndroidRuntimeLogger = (
+export type RuntimeLogger = (
     message: string,
     level?: 'info' | 'error' | 'success',
     browserId?: string
@@ -110,7 +110,7 @@ export function isRecoverableAndroidAdbConnectionError(errorMessage: string): bo
 export async function recoverAndroidDeviceConnection(
     handle: AndroidDeviceLease,
     targetLabel: string,
-    log: AndroidRuntimeLogger,
+    log: RuntimeLogger,
     targetId: string,
     appId: string | undefined,
     signal?: AbortSignal
@@ -172,7 +172,7 @@ export async function recoverAndroidDeviceConnection(
 export async function waitForAndroidUiReadyForAction(
     agent: AndroidAgent,
     stepAction: string,
-    log: AndroidRuntimeLogger,
+    log: RuntimeLogger,
     targetLabel: string,
     targetId: string,
     signal?: AbortSignal
@@ -297,7 +297,7 @@ function extractAndroidPermissionsFromDumpsys(packageDump: string): string[] {
 export async function grantAndroidAppPermissions(
     device: { shell(command: string): Promise<string> },
     appId: string,
-    log: AndroidRuntimeLogger,
+    log: RuntimeLogger,
     browserId?: string
 ): Promise<void> {
     try {

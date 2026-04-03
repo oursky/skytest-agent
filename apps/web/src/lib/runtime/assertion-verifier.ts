@@ -1,12 +1,6 @@
 import { AndroidAgent } from '@/types';
-import { runAndroidAgentOperation } from '@/lib/runtime/android-runtime-helpers';
+import { runAndroidAgentOperation, type RuntimeLogger } from '@/lib/runtime/android-runtime-helpers';
 import { PlaywrightAgent } from '@midscene/web/playwright';
-
-export type RuntimeLogger = (
-    message: string,
-    level?: 'info' | 'error' | 'success',
-    browserId?: string
-) => void;
 
 export interface VerifyQuotedStringsOptions {
     agent: PlaywrightAgent | AndroidAgent;
