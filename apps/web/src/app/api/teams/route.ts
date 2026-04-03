@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveOrCreateUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
+import { guardAuthenticatedOrCreateUser } from '@/lib/security/api-route-standards';
 
 const logger = createLogger('api:teams');
 
@@ -48,17 +49,13 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const userId = await resolveOrCreateUserId(authPayload);
-    if (!userId) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardAuthenticatedOrCreateUser(request);
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
+        const userId = guard.context.userId;
         const body = await request.json();
         const name = typeof body.name === 'string' ? body.name.trim() : '';
 

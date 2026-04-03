@@ -34,8 +34,6 @@ import { extractQuotedStrings, shouldUseQuotedStringShortcut, formatAssertionFai
 import { collectBrowserNetworkGuardSummaries, emitBrowserNetworkGuardSummaries } from '@/lib/runtime/network-guard-summary';
 import { validateRuntimeRequestUrl } from '@/lib/security/url-security-runtime';
 
-export const maxDuration = config.test.maxDuration;
-
 const serverLogger = createServerLogger('test-runner');
 
 type EventHandler = (event: TestEvent) => void;

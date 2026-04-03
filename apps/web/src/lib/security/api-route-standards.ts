@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { resolveUserId, verifyAuth, type AuthPayload } from '@/lib/security/auth';
+import { resolveOrCreateUserId, resolveUserId, verifyAuth, type AuthPayload } from '@/lib/security/auth';
 
 export type ApiErrorCode =
     | 'UNAUTHORIZED'
@@ -73,6 +73,40 @@ export async function guardAuthenticatedUser(request: Request): Promise<ApiUserG
     }
 
     const userId = await resolveUserId(authPayload);
+    if (!userId) {
+        return {
+            ok: false,
+            response: apiError({
+                status: 401,
+                code: 'UNAUTHORIZED',
+                error: 'Invalid auth token',
+            }),
+        };
+    }
+
+    return {
+        ok: true,
+        context: {
+            authPayload,
+            userId,
+        },
+    };
+}
+
+export async function guardAuthenticatedOrCreateUser(request: Request): Promise<ApiUserGuardResult> {
+    const authPayload = await verifyAuth(request);
+    if (!authPayload) {
+        return {
+            ok: false,
+            response: apiError({
+                status: 401,
+                code: 'UNAUTHORIZED',
+                error: 'Unauthorized',
+            }),
+        };
+    }
+
+    const userId = await resolveOrCreateUserId(authPayload);
     if (!userId) {
         return {
             ok: false,

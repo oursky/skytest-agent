@@ -8,7 +8,6 @@ const DEFAULT_STATE_DIRNAME = '.skytest-dev';
 const RUNNERS_DIRNAME = 'runners';
 const RUNNER_METADATA_FILE = 'runner.json';
 const RUNNER_CREDENTIAL_FILE = 'credential.json';
-const RUNNER_PID_FILE = 'runner.pid';
 const RUNNER_PID_STATE_FILE = 'runner.pid.json';
 const RUNNER_LOG_FILE = 'runner.log';
 const RUNNER_RUNTIME_DIR = 'runtime';
@@ -31,7 +30,7 @@ export function resolveStateRoot(): string {
     return path.join(resolveRepoRoot(), DEFAULT_STATE_DIRNAME);
 }
 
-export async function ensureStateRoot(): Promise<void> {
+async function ensureStateRoot(): Promise<void> {
     await mkdir(path.join(resolveStateRoot(), RUNNERS_DIRNAME), { recursive: true });
 }
 
@@ -44,7 +43,6 @@ export function resolveRunnerPaths(localRunnerId: string): LocalRunnerPaths {
         runtimeStateDir,
         metadataPath: path.join(runnerDir, RUNNER_METADATA_FILE),
         credentialPath: path.join(runnerDir, RUNNER_CREDENTIAL_FILE),
-        pidPath: path.join(runnerDir, RUNNER_PID_FILE),
         logPath: path.join(runnerDir, RUNNER_LOG_FILE),
     };
 }
@@ -97,15 +95,6 @@ export async function ensureRunnerDirectories(localRunnerId: string): Promise<vo
     await mkdir(runnerPaths.runtimeStateDir, { recursive: true });
 }
 
-export async function readRunnerPid(localRunnerId: string): Promise<number | null> {
-    const state = await readRunnerPidState(localRunnerId);
-    if (state) {
-        return state.pid;
-    }
-
-    return null;
-}
-
 export async function readRunnerPidState(localRunnerId: string): Promise<LocalRunnerPidState | null> {
     const runnerPaths = resolveRunnerPaths(localRunnerId);
     const stateFromJson = await readJsonFile<{
@@ -123,20 +112,7 @@ export async function readRunnerPidState(localRunnerId: string): Promise<LocalRu
             };
         }
     }
-
-    try {
-        const raw = await readFile(runnerPaths.pidPath, 'utf8');
-        const parsed = Number.parseInt(raw.trim(), 10);
-        if (!Number.isInteger(parsed) || parsed <= 0) {
-            return null;
-        }
-        return {
-            pid: parsed,
-            processStartedAt: null,
-        };
-    } catch {
-        return null;
-    }
+    return null;
 }
 
 export async function writeRunnerPid(
@@ -146,21 +122,15 @@ export async function writeRunnerPid(
 ): Promise<void> {
     await ensureRunnerDirectories(localRunnerId);
     const runnerPaths = resolveRunnerPaths(localRunnerId);
-    await Promise.all([
-        writeFile(runnerPaths.pidPath, String(pid), 'utf8'),
-        writeJsonFile(path.join(runnerPaths.runnerDir, RUNNER_PID_STATE_FILE), {
-            pid,
-            processStartedAt: options?.processStartedAt ?? null,
-        } satisfies LocalRunnerPidState),
-    ]);
+    await writeJsonFile(path.join(runnerPaths.runnerDir, RUNNER_PID_STATE_FILE), {
+        pid,
+        processStartedAt: options?.processStartedAt ?? null,
+    } satisfies LocalRunnerPidState);
 }
 
 export async function clearRunnerPid(localRunnerId: string): Promise<void> {
     const runnerPaths = resolveRunnerPaths(localRunnerId);
-    await Promise.all([
-        rm(runnerPaths.pidPath, { force: true }),
-        rm(path.join(runnerPaths.runnerDir, RUNNER_PID_STATE_FILE), { force: true }),
-    ]);
+    await rm(path.join(runnerPaths.runnerDir, RUNNER_PID_STATE_FILE), { force: true });
 }
 
 export async function deleteRunner(localRunnerId: string): Promise<void> {

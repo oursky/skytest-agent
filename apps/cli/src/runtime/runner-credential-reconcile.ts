@@ -9,7 +9,7 @@ const DEFAULT_RUNNER_VERSION = process.env.RUNNER_VERSION ?? RUNNER_MINIMUM_VERS
 const RUNNER_CREDENTIAL_REVOKED_FILE = 'credential-revoked.json';
 const START_REPAIR_PAIRING_TOKEN_ENV = 'SKYTEST_REPAIR_PAIRING_TOKEN';
 
-export function resolveRepairPairingToken(overrideToken?: string): string | null {
+function resolveRepairPairingToken(overrideToken?: string): string | null {
     const override = overrideToken?.trim();
     if (override) {
         return override;

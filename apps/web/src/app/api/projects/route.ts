@@ -5,6 +5,7 @@ import { createLogger } from '@/lib/core/logger';
 import { isTeamMember } from '@/lib/security/permissions';
 import { config as appConfig } from '@/config/app';
 import { RUN_ACTIVE_STATUSES } from '@/types';
+import { guardTeamRouteRequest } from '@/lib/security/team-route-access';
 
 const logger = createLogger('api:projects');
 
@@ -99,11 +100,6 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
     try {
-        const authPayload = await verifyAuth(request);
-        if (!authPayload) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
         const body = await request.json();
         const name = typeof body.name === 'string' ? body.name.trim() : '';
         const teamId = typeof body.teamId === 'string' ? body.teamId.trim() : '';
@@ -117,14 +113,15 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Team is required' }, { status: 400 });
         }
 
-        const userId = await resolveOrCreateUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        const guard = await guardTeamRouteRequest({
+            request,
+            params: Promise.resolve({ id: teamId }),
+            authorize: ({ userId: memberUserId, teamId: memberTeamId }) => isTeamMember(memberUserId, memberTeamId),
+        });
+        if (!guard.ok) {
+            return guard.response;
         }
-
-        if (!await isTeamMember(userId, teamId)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
+        const userId = guard.userId;
 
         let maxConcurrentRuns = 1;
         if (maxConcurrentRunsInput !== undefined) {

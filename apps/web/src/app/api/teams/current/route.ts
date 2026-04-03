@@ -3,6 +3,7 @@ import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveOrCreateUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { isTeamMember } from '@/lib/security/permissions';
+import { guardTeamRouteRequest } from '@/lib/security/team-route-access';
 import {
     parseCurrentTeamCookie,
     setCurrentTeamCookie,
@@ -81,26 +82,20 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     try {
-        const userId = await resolveOrCreateUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
         const body = await request.json() as { teamId?: string };
         const teamId = typeof body.teamId === 'string' ? body.teamId.trim() : '';
         if (!teamId) {
             return NextResponse.json({ error: 'Team is required' }, { status: 400 });
         }
 
-        const hasAccess = await isTeamMember(userId, teamId);
-        if (!hasAccess) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        const guard = await guardTeamRouteRequest({
+            request,
+            params: Promise.resolve({ id: teamId }),
+            authorize: ({ userId, teamId: memberTeamId }) => isTeamMember(userId, memberTeamId),
+        });
+        if (!guard.ok) {
+            return guard.response;
         }
 
         const team = await prisma.team.findUnique({

@@ -1,4 +1,4 @@
-import { mkdir, open, readFile, rename, rm } from 'node:fs/promises';
+import { mkdir, open, readFile, readdir, rename, rm } from 'node:fs/promises';
 import path from 'node:path';
 
 function isProcessAlive(pid: number): boolean {
@@ -32,8 +32,34 @@ async function moveStaleLockAside(lockPath: string): Promise<boolean> {
         return false;
     }
 
-    await rm(stalePath, { force: true });
+    try {
+        await rm(stalePath, { force: true });
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`Failed to delete stale lock file ${stalePath}: ${message}`);
+    }
     return true;
+}
+
+async function cleanupLeakedStaleLocks(lockPath: string): Promise<void> {
+    const lockDir = path.dirname(lockPath);
+    const lockName = path.basename(lockPath);
+    const stalePrefix = `${lockName}.stale.`;
+
+    try {
+        const entries = await readdir(lockDir);
+        await Promise.all(entries
+            .filter((entry) => entry.startsWith(stalePrefix))
+            .map(async (entry) => {
+                try {
+                    await rm(path.join(lockDir, entry), { force: true });
+                } catch (error) {
+                    const message = error instanceof Error ? error.message : String(error);
+                    console.warn(`Failed to delete leaked stale lock ${entry}: ${message}`);
+                }
+            }));
+    } catch {
+    }
 }
 
 export async function acquireRunnerProcessLock(input: {
@@ -44,6 +70,7 @@ export async function acquireRunnerProcessLock(input: {
     const { lockPath, controlPlaneBaseUrl, runnerLabel } = input;
 
     await mkdir(path.dirname(lockPath), { recursive: true });
+    await cleanupLeakedStaleLocks(lockPath);
 
     const writeLock = async () => {
         const handle = await open(lockPath, 'wx');

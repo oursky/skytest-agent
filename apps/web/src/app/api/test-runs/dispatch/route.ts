@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { getTeamDevicesAvailability } from '@/lib/runners/availability-service';
 import { config as appConfig } from '@/config/app';
@@ -21,6 +20,7 @@ import {
     BROWSER_EXECUTION_CAPABILITY,
 } from '@/lib/runners/constants';
 import { TEST_STATUS, type BrowserConfig, type ResolvedConfig, type TargetConfig, type TestStep } from '@/types';
+import { guardTestCaseRouteRequest } from '@/lib/security/test-case-route-access';
 
 const logger = createLogger('api:test-runs-dispatch');
 
@@ -98,11 +98,6 @@ async function validateAndroidTargets(
 }
 
 export async function POST(request: Request) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const contentLengthHeader = request.headers.get('content-length');
     if (contentLengthHeader) {
         const contentLength = Number.parseInt(contentLengthHeader, 10);
@@ -143,10 +138,15 @@ export async function POST(request: Request) {
             );
         }
 
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        const guard = await guardTestCaseRouteRequest({
+            request,
+            params: Promise.resolve({ id: testCaseId }),
+        });
+        if (!guard.ok) {
+            return guard.response;
         }
+
+        const userId = guard.userId;
         const triggeredByEmail = await resolveTriggeredByEmail(userId);
         const requestHasAndroidTargets = hasAndroidTargets(browserConfig);
 
@@ -160,11 +160,6 @@ export async function POST(request: Request) {
                         team: {
                             select: {
                                 openRouterKeyEncrypted: true,
-                                memberships: {
-                                    where: { userId },
-                                    select: { id: true },
-                                    take: 1,
-                                }
                             }
                         }
                     }
@@ -174,10 +169,6 @@ export async function POST(request: Request) {
 
         if (!testCase) {
             return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
-        }
-
-        if (testCase.project.team.memberships.length === 0) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
         const requiresResolvedVariables = hasTemplatedConfigUrls({ url, browserConfig });

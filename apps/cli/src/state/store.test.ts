@@ -8,7 +8,7 @@ import {
     listLocalRunnerIds,
     readRunnerCredential,
     readRunnerMetadata,
-    readRunnerPid,
+    readRunnerPidState,
     saveRunnerCredential,
     saveRunnerMetadata,
     writeRunnerPid,
@@ -66,11 +66,14 @@ describe('state store', () => {
 
     it('writes and clears pid file', async () => {
         const runnerId = 'pid001';
-        await writeRunnerPid(runnerId, 12345);
-        expect(await readRunnerPid(runnerId)).toBe(12345);
+        await writeRunnerPid(runnerId, 12345, { processStartedAt: 'Sat Apr  4 00:00:00 2026' });
+        expect(await readRunnerPidState(runnerId)).toEqual({
+            pid: 12345,
+            processStartedAt: 'Sat Apr  4 00:00:00 2026',
+        });
 
         await clearRunnerPid(runnerId);
-        expect(await readRunnerPid(runnerId)).toBeNull();
+        expect(await readRunnerPidState(runnerId)).toBeNull();
     });
 
     it('clears whole state root', async () => {
