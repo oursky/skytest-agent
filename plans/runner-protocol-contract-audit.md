@@ -26,7 +26,7 @@ Current package:
 - Additional module used by consumers: `src/host-fingerprint.ts`
 
 Observation:
-- package has no `exports` map; public boundary is implied, not enforced.
+- package now has a strict root-only `exports` map (`"." -> ./src/index.ts`), mechanically enforcing the contract boundary.
 
 ## 3. Consumer Coverage Matrix
 
@@ -54,16 +54,17 @@ Risk:
 Required fix:
 - expose `resolveHostFingerprint` from package root export and remove subpath imports
 
-### F-002 (Medium): Public contract is not mechanically enforced
+### F-002 (Resolved): Public contract was not mechanically enforced
 
 Evidence:
-- `packages/runner-protocol/package.json` has no `exports` field
+- `packages/runner-protocol/package.json` now defines a strict `exports` field for root-only access.
 
-Risk:
-- future subpath usage can be reintroduced silently
+Risk (before fix):
+- future subpath usage could be reintroduced silently
 
-Recommended fix:
-- add strict `exports` map and CI check to deny subpath imports
+Resolution:
+- strict `exports` map added
+- existing CI boundary check retained to deny subpath imports in consumers
 
 ### F-003 (Low): Version defaults are duplicated in consumers
 
@@ -88,7 +89,7 @@ Evidence signals:
 
 1. Remove all `@skytest/runner-protocol/src/*` imports.  
 2. Enforce root-only contract imports in CI.  
-3. Add package `exports` boundary once compatibility validated for local workspace tooling.
+3. ✅ Add package `exports` boundary once compatibility validated for local workspace tooling.
 
 ## 7. Audit Decision
 
