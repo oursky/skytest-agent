@@ -1,0 +1,134 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`mcp manifest compatibility > keeps tool registration names and input schema keys stable 1`] = `
+[
+  {
+    "description": "List all projects owned by the authenticated user",
+    "inputKeys": [],
+    "name": "list_projects",
+  },
+  {
+    "description": "Get project details including project-level configs",
+    "inputKeys": [
+      "projectId",
+    ],
+    "name": "get_project",
+  },
+  {
+    "description": "List test cases in a project",
+    "inputKeys": [
+      "limit",
+      "projectId",
+      "status",
+    ],
+    "name": "list_test_cases",
+  },
+  {
+    "description": "Get full test case details: steps, configs, and last 5 runs",
+    "inputKeys": [
+      "testCaseId",
+    ],
+    "name": "get_test_case",
+  },
+  {
+    "description": "Queue one test run for a test case with optional per-run overrides.",
+    "inputKeys": [
+      "overrides",
+      "testCaseId",
+    ],
+    "name": "run_test_case",
+  },
+  {
+    "description": "List test runs with filters and optional included events/artifacts.",
+    "inputKeys": [
+      "cursor",
+      "from",
+      "include",
+      "limit",
+      "projectId",
+      "status",
+      "testCaseId",
+      "to",
+    ],
+    "name": "list_test_runs",
+  },
+  {
+    "description": "Upsert and remove project-level configs in one call. FILE uploads are not supported via MCP.",
+    "inputKeys": [
+      "projectId",
+      "remove",
+      "upsert",
+    ],
+    "name": "manage_project_configs",
+  },
+  {
+    "description": "List team runner and Android device inventory scoped by project.",
+    "inputKeys": [
+      "projectId",
+    ],
+    "name": "list_runner_inventory",
+  },
+  {
+    "description": "Create exactly one test case per call with import-equivalent details (ID, targets, steps, test-case variables). FILE uploads are not supported via MCP.",
+    "inputKeys": [
+      "projectId",
+      "testCase",
+    ],
+    "name": "create_test_case",
+  },
+  {
+    "description": "Update one test case per call (name, steps, browserConfig, url, prompt, and test-case variables/configs)",
+    "inputKeys": [
+      "activeRunResolution",
+      "browserConfig",
+      "configs",
+      "name",
+      "prompt",
+      "removeConfigNames",
+      "removeVariableNames",
+      "steps",
+      "testCaseId",
+      "url",
+      "variables",
+    ],
+    "name": "update_test_case",
+  },
+  {
+    "description": "Cancel all queued/preparing/running test runs for one project owned by the authenticated user.",
+    "inputKeys": [
+      "projectId",
+      "reason",
+    ],
+    "name": "stop_all_runs",
+  },
+  {
+    "description": "Cancel all queued test runs (status QUEUED only) for one project owned by the authenticated user.",
+    "inputKeys": [
+      "projectId",
+      "reason",
+    ],
+    "name": "stop_all_queues",
+  },
+  {
+    "description": "Delete a test case and all its runs, files, and configs",
+    "inputKeys": [
+      "testCaseId",
+    ],
+    "name": "delete_test_case",
+  },
+  {
+    "description": "Get test run status and result summary",
+    "inputKeys": [
+      "runId",
+    ],
+    "name": "get_test_run",
+  },
+  {
+    "description": "Get status breakdown of all test cases in a project",
+    "inputKeys": [
+      "projectId",
+    ],
+    "name": "get_project_test_summary",
+  },
+]
+`;

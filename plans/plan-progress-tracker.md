@@ -37,10 +37,12 @@ Plan: `plans/2026-04-03-architecture-sustainability-review-plan.md`
   - expand CLI/runner alignment beyond version fallback and add deeper integration checks
 
 ### Phase 3a
-- status: not started
+- status: in progress
+- completed:
+  - MCP manifest compatibility snapshot gate added (`src/lib/mcp/__tests__/manifest-compatibility.test.ts`)
 - remaining:
   - runtime hotspot decomposition (`test-runner.ts`, `local-browser-runner.ts`)
-  - MCP server decomposition with manifest compatibility gate
+  - MCP server decomposition on top of manifest gate
 
 ### Phase 3b
 - status: not started
