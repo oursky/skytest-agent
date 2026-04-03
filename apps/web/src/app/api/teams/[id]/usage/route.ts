@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { isTeamMember } from '@/lib/security/permissions';
 import { parseActionCountFromResult } from '@/lib/runtime/usage';
 import { UsageService } from '@/lib/runtime/usage';
+import { guardTeamRouteRequest } from '@/lib/security/team-route-access';
 import { RUN_TERMINAL_STATUSES } from '@/types';
 
 const logger = createLogger('api:teams:usage');
@@ -96,21 +96,17 @@ export async function GET(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardTeamRouteRequest({
+        request,
+        params,
+        authorize: ({ userId, teamId }) => isTeamMember(userId, teamId),
+    });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const { id } = await params;
-        if (!await isTeamMember(userId, id)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
+        const { teamId: id } = guard;
 
         const { searchParams } = new URL(request.url);
         const page = Math.max(1, Number.parseInt(searchParams.get('page') || '1', 10));

@@ -8,8 +8,8 @@ import { createPairingToken } from '@/lib/runners/credential-service';
 import { getRunnerTransportMetadata, evaluateRunnerCompatibility } from '@/lib/runners/protocol';
 import { getRateLimitKey, isRateLimited } from '@/lib/runners/rate-limit';
 import { createLogger } from '@/lib/core/logger';
-import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { getTeamAccess } from '@/lib/security/permissions';
+import { guardTeamRouteRequest } from '@/lib/security/team-route-access';
 
 const logger = createLogger('api:teams:runner-pairing');
 
@@ -26,22 +26,20 @@ export async function POST(
         return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
     }
 
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardTeamRouteRequest({
+        request,
+        params,
+        authorize: async ({ userId, teamId }) => {
+            const access = await getTeamAccess(userId, teamId);
+            return access.isMember;
+        },
+    });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const { id: teamId } = await params;
-        const access = await getTeamAccess(userId, teamId);
-        if (!access.isMember) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
+        const { userId, teamId } = guard;
 
         const body = await request.json().catch(() => ({})) as PairingTokenBody;
         const created = await createPairingToken({

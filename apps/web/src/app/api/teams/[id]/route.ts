@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import {
     canDeleteTeam,
@@ -9,6 +8,7 @@ import {
     isTeamMember,
     isTeamOwner,
 } from '@/lib/security/permissions';
+import { guardTeamRouteRequest } from '@/lib/security/team-route-access';
 import { deleteObjectIfExists } from '@/lib/storage/object-store-utils';
 import { RUN_ACTIVE_STATUSES } from '@/types';
 
@@ -18,21 +18,17 @@ export async function GET(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardTeamRouteRequest({
+        request,
+        params,
+        authorize: ({ userId, teamId }) => isTeamMember(userId, teamId),
+    });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const { id } = await params;
-        if (!await isTeamMember(userId, id)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
+        const { userId, teamId: id } = guard;
 
         const team = await prisma.team.findUnique({
             where: { id },
@@ -75,21 +71,17 @@ export async function PATCH(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardTeamRouteRequest({
+        request,
+        params,
+        authorize: ({ userId, teamId }) => isTeamOwner(userId, teamId),
+    });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const { id } = await params;
-        if (!await isTeamOwner(userId, id)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
+        const { teamId: id } = guard;
 
         const body = await request.json() as { name?: string };
         const name = typeof body.name === 'string' ? body.name.trim() : '';
@@ -119,21 +111,17 @@ export async function DELETE(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardTeamRouteRequest({
+        request,
+        params,
+        authorize: ({ userId, teamId }) => canDeleteTeam(userId, teamId),
+    });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const { id } = await params;
-        if (!await canDeleteTeam(userId, id)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
+        const { teamId: id } = guard;
 
         const activeRun = await prisma.testRun.findFirst({
             where: {

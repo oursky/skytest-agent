@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
 import { invalidateTeamAvailabilityCache } from '@/lib/runners/availability-service';
-import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { getTeamAccess } from '@/lib/security/permissions';
+import { guardTeamRouteRequest } from '@/lib/security/team-route-access';
 
 const logger = createLogger('api:teams:runners:runner');
 
@@ -11,22 +11,20 @@ export async function DELETE(
     request: Request,
     { params }: { params: Promise<{ id: string; runnerId: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardTeamRouteRequest({
+        request,
+        params,
+        authorize: async ({ userId, teamId }) => {
+            const access = await getTeamAccess(userId, teamId);
+            return access.isMember;
+        },
+    });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const { id: teamId, runnerId } = await params;
-        const access = await getTeamAccess(userId, teamId);
-        if (!access.isMember) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
+        const { teamId, params: { runnerId } } = guard;
 
         const deleted = await prisma.runner.deleteMany({
             where: {

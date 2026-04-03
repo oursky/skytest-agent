@@ -60,6 +60,7 @@ function hasStandardGuard(source) {
         /\bverifyAuth\(/.test(source)
         || /\bguardAuthenticatedUser\(/.test(source)
         || /\bguardProjectRouteRequest\(/.test(source)
+        || /\bguardTeamRouteRequest\(/.test(source)
     );
 }
 

@@ -24,6 +24,8 @@ Plan: `plans/2026-04-03-architecture-sustainability-review-plan.md`
   - direct `@skytest/runner-protocol/src/*` imports removed
   - protocol boundary recurrence gate is enforced in `npm run verify`
   - API dedup expanded from project-config pilot to additional project test-case/config route groups using `guardProjectRouteRequest`
+  - API dedup expanded beyond project routes with `guardTeamRouteRequest` across 10 `teams/[id]/**` route files
+  - auth-route coverage gate recognizes `guardTeamRouteRequest` as a standardized route guard
 
 ### Phase 2b
 - status: complete

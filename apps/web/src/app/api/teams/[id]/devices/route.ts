@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createLogger } from '@/lib/core/logger';
 import { getTeamDevicesAvailability } from '@/lib/runners/availability-service';
-import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { isTeamMember } from '@/lib/security/permissions';
+import { guardTeamRouteRequest } from '@/lib/security/team-route-access';
 
 const logger = createLogger('api:teams:devices');
 
@@ -10,21 +10,17 @@ export async function GET(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardTeamRouteRequest({
+        request,
+        params,
+        authorize: ({ userId, teamId }) => isTeamMember(userId, teamId),
+    });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const { id: teamId } = await params;
-        if (!await isTeamMember(userId, teamId)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
+        const { teamId } = guard;
 
         const availability = await getTeamDevicesAvailability(teamId);
         return NextResponse.json(availability);
