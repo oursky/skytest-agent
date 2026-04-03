@@ -66,6 +66,7 @@ Plan: `plans/2026-04-03-architecture-sustainability-review-plan.md`
   - runner protocol boundary gate active (`protocol:check-boundary`)
   - auth deny-by-default gate active (`auth:check-routes`)
   - additional runner contract centralization gate added (`quality:check-runner-contracts`)
+  - SSE load-gate implementation added (`apps/web/scripts/load-gate/gate-sse-events.ts`) with smoke/standard/stress npm commands
   - maintainer docs refreshed in `docs/maintainers/coding-agent-maintenance-guide.md`
 
 ## Final Status

@@ -1,7 +1,7 @@
 # SSE Load Gate Plan
 
 Date: 2026-04-03  
-Phase: 0 draft  
+Phase: implemented  
 Target endpoint: `/api/test-runs/[id]/events`
 
 ## 1. Objective
@@ -29,7 +29,7 @@ Out of scope (Phase 0):
 
 ## 3. Proposed Script Scope
 
-Proposed new script:
+Implemented script:
 - `apps/web/scripts/load-gate/gate-sse-events.ts`
 
 Responsibilities:
@@ -102,10 +102,16 @@ Any threshold failure is gate failure.
 
 ## 7. CI Integration Plan
 
-1. Add `npm run load-gate:sse` command once script is implemented.
+1. `npm run load-gate:sse` is available.
 2. Run `smoke` profile on all PRs touching SSE/event paths.
 3. Run `standard` profile on protected branch merge queue.
 4. Run `stress` profile nightly.
+
+Available commands:
+- `npm run --workspace @skytest/web load-gate:sse`
+- `npm run --workspace @skytest/web load-gate:sse:smoke`
+- `npm run --workspace @skytest/web load-gate:sse:standard`
+- `npm run --workspace @skytest/web load-gate:sse:stress`
 
 ## 8. Dependencies and Preconditions
 
@@ -113,9 +119,8 @@ Any threshold failure is gate failure.
 - Deterministic seeded runs with event stream activity.
 - Stable auth token mode for SSE clients (`verifyAuth` or stream token path).
 
-## 9. Follow-up Implementation Tasks
+## 9. Follow-up Tasks
 
-1. Implement `gate-sse-events.ts` script under `apps/web/scripts/load-gate/`.
-2. Add npm script entries for smoke/standard profiles.
-3. Add report parser summary in CI logs.
-4. Add baseline snapshots for pre/post comparisons in SSE-impacting PRs.
+1. Add report parser summary in CI logs.
+2. Add baseline snapshots for pre/post comparisons in SSE-impacting PRs.
+3. Wire smoke/standard/stress profiles into CI lanes according to branch policy.

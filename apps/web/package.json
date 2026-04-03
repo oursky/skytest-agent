@@ -26,6 +26,10 @@
     "browser:worker": "tsx src/workers/browser-runner.ts",
     "perf:seed:runner-claim": "tsx scripts/load-gate/seed-runner-claim.ts",
     "perf:gate:browser-runs": "tsx scripts/load-gate/gate-browser-runs.ts",
+    "load-gate:sse": "tsx scripts/load-gate/gate-sse-events.ts",
+    "load-gate:sse:smoke": "LOAD_GATE_SSE_PROFILE=smoke npm run load-gate:sse",
+    "load-gate:sse:standard": "LOAD_GATE_SSE_PROFILE=standard npm run load-gate:sse",
+    "load-gate:sse:stress": "LOAD_GATE_SSE_PROFILE=stress npm run load-gate:sse",
     "smoke:storage": "tsx scripts/smoke/storage-s3.ts"
   },
   "dependencies": {
