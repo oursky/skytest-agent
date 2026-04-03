@@ -217,6 +217,8 @@ export const ZH_HANT_MESSAGES: Messages = {
   "team.runners.troubleshooting.referenceTitle": "CLI 參考",
   "team.runners.troubleshooting.listRunners": "列出 runner",
   "team.runners.troubleshooting.listRunnersDesc": "查看所有已配對的 runner 及其目前狀態。",
+  "team.runners.troubleshooting.syncRunners": "同步 runner",
+  "team.runners.troubleshooting.syncRunnersDesc": "將本地 runner 與伺服器狀態對齊，並移除過期的本地項目。",
   "team.runners.troubleshooting.pairRunner": "配對新 runner",
   "team.runners.troubleshooting.pairRunnerDesc": "將 runner 連結至此團隊。請先從上方「新增 Runner」按鈕取得一次性 token。",
   "team.runners.troubleshooting.offlineTitle": "離線 Runner",

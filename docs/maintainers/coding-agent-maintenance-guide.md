@@ -114,6 +114,7 @@ Do not duplicate those workflows in new scripts or stale runbooks.
 - auth-route deny-by-default coverage (`auth:check-routes`)
 - runner-protocol import boundary check (`protocol:check-boundary`)
 - hotspot LOC threshold + ADR exceptions (`quality:check-hotspots`)
+- config/i18n modularization + locale consistency guardrails (`quality:check-config-i18n`)
 - runner contract centralization check (`quality:check-runner-contracts`)
 - dependency audit allowlist policy (`audit`)
 

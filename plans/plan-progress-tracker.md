@@ -78,6 +78,10 @@ Plan: `plans/2026-04-03-architecture-sustainability-review-plan.md`
   - hotspot LOC gate active with ADR exception registry (`plans/adr-loc-exceptions.json`)
   - runner protocol boundary gate active (`protocol:check-boundary`)
   - auth deny-by-default gate active (`auth:check-routes`)
+  - config/i18n guardrail gate active (`quality:check-config-i18n`) for:
+    - `src/config/app.ts` modularization threshold
+    - locale file size thresholds
+    - locale key consistency + unused-key regression ceiling
   - additional runner contract centralization gate added (`quality:check-runner-contracts`)
   - runner event ingestion load-gate script added (`apps/web/scripts/load-gate/runner-events.k6.js`)
   - SSE load-gate implementation added (`apps/web/scripts/load-gate/gate-sse-events.ts`) with smoke/standard/stress npm commands
