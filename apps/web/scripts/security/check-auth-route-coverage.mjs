@@ -59,6 +59,7 @@ function hasStandardGuard(source) {
     return (
         /\bverifyAuth\(/.test(source)
         || /\bguardAuthenticatedUser\(/.test(source)
+        || /\bguardAuthenticatedOrCreateUser\(/.test(source)
         || /\bguardProjectRouteRequest\(/.test(source)
         || /\bguardTeamRouteRequest\(/.test(source)
         || /\bguardTestCaseRouteRequest\(/.test(source)

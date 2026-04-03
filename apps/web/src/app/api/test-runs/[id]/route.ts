@@ -8,6 +8,7 @@ import { parseTestResultMetadata } from '@/lib/runtime/test-result-metadata';
 import { loadMaskedVariableValuesForTestCase } from '@/lib/runtime/masked-variables';
 import { createExactValueMasker, maskEventForViewer, maskNullableText } from '@/lib/runtime/log-masking';
 import { guardTestRunRouteRequest } from '@/lib/security/test-run-route-access';
+import { apiError } from '@/lib/security/api-route-standards';
 
 const logger = createLogger('api:test-runs:id');
 
@@ -129,7 +130,11 @@ export async function GET(
         });
 
         if (!testRun || testRun.deletedAt) {
-            return NextResponse.json({ error: 'Test run not found' }, { status: 404 });
+            return apiError({
+                status: 404,
+                code: 'NOT_FOUND',
+                error: 'Test run not found',
+            });
         }
 
         const maskedVariableValues = await loadMaskedVariableValuesForTestCase(
@@ -183,7 +188,11 @@ export async function GET(
         });
     } catch (error) {
         logger.error('Failed to fetch test run', error);
-        return NextResponse.json({ error: 'Failed to fetch test run' }, { status: 500 });
+        return apiError({
+            status: 500,
+            code: 'INTERNAL_ERROR',
+            error: 'Failed to fetch test run',
+        });
     }
 }
 
@@ -209,11 +218,19 @@ export async function DELETE(
         });
 
         if (!testRun || testRun.deletedAt) {
-            return NextResponse.json({ error: 'Test run not found' }, { status: 404 });
+            return apiError({
+                status: 404,
+                code: 'NOT_FOUND',
+                error: 'Test run not found',
+            });
         }
 
         if (isRunActiveStatus(testRun.status)) {
-            return NextResponse.json({ error: 'Cannot delete an active test run' }, { status: 409 });
+            return apiError({
+                status: 409,
+                code: 'CONFLICT',
+                error: 'Cannot delete an active test run',
+            });
         }
 
         await prisma.testRun.update({
@@ -226,6 +243,10 @@ export async function DELETE(
         return NextResponse.json({ success: true });
     } catch (error) {
         logger.error('Failed to delete test run', error);
-        return NextResponse.json({ error: 'Failed to delete test run' }, { status: 500 });
+        return apiError({
+            status: 500,
+            code: 'INTERNAL_ERROR',
+            error: 'Failed to delete test run',
+        });
     }
 }

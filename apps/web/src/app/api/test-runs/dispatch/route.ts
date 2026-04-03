@@ -21,6 +21,7 @@ import {
 } from '@/lib/runners/constants';
 import { TEST_STATUS, type BrowserConfig, type ResolvedConfig, type TargetConfig, type TestStep } from '@/types';
 import { guardTestCaseRouteRequest } from '@/lib/security/test-case-route-access';
+import { apiError } from '@/lib/security/api-route-standards';
 
 const logger = createLogger('api:test-runs-dispatch');
 
@@ -102,10 +103,11 @@ export async function POST(request: Request) {
     if (contentLengthHeader) {
         const contentLength = Number.parseInt(contentLengthHeader, 10);
         if (Number.isFinite(contentLength) && contentLength > appConfig.api.maxRunRequestBodyBytes) {
-            return NextResponse.json(
-                { error: 'Request body too large' },
-                { status: 413 }
-            );
+            return apiError({
+                status: 413,
+                code: 'VALIDATION_ERROR',
+                error: 'Request body too large',
+            });
         }
     }
 
@@ -117,25 +119,28 @@ export async function POST(request: Request) {
     const hasPrompt = !!prompt;
 
     if (!hasBrowserConfig && !url) {
-        return NextResponse.json(
-            { error: 'Valid configuration (URL or BrowserConfig) is required' },
-            { status: 400 }
-        );
+        return apiError({
+            status: 400,
+            code: 'VALIDATION_ERROR',
+            error: 'Valid configuration (URL or BrowserConfig) is required',
+        });
     }
 
     if (!hasSteps && !hasPrompt) {
-        return NextResponse.json(
-            { error: 'Instructions (Prompt or Steps) are required' },
-            { status: 400 }
-        );
+        return apiError({
+            status: 400,
+            code: 'VALIDATION_ERROR',
+            error: 'Instructions (Prompt or Steps) are required',
+        });
     }
 
     try {
         if (!testCaseId) {
-            return NextResponse.json(
-                { error: 'TestCase ID is required for background execution' },
-                { status: 400 }
-            );
+            return apiError({
+                status: 400,
+                code: 'VALIDATION_ERROR',
+                error: 'TestCase ID is required for background execution',
+            });
         }
 
         const guard = await guardTestCaseRouteRequest({
@@ -168,7 +173,11 @@ export async function POST(request: Request) {
         });
 
         if (!testCase) {
-            return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
+            return apiError({
+                status: 404,
+                code: 'NOT_FOUND',
+                error: 'Test case not found',
+            });
         }
 
         const requiresResolvedVariables = hasTemplatedConfigUrls({ url, browserConfig });
@@ -189,22 +198,28 @@ export async function POST(request: Request) {
 
         const urlValidationError = validateConfigUrls({ url, browserConfig }, resolvedVariables);
         if (urlValidationError) {
-            return NextResponse.json(
-                { error: urlValidationError },
-                { status: 400 }
-            );
+            return apiError({
+                status: 400,
+                code: 'VALIDATION_ERROR',
+                error: urlValidationError,
+            });
         }
 
         const androidValidationError = await validateAndroidTargets(browserConfig);
         if (androidValidationError) {
-            return NextResponse.json({ error: androidValidationError }, { status: 400 });
+            return apiError({
+                status: 400,
+                code: 'VALIDATION_ERROR',
+                error: androidValidationError,
+            });
         }
 
         if (!testCase.project.team.openRouterKeyEncrypted) {
-            return NextResponse.json(
-                { error: 'Please configure this team OpenRouter API key' },
-                { status: 400 }
-            );
+            return apiError({
+                status: 400,
+                code: 'VALIDATION_ERROR',
+                error: 'Please configure this team OpenRouter API key',
+            });
         }
 
         const files = await prisma.testCaseFile.findMany({
@@ -221,17 +236,19 @@ export async function POST(request: Request) {
             : '';
 
         if (!requestHasAndroidTargets && requestedDeviceIdInput) {
-            return NextResponse.json(
-                { error: 'requestedDeviceId requires Android targets' },
-                { status: 400 }
-            );
+            return apiError({
+                status: 400,
+                code: 'VALIDATION_ERROR',
+                error: 'requestedDeviceId requires Android targets',
+            });
         }
 
         if (!requestHasAndroidTargets && requestedRunnerIdInput) {
-            return NextResponse.json(
-                { error: 'requestedRunnerId requires Android targets' },
-                { status: 400 }
-            );
+            return apiError({
+                status: 400,
+                code: 'VALIDATION_ERROR',
+                error: 'requestedRunnerId requires Android targets',
+            });
         }
 
         const inferredRequestedDeviceId = extractRequestedDeviceId(browserConfig);
@@ -246,10 +263,11 @@ export async function POST(request: Request) {
             : null;
 
         if (requestHasAndroidTargets && !requestedDeviceId) {
-            return NextResponse.json(
-                { error: 'Android runs require a single requestedDeviceId. Align Android target selectors or provide requestedDeviceId override.' },
-                { status: 400 }
-            );
+            return apiError({
+                status: 400,
+                code: 'VALIDATION_ERROR',
+                error: 'Android runs require a single requestedDeviceId. Align Android target selectors or provide requestedDeviceId override.',
+            });
         }
 
         if (
@@ -257,10 +275,11 @@ export async function POST(request: Request) {
             && requestedDeviceIdInput
             && !androidRequestedDeviceIds.has(requestedDeviceIdInput)
         ) {
-            return NextResponse.json(
-                { error: 'requestedDeviceId must match an Android target device selector' },
-                { status: 400 }
-            );
+            return apiError({
+                status: 400,
+                code: 'VALIDATION_ERROR',
+                error: 'requestedDeviceId must match an Android target device selector',
+            });
         }
 
         if (
@@ -269,20 +288,22 @@ export async function POST(request: Request) {
             && androidRequestedRunnerIds.size > 0
             && !androidRequestedRunnerIds.has(requestedRunnerIdInput)
         ) {
-            return NextResponse.json(
-                { error: 'requestedRunnerId must match an Android target runner scope' },
-                { status: 400 }
-            );
+            return apiError({
+                status: 400,
+                code: 'VALIDATION_ERROR',
+                error: 'requestedRunnerId must match an Android target runner scope',
+            });
         }
         if (
             requestHasAndroidTargets
             && !requestedRunnerIdInput
             && androidRequestedRunnerIds.size > 1
         ) {
-            return NextResponse.json(
-                { error: 'Android targets specify multiple runner scopes; provide requestedRunnerId override or align target runnerScope values' },
-                { status: 400 }
-            );
+            return apiError({
+                status: 400,
+                code: 'VALIDATION_ERROR',
+                error: 'Android targets specify multiple runner scopes; provide requestedRunnerId override or align target runnerScope values',
+            });
         }
 
         if (requestHasAndroidTargets && requestedDeviceId) {
@@ -299,10 +320,11 @@ export async function POST(request: Request) {
                 && availability.runnerConnected;
 
             if (!selectedDevice || (!selectedDevice.isAvailable && !emulatorProfileClaimable)) {
-                return NextResponse.json(
-                    { error: 'Selected device is no longer available. Check Team Settings > Runners and choose an available device.' },
-                    { status: 409 }
-                );
+                return apiError({
+                    status: 409,
+                    code: 'CONFLICT',
+                    error: 'Selected device is no longer available. Check Team Settings > Runners and choose an available device.',
+                });
             }
         }
 
@@ -359,9 +381,10 @@ export async function POST(request: Request) {
 
     } catch (error) {
         logger.error('Failed to submit test job', error);
-        return NextResponse.json(
-            { error: 'Failed to submit test job' },
-            { status: 500 }
-        );
+        return apiError({
+            status: 500,
+            code: 'INTERNAL_ERROR',
+            error: 'Failed to submit test job',
+        });
     }
 }

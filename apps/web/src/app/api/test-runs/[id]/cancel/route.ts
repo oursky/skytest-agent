@@ -4,6 +4,7 @@ import { createLogger } from '@/lib/core/logger';
 import { publishRunUpdate } from '@/lib/runners/event-bus';
 import { RUN_ACTIVE_STATUSES, TEST_STATUS, isRunActiveStatus } from '@/types';
 import { guardTestRunRouteRequest } from '@/lib/security/test-run-route-access';
+import { apiError } from '@/lib/security/api-route-standards';
 
 const logger = createLogger('api:test-runs:cancel');
 
@@ -32,7 +33,11 @@ export async function POST(
         });
 
         if (!testRun || testRun.deletedAt) {
-            return NextResponse.json({ error: 'Test run not found' }, { status: 404 });
+            return apiError({
+                status: 404,
+                code: 'NOT_FOUND',
+                error: 'Test run not found',
+            });
         }
 
         let finalStatus = testRun.status;
@@ -90,6 +95,10 @@ export async function POST(
         return NextResponse.json({ success: true, id: testRun.id, status: finalStatus });
     } catch (error) {
         logger.error('Failed to cancel test run', error);
-        return NextResponse.json({ error: 'Failed to cancel test run' }, { status: 500 });
+        return apiError({
+            status: 500,
+            code: 'INTERNAL_ERROR',
+            error: 'Failed to cancel test run',
+        });
     }
 }

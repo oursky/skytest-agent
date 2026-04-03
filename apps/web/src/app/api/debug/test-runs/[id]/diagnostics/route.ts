@@ -11,6 +11,7 @@ import {
 } from '@/lib/runners/android-resource-lock';
 import { TEST_STATUS } from '@/types';
 import { guardTestRunRouteRequest } from '@/lib/security/test-run-route-access';
+import { apiError } from '@/lib/security/api-route-standards';
 
 const logger = createLogger('api:debug:test-run-diagnostics');
 
@@ -87,7 +88,11 @@ export async function GET(
         });
 
         if (!run) {
-            return NextResponse.json({ error: 'Test run not found' }, { status: 404 });
+            return apiError({
+                status: 404,
+                code: 'NOT_FOUND',
+                error: 'Test run not found',
+            });
         }
 
         const teamId = run.testCase.project.teamId;
@@ -337,6 +342,10 @@ export async function GET(
         });
     } catch (error) {
         logger.error('Failed to load test run diagnostics', error);
-        return NextResponse.json({ error: 'Failed to load test run diagnostics' }, { status: 500 });
+        return apiError({
+            status: 500,
+            code: 'INTERNAL_ERROR',
+            error: 'Failed to load test run diagnostics',
+        });
     }
 }
