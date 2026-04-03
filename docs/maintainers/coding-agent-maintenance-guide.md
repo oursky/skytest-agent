@@ -102,6 +102,7 @@ The top-level `Makefile` is the source of truth for multi-step local workflows:
 - `make runner-reset` clears local runner state
 - `make verify` runs the repo verification checks
 - `npm run --workspace @skytest/web load-gate:sse:smoke` runs the SSE smoke load gate (`/api/test-runs/[id]/events`)
+- `npm run --workspace @skytest/web perf:gate:runner-events` runs runner event-ingestion endpoint load checks (k6)
 
 Do not duplicate those workflows in new scripts or stale runbooks.
 

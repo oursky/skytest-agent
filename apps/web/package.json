@@ -26,6 +26,7 @@
     "browser:worker": "tsx src/workers/browser-runner.ts",
     "perf:seed:runner-claim": "tsx scripts/load-gate/seed-runner-claim.ts",
     "perf:gate:browser-runs": "tsx scripts/load-gate/gate-browser-runs.ts",
+    "perf:gate:runner-events": "k6 run scripts/load-gate/runner-events.k6.js",
     "load-gate:sse": "tsx scripts/load-gate/gate-sse-events.ts",
     "load-gate:sse:smoke": "LOAD_GATE_SSE_PROFILE=smoke npm run load-gate:sse",
     "load-gate:sse:standard": "LOAD_GATE_SSE_PROFILE=standard npm run load-gate:sse",
