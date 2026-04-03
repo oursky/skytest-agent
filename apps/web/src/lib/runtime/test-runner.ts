@@ -1,9 +1,8 @@
 import { chromium, Page, BrowserContext, Browser, ConsoleMessage } from 'playwright';
-import { expect as playwrightExpect } from '@playwright/test';
 import { PlaywrightAgent } from '@midscene/web/playwright';
-import { TEST_STATUS, TestStep, BrowserConfig, TargetConfig, AndroidTargetConfig, AndroidAgent, AndroidDevice, TestEvent, TestResult, RunTestOptions, TestCaseFile } from '@/types';
+import { TEST_STATUS, TestStep, BrowserConfig, TargetConfig, AndroidTargetConfig, AndroidAgent, AndroidDevice, TestEvent, TestResult, RunTestOptions } from '@/types';
 import { config } from '@/config/app';
-import { ConfigurationError, TestExecutionError, PlaywrightCodeError, getErrorMessage } from '@/lib/core/errors';
+import { ConfigurationError, TestExecutionError, getErrorMessage } from '@/lib/core/errors';
 import { substituteAll } from '@/lib/test-config/substitution';
 import { createLogger as createServerLogger } from '@/lib/core/logger';
 import { buildMidsceneModelConfig } from '@/lib/runtime/midscene-env';
@@ -27,15 +26,13 @@ import {
     waitForAndroidUiReadyForAction,
     wakeAndUnlockAndroidDevice
 } from '@/lib/runtime/android-runtime-helpers';
-import { createSafePage, validatePlaywrightCode } from '@/lib/runtime/playwright-code-sandbox';
-import { splitPlaywrightCodeStatements, summarizePlaywrightCodeStatement } from '@/lib/runtime/playwright-code-trace';
+import { verifyQuotedStringsExist } from '@/lib/runtime/assertion-verifier';
+import { executePlaywrightCode, resolvePlaywrightCodeStepContext } from '@/lib/runtime/playwright-code-execution';
+import { prepareExecutionFiles, type MaterializedExecutionFiles } from '@/lib/runtime/execution-files';
 import { classifyRunFailure } from '@/lib/runtime/run-failure-classifier';
 import { extractQuotedStrings, shouldUseQuotedStringShortcut, formatAssertionFailureMessage } from '@/lib/runtime/assertion-shortcuts';
 import { collectBrowserNetworkGuardSummaries, emitBrowserNetworkGuardSummaries } from '@/lib/runtime/network-guard-summary';
-import { createTempDirectory, materializeObjectToFile, removeTempDirectory } from '@/lib/storage/object-store-utils';
 import { validateRuntimeRequestUrl } from '@/lib/security/url-security-runtime';
-import { Script, createContext } from 'node:vm';
-import path from 'node:path';
 
 export const maxDuration = config.test.maxDuration;
 
@@ -561,333 +558,6 @@ async function setupExecutionTargets(
     }
 }
 
-/**
- * Verifies that all quoted strings in an assertion instruction exist exactly on the page.
- */
-async function verifyQuotedStringsExist(
-    agent: PlaywrightAgent | AndroidAgent,
-    expectedStrings: string[],
-    log: ReturnType<typeof createLogger>,
-    browserId?: string,
-    options?: {
-        isAndroidAgent?: boolean;
-        androidSignal?: AbortSignal;
-    }
-): Promise<void> {
-    const targetLabel = getBrowserNiceName(browserId || 'main');
-
-    for (const expected of expectedStrings) {
-        const queryPrompt = `Does the exact text "${expected}" appear on the current page? Respond with ONLY "YES" or "NO".`;
-
-        log(`[${targetLabel}] Checking for exact text: "${expected}"`, 'info', browserId);
-
-        const result = options?.isAndroidAgent
-            ? await runAndroidAgentOperation(
-                () => agent.aiQuery(queryPrompt),
-                'query operation',
-                options.androidSignal
-            )
-            : await agent.aiQuery(queryPrompt);
-        const actualText = String(result).trim().toUpperCase();
-
-        if (actualText === 'NO') {
-            throw new Error(
-                `Expected to find exact text "${expected}" on the page, but it was not found.`
-            );
-        }
-
-        if (actualText !== 'YES') {
-            throw new Error(
-                `Could not confidently verify text "${expected}" due to an unclear page analysis result.`
-            );
-        }
-
-        log(`[${targetLabel}] Exact match confirmed: "${expected}"`, 'success', browserId);
-    }
-}
-
-interface PlaywrightCodeStepContext {
-    allowedFilePaths: ReadonlySet<string>;
-    allowedTestCaseDir?: string;
-    stepFiles: Record<string, string>;
-}
-
-interface MaterializedExecutionFiles {
-    allowedTestCaseDir?: string;
-    configFiles: Record<string, string>;
-    stepFilesById: Record<string, string>;
-    cleanup: () => Promise<void>;
-}
-
-async function executePlaywrightCode(
-    code: string,
-    page: Page,
-    stepIndex: number,
-    log: ReturnType<typeof createLogger>,
-    onEvent: EventHandler,
-    stepContext?: PlaywrightCodeStepContext,
-    browserId?: string,
-    resolvedVariables?: Record<string, string>,
-    resolvedConfigFiles?: Record<string, string>
-): Promise<void> {
-    const timeoutMs = config.test.playwrightCode.statementTimeoutMs;
-    const syncTimeoutMs = config.test.playwrightCode.syncTimeoutMs;
-    const expectTimeoutMs = config.test.playwrightCode.expectTimeoutMs;
-    const configuredExpect = playwrightExpect.configure({ timeout: expectTimeoutMs });
-    const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
-    const targetLabel = getBrowserNiceName(browserId || 'main');
-    const trimmedCode = code.trim();
-    if (!trimmedCode) {
-        log(`[Step ${stepIndex + 1}] No executable statements found`, 'info', browserId);
-        return;
-    }
-
-    try {
-        new AsyncFunction('page', code);
-    } catch (syntaxError) {
-        throw new PlaywrightCodeError(
-            `Syntax error in code at step ${stepIndex + 1}: ${getErrorMessage(syntaxError)}`,
-            stepIndex,
-            code,
-            syntaxError instanceof Error ? syntaxError : undefined
-        );
-    }
-
-    validatePlaywrightCode(code, stepIndex);
-    const statements = splitPlaywrightCodeStatements(trimmedCode);
-    if (statements.length === 0) {
-        log(`[Step ${stepIndex + 1}] No executable statements found`, 'info', browserId);
-        return;
-    }
-
-    const safePage = createSafePage(page, stepIndex, code, {
-        allowedFilePaths: stepContext?.allowedFilePaths ?? new Set<string>(),
-        allowedTestCaseDir: stepContext?.allowedTestCaseDir
-    });
-    const stepFiles = stepContext?.stepFiles ?? {};
-    const vars = resolvedVariables || {};
-    const configFiles = resolvedConfigFiles || {};
-    const testFiles = configFiles;
-
-    type TimeoutHandle = ReturnType<typeof setTimeout>;
-    type IntervalHandle = ReturnType<typeof setInterval>;
-
-    const timeouts = new Set<TimeoutHandle>();
-    const intervals = new Set<IntervalHandle>();
-
-    const setTimeoutWrapped = (...args: Parameters<typeof setTimeout>): TimeoutHandle => {
-        const handle = setTimeout(...args) as TimeoutHandle;
-        timeouts.add(handle);
-        return handle;
-    };
-
-    const clearTimeoutWrapped = (handle: TimeoutHandle): void => {
-        timeouts.delete(handle);
-        clearTimeout(handle as Parameters<typeof clearTimeout>[0]);
-    };
-
-    const setIntervalWrapped = (...args: Parameters<typeof setInterval>): IntervalHandle => {
-        const handle = setInterval(...args) as IntervalHandle;
-        intervals.add(handle);
-        return handle;
-    };
-
-    const clearIntervalWrapped = (handle: IntervalHandle): void => {
-        intervals.delete(handle);
-        clearInterval(handle as Parameters<typeof clearInterval>[0]);
-    };
-
-    const cleanupTimers = (): void => {
-        for (const handle of Array.from(intervals)) {
-            clearIntervalWrapped(handle);
-        }
-        for (const handle of Array.from(timeouts)) {
-            clearTimeoutWrapped(handle);
-        }
-    };
-
-    const context = createContext(
-        {
-            page: safePage,
-            expect: configuredExpect,
-            setTimeout: setTimeoutWrapped,
-            clearTimeout: clearTimeoutWrapped,
-            setInterval: setIntervalWrapped,
-            clearInterval: clearIntervalWrapped,
-            vars,
-            testFiles,
-            configFiles,
-            stepFiles,
-            files: stepFiles,
-        },
-        { codeGeneration: { strings: false, wasm: false } }
-    );
-
-    log(`[Step ${stepIndex + 1}] Executing Playwright code block...`, 'info', browserId);
-
-    const timeoutSeconds = Math.ceil(timeoutMs / 1000);
-
-    try {
-        for (const statement of statements) {
-            const lineLabel = statement.lineStart === statement.lineEnd
-                ? `line ${statement.lineStart}`
-                : `lines ${statement.lineStart}-${statement.lineEnd}`;
-            const statementSummary = summarizePlaywrightCodeStatement(statement.code);
-
-            log(
-                `[Step ${stepIndex + 1}] Executing Playwright ${lineLabel}: ${statementSummary}`,
-                'info',
-                browserId
-            );
-
-            let timerHandle: TimeoutHandle | null = null;
-            const timeoutPromise = new Promise<never>((_, reject) => {
-                timerHandle = setTimeoutWrapped(
-                    () => reject(new Error(`Playwright code execution timed out (${timeoutSeconds}s)`)),
-                    timeoutMs
-                );
-            });
-
-            try {
-                const script = new Script(`(async () => { ${statement.code} })()`);
-                const result = script.runInContext(context, { timeout: syncTimeoutMs }) as Promise<unknown>;
-                await Promise.race([result, timeoutPromise]);
-                await captureScreenshot(
-                    page,
-                    `[${targetLabel}] Step ${stepIndex + 1} ${lineLabel}`,
-                    onEvent,
-                    log,
-                    browserId
-                );
-            } finally {
-                if (timerHandle) {
-                    clearTimeoutWrapped(timerHandle);
-                }
-            }
-        }
-    } catch (error) {
-        const errorMessage = getErrorMessage(error);
-        log(
-            `[Step ${stepIndex + 1}] Playwright code error: ${errorMessage}`,
-            'error',
-            browserId
-        );
-        await captureScreenshot(
-            page,
-            `[${targetLabel}] Step ${stepIndex + 1} Error`,
-            onEvent,
-            log,
-            browserId
-        );
-        throw new PlaywrightCodeError(
-            `Playwright code execution failed at step ${stepIndex + 1}: ${errorMessage}`,
-            stepIndex,
-            trimmedCode,
-            error instanceof Error ? error : undefined
-        );
-    } finally {
-        cleanupTimers();
-    }
-}
-
-function resolvePlaywrightCodeStepContext(
-    step: TestStep,
-    materializedExecutionFiles: MaterializedExecutionFiles
-): PlaywrightCodeStepContext {
-    const stepFiles: Record<string, string> = {};
-
-    if (!step.files || step.files.length === 0) {
-        return {
-            stepFiles,
-            allowedFilePaths: new Set<string>(),
-            allowedTestCaseDir: materializedExecutionFiles.allowedTestCaseDir,
-        };
-    }
-
-    for (const fileId of step.files) {
-        const filePath = materializedExecutionFiles.stepFilesById[fileId];
-        if (!filePath) continue;
-        stepFiles[fileId] = filePath;
-    }
-
-    const allowedFilePaths = new Set(Object.values(stepFiles).map((filePath) => path.resolve(filePath)));
-
-    return {
-        stepFiles,
-        allowedFilePaths,
-        allowedTestCaseDir: materializedExecutionFiles.allowedTestCaseDir,
-    };
-}
-
-async function prepareExecutionFiles(
-    files: TestCaseFile[] | undefined,
-    resolvedFiles: Record<string, string> | undefined,
-    runId: string
-): Promise<MaterializedExecutionFiles> {
-    const requestedConfigFiles = resolvedFiles ?? {};
-    const requestedTestCaseFiles = files ?? [];
-
-    if (requestedTestCaseFiles.length === 0 && Object.keys(requestedConfigFiles).length === 0) {
-        return {
-            configFiles: {},
-            stepFilesById: {},
-            cleanup: async () => { },
-        };
-    }
-
-    const tempRoot = await createTempDirectory(`skytest-run-${runId}-`);
-    const testCaseDir = path.join(tempRoot, 'test-case-files');
-    const configDir = path.join(tempRoot, 'config-files');
-    const stepFilesById: Record<string, string> = {};
-    const configFiles: Record<string, string> = {};
-    const materializedByObjectKey = new Map<string, string>();
-
-    for (const file of requestedTestCaseFiles) {
-        const materializedPath = await materializeObjectToFile({
-            key: file.storedName,
-            directory: testCaseDir,
-            filename: file.filename,
-        });
-        if (!materializedPath) {
-            continue;
-        }
-
-        stepFilesById[file.id] = materializedPath;
-        materializedByObjectKey.set(file.storedName, materializedPath);
-    }
-
-    for (const [referenceName, objectKey] of Object.entries(requestedConfigFiles)) {
-        const existingPath = materializedByObjectKey.get(objectKey);
-        if (existingPath) {
-            configFiles[referenceName] = existingPath;
-            continue;
-        }
-
-        const fallbackFilename = path.basename(objectKey) || referenceName;
-        const materializedPath = await materializeObjectToFile({
-            key: objectKey,
-            directory: configDir,
-            filename: fallbackFilename,
-        });
-
-        if (!materializedPath) {
-            continue;
-        }
-
-        materializedByObjectKey.set(objectKey, materializedPath);
-        configFiles[referenceName] = materializedPath;
-    }
-
-    return {
-        allowedTestCaseDir: Object.keys(stepFilesById).length > 0 ? testCaseDir : undefined,
-        configFiles,
-        stepFilesById,
-        cleanup: async () => {
-            await removeTempDirectory(tempRoot);
-        },
-    };
-}
-
 async function executeSteps(
     steps: TestStep[],
     targets: ExecutionTargets,
@@ -936,18 +606,25 @@ async function executeSteps(
                         step.action
                     );
                 }
-                const stepContext = resolvePlaywrightCodeStepContext(step, materializedExecutionFiles);
-                await executePlaywrightCode(
-                    step.action,
+                const stepContext = resolvePlaywrightCodeStepContext(
+                    step,
+                    materializedExecutionFiles.stepFilesById,
+                    materializedExecutionFiles.allowedTestCaseDir
+                );
+                await executePlaywrightCode({
+                    code: step.action,
                     page,
-                    i,
+                    stepIndex: i,
                     log,
-                    onEvent,
+                    browserId: effectiveTargetId,
+                    targetLabel,
+                    captureScreenshot: async (label) => {
+                        await captureScreenshot(page, label, onEvent, log, effectiveTargetId);
+                    },
                     stepContext,
-                    effectiveTargetId,
                     resolvedVariables,
                     resolvedConfigFiles
-                );
+                });
             } else {
                 if (!agent) {
                     throw new TestExecutionError(
@@ -985,7 +662,12 @@ async function executeSteps(
                 if (isVerification) {
                     if (useQuotedStringShortcut) {
                         try {
-                            await verifyQuotedStringsExist(agent, quotedStrings, log, effectiveTargetId, {
+                            await verifyQuotedStringsExist({
+                                agent,
+                                expectedStrings: quotedStrings,
+                                log,
+                                targetLabel,
+                                browserId: effectiveTargetId,
                                 isAndroidAgent: isAndroid,
                                 androidSignal: signal,
                             });
@@ -1012,7 +694,12 @@ async function executeSteps(
                                         'info',
                                         effectiveTargetId
                                     );
-                                    await verifyQuotedStringsExist(agent, quotedStrings, log, effectiveTargetId, {
+                                    await verifyQuotedStringsExist({
+                                        agent,
+                                        expectedStrings: quotedStrings,
+                                        log,
+                                        targetLabel,
+                                        browserId: effectiveTargetId,
                                         isAndroidAgent: true,
                                         androidSignal: signal,
                                     });

@@ -41,6 +41,10 @@ Plan: `plans/2026-04-03-architecture-sustainability-review-plan.md`
 - notes:
   - runtime hotspot decomposition slices merged (`local-browser-runner` under 900 LOC)
   - staged Android runtime helper extraction merged from `test-runner.ts` into `apps/web/src/lib/runtime/android-runtime-helpers.ts`
+  - Playwright/runtime step execution seams extracted from `test-runner.ts` into:
+    - `apps/web/src/lib/runtime/playwright-code-execution.ts`
+    - `apps/web/src/lib/runtime/execution-files.ts`
+    - `apps/web/src/lib/runtime/assertion-verifier.ts`
   - MCP manifest compatibility snapshot gate added and passing
   - MCP server decomposition completed:
     - `apps/web/src/lib/mcp/server.ts` reduced to 584 LOC
@@ -76,4 +80,4 @@ Plan: `plans/2026-04-03-architecture-sustainability-review-plan.md`
 ## Final Status
 
 All plan phases are complete.  
-Remaining ADR LOC exception is limited to `apps/web/src/lib/runtime/test-runner.ts` (1435 LOC after staged extraction) with explicit justification and follow-up expiry task.
+Remaining ADR LOC exception is limited to `apps/web/src/lib/runtime/test-runner.ts` (1122 LOC after staged extraction) with explicit justification and follow-up expiry task.
