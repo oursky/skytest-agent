@@ -81,6 +81,7 @@ apps/web/src/
 - Playwright 1.57, Midscene.js
 
 ## Docs To Read First
+- `CLAUDE.md` - Complementary AI coding guidelines and expanded project map
 - `docs/README.md` - Documentation index and audience split
 - `infra/README.md` - Local infra topology and shared deployment dependencies
 - `docs/maintainers/coding-agent-maintenance-guide.md` - Runtime invariants and common footguns
