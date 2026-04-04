@@ -62,7 +62,7 @@ export function TeamSessionProvider({ children }: { children: React.ReactNode })
 
     const getMutationContext = useCallback(() => ({
         getAccessToken,
-        fetchLike: fetch,
+        fetchLike: (input, init) => window.fetch(input, init),
         origin: window.location.origin,
     }), [getAccessToken]);
 
