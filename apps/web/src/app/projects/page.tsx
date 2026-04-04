@@ -154,7 +154,11 @@ export default function ProjectsPage() {
     };
 
     const isPageLoading = isAuthLoading
-        || (isLoggedIn && isProjectsInitialLoading && projects.length === 0 && teams.length === 0);
+        || (isLoggedIn && isProjectsInitialLoading);
+    const showProjectsGridSkeleton = !isPageLoading
+        && isProjectsBootstrapLoading
+        && teams.length > 0
+        && projects.length === 0;
 
     if (isPageLoading) {
         return (
@@ -316,70 +320,89 @@ export default function ProjectsPage() {
                     )}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {projects.map((project) => (
-                            <div
-                                key={project.id}
-                                className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow group relative flex flex-col"
-                            >
-                                <div className="flex items-start justify-between mb-2">
-                                    <Link href={`/projects/${project.id}`} className="flex-1 min-w-0">
-                                        <h2 className="text-xl font-semibold text-gray-900 group-hover:text-primary transition-colors truncate">
-                                            {project.name}
-                                        </h2>
-                                    </Link>
-                                    <div className="flex gap-2 ml-4 flex-shrink-0">
-                                        {canManageProjects && (
-                                            <>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.preventDefault();
-                                                        setEditModal({ isOpen: true, projectId: project.id, currentName: project.name });
-                                                        setEditName(project.name);
-                                                    }}
-                                                    className="p-2 text-gray-400 hover:text-primary transition-colors"
-                                                    title={t('projects.tooltip.edit')}
-                                                    aria-label={t('projects.tooltip.edit')}
-                                                    >
-                                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                                        </svg>
-                                                </button>
-                                                {canDeleteProjects && (
+                        {showProjectsGridSkeleton
+                            ? Array.from({ length: 6 }, (_, index) => (
+                                <div
+                                    key={`project-grid-skeleton-${index}`}
+                                    className="bg-white p-6 rounded-lg shadow-sm border border-gray-200"
+                                >
+                                    <div className="flex items-start justify-between mb-3">
+                                        <div className="skeleton-block h-6 w-40" />
+                                        <div className="flex gap-2">
+                                            <div className="skeleton-block h-8 w-8" />
+                                            <div className="skeleton-block h-8 w-8" />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-3">
+                                        <div className="skeleton-block h-4 w-28" />
+                                        <div className="skeleton-block h-3 w-40" />
+                                    </div>
+                                </div>
+                            ))
+                            : projects.map((project) => (
+                                <div
+                                    key={project.id}
+                                    className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow group relative flex flex-col"
+                                >
+                                    <div className="flex items-start justify-between mb-2">
+                                        <Link href={`/projects/${project.id}`} className="flex-1 min-w-0">
+                                            <h2 className="text-xl font-semibold text-gray-900 group-hover:text-primary transition-colors truncate">
+                                                {project.name}
+                                            </h2>
+                                        </Link>
+                                        <div className="flex gap-2 ml-4 flex-shrink-0">
+                                            {canManageProjects && (
+                                                <>
                                                     <button
                                                         onClick={(e) => {
                                                             e.preventDefault();
-                                                            setDeleteModal({ isOpen: true, projectId: project.id, projectName: project.name });
+                                                            setEditModal({ isOpen: true, projectId: project.id, currentName: project.name });
+                                                            setEditName(project.name);
                                                         }}
-                                                        disabled={project.hasActiveRuns}
-                                                        className={`p-2 transition-colors ${project.hasActiveRuns
-                                                            ? "text-gray-300 cursor-not-allowed"
-                                                            : "text-gray-400 hover:text-red-600"
-                                                            }`}
-                                                        title={project.hasActiveRuns ? t('projects.tooltip.cannotDeleteRunning') : t('projects.tooltip.delete')}
-                                                        aria-label={t('projects.tooltip.delete')}
-                                                    >
-                                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                        </svg>
+                                                        className="p-2 text-gray-400 hover:text-primary transition-colors"
+                                                        title={t('projects.tooltip.edit')}
+                                                        aria-label={t('projects.tooltip.edit')}
+                                                        >
+                                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                            </svg>
                                                     </button>
-                                                )}
-                                            </>
-                                        )}
+                                                    {canDeleteProjects && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                setDeleteModal({ isOpen: true, projectId: project.id, projectName: project.name });
+                                                            }}
+                                                            disabled={project.hasActiveRuns}
+                                                            className={`p-2 transition-colors ${project.hasActiveRuns
+                                                                ? "text-gray-300 cursor-not-allowed"
+                                                                : "text-gray-400 hover:text-red-600"
+                                                                }`}
+                                                            title={project.hasActiveRuns ? t('projects.tooltip.cannotDeleteRunning') : t('projects.tooltip.delete')}
+                                                            aria-label={t('projects.tooltip.delete')}
+                                                        >
+                                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                            </svg>
+                                                        </button>
+                                                    )}
+                                                </>
+                                            )}
+                                        </div>
                                     </div>
+                                    <Link href={`/projects/${project.id}`} className="block flex-1">
+                                        <p className="text-sm text-gray-500">
+                                            {t('projects.testCasesCount', { count: project._count?.testCases || 0 })}
+                                        </p>
+                                        <p className="text-xs text-gray-400 mt-4">
+                                            {t('projects.lastUpdated', { time: formatDateTime(project.updatedAt) })}
+                                        </p>
+                                    </Link>
                                 </div>
-                                <Link href={`/projects/${project.id}`} className="block flex-1">
-                                    <p className="text-sm text-gray-500">
-                                        {t('projects.testCasesCount', { count: project._count?.testCases || 0 })}
-                                    </p>
-                                    <p className="text-xs text-gray-400 mt-4">
-                                        {t('projects.lastUpdated', { time: formatDateTime(project.updatedAt) })}
-                                    </p>
-                                </Link>
-                            </div>
-                        ))}
+                            ))}
                     </div>
 
-                    {projects.length === 0 && !isCreating && teams.length > 0 && (
+                    {projects.length === 0 && !isCreating && teams.length > 0 && !isProjectsBootstrapLoading && (
                         <div className="text-center py-16">
                             <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
                                 <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
