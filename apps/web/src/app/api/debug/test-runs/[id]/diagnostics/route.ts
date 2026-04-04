@@ -9,9 +9,9 @@ import {
     buildHostResourceKey,
     EMULATOR_PROFILE_DEVICE_PREFIX,
 } from '@/lib/runners/android-resource-lock';
-import { verifyAuth, resolveUserId } from '@/lib/security/auth';
-import { isTestRunProjectMember } from '@/lib/security/permissions';
 import { TEST_STATUS } from '@/types';
+import { guardTestRunRouteRequest } from '@/lib/security/test-run-route-access';
+import { apiError } from '@/lib/security/api-route-standards';
 
 const logger = createLogger('api:debug:test-run-diagnostics');
 
@@ -53,18 +53,13 @@ export async function GET(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardTestRunRouteRequest({ request, params });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const { id: runId } = await params;
+        const { id: runId } = guard.params;
         const run = await prisma.testRun.findUnique({
             where: { id: runId },
             select: {
@@ -93,11 +88,11 @@ export async function GET(
         });
 
         if (!run) {
-            return NextResponse.json({ error: 'Test run not found' }, { status: 404 });
-        }
-
-        if (!await isTestRunProjectMember(userId, runId)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+            return apiError({
+                status: 404,
+                code: 'NOT_FOUND',
+                error: 'Test run not found',
+            });
         }
 
         const teamId = run.testCase.project.teamId;
@@ -347,6 +342,10 @@ export async function GET(
         });
     } catch (error) {
         logger.error('Failed to load test run diagnostics', error);
-        return NextResponse.json({ error: 'Failed to load test run diagnostics' }, { status: 500 });
+        return apiError({
+            status: 500,
+            code: 'INTERNAL_ERROR',
+            error: 'Failed to load test run diagnostics',
+        });
     }
 }

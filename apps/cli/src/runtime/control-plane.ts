@@ -1,4 +1,5 @@
 import {
+    RUNNER_DEFAULT_CAPABILITIES,
     RUNNER_PROTOCOL_CURRENT_VERSION,
     pairingExchangeRequestSchema,
     pairingExchangeResponseSchema,
@@ -71,7 +72,7 @@ export async function exchangePairingToken(
         displayId: options.displayId,
         label: options.label,
         kind: 'MACOS_AGENT',
-        capabilities: ['ANDROID'],
+        capabilities: [...RUNNER_DEFAULT_CAPABILITIES],
     });
 
     const response = await fetch(`${normalizeBaseUrl(options.controlPlaneBaseUrl)}/api/runners/v1/pairing/exchange`, {

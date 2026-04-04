@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/security/api-route-standards';
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { validateConfigName, validateConfigType, normalizeConfigName } from '@/lib/test-config/validation';
 import { createLogger } from '@/lib/core/logger';
 import { isGroupableConfigType, normalizeConfigGroup } from '@/lib/test-config/sort';
 import type { ConfigType } from '@/types';
 import { deleteObjectIfExists } from '@/lib/storage/object-store-utils';
-import { isProjectMember } from '@/lib/security/permissions';
+import { guardProjectRouteRequest } from '@/lib/security/project-route-access';
 
 const logger = createLogger('api:projects:config');
 
@@ -14,17 +14,13 @@ export async function PUT(
     request: Request,
     { params }: { params: Promise<{ id: string; configId: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardProjectRouteRequest({ request, params });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const { id, configId } = await params;
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { id, configId } = guard.params;
 
         const existing = await prisma.projectConfig.findUnique({
             where: { id: configId },
@@ -40,11 +36,7 @@ export async function PUT(
         });
 
         if (!existing || existing.projectId !== id) {
-            return NextResponse.json({ error: 'Config not found' }, { status: 404 });
-        }
-
-        if (!await isProjectMember(userId, id)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+            return apiError({ status: 404, code: 'NOT_FOUND', error: 'Config not found' });
         }
 
         const body = await request.json() as {
@@ -59,12 +51,12 @@ export async function PUT(
         if (rawName !== undefined) {
             const nameError = validateConfigName(rawName);
             if (nameError) {
-                return NextResponse.json({ error: nameError }, { status: 400 });
+                return apiError({ status: 400, code: 'VALIDATION_ERROR', error: nameError });
             }
         }
 
         if (type !== undefined && !validateConfigType(type)) {
-            return NextResponse.json({ error: 'Invalid config type' }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Invalid config type' });
         }
 
         const name = rawName !== undefined ? normalizeConfigName(rawName) : undefined;
@@ -93,10 +85,10 @@ export async function PUT(
         return NextResponse.json(config);
     } catch (error: unknown) {
         if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'P2002') {
-            return NextResponse.json({ error: 'A config with this name already exists' }, { status: 409 });
+            return apiError({ status: 409, code: 'CONFLICT', error: 'A config with this name already exists' });
         }
         logger.error('Failed to update project config', error);
-        return NextResponse.json({ error: 'Failed to update config' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to update config' });
     }
 }
 
@@ -104,17 +96,13 @@ export async function DELETE(
     request: Request,
     { params }: { params: Promise<{ id: string; configId: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardProjectRouteRequest({ request, params });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const { id, configId } = await params;
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { id, configId } = guard.params;
 
         const existing = await prisma.projectConfig.findUnique({
             where: { id: configId },
@@ -127,11 +115,7 @@ export async function DELETE(
         });
 
         if (!existing || existing.projectId !== id) {
-            return NextResponse.json({ error: 'Config not found' }, { status: 404 });
-        }
-
-        if (!await isProjectMember(userId, id)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+            return apiError({ status: 404, code: 'NOT_FOUND', error: 'Config not found' });
         }
 
         if (existing.type === 'FILE' && existing.value) {
@@ -149,6 +133,6 @@ export async function DELETE(
         return NextResponse.json({ success: true });
     } catch (error) {
         logger.error('Failed to delete project config', error);
-        return NextResponse.json({ error: 'Failed to delete config' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to delete config' });
     }
 }

@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/security/api-route-standards';
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { GROUPABLE_CONFIG_TYPES, normalizeConfigGroup } from '@/lib/test-config/sort';
 import { createLogger } from '@/lib/core/logger';
-import { isProjectMember } from '@/lib/security/permissions';
+import { guardTestCaseRouteRequest } from '@/lib/security/test-case-route-access';
 
 const logger = createLogger('api:test-cases:config-groups');
 
@@ -11,35 +11,18 @@ export async function DELETE(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardTestCaseRouteRequest({ request, params });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const { id } = await params;
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { testCaseId: id } = guard;
         const body = await request.json().catch(() => ({} as { group?: string | null }));
         const normalizedGroup = normalizeConfigGroup(body.group);
 
         if (!normalizedGroup) {
-            return NextResponse.json({ error: 'Group is required' }, { status: 400 });
-        }
-
-        const testCase = await prisma.testCase.findUnique({
-            where: { id },
-            select: { id: true, projectId: true }
-        });
-
-        if (!testCase) {
-            return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
-        }
-
-        if (!await isProjectMember(userId, testCase.projectId)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Group is required' });
         }
 
         const groupableConfigs = await prisma.testCaseConfig.findMany({
@@ -72,6 +55,6 @@ export async function DELETE(
         return NextResponse.json({ success: true, updated: result.count });
     } catch (error) {
         logger.error('Failed to remove test case config group', error);
-        return NextResponse.json({ error: 'Failed to remove group' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to remove group' });
     }
 }

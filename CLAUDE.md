@@ -6,12 +6,24 @@ apps/web/src/
 ├── lib/                           # Backend domain modules + singletons
 │   ├── runtime/                   # Run lifecycle and execution
 │   │   ├── test-runner.ts         # Shared execution engine
-│   │   ├── local-browser-runner.ts# Browser runtime dispatch target
+│   │   ├── android-runtime-helpers.ts  # Android device/ADB helpers
+│   │   ├── assertion-verifier.ts       # Quoted string verification
+│   │   ├── assertion-shortcuts.ts      # Assertion pattern detection
+│   │   ├── execution-files.ts          # Temp file materialization
+│   │   ├── playwright-code-execution.ts # Playwright code step runner
+│   │   ├── network-guard-summary.ts    # Network guard log emission
+│   │   ├── local-browser-runner.ts     # Browser runtime dispatch target
+│   │   ├── local-browser-runner-parsers.ts # Snapshot/config parsers
 │   │   └── usage.ts               # API usage tracking
 │   ├── runners/                   # Runner orchestration + queueing services
 │   ├── android/                   # Android devices/emulators runtime
 │   ├── core/                      # Shared core modules (prisma/logger/errors)
 │   ├── security/                  # Authentication + security helpers
+│   │   ├── auth.ts
+│   │   ├── api-route-standards.ts      # Typed API error/success helpers
+│   │   ├── project-route-access.ts     # Project route guard
+│   │   ├── team-route-access.ts        # Team route guard
+│   │   └── test-case-route-access.ts   # Test case route guard
 │   ├── storage/                   # Object storage adapters + helpers
 │   ├── test-cases/                # Test case domain logic
 │   ├── test-config/               # Test config parsing/validation/sorting
@@ -50,7 +62,8 @@ apps/web/src/
 │
 ├── workers/                       # Long-running maintenance/dispatch loops
 │   ├── runner-maintenance.ts
-│   └── browser-runner.ts
+│   ├── browser-runner.ts
+│   └── loop-utils.ts              # Shared wake/signal/shutdown utilities
 │
 ├── types/                         # TypeScript interfaces
 │   └── index.ts                   # All type exports
@@ -63,7 +76,7 @@ apps/web/src/
 
 | Task | Start Here | Related Files |
 |------|------------|---------------|
-| Fix test execution | `apps/web/src/lib/runtime/test-runner.ts` | `apps/web/src/lib/runtime/local-browser-runner.ts`, `apps/macos-runner/runner/index.ts` |
+| Fix test execution | `apps/web/src/lib/runtime/test-runner.ts` | `apps/web/src/lib/runtime/android-runtime-helpers.ts`, `apps/web/src/lib/runtime/assertion-verifier.ts`, `apps/web/src/lib/runtime/playwright-code-execution.ts`, `apps/web/src/lib/runtime/execution-files.ts`, `apps/web/src/lib/runtime/local-browser-runner.ts`, `apps/macos-runner/runner/index.ts` |
 | Fix browser run dispatch | `apps/web/src/lib/runtime/browser-run-dispatcher.ts` | `apps/web/src/workers/browser-runner.ts`, `apps/web/src/app/api/test-runs/dispatch/route.ts` |
 | Fix run scheduling/claiming | `apps/web/src/lib/runners/claim-service.ts` | `apps/web/src/app/api/runners/v1/jobs/claim/route.ts` |
 | Fix runner event ingestion | `apps/web/src/lib/runners/event-service.ts` | `apps/web/src/app/api/runners/v1/jobs/[id]/events/route.ts` |
@@ -72,7 +85,8 @@ apps/web/src/
 | Fix project CRUD/configs | `apps/web/src/app/api/projects/` | `apps/web/src/lib/core/prisma.ts` |
 | Fix team runners/members/usage | `apps/web/src/app/api/teams/` | `apps/web/src/components/features/team-runners/`, `apps/web/src/components/features/team-members/`, `apps/web/src/components/features/team-usage/` |
 | Fix authentication | `apps/web/src/lib/security/auth.ts` | `apps/web/src/app/api/`, `apps/web/src/lib/runners/auth.ts` |
-| Fix MCP tooling | `apps/web/src/lib/mcp/` | `apps/web/src/app/api/mcp/route.ts` |
+| Fix API route auth/access guards | `apps/web/src/lib/security/team-route-access.ts` | `apps/web/src/lib/security/project-route-access.ts`, `apps/web/src/lib/security/test-case-route-access.ts`, `apps/web/src/lib/security/api-route-standards.ts` |
+| Fix MCP tooling | `apps/web/src/lib/mcp/server-registry.ts` | `apps/web/src/lib/mcp/server-tools.ts`, `apps/web/src/lib/mcp/server-schemas.ts`, `apps/web/src/lib/mcp/server-auth.ts`, `apps/web/src/lib/mcp/server-response.ts`, `apps/web/src/lib/mcp/test-case-mutation-tools.ts`, `apps/web/src/app/api/mcp/route.ts` |
 | Change DB schema | `apps/web/prisma/schema.prisma` | `apps/web/src/types/`, `apps/web/src/lib/core/prisma.ts` |
 
 ## Tech Stack

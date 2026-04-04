@@ -1,8 +1,10 @@
-import { mkdir, open, readFile, rm, writeFile } from 'node:fs/promises';
-import crypto from 'node:crypto';
+import { mkdir, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {
+    RUNNER_DEFAULT_CAPABILITIES,
+    RUNNER_DEFAULT_TRANSPORT,
+    RUNNER_MINIMUM_VERSION,
     RUNNER_PROTOCOL_CURRENT_VERSION,
     claimJobResponseSchema,
     completeRunRequestSchema,
@@ -22,10 +24,10 @@ import {
     registerRunnerResponseSchema,
     uploadArtifactRequestSchema,
     uploadArtifactResponseSchema,
+    resolveHostFingerprint,
     type RunnerEventInput,
     type RunnerTransportMetadata,
 } from '@skytest/runner-protocol';
-import { resolveHostFingerprint } from '@skytest/runner-protocol/src/host-fingerprint';
 import * as loggerModule from '../../web/src/lib/core/logger';
 import * as testRunnerModule from '../../web/src/lib/runtime/test-runner';
 import * as deviceDisplayModule from '../../web/src/lib/android/device-display';
@@ -34,6 +36,8 @@ import * as eventsModule from '../../web/src/types/events';
 import type { ConnectedAndroidDeviceInfo } from '../../web/src/lib/android/device-display';
 import type { BrowserConfig, TargetConfig, TestCaseFile, TestEvent, TestStep } from '../../web/src/types';
 import { loadStoredRunnerCredential, saveRunnerCredential, type StoredRunnerCredential } from './credential-store';
+import { acquireRunnerProcessLock } from './process-lock';
+import { buildRunnerDisplayId, sleep } from './runtime-utils';
 
 type CreateLoggerFn = typeof import('../../web/src/lib/core/logger').createLogger;
 type RunTestFn = typeof import('../../web/src/lib/runtime/test-runner').runTest;
@@ -99,27 +103,20 @@ const logger: RunnerLogger = quietMode
         error: (message: string, meta?: unknown) => baseLogger.error(message, meta),
     }
     : baseLogger;
-const runnerVersion = process.env.RUNNER_VERSION ?? '0.1.0';
+const runnerVersion = process.env.RUNNER_VERSION ?? RUNNER_MINIMUM_VERSION;
 const controlPlaneBaseUrl = process.env.RUNNER_CONTROL_PLANE_URL ?? 'http://127.0.0.1:3000';
 const pairingToken = process.env.RUNNER_PAIRING_TOKEN?.trim() || null;
 const envRunnerToken = process.env.RUNNER_TOKEN?.trim() || null;
 const runnerLabel = process.env.RUNNER_LABEL ?? 'macOS Runner';
 const runnerDisplayId = (process.env.RUNNER_DISPLAY_ID?.trim() || '').toLowerCase();
-const capabilities = ['ANDROID'] as const;
+const capabilities = [...RUNNER_DEFAULT_CAPABILITIES];
 const EMULATOR_PROFILE_DEVICE_PREFIX = 'emulator-profile:';
 const runnerStateRoot = process.env.SKYTEST_RUNNER_STATE_DIR?.trim() || path.join(os.homedir(), '.skytest-agent');
 const RUNNER_LOCK_PATH = path.join(runnerStateRoot, 'runner.lock');
 const RUNNER_CREDENTIAL_REVOKED_PATH = path.join(runnerStateRoot, 'credential-revoked.json');
 
-const DEFAULT_TRANSPORT: RunnerTransportMetadata = {
-    heartbeatIntervalSeconds: 45,
-    claimLongPollTimeoutSeconds: 30,
-    deviceSyncIntervalSeconds: 45,
-};
+const DEFAULT_TRANSPORT: RunnerTransportMetadata = RUNNER_DEFAULT_TRANSPORT;
 
-function buildRunnerDisplayId(seed: string): string {
-    return crypto.createHash('sha256').update(seed).digest('hex').slice(0, 6);
-}
 const hostFingerprint = resolveHostFingerprint(process.env.RUNNER_HOST_FINGERPRINT);
 
 const JSON_HEADERS = {
@@ -172,12 +169,6 @@ class RunnerHttpError extends Error {
     }
 }
 
-function sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => {
-        setTimeout(resolve, ms);
-    });
-}
-
 function isRunOwnershipLostError(error: unknown): boolean {
     return error instanceof RunnerHttpError && error.status === 403;
 }
@@ -218,62 +209,6 @@ function stopBackgroundLoops() {
         clearInterval(deviceSyncTimer);
         deviceSyncTimer = null;
     }
-}
-
-function isProcessAlive(pid: number): boolean {
-    if (!Number.isInteger(pid) || pid <= 0) {
-        return false;
-    }
-    try {
-        process.kill(pid, 0);
-        return true;
-    } catch {
-        return false;
-    }
-}
-
-async function tryReadLockPid(): Promise<number | null> {
-    try {
-        const raw = await readFile(RUNNER_LOCK_PATH, 'utf8');
-        const parsed = JSON.parse(raw) as { pid?: unknown };
-        return typeof parsed.pid === 'number' ? parsed.pid : null;
-    } catch {
-        return null;
-    }
-}
-
-async function acquireRunnerLock(): Promise<() => Promise<void>> {
-    await mkdir(path.dirname(RUNNER_LOCK_PATH), { recursive: true });
-
-    const writeLock = async () => {
-        const handle = await open(RUNNER_LOCK_PATH, 'wx');
-        try {
-            await handle.writeFile(JSON.stringify({
-                pid: process.pid,
-                startedAt: new Date().toISOString(),
-                controlPlaneBaseUrl,
-                runnerLabel,
-            }));
-        } finally {
-            await handle.close();
-        }
-    };
-
-    try {
-        await writeLock();
-    } catch {
-        const lockPid = await tryReadLockPid();
-        if (!lockPid || !isProcessAlive(lockPid)) {
-            await rm(RUNNER_LOCK_PATH, { force: true });
-            await writeLock();
-        } else {
-            throw new Error(`Another macOS runner process is already running (pid ${lockPid})`);
-        }
-    }
-
-    return async () => {
-        await rm(RUNNER_LOCK_PATH, { force: true });
-    };
 }
 
 function ensureRunnerToken(): string {
@@ -907,7 +842,11 @@ export function requestRunnerStop(reason?: string): void {
 
 export async function startRunnerEngine() {
     stopped = false;
-    const releaseLock = await acquireRunnerLock();
+    const releaseLock = await acquireRunnerProcessLock({
+        lockPath: RUNNER_LOCK_PATH,
+        controlPlaneBaseUrl,
+        runnerLabel,
+    });
 
     try {
         try {
@@ -936,6 +875,9 @@ export async function startRunnerEngine() {
         while (!stopped) {
             try {
                 const job = await claimJob();
+                if (stopped) {
+                    break;
+                }
                 if (!job) {
                     await sleep(150 + Math.floor(Math.random() * 300));
                     continue;

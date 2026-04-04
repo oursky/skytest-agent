@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/security/api-route-standards';
 import { prisma } from '@/lib/core/prisma';
 import { verifyAuth, resolveOrCreateUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { isTeamMember } from '@/lib/security/permissions';
+import { guardTeamRouteRequest } from '@/lib/security/team-route-access';
 import {
     parseCurrentTeamCookie,
     setCurrentTeamCookie,
@@ -34,13 +36,13 @@ async function getDefaultTeam(userId: string) {
 export async function GET(request: Request) {
     const authPayload = await verifyAuth(request);
     if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        return apiError({ status: 401, code: 'UNAUTHORIZED', error: 'Unauthorized' });
     }
 
     try {
         const userId = await resolveOrCreateUserId(authPayload);
         if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+            return apiError({ status: 401, code: 'UNAUTHORIZED', error: 'Unauthorized' });
         }
 
         const cookieValue = parseCurrentTeamCookie(request);
@@ -76,31 +78,25 @@ export async function GET(request: Request) {
         return response;
     } catch (error) {
         logger.error('Failed to resolve current team', error);
-        return NextResponse.json({ error: 'Failed to resolve current team' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to resolve current team' });
     }
 }
 
 export async function POST(request: Request) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     try {
-        const userId = await resolveOrCreateUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
         const body = await request.json() as { teamId?: string };
         const teamId = typeof body.teamId === 'string' ? body.teamId.trim() : '';
         if (!teamId) {
-            return NextResponse.json({ error: 'Team is required' }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Team is required' });
         }
 
-        const hasAccess = await isTeamMember(userId, teamId);
-        if (!hasAccess) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        const guard = await guardTeamRouteRequest({
+            request,
+            params: Promise.resolve({ id: teamId }),
+            authorize: ({ userId, teamId: memberTeamId }) => isTeamMember(userId, memberTeamId),
+        });
+        if (!guard.ok) {
+            return guard.response;
         }
 
         const team = await prisma.team.findUnique({
@@ -114,7 +110,7 @@ export async function POST(request: Request) {
         });
 
         if (!team) {
-            return NextResponse.json({ error: 'Team not found' }, { status: 404 });
+            return apiError({ status: 404, code: 'NOT_FOUND', error: 'Team not found' });
         }
 
         const response = NextResponse.json(team);
@@ -122,6 +118,6 @@ export async function POST(request: Request) {
         return response;
     } catch (error) {
         logger.error('Failed to persist current team', error);
-        return NextResponse.json({ error: 'Failed to persist current team' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to persist current team' });
     }
 }

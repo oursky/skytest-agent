@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/security/api-route-standards';
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { buildProjectConfigObjectKey, validateAndSanitizeFile } from '@/lib/security/file-security';
 import { validateConfigName, normalizeConfigName } from '@/lib/test-config/validation';
 import { createLogger } from '@/lib/core/logger';
 import { normalizeConfigGroup } from '@/lib/test-config/sort';
 import { putObjectBuffer } from '@/lib/storage/object-store-utils';
-import { isProjectMember } from '@/lib/security/permissions';
+import { guardProjectRouteRequest } from '@/lib/security/project-route-access';
 
 const logger = createLogger('api:projects:configs:upload');
 
@@ -14,30 +14,13 @@ export async function POST(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardProjectRouteRequest({ request, params });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const { id } = await params;
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const project = await prisma.project.findUnique({
-            where: { id },
-            select: { id: true }
-        });
-
-        if (!project) {
-            return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-        }
-
-        if (!await isProjectMember(userId, id)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
+        const { id } = guard.params;
 
         const formData = await request.formData();
         const file = formData.get('file') as File | null;
@@ -45,16 +28,16 @@ export async function POST(
         const group = formData.get('group') as string | null;
 
         if (!file) {
-            return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'No file provided' });
         }
 
         if (!name) {
-            return NextResponse.json({ error: 'Config name is required' }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Config name is required' });
         }
 
         const nameError = validateConfigName(name);
         if (nameError) {
-            return NextResponse.json({ error: nameError }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: nameError });
         }
 
         const normalizedName = normalizeConfigName(name);
@@ -62,7 +45,7 @@ export async function POST(
 
         const validation = validateAndSanitizeFile(file.name, file.type, file.size);
         if (!validation.valid) {
-            return NextResponse.json({ error: validation.error }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: validation.error ?? 'Invalid file' });
         }
 
         const storedName = validation.storedName!;
@@ -91,9 +74,9 @@ export async function POST(
         return NextResponse.json(config, { status: 201 });
     } catch (error: unknown) {
         if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'P2002') {
-            return NextResponse.json({ error: 'A config with this name already exists' }, { status: 409 });
+            return apiError({ status: 409, code: 'CONFLICT', error: 'A config with this name already exists' });
         }
         logger.error('Failed to upload config file', error);
-        return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to upload file' });
     }
 }

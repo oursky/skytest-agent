@@ -3,25 +3,15 @@ import { createLogger } from '@/lib/core/logger';
 import { prisma } from '@/lib/core/prisma';
 import { dispatchQueuedBrowserRuns } from '@/lib/runtime/browser-run-dispatcher';
 import { abortInactiveLocalBrowserRuns } from '@/lib/runtime/local-browser-runner';
+import { createWakeableSleeper, createWorkerShutdownController } from '@/workers/loop-utils';
 
 const logger = createLogger('worker:browser-runner');
-let shutdownRequested = false;
-let wakeLoop: (() => void) | null = null;
-
-function sleepOrWake(ms: number): Promise<void> {
-    return new Promise((resolve) => {
-        const timeout = setTimeout(() => {
-            wakeLoop = null;
-            resolve();
-        }, ms);
-
-        wakeLoop = () => {
-            clearTimeout(timeout);
-            wakeLoop = null;
-            resolve();
-        };
-    });
-}
+const sleeper = createWakeableSleeper();
+const shutdown = createWorkerShutdownController({
+    logger,
+    workerLabel: 'browser runner worker',
+    wake: sleeper.wake,
+});
 
 async function main() {
     if (!appConfig.browserWorker.enabled) {
@@ -39,7 +29,7 @@ async function main() {
     });
 
     let nextDispatchIntervalMs = appConfig.browserWorker.dispatchIntervalMs;
-    while (!shutdownRequested) {
+    while (!shutdown.isShutdownRequested()) {
         let abortedRuns = 0;
         let dispatchedRuns = 0;
 
@@ -70,26 +60,16 @@ async function main() {
             );
         }
 
-        if (!shutdownRequested) {
-            await sleepOrWake(nextDispatchIntervalMs);
+        if (!shutdown.isShutdownRequested()) {
+            await sleeper.sleepOrWake(nextDispatchIntervalMs);
         }
     }
 
     logger.info('Browser runner worker stopping');
 }
 
-function requestShutdown(signal: NodeJS.Signals): void {
-    if (shutdownRequested) {
-        return;
-    }
-
-    shutdownRequested = true;
-    logger.info(`Received ${signal}, shutting down browser runner worker`);
-    wakeLoop?.();
-}
-
-process.on('SIGTERM', () => requestShutdown('SIGTERM'));
-process.on('SIGINT', () => requestShutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown.requestShutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown.requestShutdown('SIGINT'));
 
 void main().catch((error) => {
     logger.error('Browser runner worker crashed', error);

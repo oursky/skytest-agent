@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
-import { isProjectMember } from '@/lib/security/permissions';
 import { isTestEvent } from '@/lib/runtime/test-events';
 import { objectStore } from '@/lib/storage/object-store';
 import { isRunActiveStatus, isScreenshotData, type TestEvent, type LogLevel } from '@/types';
 import { parseTestResultMetadata } from '@/lib/runtime/test-result-metadata';
 import { loadMaskedVariableValuesForTestCase } from '@/lib/runtime/masked-variables';
 import { createExactValueMasker, maskEventForViewer, maskNullableText } from '@/lib/runtime/log-masking';
+import { guardTestRunRouteRequest } from '@/lib/security/test-run-route-access';
+import { apiError } from '@/lib/security/api-route-standards';
 
 const logger = createLogger('api:test-runs:id');
 
@@ -96,17 +96,13 @@ export async function GET(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardTestRunRouteRequest({ request, params });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const { id } = await params;
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { id } = guard.params;
 
         const testRun = await prisma.testRun.findUnique({
             where: { id },
@@ -134,11 +130,11 @@ export async function GET(
         });
 
         if (!testRun || testRun.deletedAt) {
-            return NextResponse.json({ error: 'Test run not found' }, { status: 404 });
-        }
-
-        if (!await isProjectMember(userId, testRun.testCase.projectId)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+            return apiError({
+                status: 404,
+                code: 'NOT_FOUND',
+                error: 'Test run not found',
+            });
         }
 
         const maskedVariableValues = await loadMaskedVariableValuesForTestCase(
@@ -192,7 +188,11 @@ export async function GET(
         });
     } catch (error) {
         logger.error('Failed to fetch test run', error);
-        return NextResponse.json({ error: 'Failed to fetch test run' }, { status: 500 });
+        return apiError({
+            status: 500,
+            code: 'INTERNAL_ERROR',
+            error: 'Failed to fetch test run',
+        });
     }
 }
 
@@ -200,17 +200,13 @@ export async function DELETE(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardTestRunRouteRequest({ request, params });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const { id } = await params;
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { id } = guard.params;
 
         const testRun = await prisma.testRun.findUnique({
             where: { id },
@@ -222,15 +218,19 @@ export async function DELETE(
         });
 
         if (!testRun || testRun.deletedAt) {
-            return NextResponse.json({ error: 'Test run not found' }, { status: 404 });
-        }
-
-        if (!await isProjectMember(userId, testRun.testCase.projectId)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+            return apiError({
+                status: 404,
+                code: 'NOT_FOUND',
+                error: 'Test run not found',
+            });
         }
 
         if (isRunActiveStatus(testRun.status)) {
-            return NextResponse.json({ error: 'Cannot delete an active test run' }, { status: 409 });
+            return apiError({
+                status: 409,
+                code: 'CONFLICT',
+                error: 'Cannot delete an active test run',
+            });
         }
 
         await prisma.testRun.update({
@@ -243,6 +243,10 @@ export async function DELETE(
         return NextResponse.json({ success: true });
     } catch (error) {
         logger.error('Failed to delete test run', error);
-        return NextResponse.json({ error: 'Failed to delete test run' }, { status: 500 });
+        return apiError({
+            status: 500,
+            code: 'INTERNAL_ERROR',
+            error: 'Failed to delete test run',
+        });
     }
 }

@@ -10,6 +10,7 @@ import { DevRuntimeErrorLogger } from "@/components/layout/DevRuntimeErrorLogger
 import { I18nProvider } from "@/i18n";
 import { LOCALE_META, type Locale } from "@/i18n";
 import { loadLocaleMessages } from "@/i18n/load-messages";
+import { TeamSessionProvider } from "@/hooks/team/useTeamSession";
 import { getAuthgearRuntimeConfig } from "@/lib/security/authgear-config";
 
 export const metadata: Metadata = {
@@ -37,11 +38,13 @@ export default async function RootLayout({
       <body className="antialiased">
         <I18nProvider initialLocale={initialLocale} initialMessages={initialMessages}>
           <AuthProvider authgearConfig={authgearConfig}>
-            <AppVersionConsoleLogger />
-            <WebVitalsReporter />
-            <DevRuntimeErrorLogger />
-            <Header />
-            {children}
+            <TeamSessionProvider>
+              <AppVersionConsoleLogger />
+              <WebVitalsReporter />
+              <DevRuntimeErrorLogger />
+              <Header />
+              {children}
+            </TeamSessionProvider>
           </AuthProvider>
         </I18nProvider>
       </body>

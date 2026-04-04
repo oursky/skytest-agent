@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/security/api-route-standards';
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import {
     buildTestCaseConfigObjectKey,
     buildTestCaseFileObjectKey,
@@ -8,7 +8,7 @@ import {
 } from '@/lib/security/file-security';
 import { createLogger } from '@/lib/core/logger';
 import { copyObject } from '@/lib/storage/object-store-utils';
-import { isProjectMember } from '@/lib/security/permissions';
+import { guardTestCaseRouteRequest } from '@/lib/security/test-case-route-access';
 import { TEST_STATUS } from '@/types';
 
 const logger = createLogger('api:test-cases:clone');
@@ -19,15 +19,10 @@ export async function POST(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    try {
-        const { id } = await params;
-        const existingTestCase = await prisma.testCase.findUnique({
-            where: { id },
+    const guard = await guardTestCaseRouteRequest({
+        request,
+        params,
+        query: {
             include: {
                 files: {
                     orderBy: { createdAt: 'desc' }
@@ -36,20 +31,14 @@ export async function POST(
                     orderBy: { createdAt: 'asc' }
                 }
             }
-        });
-
-        if (!existingTestCase) {
-            return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
         }
+    });
+    if (!guard.ok) {
+        return guard.response;
+    }
 
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        if (!await isProjectMember(userId, existingTestCase.projectId)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
+    try {
+        const existingTestCase = guard.testCase;
 
         const clonedTestCase = await prisma.testCase.create({
             data: {
@@ -135,6 +124,6 @@ export async function POST(
         return NextResponse.json(clonedTestCase);
     } catch (error) {
         logger.error('Failed to clone test case', error);
-        return NextResponse.json({ error: 'Failed to clone test case' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to clone test case' });
     }
 }

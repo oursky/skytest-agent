@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
-import { isProjectMember } from '@/lib/security/permissions';
 import { publishRunUpdate } from '@/lib/runners/event-bus';
 import { RUN_ACTIVE_STATUSES, TEST_STATUS, isRunActiveStatus } from '@/types';
+import { guardTestRunRouteRequest } from '@/lib/security/test-run-route-access';
+import { apiError } from '@/lib/security/api-route-standards';
 
 const logger = createLogger('api:test-runs:cancel');
 
@@ -14,17 +14,14 @@ export async function POST(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardTestRunRouteRequest({ request, params });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const { id } = await params;
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { id } = guard.params;
+        const { userId } = guard;
 
         const testRun = await prisma.testRun.findUnique({
             where: { id },
@@ -36,11 +33,11 @@ export async function POST(
         });
 
         if (!testRun || testRun.deletedAt) {
-            return NextResponse.json({ error: 'Test run not found' }, { status: 404 });
-        }
-
-        if (!await isProjectMember(userId, testRun.testCase.projectId)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+            return apiError({
+                status: 404,
+                code: 'NOT_FOUND',
+                error: 'Test run not found',
+            });
         }
 
         let finalStatus = testRun.status;
@@ -98,6 +95,10 @@ export async function POST(
         return NextResponse.json({ success: true, id: testRun.id, status: finalStatus });
     } catch (error) {
         logger.error('Failed to cancel test run', error);
-        return NextResponse.json({ error: 'Failed to cancel test run' }, { status: 500 });
+        return apiError({
+            status: 500,
+            code: 'INTERNAL_ERROR',
+            error: 'Failed to cancel test run',
+        });
     }
 }

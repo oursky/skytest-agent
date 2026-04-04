@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/security/api-route-standards';
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { buildContentDisposition } from '@/lib/security/http-headers';
 import { readObjectBuffer } from '@/lib/storage/object-store-utils';
-import { isProjectMember } from '@/lib/security/permissions';
+import { guardProjectRouteRequest } from '@/lib/security/project-route-access';
 
 const logger = createLogger('api:projects:config:download');
 
@@ -12,17 +12,13 @@ export async function GET(
     request: Request,
     { params }: { params: Promise<{ id: string; configId: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardProjectRouteRequest({ request, params });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const { id, configId } = await params;
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const { id, configId } = guard.params;
 
         const config = await prisma.projectConfig.findUnique({
             where: { id: configId },
@@ -39,16 +35,12 @@ export async function GET(
         });
 
         if (!config || config.projectId !== id || config.type !== 'FILE') {
-            return NextResponse.json({ error: 'Not found' }, { status: 404 });
-        }
-
-        if (!await isProjectMember(userId, id)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+            return apiError({ status: 404, code: 'NOT_FOUND', error: 'Not found' });
         }
 
         const object = await readObjectBuffer(config.value);
         if (!object) {
-            return NextResponse.json({ error: 'File not found in object storage' }, { status: 404 });
+            return apiError({ status: 404, code: 'NOT_FOUND', error: 'File not found in object storage' });
         }
 
         return new NextResponse(new Uint8Array(object.body), {
@@ -60,6 +52,6 @@ export async function GET(
         });
     } catch (error) {
         logger.error('Failed to download config file', error);
-        return NextResponse.json({ error: 'Failed to download file' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to download file' });
     }
 }

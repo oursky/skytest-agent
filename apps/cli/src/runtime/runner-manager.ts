@@ -1,9 +1,7 @@
-import { access, readFile, rm } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { parseEnv } from 'node:util';
-import { resolveHostFingerprint } from '@skytest/runner-protocol/src/host-fingerprint';
+import { RUNNER_MINIMUM_VERSION, resolveHostFingerprint } from '@skytest/runner-protocol';
 import type { LocalRunnerCredential, LocalRunnerDescriptor, LocalRunnerMetadata } from '../state/types';
 import {
     clearRunnerPid,
@@ -13,11 +11,12 @@ import {
     listLocalRunnerIds,
     readRunnerCredential,
     readRunnerMetadata,
-    readRunnerPid,
+    readRunnerPidState,
     resolveRunnerPaths,
     saveRunnerCredential,
     saveRunnerMetadata,
     writeRunnerPid,
+    type LocalRunnerPidState,
 } from '../state/store';
 import { generateLocalRunnerId } from '../state/id';
 import {
@@ -25,119 +24,19 @@ import {
     exchangePairingToken,
     notifyRunnerShutdown,
     unpairRunnerRegistration,
-    verifyRunnerCredential,
 } from './control-plane';
-import { isProcessAlive, startDetachedRunnerProcess, stopProcessWithTimeout } from './process';
+import { isProcessAlive, readProcessStartedAt, stopProcessWithTimeout } from './process';
+import { reconcileRunnerCredential } from './runner-credential-reconcile';
+import {
+    startManagedRunnerProcess,
+} from './runner-process-supervision';
+
+export { resolveManagedMidsceneRunDir } from './runner-process-supervision';
 
 const DEFAULT_CONTROL_PLANE_URL = process.env.RUNNER_CONTROL_PLANE_URL ?? 'http://127.0.0.1:3000';
-const DEFAULT_RUNNER_VERSION = process.env.RUNNER_VERSION ?? '0.1.0';
+const DEFAULT_RUNNER_VERSION = process.env.RUNNER_VERSION ?? RUNNER_MINIMUM_VERSION;
 const STOP_TIMEOUT_MS = 5_000;
-const STARTUP_HEALTH_CHECK_MS = 500;
 const RUNNER_CREDENTIAL_REVOKED_FILE = 'credential-revoked.json';
-const RUNNER_ENV_FILE_ENV = 'SKYTEST_RUNNER_ENV_FILE';
-const START_REPAIR_PAIRING_TOKEN_ENV = 'SKYTEST_REPAIR_PAIRING_TOKEN';
-type RunnerEnv = Record<string, string | undefined>;
-
-function sleep(milliseconds: number): Promise<void> {
-    return new Promise((resolve) => {
-        setTimeout(resolve, milliseconds);
-    });
-}
-
-async function fileExists(pathToCheck: string): Promise<boolean> {
-    try {
-        await access(pathToCheck);
-        return true;
-    } catch {
-        return false;
-    }
-}
-
-function resolveRepoRoot(): string {
-    const currentFile = fileURLToPath(import.meta.url);
-    return path.resolve(path.dirname(currentFile), '../../../..');
-}
-
-function resolveRunnerEnvFileCandidates(): string[] {
-    const configuredEnvFile = process.env[RUNNER_ENV_FILE_ENV]?.trim();
-    const env = process.env.NODE_ENV ?? 'development';
-    const repoRoot = resolveRepoRoot();
-    const defaultUserEnvFile = path.join(os.homedir(), '.config', 'skytest', 'runner.env');
-    const candidates = [
-        configuredEnvFile ? path.resolve(configuredEnvFile) : null,
-        defaultUserEnvFile,
-        path.join(repoRoot, '.env'),
-        path.join(repoRoot, '.env.local'),
-        path.join(repoRoot, `.env.${env}`),
-        path.join(repoRoot, `.env.${env}.local`),
-    ].filter((item): item is string => Boolean(item));
-
-    return Array.from(new Set(candidates));
-}
-
-function resolveMidsceneDefaultEnv(): RunnerEnv {
-    return {
-        MIDSCENE_MODEL_BASE_URL: 'https://openrouter.ai/api/v1',
-        MIDSCENE_MODEL_NAME: 'google/gemini-3.1-flash-lite-preview',
-        MIDSCENE_MODEL_FAMILY: 'gemini',
-        MIDSCENE_PLANNING_MODEL_BASE_URL: 'https://openrouter.ai/api/v1',
-        MIDSCENE_PLANNING_MODEL_NAME: 'qwen/qwen3.5-27b',
-        MIDSCENE_PLANNING_MODEL_FAMILY: 'qwen3.5',
-        MIDSCENE_INSIGHT_MODEL_BASE_URL: 'https://openrouter.ai/api/v1',
-        MIDSCENE_INSIGHT_MODEL_NAME: 'qwen/qwen3.5-27b',
-        MIDSCENE_INSIGHT_MODEL_FAMILY: 'qwen3.5',
-        MIDSCENE_MODEL_TEMPERATURE: '0.2',
-    };
-}
-
-export function resolveManagedMidsceneRunDir(input: {
-    runtimeStateDir: string;
-    loadedEnv: Record<string, string | undefined>;
-}): string {
-    const configured = process.env.MIDSCENE_RUN_DIR?.trim() || input.loadedEnv.MIDSCENE_RUN_DIR?.trim();
-    if (!configured) {
-        return path.join(input.runtimeStateDir, 'midscene');
-    }
-    if (path.isAbsolute(configured)) {
-        return configured;
-    }
-    return path.join(input.runtimeStateDir, configured);
-}
-
-async function loadLocalRunnerEnv(): Promise<RunnerEnv> {
-    const files = resolveRunnerEnvFileCandidates();
-    const result: RunnerEnv = {
-        ...resolveMidsceneDefaultEnv(),
-    };
-
-    for (const filePath of files) {
-        try {
-            const content = await readFile(filePath, 'utf8');
-            const parsed = parseEnv(content);
-            for (const [key, value] of Object.entries(parsed)) {
-                if (value !== undefined) {
-                    result[key] = value;
-                }
-            }
-        } catch {
-            // ignore missing or unreadable env file candidates
-        }
-    }
-
-    return {
-        ...result,
-        MIDSCENE_MODEL_BASE_URL: process.env.SKYTEST_MIDSCENE_MODEL_BASE_URL?.trim() || result.MIDSCENE_MODEL_BASE_URL,
-        MIDSCENE_MODEL_NAME: process.env.SKYTEST_MIDSCENE_MODEL_NAME?.trim() || result.MIDSCENE_MODEL_NAME,
-        MIDSCENE_MODEL_FAMILY: process.env.SKYTEST_MIDSCENE_MODEL_FAMILY?.trim() || result.MIDSCENE_MODEL_FAMILY,
-        MIDSCENE_PLANNING_MODEL_BASE_URL: process.env.SKYTEST_MIDSCENE_PLANNING_MODEL_BASE_URL?.trim() || result.MIDSCENE_PLANNING_MODEL_BASE_URL,
-        MIDSCENE_PLANNING_MODEL_NAME: process.env.SKYTEST_MIDSCENE_PLANNING_MODEL_NAME?.trim() || result.MIDSCENE_PLANNING_MODEL_NAME,
-        MIDSCENE_PLANNING_MODEL_FAMILY: process.env.SKYTEST_MIDSCENE_PLANNING_MODEL_FAMILY?.trim() || result.MIDSCENE_PLANNING_MODEL_FAMILY,
-        MIDSCENE_INSIGHT_MODEL_BASE_URL: process.env.SKYTEST_MIDSCENE_INSIGHT_MODEL_BASE_URL?.trim() || result.MIDSCENE_INSIGHT_MODEL_BASE_URL,
-        MIDSCENE_INSIGHT_MODEL_NAME: process.env.SKYTEST_MIDSCENE_INSIGHT_MODEL_NAME?.trim() || result.MIDSCENE_INSIGHT_MODEL_NAME,
-        MIDSCENE_INSIGHT_MODEL_FAMILY: process.env.SKYTEST_MIDSCENE_INSIGHT_MODEL_FAMILY?.trim() || result.MIDSCENE_INSIGHT_MODEL_FAMILY,
-        MIDSCENE_MODEL_TEMPERATURE: process.env.SKYTEST_MIDSCENE_MODEL_TEMPERATURE?.trim() || result.MIDSCENE_MODEL_TEMPERATURE,
-    };
-}
 
 function normalizeBaseUrl(baseUrl: string): string {
     return baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
@@ -214,17 +113,29 @@ async function resolveLocalRunnerId(runnerIdentifier: string): Promise<string> {
 }
 
 async function determineRunnerStatus(localRunnerId: string): Promise<{ pid: number | null; status: 'RUNNING' | 'STOPPED' }> {
-    const pid = await readRunnerPid(localRunnerId);
-    if (!pid) {
+    const pidState = await readRunnerPidState(localRunnerId);
+    if (!pidState) {
         return { pid: null, status: 'STOPPED' };
     }
 
-    if (!isProcessAlive(pid)) {
+    if (!await matchesRunnerProcess(pidState)) {
         await clearRunnerPid(localRunnerId);
         return { pid: null, status: 'STOPPED' };
     }
 
-    return { pid, status: 'RUNNING' };
+    return { pid: pidState.pid, status: 'RUNNING' };
+}
+
+async function matchesRunnerProcess(pidState: LocalRunnerPidState): Promise<boolean> {
+    if (!isProcessAlive(pidState.pid)) {
+        return false;
+    }
+    if (!pidState.processStartedAt) {
+        return true;
+    }
+
+    const processStartedAt = await readProcessStartedAt(pidState.pid);
+    return processStartedAt === pidState.processStartedAt;
 }
 
 async function isRunnerCredentialRevoked(localRunnerId: string): Promise<boolean> {
@@ -237,99 +148,13 @@ async function isRunnerCredentialRevoked(localRunnerId: string): Promise<boolean
     }
 }
 
-function resolveRepairPairingToken(overrideToken?: string): string | null {
-    const override = overrideToken?.trim();
-    if (override) {
-        return override;
-    }
-    const envToken = process.env[START_REPAIR_PAIRING_TOKEN_ENV]?.trim();
-    return envToken && envToken.length > 0 ? envToken : null;
-}
-
 async function removeLocalRunnerState(localRunnerId: string): Promise<void> {
-    const pid = await readRunnerPid(localRunnerId);
-    if (pid && isProcessAlive(pid)) {
-        await stopProcessWithTimeout(pid, STOP_TIMEOUT_MS);
+    const pidState = await readRunnerPidState(localRunnerId);
+    if (pidState && await matchesRunnerProcess(pidState)) {
+        await stopProcessWithTimeout(pidState.pid, STOP_TIMEOUT_MS);
     }
     await clearRunnerPid(localRunnerId);
     await deleteRunner(localRunnerId);
-}
-
-async function repairRunnerCredential(input: {
-    localRunnerId: string;
-    metadata: LocalRunnerMetadata;
-    pairingToken: string;
-}): Promise<{ metadata: LocalRunnerMetadata; credential: LocalRunnerCredential }> {
-    const exchanged = await exchangePairingToken({
-        pairingToken: input.pairingToken,
-        controlPlaneBaseUrl: input.metadata.controlPlaneBaseUrl,
-        hostFingerprint: resolveHostFingerprint(),
-        displayId: input.localRunnerId,
-        label: input.metadata.label,
-        runnerVersion: DEFAULT_RUNNER_VERSION,
-    });
-
-    const now = new Date().toISOString();
-    const nextMetadata: LocalRunnerMetadata = {
-        ...input.metadata,
-        serverRunnerId: exchanged.runnerId,
-        updatedAt: now,
-    };
-    const nextCredential: LocalRunnerCredential = {
-        runnerToken: exchanged.runnerToken,
-        runnerId: exchanged.runnerId,
-        credentialExpiresAt: exchanged.credentialExpiresAt,
-        transport: exchanged.transport,
-        updatedAt: now,
-    };
-
-    await saveRunnerMetadata(input.localRunnerId, nextMetadata);
-    await saveRunnerCredential(input.localRunnerId, nextCredential);
-    await rm(path.join(resolveRunnerPaths(input.localRunnerId).runtimeStateDir, RUNNER_CREDENTIAL_REVOKED_FILE), { force: true });
-
-    return { metadata: nextMetadata, credential: nextCredential };
-}
-
-async function reconcileRunnerCredential(input: {
-    localRunnerId: string;
-    metadata: LocalRunnerMetadata;
-    credential: LocalRunnerCredential;
-    repairPairingToken?: string;
-    bestEffort?: boolean;
-}): Promise<{ metadata: LocalRunnerMetadata; credential: LocalRunnerCredential } | null> {
-    try {
-        await verifyRunnerCredential({
-            controlPlaneBaseUrl: input.metadata.controlPlaneBaseUrl,
-            runnerToken: input.credential.runnerToken,
-            runnerVersion: DEFAULT_RUNNER_VERSION,
-        });
-        return {
-            metadata: input.metadata,
-            credential: input.credential,
-        };
-    } catch (error) {
-        if (!(error instanceof ControlPlaneHttpError) || error.status !== 401) {
-            if (input.bestEffort) {
-                return {
-                    metadata: input.metadata,
-                    credential: input.credential,
-                };
-            }
-            throw error;
-        }
-
-        const repairPairingToken = resolveRepairPairingToken(input.repairPairingToken);
-        if (!repairPairingToken) {
-            await removeLocalRunnerState(input.localRunnerId);
-            return null;
-        }
-
-        return repairRunnerCredential({
-            localRunnerId: input.localRunnerId,
-            metadata: input.metadata,
-            pairingToken: repairPairingToken,
-        });
-    }
 }
 
 export interface PairRunnerOptions {
@@ -433,6 +258,7 @@ export async function startRunner(
         credential,
         repairPairingToken: options?.repairPairingToken,
         bestEffort: true,
+        onRevokedCredential: removeLocalRunnerState,
     });
     if (!reconciled) {
         throw new Error(
@@ -445,60 +271,32 @@ export async function startRunner(
     metadata = reconciled.metadata;
     credential = reconciled.credential;
 
-    const existingPid = await readRunnerPid(localRunnerId);
-    if (existingPid && isProcessAlive(existingPid)) {
+    const existingPidState = await readRunnerPidState(localRunnerId);
+    if (existingPidState && await matchesRunnerProcess(existingPidState)) {
         return {
             localRunnerId,
-            pid: existingPid,
+            pid: existingPidState.pid,
             alreadyRunning: true,
             logPath: runnerPaths.logPath,
             autoRepaired,
         };
     }
 
-    if (existingPid && !isProcessAlive(existingPid)) {
+    if (existingPidState) {
         await clearRunnerPid(localRunnerId);
     }
 
-    const repoRoot = resolveRepoRoot();
-    const bundledEntryScriptPath = path.join(repoRoot, 'apps', 'macos-runner', 'dist', 'runner.bundle.cjs');
-    const sourceEntryScriptPath = path.join(repoRoot, 'apps', 'macos-runner', 'runner', 'index.ts');
-    const useBundledRunnerEntry = await fileExists(bundledEntryScriptPath);
-    const entryScriptPath = useBundledRunnerEntry ? bundledEntryScriptPath : sourceEntryScriptPath;
-    const loadedEnv = await loadLocalRunnerEnv();
-    const pid = startDetachedRunnerProcess({
-        entryScriptPath,
-        workingDirectory: repoRoot,
+    const pid = await startManagedRunnerProcess({
+        localRunnerId,
+        metadata,
+        credential,
+        runtimeStateDir: runnerPaths.runtimeStateDir,
         logPath: runnerPaths.logPath,
-        useTsxLoader: !useBundledRunnerEntry,
-        env: {
-            ...loadedEnv,
-            ...process.env,
-            RUNNER_CONTROL_PLANE_URL: metadata.controlPlaneBaseUrl,
-            RUNNER_VERSION: DEFAULT_RUNNER_VERSION,
-            RUNNER_LABEL: metadata.label,
-            RUNNER_DISPLAY_ID: metadata.localRunnerId,
-            RUNNER_HOST_FINGERPRINT: resolveHostFingerprint(),
-            RUNNER_TOKEN: credential.runnerToken,
-            SKYTEST_RUNNER_STATE_DIR: runnerPaths.runtimeStateDir,
-            SKYTEST_RUNNER_DISABLE_KEYCHAIN: '1',
-            SKYTEST_RUNNER_QUIET: '1',
-            MIDSCENE_RUN_DIR: resolveManagedMidsceneRunDir({
-                runtimeStateDir: runnerPaths.runtimeStateDir,
-                loadedEnv,
-            }),
-            ...(useBundledRunnerEntry ? {} : {
-                TSX_TSCONFIG_PATH: path.join(repoRoot, 'apps', 'web', 'tsconfig.json'),
-            }),
-        },
     });
 
-    await sleep(STARTUP_HEALTH_CHECK_MS);
-    if (!isProcessAlive(pid)) {
-        throw new Error(`Runner process exited before startup completed. Check logs: ${runnerPaths.logPath}`);
-    }
-
-    await writeRunnerPid(localRunnerId, pid);
+    await writeRunnerPid(localRunnerId, pid, {
+        processStartedAt: await readProcessStartedAt(pid),
+    });
     await saveRunnerMetadata(localRunnerId, {
         ...metadata,
         updatedAt: new Date().toISOString(),
@@ -536,9 +334,9 @@ export async function stopRunner(runnerIdentifier: string): Promise<{
     } catch {
     }
 
-    const pid = await readRunnerPid(localRunnerId);
+    const pidState = await readRunnerPidState(localRunnerId);
 
-    if (!pid) {
+    if (!pidState) {
         return {
             localRunnerId,
             stopped: false,
@@ -547,9 +345,19 @@ export async function stopRunner(runnerIdentifier: string): Promise<{
         };
     }
 
-    const stopResult = await stopProcessWithTimeout(pid, STOP_TIMEOUT_MS);
+    if (!await matchesRunnerProcess(pidState)) {
+        await clearRunnerPid(localRunnerId);
+        return {
+            localRunnerId,
+            stopped: false,
+            pid: null,
+            serverMarkedOffline,
+        };
+    }
+
+    const stopResult = await stopProcessWithTimeout(pidState.pid, STOP_TIMEOUT_MS);
     if (stopResult === 'failed') {
-        throw new Error(`Failed to stop runner process ${pid}.`);
+        throw new Error(`Failed to stop runner process ${pidState.pid}.`);
     }
     await clearRunnerPid(localRunnerId);
     await saveRunnerMetadata(localRunnerId, {
@@ -561,7 +369,7 @@ export async function stopRunner(runnerIdentifier: string): Promise<{
     return {
         localRunnerId,
         stopped: true,
-        pid,
+        pid: pidState.pid,
         serverMarkedOffline,
     };
 }
@@ -603,6 +411,7 @@ export async function syncRunners(): Promise<SyncRunnersResult> {
             metadata,
             credential,
             bestEffort: true,
+            onRevokedCredential: removeLocalRunnerState,
         });
         if (!reconciled) {
             removedLocalRunnerIds.push(localRunnerId);
@@ -634,6 +443,7 @@ export async function describeRunner(runnerIdentifier: string): Promise<LocalRun
         metadata,
         credential,
         bestEffort: true,
+        onRevokedCredential: removeLocalRunnerState,
     });
     if (!reconciled) {
         throw new Error(`Runner '${runnerIdentifier}' is no longer paired on server and was removed locally.`);
@@ -690,11 +500,11 @@ export async function resetAllRunners(force: boolean): Promise<{ removedRunners:
 
     const localRunnerIds = await listLocalRunnerIds();
     for (const localRunnerId of localRunnerIds) {
-        const pid = await readRunnerPid(localRunnerId);
-        if (pid && isProcessAlive(pid)) {
-            const stopResult = await stopProcessWithTimeout(pid, STOP_TIMEOUT_MS);
+        const pidState = await readRunnerPidState(localRunnerId);
+        if (pidState && await matchesRunnerProcess(pidState)) {
+            const stopResult = await stopProcessWithTimeout(pidState.pid, STOP_TIMEOUT_MS);
             if (stopResult === 'failed') {
-                throw new Error(`Failed to stop runner process ${pid} during reset.`);
+                throw new Error(`Failed to stop runner process ${pidState.pid} during reset.`);
             }
         }
     }

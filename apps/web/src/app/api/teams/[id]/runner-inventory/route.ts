@@ -1,8 +1,8 @@
 import { createLogger } from '@/lib/core/logger';
 import { getTeamDevicesAvailability, getTeamRunnersOverview } from '@/lib/runners/availability-service';
-import { verifyAuth, resolveUserId } from '@/lib/security/auth';
-import { getTeamAccess } from '@/lib/security/permissions';
 import { createMeasuredJsonResponse, createRoutePerfTracker } from '@/lib/core/route-perf';
+import { guardTeamRouteRequest } from '@/lib/security/team-route-access';
+import { isTeamMember } from '@/lib/security/permissions';
 
 const logger = createLogger('api:teams:runner-inventory');
 
@@ -11,31 +11,19 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const perf = createRoutePerfTracker('/api/teams/[id]/runner-inventory', request);
-    const authPayload = await perf.measureAuth(() => verifyAuth(request));
-    if (!authPayload) {
-        const body = { error: 'Unauthorized' };
-        const { response, responseBytes } = createMeasuredJsonResponse(body, { status: 401 });
-        perf.log(logger, { statusCode: 401, responseBytes });
-        return response;
+    const guard = await perf.measureAuth(() => guardTeamRouteRequest({
+        request,
+        params,
+        authorize: ({ userId, teamId }) => isTeamMember(userId, teamId),
+    }));
+    if (!guard.ok) {
+        const responseBytes = new TextEncoder().encode(await guard.response.clone().text()).length;
+        perf.log(logger, { statusCode: guard.response.status, responseBytes });
+        return guard.response;
     }
 
     try {
-        const userId = await perf.measureAuth(() => resolveUserId(authPayload));
-        if (!userId) {
-            const body = { error: 'Unauthorized' };
-            const { response, responseBytes } = createMeasuredJsonResponse(body, { status: 401 });
-            perf.log(logger, { statusCode: 401, responseBytes });
-            return response;
-        }
-
-        const { id: teamId } = await params;
-        const access = await perf.measureDb(() => getTeamAccess(userId, teamId));
-        if (!access.isMember) {
-            const body = { error: 'Forbidden' };
-            const { response, responseBytes } = createMeasuredJsonResponse(body, { status: 403 });
-            perf.log(logger, { statusCode: 403, responseBytes });
-            return response;
-        }
+        const { teamId } = guard;
 
         const [overview, availability] = await perf.measureDb(() => Promise.all([
             getTeamRunnersOverview(teamId),
@@ -47,7 +35,7 @@ export async function GET(
             availableDeviceCount: availability.availableDeviceCount,
             staleDeviceCount: availability.staleDeviceCount,
             devices: availability.devices,
-            canManageRunners: access.isMember,
+            canManageRunners: true,
         };
         const { response, responseBytes } = createMeasuredJsonResponse(body);
         perf.log(logger, { statusCode: 200, responseBytes });

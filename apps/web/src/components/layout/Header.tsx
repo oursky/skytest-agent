@@ -5,28 +5,29 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/app/auth-provider';
 import { Button, CustomSelect, Modal } from '@/components/shared';
 import { LOCALE_META, useI18n, type Locale } from '@/i18n';
-import { useTeams } from '@/hooks/team/useTeams';
-import { useCurrentTeam } from '@/hooks/team/useCurrentTeam';
+import { useTeamSession } from '@/hooks/team/useTeamSession';
 import { useCreateTeam } from '@/hooks/team/useCreateTeam';
 
 export default function Header() {
-    const { isLoggedIn, isLoading: isAuthLoading, user, logout, openSettings, getAccessToken } = useAuth();
+    const { isLoggedIn, isLoading: isAuthLoading, user, logout, openSettings } = useAuth();
     const router = useRouter();
     const pathname = usePathname();
     const { locale, setLocale, t } = useI18n();
-    const { teams, loading: isTeamsLoading, refresh: refreshTeams } = useTeams(getAccessToken, isLoggedIn);
-    const { currentTeam, loading: isCurrentTeamLoading, setCurrentTeam } = useCurrentTeam(getAccessToken, isLoggedIn);
+    const { teams, currentTeam, loading: isTeamSessionLoading, setCurrentTeam } = useTeamSession();
 
     const localeOptions = useMemo(() => Object.keys(LOCALE_META) as Locale[], []);
+    const selectedTeamId = useMemo(() => {
+        if (currentTeam && teams.some((team) => team.id === currentTeam.id)) {
+            return currentTeam.id;
+        }
+
+        return teams[0]?.id ?? '';
+    }, [currentTeam, teams]);
 
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isCreateTeamOpen, setIsCreateTeamOpen] = useState(false);
     const [newTeamName, setNewTeamName] = useState('');
-    const { createTeam, isSubmitting: isCreateTeamSubmitting } = useCreateTeam({
-        getAccessToken,
-        refreshTeams,
-        setCurrentTeam,
-    });
+    const { createTeam, isSubmitting: isCreateTeamSubmitting } = useCreateTeam();
 
     useEffect(() => {
         const closeDropdown = () => {
@@ -75,7 +76,7 @@ export default function Header() {
     }
 
     const showSessionControls = isLoggedIn || isAuthLoading;
-    const showTeamPlaceholder = isAuthLoading || isTeamsLoading || isCurrentTeamLoading;
+    const showTeamPlaceholder = isAuthLoading || isTeamSessionLoading;
 
     return (
         <>
@@ -144,7 +145,7 @@ export default function Header() {
                                     <div className="h-9 min-w-40 lg:min-w-56">
                                         {isLoggedIn && teams.length > 0 ? (
                                             <CustomSelect
-                                                value={currentTeam?.id ?? teams[0]?.id ?? ''}
+                                                value={selectedTeamId}
                                                 options={teams.map((team) => ({
                                                     value: team.id,
                                                     label: team.name,

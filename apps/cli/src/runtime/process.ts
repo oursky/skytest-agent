@@ -1,5 +1,6 @@
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { closeSync, openSync } from 'node:fs';
+import { promisify } from 'node:util';
 
 interface StartProcessOptions {
     entryScriptPath: string;
@@ -15,6 +16,8 @@ function sleep(milliseconds: number): Promise<void> {
     });
 }
 
+const execFileAsync = promisify(execFile);
+
 export function isProcessAlive(pid: number): boolean {
     if (!Number.isInteger(pid) || pid <= 0) {
         return false;
@@ -25,6 +28,22 @@ export function isProcessAlive(pid: number): boolean {
         return true;
     } catch {
         return false;
+    }
+}
+
+export async function readProcessStartedAt(pid: number): Promise<string | null> {
+    if (!isProcessAlive(pid)) {
+        return null;
+    }
+
+    try {
+        const { stdout } = await execFileAsync('ps', ['-o', 'lstart=', '-p', String(pid)], {
+            encoding: 'utf8',
+        });
+        const startedAt = stdout.trim();
+        return startedAt.length > 0 ? startedAt : null;
+    } catch {
+        return null;
     }
 }
 

@@ -20,7 +20,7 @@ Translate confirmed test plans into SkyTest MCP operations and manage test cases
 - **Do not send `FILE` variables through MCP.** SkyTest does not support file attachments via MCP — skip file-type configs entirely.
 - **For every create or update that sets a test case `name`**, enforce format: `[Section] Short description` (e.g., `[Auth] Login Happy Path`).
 - **For every new test case, use a `testCaseId`** following the user's established convention. Default: `XXXX-YY-ZZZ` (2-4 uppercase letters for the page/feature + 2-digit section number + 3-digit test case number, e.g., `AUTH-01-001`). Ask the user if not established.
-- **`testCaseId` in all MCP operations refers to the display ID** (e.g., `AUTH-01-001`), not the internal database UUID.
+- **Users always provide display IDs** (e.g., `AUTH-01-001`), never internal UUIDs. MCP tools (`get_test_case`, `update_test_case`, `delete_test_case`, `run_test_case`) require the internal `id`. When a user references a test case by display ID, resolve it to the internal `id` via `list_test_cases` before calling those tools. After `create_test_case`, use the returned `id` for any follow-up operations on that case.
 - **Never attempt to read, download, or process video files.**
 - **Never hardcode credential values.** Use `vars['VARIABLE_NAME']` in playwright-code steps and `{{VARIABLE_NAME}}` in ai-action steps. Credentials must always come from project-level or test-case-level variables — never as literal strings in step text.
 - **Browser target names must be descriptive.** Derive from the app name or section (e.g., "Admin Portal", "Customer App"). Never use "Primary Browser" as the target name — confirm the name with the user before creating the first test case.

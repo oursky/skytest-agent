@@ -15,7 +15,7 @@ import TeamMembers from '@/components/features/team-members/ui/TeamMembers';
 import TeamUsage from '@/components/features/team-usage/ui/TeamUsage';
 import { TeamRunners } from '@/components/features/team-runners';
 import { useTeamsBootstrap, type TeamMemberBootstrap } from '@/hooks/team/useTeamsBootstrap';
-import { dispatchTeamsChanged } from '@/hooks/team/useTeams';
+import { useTeamSession } from '@/hooks/team/useTeamSession';
 import { useI18n } from '@/i18n';
 import { runOnEnterKey } from '@/utils/keyboard/enterKey';
 type TeamMemberOption = TeamMemberBootstrap;
@@ -37,6 +37,7 @@ export default function TeamsPage() {
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const { t } = useI18n();
+    const { deleteTeam: deleteTeamFromSession } = useTeamSession();
     const requestedTeamId = searchParams.get('teamId')?.trim() || '';
     const {
         teams,
@@ -46,7 +47,6 @@ export default function TeamsPage() {
         loading: isTeamsBootstrapLoading,
         isInitialLoading: isTeamsInitialLoading,
         refresh: refreshTeamsBootstrap,
-        setCurrentTeam,
     } = useTeamsBootstrap(getAccessToken, requestedTeamId, isLoggedIn && !isAuthLoading);
     const [renameValue, setRenameValue] = useState('');
     const [transferEmail, setTransferEmail] = useState('');
@@ -135,7 +135,6 @@ export default function TeamsPage() {
             }
 
             setIsEditingSettings(false);
-            dispatchTeamsChanged();
             await refreshTeamsBootstrap();
             setError(null);
         } catch {
@@ -214,24 +213,9 @@ export default function TeamsPage() {
         setDeleteConfirmationValue('');
 
         try {
-            const token = await getAccessToken();
-            const response = await fetch(`/api/teams/${currentTeam.id}`, {
-                method: 'DELETE',
-                headers: token ? { Authorization: `Bearer ${token}` } : {},
-            });
-
-            const data = await response.json().catch(() => ({ error: t('team.page.error.delete') }));
-            if (!response.ok) {
-                setError(data.error || t('team.page.error.delete'));
-                setIsDeletingTeamTransition(false);
-                return;
-            }
-
-            const nextTeamId = teams.find((team) => team.id !== currentTeam.id)?.id ?? null;
-            dispatchTeamsChanged();
+            const { nextTeamId } = await deleteTeamFromSession(currentTeam.id);
             await refreshTeamsBootstrap();
             if (nextTeamId) {
-                await setCurrentTeam(nextTeamId);
                 router.push('/projects');
             } else {
                 router.push('/welcome');
@@ -247,7 +231,6 @@ export default function TeamsPage() {
             return;
         }
 
-        dispatchTeamsChanged();
         await refreshTeamsBootstrap();
     }, [currentTeam, refreshTeamsBootstrap]);
 

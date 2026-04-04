@@ -4,7 +4,13 @@ This document defines SkyTest MCP tool behavior for maintainers.
 
 ## Source of Truth
 
-- MCP server implementation: `apps/web/src/lib/mcp/server.ts`
+- MCP tool registration: `apps/web/src/lib/mcp/server-registry.ts`
+- MCP tool handlers: `apps/web/src/lib/mcp/server-tools.ts`
+- MCP test case mutation tools: `apps/web/src/lib/mcp/test-case-mutation-tools.ts`
+- MCP schemas: `apps/web/src/lib/mcp/server-schemas.ts`
+- MCP auth helpers: `apps/web/src/lib/mcp/server-auth.ts`
+- MCP response/telemetry: `apps/web/src/lib/mcp/server-response.ts`
+- MCP server factory: `apps/web/src/lib/mcp/server.ts`
 - HTTP transport endpoint: `apps/web/src/app/api/mcp/route.ts`
 
 ## Transport Authentication

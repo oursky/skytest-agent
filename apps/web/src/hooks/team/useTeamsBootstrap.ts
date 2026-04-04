@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { TeamOption } from '@/hooks/team/useTeams';
-import type { CurrentTeam } from '@/hooks/team/useCurrentTeam';
+import { createRequestIdGuard } from '@/hooks/team/request-id-guard';
+import { useTeamSession } from '@/hooks/team/useTeamSession';
 import { reportLoadMetric } from '@/lib/telemetry/client-metrics';
-
-const TEAMS_CHANGED_EVENT = 'skytest:teams-changed';
-const CURRENT_TEAM_EVENT = 'skytest:current-team-changed';
 
 export interface TeamDetailsBootstrap {
     id: string;
@@ -22,18 +19,22 @@ export interface TeamMemberBootstrap {
     role: 'OWNER' | 'MEMBER';
 }
 
-interface TeamsBootstrapPayload {
-    teams: TeamOption[];
-    currentTeam: CurrentTeam | null;
-    teamDetails: TeamDetailsBootstrap | null;
-    members: TeamMemberBootstrap[];
+interface TeamDetailsResponse {
+    id: string;
+    name: string;
+    role: 'OWNER' | 'MEMBER';
+    canRename: boolean;
+    canDelete: boolean;
+    canTransferOwnership: boolean;
 }
 
-function getRequestedTeamId(teamId: string | undefined, fallbackTeamId: string): string {
-    if (teamId && teamId.length > 0) {
-        return teamId;
-    }
-    return fallbackTeamId;
+interface TeamMembersResponse {
+    members: Array<{
+        id: string;
+        userId: string | null;
+        email: string | null;
+        role: 'OWNER' | 'MEMBER';
+    }>;
 }
 
 export function useTeamsBootstrap(
@@ -41,139 +42,147 @@ export function useTeamsBootstrap(
     requestedTeamId: string,
     enabled = true,
 ) {
-    const [teams, setTeams] = useState<TeamOption[]>([]);
-    const [currentTeam, setCurrentTeam] = useState<CurrentTeam | null>(null);
+    const {
+        teams,
+        currentTeam,
+        loading: isTeamSessionLoading,
+        error: teamSessionError,
+        refresh: refreshTeamSession,
+        setCurrentTeam,
+    } = useTeamSession();
     const [teamDetails, setTeamDetails] = useState<TeamDetailsBootstrap | null>(null);
     const [members, setMembers] = useState<TeamMemberBootstrap[]>([]);
-    const [loading, setLoading] = useState(false);
+    const [loadingDetails, setLoadingDetails] = useState(false);
     const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const hasLoadedOnceRef = useRef(false);
+    const requestIdGuardRef = useRef(createRequestIdGuard());
 
     useEffect(() => {
         hasLoadedOnceRef.current = hasLoadedOnce;
     }, [hasLoadedOnce]);
 
-    const fetchBootstrap = useCallback(async (teamIdOverride?: string) => {
+    const fetchTeamData = useCallback(async () => {
+        const requestId = requestIdGuardRef.current.next();
+
         if (!enabled) {
-            setTeams([]);
-            setCurrentTeam(null);
             setTeamDetails(null);
             setMembers([]);
-            setLoading(false);
+            setLoadingDetails(false);
             setHasLoadedOnce(false);
             setError(null);
+            return;
+        }
+
+        const hasRequestedTeam = requestedTeamId.length > 0
+            && teams.some((team) => team.id === requestedTeamId);
+
+        if (hasRequestedTeam && currentTeam?.id !== requestedTeamId) {
+            try {
+                await setCurrentTeam(requestedTeamId);
+            } catch {
+                if (!requestIdGuardRef.current.isLatest(requestId)) {
+                    return;
+                }
+                setError('Failed to switch team');
+                setHasLoadedOnce(true);
+            }
+            return;
+        }
+
+        if (!currentTeam) {
+            if (!requestIdGuardRef.current.isLatest(requestId)) {
+                return;
+            }
+            setTeamDetails(null);
+            setMembers([]);
+            setError(null);
+            setLoadingDetails(false);
+            setHasLoadedOnce(true);
             return;
         }
 
         try {
             const requestStartedAt = performance.now();
             const wasRefreshRequest = hasLoadedOnceRef.current;
-            setLoading(true);
+            setLoadingDetails(true);
             const token = await getAccessToken();
-            const headers: HeadersInit = {};
-            if (token) {
-                headers.Authorization = `Bearer ${token}`;
+            const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+
+            const [teamResponse, membersResponse] = await Promise.all([
+                fetch(`/api/teams/${encodeURIComponent(currentTeam.id)}`, { headers }),
+                fetch(`/api/teams/${encodeURIComponent(currentTeam.id)}/members`, { headers }),
+            ]);
+
+            if (!teamResponse.ok) {
+                throw new Error('Failed to fetch team details');
+            }
+            if (!membersResponse.ok) {
+                throw new Error('Failed to fetch team members');
             }
 
-            const url = new URL('/api/teams/bootstrap', window.location.origin);
-            const teamId = getRequestedTeamId(teamIdOverride, requestedTeamId);
-            if (teamId) {
-                url.searchParams.set('teamId', teamId);
+            const teamPayload = await teamResponse.json() as TeamDetailsResponse;
+            const membersPayload = await membersResponse.json() as TeamMembersResponse;
+
+            if (!requestIdGuardRef.current.isLatest(requestId)) {
+                return;
             }
 
-            const response = await fetch(url.toString(), { headers });
-            if (!response.ok) {
-                throw new Error('Failed to fetch teams bootstrap payload');
-            }
-
-            const payload = await response.json() as TeamsBootstrapPayload;
-            setTeams(payload.teams);
-            setCurrentTeam(payload.currentTeam);
-            setTeamDetails(payload.teamDetails);
-            setMembers(payload.members);
+            setTeamDetails({
+                id: teamPayload.id,
+                name: teamPayload.name,
+                role: teamPayload.role,
+                canRename: teamPayload.canRename,
+                canDelete: teamPayload.canDelete,
+                canTransferOwnership: teamPayload.canTransferOwnership,
+            });
+            setMembers(membersPayload.members.map((member) => ({
+                id: member.id,
+                userId: member.userId,
+                email: member.email,
+                role: member.role,
+            })));
             setError(null);
             reportLoadMetric({
                 elapsedMs: performance.now() - requestStartedAt,
                 isRefreshRequest: wasRefreshRequest,
                 context: 'teams-bootstrap',
             });
-        } catch (bootstrapError) {
-            console.error('Error fetching teams bootstrap payload:', bootstrapError);
+        } catch (teamDataError) {
+            if (!requestIdGuardRef.current.isLatest(requestId)) {
+                return;
+            }
+            console.error('Error fetching teams page data:', teamDataError);
             setError('Failed to load teams page data');
         } finally {
-            setLoading(false);
+            if (!requestIdGuardRef.current.isLatest(requestId)) {
+                return;
+            }
+            setLoadingDetails(false);
             setHasLoadedOnce(true);
         }
-    }, [enabled, getAccessToken, requestedTeamId]);
-
-    const persistCurrentTeam = useCallback(async (teamId: string) => {
-        const headers: HeadersInit = {
-            'Content-Type': 'application/json',
-        };
-
-        const token = await getAccessToken();
-        if (token) {
-            headers.Authorization = `Bearer ${token}`;
-        }
-
-        const response = await fetch('/api/teams/current', {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({ teamId }),
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to persist current team');
-        }
-
-        const payload = await response.json() as CurrentTeam;
-        setCurrentTeam(payload);
-        await fetchBootstrap(teamId);
-        return payload;
-    }, [fetchBootstrap, getAccessToken]);
+    }, [currentTeam, enabled, getAccessToken, requestedTeamId, setCurrentTeam, teams]);
 
     useEffect(() => {
-        void fetchBootstrap();
-    }, [fetchBootstrap]);
-
-    useEffect(() => {
-        if (typeof window === 'undefined') {
-            return;
-        }
-
-        const handleTeamsChanged = () => {
-            void fetchBootstrap();
-        };
-
-        const handleCurrentTeamChanged = (event: Event) => {
-            const teamId = (event as CustomEvent<{ teamId?: string | null }>).detail?.teamId;
-            void fetchBootstrap(typeof teamId === 'string' ? teamId : undefined);
-        };
-
-        window.addEventListener(TEAMS_CHANGED_EVENT, handleTeamsChanged);
-        window.addEventListener(CURRENT_TEAM_EVENT, handleCurrentTeamChanged);
-        return () => {
-            window.removeEventListener(TEAMS_CHANGED_EVENT, handleTeamsChanged);
-            window.removeEventListener(CURRENT_TEAM_EVENT, handleCurrentTeamChanged);
-        };
-    }, [fetchBootstrap]);
+        void fetchTeamData();
+    }, [fetchTeamData]);
 
     const refresh = useCallback(async () => {
-        await fetchBootstrap();
-    }, [fetchBootstrap]);
+        await refreshTeamSession(requestedTeamId || undefined);
+        await fetchTeamData();
+    }, [fetchTeamData, refreshTeamSession, requestedTeamId]);
 
     return {
         teams,
         currentTeam,
         teamDetails,
         members,
-        loading: loading || (enabled && !hasLoadedOnce),
+        loading: loadingDetails || isTeamSessionLoading || (enabled && !hasLoadedOnce),
         isInitialLoading: enabled && !hasLoadedOnce,
         hasLoadedOnce,
-        error,
+        error: error ?? teamSessionError,
         refresh,
-        setCurrentTeam: persistCurrentTeam,
+        setCurrentTeam,
         setTeamDetails,
         setMembers,
     };

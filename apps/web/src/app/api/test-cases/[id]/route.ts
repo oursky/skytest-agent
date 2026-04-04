@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/security/api-route-standards';
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { parseTestCaseJson, cleanStepsForStorage, normalizeTargetConfigMap } from '@/lib/runtime/test-case-utils';
 import { BrowserConfig, TargetConfig, TEST_STATUS } from '@/types';
 import { deleteObjectIfExists } from '@/lib/storage/object-store-utils';
-import { isProjectMember } from '@/lib/security/permissions';
+import { guardTestCaseRouteRequest } from '@/lib/security/test-case-route-access';
 
 const logger = createLogger('api:test-cases:id');
 
@@ -13,20 +13,10 @@ export async function GET(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    try {
-        const { id } = await params;
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const testCase = await prisma.testCase.findUnique({
-            where: { id },
+    const guard = await guardTestCaseRouteRequest({
+        request,
+        params,
+        query: {
             include: {
                 testRuns: {
                     take: 1,
@@ -40,27 +30,17 @@ export async function GET(
                     select: {
                         teamId: true,
                         name: true,
-                        team: {
-                            select: {
-                                memberships: {
-                                    where: { userId },
-                                    select: { id: true },
-                                    take: 1,
-                                }
-                            }
-                        }
                     },
                 }
             }
-        });
-
-        if (!testCase) {
-            return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
         }
+    });
+    if (!guard.ok) {
+        return guard.response;
+    }
 
-        if (testCase.project.team.memberships.length === 0) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
+    try {
+        const testCase = guard.testCase;
 
         const parsedTestCase = parseTestCaseJson(testCase);
         const { project, ...testCasePayload } = parsedTestCase;
@@ -71,7 +51,7 @@ export async function GET(
         });
     } catch (error) {
         logger.error('Failed to fetch test case', error);
-        return NextResponse.json({ error: 'Failed to fetch test case' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to fetch test case' });
     }
 }
 
@@ -80,13 +60,13 @@ export async function PUT(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardTestCaseRouteRequest({ request, params });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const { id } = await params;
+        const { testCaseId: id } = guard;
         const body = await request.json();
         const { name, url, prompt, steps, browserConfig, displayId, preserveStatus } = body as {
             name?: string;
@@ -111,19 +91,11 @@ export async function PUT(
         });
 
         if (!existingTestCase) {
-            return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
+            return apiError({ status: 404, code: 'NOT_FOUND', error: 'Test case not found' });
         }
 
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        if (!await isProjectMember(userId, existingTestCase.projectId)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
         if (!normalizedDisplayId) {
-            return NextResponse.json({ error: 'Test case ID is required' }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Test case ID is required' });
         }
 
         const hasSteps = steps && Array.isArray(steps) && steps.length > 0;
@@ -154,7 +126,7 @@ export async function PUT(
         return NextResponse.json(testCase);
     } catch (error) {
         logger.error('Failed to update test case', error);
-        return NextResponse.json({ error: 'Failed to update test case' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to update test case' });
     }
 }
 
@@ -162,13 +134,13 @@ export async function DELETE(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardTestCaseRouteRequest({ request, params });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const { id } = await params;
+        const { testCaseId: id } = guard;
 
         const existingTestCase = await prisma.testCase.findUnique({
             where: { id },
@@ -182,16 +154,7 @@ export async function DELETE(
         });
 
         if (!existingTestCase) {
-            return NextResponse.json({ error: 'Test case not found' }, { status: 404 });
-        }
-
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        if (!await isProjectMember(userId, existingTestCase.projectId)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+            return apiError({ status: 404, code: 'NOT_FOUND', error: 'Test case not found' });
         }
 
         await prisma.testCase.delete({
@@ -214,6 +177,6 @@ export async function DELETE(
         return NextResponse.json({ success: true });
     } catch (error) {
         logger.error('Failed to delete test case', error);
-        return NextResponse.json({ error: 'Failed to delete test case' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to delete test case' });
     }
 }

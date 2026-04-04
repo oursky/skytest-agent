@@ -5,21 +5,15 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/auth-provider';
 import { Button, CenteredLoading } from '@/components/shared';
 import { useTeams } from '@/hooks/team/useTeams';
-import { useCurrentTeam } from '@/hooks/team/useCurrentTeam';
 import { useI18n } from '@/i18n';
 import { useCreateTeam } from '@/hooks/team/useCreateTeam';
 
 export default function WelcomePage() {
-    const { isLoggedIn, isLoading: isAuthLoading, getAccessToken } = useAuth();
+    const { isLoggedIn, isLoading: isAuthLoading } = useAuth();
     const router = useRouter();
     const { t } = useI18n();
-    const { teams, loading: isTeamsLoading, refresh: refreshTeams } = useTeams(getAccessToken, isLoggedIn);
-    const { setCurrentTeam } = useCurrentTeam(getAccessToken, false);
-    const { createTeam, isSubmitting } = useCreateTeam({
-        getAccessToken,
-        refreshTeams,
-        setCurrentTeam,
-    });
+    const { teams, loading: isTeamsLoading } = useTeams();
+    const { createTeam, isSubmitting } = useCreateTeam();
     const [name, setName] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [isRedirecting, setIsRedirecting] = useState(false);

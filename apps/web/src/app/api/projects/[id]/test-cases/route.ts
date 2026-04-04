@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/security/api-route-standards';
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { cleanStepsForStorage } from '@/lib/runtime/test-case-utils';
 import { TEST_STATUS, type TestStep } from '@/types';
-import { isProjectMember } from '@/lib/security/permissions';
+import { guardProjectRouteRequest } from '@/lib/security/project-route-access';
 
 const logger = createLogger('api:projects:test-cases');
 
@@ -14,25 +14,13 @@ export async function GET(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardProjectRouteRequest({ request, params });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const { id } = await params;
-        const project = await prisma.project.findUnique({ where: { id }, select: { id: true } });
-        if (!project) {
-            return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-        }
-
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        if (!await isProjectMember(userId, id)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
+        const { id } = guard.params;
 
         const testCases = await prisma.testCase.findMany({
             where: { projectId: id },
@@ -58,7 +46,7 @@ export async function GET(
         return NextResponse.json(testCases);
     } catch (error) {
         logger.error('Failed to fetch test cases', error);
-        return NextResponse.json({ error: 'Failed to fetch test cases' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to fetch test cases' });
     }
 }
 
@@ -66,25 +54,13 @@ export async function POST(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardProjectRouteRequest({ request, params });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const { id } = await params;
-        const project = await prisma.project.findUnique({ where: { id }, select: { id: true } });
-        if (!project) {
-            return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-        }
-
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        if (!await isProjectMember(userId, id)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
+        const { id } = guard.params;
 
         const body: unknown = await request.json();
         const { name, url, prompt, steps, browserConfig, displayId, saveDraft } = (body ?? {}) as {
@@ -103,13 +79,13 @@ export async function POST(
         const normalizedDisplayId = typeof displayId === 'string' ? displayId.trim() : '';
 
         if (!name) {
-            return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Name is required' });
         }
         if (!normalizedDisplayId) {
-            return NextResponse.json({ error: 'Test case ID is required' }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Test case ID is required' });
         }
         if (!saveDraft && ((!url && !hasBrowserConfig) || (!prompt && !hasSteps))) {
-            return NextResponse.json({ error: 'Name, and either URL or BrowserConfig, and either Prompt or Steps are required' }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Name, and either URL or BrowserConfig, and either Prompt or Steps are required' });
         }
 
         const testCase = await prisma.testCase.create({
@@ -128,6 +104,6 @@ export async function POST(
         return NextResponse.json(testCase);
     } catch (error) {
         logger.error('Failed to create test case', error);
-        return NextResponse.json({ error: 'Failed to create test case' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to create test case' });
     }
 }

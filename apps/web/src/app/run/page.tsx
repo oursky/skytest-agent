@@ -20,21 +20,29 @@ import {
     type ConfigItem,
     type TestStatus,
 } from "@/types";
-import { exportToExcelArrayBuffer, parseTestCaseExcel, type ParsedTestCaseExcel } from "@/utils/excel/testCaseExcel";
+import { parseTestCaseExcel, type ParsedTestCaseExcel } from "@/utils/excel/testCaseExcel";
 import { useI18n } from "@/i18n";
 import { useUnsavedChanges } from "@/hooks/run/useUnsavedChanges";
 import {
     appendRunStreamEvent,
     applyRunStreamStatusUpdate,
     buildEventKey,
-    buildExcelBaseName,
-    downloadBlob,
-    extractFileName,
     isExcelFilename,
-    isSupportedVariableConfig,
     mergeRunFormData,
     RunViewerResult,
 } from "./utils";
+import {
+    filterSupportedVariableConfigs,
+    handleExportHelper,
+    importVariablesToProjectHelper,
+    importVariablesToTestCaseHelper,
+} from "./import-export-helpers";
+import {
+    buildImportReviewData,
+    discardImportReviewHelper,
+    handleProceedImportReviewHelper,
+} from "./run-page-import-review";
+import { ensureTestCaseFromDataHelper } from "./run-page-test-case-helper";
 
 interface TestData {
     url: string;
@@ -91,193 +99,44 @@ function RunPageContent() {
         variables: Array<{ name: string; type: 'URL' | 'APP_ID' | 'VARIABLE' | 'RANDOM_STRING'; value: string; masked?: boolean; group?: string | null }>,
         sourceData: TestData
     ): Promise<string | null> => {
-        if (variables.length === 0) {
-            return testCaseId || currentTestCaseId || refreshFilesRef.current || null;
-        }
-
-        let targetTestCaseId = testCaseId || currentTestCaseId || refreshFilesRef.current || null;
-        if (!targetTestCaseId) {
-            targetTestCaseId = await ensureTestCaseFromData(sourceData, { suppressAlert: true });
-        }
-        if (!targetTestCaseId) return null;
-
-        const token = await getAccessToken();
-        const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-        const jsonHeaders: HeadersInit = {
-            'Content-Type': 'application/json',
-            ...headers
-        };
-
-        const existingResponse = await fetch(`/api/test-cases/${targetTestCaseId}/configs`, { headers });
-        const existingConfigs: ConfigItem[] = existingResponse.ok ? await existingResponse.json() : [];
-        const existingByName = new Map(existingConfigs.map((config) => [config.name, config]));
-
-        for (const variable of variables) {
-            const existing = existingByName.get(variable.name);
-            try {
-                if (!existing) {
-                    await fetch(`/api/test-cases/${targetTestCaseId}/configs`, {
-                        method: 'POST',
-                        headers: jsonHeaders,
-                        body: JSON.stringify(variable),
-                    });
-                } else {
-                    await fetch(`/api/test-cases/${targetTestCaseId}/configs/${existing.id}`, {
-                        method: 'PUT',
-                        headers: jsonHeaders,
-                        body: JSON.stringify(variable),
-                    });
-                }
-            } catch {
-                // silently skip failed variables
-            }
-        }
-
-        await fetchTestCaseConfigs(targetTestCaseId);
-        return targetTestCaseId;
+        return importVariablesToTestCaseHelper({
+            variables,
+            sourceData,
+            testCaseId,
+            currentTestCaseId,
+            refreshFilesTestCaseId: refreshFilesRef.current,
+            ensureTestCaseFromData,
+            getAccessToken,
+            fetchTestCaseConfigs,
+        });
     };
 
     const importVariablesToProject = async (
         variables: Array<{ name: string; type: 'URL' | 'APP_ID' | 'VARIABLE' | 'RANDOM_STRING'; value: string; masked?: boolean; group?: string | null }>
     ): Promise<void> => {
-        const targetProjectId = projectId || projectIdFromTestCase;
-        if (!targetProjectId || variables.length === 0) {
-            return;
-        }
-
-        const token = await getAccessToken();
-        const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-        const jsonHeaders: HeadersInit = {
-            'Content-Type': 'application/json',
-            ...headers,
-        };
-
-        const existingResponse = await fetch(`/api/projects/${targetProjectId}/configs`, { headers });
-        const existingConfigs: ConfigItem[] = existingResponse.ok ? await existingResponse.json() : [];
-        const existingByName = new Map(existingConfigs.map((config) => [config.name, config]));
-
-        for (const variable of variables) {
-            const existing = existingByName.get(variable.name);
-            try {
-                if (!existing) {
-                    await fetch(`/api/projects/${targetProjectId}/configs`, {
-                        method: 'POST',
-                        headers: jsonHeaders,
-                        body: JSON.stringify(variable),
-                    });
-                } else {
-                    await fetch(`/api/projects/${targetProjectId}/configs/${existing.id}`, {
-                        method: 'PUT',
-                        headers: jsonHeaders,
-                        body: JSON.stringify(variable),
-                    });
-                }
-            } catch {
-                // silently skip failed variables
-            }
-        }
-
-        await fetchProjectConfigs(targetProjectId);
+        await importVariablesToProjectHelper({
+            variables,
+            projectId,
+            projectIdFromTestCase,
+            getAccessToken,
+            fetchProjectConfigs,
+        });
     };
 
     const handleExport = async (data: TestData) => {
-        const exportData: TestData = { ...data };
-
-        const exportTestCaseId = testCaseId || currentTestCaseId || refreshFilesRef.current;
-        const hasAttachedFilesInState = testCaseFiles.length > 0
-            || projectConfigs.some((config) => config.type === 'FILE')
-            || testCaseConfigs.some((config) => config.type === 'FILE');
-
-        if (exportTestCaseId && (!isDirty || hasAttachedFilesInState)) {
-            try {
-                const token = await getAccessToken();
-                const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-                const response = await fetch(`/api/test-cases/${exportTestCaseId}/export`, { headers });
-                if (!response.ok) {
-                    throw new Error('Export request failed');
-                }
-
-                const blob = await response.blob();
-                const filename = extractFileName(
-                    response.headers.get('Content-Disposition'),
-                    `${buildExcelBaseName(exportData.displayId, exportData.name)}.xlsx`
-                );
-                downloadBlob(blob, filename);
-                return;
-            } catch (error) {
-                console.error('Failed to export from API, fallback to local Excel export', error);
-            }
-        }
-
-        let exportProjectConfigs = projectConfigs;
-        let exportTestCaseConfigs = testCaseConfigs;
-        const exportProjectId = projectId || projectIdFromTestCase;
-
-        if (exportProjectId || exportTestCaseId) {
-            try {
-                const token = await getAccessToken();
-                const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-
-                const fetchConfigs = async (url: string): Promise<ConfigItem[] | null> => {
-                    const response = await fetch(url, { headers });
-                    if (!response.ok) {
-                        return null;
-                    }
-                    return await response.json() as ConfigItem[];
-                };
-
-                const [latestProjectConfigs, latestTestCaseConfigs] = await Promise.all([
-                    exportProjectId
-                        ? fetchConfigs(`/api/projects/${exportProjectId}/configs`)
-                        : Promise.resolve(null),
-                    exportTestCaseId
-                        ? fetchConfigs(`/api/test-cases/${exportTestCaseId}/configs`)
-                        : Promise.resolve(null),
-                ]);
-
-                if (latestProjectConfigs) {
-                    exportProjectConfigs = latestProjectConfigs;
-                }
-                if (latestTestCaseConfigs) {
-                    exportTestCaseConfigs = latestTestCaseConfigs;
-                }
-            } catch (error) {
-                console.error('Failed to fetch latest config values for export', error);
-            }
-        }
-
-        const excelArrayBuffer = await exportToExcelArrayBuffer({
-            name: exportData.name,
-            testCaseId: exportData.displayId || undefined,
-            steps: exportData.steps,
-            browserConfig: exportData.browserConfig,
-            projectVariables: exportProjectConfigs
-                .filter(isSupportedVariableConfig)
-                .map((config) => ({
-                    name: config.name,
-                    type: config.type,
-                    value: config.type === 'FILE' ? (config.filename || config.value) : config.value,
-                    masked: config.masked === true,
-                    group: config.group || null,
-                })),
-            testCaseVariables: exportTestCaseConfigs
-                .filter(isSupportedVariableConfig)
-                .map((config) => ({
-                    name: config.name,
-                    type: config.type,
-                    value: config.type === 'FILE' ? (config.filename || config.value) : config.value,
-                    masked: config.masked === true,
-                    group: config.group || null,
-                })),
-            files: testCaseFiles.map((file) => ({
-                filename: file.filename,
-                mimeType: file.mimeType,
-                size: file.size,
-            })),
+        await handleExportHelper({
+            data,
+            testCaseId,
+            currentTestCaseId,
+            refreshFilesTestCaseId: refreshFilesRef.current,
+            isDirty,
+            testCaseFiles,
+            projectConfigs,
+            testCaseConfigs,
+            projectId,
+            projectIdFromTestCase,
+            getAccessToken,
         });
-
-        const blob = new Blob([excelArrayBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-        downloadBlob(blob, `${buildExcelBaseName(exportData.displayId, exportData.name)}.xlsx`);
     };
 
     const applyImportedExcelData = async (data: ParsedTestCaseExcel) => {
@@ -286,78 +145,23 @@ function RunPageContent() {
             setDisplayId(data.testCaseId);
         }
         setIsDirty(true);
-
-        const supportedProjectVariables = data.projectVariables.filter((variable): variable is {
-            name: string;
-            type: 'URL' | 'APP_ID' | 'VARIABLE' | 'RANDOM_STRING';
-            value: string;
-            masked?: boolean;
-            group?: string | null;
-        } => (
-            variable.type === 'URL' || variable.type === 'APP_ID' || variable.type === 'VARIABLE' || variable.type === 'RANDOM_STRING'
-        ));
-
-        const supportedTestCaseVariables = data.testCaseVariables.filter((variable): variable is {
-            name: string;
-            type: 'URL' | 'APP_ID' | 'VARIABLE' | 'RANDOM_STRING';
-            value: string;
-            masked?: boolean;
-            group?: string | null;
-        } => (
-            variable.type === 'URL' || variable.type === 'APP_ID' || variable.type === 'VARIABLE' || variable.type === 'RANDOM_STRING'
-        ));
-
+        const supportedProjectVariables = filterSupportedVariableConfigs(data.projectVariables);
+        const supportedTestCaseVariables = filterSupportedVariableConfigs(data.testCaseVariables);
         await importVariablesToProject(supportedProjectVariables);
         await importVariablesToTestCase(supportedTestCaseVariables, data.testData);
     };
 
-    const buildImportReviewData = (
-        filename: string,
-        issues: Array<{ code: string; severity: 'warning' | 'error'; reason: string; sheet?: string; row?: number; }>
-    ): TestCaseImportReviewData => {
-        const hasErrors = issues.some((issue) => issue.severity === 'error');
-        const hasWarnings = issues.some((issue) => issue.severity === 'warning');
-        return {
-            summary: {
-                totalFiles: 1,
-                validFiles: hasErrors ? 0 : 1,
-                invalidFiles: hasErrors ? 1 : 0,
-                warningFiles: hasWarnings ? 1 : 0,
-                importedFiles: 0,
-                skippedFiles: 0,
-            },
-            files: [{
-                filename,
-                status: hasErrors ? 'invalid' : 'valid',
-                issues: issues.map((issue) => ({
-                    ...issue,
-                    filename,
-                })),
-            }],
-        };
-    };
-
     const handleProceedImportReview = async () => {
-        if (!pendingImportData) {
-            setImportReviewData(null);
-            return;
-        }
-        setIsImportReviewProcessing(true);
-        try {
-            await applyImportedExcelData(pendingImportData);
-            setImportReviewData(null);
-            setPendingImportData(null);
-        } catch (error) {
-            console.error('Failed to import test case', error);
-        } finally {
-            setIsImportReviewProcessing(false);
-        }
+        await handleProceedImportReviewHelper({
+            pendingImportData,
+            setImportReviewData,
+            setPendingImportData,
+            setIsImportReviewProcessing,
+            applyImportedExcelData,
+        });
     };
 
-    const handleDiscardImportReview = () => {
-        setImportReviewData(null);
-        setPendingImportData(null);
-    };
+    const handleDiscardImportReview = () => discardImportReviewHelper({ setImportReviewData, setPendingImportData });
 
     const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -919,85 +723,30 @@ function RunPageContent() {
         }
     }, [projectId, projectIdFromTestCase, router]);
 
-    const handleDisplayIdChange = useCallback((newDisplayId: string) => {
-        setDisplayId(newDisplayId);
-        setIsDirty(true);
-    }, []);
+    const handleDisplayIdChange = useCallback((newDisplayId: string) => { setDisplayId(newDisplayId); setIsDirty(true); }, []);
 
     const ensureTestCaseFromData = async (
         data: TestData,
         options?: { suppressAlert?: boolean }
     ): Promise<string> => {
-        const suppressAlert = options?.suppressAlert === true;
-        if (testCaseId) return testCaseId;
-        if (currentTestCaseId) return currentTestCaseId;
-
-        const effectiveProjectId = projectId || projectIdFromTestCase;
-        if (!effectiveProjectId) {
-            if (!suppressAlert) {
-                alert(t('run.error.selectProjectUpload'));
-            }
-            throw new Error(t('run.error.noProjectSelected'));
-        }
-        const normalizedDisplayId = (data.displayId ?? displayId ?? '').trim();
-        if (!normalizedDisplayId) {
-            if (!suppressAlert) {
-                alert(t('run.error.testCaseIdRequired'));
-            }
-            throw new Error(t('run.error.testCaseIdRequired'));
-        }
-
-        try {
-            const token = await getAccessToken();
-            const headers: HeadersInit = {
-                'Content-Type': 'application/json',
-                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-            };
-
-            const usedPlaceholderName = !data.name || data.name.trim() === '';
-            const untitledName = t('testCase.untitled');
-
-            const payload: TestData = {
-                ...data,
-                name: !usedPlaceholderName ? data.name : untitledName,
-                displayId: normalizedDisplayId,
-            };
-            if (!payload.url || payload.url.trim() === '') {
-                payload.url = 'about:blank';
-            }
-            const payloadHasSteps = Array.isArray(payload.steps) && payload.steps.length > 0;
-            if (!payload.prompt && !payloadHasSteps) {
-                payload.prompt = 'Draft';
-            }
-
-            const response = await fetch(`/api/projects/${effectiveProjectId}/test-cases`, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify(payload),
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.error || 'Failed to create test case');
-            }
-
-            const newTestCase = await response.json();
-            setCurrentTestCaseId(newTestCase.id);
-            refreshFilesRef.current = newTestCase.id;
-            window.history.replaceState(null, "", `?testCaseId=${newTestCase.id}&projectId=${effectiveProjectId}`);
-
-            if (usedPlaceholderName) {
-                setInitialData({ ...data, name: untitledName });
-            }
-
-            return newTestCase.id as string;
-        } catch (error) {
-            console.error('Failed to create test case for upload', error);
-            if (!suppressAlert) {
-                alert(t('run.error.failedCreateTestCaseUpload'));
-            }
-            throw error;
-        }
+        return await ensureTestCaseFromDataHelper({
+            data,
+            suppressAlert: options?.suppressAlert === true,
+            testCaseId,
+            currentTestCaseId,
+            projectId,
+            projectIdFromTestCase,
+            displayId,
+            getAccessToken,
+            t,
+            setCurrentTestCaseId,
+            setInitialData: (nextInitialData) => {
+                setInitialData(nextInitialData);
+            },
+            setRefreshFilesTestCaseId: (newTestCaseId) => {
+                refreshFilesRef.current = newTestCaseId;
+            },
+        });
     };
 
     const testCaseHasActiveRun = isRunActiveStatus(testCaseStatus);

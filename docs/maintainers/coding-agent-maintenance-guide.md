@@ -52,6 +52,16 @@ Responsibilities:
 - shared browser/Android execution logic used by runner clients
 - step execution, event generation, and cleanup behavior
 
+Decomposed into focused modules:
+
+- `android-runtime-helpers.ts` - Android ADB recovery, wake/unlock, permissions, app lifecycle
+- `assertion-verifier.ts` - Quoted string AI verification
+- `assertion-shortcuts.ts` - Assertion pattern detection and formatting
+- `execution-files.ts` - Temp file materialization for run-time file configs
+- `playwright-code-execution.ts` - Playwright code step sandbox execution
+- `network-guard-summary.ts` - Browser network guard log emission
+- `local-browser-runner-parsers.ts` - Config snapshot/image data URL parsers
+
 Key invariants:
 
 - cleanup must stay idempotent when cancellation races run completion
@@ -101,8 +111,29 @@ The top-level `Makefile` is the source of truth for multi-step local workflows:
 - `make maintenance` starts only the maintenance loop
 - `make runner-reset` clears local runner state
 - `make verify` runs the repo verification checks
+- `npm run --workspace @skytest/web load-gate:sse:smoke` runs the SSE smoke load gate (`/api/test-runs/[id]/events`)
+- `npm run --workspace @skytest/web perf:gate:runner-events` runs runner event-ingestion endpoint load checks (k6)
 
 Do not duplicate those workflows in new scripts or stale runbooks.
+
+## Verification Gates
+
+`npm run verify` (workspace `@skytest/web`) is the baseline pre-commit gate and now enforces:
+
+- lint + TypeScript compile
+- auth-route deny-by-default coverage (`auth:check-routes`)
+- runner-protocol import boundary check (`protocol:check-boundary`)
+- hotspot LOC threshold + ADR exceptions (`quality:check-hotspots`)
+- config/i18n modularization + locale consistency guardrails (`quality:check-config-i18n`)
+- runner contract centralization check (`quality:check-runner-contracts`)
+- dependency audit allowlist policy (`audit`)
+
+Runner defaults are centralized in `@skytest/runner-protocol`:
+
+- `RUNNER_DEFAULT_CAPABILITIES`
+- `RUNNER_DEFAULT_TRANSPORT`
+
+Do not re-introduce hardcoded runner capabilities or transport fallbacks in CLI, macOS runner, or web runner protocol modules.
 
 ## Browser Network Guard And Failure Metadata
 

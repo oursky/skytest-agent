@@ -31,7 +31,6 @@ export interface LocalRunnerPaths {
     runnerDir: string;
     metadataPath: string;
     credentialPath: string;
-    pidPath: string;
     logPath: string;
     runtimeStateDir: string;
 }

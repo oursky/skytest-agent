@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/security/api-route-standards';
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { isTeamMember } from '@/lib/security/permissions';
+import { guardTeamRouteRequest } from '@/lib/security/team-route-access';
 
 const logger = createLogger('api:teams:members');
 const DEFAULT_MEMBER_ROLE = 'MEMBER' as const;
@@ -15,21 +16,17 @@ export async function GET(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardTeamRouteRequest({
+        request,
+        params,
+        authorize: ({ userId, teamId }) => isTeamMember(userId, teamId),
+    });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const { id } = await params;
-        if (!await isTeamMember(userId, id)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
+        const { teamId: id } = guard;
         const members = await prisma.teamMembership.findMany({
             where: { teamId: id },
             orderBy: [
@@ -66,7 +63,7 @@ export async function GET(
         });
     } catch (error) {
         logger.error('Failed to list team members', error);
-        return NextResponse.json({ error: 'Failed to load team members' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to load team members' });
     }
 }
 
@@ -74,27 +71,23 @@ export async function POST(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardTeamRouteRequest({
+        request,
+        params,
+        authorize: ({ userId, teamId }) => isTeamMember(userId, teamId),
+    });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const { id } = await params;
-        if (!await isTeamMember(userId, id)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
+        const { teamId: id } = guard;
 
         const body = await request.json() as { email?: string };
         const email = typeof body.email === 'string' ? normalizeEmail(body.email) : '';
 
         if (!email) {
-            return NextResponse.json({ error: 'Email is required' }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Email is required' });
         }
 
         const existingUser = await prisma.user.findFirst({
@@ -114,7 +107,7 @@ export async function POST(
         });
 
         if (existingMembership) {
-            return NextResponse.json({ error: 'Member already exists in this team' }, { status: 409 });
+            return apiError({ status: 409, code: 'CONFLICT', error: 'Member already exists in this team' });
         }
 
         const membership = await prisma.teamMembership.create({
@@ -137,6 +130,6 @@ export async function POST(
         return NextResponse.json(membership, { status: 201 });
     } catch (error) {
         logger.error('Failed to add team member', error);
-        return NextResponse.json({ error: 'Failed to add team member' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to add team member' });
     }
 }

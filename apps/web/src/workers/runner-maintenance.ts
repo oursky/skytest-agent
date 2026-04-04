@@ -5,24 +5,16 @@ import { pruneOldRunEvents } from '@/lib/runners/event-retention-service';
 import { reapExpiredRunnerLeases, reapStaleLocalBrowserRuns } from '@/lib/runners/lease-reaper';
 import { failInvalidQueuedAndroidRuns } from '@/lib/runners/queue-sanitizer';
 import { enforceRunArtifactRetention } from '@/lib/runners/run-retention-service';
+import { createWakeableSleeper, createWorkerShutdownController } from '@/workers/loop-utils';
 
 const logger = createLogger('worker:runner-maintenance');
-let shutdownRequested = false;
-let wakeLoop: (() => void) | null = null;
-
-function sleepOrWake(ms: number): Promise<void> {
-    return new Promise((resolve) => {
-        const timeout = setTimeout(() => {
-            wakeLoop = null;
-            resolve();
-        }, ms);
-        wakeLoop = () => {
-            clearTimeout(timeout);
-            wakeLoop = null;
-            resolve();
-        };
-    });
-}
+const sleeper = createWakeableSleeper();
+const shutdown = createWorkerShutdownController({
+    logger,
+    workerLabel: 'runner maintenance worker',
+    wake: sleeper.wake,
+});
+const MAX_MAINTENANCE_RETRY_INTERVAL_MS = 60_000;
 
 async function runMaintenanceCycle() {
     const [leaseResult, staleLocalBrowserRunResult, retentionResult, queueSanitizerResult] = await Promise.all([
@@ -79,28 +71,29 @@ async function main() {
         return;
     }
 
-    while (!shutdownRequested) {
-        await runMaintenanceCycle();
-        if (!shutdownRequested) {
-            await sleepOrWake(appConfig.runner.leaseReaperIntervalMs);
+    let nextIntervalMs = appConfig.runner.leaseReaperIntervalMs;
+    while (!shutdown.isShutdownRequested()) {
+        try {
+            await runMaintenanceCycle();
+            nextIntervalMs = appConfig.runner.leaseReaperIntervalMs;
+        } catch (error) {
+            logger.warn('Runner maintenance cycle failed', {
+                error: error instanceof Error ? error.message : String(error),
+                retryInMs: nextIntervalMs,
+            });
+            nextIntervalMs = Math.min(MAX_MAINTENANCE_RETRY_INTERVAL_MS, Math.floor(nextIntervalMs * 2));
+        }
+
+        if (!shutdown.isShutdownRequested()) {
+            await sleeper.sleepOrWake(nextIntervalMs);
         }
     }
 
     logger.info('Runner maintenance worker stopping');
 }
 
-function requestShutdown(signal: NodeJS.Signals): void {
-    if (shutdownRequested) {
-        return;
-    }
-
-    shutdownRequested = true;
-    logger.info(`Received ${signal}, shutting down runner maintenance worker`);
-    wakeLoop?.();
-}
-
-process.on('SIGTERM', () => requestShutdown('SIGTERM'));
-process.on('SIGINT', () => requestShutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown.requestShutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown.requestShutdown('SIGINT'));
 
 void main().catch((error) => {
     logger.error('Runner maintenance worker crashed', error);

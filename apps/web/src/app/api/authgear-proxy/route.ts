@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/security/api-route-standards';
 import { getRateLimitKey, isRateLimited } from '@/lib/runners/rate-limit';
 import { getAuthgearRuntimeConfig } from '@/lib/security/authgear-config';
 
@@ -11,7 +12,7 @@ function getTargetUrl(request: Request): { targetUrl: string | null; errorRespon
   if (!targetUrl) {
     return {
       targetUrl: null,
-      errorResponse: NextResponse.json({ error: 'Missing url' }, { status: 400 })
+      errorResponse: apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Missing url' })
     };
   }
 
@@ -19,7 +20,7 @@ function getTargetUrl(request: Request): { targetUrl: string | null; errorRespon
   if (!endpoint) {
     return {
       targetUrl: null,
-      errorResponse: NextResponse.json({ error: 'Auth endpoint not configured' }, { status: 500 })
+      errorResponse: apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Auth endpoint not configured' })
     };
   }
 
@@ -29,7 +30,7 @@ function getTargetUrl(request: Request): { targetUrl: string | null; errorRespon
   } catch {
     return {
       targetUrl: null,
-      errorResponse: NextResponse.json({ error: 'Invalid url' }, { status: 400 })
+      errorResponse: apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Invalid url' })
     };
   }
 
@@ -39,14 +40,14 @@ function getTargetUrl(request: Request): { targetUrl: string | null; errorRespon
   } catch {
     return {
       targetUrl: null,
-      errorResponse: NextResponse.json({ error: 'Auth endpoint misconfigured' }, { status: 500 })
+      errorResponse: apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Auth endpoint misconfigured' })
     };
   }
 
   if (parsedTarget.origin !== allowedOrigin) {
     return {
       targetUrl: null,
-      errorResponse: NextResponse.json({ error: 'Blocked url' }, { status: 403 })
+      errorResponse: apiError({ status: 403, code: 'FORBIDDEN', error: 'Blocked url' })
     };
   }
 
@@ -56,7 +57,7 @@ function getTargetUrl(request: Request): { targetUrl: string | null; errorRespon
 async function proxy(request: Request): Promise<NextResponse> {
   const rateLimitKey = getRateLimitKey(request, 'authgear-proxy');
   if (await isRateLimited(rateLimitKey, AUTHGEAR_PROXY_RATE_LIMIT)) {
-    return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+    return apiError({ status: 429, code: 'RATE_LIMITED', error: 'Too many requests' });
   }
 
   const { targetUrl, errorResponse } = getTargetUrl(request);
@@ -81,7 +82,7 @@ async function proxy(request: Request): Promise<NextResponse> {
       redirect: 'manual'
     });
   } catch {
-    return NextResponse.json({ error: 'Upstream request failed' }, { status: 502 });
+    return apiError({ status: 502, code: 'INTERNAL_ERROR', error: 'Upstream request failed' });
   }
 
   const responseHeaders = new Headers(upstream.headers);

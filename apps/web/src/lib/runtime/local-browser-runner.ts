@@ -10,28 +10,25 @@ import { createStoredName, validateAndSanitizeFile, buildRunArtifactObjectKey } 
 import { putObjectBuffer } from '@/lib/storage/object-store-utils';
 import { UsageService } from '@/lib/runtime/usage';
 import {
+    buildResolvedConfigMapsFromSnapshot,
+    parseConfigurationSnapshot,
+    parseImageDataUrl,
+    parseSerializedJson,
+    toSafeScreenshotFilename,
+} from '@/lib/runtime/local-browser-runner-parsers';
+import {
     RUN_IN_PROGRESS_STATUSES,
     TEST_STATUS,
     isRunInProgressStatus,
     isScreenshotData,
     isRunTerminalStatus,
     type BrowserConfig,
-    type ConfigType,
-    type ResolvedConfig,
     type RunInProgressStatus,
     type TargetConfig,
     type TestCaseFile,
     type TestEvent,
     type TestStep,
 } from '@/types';
-
-interface SnapshotPayload {
-    url?: string;
-    prompt?: string;
-    steps?: TestStep[];
-    browserConfig?: Record<string, BrowserConfig | TargetConfig>;
-    resolvedConfigurations?: ResolvedConfig[];
-}
 
 interface LoadedRunConfig {
     runId: string;
@@ -58,12 +55,6 @@ interface RunEventInput {
     message?: string;
     payload?: unknown;
     artifactKey?: string;
-}
-
-interface ParsedImageDataUrl {
-    mimeType: string;
-    extension: string;
-    contentBase64: string;
 }
 
 interface LocalBrowserRunOptions {
@@ -150,111 +141,6 @@ function triggerQueuedBrowserDispatch(reason: string, runId: string): void {
 
 function createLeaseExpiry(now = new Date()): Date {
     return new Date(now.getTime() + appConfig.runner.leaseDurationSeconds * 1000);
-}
-
-function parseConfigurationSnapshot(snapshot: string | null): SnapshotPayload {
-    if (!snapshot) {
-        return {};
-    }
-
-    try {
-        const parsed = JSON.parse(snapshot) as SnapshotPayload;
-        return parsed && typeof parsed === 'object' ? parsed : {};
-    } catch {
-        return {};
-    }
-}
-
-function isConfigType(value: string): value is ConfigType {
-    return value === 'URL'
-        || value === 'APP_ID'
-        || value === 'VARIABLE'
-        || value === 'RANDOM_STRING'
-        || value === 'FILE';
-}
-
-function buildResolvedConfigMapsFromSnapshot(snapshot: SnapshotPayload): {
-    resolvedVariables: Record<string, string>;
-    resolvedFiles: Record<string, string>;
-} | null {
-    if (!Array.isArray(snapshot.resolvedConfigurations)) {
-        return null;
-    }
-
-    const resolvedVariables: Record<string, string> = {};
-    const resolvedFiles: Record<string, string> = {};
-
-    for (const config of snapshot.resolvedConfigurations) {
-        if (
-            !config
-            || typeof config !== 'object'
-            || typeof config.name !== 'string'
-            || typeof config.type !== 'string'
-            || typeof config.value !== 'string'
-            || !isConfigType(config.type)
-        ) {
-            continue;
-        }
-
-        if (config.type === 'FILE') {
-            resolvedFiles[config.name] = config.value;
-            if (typeof config.filename === 'string' && config.filename.length > 0) {
-                resolvedFiles[config.filename] = config.value;
-            }
-            continue;
-        }
-
-        resolvedVariables[config.name] = config.value;
-    }
-
-    return { resolvedVariables, resolvedFiles };
-}
-
-function parseSerializedJson<T>(value: string | null): T | undefined {
-    if (!value) {
-        return undefined;
-    }
-
-    try {
-        return JSON.parse(value) as T;
-    } catch {
-        return undefined;
-    }
-}
-
-function parseImageDataUrl(value: string): ParsedImageDataUrl | null {
-    const match = /^data:([^;]+);base64,(.+)$/i.exec(value.trim());
-    if (!match) {
-        return null;
-    }
-
-    const mimeType = match[1].toLowerCase();
-    const contentBase64 = match[2].replace(/\s+/g, '');
-    if (!contentBase64) {
-        return null;
-    }
-
-    const extension = mimeType === 'image/jpeg'
-        ? 'jpg'
-        : mimeType === 'image/png'
-            ? 'png'
-            : mimeType === 'image/webp'
-                ? 'webp'
-                : mimeType === 'image/gif'
-                    ? 'gif'
-                    : 'bin';
-
-    return {
-        mimeType,
-        extension,
-        contentBase64,
-    };
-}
-
-function toSafeScreenshotFilename(label: string, extension: string): string {
-    const normalized = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-    const base = normalized.length > 0 ? normalized.slice(0, 80) : 'screenshot';
-    return `${base}-${Date.now()}.${extension}`;
 }
 
 async function loadRunConfig(runId: string, options?: LocalBrowserRunOptions): Promise<LoadedRunConfig | null> {

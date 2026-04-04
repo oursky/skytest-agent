@@ -1,39 +1,44 @@
 import { chromium, Page, BrowserContext, Browser, ConsoleMessage } from 'playwright';
-import { expect as playwrightExpect } from '@playwright/test';
 import { PlaywrightAgent } from '@midscene/web/playwright';
-import { TEST_STATUS, TestStep, BrowserConfig, TargetConfig, AndroidTargetConfig, AndroidAgent, AndroidDevice, TestEvent, TestResult, RunTestOptions, TestCaseFile } from '@/types';
+import { TEST_STATUS, TestStep, BrowserConfig, TargetConfig, AndroidTargetConfig, AndroidAgent, AndroidDevice, TestEvent, TestResult, RunTestOptions } from '@/types';
 import { config } from '@/config/app';
-import { ConfigurationError, TestExecutionError, PlaywrightCodeError, getErrorMessage } from '@/lib/core/errors';
+import { ConfigurationError, TestExecutionError, getErrorMessage } from '@/lib/core/errors';
 import { substituteAll } from '@/lib/test-config/substitution';
 import { createLogger as createServerLogger } from '@/lib/core/logger';
 import { buildMidsceneModelConfig } from '@/lib/runtime/midscene-env';
 import { validateTargetUrl } from '@/lib/security/url-security';
-import { createBrowserNetworkGuard, type BrowserNetworkGuard, type BrowserNetworkGuardSummary } from '@/lib/runtime/browser-network-guard';
+import { createBrowserNetworkGuard, type BrowserNetworkGuard } from '@/lib/runtime/browser-network-guard';
 import { androidDeviceManager, type AndroidDeviceLease } from '@/lib/android/device-manager';
 import { normalizeAndroidTargetConfig } from '@/lib/android/target-config';
 import { normalizeBrowserConfig } from '@/lib/test-config/browser-target';
-import { ReliableAdb } from '@/lib/android/adb-reliable';
-import { resolveAndroidToolPath } from '@/lib/android/sdk';
-import { createSafePage, validatePlaywrightCode } from '@/lib/runtime/playwright-code-sandbox';
-import { splitPlaywrightCodeStatements, summarizePlaywrightCodeStatement } from '@/lib/runtime/playwright-code-trace';
+import {
+    assertValidAndroidPackageName,
+    clearAndroidAppData,
+    forceStopAndroidApp,
+    grantAndroidAppPermissions,
+    isAndroidPackageInstalled,
+    isRecoverableAndroidAdbConnectionError,
+    launchAndroidAppWithLauncherIntent,
+    recoverAndroidDeviceConnection,
+    runAndroidAgentOperation,
+    shouldRetryAndroidActionAfterLoadWait,
+    waitForAndroidAppForeground,
+    waitForAndroidUiReadyForAction,
+    wakeAndUnlockAndroidDevice
+} from '@/lib/runtime/android-runtime-helpers';
+import { verifyQuotedStringsExist } from '@/lib/runtime/assertion-verifier';
+import { executePlaywrightCode, resolvePlaywrightCodeStepContext } from '@/lib/runtime/playwright-code-execution';
+import { prepareExecutionFiles, type MaterializedExecutionFiles } from '@/lib/runtime/execution-files';
 import { classifyRunFailure } from '@/lib/runtime/run-failure-classifier';
-import { createTempDirectory, materializeObjectToFile, removeTempDirectory } from '@/lib/storage/object-store-utils';
+import { extractQuotedStrings, shouldUseQuotedStringShortcut, formatAssertionFailureMessage } from '@/lib/runtime/assertion-shortcuts';
+import { collectBrowserNetworkGuardSummaries, emitBrowserNetworkGuardSummaries } from '@/lib/runtime/network-guard-summary';
 import { validateRuntimeRequestUrl } from '@/lib/security/url-security-runtime';
-import { Script, createContext } from 'node:vm';
-import path from 'node:path';
-
-export const maxDuration = config.test.maxDuration;
 
 const serverLogger = createServerLogger('test-runner');
 
 type EventHandler = (event: TestEvent) => void;
 
 const ANDROID_AGENT_LAUNCH_TIMEOUT_MS = 60_000;
-const ANDROID_AGENT_OPERATION_TIMEOUT_MS = 120_000;
-const ANDROID_ADB_RECOVERY_TIMEOUT_MS = 20_000;
-const ANDROID_ADB_RECOVERY_ATTEMPTS = 2;
-const ANDROID_WAKE_UNLOCK_COMMAND_TIMEOUT_MS = config.emulator.adb.commandTimeoutMs;
-const androidAdbPath = resolveAndroidToolPath('adb');
 
 function validateTargetConfigs(targetConfigs: Record<string, BrowserConfig | TargetConfig>) {
     for (const [targetId, targetConfig] of Object.entries(targetConfigs)) {
@@ -50,325 +55,6 @@ function validateTargetConfigs(targetConfigs: Record<string, BrowserConfig | Tar
 
 function isAndroidTarget(cfg: BrowserConfig | TargetConfig): cfg is AndroidTargetConfig {
     return 'type' in cfg && cfg.type === 'android';
-}
-
-function isValidAndroidPackageName(appId: string): boolean {
-    return /^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$/.test(appId);
-}
-
-function assertValidAndroidPackageName(appId: string, targetLabel: string): void {
-    if (!isValidAndroidPackageName(appId)) {
-        throw new ConfigurationError(`Android target "${targetLabel}" has invalid app ID "${appId}"`, 'android');
-    }
-}
-
-function sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function isAbortError(error: unknown): boolean {
-    return error instanceof Error && error.message === 'Aborted';
-}
-
-async function withSignalAndTimeout<T>(
-    promise: Promise<T>,
-    options: {
-        signal?: AbortSignal;
-        timeoutMs: number;
-        timeoutMessage: string;
-    }
-): Promise<T> {
-    const { signal, timeoutMs, timeoutMessage } = options;
-
-    if (signal?.aborted) {
-        throw new Error('Aborted');
-    }
-
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-    let abortHandler: (() => void) | null = null;
-
-    try {
-        const racers: Promise<T>[] = [promise];
-
-        racers.push(new Promise<T>((_, reject) => {
-            timeoutId = setTimeout(() => {
-                reject(new Error(timeoutMessage));
-            }, timeoutMs);
-        }));
-
-        if (signal) {
-            racers.push(new Promise<T>((_, reject) => {
-                abortHandler = () => reject(new Error('Aborted'));
-                signal.addEventListener('abort', abortHandler, { once: true });
-            }));
-        }
-
-        return await Promise.race(racers);
-    } finally {
-        if (timeoutId) {
-            clearTimeout(timeoutId);
-        }
-        if (signal && abortHandler) {
-            signal.removeEventListener('abort', abortHandler);
-        }
-    }
-}
-
-async function runAndroidAgentOperation<T>(
-    operation: () => Promise<T>,
-    operationLabel: string,
-    signal?: AbortSignal,
-    timeoutMs = ANDROID_AGENT_OPERATION_TIMEOUT_MS
-): Promise<T> {
-    try {
-        return await withSignalAndTimeout(operation(), {
-            signal,
-            timeoutMs,
-            timeoutMessage: `Android ${operationLabel} timed out after ${Math.ceil(timeoutMs / 1000)}s. The device may have disconnected.`,
-        });
-    } catch (error) {
-        if (isAbortError(error)) {
-            throw error;
-        }
-        throw error;
-    }
-}
-
-function shouldRetryAndroidActionAfterLoadWait(errorMessage: string): boolean {
-    return /splash screen|still on the splash|loading screen|still loading|not found on the current screen/i.test(errorMessage);
-}
-
-function isRecoverableAndroidAdbConnectionError(errorMessage: string): boolean {
-    return /device offline|device not found|no devices\/emulators found|connection reset|broken pipe|transport is closing|closed|cannot access system service|can't find service|cannot find service/i.test(errorMessage);
-}
-
-async function recoverAndroidDeviceConnection(
-    handle: AndroidDeviceLease,
-    targetLabel: string,
-    log: ReturnType<typeof createLogger>,
-    targetId: string,
-    appId: string | undefined,
-    signal?: AbortSignal
-): Promise<boolean> {
-    const adb = new ReliableAdb(handle.serial, androidAdbPath);
-
-    for (let attempt = 1; attempt <= ANDROID_ADB_RECOVERY_ATTEMPTS; attempt += 1) {
-        if (signal?.aborted) {
-            throw new Error('Aborted');
-        }
-
-        log(
-            `[${targetLabel}] Device connection dropped (ADB offline). Attempting recovery ${attempt}/${ANDROID_ADB_RECOVERY_ATTEMPTS}...`,
-            'info',
-            targetId
-        );
-
-        const reconnected = await withSignalAndTimeout(adb.reconnect(), {
-            signal,
-            timeoutMs: ANDROID_ADB_RECOVERY_TIMEOUT_MS,
-            timeoutMessage: `ADB reconnect timed out for ${handle.serial}`,
-        }).catch(() => false);
-
-        if (!reconnected) {
-            await sleep(config.test.android.recoveryRetryDelayMs);
-            continue;
-        }
-
-        const device = handle.device;
-        if (!device) {
-            return true;
-        }
-
-        await wakeAndUnlockAndroidDevice(device, signal).catch(() => {});
-
-        if (appId) {
-            await forceStopAndroidApp(device, appId).catch(() => {});
-            await launchAndroidAppWithLauncherIntent(device, appId).catch(() => false);
-            await waitForAndroidAppForeground(device, appId, config.test.android.recoveryForegroundTimeoutMs).catch(() => false);
-        }
-
-        try {
-            await device.shell('echo skytest-adb-check');
-            log(`[${targetLabel}] Device connection recovered.`, 'info', targetId);
-            return true;
-        } catch (error) {
-            log(
-                `[${targetLabel}] Recovery validation failed: ${getErrorMessage(error)}`,
-                'error',
-                targetId
-            );
-            await sleep(config.test.android.recoveryRetryDelayMs);
-        }
-    }
-
-    return false;
-}
-
-async function waitForAndroidUiReadyForAction(
-    agent: AndroidAgent,
-    stepAction: string,
-    log: ReturnType<typeof createLogger>,
-    targetLabel: string,
-    targetId: string,
-    signal?: AbortSignal
-): Promise<void> {
-    const timeoutMs = Math.max(15_000, config.test.android.postLaunchStabilizationMs * 3);
-    log(`[${targetLabel}] Waiting for app UI to finish loading before retrying...`, 'info', targetId);
-    await runAndroidAgentOperation(
-        () => agent.aiWaitFor(
-            `The app is no longer on a splash or loading screen and is ready for this action: ${stepAction}`,
-            { timeoutMs, checkIntervalMs: config.test.android.uiReadyCheckIntervalMs }
-        ),
-        'wait for UI readiness',
-        signal,
-        timeoutMs + 5_000
-    );
-}
-
-async function isAndroidAppInForeground(device: { shell(command: string): Promise<string> }, appId: string): Promise<boolean> {
-    try {
-        const activityDump = await device.shell('dumpsys activity activities');
-        const lowerDump = activityDump.toLowerCase();
-        return lowerDump.includes(`${appId.toLowerCase()}/`);
-    } catch {
-        return false;
-    }
-}
-
-async function waitForAndroidAppForeground(
-    device: { shell(command: string): Promise<string> },
-    appId: string,
-    timeoutMs: number
-): Promise<boolean> {
-    const startedAt = Date.now();
-    while (Date.now() - startedAt < timeoutMs) {
-        if (await isAndroidAppInForeground(device, appId)) {
-            return true;
-        }
-        await sleep(config.test.android.wakeUnlockStabilizationMs);
-    }
-    return false;
-}
-
-async function wakeAndUnlockAndroidDevice(device: AndroidDevice, signal?: AbortSignal): Promise<void> {
-    const runBestEffortShellCommand = async (command: string) => {
-        await withSignalAndTimeout(device.shell(command), {
-            signal,
-            timeoutMs: ANDROID_WAKE_UNLOCK_COMMAND_TIMEOUT_MS,
-            timeoutMessage: `Android wake/unlock command timed out: ${command}`,
-        }).catch(() => {});
-    };
-
-    await runBestEffortShellCommand('input keyevent KEYCODE_WAKEUP');
-    await runBestEffortShellCommand('wm dismiss-keyguard');
-    await runBestEffortShellCommand('input keyevent 82');
-}
-
-async function launchAndroidAppWithLauncherIntent(device: AndroidDevice, appId: string): Promise<boolean> {
-    const launchOutput = await device.shell(
-        `monkey -p ${appId} -c android.intent.category.LAUNCHER 1`
-    );
-    return !/no activities found|monkey aborted|error/i.test(launchOutput);
-}
-
-async function isAndroidPackageInstalled(device: AndroidDevice, appId: string): Promise<boolean> {
-    const installedPackageOutput = await device.shell(`pm list packages ${appId}`);
-    return installedPackageOutput
-        .split('\n')
-        .some((line) => line.trim() === `package:${appId}`);
-}
-
-async function forceStopAndroidApp(device: AndroidDevice, appId: string): Promise<void> {
-    await device.shell(`am force-stop ${appId}`);
-}
-
-async function clearAndroidAppData(device: AndroidDevice, appId: string): Promise<boolean> {
-    const clearOutput = await device.shell(`pm clear ${appId}`);
-    return clearOutput.toLowerCase().includes('success');
-}
-
-function extractAndroidPermissionsFromDumpsys(packageDump: string): string[] {
-    const permissions = new Set<string>();
-
-    for (const match of packageDump.matchAll(/^\s*([A-Za-z0-9_.]+):\s+granted=(?:true|false)/gm)) {
-        permissions.add(match[1]);
-    }
-
-    const lines = packageDump.split('\n');
-    let inRequestedPermissions = false;
-    for (const line of lines) {
-        const trimmed = line.trim();
-        if (!inRequestedPermissions) {
-            if (trimmed.toLowerCase() === 'requested permissions:') {
-                inRequestedPermissions = true;
-            }
-            continue;
-        }
-
-        if (!trimmed) {
-            continue;
-        }
-
-        if (trimmed.endsWith(':') && !trimmed.includes('.')) {
-            break;
-        }
-
-        if (/^[A-Za-z0-9_.]+$/.test(trimmed) && trimmed.includes('.')) {
-            permissions.add(trimmed);
-            continue;
-        }
-
-        if (trimmed.includes(':')) {
-            break;
-        }
-    }
-
-    return [...permissions];
-}
-
-async function grantAndroidAppPermissions(
-    device: { shell(command: string): Promise<string> },
-    appId: string,
-    log: ReturnType<typeof createLogger>,
-    browserId?: string
-): Promise<void> {
-    try {
-        const packageDump = await device.shell(`dumpsys package ${appId}`);
-        const permissions = extractAndroidPermissionsFromDumpsys(packageDump);
-
-        if (permissions.length === 0) {
-            log(`No grantable permissions detected for ${appId}; skipping auto-grant.`, 'info', browserId);
-            return;
-        }
-
-        let granted = 0;
-        let skipped = 0;
-
-        for (const permission of permissions) {
-            try {
-                const output = (await device.shell(`pm grant ${appId} ${permission}`)).trim();
-                if (!output) {
-                    granted += 1;
-                    continue;
-                }
-
-                skipped += 1;
-                if (!/not a changeable permission type|operation not allowed|securityexception|unknown permission|java\.lang\./i.test(output)) {
-                    log(`pm grant ${permission}: ${output}`, 'info', browserId);
-                }
-            } catch (error) {
-                skipped += 1;
-                const message = getErrorMessage(error);
-                if (!/not a changeable permission type|operation not allowed|securityexception|unknown permission|java\.lang\./i.test(message)) {
-                    log(`pm grant ${permission} failed: ${message}`, 'info', browserId);
-                }
-            }
-        }
-
-        log(`Auto-grant permissions attempted for ${appId}: ${granted} granted, ${skipped} skipped.`, 'info', browserId);
-    } catch (error) {
-        log(`Failed to auto-grant permissions for ${appId}: ${getErrorMessage(error)}`, 'error', browserId);
-    }
 }
 
 interface ExecutionTargets {
@@ -734,7 +420,7 @@ async function setupExecutionTargets(
                     'info',
                     targetId
                 );
-                await sleep(config.test.android.postLaunchStabilizationMs);
+                await new Promise((resolve) => setTimeout(resolve, config.test.android.postLaunchStabilizationMs));
             }
 
             try {
@@ -870,367 +556,6 @@ async function setupExecutionTargets(
     }
 }
 
-/**
- * Extracts quoted strings from an assertion instruction.
- * Supports both double quotes ("text") and single quotes ('text').
- */
-function extractQuotedStrings(instruction: string): string[] {
-    const matches: string[] = [];
-    const regex = /["']([^"']+)["']/g;
-    let match;
-    while ((match = regex.exec(instruction)) !== null) {
-        matches.push(match[1]);
-    }
-    return matches;
-}
-
-function shouldUseQuotedStringShortcut(instruction: string, quotedStrings: string[]): boolean {
-    if (quotedStrings.length === 0) {
-        return false;
-    }
-
-    const normalized = instruction.trim().replace(/\s+/g, ' ');
-
-    const simplePresencePatterns = [
-        /^(verify|assert|check|confirm|ensure|validate)\s+(that\s+)?["'][^"']+["']\s+(is\s+)?(visible|shown|displayed|present|on the page|exists?)\.?$/i,
-        /^(verify|assert|check|confirm|ensure|validate)\s+(that\s+)?text\s+["'][^"']+["']\s+(is\s+)?(visible|shown|displayed|present|on the page|exists?)\.?$/i,
-        /^(verify|assert|check|confirm|ensure|validate)\s+(that\s+)?["'][^"']+["']\s*(appears?)\.?$/i
-    ];
-
-    return simplePresencePatterns.some((pattern) => pattern.test(normalized));
-}
-
-function formatAssertionFailureMessage(stepAction: string, reason: string): string {
-    return `Verification failed.\nStep: ${stepAction}\nReason: ${reason}`;
-}
-
-/**
- * Verifies that all quoted strings in an assertion instruction exist exactly on the page.
- */
-async function verifyQuotedStringsExist(
-    agent: PlaywrightAgent | AndroidAgent,
-    expectedStrings: string[],
-    log: ReturnType<typeof createLogger>,
-    browserId?: string,
-    options?: {
-        isAndroidAgent?: boolean;
-        androidSignal?: AbortSignal;
-    }
-): Promise<void> {
-    const targetLabel = getBrowserNiceName(browserId || 'main');
-
-    for (const expected of expectedStrings) {
-        const queryPrompt = `Does the exact text "${expected}" appear on the current page? Respond with ONLY "YES" or "NO".`;
-
-        log(`[${targetLabel}] Checking for exact text: "${expected}"`, 'info', browserId);
-
-        const result = options?.isAndroidAgent
-            ? await runAndroidAgentOperation(
-                () => agent.aiQuery(queryPrompt),
-                'query operation',
-                options.androidSignal
-            )
-            : await agent.aiQuery(queryPrompt);
-        const actualText = String(result).trim().toUpperCase();
-
-        if (actualText === 'NO') {
-            throw new Error(
-                `Expected to find exact text "${expected}" on the page, but it was not found.`
-            );
-        }
-
-        if (actualText !== 'YES') {
-            throw new Error(
-                `Could not confidently verify text "${expected}" due to an unclear page analysis result.`
-            );
-        }
-
-        log(`[${targetLabel}] Exact match confirmed: "${expected}"`, 'success', browserId);
-    }
-}
-
-interface PlaywrightCodeStepContext {
-    allowedFilePaths: ReadonlySet<string>;
-    allowedTestCaseDir?: string;
-    stepFiles: Record<string, string>;
-}
-
-interface MaterializedExecutionFiles {
-    allowedTestCaseDir?: string;
-    configFiles: Record<string, string>;
-    stepFilesById: Record<string, string>;
-    cleanup: () => Promise<void>;
-}
-
-async function executePlaywrightCode(
-    code: string,
-    page: Page,
-    stepIndex: number,
-    log: ReturnType<typeof createLogger>,
-    onEvent: EventHandler,
-    stepContext?: PlaywrightCodeStepContext,
-    browserId?: string,
-    resolvedVariables?: Record<string, string>,
-    resolvedConfigFiles?: Record<string, string>
-): Promise<void> {
-    const timeoutMs = config.test.playwrightCode.statementTimeoutMs;
-    const syncTimeoutMs = config.test.playwrightCode.syncTimeoutMs;
-    const expectTimeoutMs = config.test.playwrightCode.expectTimeoutMs;
-    const configuredExpect = playwrightExpect.configure({ timeout: expectTimeoutMs });
-    const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
-    const targetLabel = getBrowserNiceName(browserId || 'main');
-    const trimmedCode = code.trim();
-    if (!trimmedCode) {
-        log(`[Step ${stepIndex + 1}] No executable statements found`, 'info', browserId);
-        return;
-    }
-
-    try {
-        new AsyncFunction('page', code);
-    } catch (syntaxError) {
-        throw new PlaywrightCodeError(
-            `Syntax error in code at step ${stepIndex + 1}: ${getErrorMessage(syntaxError)}`,
-            stepIndex,
-            code,
-            syntaxError instanceof Error ? syntaxError : undefined
-        );
-    }
-
-    validatePlaywrightCode(code, stepIndex);
-    const statements = splitPlaywrightCodeStatements(trimmedCode);
-    if (statements.length === 0) {
-        log(`[Step ${stepIndex + 1}] No executable statements found`, 'info', browserId);
-        return;
-    }
-
-    const safePage = createSafePage(page, stepIndex, code, {
-        allowedFilePaths: stepContext?.allowedFilePaths ?? new Set<string>(),
-        allowedTestCaseDir: stepContext?.allowedTestCaseDir
-    });
-    const stepFiles = stepContext?.stepFiles ?? {};
-    const vars = resolvedVariables || {};
-    const configFiles = resolvedConfigFiles || {};
-    const testFiles = configFiles;
-
-    type TimeoutHandle = ReturnType<typeof setTimeout>;
-    type IntervalHandle = ReturnType<typeof setInterval>;
-
-    const timeouts = new Set<TimeoutHandle>();
-    const intervals = new Set<IntervalHandle>();
-
-    const setTimeoutWrapped = (...args: Parameters<typeof setTimeout>): TimeoutHandle => {
-        const handle = setTimeout(...args) as TimeoutHandle;
-        timeouts.add(handle);
-        return handle;
-    };
-
-    const clearTimeoutWrapped = (handle: TimeoutHandle): void => {
-        timeouts.delete(handle);
-        clearTimeout(handle as Parameters<typeof clearTimeout>[0]);
-    };
-
-    const setIntervalWrapped = (...args: Parameters<typeof setInterval>): IntervalHandle => {
-        const handle = setInterval(...args) as IntervalHandle;
-        intervals.add(handle);
-        return handle;
-    };
-
-    const clearIntervalWrapped = (handle: IntervalHandle): void => {
-        intervals.delete(handle);
-        clearInterval(handle as Parameters<typeof clearInterval>[0]);
-    };
-
-    const cleanupTimers = (): void => {
-        for (const handle of Array.from(intervals)) {
-            clearIntervalWrapped(handle);
-        }
-        for (const handle of Array.from(timeouts)) {
-            clearTimeoutWrapped(handle);
-        }
-    };
-
-    const context = createContext(
-        {
-            page: safePage,
-            expect: configuredExpect,
-            setTimeout: setTimeoutWrapped,
-            clearTimeout: clearTimeoutWrapped,
-            setInterval: setIntervalWrapped,
-            clearInterval: clearIntervalWrapped,
-            vars,
-            testFiles,
-            configFiles,
-            stepFiles,
-            files: stepFiles,
-        },
-        { codeGeneration: { strings: false, wasm: false } }
-    );
-
-    log(`[Step ${stepIndex + 1}] Executing Playwright code block...`, 'info', browserId);
-
-    const timeoutSeconds = Math.ceil(timeoutMs / 1000);
-
-    try {
-        for (const statement of statements) {
-            const lineLabel = statement.lineStart === statement.lineEnd
-                ? `line ${statement.lineStart}`
-                : `lines ${statement.lineStart}-${statement.lineEnd}`;
-            const statementSummary = summarizePlaywrightCodeStatement(statement.code);
-
-            log(
-                `[Step ${stepIndex + 1}] Executing Playwright ${lineLabel}: ${statementSummary}`,
-                'info',
-                browserId
-            );
-
-            let timerHandle: TimeoutHandle | null = null;
-            const timeoutPromise = new Promise<never>((_, reject) => {
-                timerHandle = setTimeoutWrapped(
-                    () => reject(new Error(`Playwright code execution timed out (${timeoutSeconds}s)`)),
-                    timeoutMs
-                );
-            });
-
-            try {
-                const script = new Script(`(async () => { ${statement.code} })()`);
-                const result = script.runInContext(context, { timeout: syncTimeoutMs }) as Promise<unknown>;
-                await Promise.race([result, timeoutPromise]);
-                await captureScreenshot(
-                    page,
-                    `[${targetLabel}] Step ${stepIndex + 1} ${lineLabel}`,
-                    onEvent,
-                    log,
-                    browserId
-                );
-            } finally {
-                if (timerHandle) {
-                    clearTimeoutWrapped(timerHandle);
-                }
-            }
-        }
-    } catch (error) {
-        const errorMessage = getErrorMessage(error);
-        log(
-            `[Step ${stepIndex + 1}] Playwright code error: ${errorMessage}`,
-            'error',
-            browserId
-        );
-        await captureScreenshot(
-            page,
-            `[${targetLabel}] Step ${stepIndex + 1} Error`,
-            onEvent,
-            log,
-            browserId
-        );
-        throw new PlaywrightCodeError(
-            `Playwright code execution failed at step ${stepIndex + 1}: ${errorMessage}`,
-            stepIndex,
-            trimmedCode,
-            error instanceof Error ? error : undefined
-        );
-    } finally {
-        cleanupTimers();
-    }
-}
-
-function resolvePlaywrightCodeStepContext(
-    step: TestStep,
-    materializedExecutionFiles: MaterializedExecutionFiles
-): PlaywrightCodeStepContext {
-    const stepFiles: Record<string, string> = {};
-
-    if (!step.files || step.files.length === 0) {
-        return {
-            stepFiles,
-            allowedFilePaths: new Set<string>(),
-            allowedTestCaseDir: materializedExecutionFiles.allowedTestCaseDir,
-        };
-    }
-
-    for (const fileId of step.files) {
-        const filePath = materializedExecutionFiles.stepFilesById[fileId];
-        if (!filePath) continue;
-        stepFiles[fileId] = filePath;
-    }
-
-    const allowedFilePaths = new Set(Object.values(stepFiles).map((filePath) => path.resolve(filePath)));
-
-    return {
-        stepFiles,
-        allowedFilePaths,
-        allowedTestCaseDir: materializedExecutionFiles.allowedTestCaseDir,
-    };
-}
-
-async function prepareExecutionFiles(
-    files: TestCaseFile[] | undefined,
-    resolvedFiles: Record<string, string> | undefined,
-    runId: string
-): Promise<MaterializedExecutionFiles> {
-    const requestedConfigFiles = resolvedFiles ?? {};
-    const requestedTestCaseFiles = files ?? [];
-
-    if (requestedTestCaseFiles.length === 0 && Object.keys(requestedConfigFiles).length === 0) {
-        return {
-            configFiles: {},
-            stepFilesById: {},
-            cleanup: async () => { },
-        };
-    }
-
-    const tempRoot = await createTempDirectory(`skytest-run-${runId}-`);
-    const testCaseDir = path.join(tempRoot, 'test-case-files');
-    const configDir = path.join(tempRoot, 'config-files');
-    const stepFilesById: Record<string, string> = {};
-    const configFiles: Record<string, string> = {};
-    const materializedByObjectKey = new Map<string, string>();
-
-    for (const file of requestedTestCaseFiles) {
-        const materializedPath = await materializeObjectToFile({
-            key: file.storedName,
-            directory: testCaseDir,
-            filename: file.filename,
-        });
-        if (!materializedPath) {
-            continue;
-        }
-
-        stepFilesById[file.id] = materializedPath;
-        materializedByObjectKey.set(file.storedName, materializedPath);
-    }
-
-    for (const [referenceName, objectKey] of Object.entries(requestedConfigFiles)) {
-        const existingPath = materializedByObjectKey.get(objectKey);
-        if (existingPath) {
-            configFiles[referenceName] = existingPath;
-            continue;
-        }
-
-        const fallbackFilename = path.basename(objectKey) || referenceName;
-        const materializedPath = await materializeObjectToFile({
-            key: objectKey,
-            directory: configDir,
-            filename: fallbackFilename,
-        });
-
-        if (!materializedPath) {
-            continue;
-        }
-
-        materializedByObjectKey.set(objectKey, materializedPath);
-        configFiles[referenceName] = materializedPath;
-    }
-
-    return {
-        allowedTestCaseDir: Object.keys(stepFilesById).length > 0 ? testCaseDir : undefined,
-        configFiles,
-        stepFilesById,
-        cleanup: async () => {
-            await removeTempDirectory(tempRoot);
-        },
-    };
-}
-
 async function executeSteps(
     steps: TestStep[],
     targets: ExecutionTargets,
@@ -1279,18 +604,25 @@ async function executeSteps(
                         step.action
                     );
                 }
-                const stepContext = resolvePlaywrightCodeStepContext(step, materializedExecutionFiles);
-                await executePlaywrightCode(
-                    step.action,
+                const stepContext = resolvePlaywrightCodeStepContext(
+                    step,
+                    materializedExecutionFiles.stepFilesById,
+                    materializedExecutionFiles.allowedTestCaseDir
+                );
+                await executePlaywrightCode({
+                    code: step.action,
                     page,
-                    i,
+                    stepIndex: i,
                     log,
-                    onEvent,
+                    browserId: effectiveTargetId,
+                    targetLabel,
+                    captureScreenshot: async (label) => {
+                        await captureScreenshot(page, label, onEvent, log, effectiveTargetId);
+                    },
                     stepContext,
-                    effectiveTargetId,
                     resolvedVariables,
                     resolvedConfigFiles
-                );
+                });
             } else {
                 if (!agent) {
                     throw new TestExecutionError(
@@ -1328,7 +660,12 @@ async function executeSteps(
                 if (isVerification) {
                     if (useQuotedStringShortcut) {
                         try {
-                            await verifyQuotedStringsExist(agent, quotedStrings, log, effectiveTargetId, {
+                            await verifyQuotedStringsExist({
+                                agent,
+                                expectedStrings: quotedStrings,
+                                log,
+                                targetLabel,
+                                browserId: effectiveTargetId,
                                 isAndroidAgent: isAndroid,
                                 androidSignal: signal,
                             });
@@ -1355,7 +692,12 @@ async function executeSteps(
                                         'info',
                                         effectiveTargetId
                                     );
-                                    await verifyQuotedStringsExist(agent, quotedStrings, log, effectiveTargetId, {
+                                    await verifyQuotedStringsExist({
+                                        agent,
+                                        expectedStrings: quotedStrings,
+                                        log,
+                                        targetLabel,
+                                        browserId: effectiveTargetId,
                                         isAndroidAgent: true,
                                         androidSignal: signal,
                                     });
@@ -1571,36 +913,6 @@ async function captureErrorScreenshots(
     }
 }
 
-function collectBrowserNetworkGuardSummaries(targets: ExecutionTargets): BrowserNetworkGuardSummary[] {
-    return Array.from(targets.browserNetworkGuards.values(), (networkGuard) => networkGuard.getSummary());
-}
-
-function emitBrowserNetworkGuardSummaries(
-    targets: ExecutionTargets,
-    onEvent: EventHandler
-): void {
-    const log = createLogger(onEvent);
-    for (const [browserId, summary] of Array.from(targets.browserNetworkGuards.entries(), ([id, guard]) => [id, guard.getSummary()] as const)) {
-        if (summary.blockedRequestCount === 0) {
-            continue;
-        }
-
-        const targetLabel = getBrowserNiceName(browserId);
-        const level = summary.dnsLookupFailureCount > 0 ? 'error' : 'info';
-        log(
-            `[${targetLabel}] Network guard summary: ${JSON.stringify({
-                blockedRequestCount: summary.blockedRequestCount,
-                dnsLookupFailureCount: summary.dnsLookupFailureCount,
-                blockedByCode: summary.blockedByCode,
-                blockedByReason: summary.blockedByReason,
-                blockedByHostname: summary.blockedByHostname,
-            })}`,
-            level,
-            browserId
-        );
-    }
-}
-
 async function cleanupTargets(targets: ExecutionTargets): Promise<void> {
     try {
         if (targets.browser) await targets.browser.close();
@@ -1770,7 +1082,7 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
             }
 
             const networkGuardSummaries = executionTargets
-                ? collectBrowserNetworkGuardSummaries(executionTargets)
+                ? collectBrowserNetworkGuardSummaries(executionTargets.browserNetworkGuards)
                 : [];
             const failureClassification = classifyRunFailure(error, { networkGuardSummaries });
             const msg = getErrorMessage(error);
@@ -1796,7 +1108,11 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
             clearTimeout(timeoutHandle);
             signal?.removeEventListener('abort', abortFromParent);
             if (executionTargets) {
-                emitBrowserNetworkGuardSummaries(executionTargets, onEvent);
+                emitBrowserNetworkGuardSummaries({
+                    browserNetworkGuards: executionTargets.browserNetworkGuards,
+                    log: createLogger(onEvent),
+                    getBrowserNiceName,
+                });
                 await cleanupExecutionTargets(executionTargets);
             }
             await materializedExecutionFiles.cleanup();

@@ -68,7 +68,7 @@ Payload fields:
 
 Source:
 
-1. [apps/web/src/lib/mcp/server.ts](../../apps/web/src/lib/mcp/server.ts)
+1. [apps/web/src/lib/mcp/server-response.ts](../../apps/web/src/lib/mcp/server-response.ts)
 
 Log messages:
 

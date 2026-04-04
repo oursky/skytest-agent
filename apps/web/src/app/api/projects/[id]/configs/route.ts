@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/security/api-route-standards';
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { validateConfigName, validateConfigType, normalizeConfigName } from '@/lib/test-config/validation';
 import { createLogger } from '@/lib/core/logger';
 import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } from '@/lib/test-config/sort';
-import { isProjectMember } from '@/lib/security/permissions';
+import { guardProjectRouteRequest } from '@/lib/security/project-route-access';
 
 const logger = createLogger('api:projects:configs');
 
@@ -12,30 +12,13 @@ export async function GET(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardProjectRouteRequest({ request, params });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const { id } = await params;
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const project = await prisma.project.findUnique({
-            where: { id },
-            select: { id: true }
-        });
-
-        if (!project) {
-            return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-        }
-
-        if (!await isProjectMember(userId, id)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
+        const { id } = guard.params;
 
         const configs = await prisma.projectConfig.findMany({
             where: {
@@ -51,7 +34,7 @@ export async function GET(
         return NextResponse.json(sorted);
     } catch (error) {
         logger.error('Failed to fetch project configs', error);
-        return NextResponse.json({ error: 'Failed to fetch configs' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to fetch configs' });
     }
 }
 
@@ -59,30 +42,13 @@ export async function POST(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardProjectRouteRequest({ request, params });
+    if (!guard.ok) {
+        return guard.response;
     }
 
     try {
-        const { id } = await params;
-        const userId = await resolveUserId(authPayload);
-        if (!userId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const project = await prisma.project.findUnique({
-            where: { id },
-            select: { id: true }
-        });
-
-        if (!project) {
-            return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-        }
-
-        if (!await isProjectMember(userId, id)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
+        const { id } = guard.params;
 
         const body = await request.json() as {
             name?: string;
@@ -97,17 +63,17 @@ export async function POST(
 
         const nameError = validateConfigName(rawName);
         if (nameError) {
-            return NextResponse.json({ error: nameError }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: nameError });
         }
 
         const name = normalizeConfigName(rawName);
 
         if (!validateConfigType(type)) {
-            return NextResponse.json({ error: 'Invalid config type' }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Invalid config type' });
         }
 
         if (type !== 'FILE' && (value === undefined || value === null)) {
-            return NextResponse.json({ error: 'Value is required' }, { status: 400 });
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Value is required' });
         }
 
         const normalizedGroup = normalizeConfigGroup(group);
@@ -128,9 +94,9 @@ export async function POST(
         return NextResponse.json(config, { status: 201 });
     } catch (error: unknown) {
         if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'P2002') {
-            return NextResponse.json({ error: 'A config with this name already exists' }, { status: 409 });
+            return apiError({ status: 409, code: 'CONFLICT', error: 'A config with this name already exists' });
         }
         logger.error('Failed to create project config', error);
-        return NextResponse.json({ error: 'Failed to create config' }, { status: 500 });
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to create config' });
     }
 }

@@ -1,8 +1,8 @@
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth, resolveUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
-import { isProjectMember } from '@/lib/security/permissions';
 import { createMeasuredJsonResponse, createRoutePerfTracker } from '@/lib/core/route-perf';
+import { guardTestCaseRouteRequest } from '@/lib/security/test-case-route-access';
+import { apiError } from '@/lib/security/api-route-standards';
 
 const logger = createLogger('api:test-cases:history');
 
@@ -11,47 +11,20 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const perf = createRoutePerfTracker('/api/test-cases/[id]/history', request);
-    const authPayload = await perf.measureAuth(() => verifyAuth(request));
-    if (!authPayload) {
-        const body = { error: 'Unauthorized' };
-        const { response, responseBytes } = createMeasuredJsonResponse(body, { status: 401 });
-        perf.log(logger, { statusCode: 401, responseBytes });
-        return response;
+    const guard = await perf.measureAuth(() => guardTestCaseRouteRequest({ request, params }));
+    if (!guard.ok) {
+        const responseBytes = new TextEncoder().encode(await guard.response.clone().text()).length;
+        perf.log(logger, { statusCode: guard.response.status, responseBytes });
+        return guard.response;
     }
 
     try {
-        const { id } = await params;
+        const { id } = guard.params;
         const url = new URL(request.url);
         const page = Math.max(1, parseInt(url.searchParams.get('page') || '1'));
         const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') || '20')));
         const skip = (page - 1) * limit;
         const includePayload = url.searchParams.get('includePayload') === '1';
-
-        const testCase = await perf.measureDb(() => prisma.testCase.findUnique({
-            where: { id },
-            select: { id: true, projectId: true }
-        }));
-
-        if (!testCase) {
-            const body = { error: 'Test case not found' };
-            const { response, responseBytes } = createMeasuredJsonResponse(body, { status: 404 });
-            perf.log(logger, { statusCode: 404, responseBytes });
-            return response;
-        }
-
-        const userId = await perf.measureAuth(() => resolveUserId(authPayload));
-        if (!userId) {
-            const body = { error: 'Unauthorized' };
-            const { response, responseBytes } = createMeasuredJsonResponse(body, { status: 401 });
-            perf.log(logger, { statusCode: 401, responseBytes });
-            return response;
-        }
-        if (!await perf.measureDb(() => isProjectMember(userId, testCase.projectId))) {
-            const body = { error: 'Forbidden' };
-            const { response, responseBytes } = createMeasuredJsonResponse(body, { status: 403 });
-            perf.log(logger, { statusCode: 403, responseBytes });
-            return response;
-        }
 
         const testRunsPromise = includePayload
             ? prisma.testRun.findMany({
@@ -100,8 +73,12 @@ export async function GET(
         return response;
     } catch (error) {
         logger.error('Failed to fetch test history', error);
-        const body = { error: 'Failed to fetch test history' };
-        const { response, responseBytes } = createMeasuredJsonResponse(body, { status: 500 });
+        const response = apiError({
+            status: 500,
+            code: 'INTERNAL_ERROR',
+            error: 'Failed to fetch test history',
+        });
+        const responseBytes = new TextEncoder().encode(await response.clone().text()).length;
         perf.log(logger, { statusCode: 500, responseBytes });
         return response;
     }

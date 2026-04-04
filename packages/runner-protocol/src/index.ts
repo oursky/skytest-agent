@@ -1,8 +1,10 @@
 import { z } from 'zod';
+export { resolveHostFingerprint } from './host-fingerprint';
 
 export const RUNNER_PROTOCOL_CURRENT_VERSION = '1.0.0';
 export const RUNNER_PROTOCOL_MINIMUM_VERSION = '1.0.0';
 export const RUNNER_MINIMUM_VERSION = '0.1.0';
+export const RUNNER_DEFAULT_CAPABILITIES = ['ANDROID'] as const;
 
 export const runnerKindSchema = z.enum(['MACOS_AGENT']);
 export const runnerCapabilitySchema = z.enum(['ANDROID']);
@@ -27,6 +29,11 @@ export const runnerTransportMetadataSchema = z.object({
     heartbeatIntervalSeconds: z.number().int().positive(),
     claimLongPollTimeoutSeconds: z.number().int().positive(),
     deviceSyncIntervalSeconds: z.number().int().positive(),
+});
+export const RUNNER_DEFAULT_TRANSPORT = runnerTransportMetadataSchema.parse({
+    heartbeatIntervalSeconds: 45,
+    claimLongPollTimeoutSeconds: 30,
+    deviceSyncIntervalSeconds: 45,
 });
 
 export const registerRunnerRequestSchema = z.object({
