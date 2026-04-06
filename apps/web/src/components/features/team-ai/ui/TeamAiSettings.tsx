@@ -13,17 +13,43 @@ interface TeamAiState {
     hasKey: boolean;
     maskedKey: string | null;
     updatedAt: string | null;
+    providerConfig: {
+        provider: 'openrouter' | 'openai-compatible';
+        baseUrl: string | null;
+        mainModel: string | null;
+        planningModel: string | null;
+        insightModel: string | null;
+        temperature: number | null;
+    };
 }
 
 export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
-    const [state, setState] = useState<TeamAiState>({ hasKey: false, maskedKey: null, updatedAt: null });
+    const [state, setState] = useState<TeamAiState>({
+        hasKey: false,
+        maskedKey: null,
+        updatedAt: null,
+        providerConfig: {
+            provider: 'openrouter',
+            baseUrl: null,
+            mainModel: null,
+            planningModel: null,
+            insightModel: null,
+            temperature: null,
+        },
+    });
     const [isLoading, setIsLoading] = useState(true);
     const [apiKey, setApiKey] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [isRemoveConfirmOpen, setIsRemoveConfirmOpen] = useState(false);
+    const [provider, setProvider] = useState<'openrouter' | 'openai-compatible'>('openrouter');
+    const [baseUrl, setBaseUrl] = useState('');
+    const [mainModel, setMainModel] = useState('');
+    const [planningModel, setPlanningModel] = useState('');
+    const [insightModel, setInsightModel] = useState('');
+    const [temperature, setTemperature] = useState('');
 
     const loadState = useCallback(async () => {
         try {
@@ -38,6 +64,16 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
 
             const data = await response.json() as TeamAiState;
             setState(data);
+            setProvider(data.providerConfig.provider);
+            setBaseUrl(data.providerConfig.baseUrl ?? '');
+            setMainModel(data.providerConfig.mainModel ?? '');
+            setPlanningModel(data.providerConfig.planningModel ?? '');
+            setInsightModel(data.providerConfig.insightModel ?? '');
+            setTemperature(
+                typeof data.providerConfig.temperature === 'number'
+                    ? String(data.providerConfig.temperature)
+                    : ''
+            );
             setError(null);
         } finally {
             setIsLoading(false);
@@ -56,11 +92,6 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
             return;
         }
 
-        if (!apiKey.startsWith('sk-')) {
-            setError(t('team.ai.error.prefix'));
-            return;
-        }
-
         setIsSaving(true);
         try {
             const token = await getAccessToken();
@@ -70,7 +101,17 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
                     'Content-Type': 'application/json',
                     ...(token ? { Authorization: `Bearer ${token}` } : {})
                 },
-                body: JSON.stringify({ apiKey })
+                body: JSON.stringify({
+                    apiKey,
+                    providerConfig: {
+                        provider,
+                        baseUrl,
+                        mainModel,
+                        planningModel,
+                        insightModel,
+                        temperature: temperature.trim() ? Number.parseFloat(temperature) : null,
+                    },
+                })
             });
 
             if (!response.ok) {
@@ -117,6 +158,71 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
             <div>
                 <h2 className="text-base font-semibold text-gray-900">{t('team.ai.title')}</h2>
                 <p className="mt-1 text-sm text-gray-500">{t('team.ai.description')}</p>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+                <label className="space-y-1">
+                    <span className="text-sm text-gray-700">{t('team.ai.provider.label')}</span>
+                    <select
+                        value={provider}
+                        onChange={(event) => setProvider(event.target.value as 'openrouter' | 'openai-compatible')}
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    >
+                        <option value="openrouter">{t('team.ai.provider.option.openrouter')}</option>
+                        <option value="openai-compatible">{t('team.ai.provider.option.openaiCompatible')}</option>
+                    </select>
+                </label>
+                <label className="space-y-1">
+                    <span className="text-sm text-gray-700">{t('team.ai.baseUrl')}</span>
+                    <input
+                        type="text"
+                        value={baseUrl}
+                        onChange={(event) => setBaseUrl(event.target.value)}
+                        placeholder="https://openrouter.ai/api/v1"
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    />
+                </label>
+                <label className="space-y-1">
+                    <span className="text-sm text-gray-700">{t('team.ai.mainModel')}</span>
+                    <input
+                        type="text"
+                        value={mainModel}
+                        onChange={(event) => setMainModel(event.target.value)}
+                        placeholder="google/gemini-3.1-flash-lite-preview"
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    />
+                </label>
+                <label className="space-y-1">
+                    <span className="text-sm text-gray-700">{t('team.ai.planningModel')}</span>
+                    <input
+                        type="text"
+                        value={planningModel}
+                        onChange={(event) => setPlanningModel(event.target.value)}
+                        placeholder="qwen/qwen3.5-27b"
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    />
+                </label>
+                <label className="space-y-1">
+                    <span className="text-sm text-gray-700">{t('team.ai.insightModel')}</span>
+                    <input
+                        type="text"
+                        value={insightModel}
+                        onChange={(event) => setInsightModel(event.target.value)}
+                        placeholder="qwen/qwen3.5-27b"
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    />
+                </label>
+                <label className="space-y-1">
+                    <span className="text-sm text-gray-700">{t('team.ai.temperature')}</span>
+                    <input
+                        type="number"
+                        step="0.1"
+                        value={temperature}
+                        onChange={(event) => setTemperature(event.target.value)}
+                        placeholder="0.2"
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    />
+                </label>
             </div>
 
             {isLoading ? (

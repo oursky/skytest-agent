@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { runTest } from '@/lib/runtime/test-runner';
+import { resolveTeamMidsceneConfig } from '@/lib/runtime/team-ai-config';
 import { prisma } from '@/lib/core/prisma';
 import { resolveConfigs } from '@/lib/test-config/resolver';
 import { decrypt } from '@/lib/security/crypto';
@@ -38,15 +39,22 @@ interface LoadedRunConfig {
         actorUserId: string;
         description: string;
     };
-    config: {
-        url?: string;
-        prompt?: string;
-        steps?: TestStep[];
-        browserConfig?: Record<string, BrowserConfig | TargetConfig>;
-        openRouterApiKey: string;
-        files: TestCaseFile[];
-        resolvedVariables: Record<string, string>;
-        resolvedFiles: Record<string, string>;
+        config: {
+            url?: string;
+            prompt?: string;
+            steps?: TestStep[];
+            browserConfig?: Record<string, BrowserConfig | TargetConfig>;
+            openRouterApiKey: string;
+            midsceneModelOptions?: {
+                baseUrl?: string;
+                mainModel?: string;
+                planningModel?: string;
+                insightModel?: string;
+                temperature?: number;
+            };
+            files: TestCaseFile[];
+            resolvedVariables: Record<string, string>;
+            resolvedFiles: Record<string, string>;
     };
 }
 
@@ -179,6 +187,12 @@ async function loadRunConfig(runId: string, options?: LocalBrowserRunOptions): P
                             team: {
                                 select: {
                                     openRouterKeyEncrypted: true,
+                                    aiProvider: true,
+                                    aiBaseUrl: true,
+                                    aiMainModel: true,
+                                    aiPlanningModel: true,
+                                    aiInsightModel: true,
+                                    aiTemperature: true,
                                 },
                             },
                         },
@@ -240,6 +254,7 @@ async function loadRunConfig(runId: string, options?: LocalBrowserRunOptions): P
             steps: snapshot.steps ?? fallbackSteps,
             browserConfig: snapshot.browserConfig ?? fallbackBrowserConfig,
             openRouterApiKey: decrypt(encryptedKey),
+            midsceneModelOptions: resolveTeamMidsceneConfig(run.testCase.project.team),
             files: run.files,
             resolvedVariables,
             resolvedFiles,
@@ -747,6 +762,7 @@ async function executeLocalBrowserRun(
                 steps: details.config.steps,
                 browserConfig: details.config.browserConfig,
                 openRouterApiKey: details.config.openRouterApiKey,
+                midsceneModelOptions: details.config.midsceneModelOptions,
                 testCaseId: details.testCaseId,
                 projectId: details.projectId,
                 files: details.config.files,

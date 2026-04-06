@@ -49,6 +49,9 @@ export async function GET(
                     createdAt: true,
                     error: true,
                     triggeredByEmail: true,
+                    instanceId: true,
+                    instanceType: true,
+                    instanceName: true,
                 },
                 skip,
                 take: limit

@@ -6,6 +6,7 @@ The local stack mirrors the production data plane:
 
 - PostgreSQL for application state
 - MinIO (S3-compatible) for files and artifacts
+- local Authgear for portal login (`http://localhost:3301` by default)
 - a local Next.js control plane process
 
 ## Prerequisites
@@ -27,6 +28,7 @@ make dev
 `make dev` does all of the following:
 
 - starts Postgres and MinIO from `infra/docker/docker-compose.local.yml`
+- starts local Authgear and Redis from `infra/docker/docker-compose.local.yml`
 - generates the Prisma client and applies the schema
 - installs Playwright Chromium when it is not already available locally
 - starts the Next.js control plane on `http://127.0.0.1:3000`
@@ -67,6 +69,66 @@ Local defaults point to:
 
 - Postgres on `127.0.0.1:5432`
 - MinIO S3 endpoint on `127.0.0.1:9000`
+- Authgear on `http://localhost:3301`
+
+## Per-Checkout SkyTest Runtime Config
+
+SkyTest local runtime settings are checkout-scoped:
+
+- runtime config file: `.skytest/skytest.yaml` (tracked in git)
+- local identity lockfile: `.skytest/instance.lock.yaml` (ignored by git)
+
+Initialize the local runtime scaffold with:
+
+```bash
+npm run skytest -- init
+```
+
+`skytest init` is idempotent. It creates missing files and keeps existing files unchanged.
+
+`skytest.yaml` is for runtime and test catalog settings only. Auth/login setup is managed by CLI auth flows, not in `skytest.yaml`.
+
+### Case Study Wave 1 Case Workflow
+
+Case Study App regression authoring is file-backed under:
+
+- `.case-studies/case-study-app/.skytest/skytest.yaml`
+- `.case-studies/case-study-app/.skytest/tests/**/*.case.yaml`
+
+Recommended command flow from repo root:
+
+```bash
+make -C .case-studies/case-study-app/.skytest reset
+make -C .case-studies/case-study-app/.skytest sync-case-catalog
+make -C .case-studies/case-study-app/.skytest run-case DISPLAY_ID=HAN-C02
+make -C .case-studies/case-study-app/.skytest run-wave1-cycles
+```
+
+The final command is the promotion gate for Wave 1 and runs 3 full cycles against the locked student+teacher suite, writing the latest report to `.case-studies/case-study-app/.skytest/reports/wave1-stability-latest.md`.
+
+## Local Default Seed Ownership
+
+`make bootstrap` now also seeds a deterministic local default owner account and attaches the default Case Study project to it.
+
+Default values (override in `.env.local` if needed):
+
+- `SKYTEST_LOCAL_SEED_EMAIL=local-dev@skytest.local`
+- `SKYTEST_LOCAL_SEED_PASSWORD=Abcd1234`
+- `SKYTEST_LOCAL_SEED_TEAM_NAME=Local Team`
+- `SKYTEST_LOCAL_SEED_PROJECT_NAME=Case Study App`
+
+The bootstrap seed ensures:
+
+- an Authgear login exists for the default local user
+- a matching SkyTest `User` record exists
+- a default owner team exists and membership is `OWNER`
+- a default `Case Study App` project exists under that team and is owned (`createdByUserId`) by the default user
+
+You can run the seed independently with:
+
+```bash
+make seed-local-defaults
+```
 
 Concurrency defaults:
 

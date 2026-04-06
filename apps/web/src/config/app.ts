@@ -151,6 +151,7 @@ const browserWorkerEnabled = process.env.SKYTEST_BROWSER_WORKER === 'true';
 const midsceneGenerateReport = process.env.SKYTEST_MIDSCENE_GENERATE_REPORT === 'true';
 const midsceneAutoPrintReportMsg = process.env.SKYTEST_MIDSCENE_AUTO_PRINT_REPORT_MSG === 'true';
 const s3ForcePathStyle = parseBooleanEnv('S3_FORCE_PATH_STYLE', false);
+const allowLocalhostTestTargets = parseBooleanEnv('ALLOW_LOCALHOST_TEST_TARGETS', false);
 
 export const config = {
     app: {
@@ -240,6 +241,7 @@ export const config = {
             wakeUnlockStabilizationMs: 500,
         },
         security: {
+            allowLocalhostTestTargets,
             allowedUrlProtocols: ['http:', 'https:'],
             blockedHostnames: ['localhost', '127.0.0.1', '0.0.0.0', '::1'],
             blockedHostnameSuffixes: ['.local', '.internal', '.home', '.lan'],

@@ -13,7 +13,17 @@ const MIDSCENE_MODEL_ENV_DEFAULTS = {
     MIDSCENE_MODEL_TEMPERATURE: '0.2',
 } as const;
 
-const MIDSCENE_MODEL_OVERRIDE_ENV = {
+type MidsceneModelEnvVar = keyof typeof MIDSCENE_MODEL_ENV_DEFAULTS;
+
+export interface BuildMidsceneModelConfigOptions {
+    baseUrl?: string;
+    mainModel?: string;
+    planningModel?: string;
+    insightModel?: string;
+    temperature?: number;
+}
+
+const MIDSCENE_MODEL_OVERRIDE_ENV: Record<MidsceneModelEnvVar, string> = {
     MIDSCENE_MODEL_BASE_URL: 'SKYTEST_MIDSCENE_MODEL_BASE_URL',
     MIDSCENE_MODEL_NAME: 'SKYTEST_MIDSCENE_MODEL_NAME',
     MIDSCENE_MODEL_FAMILY: 'SKYTEST_MIDSCENE_MODEL_FAMILY',
@@ -24,10 +34,7 @@ const MIDSCENE_MODEL_OVERRIDE_ENV = {
     MIDSCENE_INSIGHT_MODEL_NAME: 'SKYTEST_MIDSCENE_INSIGHT_MODEL_NAME',
     MIDSCENE_INSIGHT_MODEL_FAMILY: 'SKYTEST_MIDSCENE_INSIGHT_MODEL_FAMILY',
     MIDSCENE_MODEL_TEMPERATURE: 'SKYTEST_MIDSCENE_MODEL_TEMPERATURE',
-} as const;
-
-const MIDSCENE_MODEL_ENV_VARS = Object.keys(MIDSCENE_MODEL_ENV_DEFAULTS) as MidsceneModelEnvVar[];
-type MidsceneModelEnvVar = keyof typeof MIDSCENE_MODEL_ENV_DEFAULTS;
+};
 
 function resolveMidsceneModelValue(name: MidsceneModelEnvVar): string {
     const overrideName = MIDSCENE_MODEL_OVERRIDE_ENV[name];
@@ -44,7 +51,28 @@ function resolveMidsceneModelValue(name: MidsceneModelEnvVar): string {
     return MIDSCENE_MODEL_ENV_DEFAULTS[name];
 }
 
-export function buildMidsceneModelConfig(apiKey: string): MidsceneModelConfig {
+function inferModelFamily(modelName: string): string {
+    const rawFamily = modelName.split('/')[0]?.toLowerCase() ?? '';
+
+    switch (rawFamily) {
+        case 'google':
+            return 'gemini';
+        case 'qwen':
+            return 'qwen3.5';
+        case 'anthropic':
+            return 'gpt-5';
+        case 'openai':
+            return 'gpt-5';
+        case 'gemini':
+        case 'deepseek':
+        case 'llama':
+            return rawFamily;
+        default:
+            return 'gpt-5';
+    }
+}
+
+export function buildMidsceneModelConfig(apiKey: string, options?: BuildMidsceneModelConfigOptions): MidsceneModelConfig {
     if (!apiKey) {
         throw new Error('API key is required');
     }
@@ -55,8 +83,27 @@ export function buildMidsceneModelConfig(apiKey: string): MidsceneModelConfig {
         MIDSCENE_INSIGHT_MODEL_API_KEY: apiKey,
     };
 
-    for (const name of MIDSCENE_MODEL_ENV_VARS) {
-        config[name] = resolveMidsceneModelValue(name);
+    const baseUrl = options?.baseUrl ?? resolveMidsceneModelValue('MIDSCENE_MODEL_BASE_URL');
+    const mainModel = options?.mainModel ?? resolveMidsceneModelValue('MIDSCENE_MODEL_NAME');
+    const planningModel = options?.planningModel ?? resolveMidsceneModelValue('MIDSCENE_PLANNING_MODEL_NAME');
+    const insightModel = options?.insightModel ?? resolveMidsceneModelValue('MIDSCENE_INSIGHT_MODEL_NAME');
+
+    config.MIDSCENE_MODEL_BASE_URL = baseUrl;
+    config.MIDSCENE_MODEL_NAME = mainModel;
+    config.MIDSCENE_MODEL_FAMILY = inferModelFamily(mainModel);
+
+    config.MIDSCENE_PLANNING_MODEL_BASE_URL = baseUrl;
+    config.MIDSCENE_PLANNING_MODEL_NAME = planningModel;
+    config.MIDSCENE_PLANNING_MODEL_FAMILY = inferModelFamily(planningModel);
+
+    config.MIDSCENE_INSIGHT_MODEL_BASE_URL = baseUrl;
+    config.MIDSCENE_INSIGHT_MODEL_NAME = insightModel;
+    config.MIDSCENE_INSIGHT_MODEL_FAMILY = inferModelFamily(insightModel);
+
+    if (options?.temperature !== undefined) {
+        config.MIDSCENE_MODEL_TEMPERATURE = options.temperature;
+    } else {
+        config.MIDSCENE_MODEL_TEMPERATURE = parseFloat(resolveMidsceneModelValue('MIDSCENE_MODEL_TEMPERATURE'));
     }
 
     return config;

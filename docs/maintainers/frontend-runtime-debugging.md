@@ -92,6 +92,38 @@ Verify all of the following:
 - [ ] Regression scaffold added.
 - [ ] Verification matrix completed.
 
+## 8. Runtime Config Checks
+
+When run dispatch fails before execution, validate local runtime config first:
+
+- required config path: `<checkout>/.skytest/skytest.yaml`
+- expected behavior: fail fast with explicit validation message if missing/invalid
+- local identity path: `<checkout>/.skytest/instance.lock.yaml` (metadata for run observability)
+
+Quick validation flow:
+
+1. Run `npm run skytest -- init` in the checkout root to scaffold missing files.
+2. Confirm run dispatch response includes validation details when config is invalid.
+3. Confirm run records include `instanceType`/`instanceName` for root vs worktree visibility.
+
+## 9. Case Study Wave 1 Regression Debugging
+
+When debugging Case Study App regression failures, use this fixed loop from repo root:
+
+```bash
+make -C .case-studies/case-study-app/.skytest reset
+make -C .case-studies/case-study-app/.skytest sync-case-catalog
+make -C .case-studies/case-study-app/.skytest run-case DISPLAY_ID=HAN-T06
+make -C .case-studies/case-study-app/.skytest run-wave1-cycles
+```
+
+Operational notes:
+
+- Source of truth is file-backed (`.case-studies/case-study-app/.skytest/tests/**/*.case.yaml`), then synced into DB.
+- Teacher auth bootstrap is sensitive to Authgear redirect jitter; prefer explicit route/anchor waits over broad button matching.
+- `run-wave1-cycles` executes 3 full cycles and stops on first failure.
+- Inspect `.case-studies/case-study-app/.skytest/reports/wave1-stability-latest.md` for failing case/runId triage data.
+
 ## Appendix: Fast Root-Cause Matrix
 
 - `Monaco initialization: error: {}` and runtime `[object Event]`

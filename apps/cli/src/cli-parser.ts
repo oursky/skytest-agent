@@ -3,6 +3,7 @@ import { resolveOutputFormat } from './commands/output';
 export type SkytestCliCommand =
     | { kind: 'help' }
     | { kind: 'version' }
+    | { kind: 'init' }
     | { kind: 'pair-runner'; pairingToken: string; label?: string; controlPlaneBaseUrl?: string; autoStart: boolean }
     | { kind: 'start-runner'; runnerId: string; repairPairingToken?: string }
     | { kind: 'stop-runner'; runnerId: string }
@@ -134,6 +135,13 @@ export function parseSkytestCliCommand(args: string[]): SkytestCliCommand {
 
     if (args[0] === 'version') {
         return { kind: 'version' };
+    }
+
+    if (args[0] === 'init') {
+        if (args.length > 1) {
+            throw new Error(`Unknown argument(s) for \`init\`: ${args.slice(1).join(', ')}`);
+        }
+        return { kind: 'init' };
     }
 
     if (args[0] === 'reset') {

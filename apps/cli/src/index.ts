@@ -2,6 +2,7 @@
 
 import { runDescribeRunnerCommand } from './commands/describe-runner';
 import { runGetRunnersCommand } from './commands/get-runners';
+import { runInitCommand } from './commands/init';
 import { runLogsRunnerCommand } from './commands/logs-runner';
 import { runPairRunnerCommand } from './commands/pair-runner';
 import { runResetCommand } from './commands/reset';
@@ -17,6 +18,7 @@ function printHelp(): void {
         '',
         'Usage:',
         '  skytest version',
+        '  skytest init',
         '  skytest pair runner <pairing-token>',
         '  skytest start runner <runner-id> [--repair-token <pairing-token>]',
         '  skytest stop runner <runner-id>',
@@ -47,6 +49,11 @@ async function main(): Promise<void> {
 
     if (command.kind === 'version') {
         console.log(resolveCliVersion());
+        return;
+    }
+
+    if (command.kind === 'init') {
+        await runInitCommand();
         return;
     }
 

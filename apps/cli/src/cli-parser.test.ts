@@ -10,6 +10,14 @@ describe('parseSkytestCliCommand', () => {
         expect(parseSkytestCliCommand(['version'])).toEqual({ kind: 'version' });
     });
 
+    it('parses init command', () => {
+        expect(parseSkytestCliCommand(['init'])).toEqual({ kind: 'init' });
+    });
+
+    it('rejects unknown init arguments', () => {
+        expect(() => parseSkytestCliCommand(['init', '--foo'])).toThrow('Unknown argument(s) for `init`: --foo');
+    });
+
     it('parses pair runner with options', () => {
         expect(parseSkytestCliCommand([
             'pair',

@@ -8,7 +8,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5432:5432"
+      - "${SKYTEST_POSTGRES_PORT:-5432}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d skytest_agent"]
       interval: 5s
@@ -26,8 +26,8 @@ services:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${SKYTEST_MINIO_API_PORT:-9000}:9000"
+      - "${SKYTEST_MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - skytest-local-minio:/data
 
@@ -46,6 +46,68 @@ services:
           sleep 1
         done
         /usr/bin/mc mb -p local/skytest-agent >/dev/null 2>&1 || true
+
+  authgear-redis:
+    image: redis:8.4
+    container_name: skytest-local-authgear-redis
+    restart: unless-stopped
+    command: redis-server --save "" --appendonly no
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  authgear:
+    image: quay.io/theauthgear/authgear-server:latest
+    container_name: skytest-local-authgear
+    restart: unless-stopped
+    entrypoint: /app/entrypoint.sh
+    command: authgear start
+    environment:
+      DEV_MODE: "true"
+      LOG_LEVEL: "warning"
+      TRUST_PROXY: "true"
+      DATABASE_SCHEMA: "authgear"
+      CONFIG_SOURCE_DIRECTORY: /app
+      MAIN_LISTEN_ADDR: "0.0.0.0:3001"
+      ADMIN_LISTEN_ADDR: "0.0.0.0:3002"
+      RESOLVER_LISTEN_ADDR: "0.0.0.0:3003"
+    ports:
+      - "${SKYTEST_AUTHGEAR_MAIN_PORT:-3301}:3001"
+      - "${SKYTEST_AUTHGEAR_ADMIN_PORT:-3302}:3002"
+      - "${SKYTEST_AUTHGEAR_RESOLVER_PORT:-3303}:3003"
+    volumes:
+      - ../authgear/entrypoint.sh:/app/entrypoint.sh:ro
+      - ../authgear/authgear.yaml:/app/authgear.yaml:ro
+      - ../authgear/authgear.features.yaml:/app/authgear.features.yaml:ro
+      - ../authgear/authgear.secrets.yaml.tpl:/app/authgear.secrets.yaml.tpl:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      authgear-redis:
+        condition: service_healthy
+      prepare-authgear-db:
+        condition: service_completed_successfully
+
+  prepare-authgear-db:
+    image: postgres:16
+    container_name: skytest-local-authgear-db-prepare
+    restart: "no"
+    environment:
+      PGPASSWORD: postgres
+    entrypoint:
+      - /bin/sh
+    command:
+      - -ec
+      - |
+        until pg_isready -h postgres -U postgres -d skytest_agent >/dev/null 2>&1; do
+          sleep 1
+        done
+        psql -h postgres -U postgres -d skytest_agent -c "CREATE SCHEMA IF NOT EXISTS authgear;"
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   skytest-local-postgres:

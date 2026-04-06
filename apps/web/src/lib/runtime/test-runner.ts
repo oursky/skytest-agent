@@ -931,19 +931,30 @@ async function cleanupTargets(targets: ExecutionTargets): Promise<void> {
 
 export async function runTest(options: RunTestOptions): Promise<TestResult> {
     const { config: testConfig, onEvent, signal, runId, onCleanup, onPreparing, onRunning } = options;
-    const { url, prompt, steps, browserConfig, openRouterApiKey, projectId, files, resolvedVariables, resolvedFiles } = testConfig;
+    const {
+        url,
+        prompt,
+        steps,
+        browserConfig,
+        openRouterApiKey,
+        midsceneModelOptions,
+        projectId,
+        files,
+        resolvedVariables,
+        resolvedFiles,
+    } = testConfig;
     const log = createLogger(onEvent);
 
     if (!openRouterApiKey) {
         return {
             status: TEST_STATUS.FAIL,
-            error: 'OpenRouter API key is required. Please configure it in API Key & Usage settings.',
+            error: 'AI provider key is required. Please configure it in API Key & Usage settings.',
             errorCode: 'CONFIGURATION_ERROR',
             errorCategory: 'CONFIGURATION',
         };
     }
 
-    const midsceneModelConfig = buildMidsceneModelConfig(openRouterApiKey);
+    const midsceneModelConfig = buildMidsceneModelConfig(openRouterApiKey, midsceneModelOptions);
     const runAbortController = new AbortController();
     const runSignal = runAbortController.signal;
     const materializedExecutionFiles = await prepareExecutionFiles(files, resolvedFiles, runId);

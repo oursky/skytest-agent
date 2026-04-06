@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
+import path from 'node:path';
 import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
 import { getTeamDevicesAvailability } from '@/lib/runners/availability-service';
 import { config as appConfig } from '@/config/app';
 import { isAndroidTargetConfig, normalizeAndroidTargetConfig } from '@/lib/android/target-config';
 import { resolveConfigs } from '@/lib/test-config/resolver';
+import { ensureRuntimeInstanceIdentity } from '@/lib/runtime/instance-identity';
+import { loadRuntimeConfigForCwd } from '@/lib/runtime/runtime-config-loader';
 import { hasTemplatedConfigUrls, validateConfigUrls } from '@/lib/test-config/url-validation';
 import {
     collectAndroidRequestedDeviceIds,
@@ -41,7 +44,23 @@ interface RunTestRequest {
 
 function createConfigurationSnapshot(
     config: RunTestRequest,
-    resolvedConfigurations: ResolvedConfig[] = []
+    resolvedConfigurations: ResolvedConfig[] = [],
+    runtimeConfig?: {
+        runtime: {
+            baseUrl: string;
+            browser: {
+                headless: boolean;
+                timeoutMs: number;
+            };
+            timeouts: {
+                stepMs: number;
+                runMs: number;
+            };
+            env?: Record<string, string>;
+            headers?: Record<string, string>;
+        };
+        schemaVersion: number;
+    }
 ) {
     const { testCaseId, ...sanitized } = config;
     void testCaseId;
@@ -49,7 +68,109 @@ function createConfigurationSnapshot(
     return {
         ...sanitized,
         resolvedConfigurations,
+        ...(runtimeConfig
+            ? {
+                runtime: runtimeConfig.runtime,
+                runtimeConfigSource: {
+                    path: '.skytest/skytest.yaml',
+                    schemaVersion: runtimeConfig.schemaVersion,
+                },
+            }
+            : {}),
     };
+}
+
+function getErrorMessage(error: unknown): string {
+    if (error instanceof Error && error.message) {
+        return error.message;
+    }
+    return 'Unknown error';
+}
+
+function resolveRuntimeRootFromSourcePath(sourcePath: string | null | undefined): string | null {
+    if (!sourcePath) {
+        return null;
+    }
+
+    const normalizedPath = path.normalize(sourcePath);
+    const marker = `${path.sep}.skytest${path.sep}`;
+    const markerIndex = normalizedPath.indexOf(marker);
+    if (markerIndex < 0) {
+        return null;
+    }
+
+    return normalizedPath.slice(0, markerIndex);
+}
+
+function mergeResolvedConfigurationsWithRuntimeEnv(
+    resolvedConfigurations: ResolvedConfig[],
+    runtimeEnv?: Record<string, string>
+): ResolvedConfig[] {
+    if (!runtimeEnv || Object.keys(runtimeEnv).length === 0) {
+        return resolvedConfigurations;
+    }
+
+    const merged = new Map<string, ResolvedConfig>();
+    for (const config of resolvedConfigurations) {
+        merged.set(config.name, config);
+    }
+
+    for (const [name, value] of Object.entries(runtimeEnv)) {
+        if (!name || typeof value !== 'string') {
+            continue;
+        }
+
+        merged.set(name, {
+            name,
+            type: 'VARIABLE',
+            value,
+            masked: /PASSWORD|TOKEN|SECRET|KEY/i.test(name),
+            source: 'project',
+        });
+    }
+
+    return Array.from(merged.values());
+}
+
+async function syncRuntimeEnvProjectConfigs(
+    projectId: string,
+    runtimeEnv?: Record<string, string>,
+): Promise<void> {
+    if (!runtimeEnv || Object.keys(runtimeEnv).length === 0) {
+        return;
+    }
+
+    for (const [name, value] of Object.entries(runtimeEnv)) {
+        if (!name || typeof value !== 'string') {
+            continue;
+        }
+
+        const trimmedValue = value.trim();
+        if (!trimmedValue) {
+            continue;
+        }
+
+        await prisma.projectConfig.upsert({
+            where: {
+                projectId_name: {
+                    projectId,
+                    name,
+                },
+            },
+            create: {
+                projectId,
+                name,
+                type: 'VARIABLE',
+                value: trimmedValue,
+                masked: /PASSWORD|TOKEN|SECRET|KEY/i.test(name),
+            },
+            update: {
+                type: 'VARIABLE',
+                value: trimmedValue,
+                masked: /PASSWORD|TOKEN|SECRET|KEY/i.test(name),
+            },
+        });
+    }
 }
 
 async function resolveTriggeredByEmail(userId: string): Promise<string | null> {
@@ -218,7 +339,7 @@ export async function POST(request: Request) {
             return apiError({
                 status: 400,
                 code: 'VALIDATION_ERROR',
-                error: 'Please configure this team OpenRouter API key',
+                error: 'Please configure this team AI provider key',
             });
         }
 
@@ -227,7 +348,48 @@ export async function POST(request: Request) {
             select: { id: true, filename: true, storedName: true, mimeType: true, size: true }
         });
 
-        const configurationSnapshot = JSON.stringify(createConfigurationSnapshot(config, resolvedConfigurations));
+        const currentWorkingDirectory = process.cwd();
+        const instanceIdentity = await ensureRuntimeInstanceIdentity(currentWorkingDirectory);
+        let runtimeConfig;
+        try {
+            runtimeConfig = await loadRuntimeConfigForCwd(currentWorkingDirectory);
+        } catch (cwdConfigError) {
+            const sourceRuntimeRoot = resolveRuntimeRootFromSourcePath(testCase.source);
+            if (!sourceRuntimeRoot) {
+                return apiError({
+                    status: 400,
+                    code: 'VALIDATION_ERROR',
+                    error: getErrorMessage(cwdConfigError),
+                });
+            }
+
+            try {
+                runtimeConfig = await loadRuntimeConfigForCwd(sourceRuntimeRoot);
+            } catch {
+                return apiError({
+                    status: 400,
+                    code: 'VALIDATION_ERROR',
+                    error: getErrorMessage(cwdConfigError),
+                });
+            }
+        }
+
+        const snapshotConfigurations = mergeResolvedConfigurationsWithRuntimeEnv(
+            resolvedConfigurations,
+            runtimeConfig.runtime.env,
+        );
+
+        try {
+            await syncRuntimeEnvProjectConfigs(testCase.project.id, runtimeConfig.runtime.env);
+        } catch (syncError) {
+            logger.warn('Failed to sync runtime env configs into project configs', {
+                testCaseId,
+                projectId: testCase.project.id,
+                error: getErrorMessage(syncError),
+            });
+        }
+
+        const configurationSnapshot = JSON.stringify(createConfigurationSnapshot(config, snapshotConfigurations, runtimeConfig));
         const requestedDeviceIdInput = typeof config.requestedDeviceId === 'string'
             ? config.requestedDeviceId.trim()
             : '';
@@ -342,6 +504,9 @@ export async function POST(request: Request) {
                 requestedDeviceId,
                 requestedRunnerId,
                 triggeredByEmail,
+                instanceId: instanceIdentity.instanceId,
+                instanceType: instanceIdentity.instanceType,
+                instanceName: instanceIdentity.instanceName,
             }
         });
 
@@ -353,6 +518,9 @@ export async function POST(request: Request) {
             requiredRunnerKind: testRun.requiredRunnerKind,
             requestedDeviceId: testRun.requestedDeviceId,
             requestedRunnerId: testRun.requestedRunnerId,
+            instanceId: testRun.instanceId,
+            instanceType: testRun.instanceType,
+            instanceName: testRun.instanceName,
             hasAndroidTargets: requestHasAndroidTargets,
         });
 
@@ -377,6 +545,9 @@ export async function POST(request: Request) {
             requiredCapability: testRun.requiredCapability,
             requestedDeviceId: testRun.requestedDeviceId,
             requestedRunnerId: testRun.requestedRunnerId,
+            instanceId: testRun.instanceId,
+            instanceType: testRun.instanceType,
+            instanceName: testRun.instanceName,
         });
 
     } catch (error) {

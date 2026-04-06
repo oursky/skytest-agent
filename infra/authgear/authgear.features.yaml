@@ -1,0 +1,4 @@
+test_mode:
+  fixed_oob_otp:
+    enabled: true
+    code: "111111"
