@@ -5,10 +5,49 @@ import { createLogger } from '@/lib/core/logger';
 import { encrypt, decrypt, maskApiKey } from '@/lib/security/crypto';
 import { isTeamMember } from '@/lib/security/permissions';
 import { guardTeamRouteRequest } from '@/lib/security/team-route-access';
+import {
+    buildTeamAiProviderConfig,
+    toTeamAiProviderDbValue,
+    type TeamAiProvider,
+    type TeamAiProviderConfig,
+} from '@/lib/runtime/team-ai-config';
 
 const logger = createLogger('api:teams:ai-key');
 
 export const dynamic = 'force-dynamic';
+
+interface ProviderConfigInput {
+    provider?: TeamAiProvider;
+    baseUrl?: string | null;
+    mainModel?: string | null;
+    planningModel?: string | null;
+    insightModel?: string | null;
+    temperature?: number | null;
+}
+
+function normalizeTextValue(value: unknown): string | null {
+    if (typeof value !== 'string') {
+        return null;
+    }
+
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeProviderConfig(input: ProviderConfigInput | null | undefined): TeamAiProviderConfig {
+    const provider = input?.provider === 'openai-compatible' ? 'openai-compatible' : 'openrouter';
+
+    return {
+        provider,
+        baseUrl: normalizeTextValue(input?.baseUrl),
+        mainModel: normalizeTextValue(input?.mainModel),
+        planningModel: normalizeTextValue(input?.planningModel),
+        insightModel: normalizeTextValue(input?.insightModel),
+        temperature: typeof input?.temperature === 'number' && Number.isFinite(input.temperature)
+            ? input.temperature
+            : null,
+    };
+}
 
 export async function GET(
     request: Request,
@@ -31,17 +70,35 @@ export async function GET(
             select: {
                 openRouterKeyEncrypted: true,
                 openRouterKeyUpdatedAt: true,
+                aiProvider: true,
+                aiBaseUrl: true,
+                aiMainModel: true,
+                aiPlanningModel: true,
+                aiInsightModel: true,
+                aiTemperature: true,
             }
         });
 
-        if (!team || !team.openRouterKeyEncrypted) {
-            return NextResponse.json({ hasKey: false, maskedKey: null, updatedAt: null });
+        if (!team) {
+            return NextResponse.json({
+                hasKey: false,
+                maskedKey: null,
+                updatedAt: null,
+                providerConfig: buildTeamAiProviderConfig(null),
+            });
+        }
+
+        const providerConfig = buildTeamAiProviderConfig(team);
+
+        if (!team.openRouterKeyEncrypted) {
+            return NextResponse.json({ hasKey: false, maskedKey: null, updatedAt: null, providerConfig });
         }
 
         return NextResponse.json({
             hasKey: true,
             maskedKey: maskApiKey(decrypt(team.openRouterKeyEncrypted)),
             updatedAt: team.openRouterKeyUpdatedAt,
+            providerConfig,
         });
     } catch (error) {
         logger.error('Failed to fetch team AI key', error);
@@ -65,26 +122,35 @@ export async function POST(
     try {
         const { teamId: id } = guard;
 
-        const { apiKey } = await request.json() as { apiKey?: string };
-        if (!apiKey || typeof apiKey !== 'string') {
+        const { apiKey, providerConfig: providerConfigInput } = await request.json() as {
+            apiKey?: string;
+            providerConfig?: ProviderConfigInput;
+        };
+        if (!apiKey || typeof apiKey !== 'string' || !apiKey.trim()) {
             return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'API key is required' });
         }
 
-        if (!apiKey.startsWith('sk-')) {
-            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Invalid API key format' });
-        }
+        const normalizedProviderConfig = normalizeProviderConfig(providerConfigInput);
 
         await prisma.team.update({
             where: { id },
             data: {
                 openRouterKeyEncrypted: encrypt(apiKey),
                 openRouterKeyUpdatedAt: new Date(),
+                aiProvider: toTeamAiProviderDbValue(normalizedProviderConfig.provider),
+                aiBaseUrl: normalizedProviderConfig.baseUrl,
+                aiMainModel: normalizedProviderConfig.mainModel,
+                aiPlanningModel: normalizedProviderConfig.planningModel,
+                aiInsightModel: normalizedProviderConfig.insightModel,
+                aiTemperature: normalizedProviderConfig.temperature,
+                aiConfigUpdatedAt: new Date(),
             }
         });
 
         return NextResponse.json({
             success: true,
             maskedKey: maskApiKey(apiKey),
+            providerConfig: normalizedProviderConfig,
         });
     } catch (error) {
         logger.error('Failed to save team AI key', error);
