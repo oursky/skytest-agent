@@ -1,5 +1,6 @@
 import type { TestEvent } from './events';
 import type { RunTerminalStatus } from './status';
+import type { BuildMidsceneModelConfigOptions } from '@/lib/runtime/midscene-env';
 
 export interface BrowserConfig {
     name?: string;
@@ -85,6 +86,7 @@ export interface RunTestOptions {
         browserConfig?: Record<string, BrowserConfig | TargetConfig>;
         userId?: string;
         openRouterApiKey?: string;
+        midsceneModelOptions?: BuildMidsceneModelConfigOptions;
         testCaseId?: string;
         files?: TestCaseFile[];
         projectId?: string;

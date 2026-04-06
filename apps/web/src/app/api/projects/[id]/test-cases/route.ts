@@ -40,10 +40,16 @@ export async function GET(
                         createdAt: true,
                     },
                 },
+                source: true,
+                sourceHash: true,
             },
         });
 
-        return NextResponse.json(testCases);
+        return NextResponse.json(testCases.map((testCase) => ({
+            ...testCase,
+            sourcePath: testCase.source,
+            sourceHash: testCase.sourceHash,
+        })));
     } catch (error) {
         logger.error('Failed to fetch test cases', error);
         return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to fetch test cases' });
@@ -101,7 +107,11 @@ export async function POST(
             },
         });
 
-        return NextResponse.json(testCase);
+        return NextResponse.json({
+            ...testCase,
+            sourcePath: testCase.source,
+            sourceHash: testCase.sourceHash,
+        });
     } catch (error) {
         logger.error('Failed to create test case', error);
         return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to create test case' });

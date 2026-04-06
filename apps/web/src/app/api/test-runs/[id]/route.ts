@@ -183,6 +183,9 @@ export async function GET(
             projectName: testRun.testCase.project.name,
             projectTeamId: testRun.testCase.project.teamId,
             triggeredByEmail: testRun.triggeredByEmail,
+            instanceId: testRun.instanceId,
+            instanceType: testRun.instanceType,
+            instanceName: testRun.instanceName,
             files,
             events,
         });
