@@ -119,18 +119,20 @@ export function validateTargetUrl(rawUrl: string): UrlValidationResult {
         return { valid: false, error: 'URL hostname is required' };
     }
 
-    if (config.test.security.blockedHostnames.includes(
-        hostname as (typeof config.test.security.blockedHostnames)[number]
-    )) {
-        return { valid: false, error: 'Target host is not allowed' };
-    }
+    if (!config.test.security.allowLocalhostTestTargets) {
+        if (config.test.security.blockedHostnames.includes(
+            hostname as (typeof config.test.security.blockedHostnames)[number]
+        )) {
+            return { valid: false, error: 'Target host is not allowed' };
+        }
 
-    if (config.test.security.blockedHostnameSuffixes.some((suffix) => hostname.endsWith(suffix))) {
-        return { valid: false, error: 'Target host is not allowed' };
-    }
+        if (config.test.security.blockedHostnameSuffixes.some((suffix) => hostname.endsWith(suffix))) {
+            return { valid: false, error: 'Target host is not allowed' };
+        }
 
-    if (isBlockedIpAddress(hostname)) {
-        return { valid: false, error: 'Private network addresses are not allowed' };
+        if (isBlockedIpAddress(hostname)) {
+            return { valid: false, error: 'Private network addresses are not allowed' };
+        }
     }
 
     return { valid: true };

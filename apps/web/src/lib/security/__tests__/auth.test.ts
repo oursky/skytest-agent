@@ -256,6 +256,20 @@ describe('verifyAuth', () => {
         });
     });
 
+    it('returns null for access tokens signed with weak RSA keys', async () => {
+        jwtVerify.mockRejectedValueOnce(new Error('RS256 requires key modulusLength to be 2048 bits or larger'));
+
+        const result = await verifyAuth(new Request('http://localhost/api/test', {
+            headers: {
+                Authorization: 'Bearer weak-rsa-token',
+            }
+        }));
+
+        expect(result).toBeNull();
+        expect(findUnique).not.toHaveBeenCalled();
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
     it('caches userinfo fallback responses by auth subject', async () => {
         jwtVerify.mockResolvedValue({ payload: { sub: 'auth-cache' } });
         findUnique.mockResolvedValue({ id: 'user-cache', authId: 'auth-cache', email: null });
