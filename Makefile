@@ -3,9 +3,11 @@ SHELL := /bin/sh
 NODE_PM ?= npm
 COMPOSE ?= docker compose
 COMPOSE_FILE ?= infra/docker/docker-compose.local.yml
+COMPOSE_EXTRA_FILE ?=
 CONTROL_PLANE_PORT ?= 3000
 CONTROL_PLANE_HOST ?= 127.0.0.1
 CONTROL_PLANE_URL ?= http://$(CONTROL_PLANE_HOST):$(CONTROL_PLANE_PORT)
+COMPOSE_ARGS := -f $(COMPOSE_FILE) $(if $(COMPOSE_EXTRA_FILE),-f $(COMPOSE_EXTRA_FILE),)
 
 .PHONY: \
 	help \
@@ -24,6 +26,7 @@ CONTROL_PLANE_URL ?= http://$(CONTROL_PLANE_HOST):$(CONTROL_PLANE_PORT)
 	playwright-install \
 	playwright-ensure \
 	runner-reset \
+	seed-local-defaults \
 	bootstrap \
 	dev \
 	verify
@@ -35,13 +38,22 @@ install: ## Install npm dependencies
 	$(NODE_PM) install
 
 services-up: ## Start local Postgres and MinIO services
-	$(COMPOSE) -f $(COMPOSE_FILE) up -d
+	@set -a; \
+	[ -f .env.local ] && . ./.env.local; \
+	set +a; \
+	$(COMPOSE) $(COMPOSE_ARGS) up -d
 
 services-down: ## Stop local Postgres and MinIO services
-	$(COMPOSE) -f $(COMPOSE_FILE) down --remove-orphans
+	@set -a; \
+	[ -f .env.local ] && . ./.env.local; \
+	set +a; \
+	$(COMPOSE) $(COMPOSE_ARGS) down --remove-orphans
 
 services-logs: ## Tail local Postgres and MinIO service logs
-	$(COMPOSE) -f $(COMPOSE_FILE) logs -f postgres minio create-minio-bucket
+	@set -a; \
+	[ -f .env.local ] && . ./.env.local; \
+	set +a; \
+	$(COMPOSE) $(COMPOSE_ARGS) logs -f postgres minio create-minio-bucket
 
 db-generate: ## Generate Prisma client
 	$(NODE_PM) run db:generate
@@ -76,11 +88,18 @@ playwright-ensure: ## Install Playwright Chromium when it is missing locally
 runner-reset: ## Stop all local runner processes and remove local runner state
 	$(NODE_PM) run skytest -- reset --force
 
+seed-local-defaults: ## Seed local default Authgear user + owner team/project for local bootstrap
+	@set -a; \
+	[ -f .env.local ] && . ./.env.local; \
+	set +a; \
+	node infra/scripts/seed-local-defaults.mjs
+
 bootstrap: ## Install deps, start local services, and apply committed migrations
 	$(MAKE) install
 	$(MAKE) playwright-ensure
 	$(MAKE) services-up
 	$(MAKE) db-setup
+	$(MAKE) seed-local-defaults
 
 dev: ## Boot local services, apply committed migrations, and start the web app with maintenance + browser worker
 	$(MAKE) services-up

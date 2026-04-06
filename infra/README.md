@@ -13,8 +13,20 @@ The local stack runs:
 
 - PostgreSQL for application state
 - MinIO for S3-compatible object storage
+- Authgear (plus Redis) for local authentication
 
 Application processes (`web`, `browser`, `maintenance`) run from the repo workspace and connect to the local services above.
+
+Local bootstrap ownership seeding:
+
+- `make bootstrap` runs `make seed-local-defaults` after DB setup.
+- `seed-local-defaults` is implemented in `infra/scripts/seed-local-defaults.mjs`.
+- It creates (or reuses) a deterministic local Authgear user, then upserts a matching owner team and default Case Study project in SkyTest DB.
+
+Per-checkout runtime config artifacts:
+
+- `.skytest/skytest.yaml` (tracked): runtime and test-catalog config for that checkout.
+- `.skytest/instance.lock.yaml` (gitignored): stable local identity metadata used for run observability.
 
 Browser run concurrency in local topology is controlled by environment config:
 

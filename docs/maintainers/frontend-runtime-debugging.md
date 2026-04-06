@@ -92,6 +92,20 @@ Verify all of the following:
 - [ ] Regression scaffold added.
 - [ ] Verification matrix completed.
 
+## 8. Runtime Config Checks
+
+When run dispatch fails before execution, validate local runtime config first:
+
+- required config path: `<checkout>/.skytest/skytest.yaml`
+- expected behavior: fail fast with explicit validation message if missing/invalid
+- local identity path: `<checkout>/.skytest/instance.lock.yaml` (metadata for run observability)
+
+Quick validation flow:
+
+1. Run `npm run skytest -- init` in the checkout root to scaffold missing files.
+2. Confirm run dispatch response includes validation details when config is invalid.
+3. Confirm run records include `instanceType`/`instanceName` for root vs worktree visibility.
+
 ## Appendix: Fast Root-Cause Matrix
 
 - `Monaco initialization: error: {}` and runtime `[object Event]`
