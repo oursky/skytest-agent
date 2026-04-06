@@ -2,8 +2,11 @@
 
 import { runDescribeRunnerCommand } from './commands/describe-runner';
 import { runGetRunnersCommand } from './commands/get-runners';
+import { runInitCommand } from './commands/init';
 import { runLogsRunnerCommand } from './commands/logs-runner';
 import { runPairRunnerCommand } from './commands/pair-runner';
+import { runRunProjectCommand } from './commands/run-project';
+import { runRunTestCaseCommand } from './commands/run-test-case';
 import { runResetCommand } from './commands/reset';
 import { runSyncRunnersCommand } from './commands/sync-runners';
 import { runStartRunnerCommand } from './commands/start-runner';
@@ -17,6 +20,7 @@ function printHelp(): void {
         '',
         'Usage:',
         '  skytest version',
+        '  skytest init',
         '  skytest pair runner <pairing-token>',
         '  skytest start runner <runner-id> [--repair-token <pairing-token>]',
         '  skytest stop runner <runner-id>',
@@ -26,6 +30,8 @@ function printHelp(): void {
         '  skytest logs runner <runner-id> [-f|--follow] [--tail <n>]',
         '  skytest unpair runner <runner-id>',
         '  skytest reset --force',
+        '  skytest run test-case <display-id> --project-id <project-id> [--url <base-url>] [--api-key <token>|--token <token>] [--wait|--no-wait] [--timeout-ms <ms>] [--json|--format text|json]',
+        '  skytest run project <project-id> [--display-id <display-id> ...] [--url <base-url>] [--api-key <token>|--token <token>] [--wait|--no-wait] [--timeout-ms <ms>] [--json|--format text|json]',
     ].join('\n'));
 }
 
@@ -47,6 +53,11 @@ async function main(): Promise<void> {
 
     if (command.kind === 'version') {
         console.log(resolveCliVersion());
+        return;
+    }
+
+    if (command.kind === 'init') {
+        await runInitCommand();
         return;
     }
 
@@ -99,6 +110,32 @@ async function main(): Promise<void> {
 
     if (command.kind === 'unpair-runner') {
         await runUnpairRunnerCommand({ runnerId: command.runnerId });
+        return;
+    }
+
+    if (command.kind === 'run-test-case') {
+        await runRunTestCaseCommand({
+            displayId: command.displayId,
+            projectId: command.projectId,
+            controlPlaneBaseUrl: command.controlPlaneBaseUrl,
+            authToken: command.authToken,
+            wait: command.wait,
+            timeoutMs: command.timeoutMs,
+            format: command.format,
+        });
+        return;
+    }
+
+    if (command.kind === 'run-project') {
+        await runRunProjectCommand({
+            projectId: command.projectId,
+            displayIds: command.displayIds,
+            controlPlaneBaseUrl: command.controlPlaneBaseUrl,
+            authToken: command.authToken,
+            wait: command.wait,
+            timeoutMs: command.timeoutMs,
+            format: command.format,
+        });
         return;
     }
 

@@ -10,6 +10,14 @@ describe('parseSkytestCliCommand', () => {
         expect(parseSkytestCliCommand(['version'])).toEqual({ kind: 'version' });
     });
 
+    it('parses init command', () => {
+        expect(parseSkytestCliCommand(['init'])).toEqual({ kind: 'init' });
+    });
+
+    it('rejects unknown init arguments', () => {
+        expect(() => parseSkytestCliCommand(['init', '--foo'])).toThrow('Unknown argument(s) for `init`: --foo');
+    });
+
     it('parses pair runner with options', () => {
         expect(parseSkytestCliCommand([
             'pair',
@@ -99,6 +107,131 @@ describe('parseSkytestCliCommand', () => {
             kind: 'reset',
             force: true,
         });
+    });
+
+    it('parses run test-case with explicit options', () => {
+        expect(parseSkytestCliCommand([
+            'run',
+            'test-case',
+            'HAN-C02',
+            '--project-id',
+            'project-123',
+            '--url',
+            'http://127.0.0.1:3000',
+            '--api-key',
+            'sk_test_abc',
+            '--timeout-ms',
+            '120000',
+            '--json',
+        ])).toEqual({
+            kind: 'run-test-case',
+            displayId: 'HAN-C02',
+            projectId: 'project-123',
+            controlPlaneBaseUrl: 'http://127.0.0.1:3000',
+            authToken: 'sk_test_abc',
+            wait: true,
+            timeoutMs: 120000,
+            format: 'json',
+        });
+    });
+
+    it('parses run test-case with --no-wait', () => {
+        expect(parseSkytestCliCommand([
+            'run',
+            'test-case',
+            'HAN-C03',
+            '--project-id',
+            'project-123',
+            '--no-wait',
+        ])).toEqual({
+            kind: 'run-test-case',
+            displayId: 'HAN-C03',
+            projectId: 'project-123',
+            controlPlaneBaseUrl: undefined,
+            authToken: undefined,
+            wait: false,
+            timeoutMs: 600000,
+            format: 'text',
+        });
+    });
+
+    it('parses run project with display-id filters', () => {
+        expect(parseSkytestCliCommand([
+            'run',
+            'project',
+            'project-123',
+            '--display-id',
+            'HAN-C02',
+            '--display-id',
+            'HAN-T01',
+            '--token',
+            'sk_test_abc',
+            '--format',
+            'json',
+        ])).toEqual({
+            kind: 'run-project',
+            projectId: 'project-123',
+            controlPlaneBaseUrl: undefined,
+            authToken: 'sk_test_abc',
+            displayIds: ['HAN-C02', 'HAN-T01'],
+            wait: true,
+            timeoutMs: 600000,
+            format: 'json',
+        });
+    });
+
+    it('rejects run test-case without project-id', () => {
+        expect(() => parseSkytestCliCommand([
+            'run',
+            'test-case',
+            'HAN-C02',
+        ])).toThrow('`--project-id` is required for `run` commands.');
+    });
+
+    it('rejects run project with missing display-id value', () => {
+        expect(() => parseSkytestCliCommand([
+            'run',
+            'project',
+            'project-123',
+            '--display-id',
+        ])).toThrow('Missing value for `--display-id`.');
+    });
+
+    it('rejects run test-case without display id', () => {
+        expect(() => parseSkytestCliCommand([
+            'run',
+            'test-case',
+            '--project-id',
+            'project-123',
+        ])).toThrow('Usage: skytest run test-case <display-id> --project-id <project-id> [options]');
+    });
+
+    it('rejects run project without project id', () => {
+        expect(() => parseSkytestCliCommand([
+            'run',
+            'project',
+        ])).toThrow('Usage: skytest run project <project-id> [options]');
+    });
+
+    it('rejects run command with unknown option', () => {
+        expect(() => parseSkytestCliCommand([
+            'run',
+            'test-case',
+            'HAN-C02',
+            '--project-id',
+            'project-123',
+            '--bogus',
+        ])).toThrow('Unknown option for `run`: --bogus');
+    });
+
+    it('rejects run project with invalid format value', () => {
+        expect(() => parseSkytestCliCommand([
+            'run',
+            'project',
+            'project-123',
+            '--format',
+            'yaml',
+        ])).toThrow('Expected `json` or `text` after `--format`.');
     });
 
     it('throws on unknown command', () => {
