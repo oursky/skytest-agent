@@ -1,15 +1,6 @@
-export type MidsceneModelConfig = Record<string, string | number>;
+import { MIDSCENE_MODEL_DEFAULTS } from '@/lib/runtime/model-families';
 
-export const MIDSCENE_MODEL_DEFAULTS = {
-    baseUrl: 'https://openrouter.ai/api/v1',
-    mainModel: 'google/gemini-3.1-flash-lite-preview',
-    mainModelFamily: 'gemini',
-    planningModel: 'qwen/qwen3.5-27b',
-    planningModelFamily: 'qwen3.5',
-    insightModel: 'qwen/qwen3.5-27b',
-    insightModelFamily: 'qwen3.5',
-    temperature: 0.2,
-} as const;
+export type MidsceneModelConfig = Record<string, string | number>;
 
 const MIDSCENE_MODEL_ENV_DEFAULTS = {
     MIDSCENE_MODEL_BASE_URL: MIDSCENE_MODEL_DEFAULTS.baseUrl,

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/app/auth-provider';
 import { Button, CustomSelect, LoadingSpinner, Modal } from '@/components/shared';
 import { useI18n } from '@/i18n';
-import { MIDSCENE_MODEL_DEFAULTS } from '@/lib/runtime/midscene-env';
+import { MIDSCENE_MODEL_DEFAULTS } from '@/lib/runtime/model-families';
 
 interface TeamAiSettingsProps {
     teamId: string;
