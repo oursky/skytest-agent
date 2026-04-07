@@ -58,7 +58,7 @@ model Team {
   name                   String
   openRouterKeyEncrypted String?
   openRouterKeyUpdatedAt DateTime?
-  aiProvider             String?                  @default("openrouter")
+  aiProvider             String?                  @default("OPENROUTER")
   aiBaseUrl              String?
   aiMainModel            String?
   aiMainModelFamily      String?
