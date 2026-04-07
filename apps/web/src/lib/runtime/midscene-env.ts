@@ -1,16 +1,27 @@
 export type MidsceneModelConfig = Record<string, string | number>;
 
+export const MIDSCENE_MODEL_DEFAULTS = {
+    baseUrl: 'https://openrouter.ai/api/v1',
+    mainModel: 'google/gemini-3.1-flash-lite-preview',
+    mainModelFamily: 'gemini',
+    planningModel: 'qwen/qwen3.5-27b',
+    planningModelFamily: 'qwen3.5',
+    insightModel: 'qwen/qwen3.5-27b',
+    insightModelFamily: 'qwen3.5',
+    temperature: 0.2,
+} as const;
+
 const MIDSCENE_MODEL_ENV_DEFAULTS = {
-    MIDSCENE_MODEL_BASE_URL: 'https://openrouter.ai/api/v1',
-    MIDSCENE_MODEL_NAME: 'google/gemini-3.1-flash-lite-preview',
-    MIDSCENE_MODEL_FAMILY: 'gemini',
-    MIDSCENE_PLANNING_MODEL_BASE_URL: 'https://openrouter.ai/api/v1',
-    MIDSCENE_PLANNING_MODEL_NAME: 'qwen/qwen3.5-27b',
-    MIDSCENE_PLANNING_MODEL_FAMILY: 'qwen3.5',
-    MIDSCENE_INSIGHT_MODEL_BASE_URL: 'https://openrouter.ai/api/v1',
-    MIDSCENE_INSIGHT_MODEL_NAME: 'qwen/qwen3.5-27b',
-    MIDSCENE_INSIGHT_MODEL_FAMILY: 'qwen3.5',
-    MIDSCENE_MODEL_TEMPERATURE: '0.2',
+    MIDSCENE_MODEL_BASE_URL: MIDSCENE_MODEL_DEFAULTS.baseUrl,
+    MIDSCENE_MODEL_NAME: MIDSCENE_MODEL_DEFAULTS.mainModel,
+    MIDSCENE_MODEL_FAMILY: MIDSCENE_MODEL_DEFAULTS.mainModelFamily,
+    MIDSCENE_PLANNING_MODEL_BASE_URL: MIDSCENE_MODEL_DEFAULTS.baseUrl,
+    MIDSCENE_PLANNING_MODEL_NAME: MIDSCENE_MODEL_DEFAULTS.planningModel,
+    MIDSCENE_PLANNING_MODEL_FAMILY: MIDSCENE_MODEL_DEFAULTS.planningModelFamily,
+    MIDSCENE_INSIGHT_MODEL_BASE_URL: MIDSCENE_MODEL_DEFAULTS.baseUrl,
+    MIDSCENE_INSIGHT_MODEL_NAME: MIDSCENE_MODEL_DEFAULTS.insightModel,
+    MIDSCENE_INSIGHT_MODEL_FAMILY: MIDSCENE_MODEL_DEFAULTS.insightModelFamily,
+    MIDSCENE_MODEL_TEMPERATURE: String(MIDSCENE_MODEL_DEFAULTS.temperature),
 } as const;
 
 type MidsceneModelEnvVar = keyof typeof MIDSCENE_MODEL_ENV_DEFAULTS;

@@ -220,6 +220,35 @@ describe('/api/teams/[id]/ai-key', () => {
         expect(data).not.toHaveProperty('openRouterKeyEncrypted');
     });
 
+    it('stores null model family fields when provider config omits them', async () => {
+        const response = await POST(new Request('http://localhost/api/teams/team-1/ai-key', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                providerConfig: {
+                    provider: 'openrouter',
+                    baseUrl: 'https://openrouter.ai/api/v1',
+                    mainModel: 'google/gemini-3.1-flash-lite-preview',
+                    planningModel: 'qwen/qwen3.5-27b',
+                    insightModel: 'qwen/qwen3.5-27b',
+                    temperature: 0.2,
+                },
+            }),
+        }), {
+            params: Promise.resolve({ id: 'team-1' }),
+        });
+
+        expect(response.status).toBe(200);
+        expect(mocks.prisma.team.update).toHaveBeenCalledWith({
+            where: { id: 'team-1' },
+            data: expect.objectContaining({
+                aiMainModelFamily: null,
+                aiPlanningModelFamily: null,
+                aiInsightModelFamily: null,
+            }),
+        });
+    });
+
     it('rejects negative temperature', async () => {
         const response = await POST(new Request('http://localhost/api/teams/team-1/ai-key', {
             method: 'POST',

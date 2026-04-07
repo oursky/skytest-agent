@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/app/auth-provider';
 import { Button, CustomSelect, LoadingSpinner, Modal } from '@/components/shared';
 import { useI18n } from '@/i18n';
-import { VALID_MODEL_FAMILIES } from '@/lib/runtime/model-families';
+import { MIDSCENE_MODEL_DEFAULTS } from '@/lib/runtime/midscene-env';
 
 interface TeamAiSettingsProps {
     teamId: string;
@@ -16,11 +16,8 @@ type ProviderFieldErrorKey =
     | 'apiKey'
     | 'baseUrl'
     | 'mainModel'
-    | 'mainModelFamily'
     | 'planningModel'
-    | 'planningModelFamily'
     | 'insightModel'
-    | 'insightModelFamily'
     | 'temperature';
 
 interface TeamAiState {
@@ -44,34 +41,23 @@ interface ProviderFormState {
     provider: TeamAiProvider;
     baseUrl: string;
     mainModel: string;
-    mainModelFamily: string;
     planningModel: string;
-    planningModelFamily: string;
     insightModel: string;
-    insightModelFamily: string;
     temperature: string;
 }
 
 const DEFAULT_PROVIDER: TeamAiProvider = 'openrouter';
 
-const MODEL_FAMILY_OPTIONS = VALID_MODEL_FAMILIES.map((family) => ({
-    value: family,
-    label: family === 'gpt-5' ? 'gpt-5 (OpenAI-compatible providers)' : family,
-}));
-
 function buildProviderFormState(providerConfig?: TeamAiState['providerConfig']): ProviderFormState {
     return {
         provider: providerConfig?.provider ?? DEFAULT_PROVIDER,
-        baseUrl: providerConfig?.baseUrl ?? '',
-        mainModel: providerConfig?.mainModel ?? '',
-        mainModelFamily: providerConfig?.mainModelFamily ?? '',
-        planningModel: providerConfig?.planningModel ?? '',
-        planningModelFamily: providerConfig?.planningModelFamily ?? '',
-        insightModel: providerConfig?.insightModel ?? '',
-        insightModelFamily: providerConfig?.insightModelFamily ?? '',
+        baseUrl: providerConfig?.baseUrl ?? MIDSCENE_MODEL_DEFAULTS.baseUrl,
+        mainModel: providerConfig?.mainModel ?? MIDSCENE_MODEL_DEFAULTS.mainModel,
+        planningModel: providerConfig?.planningModel ?? MIDSCENE_MODEL_DEFAULTS.planningModel,
+        insightModel: providerConfig?.insightModel ?? MIDSCENE_MODEL_DEFAULTS.insightModel,
         temperature: typeof providerConfig?.temperature === 'number'
             ? String(providerConfig.temperature)
-            : '',
+            : String(MIDSCENE_MODEL_DEFAULTS.temperature),
     };
 }
 
@@ -85,11 +71,8 @@ function toFieldErrorMap(input: unknown): Partial<Record<ProviderFieldErrorKey, 
         'apiKey',
         'baseUrl',
         'mainModel',
-        'mainModelFamily',
         'planningModel',
-        'planningModelFamily',
         'insightModel',
-        'insightModelFamily',
         'temperature',
     ];
 
@@ -106,10 +89,6 @@ function toFieldErrorMap(input: unknown): Partial<Record<ProviderFieldErrorKey, 
 export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
-    const modelFamilyOptions: Array<{ value: string; label: string }> = [
-        { value: '', label: t('team.ai.modelFamily.auto') },
-        ...MODEL_FAMILY_OPTIONS,
-    ];
     const [state, setState] = useState<TeamAiState>({
         hasKey: false,
         maskedKey: null,
@@ -219,11 +198,8 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
                 provider: TeamAiProvider;
                 baseUrl: string;
                 mainModel: string;
-                mainModelFamily: string;
                 planningModel: string;
-                planningModelFamily: string;
                 insightModel: string;
-                insightModelFamily: string;
                 temperature: number | null;
             };
         } = {
@@ -231,11 +207,8 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
                 provider: providerForm.provider,
                 baseUrl: providerForm.baseUrl,
                 mainModel: providerForm.mainModel,
-                mainModelFamily: providerForm.mainModelFamily,
                 planningModel: providerForm.planningModel,
-                planningModelFamily: providerForm.planningModelFamily,
                 insightModel: providerForm.insightModel,
-                insightModelFamily: providerForm.insightModelFamily,
                 temperature: parsedTemperature,
             },
         };
@@ -433,24 +406,6 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
                     ) : null}
                 </label>
                 <label className="space-y-1">
-                    <span className="text-sm text-gray-700">{t('team.ai.mainModelFamily')}</span>
-                    <CustomSelect
-                        value={providerForm.mainModelFamily}
-                        options={modelFamilyOptions}
-                        disabled={isFormDisabled}
-                        onChange={(value) => {
-                            setProviderForm((current) => ({ ...current, mainModelFamily: value }));
-                            clearFieldError('mainModelFamily');
-                        }}
-                        ariaLabel={t('team.ai.mainModelFamily')}
-                        fullWidth
-                        buttonClassName="shadow-none"
-                    />
-                    {fieldErrors.mainModelFamily ? (
-                        <p className="text-xs text-red-600">{fieldErrors.mainModelFamily}</p>
-                    ) : null}
-                </label>
-                <label className="space-y-1">
                     <span className="text-sm text-gray-700">{t('team.ai.planningModel')}</span>
                     <input
                         type="text"
@@ -465,24 +420,6 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
                     />
                     {fieldErrors.planningModel ? (
                         <p className="text-xs text-red-600">{fieldErrors.planningModel}</p>
-                    ) : null}
-                </label>
-                <label className="space-y-1">
-                    <span className="text-sm text-gray-700">{t('team.ai.planningModelFamily')}</span>
-                    <CustomSelect
-                        value={providerForm.planningModelFamily}
-                        options={modelFamilyOptions}
-                        disabled={isFormDisabled}
-                        onChange={(value) => {
-                            setProviderForm((current) => ({ ...current, planningModelFamily: value }));
-                            clearFieldError('planningModelFamily');
-                        }}
-                        ariaLabel={t('team.ai.planningModelFamily')}
-                        fullWidth
-                        buttonClassName="shadow-none"
-                    />
-                    {fieldErrors.planningModelFamily ? (
-                        <p className="text-xs text-red-600">{fieldErrors.planningModelFamily}</p>
                     ) : null}
                 </label>
                 <label className="space-y-1">
@@ -503,24 +440,6 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
                     ) : null}
                 </label>
                 <label className="space-y-1">
-                    <span className="text-sm text-gray-700">{t('team.ai.insightModelFamily')}</span>
-                    <CustomSelect
-                        value={providerForm.insightModelFamily}
-                        options={modelFamilyOptions}
-                        disabled={isFormDisabled}
-                        onChange={(value) => {
-                            setProviderForm((current) => ({ ...current, insightModelFamily: value }));
-                            clearFieldError('insightModelFamily');
-                        }}
-                        ariaLabel={t('team.ai.insightModelFamily')}
-                        fullWidth
-                        buttonClassName="shadow-none"
-                    />
-                    {fieldErrors.insightModelFamily ? (
-                        <p className="text-xs text-red-600">{fieldErrors.insightModelFamily}</p>
-                    ) : null}
-                </label>
-                <label className="space-y-1 md:col-span-2">
                     <span className="text-sm text-gray-700">{t('team.ai.temperature')}</span>
                     <input
                         type="number"
