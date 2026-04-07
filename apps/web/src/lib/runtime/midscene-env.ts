@@ -1,4 +1,8 @@
+import { MODEL_FAMILY_VALUES, type TModelFamily } from '@midscene/shared/env';
+
 export type MidsceneModelConfig = Record<string, string | number>;
+
+export const VALID_MODEL_FAMILIES: readonly TModelFamily[] = MODEL_FAMILY_VALUES;
 
 const MIDSCENE_MODEL_ENV_DEFAULTS = {
     MIDSCENE_MODEL_BASE_URL: 'https://openrouter.ai/api/v1',
@@ -59,17 +63,10 @@ function inferModelFamily(modelName: string): string {
 
     switch (rawFamily) {
         case 'google':
+        case 'gemini':
             return 'gemini';
         case 'qwen':
             return 'qwen3.5';
-        case 'anthropic':
-            return 'gpt-5';
-        case 'openai':
-            return 'gpt-5';
-        case 'gemini':
-        case 'deepseek':
-        case 'llama':
-            return rawFamily;
         default:
             return 'gpt-5';
     }

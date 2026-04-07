@@ -57,11 +57,4 @@ describe('team-ai-config', () => {
         expect(providerConfig.provider).toBe('openrouter');
     });
 
-    it('normalizes legacy compat providers to openrouter', () => {
-        const providerConfig = buildTeamAiProviderConfig({
-            aiProvider: 'CUSTOM_COMPAT',
-        });
-
-        expect(providerConfig.provider).toBe('openrouter');
-    });
 });

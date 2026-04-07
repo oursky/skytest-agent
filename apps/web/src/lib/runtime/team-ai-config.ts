@@ -1,12 +1,7 @@
 import type { BuildMidsceneModelConfigOptions } from '@/lib/runtime/midscene-env';
 
 export type TeamAiProvider = 'openrouter' | 'openai-compatible';
-export type TeamAiProviderDbValue =
-    | 'OPENROUTER'
-    | 'OPENAI'
-    | 'XAI'
-    | 'ANTHROPIC_COMPAT'
-    | 'CUSTOM_COMPAT';
+export type TeamAiProviderDbValue = 'OPENROUTER' | 'OPENAI';
 
 export interface TeamAiProviderFields {
     aiProvider?: string | null;

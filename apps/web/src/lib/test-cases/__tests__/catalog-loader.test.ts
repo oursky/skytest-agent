@@ -40,11 +40,11 @@ describe('loadTestCatalog', () => {
         const projectDir = await createTempProject();
         await writeFile(
             path.join(projectDir, '.skytest', 'tests', 'a.case.yaml'),
-            ['id: HAN-C02', 'name: Case A', 'steps: []', ''].join('\n')
+            ['id: CASE-A02', 'name: Case A', 'steps: []', ''].join('\n')
         );
         await writeFile(
             path.join(projectDir, '.skytest', 'tests', 'b.case.yaml'),
-            ['id: HAN-C02', 'name: Case B', 'steps: []', ''].join('\n')
+            ['id: CASE-A02', 'name: Case B', 'steps: []', ''].join('\n')
         );
 
         await expect(loadTestCatalog(projectDir)).rejects.toThrow('Duplicate test case ID');
@@ -53,10 +53,10 @@ describe('loadTestCatalog', () => {
     it('returns source path and hash for discovered cases', async () => {
         const projectDir = await createTempProject();
         const casePath = path.join(projectDir, '.skytest', 'tests', 'single.case.yaml');
-        await writeFile(casePath, ['id: HAN-C03', 'name: Case C', 'steps: []', ''].join('\n'));
+        await writeFile(casePath, ['id: CASE-A03', 'name: Case C', 'steps: []', ''].join('\n'));
 
         const catalog = await loadTestCatalog(projectDir);
-        const entry = catalog.get('HAN-C03');
+        const entry = catalog.get('CASE-A03');
 
         expect(entry).toBeDefined();
         expect(entry?.sourcePath).toBe(casePath);

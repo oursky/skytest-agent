@@ -62,9 +62,9 @@ describe('POST /api/projects/[id]/test-cases/sync', () => {
         mocks.resolveUserId.mockResolvedValue('user-1');
         mocks.projectFindUnique.mockResolvedValue({ id: 'project-1' });
         mocks.isProjectMember.mockResolvedValue(true);
-        mocks.testCaseFindFirst.mockResolvedValue({ source: '/tmp/hanlun/.skytest/tests/student/HAN-C02.case.yaml' });
+        mocks.testCaseFindFirst.mockResolvedValue({ source: '/tmp/sample-workspace/.skytest/tests/scenario-a/CASE-A02.case.yaml' });
         mocks.testCaseFindMany.mockResolvedValue([
-            { id: 'tc-existing', displayId: 'HAN-C02', status: 'DRAFT' },
+            { id: 'tc-existing', displayId: 'CASE-A02', status: 'DRAFT' },
         ]);
         mocks.loadRuntimeConfigForCwd.mockResolvedValue({
             schemaVersion: 1,
@@ -79,19 +79,19 @@ describe('POST /api/projects/[id]/test-cases/sync', () => {
                     runMs: 300000,
                 },
                 env: {
-                    STUDENT_EMAIL: 'student@example.com',
+                    USER_EMAIL: 'user@example.com',
                 },
             },
         });
         mocks.loadTestCatalog.mockResolvedValue(new Map([
-            ['HAN-C02', { id: 'HAN-C02', sourcePath: '/tmp/hanlun/.skytest/tests/student/HAN-C02.case.yaml', sourceHash: 'hash-a' }],
-            ['HAN-T01', { id: 'HAN-T01', sourcePath: '/tmp/hanlun/.skytest/tests/teacher/HAN-T01.case.yaml', sourceHash: 'hash-b' }],
+            ['CASE-A02', { id: 'CASE-A02', sourcePath: '/tmp/sample-workspace/.skytest/tests/scenario-a/CASE-A02.case.yaml', sourceHash: 'hash-a' }],
+            ['CASE-B01', { id: 'CASE-B01', sourcePath: '/tmp/sample-workspace/.skytest/tests/scenario-b/CASE-B01.case.yaml', sourceHash: 'hash-b' }],
         ]));
         mocks.readFile.mockImplementation(async (sourcePath: string) => {
-            if (sourcePath.includes('HAN-C02')) {
-                return `id: HAN-C02\nname: Student baseline\nurl: http://localhost:15173/mock-exam/dashboard\nsteps: []\nbrowserConfig: {}`;
+            if (sourcePath.includes('CASE-A02')) {
+                return `id: CASE-A02\nname: Scenario A baseline\nurl: http://localhost:15173/mock-exam/dashboard\nsteps: []\nbrowserConfig: {}`;
             }
-            return `id: HAN-T01\nname: Teacher inbox\nurl: http://localhost:15174/teacher/mock-exam/inbox\nsteps: []\nbrowserConfig: {}`;
+            return `id: CASE-B01\nname: Scenario B inbox\nurl: http://localhost:15174/scenario-b/mock-exam/inbox\nsteps: []\nbrowserConfig: {}`;
         });
     });
 
@@ -99,7 +99,7 @@ describe('POST /api/projects/[id]/test-cases/sync', () => {
         const request = new Request('http://localhost/api/projects/project-1/test-cases/sync', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ root: '/tmp/hanlun' }),
+            body: JSON.stringify({ root: '/tmp/sample-workspace' }),
         });
 
         const response = await POST(request, {
@@ -108,8 +108,8 @@ describe('POST /api/projects/[id]/test-cases/sync', () => {
         const payload = await response.json();
 
         expect(response.status).toBe(200);
-        expect(mocks.loadRuntimeConfigForCwd).toHaveBeenCalledWith('/tmp/hanlun');
-        expect(mocks.loadTestCatalog).toHaveBeenCalledWith('/tmp/hanlun');
+        expect(mocks.loadRuntimeConfigForCwd).toHaveBeenCalledWith('/tmp/sample-workspace');
+        expect(mocks.loadTestCatalog).toHaveBeenCalledWith('/tmp/sample-workspace');
         expect(mocks.testCaseUpdate).toHaveBeenCalledTimes(1);
         expect(mocks.testCaseCreate).toHaveBeenCalledTimes(1);
         expect(mocks.projectConfigUpsert).toHaveBeenCalledTimes(1);
@@ -117,7 +117,7 @@ describe('POST /api/projects/[id]/test-cases/sync', () => {
             imported: 1,
             updated: 1,
             runtimeConfigsSynced: 1,
-            root: '/tmp/hanlun',
+            root: '/tmp/sample-workspace',
         });
     });
 

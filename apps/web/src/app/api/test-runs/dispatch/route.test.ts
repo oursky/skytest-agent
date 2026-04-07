@@ -285,11 +285,11 @@ describe('POST /api/test-runs/dispatch', () => {
 
     it('overrides snapshot variables from runtime config source env when present', async () => {
         mocks.resolveConfigs.mockResolvedValueOnce({
-            variables: { STUDENT_EMAIL: 'stale@example.com' },
+            variables: { USER_EMAIL: 'stale@example.com' },
             files: {},
             allConfigs: [
                 {
-                    name: 'STUDENT_EMAIL',
+                    name: 'USER_EMAIL',
                     type: 'VARIABLE',
                     value: 'stale@example.com',
                     source: 'project',
@@ -310,8 +310,8 @@ describe('POST /api/test-runs/dispatch', () => {
                     runMs: 300000,
                 },
                 env: {
-                    STUDENT_EMAIL: 'student+1@example.com',
-                    STUDENT_PASSWORD: 'Abcd1234',
+                    USER_EMAIL: 'user+1@example.com',
+                    USER_PASSWORD: 'Abcd1234',
                 },
             },
         });
@@ -340,14 +340,14 @@ describe('POST /api/test-runs/dispatch', () => {
         expect(snapshot.resolvedConfigurations).toEqual(
             expect.arrayContaining([
                 {
-                    name: 'STUDENT_EMAIL',
+                    name: 'USER_EMAIL',
                     type: 'VARIABLE',
-                    value: 'student+1@example.com',
+                    value: 'user+1@example.com',
                     source: 'project',
                     masked: false,
                 },
                 {
-                    name: 'STUDENT_PASSWORD',
+                    name: 'USER_PASSWORD',
                     type: 'VARIABLE',
                     value: 'Abcd1234',
                     source: 'project',
@@ -361,7 +361,7 @@ describe('POST /api/test-runs/dispatch', () => {
                 where: {
                     projectId_name: {
                         projectId: 'project-1',
-                        name: 'STUDENT_EMAIL',
+                        name: 'USER_EMAIL',
                     },
                 },
             })
@@ -422,7 +422,7 @@ describe('POST /api/test-runs/dispatch', () => {
     it('falls back to source-backed runtime config when cwd runtime config is missing', async () => {
         mocks.testCaseFindUnique.mockResolvedValue({
             id: 'tc-1',
-            source: '/home/newman/magic/skytest-agent/examples/self-host/.skytest/tests/student/HAN-C02.case.yaml',
+            source: '/home/newman/magic/skytest-agent/examples/self-host/.skytest/tests/scenario-a/CASE-A02.case.yaml',
             project: {
                 id: 'project-1',
                 teamId: 'team-1',

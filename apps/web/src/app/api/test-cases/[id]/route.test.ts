@@ -54,7 +54,7 @@ const { PUT } = await import('@/app/api/test-cases/[id]/route');
 
 describe('PUT /api/test-cases/[id]', () => {
     const testCaseId = 'tc_123';
-    const sourcePath = '/tmp/case-study/HAN-C02.case.yaml';
+    const sourcePath = '/tmp/case-study/CASE-A02.case.yaml';
 
     beforeEach(() => {
         mocks.guardTestCaseRouteRequest.mockReset();
@@ -87,9 +87,9 @@ describe('PUT /api/test-cases/[id]', () => {
         mocks.loadTestCatalog.mockResolvedValue(
             new Map([
                 [
-                    'HAN-C02',
+                    'CASE-A02',
                     {
-                        id: 'HAN-C02',
+                        id: 'CASE-A02',
                         sourcePath,
                         sourceHash: 'catalog-hash',
                     },
@@ -97,21 +97,21 @@ describe('PUT /api/test-cases/[id]', () => {
             ])
         );
 
-        mocks.readFile.mockResolvedValue('id: HAN-C02\nname: Existing\nurl: http://localhost\n');
+        mocks.readFile.mockResolvedValue('id: CASE-A02\nname: Existing\nurl: http://localhost\n');
         mocks.parseYaml.mockReturnValue({
-            id: 'HAN-C02',
+            id: 'CASE-A02',
             name: 'Existing',
             url: 'http://localhost',
             prompt: '',
             steps: [],
             browserConfig: {},
         });
-        mocks.dumpYaml.mockReturnValue('id: HAN-C02\nname: Updated\nurl: http://localhost\n');
+        mocks.dumpYaml.mockReturnValue('id: CASE-A02\nname: Updated\nurl: http://localhost\n');
         mocks.writeCatalogCaseFile.mockResolvedValue({ sourceHash: 'new-hash' });
 
         mocks.prisma.testCase.update.mockResolvedValue({
             id: testCaseId,
-            displayId: 'HAN-C02',
+            displayId: 'CASE-A02',
             source: sourcePath,
             sourceHash: 'new-hash',
         });
@@ -122,7 +122,7 @@ describe('PUT /api/test-cases/[id]', () => {
             method: 'PUT',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
-                displayId: 'HAN-C02',
+                displayId: 'CASE-A02',
                 name: 'Updated',
                 url: 'http://localhost',
                 prompt: '',
@@ -153,7 +153,7 @@ describe('PUT /api/test-cases/[id]', () => {
             method: 'PUT',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
-                displayId: 'HAN-C02',
+                displayId: 'CASE-A02',
                 name: 'Updated',
                 url: 'http://localhost',
                 prompt: '',

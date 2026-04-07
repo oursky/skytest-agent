@@ -21,13 +21,13 @@ describe('writeCatalogCaseFile', () => {
     it('rejects write when expectedHash mismatches', async () => {
         const dir = await createTempDir();
         const filePath = path.join(dir, '.skytest', 'tests', 'target.case.yaml');
-        await writeFile(filePath, ['id: HAN-C02', 'name: Original', 'steps: []', ''].join('\n'));
+        await writeFile(filePath, ['id: CASE-A02', 'name: Original', 'steps: []', ''].join('\n'));
 
         await expect(
             writeCatalogCaseFile({
                 sourcePath: filePath,
                 expectedHash: 'deadbeef',
-                nextDocument: ['id: HAN-C02', 'name: Updated', 'steps: []', ''].join('\n'),
+                nextDocument: ['id: CASE-A02', 'name: Updated', 'steps: []', ''].join('\n'),
             })
         ).rejects.toThrow('Source conflict');
     });
@@ -35,8 +35,8 @@ describe('writeCatalogCaseFile', () => {
     it('writes atomically and returns updated source hash', async () => {
         const dir = await createTempDir();
         const filePath = path.join(dir, '.skytest', 'tests', 'target.case.yaml');
-        const original = ['id: HAN-C03', 'name: Original', 'steps: []', ''].join('\n');
-        const updated = ['id: HAN-C03', 'name: Updated', 'steps: []', ''].join('\n');
+        const original = ['id: CASE-A03', 'name: Original', 'steps: []', ''].join('\n');
+        const updated = ['id: CASE-A03', 'name: Updated', 'steps: []', ''].join('\n');
         await writeFile(filePath, original);
 
         const first = await writeCatalogCaseFile({

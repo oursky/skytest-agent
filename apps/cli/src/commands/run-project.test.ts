@@ -19,15 +19,15 @@ describe('runProject auto-sync behavior', () => {
         fetchMock
             .mockResolvedValueOnce(new Response(JSON.stringify({ imported: 0, updated: 2 }), { status: 200 }))
             .mockResolvedValueOnce(new Response(JSON.stringify([
-                { id: 'tc-1', displayId: 'HAN-C02', name: 'Student baseline' },
+                { id: 'tc-1', displayId: 'CASE-A02', name: 'Scenario A baseline' },
             ]), { status: 200 }))
             .mockResolvedValueOnce(new Response(JSON.stringify([
-                { id: 'tc-1', displayId: 'HAN-C02', name: 'Student baseline' },
+                { id: 'tc-1', displayId: 'CASE-A02', name: 'Scenario A baseline' },
             ]), { status: 200 }))
             .mockResolvedValueOnce(new Response(JSON.stringify({
                 id: 'tc-1',
-                displayId: 'HAN-C02',
-                name: 'Student baseline',
+                displayId: 'CASE-A02',
+                name: 'Scenario A baseline',
                 url: 'http://localhost:15173',
                 prompt: null,
                 steps: [],
@@ -41,7 +41,7 @@ describe('runProject auto-sync behavior', () => {
 
         const summary = await runProject({
             projectId: 'project-1',
-            displayIds: ['HAN-C02'],
+            displayIds: ['CASE-A02'],
             controlPlaneBaseUrl: 'http://127.0.0.1:3000',
             authToken: 'sk_test_abc',
             wait: false,
@@ -58,7 +58,7 @@ describe('runProject auto-sync behavior', () => {
             runCount: 1,
             results: [
                 {
-                    displayId: 'HAN-C02',
+                    displayId: 'CASE-A02',
                     runId: 'run-1',
                     status: 'QUEUED',
                     error: null,
@@ -70,15 +70,15 @@ describe('runProject auto-sync behavior', () => {
     it('skips sync endpoint when syncBeforeRun=false', async () => {
         fetchMock
             .mockResolvedValueOnce(new Response(JSON.stringify([
-                { id: 'tc-1', displayId: 'HAN-C02', name: 'Student baseline' },
+                { id: 'tc-1', displayId: 'CASE-A02', name: 'Scenario A baseline' },
             ]), { status: 200 }))
             .mockResolvedValueOnce(new Response(JSON.stringify([
-                { id: 'tc-1', displayId: 'HAN-C02', name: 'Student baseline' },
+                { id: 'tc-1', displayId: 'CASE-A02', name: 'Scenario A baseline' },
             ]), { status: 200 }))
             .mockResolvedValueOnce(new Response(JSON.stringify({
                 id: 'tc-1',
-                displayId: 'HAN-C02',
-                name: 'Student baseline',
+                displayId: 'CASE-A02',
+                name: 'Scenario A baseline',
                 url: 'http://localhost:15173',
                 prompt: null,
                 steps: [],
@@ -92,7 +92,7 @@ describe('runProject auto-sync behavior', () => {
 
         await runProject({
             projectId: 'project-1',
-            displayIds: ['HAN-C02'],
+            displayIds: ['CASE-A02'],
             controlPlaneBaseUrl: 'http://127.0.0.1:3000',
             authToken: 'sk_test_abc',
             syncBeforeRun: false,

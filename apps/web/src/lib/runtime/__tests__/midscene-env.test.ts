@@ -55,6 +55,18 @@ describe('buildMidsceneModelConfig', () => {
         expect(config.MIDSCENE_INSIGHT_MODEL_FAMILY).toBe('gpt-5');
     });
 
+    it('maps deepseek model family to gpt-5', () => {
+        const config = buildMidsceneModelConfig('test-key', { mainModel: 'deepseek/deepseek-chat-v3-0324' });
+
+        expect(config.MIDSCENE_MODEL_FAMILY).toBe('gpt-5');
+    });
+
+    it('maps llama model family to gpt-5', () => {
+        const config = buildMidsceneModelConfig('test-key', { mainModel: 'llama/llama-4-maverick' });
+
+        expect(config.MIDSCENE_MODEL_FAMILY).toBe('gpt-5');
+    });
+
     it('maps google model family to gemini', () => {
         const config = buildMidsceneModelConfig('test-key', { mainModel: 'google/gemini-2.0-flash-001' });
 
