@@ -30,8 +30,8 @@ function printHelp(): void {
         '  skytest logs runner <runner-id> [-f|--follow] [--tail <n>]',
         '  skytest unpair runner <runner-id>',
         '  skytest reset --force',
-        '  skytest run test-case <display-id> --project-id <project-id> [--url <base-url>] [--api-key <token>|--token <token>] [--wait|--no-wait] [--timeout-ms <ms>] [--json|--format text|json]',
-        '  skytest run project <project-id> [--display-id <display-id> ...] [--url <base-url>] [--api-key <token>|--token <token>] [--wait|--no-wait] [--timeout-ms <ms>] [--json|--format text|json]',
+        '  skytest run test-case <display-id> --project-id <project-id> [--url <base-url>] [--api-key <token>|--token <token>] [--sync|--no-sync] [--sync-root <path>] [--wait|--no-wait] [--timeout-ms <ms>] [--json|--format text|json]',
+        '  skytest run project <project-id> [--display-id <display-id> ...] [--url <base-url>] [--api-key <token>|--token <token>] [--sync|--no-sync] [--sync-root <path>] [--wait|--no-wait] [--timeout-ms <ms>] [--json|--format text|json]',
     ].join('\n'));
 }
 
@@ -119,6 +119,8 @@ async function main(): Promise<void> {
             projectId: command.projectId,
             controlPlaneBaseUrl: command.controlPlaneBaseUrl,
             authToken: command.authToken,
+            syncBeforeRun: command.syncBeforeRun,
+            syncRoot: command.syncRoot,
             wait: command.wait,
             timeoutMs: command.timeoutMs,
             format: command.format,
@@ -132,6 +134,8 @@ async function main(): Promise<void> {
             displayIds: command.displayIds,
             controlPlaneBaseUrl: command.controlPlaneBaseUrl,
             authToken: command.authToken,
+            syncBeforeRun: command.syncBeforeRun,
+            syncRoot: command.syncRoot,
             wait: command.wait,
             timeoutMs: command.timeoutMs,
             format: command.format,

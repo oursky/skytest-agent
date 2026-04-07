@@ -19,6 +19,8 @@ export type SkytestCliCommand =
         projectId: string;
         controlPlaneBaseUrl?: string;
         authToken?: string;
+        syncBeforeRun?: boolean;
+        syncRoot?: string;
         wait: boolean;
         timeoutMs: number;
         format: 'text' | 'json';
@@ -28,6 +30,8 @@ export type SkytestCliCommand =
         projectId: string;
         controlPlaneBaseUrl?: string;
         authToken?: string;
+        syncBeforeRun?: boolean;
+        syncRoot?: string;
         displayIds: string[];
         wait: boolean;
         timeoutMs: number;
@@ -38,6 +42,8 @@ interface ParsedRunOptions {
     projectId: string;
     controlPlaneBaseUrl?: string;
     authToken?: string;
+    syncBeforeRun?: boolean;
+    syncRoot?: string;
     wait: boolean;
     timeoutMs: number;
     format: 'text' | 'json';
@@ -165,6 +171,8 @@ function parseRunOptions(args: string[]): ParsedRunOptions {
     let projectId = '';
     let controlPlaneBaseUrl: string | undefined;
     let authToken: string | undefined;
+    let syncBeforeRun = true;
+    let syncRoot: string | undefined;
     let wait = true;
     let timeoutMs = 600000;
     let format: 'text' | 'json' = 'text';
@@ -198,6 +206,26 @@ function parseRunOptions(args: string[]): ParsedRunOptions {
                 throw new Error(`Missing value for \`${token}\`.`);
             }
             authToken = value;
+            index += 1;
+            continue;
+        }
+
+        if (token === '--sync') {
+            syncBeforeRun = true;
+            continue;
+        }
+
+        if (token === '--no-sync') {
+            syncBeforeRun = false;
+            continue;
+        }
+
+        if (token === '--sync-root') {
+            const value = args[index + 1];
+            if (!value || value.startsWith('--')) {
+                throw new Error('Missing value for `--sync-root`.');
+            }
+            syncRoot = value;
             index += 1;
             continue;
         }
@@ -248,7 +276,7 @@ function parseRunOptions(args: string[]): ParsedRunOptions {
         throw new Error('`--project-id` is required for `run` commands.');
     }
 
-    return {
+    const parsed: ParsedRunOptions = {
         projectId,
         controlPlaneBaseUrl,
         authToken,
@@ -256,6 +284,16 @@ function parseRunOptions(args: string[]): ParsedRunOptions {
         timeoutMs,
         format,
     };
+
+    if (!syncBeforeRun) {
+        parsed.syncBeforeRun = false;
+    }
+
+    if (syncRoot) {
+        parsed.syncRoot = syncRoot;
+    }
+
+    return parsed;
 }
 
 function parseRunProjectOptions(args: string[]): ParsedRunProjectOptions {

@@ -23,9 +23,15 @@ interface RunTestCaseOptions {
     projectId: string;
     controlPlaneBaseUrl?: string;
     authToken?: string;
+    syncBeforeRun?: boolean;
+    syncRoot?: string;
     wait: boolean;
     timeoutMs: number;
     format: OutputFormat;
+}
+
+interface TeamAiKeyStatusResponse {
+    hasKey: boolean;
 }
 
 function normalizeBaseUrl(input: string): string {
@@ -100,6 +106,96 @@ async function resolveTestCaseByDisplayId(
     }>(detailResponse, 'Fetch test case detail');
 }
 
+function parseSteps(rawSteps: unknown): unknown[] {
+    if (Array.isArray(rawSteps)) {
+        return rawSteps;
+    }
+
+    if (typeof rawSteps === 'string' && rawSteps.trim()) {
+        try {
+            const parsed = JSON.parse(rawSteps) as unknown;
+            return Array.isArray(parsed) ? parsed : [];
+        } catch {
+            return [];
+        }
+    }
+
+    return [];
+}
+
+function testCaseUsesAiAction(steps: unknown): boolean {
+    return parseSteps(steps).some((step) => {
+        if (!step || typeof step !== 'object') {
+            return false;
+        }
+
+        const type = (step as { type?: unknown }).type;
+        return type === 'ai-action';
+    });
+}
+
+async function ensureTeamAiKeyConfiguredForAiStepsIfNeeded(
+    baseUrl: string,
+    authToken: string,
+    projectId: string,
+    testCase: { displayId: string; steps: unknown },
+): Promise<void> {
+    if (!testCaseUsesAiAction(testCase.steps)) {
+        return;
+    }
+
+    const projectResponse = await fetch(`${baseUrl}/api/projects/${encodeURIComponent(projectId)}`, {
+        method: 'GET',
+        headers: {
+            Authorization: `Bearer ${authToken}`,
+        },
+    });
+
+    const project = await parseJsonResponse<{ teamId: string }>(projectResponse, 'Fetch project detail');
+    const teamResponse = await fetch(`${baseUrl}/api/teams/${encodeURIComponent(project.teamId)}/ai-key`, {
+        method: 'GET',
+        headers: {
+            Authorization: `Bearer ${authToken}`,
+        },
+    });
+
+    const teamAiKeyStatus = await parseJsonResponse<TeamAiKeyStatusResponse>(teamResponse, 'Fetch team AI key status');
+    if (teamAiKeyStatus.hasKey) {
+        return;
+    }
+
+    throw new Error(
+        `Test case ${testCase.displayId} uses ai-action steps but team AI key is not configured. `
+        + 'Configure Team AI key in SkyTest Team Settings, then rerun.',
+    );
+}
+
+async function syncProjectCatalogIfNeeded(
+    baseUrl: string,
+    authToken: string,
+    projectId: string,
+    options: Pick<RunTestCaseOptions, 'syncBeforeRun' | 'syncRoot'>,
+): Promise<void> {
+    if (options.syncBeforeRun === false) {
+        return;
+    }
+
+    const payload = options.syncRoot ? { root: options.syncRoot } : {};
+    const response = await fetch(
+        `${baseUrl}/api/projects/${encodeURIComponent(projectId)}/test-cases/sync`,
+        {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${authToken}`,
+            },
+            body: JSON.stringify(payload),
+        },
+    );
+
+    await parseJsonResponse<{ imported: number; updated: number }>(response, 'Sync project catalog');
+}
+
 async function dispatchTestRun(
     baseUrl: string,
     authToken: string,
@@ -151,17 +247,41 @@ async function waitForRunTerminalStatus(
     authToken: string,
     runId: string,
     timeoutMs: number,
+    requiredCapability?: string | null,
 ): Promise<RunDetailResponse> {
     const startedAt = Date.now();
-    while (Date.now() - startedAt < timeoutMs) {
+    let latestDetail: RunDetailResponse | null = null;
+
+    while (true) {
+        const elapsedBeforeFetch = Date.now() - startedAt;
+        if (elapsedBeforeFetch >= timeoutMs) {
+            break;
+        }
+
         const detail = await fetchRunDetail(baseUrl, authToken, runId);
+        latestDetail = detail;
         if (isRunTerminalStatus(detail.status)) {
             return detail;
         }
-        await new Promise((resolve) => setTimeout(resolve, 1200));
+
+        const elapsedAfterFetch = Date.now() - startedAt;
+        const remainingMs = timeoutMs - elapsedAfterFetch;
+        if (remainingMs <= 0) {
+            break;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, Math.min(1200, remainingMs)));
     }
 
-    throw new Error(`Run ${runId} did not complete within ${timeoutMs}ms.`);
+    const lastStatus = latestDetail?.status ?? 'UNKNOWN';
+    if (lastStatus === 'QUEUED' || lastStatus === 'PREPARING') {
+        const capabilityHint = requiredCapability?.toUpperCase() === 'BROWSER'
+            ? 'This usually means no browser worker is currently claiming runs. For local development, use `make dev` (recommended) or run both `npm run runner:maintenance` and `npm run --workspace @skytest/web browser:worker`.'
+            : 'This usually means no compatible worker is currently claiming runs.';
+        throw new Error(`Run ${runId} stayed ${lastStatus} for ${timeoutMs}ms without being claimed. ${capabilityHint}`);
+    }
+
+    throw new Error(`Run ${runId} did not complete within ${timeoutMs}ms (last status: ${lastStatus}).`);
 }
 
 export async function runTestCase(options: RunTestCaseOptions): Promise<{
@@ -176,7 +296,13 @@ export async function runTestCase(options: RunTestCaseOptions): Promise<{
     const baseUrl = resolveBaseUrl(options.controlPlaneBaseUrl);
     const authToken = resolveAuthToken(options.authToken);
 
+    await syncProjectCatalogIfNeeded(baseUrl, authToken, options.projectId, {
+        syncBeforeRun: options.syncBeforeRun,
+        syncRoot: options.syncRoot,
+    });
+
     const testCase = await resolveTestCaseByDisplayId(baseUrl, authToken, options.projectId, options.displayId);
+    await ensureTeamAiKeyConfiguredForAiStepsIfNeeded(baseUrl, authToken, options.projectId, testCase);
     const dispatched = await dispatchTestRun(baseUrl, authToken, testCase);
 
     if (!options.wait) {
@@ -189,7 +315,13 @@ export async function runTestCase(options: RunTestCaseOptions): Promise<{
         };
     }
 
-    const finalDetail = await waitForRunTerminalStatus(baseUrl, authToken, dispatched.runId, options.timeoutMs);
+    const finalDetail = await waitForRunTerminalStatus(
+        baseUrl,
+        authToken,
+        dispatched.runId,
+        options.timeoutMs,
+        dispatched.requiredCapability,
+    );
     return {
         displayId: options.displayId,
         projectId: options.projectId,
@@ -201,13 +333,31 @@ export async function runTestCase(options: RunTestCaseOptions): Promise<{
     };
 }
 
+function buildRunFailureMessage(result: {
+    runId: string;
+    status: string;
+    error?: string | null;
+}): string {
+    const baseMessage = `Run ${result.runId} finished with status ${result.status}${result.error ? `: ${result.error}` : ''}`;
+    if (!result.error) {
+        return baseMessage;
+    }
+
+    const aiAuthFailure = /failed to call ai model service|incorrect api key provided|invalid_api_key/i.test(result.error);
+    if (!aiAuthFailure) {
+        return baseMessage;
+    }
+
+    return `${baseMessage}\nHint: this run uses ai-action steps and the team AI provider credentials appear invalid. Update Team AI settings and retry.`;
+}
+
 export async function runRunTestCaseCommand(options: RunTestCaseOptions): Promise<void> {
     const result = await runTestCase(options);
 
     if (options.format === 'json') {
         printValue(result, options.format);
         if (result.wait && result.status !== 'PASS') {
-            throw new Error(`Run ${result.runId} finished with status ${result.status}${result.error ? `: ${result.error}` : ''}`);
+            throw new Error(buildRunFailureMessage(result));
         }
         return;
     }
@@ -216,6 +366,6 @@ export async function runRunTestCaseCommand(options: RunTestCaseOptions): Promis
     printValue(JSON.stringify(result, null, 2), options.format);
 
     if (result.wait && result.status !== 'PASS') {
-        throw new Error(`Run ${result.runId} finished with status ${result.status}${result.error ? `: ${result.error}` : ''}`);
+        throw new Error(buildRunFailureMessage(result));
     }
 }

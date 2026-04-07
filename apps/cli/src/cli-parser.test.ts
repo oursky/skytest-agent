@@ -120,6 +120,8 @@ describe('parseSkytestCliCommand', () => {
             'http://127.0.0.1:3000',
             '--api-key',
             'sk_test_abc',
+            '--sync-root',
+            '/tmp/hanlun-lms',
             '--timeout-ms',
             '120000',
             '--json',
@@ -129,6 +131,7 @@ describe('parseSkytestCliCommand', () => {
             projectId: 'project-123',
             controlPlaneBaseUrl: 'http://127.0.0.1:3000',
             authToken: 'sk_test_abc',
+            syncRoot: '/tmp/hanlun-lms',
             wait: true,
             timeoutMs: 120000,
             format: 'json',
@@ -149,7 +152,31 @@ describe('parseSkytestCliCommand', () => {
             projectId: 'project-123',
             controlPlaneBaseUrl: undefined,
             authToken: undefined,
+            syncBeforeRun: undefined,
+            syncRoot: undefined,
             wait: false,
+            timeoutMs: 600000,
+            format: 'text',
+        });
+    });
+
+    it('parses run test-case with --no-sync', () => {
+        expect(parseSkytestCliCommand([
+            'run',
+            'test-case',
+            'HAN-C03',
+            '--project-id',
+            'project-123',
+            '--no-sync',
+        ])).toEqual({
+            kind: 'run-test-case',
+            displayId: 'HAN-C03',
+            projectId: 'project-123',
+            controlPlaneBaseUrl: undefined,
+            authToken: undefined,
+            syncBeforeRun: false,
+            syncRoot: undefined,
+            wait: true,
             timeoutMs: 600000,
             format: 'text',
         });
@@ -173,10 +200,34 @@ describe('parseSkytestCliCommand', () => {
             projectId: 'project-123',
             controlPlaneBaseUrl: undefined,
             authToken: 'sk_test_abc',
+            syncBeforeRun: undefined,
+            syncRoot: undefined,
             displayIds: ['HAN-C02', 'HAN-T01'],
             wait: true,
             timeoutMs: 600000,
             format: 'json',
+        });
+    });
+
+    it('parses run project with --no-sync and --sync-root', () => {
+        expect(parseSkytestCliCommand([
+            'run',
+            'project',
+            'project-123',
+            '--no-sync',
+            '--sync-root',
+            '/tmp/hanlun-lms',
+        ])).toEqual({
+            kind: 'run-project',
+            projectId: 'project-123',
+            controlPlaneBaseUrl: undefined,
+            authToken: undefined,
+            syncBeforeRun: false,
+            syncRoot: '/tmp/hanlun-lms',
+            displayIds: [],
+            wait: true,
+            timeoutMs: 600000,
+            format: 'text',
         });
     });
 
@@ -232,6 +283,17 @@ describe('parseSkytestCliCommand', () => {
             '--format',
             'yaml',
         ])).toThrow('Expected `json` or `text` after `--format`.');
+    });
+
+    it('rejects missing sync-root value', () => {
+        expect(() => parseSkytestCliCommand([
+            'run',
+            'test-case',
+            'HAN-C02',
+            '--project-id',
+            'project-123',
+            '--sync-root',
+        ])).toThrow('Missing value for `--sync-root`.');
     });
 
     it('throws on unknown command', () => {
