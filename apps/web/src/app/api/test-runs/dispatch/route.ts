@@ -1,10 +1,19 @@
 import { NextResponse } from 'next/server';
+import path from 'node:path';
 import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
 import { getTeamDevicesAvailability } from '@/lib/runners/availability-service';
 import { config as appConfig } from '@/config/app';
 import { isAndroidTargetConfig, normalizeAndroidTargetConfig } from '@/lib/android/target-config';
 import { resolveConfigs } from '@/lib/test-config/resolver';
+import { ensureRuntimeInstanceIdentity } from '@/lib/runtime/instance-identity';
+import { loadRuntimeConfigForCwd } from '@/lib/runtime/runtime-config-loader';
+import { resolveRuntimeRootFromSourcePath } from '@/lib/test-cases/source-path-utils';
+import {
+    collectSyncableEnvEntries,
+    isSensitiveConfigName,
+    syncEnvToProjectConfigs,
+} from '@/lib/test-cases/sync-env-to-project-configs';
 import { hasTemplatedConfigUrls, validateConfigUrls } from '@/lib/test-config/url-validation';
 import {
     collectAndroidRequestedDeviceIds,
@@ -41,7 +50,23 @@ interface RunTestRequest {
 
 function createConfigurationSnapshot(
     config: RunTestRequest,
-    resolvedConfigurations: ResolvedConfig[] = []
+    resolvedConfigurations: ResolvedConfig[] = [],
+    runtimeConfig?: {
+        runtime: {
+            baseUrl: string;
+            browser: {
+                headless: boolean;
+                timeoutMs: number;
+            };
+            timeouts: {
+                stepMs: number;
+                runMs: number;
+            };
+            env?: Record<string, string>;
+            headers?: Record<string, string>;
+        };
+        schemaVersion: number;
+    }
 ) {
     const { testCaseId, ...sanitized } = config;
     void testCaseId;
@@ -49,7 +74,54 @@ function createConfigurationSnapshot(
     return {
         ...sanitized,
         resolvedConfigurations,
+        ...(runtimeConfig
+            ? {
+                runtime: runtimeConfig.runtime,
+                runtimeConfigSource: {
+                    path: '.skytest/skytest.yaml',
+                    schemaVersion: runtimeConfig.schemaVersion,
+                },
+            }
+            : {}),
     };
+}
+
+function getErrorMessage(error: unknown): string {
+    if (error instanceof Error && error.message) {
+        return error.message;
+    }
+    return 'Unknown error';
+}
+
+function isMissingRuntimeConfigError(error: unknown): boolean {
+    const message = getErrorMessage(error);
+    return message.startsWith('Missing runtime config: ');
+}
+
+function mergeResolvedConfigurationsWithRuntimeEnv(
+    resolvedConfigurations: ResolvedConfig[],
+    runtimeEnv?: Record<string, string>
+): ResolvedConfig[] {
+    if (!runtimeEnv || Object.keys(runtimeEnv).length === 0) {
+        return resolvedConfigurations;
+    }
+
+    const merged = new Map<string, ResolvedConfig>();
+    for (const config of resolvedConfigurations) {
+        merged.set(config.name, config);
+    }
+
+    for (const entry of collectSyncableEnvEntries(runtimeEnv)) {
+        merged.set(entry.name, {
+            name: entry.name,
+            type: 'VARIABLE',
+            value: entry.value,
+            masked: isSensitiveConfigName(entry.name),
+            source: 'project',
+        });
+    }
+
+    return Array.from(merged.values());
 }
 
 async function resolveTriggeredByEmail(userId: string): Promise<string | null> {
@@ -111,7 +183,16 @@ export async function POST(request: Request) {
         }
     }
 
-    const config = await request.json() as RunTestRequest;
+    let config: RunTestRequest;
+    try {
+        config = await request.json() as RunTestRequest;
+    } catch {
+        return apiError({
+            status: 400,
+            code: 'VALIDATION_ERROR',
+            error: 'Invalid JSON request body',
+        });
+    }
     const { url, prompt, steps, browserConfig, testCaseId } = config;
 
     const hasBrowserConfig = browserConfig && Object.keys(browserConfig).length > 0;
@@ -218,7 +299,7 @@ export async function POST(request: Request) {
             return apiError({
                 status: 400,
                 code: 'VALIDATION_ERROR',
-                error: 'Please configure this team OpenRouter API key',
+                error: 'Please configure this team AI provider key',
             });
         }
 
@@ -227,7 +308,69 @@ export async function POST(request: Request) {
             select: { id: true, filename: true, storedName: true, mimeType: true, size: true }
         });
 
-        const configurationSnapshot = JSON.stringify(createConfigurationSnapshot(config, resolvedConfigurations));
+        const currentWorkingDirectory = process.cwd();
+        const sourceRuntimeRoot = resolveRuntimeRootFromSourcePath(testCase.source);
+        const runtimeRootForIdentity = sourceRuntimeRoot ?? currentWorkingDirectory;
+        const runtimeIdentityDirectory = path.join(runtimeRootForIdentity, '.skytest');
+        let instanceIdentity: Awaited<ReturnType<typeof ensureRuntimeInstanceIdentity>>;
+        try {
+            instanceIdentity = await ensureRuntimeInstanceIdentity(runtimeRootForIdentity);
+        } catch (instanceIdentityError) {
+            logger.warn('Failed to initialize runtime instance identity', {
+                cwd: runtimeRootForIdentity,
+                runtimeIdentityDirectory,
+                error: getErrorMessage(instanceIdentityError),
+            });
+            return apiError({
+                status: 400,
+                code: 'VALIDATION_ERROR',
+                error: `Runtime instance identity initialization failed. Ensure the server can write to ${runtimeIdentityDirectory}.`,
+            });
+        }
+        let runtimeConfig: Awaited<ReturnType<typeof loadRuntimeConfigForCwd>> | undefined;
+        let runtimeConfigError: unknown;
+
+        try {
+            runtimeConfig = await loadRuntimeConfigForCwd(currentWorkingDirectory);
+        } catch (cwdConfigError) {
+            runtimeConfigError = cwdConfigError;
+        }
+
+        if (!runtimeConfig) {
+            if (sourceRuntimeRoot) {
+                try {
+                    runtimeConfig = await loadRuntimeConfigForCwd(sourceRuntimeRoot);
+                    runtimeConfigError = undefined;
+                } catch (sourceConfigError) {
+                    runtimeConfigError = sourceConfigError;
+                }
+            }
+        }
+
+        if (runtimeConfigError && !isMissingRuntimeConfigError(runtimeConfigError)) {
+            return apiError({
+                status: 400,
+                code: 'VALIDATION_ERROR',
+                error: getErrorMessage(runtimeConfigError),
+            });
+        }
+
+        const snapshotConfigurations = mergeResolvedConfigurationsWithRuntimeEnv(
+            resolvedConfigurations,
+            runtimeConfig?.runtime.env,
+        );
+
+        try {
+            await syncEnvToProjectConfigs(testCase.project.id, runtimeConfig?.runtime.env ?? {});
+        } catch (syncError) {
+            logger.warn('Failed to sync runtime env configs into project configs', {
+                testCaseId,
+                projectId: testCase.project.id,
+                error: getErrorMessage(syncError),
+            });
+        }
+
+        const configurationSnapshot = JSON.stringify(createConfigurationSnapshot(config, snapshotConfigurations, runtimeConfig));
         const requestedDeviceIdInput = typeof config.requestedDeviceId === 'string'
             ? config.requestedDeviceId.trim()
             : '';
@@ -342,6 +485,9 @@ export async function POST(request: Request) {
                 requestedDeviceId,
                 requestedRunnerId,
                 triggeredByEmail,
+                instanceId: instanceIdentity.instanceId,
+                instanceType: instanceIdentity.instanceType,
+                instanceName: instanceIdentity.instanceName,
             }
         });
 
@@ -353,6 +499,9 @@ export async function POST(request: Request) {
             requiredRunnerKind: testRun.requiredRunnerKind,
             requestedDeviceId: testRun.requestedDeviceId,
             requestedRunnerId: testRun.requestedRunnerId,
+            instanceId: testRun.instanceId,
+            instanceType: testRun.instanceType,
+            instanceName: testRun.instanceName,
             hasAndroidTargets: requestHasAndroidTargets,
         });
 
@@ -377,6 +526,9 @@ export async function POST(request: Request) {
             requiredCapability: testRun.requiredCapability,
             requestedDeviceId: testRun.requestedDeviceId,
             requestedRunnerId: testRun.requestedRunnerId,
+            instanceId: testRun.instanceId,
+            instanceType: testRun.instanceType,
+            instanceName: testRun.instanceName,
         });
 
     } catch (error) {

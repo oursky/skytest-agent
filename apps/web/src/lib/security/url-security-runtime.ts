@@ -107,6 +107,9 @@ export async function validateRuntimeRequestUrl(rawUrl: string): Promise<UrlVali
 
     const ipVersion = isIP(normalizedHostname);
     if (ipVersion === 4 || ipVersion === 6) {
+        if (config.test.security.allowLocalhostTestTargets) {
+            return { valid: true };
+        }
         return isBlockedIpAddress(normalizedHostname)
             ? createUrlValidationFailure('Private network addresses are not allowed', PRIVATE_NETWORK_BLOCKED_CODE)
             : { valid: true };
@@ -127,7 +130,7 @@ export async function validateRuntimeRequestUrl(rawUrl: string): Promise<UrlVali
             return result;
         }
 
-        if (addresses.some((address) => isBlockedIpAddress(address))) {
+        if (!config.test.security.allowLocalhostTestTargets && addresses.some((address) => isBlockedIpAddress(address))) {
             const result = createUrlValidationFailure('Private network addresses are not allowed', PRIVATE_NETWORK_BLOCKED_CODE);
             setCachedHostnameResult(hostname, result);
             return result;

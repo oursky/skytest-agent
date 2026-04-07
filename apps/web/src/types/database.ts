@@ -54,6 +54,8 @@ export interface TestCase {
     prompt: string;
     steps?: TestStep[];
     browserConfig?: Record<string, BrowserConfig>;
+    source?: string | null;
+    sourceHash?: string | null;
     projectId: string;
     createdAt: string;
     updatedAt: string;
@@ -64,6 +66,9 @@ export interface TestRun {
     id: string;
     testCaseId: string;
     triggeredByEmail?: string | null;
+    instanceId?: string | null;
+    instanceType?: string | null;
+    instanceName?: string | null;
     requiredCapability?: string | null;
     requiredRunnerKind?: string | null;
     requestedDeviceId?: string | null;

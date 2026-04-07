@@ -69,6 +69,11 @@ async function proxy(request: Request): Promise<NextResponse> {
   headers.delete('referer');
   headers.delete('cookie');
   headers.delete('content-length');
+  headers.delete('x-forwarded-host');
+  headers.delete('x-forwarded-proto');
+  headers.delete('x-forwarded-port');
+  headers.delete('x-forwarded-for');
+  headers.delete('forwarded');
 
   const method = request.method.toUpperCase();
   const body = method === 'GET' || method === 'HEAD' ? undefined : await request.arrayBuffer();

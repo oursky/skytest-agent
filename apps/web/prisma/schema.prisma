@@ -58,6 +58,16 @@ model Team {
   name                   String
   openRouterKeyEncrypted String?
   openRouterKeyUpdatedAt DateTime?
+  aiProvider             String?                  @default("OPENROUTER")
+  aiBaseUrl              String?
+  aiMainModel            String?
+  aiMainModelFamily      String?
+  aiPlanningModel        String?
+  aiPlanningModelFamily  String?
+  aiInsightModel         String?
+  aiInsightModelFamily   String?
+  aiTemperature          Float?
+  aiConfigUpdatedAt      DateTime?
   createdAt              DateTime                 @default(now())
   updatedAt              DateTime                 @updatedAt
   memberships            TeamMembership[]
@@ -116,6 +126,7 @@ model TestCase {
   steps     String?
   browserConfig String?
   source    String?
+  sourceHash String?
   testRuns  TestRun[]
   files     TestCaseFile[]
   configs   TestCaseConfig[]
@@ -158,6 +169,9 @@ model TestRun {
   logs                    String?
   error                   String?
   configurationSnapshot   String?
+  instanceId              String?
+  instanceType            String?
+  instanceName            String?
   startedAt               DateTime?
   completedAt             DateTime?
   deletedAt               DateTime?
@@ -173,6 +187,7 @@ model TestRun {
   @@index([assignedRunnerId, leaseExpiresAt])
   @@index([requestedDeviceId])
   @@index([requestedRunnerId])
+  @@index([instanceType, instanceName, createdAt(sort: Desc)])
   @@index([deletedAt, completedAt(sort: Asc)])
 }
 

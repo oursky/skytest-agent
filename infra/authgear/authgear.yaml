@@ -1,0 +1,55 @@
+id: skytest-local
+http:
+  public_origin: http://localhost:3301
+  allowed_origins:
+    - "*"
+
+ui:
+  implementation: authflowv2
+
+localization:
+  fallback_language: en
+  supported_languages:
+    - en
+
+authentication:
+  identities:
+    - login_id
+  primary_authenticators:
+    - password
+  secondary_authentication_mode: disabled
+
+identity:
+  login_id:
+    keys:
+      - key: email
+        type: email
+
+oauth:
+  clients:
+    - client_id: local-dev-client
+      name: "SkyTest Local Dev"
+      x_application_type: "spa"
+      redirect_uris:
+        - "http://localhost:3000/auth-redirect"
+      post_logout_redirect_uris:
+        - "http://localhost:3000/"
+      grant_types: ["authorization_code", "refresh_token"]
+      response_types: ["code"]
+      access_token_lifetime_seconds: 1800
+      refresh_token_lifetime_seconds: 31449600
+      refresh_token_idle_timeout_enabled: false
+      issue_jwt_access_token: true
+    - client_id: skytest-agent
+      name: "SkyTest Agent"
+      x_application_type: "spa"
+      redirect_uris:
+        - "http://localhost:3000/auth-redirect"
+      post_logout_redirect_uris:
+        - "http://localhost:3000/"
+      grant_types: ["authorization_code", "refresh_token"]
+      response_types: ["code"]
+      access_token_lifetime_seconds: 1800
+      refresh_token_lifetime_seconds: 31449600
+      refresh_token_idle_timeout_enabled: false
+      issue_jwt_access_token: true

@@ -1,5 +1,7 @@
 import type { Prisma } from '@prisma/client';
 import { runTest } from '@/lib/runtime/test-runner';
+import type { BuildMidsceneModelConfigOptions } from '@/lib/runtime/midscene-env';
+import { resolveTeamMidsceneConfig } from '@/lib/runtime/team-ai-config';
 import { prisma } from '@/lib/core/prisma';
 import { resolveConfigs } from '@/lib/test-config/resolver';
 import { decrypt } from '@/lib/security/crypto';
@@ -38,15 +40,16 @@ interface LoadedRunConfig {
         actorUserId: string;
         description: string;
     };
-    config: {
-        url?: string;
-        prompt?: string;
-        steps?: TestStep[];
-        browserConfig?: Record<string, BrowserConfig | TargetConfig>;
-        openRouterApiKey: string;
-        files: TestCaseFile[];
-        resolvedVariables: Record<string, string>;
-        resolvedFiles: Record<string, string>;
+        config: {
+            url?: string;
+            prompt?: string;
+            steps?: TestStep[];
+            browserConfig?: Record<string, BrowserConfig | TargetConfig>;
+            openRouterApiKey: string;
+            midsceneModelOptions?: BuildMidsceneModelConfigOptions;
+            files: TestCaseFile[];
+            resolvedVariables: Record<string, string>;
+            resolvedFiles: Record<string, string>;
     };
 }
 
@@ -179,6 +182,15 @@ async function loadRunConfig(runId: string, options?: LocalBrowserRunOptions): P
                             team: {
                                 select: {
                                     openRouterKeyEncrypted: true,
+                                    aiProvider: true,
+                                    aiBaseUrl: true,
+                                    aiMainModel: true,
+                                    aiMainModelFamily: true,
+                                    aiPlanningModel: true,
+                                    aiPlanningModelFamily: true,
+                                    aiInsightModel: true,
+                                    aiInsightModelFamily: true,
+                                    aiTemperature: true,
                                 },
                             },
                         },
@@ -207,6 +219,7 @@ async function loadRunConfig(runId: string, options?: LocalBrowserRunOptions): P
 
     const encryptedKey = run.testCase.project.team.openRouterKeyEncrypted;
     if (!encryptedKey) {
+        logger.warn('Run skipped: team AI key not configured', { runId: run.id });
         return null;
     }
 
@@ -240,6 +253,7 @@ async function loadRunConfig(runId: string, options?: LocalBrowserRunOptions): P
             steps: snapshot.steps ?? fallbackSteps,
             browserConfig: snapshot.browserConfig ?? fallbackBrowserConfig,
             openRouterApiKey: decrypt(encryptedKey),
+            midsceneModelOptions: resolveTeamMidsceneConfig(run.testCase.project.team),
             files: run.files,
             resolvedVariables,
             resolvedFiles,
@@ -747,6 +761,7 @@ async function executeLocalBrowserRun(
                 steps: details.config.steps,
                 browserConfig: details.config.browserConfig,
                 openRouterApiKey: details.config.openRouterApiKey,
+                midsceneModelOptions: details.config.midsceneModelOptions,
                 testCaseId: details.testCaseId,
                 projectId: details.projectId,
                 files: details.config.files,

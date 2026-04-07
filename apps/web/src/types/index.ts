@@ -5,6 +5,9 @@ export * from './events';
 export * from './android';
 export * from './api-key';
 export * from './runtime';
+export * from './runtime-config';
+export * from './runtime-instance';
+export * from './test-catalog';
 export type {
     CompatibilityMetadata,
     ClaimJobRequest,

@@ -4,7 +4,7 @@ import { TEST_STATUS } from '@/types';
 import { runTest } from '@/lib/runtime/test-runner';
 
 describe('runTest', () => {
-    it('fails fast when OpenRouter API key is missing', async () => {
+    it('fails fast when AI provider key is missing', async () => {
         const result = await runTest({
             config: {
                 openRouterApiKey: '',
@@ -14,7 +14,7 @@ describe('runTest', () => {
         } as never);
 
         expect(result.status).toBe(TEST_STATUS.FAIL);
-        expect(result.error).toContain('OpenRouter API key is required');
+        expect(result.error).toContain('AI provider key is required');
         expect(result.errorCode).toBe('CONFIGURATION_ERROR');
     });
 });
