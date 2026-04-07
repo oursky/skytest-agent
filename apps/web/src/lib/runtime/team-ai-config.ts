@@ -35,12 +35,8 @@ export function fromTeamAiProviderDbValue(provider?: string | null): TeamAiProvi
     return provider === 'OPENAI' || provider === 'openai-compatible' ? 'openai-compatible' : 'openrouter';
 }
 
-function normalizeProvider(provider?: string | null): TeamAiProvider {
-    return fromTeamAiProviderDbValue(provider);
-}
-
 export function buildTeamAiProviderConfig(team: TeamAiProviderFields | null | undefined): TeamAiProviderConfig {
-    const provider = normalizeProvider(team?.aiProvider);
+    const provider = fromTeamAiProviderDbValue(team?.aiProvider);
 
     return {
         provider,

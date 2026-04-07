@@ -1,8 +1,4 @@
-import { MODEL_FAMILY_VALUES, type TModelFamily } from '@midscene/shared/env';
-
 export type MidsceneModelConfig = Record<string, string | number>;
-
-export const VALID_MODEL_FAMILIES: readonly TModelFamily[] = MODEL_FAMILY_VALUES;
 
 const MIDSCENE_MODEL_ENV_DEFAULTS = {
     MIDSCENE_MODEL_BASE_URL: 'https://openrouter.ai/api/v1',

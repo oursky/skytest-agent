@@ -11,12 +11,13 @@ import {
     type TeamAiProvider,
     type TeamAiProviderConfig,
 } from '@/lib/runtime/team-ai-config';
-import { VALID_MODEL_FAMILIES } from '@/lib/runtime/midscene-env';
+import { VALID_MODEL_FAMILIES } from '@/lib/runtime/model-families';
 import { validateRuntimeRequestUrl } from '@/lib/security/url-security-runtime';
 
 const logger = createLogger('api:teams:ai-key');
 const VALID_MODEL_FAMILY_SET = new Set<string>(VALID_MODEL_FAMILIES);
 const SUPPORTED_MODEL_FAMILY_MESSAGE = `Invalid model family. Supported: ${VALID_MODEL_FAMILIES.join(', ')}`;
+const MIN_API_KEY_LENGTH = 8;
 
 export const dynamic = 'force-dynamic';
 
@@ -189,8 +190,11 @@ export async function POST(
         };
 
         const fieldErrors = await validateProviderConfigInput(providerConfigInput);
-        if (typeof apiKey === 'string' && !apiKey.trim()) {
+        const apiKeyTrimmed = typeof apiKey === 'string' ? apiKey.trim() : null;
+        if (apiKeyTrimmed !== null && apiKeyTrimmed.length === 0) {
             fieldErrors.apiKey = 'API key is required';
+        } else if (apiKeyTrimmed !== null && apiKeyTrimmed.length < MIN_API_KEY_LENGTH) {
+            fieldErrors.apiKey = `API key must be at least ${MIN_API_KEY_LENGTH} characters`;
         }
 
         if (Object.keys(fieldErrors).length > 0) {
@@ -203,7 +207,6 @@ export async function POST(
         }
 
         const normalizedProviderConfig = normalizeProviderConfig(providerConfigInput);
-        const apiKeyTrimmed = typeof apiKey === 'string' ? apiKey.trim() : null;
         const now = new Date();
 
         await prisma.team.update({
