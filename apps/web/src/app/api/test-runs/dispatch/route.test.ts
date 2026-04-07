@@ -497,6 +497,7 @@ describe('POST /api/test-runs/dispatch', () => {
                 instanceName: 'skytest-agent-worktree-a',
             }),
         });
+        expect(mocks.ensureRuntimeInstanceIdentity).toHaveBeenCalledWith(process.cwd());
     });
 
     it('resolves URL placeholders before validating and queueing', async () => {

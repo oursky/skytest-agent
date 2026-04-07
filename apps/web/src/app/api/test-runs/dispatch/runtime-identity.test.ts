@@ -85,6 +85,13 @@ describe('POST /api/test-runs/dispatch runtime identity', () => {
             },
         });
         mocks.testCaseFileFindMany.mockResolvedValue([]);
+        mocks.testRunCreate.mockResolvedValue({
+            id: 'run-1',
+            status: 'QUEUED',
+            requiredCapability: 'BROWSER',
+            requestedDeviceId: null,
+            requestedRunnerId: null,
+        });
         mocks.ensureRuntimeInstanceIdentity.mockResolvedValue({
             schemaVersion: 1,
             instanceId: 'inst_test_instance',
@@ -134,5 +141,36 @@ describe('POST /api/test-runs/dispatch runtime identity', () => {
             code: 'VALIDATION_ERROR',
             error: `Runtime instance identity initialization failed. Ensure the server can write to ${path.join(process.cwd(), '.skytest')}.`,
         });
+    });
+
+    it('uses source runtime root for instance identity when source-backed', async () => {
+        mocks.testCaseFindUnique.mockResolvedValue({
+            id: 'tc-1',
+            source: '/home/newman/magic/skytest-agent/examples/self-host/.skytest/tests/scenario-a/CASE-A02.case.yaml',
+            project: {
+                id: 'project-1',
+                teamId: 'team-1',
+                team: {
+                    openRouterKeyEncrypted: 'encrypted',
+                },
+            },
+        });
+
+        const request = new Request('http://localhost/api/test-runs/dispatch', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                testCaseId: 'tc-1',
+                url: 'https://example.com',
+                prompt: 'Run smoke check',
+            }),
+        });
+
+        const response = await POST(request);
+
+        expect(response.status).toBe(200);
+        expect(mocks.ensureRuntimeInstanceIdentity).toHaveBeenCalledWith('/home/newman/magic/skytest-agent/examples/self-host');
     });
 });

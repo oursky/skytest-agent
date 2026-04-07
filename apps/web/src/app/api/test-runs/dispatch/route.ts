@@ -309,13 +309,15 @@ export async function POST(request: Request) {
         });
 
         const currentWorkingDirectory = process.cwd();
-        const runtimeIdentityDirectory = path.join(currentWorkingDirectory, '.skytest');
+        const sourceRuntimeRoot = resolveRuntimeRootFromSourcePath(testCase.source);
+        const runtimeRootForIdentity = sourceRuntimeRoot ?? currentWorkingDirectory;
+        const runtimeIdentityDirectory = path.join(runtimeRootForIdentity, '.skytest');
         let instanceIdentity: Awaited<ReturnType<typeof ensureRuntimeInstanceIdentity>>;
         try {
-            instanceIdentity = await ensureRuntimeInstanceIdentity(currentWorkingDirectory);
+            instanceIdentity = await ensureRuntimeInstanceIdentity(runtimeRootForIdentity);
         } catch (instanceIdentityError) {
             logger.warn('Failed to initialize runtime instance identity', {
-                cwd: currentWorkingDirectory,
+                cwd: runtimeRootForIdentity,
                 runtimeIdentityDirectory,
                 error: getErrorMessage(instanceIdentityError),
             });
@@ -335,7 +337,6 @@ export async function POST(request: Request) {
         }
 
         if (!runtimeConfig) {
-            const sourceRuntimeRoot = resolveRuntimeRootFromSourcePath(testCase.source);
             if (sourceRuntimeRoot) {
                 try {
                     runtimeConfig = await loadRuntimeConfigForCwd(sourceRuntimeRoot);
