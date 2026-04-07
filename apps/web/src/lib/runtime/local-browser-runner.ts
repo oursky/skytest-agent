@@ -219,6 +219,7 @@ async function loadRunConfig(runId: string, options?: LocalBrowserRunOptions): P
 
     const encryptedKey = run.testCase.project.team.openRouterKeyEncrypted;
     if (!encryptedKey) {
+        logger.warn('Run skipped: team AI key not configured', { runId: run.id });
         return null;
     }
 
