@@ -422,7 +422,7 @@ describe('POST /api/test-runs/dispatch', () => {
     it('falls back to source-backed runtime config when cwd runtime config is missing', async () => {
         mocks.testCaseFindUnique.mockResolvedValue({
             id: 'tc-1',
-            source: '/home/newman/magic/skytest-agent/examples/self-host/.skytest/tests/scenario-a/CASE-A02.case.yaml',
+            source: '/tmp/sample-workspace/examples/self-host/.skytest/tests/scenario-a/CASE-A02.case.yaml',
             project: {
                 id: 'project-1',
                 teamId: 'team-1',
@@ -440,7 +440,7 @@ describe('POST /api/test-runs/dispatch', () => {
         });
 
         mocks.loadRuntimeConfigForCwd
-            .mockRejectedValueOnce(new Error('Missing runtime config: /home/newman/magic/skytest-agent/apps/web/.skytest/skytest.yaml'))
+            .mockRejectedValueOnce(new Error('Missing runtime config: /tmp/sample-workspace/apps/web/.skytest/skytest.yaml'))
             .mockResolvedValueOnce({
                 schemaVersion: 1,
                 runtime: {
@@ -471,7 +471,7 @@ describe('POST /api/test-runs/dispatch', () => {
         const response = await POST(request);
 
         expect(response.status).toBe(200);
-        expect(mocks.loadRuntimeConfigForCwd).toHaveBeenNthCalledWith(2, '/home/newman/magic/skytest-agent/examples/self-host');
+        expect(mocks.loadRuntimeConfigForCwd).toHaveBeenNthCalledWith(2, '/tmp/sample-workspace/examples/self-host');
     });
 
     it('stores runtime instance metadata on queued runs', async () => {

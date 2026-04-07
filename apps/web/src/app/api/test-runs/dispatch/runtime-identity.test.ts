@@ -146,7 +146,7 @@ describe('POST /api/test-runs/dispatch runtime identity', () => {
     it('uses source runtime root for instance identity when source-backed', async () => {
         mocks.testCaseFindUnique.mockResolvedValue({
             id: 'tc-1',
-            source: '/home/newman/magic/skytest-agent/examples/self-host/.skytest/tests/scenario-a/CASE-A02.case.yaml',
+            source: '/tmp/sample-workspace/examples/self-host/.skytest/tests/scenario-a/CASE-A02.case.yaml',
             project: {
                 id: 'project-1',
                 teamId: 'team-1',
@@ -171,6 +171,6 @@ describe('POST /api/test-runs/dispatch runtime identity', () => {
         const response = await POST(request);
 
         expect(response.status).toBe(200);
-        expect(mocks.ensureRuntimeInstanceIdentity).toHaveBeenCalledWith('/home/newman/magic/skytest-agent/examples/self-host');
+        expect(mocks.ensureRuntimeInstanceIdentity).toHaveBeenCalledWith('/tmp/sample-workspace/examples/self-host');
     });
 });
