@@ -36,30 +36,50 @@ afterEach(async () => {
 });
 
 describe('loadTestCatalog', () => {
-    it('fails fast when duplicate case IDs exist across files', async () => {
+    it('collects duplicate ID errors and keeps valid catalog entries', async () => {
         const projectDir = await createTempProject();
         await writeFile(
             path.join(projectDir, '.skytest', 'tests', 'a.case.yaml'),
-            ['id: CASE-A02', 'name: Case A', 'steps: []', ''].join('\n')
+            ['id: CASE-C02', 'name: Case A', 'steps: []', ''].join('\n')
         );
         await writeFile(
             path.join(projectDir, '.skytest', 'tests', 'b.case.yaml'),
-            ['id: CASE-A02', 'name: Case B', 'steps: []', ''].join('\n')
+            ['id: CASE-C02', 'name: Case B', 'steps: []', ''].join('\n')
         );
 
-        await expect(loadTestCatalog(projectDir)).rejects.toThrow('Duplicate test case ID');
+        const { catalog, errors } = await loadTestCatalog(projectDir);
+        expect(catalog.size).toBe(1);
+        expect(errors).toEqual([expect.stringContaining('Duplicate test case ID')]);
+    });
+
+    it('collects malformed yaml errors and keeps valid catalog entries', async () => {
+        const projectDir = await createTempProject();
+        await writeFile(
+            path.join(projectDir, '.skytest', 'tests', 'valid.case.yaml'),
+            ['id: CASE-C03', 'name: Valid', 'steps: []', ''].join('\n')
+        );
+        await writeFile(
+            path.join(projectDir, '.skytest', 'tests', 'invalid.case.yaml'),
+            'id: CASE-C04\nname: Invalid\nsteps: [\n'
+        );
+
+        const { catalog, errors } = await loadTestCatalog(projectDir);
+        expect(catalog.size).toBe(1);
+        expect(catalog.has('CASE-C03')).toBe(true);
+        expect(errors.length).toBe(1);
     });
 
     it('returns source path and hash for discovered cases', async () => {
         const projectDir = await createTempProject();
         const casePath = path.join(projectDir, '.skytest', 'tests', 'single.case.yaml');
-        await writeFile(casePath, ['id: CASE-A03', 'name: Case C', 'steps: []', ''].join('\n'));
+        await writeFile(casePath, ['id: CASE-C03', 'name: Case C', 'steps: []', ''].join('\n'));
 
-        const catalog = await loadTestCatalog(projectDir);
-        const entry = catalog.get('CASE-A03');
+        const { catalog, errors } = await loadTestCatalog(projectDir);
+        const entry = catalog.get('CASE-C03');
 
         expect(entry).toBeDefined();
         expect(entry?.sourcePath).toBe(casePath);
         expect(entry?.sourceHash).toMatch(/^[a-f0-9]{64}$/);
+        expect(errors).toEqual([]);
     });
 });

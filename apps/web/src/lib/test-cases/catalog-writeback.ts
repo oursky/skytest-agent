@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { readFile, rename, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 
 export interface WriteCatalogCaseFileInput {
     sourcePath: string;
@@ -18,12 +19,18 @@ async function writeFileAtomic(targetPath: string, content: string): Promise<voi
 }
 
 export async function writeCatalogCaseFile(input: WriteCatalogCaseFileInput): Promise<{ sourceHash: string }> {
-    const current = await readFile(input.sourcePath, 'utf8');
+    const normalizedSourcePath = path.normalize(input.sourcePath);
+    const marker = `${path.sep}.skytest${path.sep}`;
+    if (!normalizedSourcePath.includes(marker)) {
+        throw new Error('Source path must be within a .skytest catalog directory');
+    }
+
+    const current = await readFile(normalizedSourcePath, 'utf8');
     const currentHash = sha256(current);
     if (input.expectedHash && currentHash !== input.expectedHash) {
         throw new Error('Source conflict: file changed, refresh and retry');
     }
 
-    await writeFileAtomic(input.sourcePath, input.nextDocument);
+    await writeFileAtomic(normalizedSourcePath, input.nextDocument);
     return { sourceHash: sha256(input.nextDocument) };
 }

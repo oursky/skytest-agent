@@ -18,16 +18,30 @@ afterEach(async () => {
 });
 
 describe('writeCatalogCaseFile', () => {
+    it('rejects writes for paths outside the .skytest catalog tree', async () => {
+        const dir = await createTempDir();
+        const filePath = path.join(dir, 'outside.case.yaml');
+        await writeFile(filePath, ['id: CASE-C01', 'name: Outside', 'steps: []', ''].join('\n'));
+
+        await expect(
+            writeCatalogCaseFile({
+                sourcePath: filePath,
+                expectedHash: null,
+                nextDocument: ['id: CASE-C01', 'name: Updated', 'steps: []', ''].join('\n'),
+            })
+        ).rejects.toThrow('Source path must be within a .skytest catalog directory');
+    });
+
     it('rejects write when expectedHash mismatches', async () => {
         const dir = await createTempDir();
         const filePath = path.join(dir, '.skytest', 'tests', 'target.case.yaml');
-        await writeFile(filePath, ['id: CASE-A02', 'name: Original', 'steps: []', ''].join('\n'));
+        await writeFile(filePath, ['id: CASE-C02', 'name: Original', 'steps: []', ''].join('\n'));
 
         await expect(
             writeCatalogCaseFile({
                 sourcePath: filePath,
                 expectedHash: 'deadbeef',
-                nextDocument: ['id: CASE-A02', 'name: Updated', 'steps: []', ''].join('\n'),
+                nextDocument: ['id: CASE-C02', 'name: Updated', 'steps: []', ''].join('\n'),
             })
         ).rejects.toThrow('Source conflict');
     });
@@ -35,8 +49,8 @@ describe('writeCatalogCaseFile', () => {
     it('writes atomically and returns updated source hash', async () => {
         const dir = await createTempDir();
         const filePath = path.join(dir, '.skytest', 'tests', 'target.case.yaml');
-        const original = ['id: CASE-A03', 'name: Original', 'steps: []', ''].join('\n');
-        const updated = ['id: CASE-A03', 'name: Updated', 'steps: []', ''].join('\n');
+        const original = ['id: CASE-C03', 'name: Original', 'steps: []', ''].join('\n');
+        const updated = ['id: CASE-C03', 'name: Updated', 'steps: []', ''].join('\n');
         await writeFile(filePath, original);
 
         const first = await writeCatalogCaseFile({

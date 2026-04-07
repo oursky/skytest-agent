@@ -12,7 +12,12 @@ const mocks = vi.hoisted(() => ({
     projectConfigUpsert: vi.fn(),
     loadRuntimeConfigForCwd: vi.fn(),
     loadTestCatalog: vi.fn(),
+    existsSync: vi.fn(),
     readFile: vi.fn(),
+}));
+
+vi.mock('node:fs', () => ({
+    existsSync: mocks.existsSync,
 }));
 
 vi.mock('node:fs/promises', () => ({
@@ -83,10 +88,14 @@ describe('POST /api/projects/[id]/test-cases/sync', () => {
                 },
             },
         });
-        mocks.loadTestCatalog.mockResolvedValue(new Map([
-            ['CASE-A02', { id: 'CASE-A02', sourcePath: '/tmp/sample-workspace/.skytest/tests/scenario-a/CASE-A02.case.yaml', sourceHash: 'hash-a' }],
-            ['CASE-B01', { id: 'CASE-B01', sourcePath: '/tmp/sample-workspace/.skytest/tests/scenario-b/CASE-B01.case.yaml', sourceHash: 'hash-b' }],
-        ]));
+        mocks.existsSync.mockReturnValue(true);
+        mocks.loadTestCatalog.mockResolvedValue({
+            catalog: new Map([
+                ['CASE-A02', { id: 'CASE-A02', sourcePath: '/tmp/sample-workspace/.skytest/tests/scenario-a/CASE-A02.case.yaml', sourceHash: 'hash-a' }],
+                ['CASE-B01', { id: 'CASE-B01', sourcePath: '/tmp/sample-workspace/.skytest/tests/scenario-b/CASE-B01.case.yaml', sourceHash: 'hash-b' }],
+            ]),
+            errors: [],
+        });
         mocks.readFile.mockImplementation(async (sourcePath: string) => {
             if (sourcePath.includes('CASE-A02')) {
                 return `id: CASE-A02\nname: Scenario A baseline\nurl: http://localhost:15173/mock-exam/dashboard\nsteps: []\nbrowserConfig: {}`;
@@ -138,6 +147,45 @@ describe('POST /api/projects/[id]/test-cases/sync', () => {
         expect(response.status).toBe(400);
         expect(payload).toMatchObject({
             code: 'VALIDATION_ERROR',
+        });
+    });
+
+    it('rejects non-absolute catalog roots', async () => {
+        const request = new Request('http://localhost/api/projects/project-1/test-cases/sync', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ root: './relative' }),
+        });
+
+        const response = await POST(request, {
+            params: Promise.resolve({ id: 'project-1' }),
+        });
+        const payload = await response.json();
+
+        expect(response.status).toBe(400);
+        expect(payload).toMatchObject({
+            code: 'VALIDATION_ERROR',
+            error: 'Catalog root must be an absolute path',
+        });
+    });
+
+    it('rejects roots that do not contain a .skytest directory', async () => {
+        mocks.existsSync.mockReturnValueOnce(false);
+        const request = new Request('http://localhost/api/projects/project-1/test-cases/sync', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ root: '/tmp/sample-workspace' }),
+        });
+
+        const response = await POST(request, {
+            params: Promise.resolve({ id: 'project-1' }),
+        });
+        const payload = await response.json();
+
+        expect(response.status).toBe(400);
+        expect(payload).toMatchObject({
+            code: 'VALIDATION_ERROR',
+            error: 'Catalog root must contain a .skytest directory',
         });
     });
 });

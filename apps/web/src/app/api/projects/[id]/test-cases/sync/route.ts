@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { NextResponse } from 'next/server';
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { load as parseYaml } from 'js-yaml';
 import { guardProjectRouteRequest } from '@/lib/security/project-route-access';
@@ -33,12 +34,14 @@ function sanitizeJsonResponse(runSync: {
     updated: number;
     runtimeConfigsSynced: number;
     root: string;
+    catalogErrors: string[];
 }) {
     return {
         imported: runSync.imported,
         updated: runSync.updated,
         runtimeConfigsSynced: runSync.runtimeConfigsSynced,
         root: runSync.root,
+        ...(runSync.catalogErrors.length > 0 ? { catalogErrors: runSync.catalogErrors } : {}),
     };
 }
 
@@ -113,6 +116,33 @@ export async function POST(
             });
         }
 
+        if (!path.isAbsolute(catalogRoot)) {
+            return apiError({
+                status: 400,
+                code: 'VALIDATION_ERROR',
+                error: 'Catalog root must be an absolute path',
+            });
+        }
+
+        const normalizedCatalogRoot = path.normalize(catalogRoot);
+        const resolvedCatalogRoot = path.resolve(catalogRoot);
+        if (catalogRoot !== normalizedCatalogRoot || catalogRoot !== resolvedCatalogRoot) {
+            return apiError({
+                status: 400,
+                code: 'VALIDATION_ERROR',
+                error: 'Catalog root must be a normalized absolute path',
+            });
+        }
+
+        const skytestDir = path.join(catalogRoot, '.skytest');
+        if (!existsSync(skytestDir)) {
+            return apiError({
+                status: 400,
+                code: 'VALIDATION_ERROR',
+                error: 'Catalog root must contain a .skytest directory',
+            });
+        }
+
         let runtimeConfig;
         try {
             runtimeConfig = await loadRuntimeConfigForCwd(catalogRoot);
@@ -124,7 +154,15 @@ export async function POST(
             });
         }
 
-        const catalog = await loadTestCatalog(catalogRoot);
+        const { catalog, errors: catalogErrors } = await loadTestCatalog(catalogRoot);
+        if (catalogErrors.length > 0) {
+            logger.warn('Catalog sync skipped invalid source files', {
+                projectId,
+                catalogRoot,
+                errors: catalogErrors,
+            });
+        }
+
         if (catalog.size === 0) {
             return apiError({
                 status: 400,
@@ -228,6 +266,7 @@ export async function POST(
             updated,
             runtimeConfigsSynced: runtimeEnvEntries.length,
             root: catalogRoot,
+            catalogErrors,
         }));
     } catch (error) {
         logger.error('Failed to sync project test cases from catalog source', error);

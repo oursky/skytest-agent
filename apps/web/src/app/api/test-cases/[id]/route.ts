@@ -134,7 +134,7 @@ export async function PUT(
             try {
                 let sourcePath = existingTestCase.source;
                 try {
-                    const catalog = await loadTestCatalog(process.cwd());
+                    const { catalog } = await loadTestCatalog(process.cwd());
                     const catalogEntry = catalog.get(normalizedDisplayId);
                     if (!catalogEntry || catalogEntry.sourcePath !== existingTestCase.source) {
                         return apiError({

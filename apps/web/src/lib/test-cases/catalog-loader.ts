@@ -27,11 +27,16 @@ function toRelativeGlob(cwd: string, includePattern: string): string {
     return includePattern;
 }
 
-export async function loadTestCatalog(cwd: string): Promise<Map<string, TestCatalogEntry>> {
+export interface LoadTestCatalogResult {
+    catalog: Map<string, TestCatalogEntry>;
+    errors: string[];
+}
+
+export async function loadTestCatalog(cwd: string): Promise<LoadTestCatalogResult> {
     const runtimeConfig = await loadRuntimeConfigForCwd(cwd);
     const includePatterns = runtimeConfig.catalog?.include ?? [];
     if (includePatterns.length === 0) {
-        return new Map();
+        return { catalog: new Map(), errors: [] };
     }
 
     const excludePatterns = runtimeConfig.catalog?.exclude ?? [];
@@ -47,25 +52,30 @@ export async function loadTestCatalog(cwd: string): Promise<Map<string, TestCata
     );
 
     const catalog = new Map<string, TestCatalogEntry>();
+    const errors: string[] = [];
     for (const sourcePath of sourcePaths) {
-        const sourceContent = await readFile(sourcePath, 'utf8');
-        const id = parseTestCaseId(sourcePath, sourceContent);
+        try {
+            const sourceContent = await readFile(sourcePath, 'utf8');
+            const id = parseTestCaseId(sourcePath, sourceContent);
 
-        if (catalog.has(id)) {
-            const existing = catalog.get(id);
-            throw new Error(
-                `Duplicate test case ID "${id}" discovered in ${existing?.sourcePath ?? 'unknown'} and ${sourcePath}`
-            );
+            if (catalog.has(id)) {
+                const existing = catalog.get(id);
+                throw new Error(
+                    `Duplicate test case ID "${id}" discovered in ${existing?.sourcePath ?? 'unknown'} and ${sourcePath}`
+                );
+            }
+
+            catalog.set(id, {
+                id,
+                sourcePath,
+                sourceHash: hashContent(sourceContent),
+            });
+        } catch (error) {
+            errors.push(error instanceof Error ? error.message : `Failed to parse source file: ${sourcePath}`);
         }
-
-        catalog.set(id, {
-            id,
-            sourcePath,
-            sourceHash: hashContent(sourceContent),
-        });
     }
 
-    return catalog;
+    return { catalog, errors };
 }
 
 export function hashCatalogDocument(content: string): string {
