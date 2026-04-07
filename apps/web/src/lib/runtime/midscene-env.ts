@@ -18,8 +18,11 @@ type MidsceneModelEnvVar = keyof typeof MIDSCENE_MODEL_ENV_DEFAULTS;
 export interface BuildMidsceneModelConfigOptions {
     baseUrl?: string;
     mainModel?: string;
+    mainModelFamily?: string;
     planningModel?: string;
+    planningModelFamily?: string;
     insightModel?: string;
+    insightModelFamily?: string;
     temperature?: number;
 }
 
@@ -87,18 +90,21 @@ export function buildMidsceneModelConfig(apiKey: string, options?: BuildMidscene
     const mainModel = options?.mainModel ?? resolveMidsceneModelValue('MIDSCENE_MODEL_NAME');
     const planningModel = options?.planningModel ?? resolveMidsceneModelValue('MIDSCENE_PLANNING_MODEL_NAME');
     const insightModel = options?.insightModel ?? resolveMidsceneModelValue('MIDSCENE_INSIGHT_MODEL_NAME');
+    const mainModelFamily = options?.mainModelFamily ?? inferModelFamily(mainModel);
+    const planningModelFamily = options?.planningModelFamily ?? inferModelFamily(planningModel);
+    const insightModelFamily = options?.insightModelFamily ?? inferModelFamily(insightModel);
 
     config.MIDSCENE_MODEL_BASE_URL = baseUrl;
     config.MIDSCENE_MODEL_NAME = mainModel;
-    config.MIDSCENE_MODEL_FAMILY = inferModelFamily(mainModel);
+    config.MIDSCENE_MODEL_FAMILY = mainModelFamily;
 
     config.MIDSCENE_PLANNING_MODEL_BASE_URL = baseUrl;
     config.MIDSCENE_PLANNING_MODEL_NAME = planningModel;
-    config.MIDSCENE_PLANNING_MODEL_FAMILY = inferModelFamily(planningModel);
+    config.MIDSCENE_PLANNING_MODEL_FAMILY = planningModelFamily;
 
     config.MIDSCENE_INSIGHT_MODEL_BASE_URL = baseUrl;
     config.MIDSCENE_INSIGHT_MODEL_NAME = insightModel;
-    config.MIDSCENE_INSIGHT_MODEL_FAMILY = inferModelFamily(insightModel);
+    config.MIDSCENE_INSIGHT_MODEL_FAMILY = insightModelFamily;
 
     if (options?.temperature !== undefined) {
         config.MIDSCENE_MODEL_TEMPERATURE = options.temperature;

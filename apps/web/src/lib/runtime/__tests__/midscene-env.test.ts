@@ -61,6 +61,21 @@ describe('buildMidsceneModelConfig', () => {
         expect(config.MIDSCENE_MODEL_FAMILY).toBe('gemini');
     });
 
+    it('uses explicit model family options when provided', () => {
+        const config = buildMidsceneModelConfig('test-key', {
+            mainModel: 'google/gemini-2.0-flash-001',
+            mainModelFamily: 'custom-main',
+            planningModel: 'qwen/qwen3.5-27b',
+            planningModelFamily: 'custom-plan',
+            insightModel: 'qwen/qwen3.5-27b',
+            insightModelFamily: 'custom-insight',
+        });
+
+        expect(config.MIDSCENE_MODEL_FAMILY).toBe('custom-main');
+        expect(config.MIDSCENE_PLANNING_MODEL_FAMILY).toBe('custom-plan');
+        expect(config.MIDSCENE_INSIGHT_MODEL_FAMILY).toBe('custom-insight');
+    });
+
     it('applies temperature option as number', () => {
         const config = buildMidsceneModelConfig('test-key', { temperature: 0.9 });
 

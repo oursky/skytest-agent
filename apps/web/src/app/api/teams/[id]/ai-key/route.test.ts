@@ -57,8 +57,11 @@ describe('/api/teams/[id]/ai-key', () => {
             aiProvider: null,
             aiBaseUrl: null,
             aiMainModel: null,
+            aiMainModelFamily: null,
             aiPlanningModel: null,
+            aiPlanningModelFamily: null,
             aiInsightModel: null,
+            aiInsightModelFamily: null,
             aiTemperature: null,
         });
 
@@ -73,8 +76,11 @@ describe('/api/teams/[id]/ai-key', () => {
             provider: 'openrouter',
             baseUrl: null,
             mainModel: null,
+            mainModelFamily: null,
             planningModel: null,
+            planningModelFamily: null,
             insightModel: null,
+            insightModelFamily: null,
             temperature: null,
         });
     });
@@ -89,8 +95,11 @@ describe('/api/teams/[id]/ai-key', () => {
                     provider: 'openai-compatible',
                     baseUrl: 'https://api.openai.com/v1',
                     mainModel: 'gpt-5.3-codex',
+                    mainModelFamily: 'gpt-5',
                     planningModel: 'gpt-5.3-mini',
+                    planningModelFamily: 'gpt-5',
                     insightModel: 'gpt-5.3-mini',
+                    insightModelFamily: 'gpt-5',
                     temperature: 0.3,
                 },
             }),
@@ -107,8 +116,11 @@ describe('/api/teams/[id]/ai-key', () => {
                 aiProvider: 'OPENAI',
                 aiBaseUrl: 'https://api.openai.com/v1',
                 aiMainModel: 'gpt-5.3-codex',
+                aiMainModelFamily: 'gpt-5',
                 aiPlanningModel: 'gpt-5.3-mini',
+                aiPlanningModelFamily: 'gpt-5',
                 aiInsightModel: 'gpt-5.3-mini',
+                aiInsightModelFamily: 'gpt-5',
                 aiTemperature: 0.3,
             }),
         });
@@ -127,7 +139,83 @@ describe('/api/teams/[id]/ai-key', () => {
 
         const payload = await response.json();
         expect(response.status).toBe(400);
-        expect(payload.error).toBe('API key is required');
+        expect(payload).toMatchObject({
+            error: 'Please fix the highlighted fields',
+            code: 'VALIDATION_ERROR',
+            details: {
+                fieldErrors: {
+                    apiKey: 'API key is required',
+                },
+            },
+        });
+    });
+
+    it('updates provider config without re-posting api key', async () => {
+        const response = await POST(new Request('http://localhost/api/teams/team-1/ai-key', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                providerConfig: {
+                    provider: 'openrouter',
+                    baseUrl: 'https://openrouter.ai/api/v1',
+                    mainModel: 'google/gemini-3.1-flash-lite-preview',
+                    mainModelFamily: 'gemini',
+                    planningModel: 'qwen/qwen3.5-27b',
+                    planningModelFamily: 'qwen3.5',
+                    insightModel: 'qwen/qwen3.5-27b',
+                    insightModelFamily: 'qwen3.5',
+                    temperature: 0.2,
+                },
+            }),
+        }), {
+            params: Promise.resolve({ id: 'team-1' }),
+        });
+
+        expect(response.status).toBe(200);
+        expect(mocks.prisma.team.update).toHaveBeenCalledWith({
+            where: { id: 'team-1' },
+            data: expect.objectContaining({
+                aiProvider: 'OPENROUTER',
+                aiBaseUrl: 'https://openrouter.ai/api/v1',
+                aiMainModel: 'google/gemini-3.1-flash-lite-preview',
+                aiMainModelFamily: 'gemini',
+                aiPlanningModel: 'qwen/qwen3.5-27b',
+                aiPlanningModelFamily: 'qwen3.5',
+                aiInsightModel: 'qwen/qwen3.5-27b',
+                aiInsightModelFamily: 'qwen3.5',
+                aiTemperature: 0.2,
+            }),
+        });
+        const data = mocks.prisma.team.update.mock.calls[0]?.[0]?.data as Record<string, unknown> | undefined;
+        expect(data).toBeDefined();
+        expect(data).not.toHaveProperty('openRouterKeyEncrypted');
+    });
+
+    it('rejects negative temperature', async () => {
+        const response = await POST(new Request('http://localhost/api/teams/team-1/ai-key', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                providerConfig: {
+                    provider: 'openrouter',
+                    temperature: -0.1,
+                },
+            }),
+        }), {
+            params: Promise.resolve({ id: 'team-1' }),
+        });
+
+        const payload = await response.json();
+        expect(response.status).toBe(400);
+        expect(payload).toMatchObject({
+            error: 'Please fix the highlighted fields',
+            code: 'VALIDATION_ERROR',
+            details: {
+                fieldErrors: {
+                    temperature: 'Temperature must be greater than or equal to 0',
+                },
+            },
+        });
     });
 
     it('clears key on DELETE and preserves provider config fields', async () => {

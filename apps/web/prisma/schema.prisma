@@ -61,8 +61,11 @@ model Team {
   aiProvider             String?                  @default("openrouter")
   aiBaseUrl              String?
   aiMainModel            String?
+  aiMainModelFamily      String?
   aiPlanningModel        String?
+  aiPlanningModelFamily  String?
   aiInsightModel         String?
+  aiInsightModelFamily   String?
   aiTemperature          Float?
   aiConfigUpdatedAt      DateTime?
   createdAt              DateTime                 @default(now())

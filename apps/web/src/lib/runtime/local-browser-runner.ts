@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { runTest } from '@/lib/runtime/test-runner';
+import type { BuildMidsceneModelConfigOptions } from '@/lib/runtime/midscene-env';
 import { resolveTeamMidsceneConfig } from '@/lib/runtime/team-ai-config';
 import { prisma } from '@/lib/core/prisma';
 import { resolveConfigs } from '@/lib/test-config/resolver';
@@ -45,13 +46,7 @@ interface LoadedRunConfig {
             steps?: TestStep[];
             browserConfig?: Record<string, BrowserConfig | TargetConfig>;
             openRouterApiKey: string;
-            midsceneModelOptions?: {
-                baseUrl?: string;
-                mainModel?: string;
-                planningModel?: string;
-                insightModel?: string;
-                temperature?: number;
-            };
+            midsceneModelOptions?: BuildMidsceneModelConfigOptions;
             files: TestCaseFile[];
             resolvedVariables: Record<string, string>;
             resolvedFiles: Record<string, string>;
@@ -190,8 +185,11 @@ async function loadRunConfig(runId: string, options?: LocalBrowserRunOptions): P
                                     aiProvider: true,
                                     aiBaseUrl: true,
                                     aiMainModel: true,
+                                    aiMainModelFamily: true,
                                     aiPlanningModel: true,
+                                    aiPlanningModelFamily: true,
                                     aiInsightModel: true,
+                                    aiInsightModelFamily: true,
                                     aiTemperature: true,
                                 },
                             },

@@ -8,15 +8,21 @@ describe('team-ai-config', () => {
             aiProvider: null,
             aiBaseUrl: null,
             aiMainModel: null,
+            aiMainModelFamily: null,
             aiPlanningModel: null,
+            aiPlanningModelFamily: null,
             aiInsightModel: null,
+            aiInsightModelFamily: null,
             aiTemperature: null,
         });
 
         expect(config.baseUrl).toBeUndefined();
         expect(config.mainModel).toBeUndefined();
+        expect(config.mainModelFamily).toBeUndefined();
         expect(config.planningModel).toBeUndefined();
+        expect(config.planningModelFamily).toBeUndefined();
         expect(config.insightModel).toBeUndefined();
+        expect(config.insightModelFamily).toBeUndefined();
         expect(config.temperature).toBeUndefined();
     });
 
@@ -25,15 +31,21 @@ describe('team-ai-config', () => {
             aiProvider: 'openai-compatible',
             aiBaseUrl: 'https://api.openai.com/v1',
             aiMainModel: 'gpt-5.3-codex',
+            aiMainModelFamily: 'gpt-5',
             aiPlanningModel: 'gpt-5.3-mini',
+            aiPlanningModelFamily: 'gpt-5',
             aiInsightModel: 'gpt-5.3-mini',
+            aiInsightModelFamily: 'gpt-5',
             aiTemperature: 0.25,
         });
 
         expect(config.baseUrl).toBe('https://api.openai.com/v1');
         expect(config.mainModel).toBe('gpt-5.3-codex');
+        expect(config.mainModelFamily).toBe('gpt-5');
         expect(config.planningModel).toBe('gpt-5.3-mini');
+        expect(config.planningModelFamily).toBe('gpt-5');
         expect(config.insightModel).toBe('gpt-5.3-mini');
+        expect(config.insightModelFamily).toBe('gpt-5');
         expect(config.temperature).toBe(0.25);
     });
 
