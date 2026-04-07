@@ -31,7 +31,7 @@ function printHelp(): void {
         '  skytest unpair runner <runner-id>',
         '  skytest reset --force',
         '  skytest run test-case <display-id> --project-id <project-id> [--url <base-url>] [--api-key <token>|--token <token>] [--sync|--no-sync] [--sync-root <path>] [--wait|--no-wait] [--timeout-ms <ms>] [--json|--format text|json]',
-        '  skytest run project <project-id> [--display-id <display-id> ...] [--url <base-url>] [--api-key <token>|--token <token>] [--sync|--no-sync] [--sync-root <path>] [--wait|--no-wait] [--timeout-ms <ms>] [--json|--format text|json]',
+        '  skytest run project <project-id> [--display-id <display-id> ...] [--concurrency <n>] [--url <base-url>] [--api-key <token>|--token <token>] [--sync|--no-sync] [--sync-root <path>] [--wait|--no-wait] [--timeout-ms <ms>] [--json|--format text|json]',
     ].join('\n'));
 }
 
@@ -136,6 +136,7 @@ async function main(): Promise<void> {
             authToken: command.authToken,
             syncBeforeRun: command.syncBeforeRun,
             syncRoot: command.syncRoot,
+            concurrency: command.concurrency,
             wait: command.wait,
             timeoutMs: command.timeoutMs,
             format: command.format,

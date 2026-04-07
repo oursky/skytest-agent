@@ -203,6 +203,7 @@ describe('parseSkytestCliCommand', () => {
             syncBeforeRun: undefined,
             syncRoot: undefined,
             displayIds: ['CASE-A02', 'CASE-B01'],
+            concurrency: 1,
             wait: true,
             timeoutMs: 600000,
             format: 'json',
@@ -225,6 +226,29 @@ describe('parseSkytestCliCommand', () => {
             syncBeforeRun: false,
             syncRoot: '/tmp/sample-workspace',
             displayIds: [],
+            concurrency: 1,
+            wait: true,
+            timeoutMs: 600000,
+            format: 'text',
+        });
+    });
+
+    it('parses run project with --concurrency', () => {
+        expect(parseSkytestCliCommand([
+            'run',
+            'project',
+            'project-123',
+            '--concurrency',
+            '3',
+        ])).toEqual({
+            kind: 'run-project',
+            projectId: 'project-123',
+            controlPlaneBaseUrl: undefined,
+            authToken: undefined,
+            syncBeforeRun: undefined,
+            syncRoot: undefined,
+            displayIds: [],
+            concurrency: 3,
             wait: true,
             timeoutMs: 600000,
             format: 'text',
@@ -283,6 +307,16 @@ describe('parseSkytestCliCommand', () => {
             '--format',
             'yaml',
         ])).toThrow('Expected `json` or `text` after `--format`.');
+    });
+
+    it('rejects run project with invalid concurrency', () => {
+        expect(() => parseSkytestCliCommand([
+            'run',
+            'project',
+            'project-123',
+            '--concurrency',
+            '0',
+        ])).toThrow('`--concurrency` must be a positive integer.');
     });
 
     it('rejects missing sync-root value', () => {

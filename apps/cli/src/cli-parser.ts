@@ -33,6 +33,7 @@ export type SkytestCliCommand =
         syncBeforeRun?: boolean;
         syncRoot?: string;
         displayIds: string[];
+        concurrency: number;
         wait: boolean;
         timeoutMs: number;
         format: 'text' | 'json';
@@ -51,6 +52,7 @@ interface ParsedRunOptions {
 
 interface ParsedRunProjectOptions extends ParsedRunOptions {
     displayIds: string[];
+    concurrency: number;
 }
 
 function isHelpFlag(token: string | undefined): boolean {
@@ -299,25 +301,64 @@ function parseRunOptions(args: string[]): ParsedRunOptions {
 function parseRunProjectOptions(args: string[]): ParsedRunProjectOptions {
     const displayIds: string[] = [];
     const delegatedArgs: string[] = [];
+    let concurrency = 1;
 
     for (let index = 0; index < args.length; index += 1) {
         const token = args[index];
+
+        if (token === '--display-id') {
+            const value = args[index + 1];
+            if (!value || value.startsWith('--')) {
+                throw new Error('Missing value for `--display-id`.');
+            }
+            displayIds.push(value);
+            index += 1;
+            continue;
+        }
+
+        if (token === '--concurrency') {
+            const value = args[index + 1];
+            if (!value || value.startsWith('--')) {
+                throw new Error('Missing value for `--concurrency`.');
+            }
+            const parsed = Number.parseInt(value, 10);
+            if (!Number.isInteger(parsed) || parsed <= 0) {
+                throw new Error('`--concurrency` must be a positive integer.');
+            }
+            concurrency = parsed;
+            index += 1;
+            continue;
+        }
+
+        if (token.startsWith('--display-id=')) {
+            const value = token.slice('--display-id='.length);
+            if (!value) {
+                throw new Error('Missing value for `--display-id`.');
+            }
+            displayIds.push(value);
+            continue;
+        }
+
+        if (token.startsWith('--concurrency=')) {
+            const value = token.slice('--concurrency='.length);
+            const parsed = Number.parseInt(value, 10);
+            if (!Number.isInteger(parsed) || parsed <= 0) {
+                throw new Error('`--concurrency` must be a positive integer.');
+            }
+            concurrency = parsed;
+            continue;
+        }
+
         if (token !== '--display-id') {
             delegatedArgs.push(token);
             continue;
         }
-
-        const value = args[index + 1];
-        if (!value || value.startsWith('--')) {
-            throw new Error('Missing value for `--display-id`.');
-        }
-        displayIds.push(value);
-        index += 1;
     }
 
     return {
         ...parseRunOptions(delegatedArgs),
         displayIds,
+        concurrency,
     };
 }
 

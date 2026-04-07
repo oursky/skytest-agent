@@ -10,6 +10,7 @@ import {
 interface RunProjectOptions {
     projectId: string;
     displayIds: string[];
+    concurrency?: number;
     controlPlaneBaseUrl?: string;
     authToken?: string;
     syncBeforeRun?: boolean;
@@ -96,28 +97,93 @@ export async function runProject(options: RunProjectOptions): Promise<{
         error?: string | null;
     }> = [];
 
-    for (const displayId of displayIds) {
-        const runResult = await runTestCase({
-            displayId,
-            projectId: options.projectId,
-            controlPlaneBaseUrl: baseUrl,
-            authToken,
-            syncBeforeRun: false,
-            syncRoot: options.syncRoot,
-            wait: options.wait,
-            timeoutMs: options.timeoutMs,
-            format: options.format,
-        });
+    const effectiveConcurrency = Math.max(1, options.concurrency ?? 1);
 
-        runResults.push({
-            displayId: runResult.displayId,
-            runId: runResult.runId,
-            status: runResult.status,
-            error: runResult.error ?? null,
-        });
+    if (effectiveConcurrency === 1) {
+        for (const displayId of displayIds) {
+            const runResult = await runTestCase({
+                displayId,
+                projectId: options.projectId,
+                controlPlaneBaseUrl: baseUrl,
+                authToken,
+                syncBeforeRun: false,
+                syncRoot: options.syncRoot,
+                wait: options.wait,
+                timeoutMs: options.timeoutMs,
+                format: options.format,
+            });
 
-        if (options.wait && runResult.status !== 'PASS') {
-            break;
+            runResults.push({
+                displayId: runResult.displayId,
+                runId: runResult.runId,
+                status: runResult.status,
+                error: runResult.error ?? null,
+            });
+
+            if (options.wait && runResult.status !== 'PASS') {
+                break;
+            }
+        }
+    } else {
+        const resultsByIndex: Array<{
+            displayId: string;
+            runId: string;
+            status: string;
+            error?: string | null;
+        } | null> = new Array(displayIds.length).fill(null);
+        let nextIndex = 0;
+        let shouldStopDispatch = false;
+
+        const worker = async (): Promise<void> => {
+            while (true) {
+                const currentIndex = nextIndex;
+                if (currentIndex >= displayIds.length) {
+                    return;
+                }
+                nextIndex += 1;
+
+                if (shouldStopDispatch) {
+                    return;
+                }
+
+                const displayId = displayIds[currentIndex];
+                const runResult = await runTestCase({
+                    displayId,
+                    projectId: options.projectId,
+                    controlPlaneBaseUrl: baseUrl,
+                    authToken,
+                    syncBeforeRun: false,
+                    syncRoot: options.syncRoot,
+                    wait: options.wait,
+                    timeoutMs: options.timeoutMs,
+                    format: options.format,
+                });
+
+                resultsByIndex[currentIndex] = {
+                    displayId: runResult.displayId,
+                    runId: runResult.runId,
+                    status: runResult.status,
+                    error: runResult.error ?? null,
+                };
+
+                if (options.wait && runResult.status !== 'PASS') {
+                    shouldStopDispatch = true;
+                    return;
+                }
+            }
+        };
+
+        const workerCount = Math.min(effectiveConcurrency, displayIds.length);
+        await Promise.all(Array.from({ length: workerCount }, () => worker()));
+
+        for (const result of resultsByIndex) {
+            if (!result) {
+                break;
+            }
+            runResults.push(result);
+            if (options.wait && result.status !== 'PASS') {
+                break;
+            }
         }
     }
 
