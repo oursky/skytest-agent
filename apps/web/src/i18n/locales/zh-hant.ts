@@ -44,7 +44,6 @@ export const ZH_HANT_MESSAGES: Messages = {
   "welcome.teamName": "團隊名稱",
   "welcome.placeholder": "例如 QA 團隊",
   "welcome.create": "建立團隊",
-  "welcome.creating": "建立中…",
   "welcome.error.required": "請輸入團隊名稱。",
   "welcome.error.create": "建立團隊失敗。",
   "projects.title": "專案",

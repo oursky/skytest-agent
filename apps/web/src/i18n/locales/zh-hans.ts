@@ -44,7 +44,6 @@ export const ZH_HANS_MESSAGES: Messages = {
   "welcome.teamName": "团队名称",
   "welcome.placeholder": "例如 QA 团队",
   "welcome.create": "创建团队",
-  "welcome.creating": "创建中…",
   "welcome.error.required": "请输入团队名称。",
   "welcome.error.create": "创建团队失败。",
   "projects.title": "项目",

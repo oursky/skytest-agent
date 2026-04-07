@@ -44,7 +44,6 @@ export const EN_MESSAGES: Messages = {
   "welcome.teamName": "Team name",
   "welcome.placeholder": "e.g. QA Team",
   "welcome.create": "Create team",
-  "welcome.creating": "Creating...",
   "welcome.error.required": "Team name is required.",
   "welcome.error.create": "Failed to create team.",
   "projects.title": "Projects",

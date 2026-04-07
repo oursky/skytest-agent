@@ -220,7 +220,6 @@ describe('POST /api/test-runs/dispatch', () => {
                 },
             ],
         });
-
         const request = new Request('http://localhost/api/test-runs/dispatch', {
             method: 'POST',
             headers: {
@@ -410,10 +409,8 @@ describe('POST /api/test-runs/dispatch', () => {
                 prompt: 'Run smoke check',
             }),
         });
-
         const response = await POST(request);
         const payload = await response.json();
-
         expect(response.status).toBe(400);
         expect(mocks.testRunCreate).not.toHaveBeenCalled();
         expect(payload).toMatchObject({
