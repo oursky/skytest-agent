@@ -10,24 +10,11 @@ import { createLogger } from '@/lib/core/logger';
 import { loadTestCatalog, hashCatalogDocument } from '@/lib/test-cases/catalog-loader';
 import { loadRuntimeConfigForCwd } from '@/lib/runtime/runtime-config-loader';
 import { cleanStepsForStorage, normalizeTargetConfigMap } from '@/lib/runtime/test-case-utils';
+import { resolveRuntimeRootFromSourcePath } from '@/lib/test-cases/source-path-utils';
+import { collectSyncableEnvEntries, syncEnvToProjectConfigs } from '@/lib/test-cases/sync-env-to-project-configs';
 import type { BrowserConfig, TargetConfig, TestStep } from '@/types';
 
 const logger = createLogger('api:projects:test-cases:sync');
-
-function resolveCatalogRootFromSourcePath(sourcePath: string | null | undefined): string | null {
-    if (!sourcePath) {
-        return null;
-    }
-
-    const normalizedPath = path.normalize(sourcePath);
-    const marker = `${path.sep}.skytest${path.sep}`;
-    const markerIndex = normalizedPath.indexOf(marker);
-    if (markerIndex < 0) {
-        return null;
-    }
-
-    return normalizedPath.slice(0, markerIndex);
-}
 
 function sanitizeJsonResponse(runSync: {
     imported: number;
@@ -105,7 +92,7 @@ export async function POST(
                 where: { projectId, source: { not: null } },
                 select: { source: true },
             });
-            catalogRoot = resolveCatalogRootFromSourcePath(sourceBackedCase?.source) ?? '';
+            catalogRoot = resolveRuntimeRootFromSourcePath(sourceBackedCase?.source) ?? '';
         }
 
         if (!catalogRoot) {
@@ -228,43 +215,15 @@ export async function POST(
             imported += 1;
         }
 
-        const runtimeEnvEntries = Object.entries(runtimeConfig.runtime.env ?? {})
-            .filter(([name, value]) => Boolean(name.trim()) && typeof value === 'string' && value.trim().length > 0)
-            .map(([name, value]) => ({
-                name: name.trim(),
-                value: value.trim(),
-                masked: /PASSWORD|TOKEN|SECRET|KEY/i.test(name),
-            }));
-
-        if (!dryRun) {
-            for (const entry of runtimeEnvEntries) {
-                await prisma.projectConfig.upsert({
-                    where: {
-                        projectId_name: {
-                            projectId,
-                            name: entry.name,
-                        },
-                    },
-                    create: {
-                        projectId,
-                        name: entry.name,
-                        type: 'VARIABLE',
-                        value: entry.value,
-                        masked: entry.masked,
-                    },
-                    update: {
-                        type: 'VARIABLE',
-                        value: entry.value,
-                        masked: entry.masked,
-                    },
-                });
-            }
-        }
+        const runtimeEnv = runtimeConfig.runtime.env ?? {};
+        const runtimeConfigsSynced = dryRun
+            ? collectSyncableEnvEntries(runtimeEnv).length
+            : await syncEnvToProjectConfigs(projectId, runtimeEnv);
 
         return NextResponse.json(sanitizeJsonResponse({
             imported,
             updated,
-            runtimeConfigsSynced: runtimeEnvEntries.length,
+            runtimeConfigsSynced,
             root: catalogRoot,
             catalogErrors,
         }));

@@ -8,6 +8,12 @@ import { isAndroidTargetConfig, normalizeAndroidTargetConfig } from '@/lib/andro
 import { resolveConfigs } from '@/lib/test-config/resolver';
 import { ensureRuntimeInstanceIdentity } from '@/lib/runtime/instance-identity';
 import { loadRuntimeConfigForCwd } from '@/lib/runtime/runtime-config-loader';
+import { resolveRuntimeRootFromSourcePath } from '@/lib/test-cases/source-path-utils';
+import {
+    collectSyncableEnvEntries,
+    isSensitiveConfigName,
+    syncEnvToProjectConfigs,
+} from '@/lib/test-cases/sync-env-to-project-configs';
 import { hasTemplatedConfigUrls, validateConfigUrls } from '@/lib/test-config/url-validation';
 import {
     collectAndroidRequestedDeviceIds,
@@ -92,21 +98,6 @@ function isMissingRuntimeConfigError(error: unknown): boolean {
     return message.startsWith('Missing runtime config: ');
 }
 
-function resolveRuntimeRootFromSourcePath(sourcePath: string | null | undefined): string | null {
-    if (!sourcePath) {
-        return null;
-    }
-
-    const normalizedPath = path.normalize(sourcePath);
-    const marker = `${path.sep}.skytest${path.sep}`;
-    const markerIndex = normalizedPath.indexOf(marker);
-    if (markerIndex < 0) {
-        return null;
-    }
-
-    return normalizedPath.slice(0, markerIndex);
-}
-
 function mergeResolvedConfigurationsWithRuntimeEnv(
     resolvedConfigurations: ResolvedConfig[],
     runtimeEnv?: Record<string, string>
@@ -120,62 +111,17 @@ function mergeResolvedConfigurationsWithRuntimeEnv(
         merged.set(config.name, config);
     }
 
-    for (const [name, value] of Object.entries(runtimeEnv)) {
-        if (!name || typeof value !== 'string') {
-            continue;
-        }
-
-        merged.set(name, {
-            name,
+    for (const entry of collectSyncableEnvEntries(runtimeEnv)) {
+        merged.set(entry.name, {
+            name: entry.name,
             type: 'VARIABLE',
-            value,
-            masked: /PASSWORD|TOKEN|SECRET|KEY/i.test(name),
+            value: entry.value,
+            masked: isSensitiveConfigName(entry.name),
             source: 'project',
         });
     }
 
     return Array.from(merged.values());
-}
-
-async function syncRuntimeEnvProjectConfigs(
-    projectId: string,
-    runtimeEnv?: Record<string, string>,
-): Promise<void> {
-    if (!runtimeEnv || Object.keys(runtimeEnv).length === 0) {
-        return;
-    }
-
-    for (const [name, value] of Object.entries(runtimeEnv)) {
-        if (!name || typeof value !== 'string') {
-            continue;
-        }
-
-        const trimmedValue = value.trim();
-        if (!trimmedValue) {
-            continue;
-        }
-
-        await prisma.projectConfig.upsert({
-            where: {
-                projectId_name: {
-                    projectId,
-                    name,
-                },
-            },
-            create: {
-                projectId,
-                name,
-                type: 'VARIABLE',
-                value: trimmedValue,
-                masked: /PASSWORD|TOKEN|SECRET|KEY/i.test(name),
-            },
-            update: {
-                type: 'VARIABLE',
-                value: trimmedValue,
-                masked: /PASSWORD|TOKEN|SECRET|KEY/i.test(name),
-            },
-        });
-    }
 }
 
 async function resolveTriggeredByEmail(userId: string): Promise<string | null> {
@@ -363,7 +309,22 @@ export async function POST(request: Request) {
         });
 
         const currentWorkingDirectory = process.cwd();
-        const instanceIdentity = await ensureRuntimeInstanceIdentity(currentWorkingDirectory);
+        const runtimeIdentityDirectory = path.join(currentWorkingDirectory, '.skytest');
+        let instanceIdentity: Awaited<ReturnType<typeof ensureRuntimeInstanceIdentity>>;
+        try {
+            instanceIdentity = await ensureRuntimeInstanceIdentity(currentWorkingDirectory);
+        } catch (instanceIdentityError) {
+            logger.warn('Failed to initialize runtime instance identity', {
+                cwd: currentWorkingDirectory,
+                runtimeIdentityDirectory,
+                error: getErrorMessage(instanceIdentityError),
+            });
+            return apiError({
+                status: 400,
+                code: 'VALIDATION_ERROR',
+                error: `Runtime instance identity initialization failed. Ensure the server can write to ${runtimeIdentityDirectory}.`,
+            });
+        }
         let runtimeConfig: Awaited<ReturnType<typeof loadRuntimeConfigForCwd>> | undefined;
         let runtimeConfigError: unknown;
 
@@ -399,7 +360,7 @@ export async function POST(request: Request) {
         );
 
         try {
-            await syncRuntimeEnvProjectConfigs(testCase.project.id, runtimeConfig?.runtime.env);
+            await syncEnvToProjectConfigs(testCase.project.id, runtimeConfig?.runtime.env ?? {});
         } catch (syncError) {
             logger.warn('Failed to sync runtime env configs into project configs', {
                 testCaseId,
