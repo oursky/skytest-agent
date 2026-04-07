@@ -1,5 +1,11 @@
 import { printTable, printValue, type OutputFormat } from './output';
 import { runTestCase } from './run-test-case';
+import {
+    parseJsonResponse,
+    resolveAuthToken,
+    resolveBaseUrl,
+    syncProjectCatalogIfNeeded,
+} from './api-client';
 
 interface RunProjectOptions {
     projectId: string;
@@ -17,31 +23,6 @@ interface ProjectTestCaseSummary {
     id: string;
     displayId: string;
     name: string;
-}
-
-function normalizeBaseUrl(input: string): string {
-    return input.endsWith('/') ? input.slice(0, -1) : input;
-}
-
-function resolveBaseUrl(value?: string): string {
-    const fallback = process.env.SKYTEST_BASE_URL ?? process.env.RUNNER_CONTROL_PLANE_URL ?? 'http://127.0.0.1:3000';
-    return normalizeBaseUrl((value ?? fallback).trim());
-}
-
-function resolveAuthToken(value?: string): string {
-    const token = value ?? process.env.SKYTEST_API_KEY ?? process.env.SKYTEST_TOKEN;
-    if (!token || !token.trim()) {
-        throw new Error('Missing auth token. Set --api-key/--token or SKYTEST_API_KEY.');
-    }
-    return token.trim();
-}
-
-async function parseJsonResponse<T>(response: Response, context: string): Promise<T> {
-    if (!response.ok) {
-        const errorBody = await response.text();
-        throw new Error(`${context} failed with ${response.status}: ${errorBody}`);
-    }
-    return await response.json() as T;
 }
 
 async function listProjectTestCases(
@@ -79,34 +60,6 @@ function selectDisplayIds(allCases: ProjectTestCaseSummary[], requestedDisplayId
     }
 
     return requestedDisplayIds;
-}
-
-async function syncProjectCatalogIfNeeded(
-    baseUrl: string,
-    authToken: string,
-    options: Pick<RunProjectOptions, 'projectId' | 'syncBeforeRun' | 'syncRoot'>,
-): Promise<void> {
-    if (options.syncBeforeRun === false) {
-        return;
-    }
-
-    const payload = options.syncRoot ? { root: options.syncRoot } : {};
-    const response = await fetch(
-        `${baseUrl}/api/projects/${encodeURIComponent(options.projectId)}/test-cases/sync`,
-        {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${authToken}`,
-            },
-            body: JSON.stringify(payload),
-        },
-    );
-
-    if (!response.ok) {
-        const errorBody = await response.text();
-        throw new Error(`Sync project catalog failed with ${response.status}: ${errorBody}`);
-    }
 }
 
 export async function runProject(options: RunProjectOptions): Promise<{

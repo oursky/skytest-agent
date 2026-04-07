@@ -1,4 +1,10 @@
 import { type OutputFormat, printValue } from './output';
+import {
+    parseJsonResponse,
+    resolveAuthToken,
+    resolveBaseUrl,
+    syncProjectCatalogIfNeeded,
+} from './api-client';
 
 interface DispatchResponse {
     runId: string;
@@ -32,32 +38,6 @@ interface RunTestCaseOptions {
 
 interface TeamAiKeyStatusResponse {
     hasKey: boolean;
-}
-
-function normalizeBaseUrl(input: string): string {
-    return input.endsWith('/') ? input.slice(0, -1) : input;
-}
-
-function resolveBaseUrl(value?: string): string {
-    const fallback = process.env.SKYTEST_BASE_URL ?? process.env.RUNNER_CONTROL_PLANE_URL ?? 'http://127.0.0.1:3000';
-    return normalizeBaseUrl((value ?? fallback).trim());
-}
-
-function resolveAuthToken(value?: string): string {
-    const token = value ?? process.env.SKYTEST_API_KEY ?? process.env.SKYTEST_TOKEN;
-    if (!token || !token.trim()) {
-        throw new Error('Missing auth token. Set --api-key/--token or SKYTEST_API_KEY.');
-    }
-    return token.trim();
-}
-
-async function parseJsonResponse<T>(response: Response, context: string): Promise<T> {
-    if (!response.ok) {
-        const errorBody = await response.text();
-        throw new Error(`${context} failed with ${response.status}: ${errorBody}`);
-    }
-
-    return await response.json() as T;
 }
 
 async function resolveTestCaseByDisplayId(
@@ -170,32 +150,6 @@ async function ensureTeamAiKeyConfiguredForAiStepsIfNeeded(
     );
 }
 
-async function syncProjectCatalogIfNeeded(
-    baseUrl: string,
-    authToken: string,
-    projectId: string,
-    options: Pick<RunTestCaseOptions, 'syncBeforeRun' | 'syncRoot'>,
-): Promise<void> {
-    if (options.syncBeforeRun === false) {
-        return;
-    }
-
-    const payload = options.syncRoot ? { root: options.syncRoot } : {};
-    const response = await fetch(
-        `${baseUrl}/api/projects/${encodeURIComponent(projectId)}/test-cases/sync`,
-        {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${authToken}`,
-            },
-            body: JSON.stringify(payload),
-        },
-    );
-
-    await parseJsonResponse<{ imported: number; updated: number }>(response, 'Sync project catalog');
-}
-
 async function dispatchTestRun(
     baseUrl: string,
     authToken: string,
@@ -296,7 +250,8 @@ export async function runTestCase(options: RunTestCaseOptions): Promise<{
     const baseUrl = resolveBaseUrl(options.controlPlaneBaseUrl);
     const authToken = resolveAuthToken(options.authToken);
 
-    await syncProjectCatalogIfNeeded(baseUrl, authToken, options.projectId, {
+    await syncProjectCatalogIfNeeded(baseUrl, authToken, {
+        projectId: options.projectId,
         syncBeforeRun: options.syncBeforeRun,
         syncRoot: options.syncRoot,
     });
