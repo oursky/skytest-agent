@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
     guardTeamRouteRequest: vi.fn(),
+    validateRuntimeRequestUrl: vi.fn(),
     prisma: {
         team: {
             findUnique: vi.fn(),
@@ -15,6 +16,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/security/team-route-access', () => ({
     guardTeamRouteRequest: mocks.guardTeamRouteRequest,
+}));
+
+vi.mock('@/lib/security/url-security-runtime', () => ({
+    validateRuntimeRequestUrl: mocks.validateRuntimeRequestUrl,
 }));
 
 vi.mock('@/lib/core/prisma', () => ({
@@ -32,6 +37,7 @@ const { GET, POST, DELETE } = await import('@/app/api/teams/[id]/ai-key/route');
 describe('/api/teams/[id]/ai-key', () => {
     beforeEach(() => {
         mocks.guardTeamRouteRequest.mockReset();
+        mocks.validateRuntimeRequestUrl.mockReset();
         mocks.prisma.team.findUnique.mockReset();
         mocks.prisma.team.update.mockReset();
         mocks.decrypt.mockReset();
@@ -48,6 +54,7 @@ describe('/api/teams/[id]/ai-key', () => {
         mocks.encrypt.mockImplementation((value: string) => `enc:${value}`);
         mocks.decrypt.mockImplementation((value: string) => value.replace('enc:', ''));
         mocks.maskApiKey.mockImplementation((value: string) => `masked:${value.slice(0, 4)}`);
+        mocks.validateRuntimeRequestUrl.mockResolvedValue({ valid: true });
     });
 
     it('returns providerConfig on GET even when key is missing', async () => {
@@ -212,7 +219,93 @@ describe('/api/teams/[id]/ai-key', () => {
             code: 'VALIDATION_ERROR',
             details: {
                 fieldErrors: {
-                    temperature: 'Temperature must be greater than or equal to 0',
+                    temperature: 'Temperature must be between 0 and 2',
+                },
+            },
+        });
+    });
+
+    it('rejects temperature above upper bound', async () => {
+        const response = await POST(new Request('http://localhost/api/teams/team-1/ai-key', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                providerConfig: {
+                    provider: 'openrouter',
+                    temperature: 2.1,
+                },
+            }),
+        }), {
+            params: Promise.resolve({ id: 'team-1' }),
+        });
+
+        const payload = await response.json();
+        expect(response.status).toBe(400);
+        expect(payload).toMatchObject({
+            error: 'Please fix the highlighted fields',
+            code: 'VALIDATION_ERROR',
+            details: {
+                fieldErrors: {
+                    temperature: 'Temperature must be between 0 and 2',
+                },
+            },
+        });
+    });
+
+    it('rejects unsupported model family values', async () => {
+        const response = await POST(new Request('http://localhost/api/teams/team-1/ai-key', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                providerConfig: {
+                    provider: 'openrouter',
+                    mainModelFamily: 'claude',
+                },
+            }),
+        }), {
+            params: Promise.resolve({ id: 'team-1' }),
+        });
+
+        const payload = await response.json();
+        expect(response.status).toBe(400);
+        expect(payload).toMatchObject({
+            error: 'Please fix the highlighted fields',
+            code: 'VALIDATION_ERROR',
+            details: {
+                fieldErrors: {
+                    mainModelFamily: expect.stringContaining('Invalid model family. Supported:'),
+                },
+            },
+        });
+    });
+
+    it('rejects base url that resolves to blocked private network hosts', async () => {
+        mocks.validateRuntimeRequestUrl.mockResolvedValueOnce({
+            valid: false,
+            error: 'Private network addresses are not allowed',
+        });
+
+        const response = await POST(new Request('http://localhost/api/teams/team-1/ai-key', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                providerConfig: {
+                    provider: 'openrouter',
+                    baseUrl: 'http://169.254.169.254/latest/meta-data',
+                },
+            }),
+        }), {
+            params: Promise.resolve({ id: 'team-1' }),
+        });
+
+        const payload = await response.json();
+        expect(response.status).toBe(400);
+        expect(payload).toMatchObject({
+            error: 'Please fix the highlighted fields',
+            code: 'VALIDATION_ERROR',
+            details: {
+                fieldErrors: {
+                    baseUrl: 'Private network addresses are not allowed',
                 },
             },
         });

@@ -11,8 +11,12 @@ import {
     type TeamAiProvider,
     type TeamAiProviderConfig,
 } from '@/lib/runtime/team-ai-config';
+import { VALID_MODEL_FAMILIES } from '@/lib/runtime/midscene-env';
+import { validateRuntimeRequestUrl } from '@/lib/security/url-security-runtime';
 
 const logger = createLogger('api:teams:ai-key');
+const VALID_MODEL_FAMILY_SET = new Set<string>(VALID_MODEL_FAMILIES);
+const SUPPORTED_MODEL_FAMILY_MESSAGE = `Invalid model family. Supported: ${VALID_MODEL_FAMILIES.join(', ')}`;
 
 export const dynamic = 'force-dynamic';
 
@@ -68,18 +72,14 @@ function normalizeProviderConfig(input: ProviderConfigInput | null | undefined):
     };
 }
 
-function validateProviderConfigInput(input: ProviderConfigInput | null | undefined): ProviderConfigFieldErrors {
+async function validateProviderConfigInput(input: ProviderConfigInput | null | undefined): Promise<ProviderConfigFieldErrors> {
     const fieldErrors: ProviderConfigFieldErrors = {};
     const normalized = normalizeProviderConfig(input);
 
     if (normalized.baseUrl) {
-        try {
-            const parsed = new URL(normalized.baseUrl);
-            if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-                fieldErrors.baseUrl = 'Base URL must use http or https';
-            }
-        } catch {
-            fieldErrors.baseUrl = 'Base URL must be a valid URL';
+        const validation = await validateRuntimeRequestUrl(normalized.baseUrl);
+        if (!validation.valid) {
+            fieldErrors.baseUrl = validation.error ?? 'Base URL is not allowed';
         }
     }
 
@@ -88,8 +88,19 @@ function validateProviderConfigInput(input: ProviderConfigInput | null | undefin
             typeof input.temperature !== 'number'
             || !Number.isFinite(input.temperature)
             || input.temperature < 0
+            || input.temperature > 2
         ) {
-            fieldErrors.temperature = 'Temperature must be greater than or equal to 0';
+            fieldErrors.temperature = 'Temperature must be between 0 and 2';
+        }
+    }
+
+    for (const [fieldKey, fieldValue] of [
+        ['mainModelFamily', normalized.mainModelFamily],
+        ['planningModelFamily', normalized.planningModelFamily],
+        ['insightModelFamily', normalized.insightModelFamily],
+    ] as const) {
+        if (fieldValue && !VALID_MODEL_FAMILY_SET.has(fieldValue)) {
+            fieldErrors[fieldKey] = SUPPORTED_MODEL_FAMILY_MESSAGE;
         }
     }
 
@@ -177,7 +188,7 @@ export async function POST(
             providerConfig?: ProviderConfigInput;
         };
 
-        const fieldErrors = validateProviderConfigInput(providerConfigInput);
+        const fieldErrors = await validateProviderConfigInput(providerConfigInput);
         if (typeof apiKey === 'string' && !apiKey.trim()) {
             fieldErrors.apiKey = 'API key is required';
         }

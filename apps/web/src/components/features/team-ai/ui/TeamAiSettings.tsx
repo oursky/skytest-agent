@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/app/auth-provider';
 import { Button, CustomSelect, LoadingSpinner, Modal } from '@/components/shared';
 import { useI18n } from '@/i18n';
+import { VALID_MODEL_FAMILIES } from '@/lib/runtime/midscene-env';
 
 interface TeamAiSettingsProps {
     teamId: string;
@@ -50,6 +51,11 @@ const TEAM_AI_DEFAULTS = {
     insightModelFamily: 'qwen3.5',
     temperature: '0.2',
 };
+
+const MODEL_FAMILY_OPTIONS = VALID_MODEL_FAMILIES.map((family) => ({
+    value: family,
+    label: family === 'gpt-5' ? 'gpt-5 (OpenAI-compatible providers)' : family,
+}));
 
 function toFieldErrorMap(input: unknown): Partial<Record<ProviderFieldErrorKey, string>> {
     if (!input || typeof input !== 'object') {
@@ -194,7 +200,12 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
 
         if (
             temperatureTrimmed.length > 0
-            && (parsedTemperature === null || !Number.isFinite(parsedTemperature) || parsedTemperature < 0)
+            && (
+                parsedTemperature === null
+                || !Number.isFinite(parsedTemperature)
+                || parsedTemperature < 0
+                || parsedTemperature > 2
+            )
         ) {
             nextFieldErrors.temperature = t('team.ai.error.temperature');
         }
@@ -414,16 +425,17 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
                 </label>
                 <label className="space-y-1">
                     <span className="text-sm text-gray-700">{t('team.ai.mainModelFamily')}</span>
-                    <input
-                        type="text"
+                    <CustomSelect
                         value={mainModelFamily}
+                        options={MODEL_FAMILY_OPTIONS}
                         disabled={isFormDisabled}
-                        onChange={(event) => {
-                            setMainModelFamily(event.target.value);
+                        onChange={(value) => {
+                            setMainModelFamily(value);
                             clearFieldError('mainModelFamily');
                         }}
-                        placeholder="gemini"
-                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
+                        ariaLabel={t('team.ai.mainModelFamily')}
+                        fullWidth
+                        buttonClassName="shadow-none"
                     />
                     {fieldErrors.mainModelFamily ? (
                         <p className="text-xs text-red-600">{fieldErrors.mainModelFamily}</p>
@@ -448,16 +460,17 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
                 </label>
                 <label className="space-y-1">
                     <span className="text-sm text-gray-700">{t('team.ai.planningModelFamily')}</span>
-                    <input
-                        type="text"
+                    <CustomSelect
                         value={planningModelFamily}
+                        options={MODEL_FAMILY_OPTIONS}
                         disabled={isFormDisabled}
-                        onChange={(event) => {
-                            setPlanningModelFamily(event.target.value);
+                        onChange={(value) => {
+                            setPlanningModelFamily(value);
                             clearFieldError('planningModelFamily');
                         }}
-                        placeholder="qwen3.5"
-                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
+                        ariaLabel={t('team.ai.planningModelFamily')}
+                        fullWidth
+                        buttonClassName="shadow-none"
                     />
                     {fieldErrors.planningModelFamily ? (
                         <p className="text-xs text-red-600">{fieldErrors.planningModelFamily}</p>
@@ -482,16 +495,17 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
                 </label>
                 <label className="space-y-1">
                     <span className="text-sm text-gray-700">{t('team.ai.insightModelFamily')}</span>
-                    <input
-                        type="text"
+                    <CustomSelect
                         value={insightModelFamily}
+                        options={MODEL_FAMILY_OPTIONS}
                         disabled={isFormDisabled}
-                        onChange={(event) => {
-                            setInsightModelFamily(event.target.value);
+                        onChange={(value) => {
+                            setInsightModelFamily(value);
                             clearFieldError('insightModelFamily');
                         }}
-                        placeholder="qwen3.5"
-                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
+                        ariaLabel={t('team.ai.insightModelFamily')}
+                        fullWidth
+                        buttonClassName="shadow-none"
                     />
                     {fieldErrors.insightModelFamily ? (
                         <p className="text-xs text-red-600">{fieldErrors.insightModelFamily}</p>
