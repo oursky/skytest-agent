@@ -19,18 +19,18 @@ async function writeFileAtomic(targetPath: string, content: string): Promise<voi
 }
 
 export async function writeCatalogCaseFile(input: WriteCatalogCaseFileInput): Promise<{ sourceHash: string }> {
-    const normalizedSourcePath = path.normalize(input.sourcePath);
-    const marker = `${path.sep}.skytest${path.sep}`;
-    if (!normalizedSourcePath.includes(marker)) {
+    const resolvedSourcePath = path.resolve(input.sourcePath);
+    const pathSegments = resolvedSourcePath.split(path.sep).filter(Boolean);
+    if (!pathSegments.includes('.skytest')) {
         throw new Error('Source path must be within a .skytest catalog directory');
     }
 
-    const current = await readFile(normalizedSourcePath, 'utf8');
+    const current = await readFile(resolvedSourcePath, 'utf8');
     const currentHash = sha256(current);
     if (input.expectedHash && currentHash !== input.expectedHash) {
         throw new Error('Source conflict: file changed, refresh and retry');
     }
 
-    await writeFileAtomic(normalizedSourcePath, input.nextDocument);
+    await writeFileAtomic(resolvedSourcePath, input.nextDocument);
     return { sourceHash: sha256(input.nextDocument) };
 }
