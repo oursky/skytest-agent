@@ -841,8 +841,6 @@ describe('POST /api/test-runs/dispatch', () => {
     });
 
     it('returns generic AI provider key message when team key is missing', async () => {
-        // guardTestCaseRouteRequest and route logic both resolve test case ownership.
-        // Force both reads to return missing key state.
         mocks.testCaseFindUnique.mockResolvedValueOnce({
             id: 'tc-1',
             project: {

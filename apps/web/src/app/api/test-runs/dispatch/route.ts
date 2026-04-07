@@ -237,7 +237,16 @@ export async function POST(request: Request) {
         }
     }
 
-    const config = await request.json() as RunTestRequest;
+    let config: RunTestRequest;
+    try {
+        config = await request.json() as RunTestRequest;
+    } catch {
+        return apiError({
+            status: 400,
+            code: 'VALIDATION_ERROR',
+            error: 'Invalid JSON request body',
+        });
+    }
     const { url, prompt, steps, browserConfig, testCaseId } = config;
 
     const hasBrowserConfig = browserConfig && Object.keys(browserConfig).length > 0;
