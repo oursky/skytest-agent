@@ -369,8 +369,35 @@ describe('POST /api/test-runs/dispatch', () => {
         );
     });
 
-    it('returns validation error when runtime config is missing', async () => {
+    it('queues runs when runtime config is missing', async () => {
         mocks.loadRuntimeConfigForCwd.mockRejectedValueOnce(new Error('Missing runtime config: /repo/.skytest/skytest.yaml'));
+
+        const request = new Request('http://localhost/api/test-runs/dispatch', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                testCaseId: 'tc-1',
+                url: 'https://example.com',
+                prompt: 'Run smoke check',
+            }),
+        });
+
+        const response = await POST(request);
+        expect(response.status).toBe(200);
+        expect(mocks.testRunCreate).toHaveBeenCalledTimes(1);
+        const createCall = mocks.testRunCreate.mock.calls[0]?.[0] as { data?: { configurationSnapshot?: string } } | undefined;
+        const snapshot = JSON.parse(createCall?.data?.configurationSnapshot || '{}') as {
+            runtime?: unknown;
+            runtimeConfigSource?: unknown;
+        };
+        expect(snapshot.runtime).toBeUndefined();
+        expect(snapshot.runtimeConfigSource).toBeUndefined();
+    });
+
+    it('returns validation error when runtime config exists but is invalid', async () => {
+        mocks.loadRuntimeConfigForCwd.mockRejectedValueOnce(new Error('Invalid runtime config at /repo/.skytest/skytest.yaml: Required'));
 
         const request = new Request('http://localhost/api/test-runs/dispatch', {
             method: 'POST',
@@ -390,7 +417,7 @@ describe('POST /api/test-runs/dispatch', () => {
         expect(response.status).toBe(400);
         expect(mocks.testRunCreate).not.toHaveBeenCalled();
         expect(payload).toMatchObject({
-            error: 'Missing runtime config: /repo/.skytest/skytest.yaml',
+            error: 'Invalid runtime config at /repo/.skytest/skytest.yaml: Required',
             code: 'VALIDATION_ERROR',
         });
     });

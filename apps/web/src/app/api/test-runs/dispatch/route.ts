@@ -87,6 +87,11 @@ function getErrorMessage(error: unknown): string {
     return 'Unknown error';
 }
 
+function isMissingRuntimeConfigError(error: unknown): boolean {
+    const message = getErrorMessage(error);
+    return message.startsWith('Missing runtime config: ');
+}
+
 function resolveRuntimeRootFromSourcePath(sourcePath: string | null | undefined): string | null {
     if (!sourcePath) {
         return null;
@@ -350,37 +355,42 @@ export async function POST(request: Request) {
 
         const currentWorkingDirectory = process.cwd();
         const instanceIdentity = await ensureRuntimeInstanceIdentity(currentWorkingDirectory);
-        let runtimeConfig;
+        let runtimeConfig: Awaited<ReturnType<typeof loadRuntimeConfigForCwd>> | undefined;
+        let runtimeConfigError: unknown;
+
         try {
             runtimeConfig = await loadRuntimeConfigForCwd(currentWorkingDirectory);
         } catch (cwdConfigError) {
-            const sourceRuntimeRoot = resolveRuntimeRootFromSourcePath(testCase.source);
-            if (!sourceRuntimeRoot) {
-                return apiError({
-                    status: 400,
-                    code: 'VALIDATION_ERROR',
-                    error: getErrorMessage(cwdConfigError),
-                });
-            }
+            runtimeConfigError = cwdConfigError;
+        }
 
-            try {
-                runtimeConfig = await loadRuntimeConfigForCwd(sourceRuntimeRoot);
-            } catch {
-                return apiError({
-                    status: 400,
-                    code: 'VALIDATION_ERROR',
-                    error: getErrorMessage(cwdConfigError),
-                });
+        if (!runtimeConfig) {
+            const sourceRuntimeRoot = resolveRuntimeRootFromSourcePath(testCase.source);
+            if (sourceRuntimeRoot) {
+                try {
+                    runtimeConfig = await loadRuntimeConfigForCwd(sourceRuntimeRoot);
+                    runtimeConfigError = undefined;
+                } catch (sourceConfigError) {
+                    runtimeConfigError = sourceConfigError;
+                }
             }
+        }
+
+        if (runtimeConfigError && !isMissingRuntimeConfigError(runtimeConfigError)) {
+            return apiError({
+                status: 400,
+                code: 'VALIDATION_ERROR',
+                error: getErrorMessage(runtimeConfigError),
+            });
         }
 
         const snapshotConfigurations = mergeResolvedConfigurationsWithRuntimeEnv(
             resolvedConfigurations,
-            runtimeConfig.runtime.env,
+            runtimeConfig?.runtime.env,
         );
 
         try {
-            await syncRuntimeEnvProjectConfigs(testCase.project.id, runtimeConfig.runtime.env);
+            await syncRuntimeEnvProjectConfigs(testCase.project.id, runtimeConfig?.runtime.env);
         } catch (syncError) {
             logger.warn('Failed to sync runtime env configs into project configs', {
                 testCaseId,
