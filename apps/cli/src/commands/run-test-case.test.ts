@@ -43,6 +43,7 @@ describe('runTestCase auto-sync behavior', () => {
             authToken: 'sk_test_abc',
             wait: false,
             timeoutMs: 6000,
+            reporter: 'console',
             format: 'json',
         });
 
@@ -85,6 +86,7 @@ describe('runTestCase auto-sync behavior', () => {
             syncBeforeRun: false,
             wait: false,
             timeoutMs: 6000,
+            reporter: 'console',
             format: 'json',
         });
 

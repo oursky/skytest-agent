@@ -4,6 +4,7 @@ import { runDescribeRunnerCommand } from './commands/describe-runner';
 import { runGetRunnersCommand } from './commands/get-runners';
 import { runInitCommand } from './commands/init';
 import { runLogsRunnerCommand } from './commands/logs-runner';
+import { runLocalCommandGroup } from './commands/local';
 import { runPairRunnerCommand } from './commands/pair-runner';
 import { runRunProjectCommand } from './commands/run-project';
 import { runRunTestCaseCommand } from './commands/run-test-case';
@@ -21,6 +22,11 @@ function printHelp(): void {
         'Usage:',
         '  skytest version',
         '  skytest init',
+        '  skytest local setup',
+        '  skytest local up',
+        '  skytest local down',
+        '  skytest local status',
+        '  skytest local update',
         '  skytest pair runner <pairing-token>',
         '  skytest start runner <runner-id> [--repair-token <pairing-token>]',
         '  skytest stop runner <runner-id>',
@@ -30,8 +36,8 @@ function printHelp(): void {
         '  skytest logs runner <runner-id> [-f|--follow] [--tail <n>]',
         '  skytest unpair runner <runner-id>',
         '  skytest reset --force',
-        '  skytest run test-case <display-id> --project-id <project-id> [--url <base-url>] [--api-key <token>|--token <token>] [--sync|--no-sync] [--sync-root <path>] [--wait|--no-wait] [--timeout-ms <ms>] [--json|--format text|json]',
-        '  skytest run project <project-id> [--display-id <display-id> ...] [--concurrency <n>] [--url <base-url>] [--api-key <token>|--token <token>] [--sync|--no-sync] [--sync-root <path>] [--wait|--no-wait] [--timeout-ms <ms>] [--json|--format text|json]',
+        '  skytest run test-case <display-id> --project-id <project-id> [--url <base-url>] [--api-key <token>|--token <token>] [--sync|--no-sync] [--sync-root <path>] [--wait|--no-wait] [--timeout-ms <ms>] [--reporter console|file] [--report-dir <path>] [--json|--format text|json]',
+        '  skytest run project <project-id> [--display-id <display-id> ...] [--concurrency <n>] [--url <base-url>] [--api-key <token>|--token <token>] [--sync|--no-sync] [--sync-root <path>] [--wait|--no-wait] [--timeout-ms <ms>] [--reporter console|file] [--report-dir <path>] [--json|--format text|json]',
     ].join('\n'));
 }
 
@@ -58,6 +64,11 @@ async function main(): Promise<void> {
 
     if (command.kind === 'init') {
         await runInitCommand();
+        return;
+    }
+
+    if (command.kind === 'local') {
+        await runLocalCommandGroup({ action: command.action });
         return;
     }
 
@@ -123,6 +134,8 @@ async function main(): Promise<void> {
             syncRoot: command.syncRoot,
             wait: command.wait,
             timeoutMs: command.timeoutMs,
+            reporter: command.reporter,
+            reportDir: command.reportDir,
             format: command.format,
         });
         return;
@@ -139,6 +152,8 @@ async function main(): Promise<void> {
             concurrency: command.concurrency,
             wait: command.wait,
             timeoutMs: command.timeoutMs,
+            reporter: command.reporter,
+            reportDir: command.reportDir,
             format: command.format,
         });
         return;

@@ -1,4 +1,5 @@
 import { type OutputFormat, printValue } from './output';
+import { writeRunFileReport } from './file-reporter';
 import {
     parseJsonResponse,
     resolveAuthToken,
@@ -22,6 +23,8 @@ interface RunDetailResponse {
     status: string;
     error?: string | null;
     completedAt?: string | null;
+    files?: unknown;
+    events?: unknown;
 }
 
 interface RunTestCaseOptions {
@@ -33,6 +36,9 @@ interface RunTestCaseOptions {
     syncRoot?: string;
     wait: boolean;
     timeoutMs: number;
+    reporter: 'console' | 'file';
+    reportDir?: string;
+    reportSessionLabel?: string;
     format: OutputFormat;
 }
 
@@ -308,9 +314,42 @@ function buildRunFailureMessage(result: {
 
 export async function runRunTestCaseCommand(options: RunTestCaseOptions): Promise<void> {
     const result = await runTestCase(options);
+    let reportSummary: {
+        sessionDirectory: string;
+        runDirectory: string;
+        resultFile: string;
+        markdownFile: string;
+        screenshotsDirectory: string;
+        screenshotCount: number;
+    } | null = null;
+
+    if (options.wait && options.reporter === 'file') {
+        const baseUrl = resolveBaseUrl(options.controlPlaneBaseUrl);
+        const authToken = resolveAuthToken(options.authToken);
+        const detail = await fetchRunDetail(baseUrl, authToken, result.runId);
+        reportSummary = await writeRunFileReport({
+            runId: result.runId,
+            reportDir: options.reportDir,
+            sessionLabel: options.reportSessionLabel,
+            caseId: options.displayId,
+            summary: result,
+            detail,
+        });
+    }
 
     if (options.format === 'json') {
-        printValue(result, options.format);
+        printValue(
+            reportSummary
+                ? {
+                    ...result,
+                    reporter: {
+                        type: 'file',
+                        ...reportSummary,
+                    },
+                }
+                : result,
+            options.format,
+        );
         if (result.wait && result.status !== 'PASS') {
             throw new Error(buildRunFailureMessage(result));
         }
@@ -319,6 +358,12 @@ export async function runRunTestCaseCommand(options: RunTestCaseOptions): Promis
 
     printValue(`run ${result.runId} for ${result.displayId} in project ${result.projectId}`, options.format);
     printValue(JSON.stringify(result, null, 2), options.format);
+    if (reportSummary) {
+        printValue(`report session: ${reportSummary.sessionDirectory}`, options.format);
+        printValue(`file report: ${reportSummary.resultFile}`, options.format);
+        printValue(`markdown report: ${reportSummary.markdownFile}`, options.format);
+        printValue(`screenshots: ${reportSummary.screenshotCount} saved to ${reportSummary.screenshotsDirectory}`, options.format);
+    }
 
     if (result.wait && result.status !== 'PASS') {
         throw new Error(buildRunFailureMessage(result));

@@ -14,6 +14,50 @@ describe('parseSkytestCliCommand', () => {
         expect(parseSkytestCliCommand(['init'])).toEqual({ kind: 'init' });
     });
 
+    it('parses local setup command', () => {
+        expect(parseSkytestCliCommand(['local', 'setup'])).toEqual({
+            kind: 'local',
+            action: 'setup',
+        });
+    });
+
+    it('parses local up command', () => {
+        expect(parseSkytestCliCommand(['local', 'up'])).toEqual({
+            kind: 'local',
+            action: 'up',
+        });
+    });
+
+    it('parses local down command', () => {
+        expect(parseSkytestCliCommand(['local', 'down'])).toEqual({
+            kind: 'local',
+            action: 'down',
+        });
+    });
+
+    it('parses local status command', () => {
+        expect(parseSkytestCliCommand(['local', 'status'])).toEqual({
+            kind: 'local',
+            action: 'status',
+        });
+    });
+
+    it('parses local update command', () => {
+        expect(parseSkytestCliCommand(['local', 'update'])).toEqual({
+            kind: 'local',
+            action: 'update',
+        });
+    });
+
+    it('rejects unknown local subcommand', () => {
+        expect(() => parseSkytestCliCommand(['local', 'restart'])).toThrow('Unknown local subcommand: restart');
+    });
+
+    it('rejects local subcommand with extra args', () => {
+        expect(() => parseSkytestCliCommand(['local', 'status', '--json']))
+            .toThrow('Unknown argument(s) for `local status`: --json');
+    });
+
     it('rejects unknown init arguments', () => {
         expect(() => parseSkytestCliCommand(['init', '--foo'])).toThrow('Unknown argument(s) for `init`: --foo');
     });
@@ -134,6 +178,8 @@ describe('parseSkytestCliCommand', () => {
             syncRoot: '/tmp/sample-workspace',
             wait: true,
             timeoutMs: 120000,
+            reporter: 'console',
+            reportDir: undefined,
             format: 'json',
         });
     });
@@ -156,6 +202,8 @@ describe('parseSkytestCliCommand', () => {
             syncRoot: undefined,
             wait: false,
             timeoutMs: 600000,
+            reporter: 'console',
+            reportDir: undefined,
             format: 'text',
         });
     });
@@ -178,6 +226,35 @@ describe('parseSkytestCliCommand', () => {
             syncRoot: undefined,
             wait: true,
             timeoutMs: 600000,
+            reporter: 'console',
+            reportDir: undefined,
+            format: 'text',
+        });
+    });
+
+    it('parses run test-case with file reporter options', () => {
+        expect(parseSkytestCliCommand([
+            'run',
+            'test-case',
+            'CASE-A04',
+            '--project-id',
+            'project-123',
+            '--reporter',
+            'file',
+            '--report-dir',
+            './reports',
+        ])).toEqual({
+            kind: 'run-test-case',
+            displayId: 'CASE-A04',
+            projectId: 'project-123',
+            controlPlaneBaseUrl: undefined,
+            authToken: undefined,
+            syncBeforeRun: undefined,
+            syncRoot: undefined,
+            wait: true,
+            timeoutMs: 600000,
+            reporter: 'file',
+            reportDir: './reports',
             format: 'text',
         });
     });
@@ -206,6 +283,8 @@ describe('parseSkytestCliCommand', () => {
             concurrency: 1,
             wait: true,
             timeoutMs: 600000,
+            reporter: 'console',
+            reportDir: undefined,
             format: 'json',
         });
     });
@@ -229,6 +308,8 @@ describe('parseSkytestCliCommand', () => {
             concurrency: 1,
             wait: true,
             timeoutMs: 600000,
+            reporter: 'console',
+            reportDir: undefined,
             format: 'text',
         });
     });
@@ -251,8 +332,31 @@ describe('parseSkytestCliCommand', () => {
             concurrency: 3,
             wait: true,
             timeoutMs: 600000,
+            reporter: 'console',
+            reportDir: undefined,
             format: 'text',
         });
+    });
+
+    it('rejects invalid reporter value', () => {
+        expect(() => parseSkytestCliCommand([
+            'run',
+            'test-case',
+            'CASE-A02',
+            '--project-id',
+            'project-123',
+            '--reporter',
+            'junit',
+        ])).toThrow('Expected `console` or `file` after `--reporter`.');
+    });
+
+    it('rejects missing report-dir value', () => {
+        expect(() => parseSkytestCliCommand([
+            'run',
+            'project',
+            'project-123',
+            '--report-dir',
+        ])).toThrow('Missing value for `--report-dir`.');
     });
 
     it('rejects run test-case without project-id', () => {
