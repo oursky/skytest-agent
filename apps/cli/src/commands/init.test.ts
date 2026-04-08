@@ -38,6 +38,7 @@ describe('runInitCommand', () => {
 
             expect(await pathExists(path.join(tempRoot, '.skytest', 'skytest.yaml'))).toBe(true);
             expect(await pathExists(path.join(tempRoot, '.skytest', 'instance.lock.yaml'))).toBe(true);
+            expect(await pathExists(path.join(tempRoot, '.skytest', '.gitignore'))).toBe(true);
             expect(await pathExists(path.join(tempWorkDir, '.skytest', 'skytest.yaml'))).toBe(false);
         } finally {
             process.chdir(previousCwd);
@@ -56,13 +57,19 @@ describe('runInitCommand', () => {
             await runInitCommand();
             const firstRuntimeConfig = await readFile(path.join(tempRoot, '.skytest', 'skytest.yaml'), 'utf8');
             const firstInstanceLock = await readFile(path.join(tempRoot, '.skytest', 'instance.lock.yaml'), 'utf8');
+            const firstGitignore = await readFile(path.join(tempRoot, '.skytest', '.gitignore'), 'utf8');
 
             await runInitCommand();
             const secondRuntimeConfig = await readFile(path.join(tempRoot, '.skytest', 'skytest.yaml'), 'utf8');
             const secondInstanceLock = await readFile(path.join(tempRoot, '.skytest', 'instance.lock.yaml'), 'utf8');
+            const secondGitignore = await readFile(path.join(tempRoot, '.skytest', '.gitignore'), 'utf8');
 
             expect(secondRuntimeConfig).toBe(firstRuntimeConfig);
             expect(secondInstanceLock).toBe(firstInstanceLock);
+            expect(secondGitignore).toBe(firstGitignore);
+            expect(secondGitignore).toContain('instance.lock.yaml');
+            expect(secondGitignore).toContain('artifacts/');
+            expect(secondGitignore).toContain('results/');
         } finally {
             logSpy.mockRestore();
             await rm(tempRoot, { recursive: true, force: true });
