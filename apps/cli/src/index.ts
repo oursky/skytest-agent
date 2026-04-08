@@ -23,7 +23,7 @@ function printHelp(): void {
         '  skytest version',
         '  skytest init',
         '  skytest local setup',
-        '  skytest local up',
+        '  skytest local up [-d|--detach] [--timeout-ms <ms>]',
         '  skytest local down',
         '  skytest local status',
         '  skytest local update',
@@ -68,7 +68,11 @@ async function main(): Promise<void> {
     }
 
     if (command.kind === 'local') {
-        await runLocalCommandGroup({ action: command.action });
+        await runLocalCommandGroup({
+            action: command.action,
+            detach: command.detach,
+            timeoutMs: command.timeoutMs,
+        });
         return;
     }
 

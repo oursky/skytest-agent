@@ -28,6 +28,23 @@ describe('parseSkytestCliCommand', () => {
         });
     });
 
+    it('parses local up command with detach flag', () => {
+        expect(parseSkytestCliCommand(['local', 'up', '-d'])).toEqual({
+            kind: 'local',
+            action: 'up',
+            detach: true,
+        });
+    });
+
+    it('parses local up command with detach timeout', () => {
+        expect(parseSkytestCliCommand(['local', 'up', '--detach', '--timeout-ms', '120000'])).toEqual({
+            kind: 'local',
+            action: 'up',
+            detach: true,
+            timeoutMs: 120000,
+        });
+    });
+
     it('parses local down command', () => {
         expect(parseSkytestCliCommand(['local', 'down'])).toEqual({
             kind: 'local',
@@ -56,6 +73,11 @@ describe('parseSkytestCliCommand', () => {
     it('rejects local subcommand with extra args', () => {
         expect(() => parseSkytestCliCommand(['local', 'status', '--json']))
             .toThrow('Unknown argument(s) for `local status`: --json');
+    });
+
+    it('rejects invalid local up timeout', () => {
+        expect(() => parseSkytestCliCommand(['local', 'up', '--timeout-ms', 'abc']))
+            .toThrow('`--timeout-ms` must be a positive integer.');
     });
 
     it('rejects unknown init arguments', () => {

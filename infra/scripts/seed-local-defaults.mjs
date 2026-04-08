@@ -305,7 +305,7 @@ async function main() {
     const seedEmail = readEnv('SKYTEST_LOCAL_SEED_EMAIL', 'local-dev@skytest.local');
     const seedPassword = readEnv('SKYTEST_LOCAL_SEED_PASSWORD', 'Abcd1234');
     const seedTeamName = readEnv('SKYTEST_LOCAL_SEED_TEAM_NAME', 'Local Team');
-    const case-studyProjectName = readEnv('SKYTEST_LOCAL_SEED_PROJECT_NAME', 'Case Study App');
+    const caseStudyProjectName = readEnv('SKYTEST_LOCAL_SEED_PROJECT_NAME', 'Case Study App');
 
     if (!process.env.DATABASE_URL) {
         throw new Error('DATABASE_URL is required for local seed bootstrap');
@@ -325,7 +325,7 @@ async function main() {
         authId,
         email: seedEmail,
         teamName: seedTeamName,
-        projectName: case-studyProjectName,
+        projectName: caseStudyProjectName,
     });
 
     console.log('[local-seed] ensured default account + ownership');

@@ -4,7 +4,12 @@ export type SkytestCliCommand =
     | { kind: 'help' }
     | { kind: 'version' }
     | { kind: 'init' }
-    | { kind: 'local'; action: 'setup' | 'up' | 'down' | 'status' | 'update' }
+    | {
+        kind: 'local';
+        action: 'setup' | 'up' | 'down' | 'status' | 'update';
+        detach?: boolean;
+        timeoutMs?: number;
+    }
     | { kind: 'pair-runner'; pairingToken: string; label?: string; controlPlaneBaseUrl?: string; autoStart: boolean }
     | { kind: 'start-runner'; runnerId: string; repairPairingToken?: string }
     | { kind: 'stop-runner'; runnerId: string }
@@ -423,14 +428,63 @@ export function parseSkytestCliCommand(args: string[]): SkytestCliCommand {
         }
 
         const extraArgs = args.slice(2);
-        if (extraArgs.length > 0) {
+        if (action !== 'up') {
+            if (extraArgs.length > 0) {
+                throw new Error(`Unknown argument(s) for \`local ${action}\`: ${extraArgs.join(', ')}`);
+            }
+
+            return {
+                kind: 'local',
+                action,
+            };
+        }
+
+        let detach = false;
+        let timeoutMs: number | undefined;
+        for (let index = 0; index < extraArgs.length; index += 1) {
+            const token = extraArgs[index];
+
+            if (token === '-d' || token === '--detach') {
+                detach = true;
+                continue;
+            }
+
+            if (token === '--timeout-ms') {
+                const value = extraArgs[index + 1];
+                if (!value) {
+                    throw new Error('Missing value for `--timeout-ms`.');
+                }
+                const parsed = Number.parseInt(value, 10);
+                if (!Number.isInteger(parsed) || parsed <= 0) {
+                    throw new Error('`--timeout-ms` must be a positive integer.');
+                }
+                timeoutMs = parsed;
+                index += 1;
+                continue;
+            }
+
             throw new Error(`Unknown argument(s) for \`local ${action}\`: ${extraArgs.join(', ')}`);
         }
 
-        return {
+        const parsedLocalCommand: {
+            kind: 'local';
+            action: 'up';
+            detach?: boolean;
+            timeoutMs?: number;
+        } = {
             kind: 'local',
             action,
         };
+
+        if (detach) {
+            parsedLocalCommand.detach = true;
+        }
+
+        if (typeof timeoutMs === 'number') {
+            parsedLocalCommand.timeoutMs = timeoutMs;
+        }
+
+        return parsedLocalCommand;
     }
 
     if (args[0] === 'reset') {

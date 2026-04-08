@@ -127,4 +127,49 @@ describe('runLocalCommandGroup', () => {
         expect(logSpy).toHaveBeenCalledWith('- Maintenance worker: not running');
         expect(logSpy).toHaveBeenCalledWith('- Browser worker: running');
     });
+
+    it('parses detached up flow and starts in background', async () => {
+        execFileMock.mockImplementation((command, args, _options, callback) => {
+            if (command === 'sh' && Array.isArray(args) && args[0] === '-c') {
+                const script = args[1];
+
+                if (script.includes('nohup make dev')) {
+                    (callback as ExecFileCallback)(null, '54321\n');
+                    return {} as never;
+                }
+
+                if (script.includes('curl -fsS http://127.0.0.1:3000/api/health/live')) {
+                    (callback as ExecFileCallback)(null, 'ok\n');
+                    return {} as never;
+                }
+
+                if (script.includes('next dev --hostname')) {
+                    (callback as ExecFileCallback)(null, 'next running\n');
+                    return {} as never;
+                }
+
+                if (script.includes('runner:maintenance')) {
+                    (callback as ExecFileCallback)(null, 'maintenance running\n');
+                    return {} as never;
+                }
+
+                if (script.includes('browser:worker')) {
+                    (callback as ExecFileCallback)(null, 'worker running\n');
+                    return {} as never;
+                }
+
+                if (script.includes('kill -0')) {
+                    (callback as ExecFileCallback)(null, '');
+                    return {} as never;
+                }
+            }
+
+            (callback as ExecFileCallback)(null, '');
+            return {} as never;
+        });
+
+        await runLocalCommandGroup({ action: 'up', detach: true, timeoutMs: 1000 });
+
+        expect(execFileMock.mock.calls.some((call) => call[0] === 'sh' && Array.isArray(call[1]) && String(call[1][1]).includes('nohup make dev'))).toBe(true);
+    });
 });

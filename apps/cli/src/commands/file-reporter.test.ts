@@ -29,9 +29,9 @@ describe('file-reporter', () => {
             runId: 'run-123',
             reportDir: tempRoot,
             sessionLabel: '20260408-141500',
-            caseId: 'HAN-T11',
+            caseId: 'CASE-A01',
             summary: {
-                displayId: 'HAN-T11',
+                displayId: 'CASE-A01',
                 status: 'PASS',
                 completedAt: '2026-04-08T14:15:10.000Z',
                 error: null,
@@ -48,7 +48,7 @@ describe('file-reporter', () => {
         });
 
         expect(report.sessionDirectory).toBe(path.join(tempRoot, '20260408-141500'));
-        expect(report.runDirectory).toContain(path.join('20260408-141500', 'HAN-T11'));
+        expect(report.runDirectory).toContain(path.join('20260408-141500', 'CASE-A01'));
         expect(report.screenshotCount).toBe(2);
 
         await stat(report.resultFile);
@@ -62,13 +62,13 @@ describe('file-reporter', () => {
             eventCounts: Record<string, number>;
         };
         expect(jsonContent.sessionLabel).toBe('20260408-141500');
-        expect(jsonContent.caseId).toBe('HAN-T11');
+        expect(jsonContent.caseId).toBe('CASE-A01');
         expect(jsonContent.screenshotFiles.length).toBe(2);
         expect(jsonContent.eventCounts.screenshot).toBe(3);
 
         const markdownContent = await readFile(report.markdownFile, 'utf8');
         expect(markdownContent).toContain('# SkyTest Run Report');
-        expect(markdownContent).toContain('- Case ID: HAN-T11');
+        expect(markdownContent).toContain('- Case ID: CASE-A01');
         expect(markdownContent).toContain('## Screenshot Files');
 
         expect(fetchMock).toHaveBeenCalledTimes(2);
