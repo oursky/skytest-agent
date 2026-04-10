@@ -7,10 +7,10 @@
     "packages/*"
   ],
   "overrides": {
-    "@hono/node-server": "1.19.11",
-    "@modelcontextprotocol/sdk": "1.27.1",
+    "@hono/node-server": "1.19.13",
+    "@modelcontextprotocol/sdk": "1.29.0",
     "dompurify": "3.3.2",
-    "hono": "4.12.7",
+    "hono": "4.12.12",
     "@midscene/android": {
       "appium-adb": "12.13.0"
     },
