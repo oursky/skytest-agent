@@ -1,5 +1,6 @@
 import { printTable, printValue, type OutputFormat } from './output';
 import { runTestCase } from './run-test-case';
+import { createReportSessionLabel, writeRunFileReport } from './file-reporter';
 import {
     parseJsonResponse,
     resolveAuthToken,
@@ -17,6 +18,8 @@ interface RunProjectOptions {
     syncRoot?: string;
     wait: boolean;
     timeoutMs: number;
+    reporter: 'console' | 'file';
+    reportDir?: string;
     format: OutputFormat;
 }
 
@@ -24,6 +27,43 @@ interface ProjectTestCaseSummary {
     id: string;
     displayId: string;
     name: string;
+}
+
+interface RunDetailResponse {
+    id: string;
+    status: string;
+    error?: string | null;
+    completedAt?: string | null;
+    files?: unknown;
+    events?: unknown;
+}
+
+interface ProjectRunResult {
+    displayId: string;
+    runId: string;
+    status: string;
+    error?: string | null;
+}
+
+interface FileReportEntry {
+    displayId: string;
+    runId: string;
+    sessionDirectory: string;
+    resultFile: string;
+    markdownFile: string;
+    screenshotsDirectory: string;
+    screenshotCount: number;
+}
+
+interface ProjectRunSummary {
+    projectId: string;
+    wait: boolean;
+    runCount: number;
+    results: ProjectRunResult[];
+    reporter?: {
+        type: 'file';
+        reports: FileReportEntry[];
+    };
 }
 
 async function listProjectTestCases(
@@ -38,13 +78,11 @@ async function listProjectTestCases(
         },
     });
 
-    const payload = await parseJsonResponse<Array<{
+    return await parseJsonResponse<Array<{
         id: string;
         displayId: string;
         name: string;
     }>>(response, 'List project test cases');
-
-    return payload;
 }
 
 function selectDisplayIds(allCases: ProjectTestCaseSummary[], requestedDisplayIds: string[]): string[] {
@@ -63,17 +101,52 @@ function selectDisplayIds(allCases: ProjectTestCaseSummary[], requestedDisplayId
     return requestedDisplayIds;
 }
 
-export async function runProject(options: RunProjectOptions): Promise<{
-    projectId: string;
+async function fetchRunDetail(baseUrl: string, authToken: string, runId: string): Promise<RunDetailResponse> {
+    const response = await fetch(`${baseUrl}/api/test-runs/${encodeURIComponent(runId)}`, {
+        method: 'GET',
+        headers: {
+            Authorization: `Bearer ${authToken}`,
+        },
+    });
+
+    return await parseJsonResponse<RunDetailResponse>(response, 'Fetch run detail');
+}
+
+async function maybeWriteFileReport(options: {
+    reporter: 'console' | 'file';
     wait: boolean;
-    runCount: number;
-    results: Array<{
-        displayId: string;
-        runId: string;
-        status: string;
-        error?: string | null;
-    }>;
-}> {
+    reportDir?: string;
+    reportSessionLabel?: string;
+    baseUrl: string;
+    authToken: string;
+    runResult: ProjectRunResult;
+}): Promise<FileReportEntry | null> {
+    if (!options.wait || options.reporter !== 'file') {
+        return null;
+    }
+
+    const detail = await fetchRunDetail(options.baseUrl, options.authToken, options.runResult.runId);
+    const report = await writeRunFileReport({
+        runId: options.runResult.runId,
+        reportDir: options.reportDir,
+        sessionLabel: options.reportSessionLabel,
+        caseId: options.runResult.displayId,
+        summary: options.runResult,
+        detail,
+    });
+
+    return {
+        displayId: options.runResult.displayId,
+        runId: options.runResult.runId,
+        sessionDirectory: report.sessionDirectory,
+        resultFile: report.resultFile,
+        markdownFile: report.markdownFile,
+        screenshotsDirectory: report.screenshotsDirectory,
+        screenshotCount: report.screenshotCount,
+    };
+}
+
+export async function runProject(options: RunProjectOptions): Promise<ProjectRunSummary> {
     const baseUrl = resolveBaseUrl(options.controlPlaneBaseUrl);
     const authToken = resolveAuthToken(options.authToken);
 
@@ -90,12 +163,11 @@ export async function runProject(options: RunProjectOptions): Promise<{
         throw new Error(`No runnable test cases found in project ${options.projectId}.`);
     }
 
-    const runResults: Array<{
-        displayId: string;
-        runId: string;
-        status: string;
-        error?: string | null;
-    }> = [];
+    const runResults: ProjectRunResult[] = [];
+    const reportEntries: FileReportEntry[] = [];
+    const reportSessionLabel = options.wait && options.reporter === 'file'
+        ? createReportSessionLabel()
+        : undefined;
 
     const effectiveConcurrency = Math.max(1, options.concurrency ?? 1);
 
@@ -110,27 +182,38 @@ export async function runProject(options: RunProjectOptions): Promise<{
                 syncRoot: options.syncRoot,
                 wait: options.wait,
                 timeoutMs: options.timeoutMs,
+                reporter: options.reporter,
+                reportDir: options.reportDir,
                 format: options.format,
             });
 
-            runResults.push({
+            const normalizedResult: ProjectRunResult = {
                 displayId: runResult.displayId,
                 runId: runResult.runId,
                 status: runResult.status,
                 error: runResult.error ?? null,
+            };
+            runResults.push(normalizedResult);
+
+            const reportEntry = await maybeWriteFileReport({
+                reporter: options.reporter,
+                wait: options.wait,
+                reportDir: options.reportDir,
+                reportSessionLabel,
+                baseUrl,
+                authToken,
+                runResult: normalizedResult,
             });
+            if (reportEntry) {
+                reportEntries.push(reportEntry);
+            }
 
             if (options.wait && runResult.status !== 'PASS') {
                 break;
             }
         }
     } else {
-        const resultsByIndex: Array<{
-            displayId: string;
-            runId: string;
-            status: string;
-            error?: string | null;
-        } | null> = new Array(displayIds.length).fill(null);
+        const resultsByIndex: Array<ProjectRunResult | null> = new Array(displayIds.length).fill(null);
         let nextIndex = 0;
         let shouldStopDispatch = false;
 
@@ -156,6 +239,8 @@ export async function runProject(options: RunProjectOptions): Promise<{
                     syncRoot: options.syncRoot,
                     wait: options.wait,
                     timeoutMs: options.timeoutMs,
+                    reporter: options.reporter,
+                    reportDir: options.reportDir,
                     format: options.format,
                 });
 
@@ -181,18 +266,41 @@ export async function runProject(options: RunProjectOptions): Promise<{
                 break;
             }
             runResults.push(result);
+
+            const reportEntry = await maybeWriteFileReport({
+                reporter: options.reporter,
+                wait: options.wait,
+                reportDir: options.reportDir,
+                reportSessionLabel,
+                baseUrl,
+                authToken,
+                runResult: result,
+            });
+            if (reportEntry) {
+                reportEntries.push(reportEntry);
+            }
+
             if (options.wait && result.status !== 'PASS') {
                 break;
             }
         }
     }
 
-    return {
+    const summary: ProjectRunSummary = {
         projectId: options.projectId,
         wait: options.wait,
         runCount: runResults.length,
         results: runResults,
     };
+
+    if (options.wait && options.reporter === 'file') {
+        summary.reporter = {
+            type: 'file',
+            reports: reportEntries,
+        };
+    }
+
+    return summary;
 }
 
 export async function runRunProjectCommand(options: RunProjectOptions): Promise<void> {
@@ -208,6 +316,15 @@ export async function runRunProjectCommand(options: RunProjectOptions): Promise<
             result.error ? result.error : '-',
         ]);
         printTable(['DISPLAY ID', 'STATUS', 'RUN ID', 'ERROR'], rows);
+
+        if (summary.reporter?.type === 'file') {
+            for (const report of summary.reporter.reports) {
+                printValue(
+                    `${report.displayId} (${report.runId})\n  session: ${report.sessionDirectory}\n  json: ${report.resultFile}\n  md: ${report.markdownFile}\n  screenshots: ${report.screenshotCount} @ ${report.screenshotsDirectory}`,
+                    options.format,
+                );
+            }
+        }
     }
 
     if (options.wait) {

@@ -25,6 +25,23 @@ make bootstrap
 make dev
 ```
 
+SkyTest CLI also exposes local lifecycle wrappers for these workflows:
+
+```bash
+npm run skytest -- local setup
+npm run skytest -- local up
+npm run skytest -- local up -d
+npm run skytest -- local status
+npm run skytest -- local down
+```
+
+- `skytest local setup` runs bootstrap (`make bootstrap`) and then `skytest init`.
+- `skytest local up` runs `make dev` in foreground.
+- `skytest local up -d` starts `make dev` in background and waits for full readiness (health endpoint + app + maintenance worker + browser worker), then returns.
+- `skytest local status` checks compose services and key local processes.
+- `skytest local down` runs runner reset and then stops compose services.
+- `skytest local update` is the post-`git pull` refresh flow (install, services up, DB setup, Playwright ensure, seed defaults, init).
+
 `make dev` does all of the following:
 
 - starts Postgres and MinIO from `infra/docker/docker-compose.local.yml`

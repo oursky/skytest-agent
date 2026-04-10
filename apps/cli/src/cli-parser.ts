@@ -4,6 +4,12 @@ export type SkytestCliCommand =
     | { kind: 'help' }
     | { kind: 'version' }
     | { kind: 'init' }
+    | {
+        kind: 'local';
+        action: 'setup' | 'up' | 'down' | 'status' | 'update';
+        detach?: boolean;
+        timeoutMs?: number;
+    }
     | { kind: 'pair-runner'; pairingToken: string; label?: string; controlPlaneBaseUrl?: string; autoStart: boolean }
     | { kind: 'start-runner'; runnerId: string; repairPairingToken?: string }
     | { kind: 'stop-runner'; runnerId: string }
@@ -23,6 +29,8 @@ export type SkytestCliCommand =
         syncRoot?: string;
         wait: boolean;
         timeoutMs: number;
+        reporter: 'console' | 'file';
+        reportDir?: string;
         format: 'text' | 'json';
     }
     | {
@@ -36,6 +44,8 @@ export type SkytestCliCommand =
         concurrency: number;
         wait: boolean;
         timeoutMs: number;
+        reporter: 'console' | 'file';
+        reportDir?: string;
         format: 'text' | 'json';
     };
 
@@ -47,6 +57,8 @@ interface ParsedRunOptions {
     syncRoot?: string;
     wait: boolean;
     timeoutMs: number;
+    reporter: 'console' | 'file';
+    reportDir?: string;
     format: 'text' | 'json';
 }
 
@@ -177,6 +189,8 @@ function parseRunOptions(args: string[]): ParsedRunOptions {
     let syncRoot: string | undefined;
     let wait = true;
     let timeoutMs = 600000;
+    let reporter: 'console' | 'file' = 'console';
+    let reportDir: string | undefined;
     let format: 'text' | 'json' = 'text';
 
     for (let index = 0; index < args.length; index += 1) {
@@ -256,6 +270,26 @@ function parseRunOptions(args: string[]): ParsedRunOptions {
             continue;
         }
 
+        if (token === '--reporter') {
+            const value = args[index + 1];
+            if (value !== 'console' && value !== 'file') {
+                throw new Error('Expected `console` or `file` after `--reporter`.');
+            }
+            reporter = value;
+            index += 1;
+            continue;
+        }
+
+        if (token === '--report-dir') {
+            const value = args[index + 1];
+            if (!value || value.startsWith('--')) {
+                throw new Error('Missing value for `--report-dir`.');
+            }
+            reportDir = value;
+            index += 1;
+            continue;
+        }
+
         if (token === '--json') {
             format = 'json';
             continue;
@@ -284,6 +318,7 @@ function parseRunOptions(args: string[]): ParsedRunOptions {
         authToken,
         wait,
         timeoutMs,
+        reporter,
         format,
     };
 
@@ -293,6 +328,10 @@ function parseRunOptions(args: string[]): ParsedRunOptions {
 
     if (syncRoot) {
         parsed.syncRoot = syncRoot;
+    }
+
+    if (reportDir) {
+        parsed.reportDir = reportDir;
     }
 
     return parsed;
@@ -376,6 +415,76 @@ export function parseSkytestCliCommand(args: string[]): SkytestCliCommand {
             throw new Error(`Unknown argument(s) for \`init\`: ${args.slice(1).join(', ')}`);
         }
         return { kind: 'init' };
+    }
+
+    if (args[0] === 'local') {
+        const action = args[1];
+        if (!action || isHelpFlag(action)) {
+            throw new Error('Usage: skytest local <setup|up|down|status|update>');
+        }
+
+        if (action !== 'setup' && action !== 'up' && action !== 'down' && action !== 'status' && action !== 'update') {
+            throw new Error(`Unknown local subcommand: ${action}`);
+        }
+
+        const extraArgs = args.slice(2);
+        if (action !== 'up') {
+            if (extraArgs.length > 0) {
+                throw new Error(`Unknown argument(s) for \`local ${action}\`: ${extraArgs.join(', ')}`);
+            }
+
+            return {
+                kind: 'local',
+                action,
+            };
+        }
+
+        let detach = false;
+        let timeoutMs: number | undefined;
+        for (let index = 0; index < extraArgs.length; index += 1) {
+            const token = extraArgs[index];
+
+            if (token === '-d' || token === '--detach') {
+                detach = true;
+                continue;
+            }
+
+            if (token === '--timeout-ms') {
+                const value = extraArgs[index + 1];
+                if (!value) {
+                    throw new Error('Missing value for `--timeout-ms`.');
+                }
+                const parsed = Number.parseInt(value, 10);
+                if (!Number.isInteger(parsed) || parsed <= 0) {
+                    throw new Error('`--timeout-ms` must be a positive integer.');
+                }
+                timeoutMs = parsed;
+                index += 1;
+                continue;
+            }
+
+            throw new Error(`Unknown argument(s) for \`local ${action}\`: ${extraArgs.join(', ')}`);
+        }
+
+        const parsedLocalCommand: {
+            kind: 'local';
+            action: 'up';
+            detach?: boolean;
+            timeoutMs?: number;
+        } = {
+            kind: 'local',
+            action,
+        };
+
+        if (detach) {
+            parsedLocalCommand.detach = true;
+        }
+
+        if (typeof timeoutMs === 'number') {
+            parsedLocalCommand.timeoutMs = timeoutMs;
+        }
+
+        return parsedLocalCommand;
     }
 
     if (args[0] === 'reset') {

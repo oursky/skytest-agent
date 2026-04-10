@@ -17,6 +17,14 @@ catalog:
   exclude: []
 `;
 
+const SKYTEST_GITIGNORE_TEMPLATE = `# Local instance lock
+instance.lock.yaml
+
+# Local run artifacts and generated reports
+artifacts/
+results/
+`;
+
 function deriveInstanceType(cwd: string): 'root' | 'worktree' {
     return cwd.includes(`${path.sep}.git${path.sep}worktrees${path.sep}`) ? 'worktree' : 'root';
 }
@@ -60,11 +68,13 @@ export async function runInitCommand(): Promise<void> {
     const testsDir = path.join(skytestDir, 'tests');
     const runtimeConfigPath = path.join(skytestDir, 'skytest.yaml');
     const instanceLockPath = path.join(skytestDir, 'instance.lock.yaml');
+    const gitignorePath = path.join(skytestDir, '.gitignore');
 
     await mkdir(testsDir, { recursive: true });
 
     const createdRuntimeConfig = await ensureFile(runtimeConfigPath, RUNTIME_CONFIG_TEMPLATE);
     const createdInstanceLock = await ensureFile(instanceLockPath, buildInstanceLockYaml(cwd));
+    const createdGitignore = await ensureFile(gitignorePath, SKYTEST_GITIGNORE_TEMPLATE);
 
     const messages: string[] = ['Initialized .skytest workspace'];
     messages.push(
@@ -76,6 +86,11 @@ export async function runInitCommand(): Promise<void> {
         createdInstanceLock
             ? `Created ${path.relative(cwd, instanceLockPath)}`
             : `Kept existing ${path.relative(cwd, instanceLockPath)}`
+    );
+    messages.push(
+        createdGitignore
+            ? `Created ${path.relative(cwd, gitignorePath)}`
+            : `Kept existing ${path.relative(cwd, gitignorePath)}`
     );
 
     console.log(messages.join('\n'));

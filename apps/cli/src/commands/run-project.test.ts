@@ -46,6 +46,7 @@ describe('runProject auto-sync behavior', () => {
             authToken: 'sk_test_abc',
             wait: false,
             timeoutMs: 6000,
+            reporter: 'console',
             format: 'json',
         });
 
@@ -98,6 +99,7 @@ describe('runProject auto-sync behavior', () => {
             syncBeforeRun: false,
             wait: false,
             timeoutMs: 6000,
+            reporter: 'console',
             format: 'json',
         });
 
@@ -165,6 +167,7 @@ describe('runProject auto-sync behavior', () => {
             authToken: 'sk_test_abc',
             wait: false,
             timeoutMs: 6000,
+            reporter: 'console',
             format: 'json',
             concurrency: 2,
         });
