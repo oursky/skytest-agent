@@ -16,7 +16,7 @@ on:
 
 jobs:
   runner-claim-load-gate:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, v1]
     services:
       postgres:
         image: postgres:16
@@ -212,7 +212,7 @@ jobs:
           tail -n 120 /tmp/skytest-load-gate.log || true
 
   browser-run-load-gate:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, v1]
     services:
       postgres:
         image: postgres:16
