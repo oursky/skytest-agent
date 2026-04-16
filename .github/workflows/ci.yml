@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   checks:
-    runs-on: [self-hosted, linux, x64, v1]
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,7 +33,7 @@ jobs:
         run: npm test
 
   migration-safety:
-    runs-on: [self-hosted, linux, x64, v1]
+    runs-on: ubuntu-latest
     services:
       postgres:
         image: postgres:16

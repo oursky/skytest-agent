@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   release-macos:
-    runs-on: [self-hosted, linux, x64, v1]
+    runs-on: ubuntu-latest
     env:
       HOMEBREW_TAP_REPO: ${{ vars.HOMEBREW_TAP_REPO }}
     steps:
