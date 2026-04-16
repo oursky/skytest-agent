@@ -8,9 +8,13 @@
   ],
   "overrides": {
     "@hono/node-server": "1.19.13",
-    "@modelcontextprotocol/sdk": "1.29.0",
-    "dompurify": "3.3.2",
-    "hono": "4.12.12",
+    "@modelcontextprotocol/sdk": {
+      ".": "1.29.0",
+      "hono": "4.12.14"
+    },
+    "dompurify": "3.4.0",
+    "hono": "4.12.14",
+    "follow-redirects": "1.16.0",
     "@midscene/android": {
       "appium-adb": "12.13.0"
     },
@@ -21,7 +25,10 @@
     "undici": "6.24.1",
     "ajv@8.17.1": "8.18.0",
     "ajv@^6.12.4": "6.14.0",
-    "axios": "1.15.0",
+    "axios": {
+      ".": "1.15.0",
+      "follow-redirects": "1.16.0"
+    },
     "form-data@4.0.2": "4.0.4",
     "basic-ftp": "5.2.2",
     "glob@10.4.5": "10.5.0",
@@ -39,6 +46,10 @@
       "fast-xml-parser": "5.5.7"
     },
     "fast-xml-parser": "5.5.7",
+    "monaco-editor": {
+      ".": "0.55.1",
+      "dompurify": "3.4.0"
+    },
     "@xmldom/xmldom": "0.8.12",
     "flatted": "3.4.2",
     "socket.io-parser": "4.2.6",
