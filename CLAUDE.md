@@ -89,6 +89,8 @@ apps/web/src/
 | Fix API route auth/access guards | `apps/web/src/lib/security/team-route-access.ts` | `apps/web/src/lib/security/project-route-access.ts`, `apps/web/src/lib/security/test-case-route-access.ts`, `apps/web/src/lib/security/api-route-standards.ts` |
 | Fix MCP tooling | `apps/web/src/lib/mcp/server-registry.ts` | `apps/web/src/lib/mcp/server-tools.ts`, `apps/web/src/lib/mcp/server-schemas.ts`, `apps/web/src/lib/mcp/server-auth.ts`, `apps/web/src/lib/mcp/server-response.ts`, `apps/web/src/lib/mcp/test-case-mutation-tools.ts`, `apps/web/src/app/api/mcp/route.ts` |
 | Change DB schema | `apps/web/prisma/schema.prisma` | `apps/web/src/types/`, `apps/web/src/lib/core/prisma.ts` |
+| Fix dependency security regressions | `apps/web/scripts/security/check-locked-min-versions.mjs` | `package.json`, `apps/web/package.json`, `apps/web/scripts/quality/check-overrides-drift.mjs`, `docs/maintainers/dependency-upgrade-protocol.md` |
+| Attribute a verify failure | `apps/web/scripts/quality/explain-verify-failure.mjs` | `docs/maintainers/agent-session-rules.md` |
 
 ## Tech Stack
 - Next.js 16 (App Router), React 19, TailwindCSS 4
@@ -96,9 +98,11 @@ apps/web/src/
 - Playwright 1.57, Midscene.js
 
 ## Docs To Read First
+- `docs/maintainers/agent-session-rules.md` - Session rules for Claude and Codex (verify attribution, hotspot awareness, override workflow, force-push protocol)
 - `docs/README.md` - Documentation index and audience split
 - `infra/README.md` - Local infra topology and shared deployment dependencies
 - `docs/maintainers/coding-agent-maintenance-guide.md` - Runtime invariants and common footguns
+- `docs/maintainers/dependency-upgrade-protocol.md` - Reproducer-first workflow for npm overrides and CVE patching
 - `docs/maintainers/android-runtime-maintenance.md` - Android runtime behavior and isolation model
 - `docs/maintainers/runner-queue-diagnostics.md` - Queue debugging and failure tracing
 - `docs/maintainers/frontend-runtime-debugging.md` - Frontend/runtime integration debugging
@@ -154,6 +158,7 @@ If changing operator-facing runtime behavior, also read:
 - `npm run lint` - Run ESLint and TypeScript compile checks
 - `npm run audit` - Audit lockfile dependencies for moderate/high/critical vulnerabilities
 - `npm run verify` - Run lint and audit checks
+- `npm run --workspace @skytest/web verify:explain` - Run verify and attribute any failure to its checker
 - `npx prisma studio --schema apps/web/prisma/schema.prisma` - Open DB GUI
 - `npx prisma migrate deploy --schema apps/web/prisma/schema.prisma` - Apply committed migrations
 
