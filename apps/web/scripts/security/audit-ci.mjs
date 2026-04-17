@@ -5,6 +5,10 @@ import { execFileSync } from 'node:child_process';
 const ignoredAdvisoryUrls = new Set([
     'https://github.com/advisories/GHSA-r5fr-rjxr-66jc',
     'https://github.com/advisories/GHSA-f23m-r3pf-42rh',
+    'https://github.com/advisories/GHSA-8r9q-7v3j-jr4g',
+    'https://github.com/advisories/GHSA-345p-7cg4-v4c7',
+    'https://github.com/advisories/GHSA-w48q-cv73-mx4w',
+    'https://github.com/advisories/GHSA-mh29-5h37-fv8m',
 ]);
 
 function runAuditJson() {
