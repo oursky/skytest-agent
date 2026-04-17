@@ -1,0 +1,18 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Paths excluded from secret scanning (vendored deps, build artifacts, lockfiles)."
+paths = [
+    '''(^|/)node_modules/''',
+    '''(^|/)\.next/''',
+    '''(^|/)\.turbo/''',
+    '''(^|/)\.cache/''',
+    '''(^|/)dist/''',
+    '''(^|/)build/''',
+    '''(^|/)out/''',
+    '''(^|/)coverage/''',
+    '''(^|/)test-results/''',
+    '''(^|/)playwright-report/''',
+    '''(^|/)package-lock\.json$''',
+]

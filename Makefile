@@ -29,7 +29,9 @@ COMPOSE_ARGS := -f $(COMPOSE_FILE) $(if $(COMPOSE_EXTRA_FILE),-f $(COMPOSE_EXTRA
 	seed-local-defaults \
 	bootstrap \
 	dev \
-	verify
+	verify \
+	scan-secrets \
+	scan-secrets-ensure
 
 help: ## Show available targets
 	@awk 'BEGIN {FS = ": ## "}; /^[A-Za-z0-9_.-]+: ## / {printf "%-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -97,6 +99,7 @@ seed-local-defaults: ## Seed local default Authgear user + owner team/project fo
 bootstrap: ## Install deps, start local services, and apply committed migrations
 	$(MAKE) install
 	$(MAKE) playwright-ensure
+	$(MAKE) scan-secrets-ensure
 	$(MAKE) services-up
 	$(MAKE) db-setup
 	$(MAKE) seed-local-defaults
@@ -121,5 +124,27 @@ dev: ## Boot local services, apply committed migrations, and start the web app w
 	wait $$BROWSER_WORKER_PID 2>/dev/null || true; \
 	exit $$EXIT_CODE
 
-verify: ## Run lint, TypeScript compile, and dependency audit
+verify: ## Run lint, TypeScript compile, dependency audit, and secret scan
 	$(NODE_PM) run verify
+	$(MAKE) scan-secrets
+
+scan-secrets-ensure: ## Install gitleaks matching .gitleaks-version if missing
+	@if command -v gitleaks >/dev/null 2>&1; then \
+		exit 0; \
+	fi; \
+	VERSION="$$(cat .gitleaks-version)"; \
+	if command -v brew >/dev/null 2>&1; then \
+		echo "Installing gitleaks via brew (pinned: $$VERSION; brew may install latest)..."; \
+		brew install gitleaks; \
+	else \
+		echo "gitleaks not installed. Install $$VERSION from https://github.com/gitleaks/gitleaks/releases" >&2; \
+		exit 1; \
+	fi
+
+scan-secrets: scan-secrets-ensure ## Run gitleaks secret scan (matches CI)
+	gitleaks detect \
+		--source . \
+		--config .gitleaks.toml \
+		--no-git \
+		--redact \
+		--exit-code 1
