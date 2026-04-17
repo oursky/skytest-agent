@@ -142,6 +142,7 @@ export const ZH_HANS_MESSAGES: Messages = {
   "team.ai.apiKey.invalid.empty": "API Key 为必填",
   "team.ai.apiKey.invalid.tooShort": "API Key 长度至少需 8 个字符",
   "team.ai.apiKey.invalid.nonAscii": "API Key 仅能使用可见 ASCII 字符（不能有空格、换行或 emoji）",
+  "team.ai.apiKey.storedInvalid": "该团队存储的 AI 密钥格式无效。请重新保存后再运行测试。",
   "team.ai.save": "保存",
   "team.ai.saving": "保存中…",
   "team.ai.remove": "移除密钥",

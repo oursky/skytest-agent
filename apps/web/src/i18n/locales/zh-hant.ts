@@ -142,6 +142,7 @@ export const ZH_HANT_MESSAGES: Messages = {
   "team.ai.apiKey.invalid.empty": "API Key 為必填",
   "team.ai.apiKey.invalid.tooShort": "API Key 長度至少需 8 個字元",
   "team.ai.apiKey.invalid.nonAscii": "API Key 僅能使用可見 ASCII 字元（不可有空白、換行或 emoji）",
+  "team.ai.apiKey.storedInvalid": "此團隊儲存的 AI 金鑰格式無效。請重新儲存後再執行測試。",
   "team.ai.save": "儲存",
   "team.ai.saving": "儲存中…",
   "team.ai.remove": "移除金鑰",

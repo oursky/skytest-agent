@@ -142,6 +142,7 @@ export const EN_MESSAGES: Messages = {
   "team.ai.apiKey.invalid.empty": "API key is required",
   "team.ai.apiKey.invalid.tooShort": "API key must be at least 8 characters",
   "team.ai.apiKey.invalid.nonAscii": "API key must use visible ASCII characters only (no spaces, newlines, or emojis)",
+  "team.ai.apiKey.storedInvalid": "This team's AI key is stored in an invalid format. Re-save it to continue running tests.",
   "team.ai.save": "Save",
   "team.ai.saving": "Saving...",
   "team.ai.remove": "Remove key",

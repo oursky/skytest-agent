@@ -25,6 +25,8 @@ interface TeamAiState {
     hasKey: boolean;
     maskedKey: string | null;
     updatedAt: string | null;
+    keyInvalid: boolean;
+    keyInvalidReason: AiApiKeyInvalidReason | null;
     providerConfig: {
         provider: TeamAiProvider;
         baseUrl: string | null;
@@ -136,6 +138,8 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
         hasKey: false,
         maskedKey: null,
         updatedAt: null,
+        keyInvalid: false,
+        keyInvalidReason: null,
         providerConfig: {
             provider: DEFAULT_PROVIDER,
             baseUrl: null,
@@ -353,6 +357,12 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
             {notice ? (
                 <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                     {notice}
+                </div>
+            ) : null}
+
+            {state.keyInvalid ? (
+                <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {t('team.ai.apiKey.storedInvalid')}
                 </div>
             ) : null}
 
