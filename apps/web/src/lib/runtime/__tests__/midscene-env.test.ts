@@ -73,13 +73,19 @@ describe('buildMidsceneModelConfig', () => {
         expect(config.MIDSCENE_MODEL_FAMILY).toBe('gemini');
     });
 
+    it('maps qwen model family to qwen3.6', () => {
+        const config = buildMidsceneModelConfig('test-key', { mainModel: 'qwen/qwen3.6-plus' });
+
+        expect(config.MIDSCENE_MODEL_FAMILY).toBe('qwen3.6');
+    });
+
     it('uses explicit model family options when provided', () => {
         const config = buildMidsceneModelConfig('test-key', {
             mainModel: 'google/gemini-2.0-flash-001',
             mainModelFamily: 'custom-main',
-            planningModel: 'qwen/qwen3.5-27b',
+            planningModel: 'qwen/qwen3.6-plus',
             planningModelFamily: 'custom-plan',
-            insightModel: 'qwen/qwen3.5-27b',
+            insightModel: 'qwen/qwen3.6-plus',
             insightModelFamily: 'custom-insight',
         });
 

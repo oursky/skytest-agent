@@ -15,11 +15,11 @@ export const MIDSCENE_MODEL_DEFAULTS: {
     temperature: number;
 } = {
     baseUrl: 'https://openrouter.ai/api/v1',
-    mainModel: 'google/gemini-3.1-flash-lite-preview',
-    mainModelFamily: 'gemini',
-    planningModel: 'qwen/qwen3.5-27b',
-    planningModelFamily: 'qwen3.5',
-    insightModel: 'qwen/qwen3.5-27b',
-    insightModelFamily: 'qwen3.5',
+    mainModel: 'qwen/qwen3.6-plus',
+    mainModelFamily: 'qwen3.6',
+    planningModel: 'qwen/qwen3.6-plus',
+    planningModelFamily: 'qwen3.6',
+    insightModel: 'qwen/qwen3.6-plus',
+    insightModelFamily: 'qwen3.6',
     temperature: 0.2,
 };

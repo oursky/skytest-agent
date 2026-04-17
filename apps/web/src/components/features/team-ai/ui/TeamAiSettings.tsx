@@ -398,7 +398,7 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
                             setProviderForm((current) => ({ ...current, mainModel: event.target.value }));
                             clearFieldError('mainModel');
                         }}
-                        placeholder="google/gemini-3.1-flash-lite-preview"
+                        placeholder="qwen/qwen3.6-plus"
                         className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
                     />
                     {fieldErrors.mainModel ? (
@@ -415,7 +415,7 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
                             setProviderForm((current) => ({ ...current, planningModel: event.target.value }));
                             clearFieldError('planningModel');
                         }}
-                        placeholder="qwen/qwen3.5-27b"
+                        placeholder="qwen/qwen3.6-plus"
                         className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
                     />
                     {fieldErrors.planningModel ? (
@@ -432,7 +432,7 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
                             setProviderForm((current) => ({ ...current, insightModel: event.target.value }));
                             clearFieldError('insightModel');
                         }}
-                        placeholder="qwen/qwen3.5-27b"
+                        placeholder="qwen/qwen3.6-plus"
                         className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
                     />
                     {fieldErrors.insightModel ? (

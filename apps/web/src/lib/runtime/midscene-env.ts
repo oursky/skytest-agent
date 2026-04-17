@@ -64,7 +64,7 @@ function inferModelFamily(modelName: string): string {
         case 'gemini':
             return 'gemini';
         case 'qwen':
-            return 'qwen3.5';
+            return 'qwen3.6';
         default:
             return 'gpt-5';
     }

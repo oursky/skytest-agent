@@ -53,14 +53,14 @@ function resolveRunnerEnvFileCandidates(): string[] {
 function resolveMidsceneDefaultEnv(): RunnerEnv {
     return {
         MIDSCENE_MODEL_BASE_URL: 'https://openrouter.ai/api/v1',
-        MIDSCENE_MODEL_NAME: 'google/gemini-3.1-flash-lite-preview',
-        MIDSCENE_MODEL_FAMILY: 'gemini',
+        MIDSCENE_MODEL_NAME: 'qwen/qwen3.6-plus',
+        MIDSCENE_MODEL_FAMILY: 'qwen3.6',
         MIDSCENE_PLANNING_MODEL_BASE_URL: 'https://openrouter.ai/api/v1',
-        MIDSCENE_PLANNING_MODEL_NAME: 'qwen/qwen3.5-27b',
-        MIDSCENE_PLANNING_MODEL_FAMILY: 'qwen3.5',
+        MIDSCENE_PLANNING_MODEL_NAME: 'qwen/qwen3.6-plus',
+        MIDSCENE_PLANNING_MODEL_FAMILY: 'qwen3.6',
         MIDSCENE_INSIGHT_MODEL_BASE_URL: 'https://openrouter.ai/api/v1',
-        MIDSCENE_INSIGHT_MODEL_NAME: 'qwen/qwen3.5-27b',
-        MIDSCENE_INSIGHT_MODEL_FAMILY: 'qwen3.5',
+        MIDSCENE_INSIGHT_MODEL_NAME: 'qwen/qwen3.6-plus',
+        MIDSCENE_INSIGHT_MODEL_FAMILY: 'qwen3.6',
         MIDSCENE_MODEL_TEMPERATURE: '0.2',
     };
 }
