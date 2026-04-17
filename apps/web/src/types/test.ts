@@ -88,7 +88,6 @@ export interface RunTestOptions {
         teamId?: string;
         openRouterApiKey?: string;
         aiProvider?: string;
-        aiMainModelFamily?: string;
         midsceneModelOptions?: BuildMidsceneModelConfigOptions;
         testCaseId?: string;
         files?: TestCaseFile[];

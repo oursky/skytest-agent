@@ -62,7 +62,8 @@ describe('audit-team-ai-keys', () => {
         const exitCode = await runAuditTeamAiKeys(['--format=json']);
 
         expect(exitCode).toBe(1);
-        const records = logSpy.mock.calls.map(([line]) => JSON.parse(String(line))) as Array<{
+        const logCalls = logSpy.mock.calls as unknown[][];
+        const records = logCalls.map((call) => JSON.parse(String(call[0]))) as Array<{
             teamId: string;
             keyLength: number;
             invalidReason: string | null;
@@ -84,8 +85,8 @@ describe('audit-team-ai-keys', () => {
             },
         ]);
 
-        const combinedOutput = logSpy.mock.calls
-            .map(([line]) => String(line))
+        const combinedOutput = logCalls
+            .map((call) => String(call[0]))
             .join('\n');
         expect(combinedOutput).not.toContain(validKey);
         expect(combinedOutput).not.toContain(invalidKey);

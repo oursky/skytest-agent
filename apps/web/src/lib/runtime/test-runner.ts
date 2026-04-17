@@ -939,7 +939,6 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
         teamId,
         openRouterApiKey,
         aiProvider,
-        aiMainModelFamily,
         midsceneModelOptions,
         projectId,
         files,
@@ -1103,7 +1102,7 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
                     runId,
                     teamId: teamId ?? null,
                     provider: aiProvider ?? null,
-                    modelFamily: midsceneModelOptions?.mainModelFamily ?? aiMainModelFamily ?? null,
+                    modelFamily: midsceneModelOptions?.mainModelFamily ?? null,
                     reason: error.reason,
                 });
             }

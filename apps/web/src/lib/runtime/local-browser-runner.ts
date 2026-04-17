@@ -32,7 +32,6 @@ import {
     type TestEvent,
     type TestStep,
 } from '@/types';
-
 interface LoadedRunConfig {
     runId: string;
     testCaseId: string;
@@ -49,43 +48,35 @@ interface LoadedRunConfig {
             openRouterApiKey: string;
             teamId: string;
             aiProvider: string;
-            aiMainModelFamily?: string;
             midsceneModelOptions?: BuildMidsceneModelConfigOptions;
             files: TestCaseFile[];
             resolvedVariables: Record<string, string>;
             resolvedFiles: Record<string, string>;
     };
 }
-
 interface RunEventInput {
     kind: string;
     message?: string;
     payload?: unknown;
     artifactKey?: string;
 }
-
 interface LocalBrowserRunOptions {
     runnerId?: string;
 }
-
 const logger = createLogger('runtime:local-browser-runner');
 const activeAbortControllers = new Map<string, AbortController>();
 const activeExecutions = new Map<string, Promise<void>>();
 const RUN_STATUS_WATCH_INTERVAL_MS = appConfig.runner.runStatusPollIntervalMs;
 const RUN_STATUS_MAX_CANCELLATION_POLL_INTERVAL_MS = appConfig.runner.runStatusMaxCancellationPollIntervalMs;
-
 export function getActiveLocalBrowserRunCount(): number {
     return activeExecutions.size;
 }
-
 export function getMaxLocalBrowserRunCount(): number {
     return appConfig.runner.maxLocalBrowserRuns;
 }
-
 export function hasLocalBrowserRunCapacity(): boolean {
     return getActiveLocalBrowserRunCount() < getMaxLocalBrowserRunCount();
 }
-
 export function getActiveLocalBrowserRunIds(): string[] {
     return Array.from(activeAbortControllers.keys());
 }
@@ -262,7 +253,6 @@ async function loadRunConfig(runId: string, options?: LocalBrowserRunOptions): P
             openRouterApiKey: decrypt(encryptedKey),
             teamId: run.testCase.project.teamId,
             aiProvider: providerConfig.provider,
-            aiMainModelFamily: midsceneModelOptions.mainModelFamily ?? providerConfig.mainModelFamily ?? undefined,
             midsceneModelOptions,
             files: run.files,
             resolvedVariables,
@@ -773,7 +763,6 @@ async function executeLocalBrowserRun(
                 teamId: details.config.teamId,
                 openRouterApiKey: details.config.openRouterApiKey,
                 aiProvider: details.config.aiProvider,
-                aiMainModelFamily: details.config.aiMainModelFamily,
                 midsceneModelOptions: details.config.midsceneModelOptions,
                 testCaseId: details.testCaseId,
                 projectId: details.projectId,
@@ -854,7 +843,7 @@ async function executeLocalBrowserRun(
                 runId: details.runId,
                 teamId: details.config.teamId,
                 provider: details.config.aiProvider,
-                modelFamily: details.config.aiMainModelFamily ?? null,
+                modelFamily: details.config.midsceneModelOptions?.mainModelFamily ?? null,
                 reason: error.reason,
             });
         }
