@@ -29,22 +29,16 @@ import {
     type RunnerTransportMetadata,
 } from '@skytest/runner-protocol';
 import * as loggerModule from '../../web/src/lib/core/logger';
-import * as testRunnerModule from '../../web/src/lib/runtime/test-runner';
-import * as deviceDisplayModule from '../../web/src/lib/android/device-display';
 import * as devicesModule from '../../web/src/lib/android/devices';
-import * as eventsModule from '../../web/src/types/events';
-import type { ConnectedAndroidDeviceInfo } from '../../web/src/lib/android/device-display';
-import type { BrowserConfig, TargetConfig, TestCaseFile, TestEvent, TestStep } from '../../web/src/types';
-import type { BuildMidsceneModelConfigOptions } from '../../web/src/lib/runtime/midscene-env';
+import type { BrowserConfig, TargetConfig, TestCaseFile, TestStep } from '../../web/src/types';
 import { loadStoredRunnerCredential, saveRunnerCredential, type StoredRunnerCredential } from './credential-store';
+import { buildDeviceSyncPayload } from './device-sync';
 import { acquireRunnerProcessLock } from './process-lock';
+import { executeClaimedRun, type JobDetailsPayload } from './run-execution';
 import { buildRunnerDisplayId, sleep } from './runtime-utils';
 
 type CreateLoggerFn = typeof import('../../web/src/lib/core/logger').createLogger;
-type RunTestFn = typeof import('../../web/src/lib/runtime/test-runner').runTest;
-type FormatAndroidDeviceDisplayNameFn = typeof import('../../web/src/lib/android/device-display').formatAndroidDeviceDisplayName;
 type ListAndroidDeviceInventoryFn = typeof import('../../web/src/lib/android/devices').listAndroidDeviceInventory;
-type IsScreenshotDataFn = typeof import('../../web/src/types/events').isScreenshotData;
 
 function resolveModuleExport<T>(module: Record<string, unknown>, key: string): T | null {
     if (key in module) {
@@ -72,27 +66,11 @@ const createLogger = requireModuleExport<CreateLoggerFn>(
     'createLogger',
     '../../web/src/lib/core/logger'
 );
-const runTest = requireModuleExport<RunTestFn>(
-    testRunnerModule as unknown as Record<string, unknown>,
-    'runTest',
-    '../../web/src/lib/runtime/test-runner'
-);
-const formatAndroidDeviceDisplayName = requireModuleExport<FormatAndroidDeviceDisplayNameFn>(
-    deviceDisplayModule as unknown as Record<string, unknown>,
-    'formatAndroidDeviceDisplayName',
-    '../../web/src/lib/android/device-display'
-);
 const listAndroidDeviceInventory = requireModuleExport<ListAndroidDeviceInventoryFn>(
     devicesModule as unknown as Record<string, unknown>,
     'listAndroidDeviceInventory',
     '../../web/src/lib/android/devices'
 );
-const isScreenshotData = requireModuleExport<IsScreenshotDataFn>(
-    eventsModule as unknown as Record<string, unknown>,
-    'isScreenshotData',
-    '../../web/src/types/events'
-);
-
 type RunnerLogger = ReturnType<CreateLoggerFn>;
 const baseLogger = createLogger('runner:macos-runner');
 const quietMode = process.env.SKYTEST_RUNNER_QUIET === '1';
@@ -111,15 +89,11 @@ const envRunnerToken = process.env.RUNNER_TOKEN?.trim() || null;
 const runnerLabel = process.env.RUNNER_LABEL ?? 'macOS Runner';
 const runnerDisplayId = (process.env.RUNNER_DISPLAY_ID?.trim() || '').toLowerCase();
 const capabilities = [...RUNNER_DEFAULT_CAPABILITIES];
-const EMULATOR_PROFILE_DEVICE_PREFIX = 'emulator-profile:';
 const runnerStateRoot = process.env.SKYTEST_RUNNER_STATE_DIR?.trim() || path.join(os.homedir(), '.skytest-agent');
 const RUNNER_LOCK_PATH = path.join(runnerStateRoot, 'runner.lock');
 const RUNNER_CREDENTIAL_REVOKED_PATH = path.join(runnerStateRoot, 'credential-revoked.json');
-
 const DEFAULT_TRANSPORT: RunnerTransportMetadata = RUNNER_DEFAULT_TRANSPORT;
-
 const hostFingerprint = resolveHostFingerprint(process.env.RUNNER_HOST_FINGERPRINT);
-
 const JSON_HEADERS = {
     'Content-Type': 'application/json',
 };
@@ -129,32 +103,6 @@ interface RunnerAuthState {
     runnerId?: string;
     credentialExpiresAt?: string;
     transport: RunnerTransportMetadata;
-}
-
-interface JobDetailsConfig {
-    url?: string;
-    prompt?: string;
-    steps?: TestStep[];
-    browserConfig?: Record<string, BrowserConfig | TargetConfig>;
-    openRouterApiKey: string;
-    aiProvider?: string;
-    midsceneModelOptions?: BuildMidsceneModelConfigOptions;
-    files: TestCaseFile[];
-    resolvedVariables: Record<string, string>;
-    resolvedFiles: Record<string, string>;
-}
-
-interface JobDetailsPayload {
-    runId: string;
-    testCaseId: string;
-    projectId: string;
-    config: JobDetailsConfig;
-}
-
-interface ParsedImageDataUrl {
-    mimeType: string;
-    extension: string;
-    contentBase64: string;
 }
 
 interface AndroidDeviceManagerRuntime {
@@ -386,86 +334,9 @@ async function sendHeartbeat() {
     }
 }
 
-function mapDeviceState(device: ConnectedAndroidDeviceInfo): 'ONLINE' | 'OFFLINE' | 'UNAVAILABLE' {
-    if (device.adbState === 'device') {
-        return 'ONLINE';
-    }
-    if (device.adbState === 'offline') {
-        return 'OFFLINE';
-    }
-    return 'UNAVAILABLE';
-}
-
-function buildEmulatorProfileDeviceId(profileName: string): string {
-    return `${EMULATOR_PROFILE_DEVICE_PREFIX}${profileName}`;
-}
-
 async function syncDevices() {
     const inventory = await listAndroidDeviceInventory();
-    const emulatorDevicesByProfile = new Map(
-        inventory.connectedDevices
-            .filter((device) => device.kind === 'emulator' && typeof device.emulatorProfileName === 'string' && device.emulatorProfileName.trim().length > 0)
-            .map((device) => [device.emulatorProfileName as string, device] as const)
-    );
-
-    const connectedDevices = inventory.connectedDevices
-        .filter((device) => {
-            if (device.kind !== 'emulator') {
-                return true;
-            }
-            if (typeof device.emulatorProfileName !== 'string') {
-                return true;
-            }
-            return device.emulatorProfileName.trim().length === 0;
-        })
-        .map((device) => ({
-        deviceId: device.serial,
-        platform: 'ANDROID' as const,
-        name: formatAndroidDeviceDisplayName(device),
-        state: mapDeviceState(device),
-        metadata: {
-            inventoryKind: 'connected-device',
-            adbState: device.adbState,
-            kind: device.kind,
-            manufacturer: device.manufacturer,
-            model: device.model,
-            androidVersion: device.androidVersion,
-            apiLevel: device.apiLevel,
-            emulatorProfileName: device.emulatorProfileName,
-            adbProduct: device.adbProduct,
-            adbModel: device.adbModel,
-            adbDevice: device.adbDevice,
-            transportId: device.transportId,
-            usb: device.usb,
-        },
-        }));
-
-    const emulatorProfiles = inventory.emulatorProfiles
-        .map((profile) => {
-            const connected = emulatorDevicesByProfile.get(profile.name);
-            const state = connected ? mapDeviceState(connected) : 'OFFLINE';
-
-            return {
-            deviceId: buildEmulatorProfileDeviceId(profile.name),
-            platform: 'ANDROID' as const,
-            name: profile.displayName,
-            state,
-            metadata: {
-                inventoryKind: 'emulator-profile',
-                emulatorProfileName: profile.name,
-                apiLevel: profile.apiLevel,
-                screenSize: profile.screenSize,
-                connectedSerial: connected?.serial ?? null,
-                adbState: connected?.adbState ?? null,
-                manufacturer: connected?.manufacturer ?? null,
-                model: connected?.model ?? null,
-                androidVersion: connected?.androidVersion ?? null,
-            },
-            };
-        });
-
-    const devices = [...connectedDevices, ...emulatorProfiles];
-
+    const devices = buildDeviceSyncPayload(inventory);
     const payload = deviceSyncRequestSchema.parse({
         protocolVersion: RUNNER_PROTOCOL_CURRENT_VERSION,
         runnerVersion,
@@ -535,41 +406,6 @@ async function postRunEvents(runId: string, events: RunnerEventInput[]) {
     ingestEventsResponseSchema.parse(response);
 }
 
-function parseImageDataUrl(value: string): ParsedImageDataUrl | null {
-    const match = /^data:([^;]+);base64,(.+)$/i.exec(value.trim());
-    if (!match) {
-        return null;
-    }
-
-    const mimeType = match[1].toLowerCase();
-    const contentBase64 = match[2].replace(/\s+/g, '');
-    if (!contentBase64) {
-        return null;
-    }
-
-    const extension = mimeType === 'image/jpeg'
-        ? 'jpg'
-        : mimeType === 'image/png'
-            ? 'png'
-            : mimeType === 'image/webp'
-                ? 'webp'
-                : mimeType === 'image/gif'
-                    ? 'gif'
-                    : 'bin';
-
-    return {
-        mimeType,
-        extension,
-        contentBase64,
-    };
-}
-
-function toSafeScreenshotFilename(label: string, extension: string): string {
-    const normalized = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-    const base = normalized.length > 0 ? normalized.slice(0, 80) : 'screenshot';
-    return `${base}-${Date.now()}.${extension}`;
-}
-
 async function uploadRunArtifact(runId: string, input: {
     filename: string;
     mimeType: string;
@@ -607,203 +443,20 @@ async function markRunFailed(runId: string, error: string, result?: string) {
     runCompletionResponseSchema.parse(response);
 }
 
-async function executeClaimedRun(runId: string) {
-    const details = await loadJobDetails(runId);
-    const queuedEvents: RunnerEventInput[] = [];
-    const pendingArtifactUploads = new Set<Promise<void>>();
-    const runAbortController = new AbortController();
-    let flushingEvents = false;
-    let acceptsRunEvents = true;
-
-    const flushEvents = async () => {
-        if (!acceptsRunEvents) {
-            queuedEvents.length = 0;
-            return;
-        }
-
-        if (flushingEvents || queuedEvents.length === 0) {
-            return;
-        }
-
-        flushingEvents = true;
-        try {
-            while (queuedEvents.length > 0) {
-                const batch = queuedEvents.splice(0, 50);
-                try {
-                    await postRunEvents(runId, batch);
-                } catch (error) {
-                    if (isRunOwnershipLostError(error)) {
-                        acceptsRunEvents = false;
-                        if (!runAbortController.signal.aborted) {
-                            runAbortController.abort();
-                        }
-                        queuedEvents.length = 0;
-                        logger.warn('Dropping run events because run ownership is no longer valid', { runId });
-                        return;
-                    }
-                    throw error;
-                }
-            }
-        } finally {
-            flushingEvents = false;
-        }
-    };
-
-    const queueEvent = (event: RunnerEventInput) => {
-        if (!acceptsRunEvents) {
-            return;
-        }
-        queuedEvents.push(event);
-        void flushEvents().catch((error) => {
-            logger.error('Failed to flush run events', error);
-        });
-    };
-
-    const handleTestEvent = (event: TestEvent) => {
-        const screenshotData = event.type === 'screenshot' && isScreenshotData(event.data)
-            ? event.data
-            : null;
-        if (screenshotData) {
-            const uploadTask = (async () => {
-                const parsed = parseImageDataUrl(screenshotData.src);
-                if (!parsed) {
-                    queueEvent({
-                        kind: 'SCREENSHOT',
-                        message: screenshotData.label,
-                        payload: event,
-                    });
-                    return;
-                }
-
-                try {
-                    const artifact = await uploadRunArtifact(runId, {
-                        filename: toSafeScreenshotFilename(screenshotData.label, parsed.extension),
-                        mimeType: parsed.mimeType,
-                        contentBase64: parsed.contentBase64,
-                    });
-                    queueEvent({
-                        kind: 'SCREENSHOT',
-                        message: screenshotData.label,
-                        artifactKey: artifact.artifactKey,
-                        payload: {
-                            ...event,
-                            data: {
-                                ...screenshotData,
-                                src: `artifact:${artifact.artifactKey}`,
-                            },
-                        },
-                    });
-                } catch (error) {
-                    if (isRunOwnershipArtifactError(error)) {
-                        acceptsRunEvents = false;
-                        if (!runAbortController.signal.aborted) {
-                            runAbortController.abort();
-                        }
-                        logger.warn('Stopping artifact upload because run ownership is no longer valid', { runId });
-                        return;
-                    }
-                    logger.warn('Failed to upload screenshot artifact', error);
-                    queueEvent({
-                        kind: 'SCREENSHOT',
-                        message: screenshotData.label,
-                        payload: event,
-                    });
-                }
-            })();
-
-            pendingArtifactUploads.add(uploadTask);
-            uploadTask.finally(() => {
-                pendingArtifactUploads.delete(uploadTask);
-            }).catch(() => {});
-            return;
-        }
-
-        queueEvent({
-            kind: event.type.toUpperCase(),
-            message: event.type === 'log' && 'message' in event.data ? event.data.message : undefined,
-            payload: event,
-        });
-    };
-
-    try {
-        const result = await runTest({
-            runId,
-            config: {
-                url: details.config.url,
-                prompt: details.config.prompt,
-                steps: details.config.steps,
-                browserConfig: details.config.browserConfig,
-                openRouterApiKey: details.config.openRouterApiKey,
-                aiProvider: details.config.aiProvider,
-                midsceneModelOptions: details.config.midsceneModelOptions,
-                testCaseId: details.testCaseId,
-                projectId: details.projectId,
-                files: details.config.files,
-                resolvedVariables: details.config.resolvedVariables,
-                resolvedFiles: details.config.resolvedFiles,
-            },
-            onEvent(event) {
-                handleTestEvent(event);
-            },
-            signal: runAbortController.signal,
-            async onPreparing() {
-                queueEvent({
-                    kind: 'STATUS',
-                    message: 'Preparing run execution',
-                });
-            },
-            async onRunning() {
-                queueEvent({
-                    kind: 'STATUS',
-                    message: 'Running test steps',
-                });
-            },
-        });
-
-        await Promise.allSettled(Array.from(pendingArtifactUploads));
-        await flushEvents();
-
-        const resultSummary = JSON.stringify(result);
-        if (result.status === 'PASS') {
-            try {
-                await markRunComplete(runId, resultSummary);
-            } catch (error) {
-                if (isRunOwnershipLostError(error)) {
-                    logger.warn('Run ownership lost before completion update', { runId });
-                    return;
-                }
-                throw error;
-            }
-            return;
-        }
-
-        try {
-            await markRunFailed(runId, result.error ?? 'Run failed', resultSummary);
-        } catch (error) {
-            if (isRunOwnershipLostError(error)) {
-                logger.warn('Run ownership lost before failure update', { runId });
-                return;
-            }
-            throw error;
-        }
-    } catch (error) {
-        await Promise.allSettled(Array.from(pendingArtifactUploads));
-        try {
-            await flushEvents();
-        } catch (flushError) {
-            logger.warn('Failed to flush queued events after run error', flushError);
-        }
-        const message = error instanceof Error ? error.message : String(error);
-        try {
-            await markRunFailed(runId, message);
-        } catch (markError) {
-            if (isRunOwnershipLostError(markError)) {
-                logger.warn('Run ownership lost while reporting run error', { runId, error: message });
-                return;
-            }
-            throw markError;
-        }
-    }
+async function executeClaimedRunJob(runId: string) {
+    await executeClaimedRun({
+        runId,
+        api: {
+            loadJobDetails,
+            postRunEvents,
+            uploadRunArtifact,
+            markRunComplete,
+            markRunFailed,
+        },
+        logger,
+        isRunOwnershipLostError,
+        isRunOwnershipArtifactError,
+    });
 }
 
 function startHeartbeatLoop() {
@@ -891,7 +544,7 @@ export async function startRunnerEngine() {
                 }
 
                 logger.info('Claimed Android run', { runId: job.runId, requestedDeviceId: job.requestedDeviceId });
-                await executeClaimedRun(job.runId);
+                await executeClaimedRunJob(job.runId);
             } catch (error) {
                 if (stopped) {
                     break;
