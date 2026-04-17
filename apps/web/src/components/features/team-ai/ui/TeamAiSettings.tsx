@@ -5,6 +5,7 @@ import { useAuth } from '@/app/auth-provider';
 import { Button, CustomSelect, LoadingSpinner, Modal } from '@/components/shared';
 import { useI18n } from '@/i18n';
 import { MIDSCENE_MODEL_DEFAULTS } from '@/lib/runtime/model-families';
+import { validateAiApiKey, type AiApiKeyInvalidReason } from '@/lib/validation/ai-api-key';
 
 interface TeamAiSettingsProps {
     teamId: string;
@@ -47,6 +48,48 @@ interface ProviderFormState {
 }
 
 const DEFAULT_PROVIDER: TeamAiProvider = 'openrouter';
+
+const API_KEY_REASON_MESSAGE_KEYS: Record<AiApiKeyInvalidReason, string> = {
+    empty: 'team.ai.apiKey.invalid.empty',
+    too_short: 'team.ai.apiKey.invalid.tooShort',
+    non_ascii: 'team.ai.apiKey.invalid.nonAscii',
+};
+
+export interface TeamAiApiKeyInputValidation {
+    trimmedApiKey: string;
+    reason: AiApiKeyInvalidReason | null;
+    shouldSubmit: boolean;
+}
+
+export function getTeamAiApiKeyReasonMessageKey(reason: AiApiKeyInvalidReason): string {
+    return API_KEY_REASON_MESSAGE_KEYS[reason];
+}
+
+export function validateProvidedTeamAiApiKeyInput(apiKeyInput: string): TeamAiApiKeyInputValidation {
+    const trimmedApiKey = apiKeyInput.trim();
+    if (apiKeyInput.length === 0) {
+        return {
+            trimmedApiKey,
+            reason: null,
+            shouldSubmit: true,
+        };
+    }
+
+    const validation = validateAiApiKey(trimmedApiKey);
+    if (!validation.ok) {
+        return {
+            trimmedApiKey,
+            reason: validation.reason,
+            shouldSubmit: false,
+        };
+    }
+
+    return {
+        trimmedApiKey,
+        reason: null,
+        shouldSubmit: true,
+    };
+}
 
 function buildProviderFormState(providerConfig?: TeamAiState['providerConfig']): ProviderFormState {
     return {
@@ -170,6 +213,12 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
         setFieldErrors({});
 
         const nextFieldErrors: Partial<Record<ProviderFieldErrorKey, string>> = {};
+        const apiKeyValidation = validateProvidedTeamAiApiKeyInput(apiKey);
+        const trimmedApiKey = apiKeyValidation.trimmedApiKey;
+        if (!apiKeyValidation.shouldSubmit && apiKeyValidation.reason) {
+            nextFieldErrors.apiKey = t(getTeamAiApiKeyReasonMessageKey(apiKeyValidation.reason));
+        }
+
         const temperatureTrimmed = providerForm.temperature.trim();
         const parsedTemperature = temperatureTrimmed.length > 0
             ? Number.parseFloat(temperatureTrimmed)
@@ -213,7 +262,6 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
             },
         };
 
-        const trimmedApiKey = apiKey.trim();
         const hadStoredKey = state.hasKey;
         if (trimmedApiKey.length > 0) {
             payload.apiKey = trimmedApiKey;
@@ -352,6 +400,7 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
                             className="min-w-0 flex-1 rounded-md border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
                         />
                     </div>
+                    <p className="text-xs text-gray-500">{t('team.ai.apiKey.helperText')}</p>
                     {fieldErrors.apiKey ? (
                         <p className="text-xs text-red-600">{fieldErrors.apiKey}</p>
                     ) : null}
