@@ -1,23 +1,28 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const KNOWN_CHECKERS = [
-    'lint',
-    'auth:check-routes',
-    'protocol:check-boundary',
-    'quality:check-client-imports',
-    'quality:check-hotspots',
-    'quality:check-config-i18n',
-    'quality:check-runner-contracts',
-    'security:check-lockfile-floors',
-    'quality:check-overrides-drift',
-    'audit',
-];
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+const webPackageJsonPath = path.resolve(scriptDir, '../../package.json');
+const webPackageJson = JSON.parse(readFileSync(webPackageJsonPath, 'utf8'));
+const verifyScript = String(webPackageJson.scripts?.verify ?? '');
+const KNOWN_CHECKERS = Array.from(
+    verifyScript.matchAll(/npm run ([A-Za-z0-9_:-]+)/g),
+    (match) => match[1]
+);
+
+if (KNOWN_CHECKERS.length === 0) {
+    console.error('verify:explain could not parse any checkers from apps/web/package.json scripts.verify');
+    process.exit(2);
+}
 
 const result = spawnSync('npm', ['run', 'verify'], {
     stdio: ['ignore', 'pipe', 'pipe'],
     encoding: 'utf8',
+    maxBuffer: 50 * 1024 * 1024,
 });
 
 const stdout = result.stdout ?? '';
@@ -88,6 +93,6 @@ function attributionLabel(checker) {
         case 'audit':
             return 'npm audit';
         default:
-            return 'unknown';
+            return checker === 'unknown' ? 'unknown' : `script "${checker}" (no friendly label)`;
     }
 }

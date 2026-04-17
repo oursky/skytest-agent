@@ -55,6 +55,30 @@ for (const key of webKeys) {
     }
 }
 
+for (const key of webOnlyAllowed) {
+    if (!webKeys.has(key)) {
+        errors.push(
+            `- "${key}" listed in webOnly allowlist but not present in apps/web overrides; remove stale entry.`
+        );
+    }
+}
+
+for (const key of rootOnlyAllowed) {
+    if (!rootKeys.has(key)) {
+        errors.push(
+            `- "${key}" listed in rootOnly allowlist but not present in root overrides; remove stale entry.`
+        );
+    }
+}
+
+for (const key of valueDriftAllowed) {
+    if (!rootKeys.has(key) || !webKeys.has(key)) {
+        errors.push(
+            `- "${key}" listed in valueDriftAllowed but not a shared override; remove stale entry.`
+        );
+    }
+}
+
 if (errors.length > 0) {
     console.error('Overrides drift check failed:');
     for (const line of errors) {
