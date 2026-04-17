@@ -135,6 +135,18 @@ Runner defaults are centralized in `@skytest/runner-protocol`:
 
 Do not re-introduce hardcoded runner capabilities or transport fallbacks in CLI, macOS runner, or web runner protocol modules.
 
+## AI Key Validation Is Centralized
+
+When changing team AI key handling, keep validation logic centralized in:
+
+- `apps/web/src/lib/validation/ai-api-key.ts`
+
+Boundary consistency is enforced by:
+
+- `apps/web/src/lib/validation/__tests__/ai-api-key-boundaries.test.ts`
+
+Do not duplicate or fork key-format rules in UI routes, API handlers, or runtime modules.
+
 ## Browser Network Guard And Failure Metadata
 
 When changing browser execution behavior, keep these invariants stable:
