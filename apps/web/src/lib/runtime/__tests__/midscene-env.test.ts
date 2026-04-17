@@ -100,6 +100,12 @@ describe('buildMidsceneModelConfig', () => {
         expect(config.MIDSCENE_MODEL_FAMILY).toBe('qwen3.6');
     });
 
+    it('maps qwen3.5 model family to qwen3.5', () => {
+        const config = buildMidsceneModelConfig('test-key', { planningModel: 'qwen/qwen3.5-27b' });
+
+        expect(config.MIDSCENE_PLANNING_MODEL_FAMILY).toBe('qwen3.5');
+    });
+
     it('uses explicit model family options when provided', () => {
         const config = buildMidsceneModelConfig('test-key', {
             mainModel: 'google/gemini-2.0-flash-001',

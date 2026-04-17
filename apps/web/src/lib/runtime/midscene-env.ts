@@ -60,12 +60,16 @@ function resolveMidsceneModelValue(name: MidsceneModelEnvVar): string {
 
 function inferModelFamily(modelName: string): string {
     const rawFamily = modelName.split('/')[0]?.toLowerCase() ?? '';
+    const normalizedModelName = modelName.toLowerCase();
 
     switch (rawFamily) {
         case 'google':
         case 'gemini':
             return 'gemini';
         case 'qwen':
+            if (normalizedModelName.includes('qwen3.5')) {
+                return 'qwen3.5';
+            }
             return 'qwen3.6';
         default:
             return 'gpt-5';
