@@ -86,11 +86,14 @@ describe('ai-api-key boundaries', () => {
             expect(payload.success).toBe(true);
         } else {
             expect(response.status).toBe(400);
+            if (validation.ok) {
+                throw new Error('Expected validator to reject input');
+            }
             expect(payload).toMatchObject({
                 code: 'VALIDATION_ERROR',
                 details: {
                     fieldErrors: {
-                        apiKey: validation.ok ? '' : validation.message,
+                        apiKey: validation.message,
                     },
                 },
             });

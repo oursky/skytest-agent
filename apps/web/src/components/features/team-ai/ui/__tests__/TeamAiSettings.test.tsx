@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     getTeamAiApiKeyReasonMessageKey,
+    shouldShowTeamAiApiKeyInput,
     validateProvidedTeamAiApiKeyInput,
 } from '@/components/features/team-ai/ui/TeamAiSettings';
 
@@ -11,7 +12,7 @@ describe('TeamAiSettings local API key validation', () => {
         expect(result).toEqual({
             trimmedApiKey: 'sk-abc✅12345',
             reason: 'non_ascii',
-            shouldSubmit: false,
+            canSubmitForm: false,
         });
         expect(getTeamAiApiKeyReasonMessageKey(result.reason!)).toBe('team.ai.apiKey.invalid.nonAscii');
     });
@@ -22,7 +23,7 @@ describe('TeamAiSettings local API key validation', () => {
         expect(result).toEqual({
             trimmedApiKey: 'sk-abc1234\nvalue',
             reason: 'non_ascii',
-            shouldSubmit: false,
+            canSubmitForm: false,
         });
     });
 
@@ -32,7 +33,7 @@ describe('TeamAiSettings local API key validation', () => {
         expect(result).toEqual({
             trimmedApiKey: 'short7',
             reason: 'too_short',
-            shouldSubmit: false,
+            canSubmitForm: false,
         });
     });
 
@@ -42,7 +43,15 @@ describe('TeamAiSettings local API key validation', () => {
         expect(result).toEqual({
             trimmedApiKey: 'sk-abc12345',
             reason: null,
-            shouldSubmit: true,
+            canSubmitForm: true,
         });
+    });
+
+    it('shows API key input when stored key is invalid', () => {
+        expect(shouldShowTeamAiApiKeyInput({ hasKey: true, keyInvalid: true })).toBe(true);
+    });
+
+    it('shows masked key when stored key exists and is valid', () => {
+        expect(shouldShowTeamAiApiKeyInput({ hasKey: true, keyInvalid: false })).toBe(false);
     });
 });

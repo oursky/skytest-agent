@@ -28,4 +28,5 @@ SKYTEST_ALLOW_KEY_AUDIT=1 npm run --workspace @skytest/web runtime:ai-config-doc
 
 - `ai-config-doctor` never prints API keys.
 - `SKYTEST_ALLOW_KEY_AUDIT=1` is required because the command decrypts stored team keys in-process.
+- Both `ops:audit:team-ai-keys` and `runtime:ai-config-doctor` require `SKYTEST_ALLOW_KEY_AUDIT=1`.
 - If doctor returns `status: "fail"`, complete remediation first, then re-run doctor until `status: "pass"`.

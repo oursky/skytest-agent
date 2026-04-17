@@ -60,7 +60,7 @@ const API_KEY_REASON_MESSAGE_KEYS: Record<AiApiKeyInvalidReason, string> = {
 export interface TeamAiApiKeyInputValidation {
     trimmedApiKey: string;
     reason: AiApiKeyInvalidReason | null;
-    shouldSubmit: boolean;
+    canSubmitForm: boolean;
 }
 
 export function getTeamAiApiKeyReasonMessageKey(reason: AiApiKeyInvalidReason): string {
@@ -73,7 +73,7 @@ export function validateProvidedTeamAiApiKeyInput(apiKeyInput: string): TeamAiAp
         return {
             trimmedApiKey,
             reason: null,
-            shouldSubmit: true,
+            canSubmitForm: true,
         };
     }
 
@@ -82,15 +82,19 @@ export function validateProvidedTeamAiApiKeyInput(apiKeyInput: string): TeamAiAp
         return {
             trimmedApiKey,
             reason: validation.reason,
-            shouldSubmit: false,
+            canSubmitForm: false,
         };
     }
 
     return {
         trimmedApiKey,
         reason: null,
-        shouldSubmit: true,
+        canSubmitForm: true,
     };
+}
+
+export function shouldShowTeamAiApiKeyInput(state: Pick<TeamAiState, 'hasKey' | 'keyInvalid'>): boolean {
+    return !state.hasKey || state.keyInvalid;
 }
 
 function buildProviderFormState(providerConfig?: TeamAiState['providerConfig']): ProviderFormState {
@@ -219,7 +223,7 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
         const nextFieldErrors: Partial<Record<ProviderFieldErrorKey, string>> = {};
         const apiKeyValidation = validateProvidedTeamAiApiKeyInput(apiKey);
         const trimmedApiKey = apiKeyValidation.trimmedApiKey;
-        if (!apiKeyValidation.shouldSubmit && apiKeyValidation.reason) {
+        if (!apiKeyValidation.canSubmitForm && apiKeyValidation.reason) {
             nextFieldErrors.apiKey = t(getTeamAiApiKeyReasonMessageKey(apiKeyValidation.reason));
         }
 
@@ -371,25 +375,7 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
                     <LoadingSpinner size={16} />
                     <span>{t('common.loading')}</span>
                 </div>
-            ) : state.hasKey ? (
-                <div className="flex items-center gap-3">
-                    <input
-                        type="text"
-                        value={state.maskedKey ?? ''}
-                        disabled
-                        className="w-48 rounded-md border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-gray-500"
-                    />
-                    <Button
-                        onClick={() => setIsRemoveConfirmOpen(true)}
-                        disabled={isSaving}
-                        variant="secondary"
-                        size="sm"
-                        className="shrink-0 border-red-200 text-red-700 hover:bg-red-50"
-                    >
-                        {t('team.ai.remove')}
-                    </Button>
-                </div>
-            ) : (
+            ) : shouldShowTeamAiApiKeyInput(state) ? (
                 <div className="space-y-1">
                     <div className="flex max-w-lg items-center gap-3">
                         <input
@@ -414,6 +400,24 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
                     {fieldErrors.apiKey ? (
                         <p className="text-xs text-red-600">{fieldErrors.apiKey}</p>
                     ) : null}
+                </div>
+            ) : (
+                <div className="flex items-center gap-3">
+                    <input
+                        type="text"
+                        value={state.maskedKey ?? ''}
+                        disabled
+                        className="w-48 rounded-md border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-gray-500"
+                    />
+                    <Button
+                        onClick={() => setIsRemoveConfirmOpen(true)}
+                        disabled={isSaving}
+                        variant="secondary"
+                        size="sm"
+                        className="shrink-0 border-red-200 text-red-700 hover:bg-red-50"
+                    >
+                        {t('team.ai.remove')}
+                    </Button>
                 </div>
             )}
 

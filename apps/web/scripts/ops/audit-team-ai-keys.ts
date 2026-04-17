@@ -14,7 +14,7 @@ export type AuditOutputFormat = 'json' | 'summary';
 
 export interface TeamAiKeyAuditRecord {
     teamId: string;
-    keyLength: number;
+    keyLength: number | null;
     invalidReason: AiApiKeyInvalidReason | null;
     keyUpdatedAt: string | null;
 }
@@ -56,7 +56,7 @@ export function buildAuditRecord(team: TeamWithEncryptedAiKey): TeamAiKeyAuditRe
 
     return {
         teamId: team.id,
-        keyLength: decryptedKey.length,
+        keyLength: validation.ok ? null : decryptedKey.length,
         invalidReason: validation.ok ? null : validation.reason,
         keyUpdatedAt: team.openRouterKeyUpdatedAt ? team.openRouterKeyUpdatedAt.toISOString() : null,
     };

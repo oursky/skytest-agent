@@ -80,7 +80,6 @@ export function hasLocalBrowserRunCapacity(): boolean {
 export function getActiveLocalBrowserRunIds(): string[] {
     return Array.from(activeAbortControllers.keys());
 }
-
 export async function abortInactiveLocalBrowserRuns(options?: LocalBrowserRunOptions): Promise<number> {
     const activeRunIds = getActiveLocalBrowserRunIds();
     if (activeRunIds.length === 0) {
@@ -838,6 +837,7 @@ async function executeLocalBrowserRun(
     } catch (error) {
         await Promise.allSettled(Array.from(pendingArtifactUploads));
         await flushEvents();
+        const isInvalidAiKey = error instanceof InvalidAiApiKeyError;
         if (error instanceof InvalidAiApiKeyError) {
             logger.error('Invalid team AI key format detected while dispatching local browser run', {
                 runId: details.runId,
@@ -847,7 +847,11 @@ async function executeLocalBrowserRun(
                 reason: error.reason,
             });
         }
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage = isInvalidAiKey
+            ? 'Team AI key format invalid. Re-save key in Team Settings.'
+            : error instanceof Error
+                ? error.message
+                : String(error);
         await failRun(
             runId,
             details.testCaseId,
@@ -872,10 +876,8 @@ export function startLocalBrowserRun(runId: string, options?: LocalBrowserRunOpt
     if (existingExecution) {
         return existingExecution;
     }
-
     const controller = new AbortController();
     activeAbortControllers.set(runId, controller);
-
     const execution = executeLocalBrowserRun(runId, controller, options)
         .catch((error) => {
             logger.error('Local browser run execution failed', error);
@@ -884,11 +886,9 @@ export function startLocalBrowserRun(runId: string, options?: LocalBrowserRunOpt
             activeAbortControllers.delete(runId);
             activeExecutions.delete(runId);
         });
-
     activeExecutions.set(runId, execution);
     return execution;
 }
-
 export function cancelLocalBrowserRun(runId: string): boolean {
     const controller = activeAbortControllers.get(runId);
     if (!controller || controller.signal.aborted) {

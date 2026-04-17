@@ -5,6 +5,7 @@ const VISIBLE_ASCII_KEY_PATTERN = /^[\x21-\x7E]+$/;
 const AI_API_KEY_MESSAGES = {
     empty: 'API key is required',
     too_short: `API key must be at least ${MIN_AI_API_KEY_LENGTH} characters`,
+    // "non_ascii" here means outside the visible ASCII range (0x21-0x7E).
     non_ascii: 'API key must use visible ASCII characters only (no spaces, newlines, or emojis)',
 } as const;
 

@@ -8,7 +8,6 @@ const AUDIT_ENV_FLAG = 'SKYTEST_ALLOW_KEY_AUDIT';
 interface DoctorArgs {
     teamId?: string;
     runId?: string;
-    verbose: boolean;
 }
 
 interface TeamDoctorSource {
@@ -40,6 +39,21 @@ const REMEDIATION_BY_REASON: Record<AiApiKeyInvalidReason, string[]> = {
     ],
 };
 
+const TEAM_AI_SELECT = {
+    id: true,
+    openRouterKeyEncrypted: true,
+    openRouterKeyUpdatedAt: true,
+    aiProvider: true,
+    aiBaseUrl: true,
+    aiMainModel: true,
+    aiMainModelFamily: true,
+    aiPlanningModel: true,
+    aiPlanningModelFamily: true,
+    aiInsightModel: true,
+    aiInsightModelFamily: true,
+    aiTemperature: true,
+} as const;
+
 function assertAuditEnabled(env: NodeJS.ProcessEnv): void {
     if (env[AUDIT_ENV_FLAG] !== '1') {
         throw new Error(`${AUDIT_ENV_FLAG}=1 is required to run ai-config-doctor.`);
@@ -49,7 +63,6 @@ function assertAuditEnabled(env: NodeJS.ProcessEnv): void {
 function parseArgs(args: string[]): DoctorArgs {
     let teamId: string | undefined;
     let runId: string | undefined;
-    let verbose = false;
 
     for (const arg of args) {
         if (arg.startsWith('--team-id=')) {
@@ -60,37 +73,20 @@ function parseArgs(args: string[]): DoctorArgs {
             runId = arg.slice('--run-id='.length).trim() || undefined;
             continue;
         }
-        if (arg === '--verbose') {
-            verbose = true;
-            continue;
-        }
-        throw new Error(`Unknown argument "${arg}". Use --team-id=<id> or --run-id=<id> (optional --verbose).`);
+        throw new Error(`Unknown argument "${arg}". Use --team-id=<id> or --run-id=<id>.`);
     }
 
     if ((teamId ? 1 : 0) + (runId ? 1 : 0) !== 1) {
         throw new Error('Provide exactly one of --team-id=<id> or --run-id=<id>.');
     }
 
-    return { teamId, runId, verbose };
+    return { teamId, runId };
 }
 
 async function resolveTeamFromTeamId(teamId: string): Promise<TeamDoctorSource> {
     const team = await prisma.team.findUnique({
         where: { id: teamId },
-        select: {
-            id: true,
-            openRouterKeyEncrypted: true,
-            openRouterKeyUpdatedAt: true,
-            aiProvider: true,
-            aiBaseUrl: true,
-            aiMainModel: true,
-            aiMainModelFamily: true,
-            aiPlanningModel: true,
-            aiPlanningModelFamily: true,
-            aiInsightModel: true,
-            aiInsightModelFamily: true,
-            aiTemperature: true,
-        },
+        select: TEAM_AI_SELECT,
     });
 
     if (!team) {
@@ -113,20 +109,7 @@ async function resolveTeamFromRunId(runId: string): Promise<TeamDoctorSource> {
                     project: {
                         select: {
                             team: {
-                                select: {
-                                    id: true,
-                                    openRouterKeyEncrypted: true,
-                                    openRouterKeyUpdatedAt: true,
-                                    aiProvider: true,
-                                    aiBaseUrl: true,
-                                    aiMainModel: true,
-                                    aiMainModelFamily: true,
-                                    aiPlanningModel: true,
-                                    aiPlanningModelFamily: true,
-                                    aiInsightModel: true,
-                                    aiInsightModelFamily: true,
-                                    aiTemperature: true,
-                                },
+                                select: TEAM_AI_SELECT,
                             },
                         },
                     },
@@ -214,7 +197,6 @@ export async function runAiConfigDoctor(rawArgs: string[] = process.argv.slice(2
         keyShape,
         keyUpdatedAt: source.team.openRouterKeyUpdatedAt?.toISOString() ?? null,
         remediation: buildRemediation(keyShape.reason),
-        verbose: args.verbose,
     };
 
     console.log(JSON.stringify(output, null, 2));

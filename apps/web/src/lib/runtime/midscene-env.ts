@@ -72,7 +72,7 @@ function inferModelFamily(modelName: string): string {
     }
 }
 
-export function validateMidsceneApiKey(apiKey: string): string {
+function assertValidMidsceneApiKey(apiKey: string): string {
     const trimmedApiKey = apiKey.trim();
     const result = validateAiApiKey(trimmedApiKey);
     if (!result.ok) {
@@ -82,7 +82,7 @@ export function validateMidsceneApiKey(apiKey: string): string {
 }
 
 export function buildMidsceneModelConfig(apiKey: string, options?: BuildMidsceneModelConfigOptions): MidsceneModelConfig {
-    const trimmedApiKey = validateMidsceneApiKey(apiKey);
+    const trimmedApiKey = assertValidMidsceneApiKey(apiKey);
 
     const config: MidsceneModelConfig = {
         MIDSCENE_MODEL_API_KEY: trimmedApiKey,

@@ -65,7 +65,7 @@ describe('audit-team-ai-keys', () => {
         const logCalls = logSpy.mock.calls as unknown[][];
         const records = logCalls.map((call) => JSON.parse(String(call[0]))) as Array<{
             teamId: string;
-            keyLength: number;
+            keyLength: number | null;
             invalidReason: string | null;
             keyUpdatedAt: string | null;
         }>;
@@ -73,7 +73,7 @@ describe('audit-team-ai-keys', () => {
         expect(records).toEqual([
             {
                 teamId: 'team-valid',
-                keyLength: validKey.length,
+                keyLength: null,
                 invalidReason: null,
                 keyUpdatedAt: '2026-04-17T01:00:00.000Z',
             },
