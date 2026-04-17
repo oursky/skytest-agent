@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ConfigurationError, PlaywrightCodeError } from '@/lib/core/errors';
+import { ConfigurationError, InvalidAiApiKeyError, PlaywrightCodeError } from '@/lib/core/errors';
 import { classifyRunFailure } from '@/lib/runtime/run-failure-classifier';
 import type { BrowserNetworkGuardSummary } from '@/lib/runtime/browser-network-guard';
 
@@ -71,6 +71,14 @@ describe('classifyRunFailure', () => {
         const result = classifyRunFailure(new ConfigurationError('Invalid URL', 'url'));
         expect(result).toEqual({
             code: 'CONFIGURATION_ERROR',
+            category: 'CONFIGURATION',
+        });
+    });
+
+    it('classifies invalid AI key format errors distinctly', () => {
+        const result = classifyRunFailure(new InvalidAiApiKeyError('non_ascii', 'invalid key format'));
+        expect(result).toEqual({
+            code: 'AI_KEY_INVALID_FORMAT',
             category: 'CONFIGURATION',
         });
     });

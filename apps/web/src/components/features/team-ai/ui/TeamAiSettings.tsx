@@ -5,6 +5,7 @@ import { useAuth } from '@/app/auth-provider';
 import { Button, CustomSelect, LoadingSpinner, Modal } from '@/components/shared';
 import { useI18n } from '@/i18n';
 import { MIDSCENE_MODEL_DEFAULTS } from '@/lib/runtime/model-families';
+import { validateAiApiKey, type AiApiKeyInvalidReason } from '@/lib/validation/ai-api-key';
 
 interface TeamAiSettingsProps {
     teamId: string;
@@ -24,6 +25,8 @@ interface TeamAiState {
     hasKey: boolean;
     maskedKey: string | null;
     updatedAt: string | null;
+    keyInvalid: boolean;
+    keyInvalidReason: AiApiKeyInvalidReason | null;
     providerConfig: {
         provider: TeamAiProvider;
         baseUrl: string | null;
@@ -47,6 +50,52 @@ interface ProviderFormState {
 }
 
 const DEFAULT_PROVIDER: TeamAiProvider = 'openrouter';
+
+const API_KEY_REASON_MESSAGE_KEYS: Record<AiApiKeyInvalidReason, string> = {
+    empty: 'team.ai.apiKey.invalid.empty',
+    too_short: 'team.ai.apiKey.invalid.tooShort',
+    non_ascii: 'team.ai.apiKey.invalid.nonAscii',
+};
+
+export interface TeamAiApiKeyInputValidation {
+    trimmedApiKey: string;
+    reason: AiApiKeyInvalidReason | null;
+    canSubmitForm: boolean;
+}
+
+export function getTeamAiApiKeyReasonMessageKey(reason: AiApiKeyInvalidReason): string {
+    return API_KEY_REASON_MESSAGE_KEYS[reason];
+}
+
+export function validateProvidedTeamAiApiKeyInput(apiKeyInput: string): TeamAiApiKeyInputValidation {
+    const trimmedApiKey = apiKeyInput.trim();
+    if (apiKeyInput.length === 0) {
+        return {
+            trimmedApiKey,
+            reason: null,
+            canSubmitForm: true,
+        };
+    }
+
+    const validation = validateAiApiKey(trimmedApiKey);
+    if (!validation.ok) {
+        return {
+            trimmedApiKey,
+            reason: validation.reason,
+            canSubmitForm: false,
+        };
+    }
+
+    return {
+        trimmedApiKey,
+        reason: null,
+        canSubmitForm: true,
+    };
+}
+
+export function shouldShowTeamAiApiKeyInput(state: Pick<TeamAiState, 'hasKey' | 'keyInvalid'>): boolean {
+    return !state.hasKey || state.keyInvalid;
+}
 
 function buildProviderFormState(providerConfig?: TeamAiState['providerConfig']): ProviderFormState {
     return {
@@ -93,6 +142,8 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
         hasKey: false,
         maskedKey: null,
         updatedAt: null,
+        keyInvalid: false,
+        keyInvalidReason: null,
         providerConfig: {
             provider: DEFAULT_PROVIDER,
             baseUrl: null,
@@ -170,6 +221,12 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
         setFieldErrors({});
 
         const nextFieldErrors: Partial<Record<ProviderFieldErrorKey, string>> = {};
+        const apiKeyValidation = validateProvidedTeamAiApiKeyInput(apiKey);
+        const trimmedApiKey = apiKeyValidation.trimmedApiKey;
+        if (!apiKeyValidation.canSubmitForm && apiKeyValidation.reason) {
+            nextFieldErrors.apiKey = t(getTeamAiApiKeyReasonMessageKey(apiKeyValidation.reason));
+        }
+
         const temperatureTrimmed = providerForm.temperature.trim();
         const parsedTemperature = temperatureTrimmed.length > 0
             ? Number.parseFloat(temperatureTrimmed)
@@ -213,7 +270,6 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
             },
         };
 
-        const trimmedApiKey = apiKey.trim();
         const hadStoredKey = state.hasKey;
         if (trimmedApiKey.length > 0) {
             payload.apiKey = trimmedApiKey;
@@ -308,30 +364,18 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
                 </div>
             ) : null}
 
+            {state.keyInvalid ? (
+                <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {t('team.ai.apiKey.storedInvalid')}
+                </div>
+            ) : null}
+
             {isLoading ? (
                 <div className="flex items-center gap-3 rounded-md bg-gray-50 px-4 py-3 text-sm text-gray-600">
                     <LoadingSpinner size={16} />
                     <span>{t('common.loading')}</span>
                 </div>
-            ) : state.hasKey ? (
-                <div className="flex items-center gap-3">
-                    <input
-                        type="text"
-                        value={state.maskedKey ?? ''}
-                        disabled
-                        className="w-48 rounded-md border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-gray-500"
-                    />
-                    <Button
-                        onClick={() => setIsRemoveConfirmOpen(true)}
-                        disabled={isSaving}
-                        variant="secondary"
-                        size="sm"
-                        className="shrink-0 border-red-200 text-red-700 hover:bg-red-50"
-                    >
-                        {t('team.ai.remove')}
-                    </Button>
-                </div>
-            ) : (
+            ) : shouldShowTeamAiApiKeyInput(state) ? (
                 <div className="space-y-1">
                     <div className="flex max-w-lg items-center gap-3">
                         <input
@@ -352,9 +396,28 @@ export default function TeamAiSettings({ teamId }: TeamAiSettingsProps) {
                             className="min-w-0 flex-1 rounded-md border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
                         />
                     </div>
+                    <p className="text-xs text-gray-500">{t('team.ai.apiKey.helperText')}</p>
                     {fieldErrors.apiKey ? (
                         <p className="text-xs text-red-600">{fieldErrors.apiKey}</p>
                     ) : null}
+                </div>
+            ) : (
+                <div className="flex items-center gap-3">
+                    <input
+                        type="text"
+                        value={state.maskedKey ?? ''}
+                        disabled
+                        className="w-48 rounded-md border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-gray-500"
+                    />
+                    <Button
+                        onClick={() => setIsRemoveConfirmOpen(true)}
+                        disabled={isSaving}
+                        variant="secondary"
+                        size="sm"
+                        className="shrink-0 border-red-200 text-red-700 hover:bg-red-50"
+                    >
+                        {t('team.ai.remove')}
+                    </Button>
                 </div>
             )}
 

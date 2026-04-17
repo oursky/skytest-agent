@@ -2,7 +2,7 @@ import { chromium, Page, BrowserContext, Browser, ConsoleMessage } from 'playwri
 import { PlaywrightAgent } from '@midscene/web/playwright';
 import { TEST_STATUS, TestStep, BrowserConfig, TargetConfig, AndroidTargetConfig, AndroidAgent, AndroidDevice, TestEvent, TestResult, RunTestOptions } from '@/types';
 import { config } from '@/config/app';
-import { ConfigurationError, TestExecutionError, getErrorMessage } from '@/lib/core/errors';
+import { ConfigurationError, InvalidAiApiKeyError, TestExecutionError, getErrorMessage } from '@/lib/core/errors';
 import { substituteAll } from '@/lib/test-config/substitution';
 import { createLogger as createServerLogger } from '@/lib/core/logger';
 import { buildMidsceneModelConfig } from '@/lib/runtime/midscene-env';
@@ -936,7 +936,9 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
         prompt,
         steps,
         browserConfig,
+        teamId,
         openRouterApiKey,
+        aiProvider,
         midsceneModelOptions,
         projectId,
         files,
@@ -954,7 +956,6 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
         };
     }
 
-    const midsceneModelConfig = buildMidsceneModelConfig(openRouterApiKey, midsceneModelOptions);
     const runAbortController = new AbortController();
     const runSignal = runAbortController.signal;
     const materializedExecutionFiles = await prepareExecutionFiles(files, resolvedFiles, runId);
@@ -1014,6 +1015,7 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
     };
 
     try {
+        const midsceneModelConfig = buildMidsceneModelConfig(openRouterApiKey, midsceneModelOptions);
         const hasAndroid = Object.values(targetConfigs).some(tc => 'type' in tc && tc.type === 'android');
         if (runSignal.aborted) throw new Error('Aborted');
         if (hasAndroid && onPreparing) await onPreparing();
@@ -1095,6 +1097,15 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
             const networkGuardSummaries = executionTargets
                 ? collectBrowserNetworkGuardSummaries(executionTargets.browserNetworkGuards)
                 : [];
+            if (error instanceof InvalidAiApiKeyError) {
+                serverLogger.error('Invalid team AI key format detected while building Midscene config', {
+                    runId,
+                    teamId: teamId ?? null,
+                    provider: aiProvider ?? null,
+                    modelFamily: midsceneModelOptions?.mainModelFamily ?? null,
+                    reason: error.reason,
+                });
+            }
             const failureClassification = classifyRunFailure(error, { networkGuardSummaries });
             const msg = getErrorMessage(error);
             log(

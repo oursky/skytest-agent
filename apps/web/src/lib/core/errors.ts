@@ -1,3 +1,5 @@
+import type { AiApiKeyInvalidReason } from '@/lib/validation/ai-api-key';
+
 const ANSI_ESCAPE_SEQUENCE_PATTERN = /\u001B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g;
 
 function sanitizeErrorText(value: string): string {
@@ -24,6 +26,17 @@ export class ConfigurationError extends Error {
         super(message);
         this.name = 'ConfigurationError';
         Object.setPrototypeOf(this, ConfigurationError.prototype);
+    }
+}
+
+export class InvalidAiApiKeyError extends ConfigurationError {
+    constructor(
+        public readonly reason: AiApiKeyInvalidReason,
+        message: string
+    ) {
+        super(message, 'apiKey');
+        this.name = 'InvalidAiApiKeyError';
+        Object.setPrototypeOf(this, InvalidAiApiKeyError.prototype);
     }
 }
 

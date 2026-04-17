@@ -11,14 +11,13 @@ import {
     type TeamAiProvider,
     type TeamAiProviderConfig,
 } from '@/lib/runtime/team-ai-config';
-import { validateMidsceneApiKey } from '@/lib/runtime/midscene-env';
+import { validateAiApiKey, type AiApiKeyInvalidReason } from '@/lib/validation/ai-api-key';
 import { VALID_MODEL_FAMILIES } from '@/lib/runtime/model-families';
 import { validateRuntimeRequestUrl } from '@/lib/security/url-security-runtime';
 
 const logger = createLogger('api:teams:ai-key');
 const VALID_MODEL_FAMILY_SET = new Set<string>(VALID_MODEL_FAMILIES);
 const SUPPORTED_MODEL_FAMILY_MESSAGE = `Invalid model family. Supported: ${VALID_MODEL_FAMILIES.join(', ')}`;
-const MIN_API_KEY_LENGTH = 8;
 
 export const dynamic = 'force-dynamic';
 
@@ -32,6 +31,15 @@ interface ProviderConfigInput {
     insightModel?: string | null;
     insightModelFamily?: string | null;
     temperature?: number | null;
+}
+
+interface TeamAiKeyGetResponse {
+    hasKey: boolean;
+    maskedKey: string | null;
+    updatedAt: Date | null;
+    providerConfig: TeamAiProviderConfig;
+    keyInvalid: boolean;
+    keyInvalidReason: AiApiKeyInvalidReason | null;
 }
 
 type ProviderConfigFieldErrors = Partial<Record<
@@ -143,26 +151,45 @@ export async function GET(
         });
 
         if (!team) {
-            return NextResponse.json({
+            const response: TeamAiKeyGetResponse = {
                 hasKey: false,
                 maskedKey: null,
                 updatedAt: null,
                 providerConfig: buildTeamAiProviderConfig(null),
-            });
+                keyInvalid: false,
+                keyInvalidReason: null,
+            };
+            return NextResponse.json(response);
         }
 
         const providerConfig = buildTeamAiProviderConfig(team);
 
         if (!team.openRouterKeyEncrypted) {
-            return NextResponse.json({ hasKey: false, maskedKey: null, updatedAt: null, providerConfig });
+            const response: TeamAiKeyGetResponse = {
+                hasKey: false,
+                maskedKey: null,
+                updatedAt: null,
+                providerConfig,
+                keyInvalid: false,
+                keyInvalidReason: null,
+            };
+            return NextResponse.json(response);
         }
 
-        return NextResponse.json({
+        const decryptedApiKey = decrypt(team.openRouterKeyEncrypted);
+        const validation = validateAiApiKey(decryptedApiKey);
+        const keyInvalidReason = validation.ok ? null : validation.reason;
+
+        const response: TeamAiKeyGetResponse = {
             hasKey: true,
-            maskedKey: maskApiKey(decrypt(team.openRouterKeyEncrypted)),
+            maskedKey: maskApiKey(decryptedApiKey),
             updatedAt: team.openRouterKeyUpdatedAt,
             providerConfig,
-        });
+            keyInvalid: keyInvalidReason !== null,
+            keyInvalidReason,
+        };
+
+        return NextResponse.json(response);
     } catch (error) {
         logger.error('Failed to fetch team AI key', error);
         return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to load team key' });
@@ -192,14 +219,10 @@ export async function POST(
 
         const fieldErrors = await validateProviderConfigInput(providerConfigInput);
         const apiKeyTrimmed = typeof apiKey === 'string' ? apiKey.trim() : null;
-        if (apiKeyTrimmed !== null && apiKeyTrimmed.length === 0) {
-            fieldErrors.apiKey = 'API key is required';
-        } else if (apiKeyTrimmed !== null && apiKeyTrimmed.length < MIN_API_KEY_LENGTH) {
-            fieldErrors.apiKey = `API key must be at least ${MIN_API_KEY_LENGTH} characters`;
-        } else if (apiKeyTrimmed !== null) {
-            const apiKeyValidationError = validateMidsceneApiKey(apiKeyTrimmed);
-            if (apiKeyValidationError) {
-                fieldErrors.apiKey = apiKeyValidationError;
+        if (apiKeyTrimmed !== null) {
+            const validation = validateAiApiKey(apiKeyTrimmed);
+            if (!validation.ok) {
+                fieldErrors.apiKey = validation.message;
             }
         }
 

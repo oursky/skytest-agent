@@ -1,7 +1,7 @@
 import type { Prisma } from '@prisma/client';
 import { runTest } from '@/lib/runtime/test-runner';
 import type { BuildMidsceneModelConfigOptions } from '@/lib/runtime/midscene-env';
-import { resolveTeamMidsceneConfig } from '@/lib/runtime/team-ai-config';
+import { buildTeamAiProviderConfig, resolveTeamMidsceneConfig } from '@/lib/runtime/team-ai-config';
 import { prisma } from '@/lib/core/prisma';
 import { resolveConfigs } from '@/lib/test-config/resolver';
 import { decrypt } from '@/lib/security/crypto';
@@ -11,6 +11,7 @@ import { config as appConfig } from '@/config/app';
 import { createStoredName, validateAndSanitizeFile, buildRunArtifactObjectKey } from '@/lib/security/file-security';
 import { putObjectBuffer } from '@/lib/storage/object-store-utils';
 import { UsageService } from '@/lib/runtime/usage';
+import { InvalidAiApiKeyError } from '@/lib/core/errors';
 import {
     buildResolvedConfigMapsFromSnapshot,
     parseConfigurationSnapshot,
@@ -31,7 +32,6 @@ import {
     type TestEvent,
     type TestStep,
 } from '@/types';
-
 interface LoadedRunConfig {
     runId: string;
     testCaseId: string;
@@ -46,42 +46,37 @@ interface LoadedRunConfig {
             steps?: TestStep[];
             browserConfig?: Record<string, BrowserConfig | TargetConfig>;
             openRouterApiKey: string;
+            teamId: string;
+            aiProvider: string;
             midsceneModelOptions?: BuildMidsceneModelConfigOptions;
             files: TestCaseFile[];
             resolvedVariables: Record<string, string>;
             resolvedFiles: Record<string, string>;
     };
 }
-
 interface RunEventInput {
     kind: string;
     message?: string;
     payload?: unknown;
     artifactKey?: string;
 }
-
 interface LocalBrowserRunOptions {
     runnerId?: string;
 }
-
 const logger = createLogger('runtime:local-browser-runner');
 const activeAbortControllers = new Map<string, AbortController>();
 const activeExecutions = new Map<string, Promise<void>>();
 const RUN_STATUS_WATCH_INTERVAL_MS = appConfig.runner.runStatusPollIntervalMs;
 const RUN_STATUS_MAX_CANCELLATION_POLL_INTERVAL_MS = appConfig.runner.runStatusMaxCancellationPollIntervalMs;
-
 export function getActiveLocalBrowserRunCount(): number {
     return activeExecutions.size;
 }
-
 export function getMaxLocalBrowserRunCount(): number {
     return appConfig.runner.maxLocalBrowserRuns;
 }
-
 export function hasLocalBrowserRunCapacity(): boolean {
     return getActiveLocalBrowserRunCount() < getMaxLocalBrowserRunCount();
 }
-
 export function getActiveLocalBrowserRunIds(): string[] {
     return Array.from(activeAbortControllers.keys());
 }
@@ -178,6 +173,7 @@ async function loadRunConfig(runId: string, options?: LocalBrowserRunOptions): P
                     project: {
                         select: {
                             name: true,
+                            teamId: true,
                             createdByUserId: true,
                             team: {
                                 select: {
@@ -238,6 +234,8 @@ async function loadRunConfig(runId: string, options?: LocalBrowserRunOptions): P
     }
     const fallbackSteps = parseSerializedJson<TestStep[]>(run.testCase.steps);
     const fallbackBrowserConfig = parseSerializedJson<Record<string, BrowserConfig | TargetConfig>>(run.testCase.browserConfig);
+    const providerConfig = buildTeamAiProviderConfig(run.testCase.project.team);
+    const midsceneModelOptions = resolveTeamMidsceneConfig(run.testCase.project.team);
 
     return {
         runId: run.id,
@@ -253,7 +251,9 @@ async function loadRunConfig(runId: string, options?: LocalBrowserRunOptions): P
             steps: snapshot.steps ?? fallbackSteps,
             browserConfig: snapshot.browserConfig ?? fallbackBrowserConfig,
             openRouterApiKey: decrypt(encryptedKey),
-            midsceneModelOptions: resolveTeamMidsceneConfig(run.testCase.project.team),
+            teamId: run.testCase.project.teamId,
+            aiProvider: providerConfig.provider,
+            midsceneModelOptions,
             files: run.files,
             resolvedVariables,
             resolvedFiles,
@@ -760,7 +760,9 @@ async function executeLocalBrowserRun(
                 prompt: details.config.prompt,
                 steps: details.config.steps,
                 browserConfig: details.config.browserConfig,
+                teamId: details.config.teamId,
                 openRouterApiKey: details.config.openRouterApiKey,
+                aiProvider: details.config.aiProvider,
                 midsceneModelOptions: details.config.midsceneModelOptions,
                 testCaseId: details.testCaseId,
                 projectId: details.projectId,
@@ -836,7 +838,23 @@ async function executeLocalBrowserRun(
     } catch (error) {
         await Promise.allSettled(Array.from(pendingArtifactUploads));
         await flushEvents();
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const isInvalidAiKey = error instanceof InvalidAiApiKeyError;
+        if (error instanceof InvalidAiApiKeyError) {
+            logger.error('Invalid team AI key format detected while dispatching local browser run', {
+                runId: details.runId,
+                teamId: details.config.teamId,
+                provider: details.config.aiProvider,
+                modelFamily: details.config.midsceneModelOptions?.mainModelFamily ?? null,
+                reason: error.reason,
+            });
+        }
+        // UI localizes via errorCode (see ResultStatus.tsx). This fallback string
+        // is written to DB and surfaces only where errorCode branching is absent.
+        const errorMessage = isInvalidAiKey
+            ? 'Team AI key format invalid. Re-save key in Team Settings.'
+            : error instanceof Error
+                ? error.message
+                : String(error);
         await failRun(
             runId,
             details.testCaseId,

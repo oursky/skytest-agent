@@ -90,6 +90,38 @@ describe('/api/teams/[id]/ai-key', () => {
             insightModelFamily: null,
             temperature: null,
         });
+        expect(payload.keyInvalid).toBe(false);
+        expect(payload.keyInvalidReason).toBeNull();
+    });
+
+    it('flags invalid stored keys on GET without leaking plaintext', async () => {
+        const rawInvalidKey = 'copilot-token✅123';
+        mocks.prisma.team.findUnique.mockResolvedValue({
+            openRouterKeyEncrypted: `enc:${rawInvalidKey}`,
+            openRouterKeyUpdatedAt: new Date('2026-04-17T00:00:00.000Z'),
+            aiProvider: 'OPENROUTER',
+            aiBaseUrl: null,
+            aiMainModel: null,
+            aiMainModelFamily: null,
+            aiPlanningModel: null,
+            aiPlanningModelFamily: null,
+            aiInsightModel: null,
+            aiInsightModelFamily: null,
+            aiTemperature: null,
+        });
+
+        const response = await GET(new Request('http://localhost/api/teams/team-1/ai-key'), {
+            params: Promise.resolve({ id: 'team-1' }),
+        });
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(payload).toMatchObject({
+            hasKey: true,
+            keyInvalid: true,
+            keyInvalidReason: 'non_ascii',
+        });
+        expect(JSON.stringify(payload)).not.toContain(rawInvalidKey);
     });
 
     it('accepts non-empty key without sk- prefix and stores provider config', async () => {

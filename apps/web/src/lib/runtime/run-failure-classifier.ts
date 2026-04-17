@@ -1,4 +1,4 @@
-import { ConfigurationError, PlaywrightCodeError, getErrorMessage } from '@/lib/core/errors';
+import { ConfigurationError, InvalidAiApiKeyError, PlaywrightCodeError, getErrorMessage } from '@/lib/core/errors';
 import type { BrowserNetworkGuardSummary } from '@/lib/runtime/browser-network-guard';
 import type { TestFailureCategory, TestFailureCode } from '@/types';
 
@@ -87,6 +87,10 @@ export function classifyRunFailure(
 
     if (error instanceof PlaywrightCodeError) {
         return { code: 'PLAYWRIGHT_CODE_FAILED', category: 'TEST_SCRIPT' };
+    }
+
+    if (error instanceof InvalidAiApiKeyError) {
+        return { code: 'AI_KEY_INVALID_FORMAT', category: 'CONFIGURATION' };
     }
 
     if (error instanceof ConfigurationError) {
