@@ -11,14 +11,13 @@ import {
     type TeamAiProvider,
     type TeamAiProviderConfig,
 } from '@/lib/runtime/team-ai-config';
-import { validateMidsceneApiKey } from '@/lib/runtime/midscene-env';
+import { validateAiApiKey } from '@/lib/validation/ai-api-key';
 import { VALID_MODEL_FAMILIES } from '@/lib/runtime/model-families';
 import { validateRuntimeRequestUrl } from '@/lib/security/url-security-runtime';
 
 const logger = createLogger('api:teams:ai-key');
 const VALID_MODEL_FAMILY_SET = new Set<string>(VALID_MODEL_FAMILIES);
 const SUPPORTED_MODEL_FAMILY_MESSAGE = `Invalid model family. Supported: ${VALID_MODEL_FAMILIES.join(', ')}`;
-const MIN_API_KEY_LENGTH = 8;
 
 export const dynamic = 'force-dynamic';
 
@@ -192,14 +191,10 @@ export async function POST(
 
         const fieldErrors = await validateProviderConfigInput(providerConfigInput);
         const apiKeyTrimmed = typeof apiKey === 'string' ? apiKey.trim() : null;
-        if (apiKeyTrimmed !== null && apiKeyTrimmed.length === 0) {
-            fieldErrors.apiKey = 'API key is required';
-        } else if (apiKeyTrimmed !== null && apiKeyTrimmed.length < MIN_API_KEY_LENGTH) {
-            fieldErrors.apiKey = `API key must be at least ${MIN_API_KEY_LENGTH} characters`;
-        } else if (apiKeyTrimmed !== null) {
-            const apiKeyValidationError = validateMidsceneApiKey(apiKeyTrimmed);
-            if (apiKeyValidationError) {
-                fieldErrors.apiKey = apiKeyValidationError;
+        if (apiKeyTrimmed !== null) {
+            const validation = validateAiApiKey(apiKeyTrimmed);
+            if (!validation.ok) {
+                fieldErrors.apiKey = validation.message;
             }
         }
 

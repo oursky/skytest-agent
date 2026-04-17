@@ -1,5 +1,6 @@
 import { MIDSCENE_MODEL_DEFAULTS } from '@/lib/runtime/model-families';
-import { ConfigurationError } from '@/lib/core/errors';
+import { InvalidAiApiKeyError } from '@/lib/core/errors';
+import { validateAiApiKey } from '@/lib/validation/ai-api-key';
 
 export type MidsceneModelConfig = Record<string, string | number>;
 
@@ -17,8 +18,6 @@ const MIDSCENE_MODEL_ENV_DEFAULTS = {
 } as const;
 
 type MidsceneModelEnvVar = keyof typeof MIDSCENE_MODEL_ENV_DEFAULTS;
-const VISIBLE_ASCII_KEY_PATTERN = /^[\x21-\x7E]+$/;
-const INVALID_API_KEY_FORMAT_MESSAGE = 'API key must use visible ASCII characters only (no spaces, newlines, or emojis)';
 
 export interface BuildMidsceneModelConfigOptions {
     baseUrl?: string;
@@ -73,25 +72,17 @@ function inferModelFamily(modelName: string): string {
     }
 }
 
-export function validateMidsceneApiKey(apiKey: string): string | null {
+export function validateMidsceneApiKey(apiKey: string): string {
     const trimmedApiKey = apiKey.trim();
-    if (!trimmedApiKey) {
-        return 'API key is required';
+    const result = validateAiApiKey(trimmedApiKey);
+    if (!result.ok) {
+        throw new InvalidAiApiKeyError(result.reason, result.message);
     }
-
-    if (!VISIBLE_ASCII_KEY_PATTERN.test(trimmedApiKey)) {
-        return INVALID_API_KEY_FORMAT_MESSAGE;
-    }
-
-    return null;
+    return trimmedApiKey;
 }
 
 export function buildMidsceneModelConfig(apiKey: string, options?: BuildMidsceneModelConfigOptions): MidsceneModelConfig {
-    const trimmedApiKey = apiKey.trim();
-    const apiKeyValidationError = validateMidsceneApiKey(trimmedApiKey);
-    if (apiKeyValidationError) {
-        throw new ConfigurationError(apiKeyValidationError, 'apiKey');
-    }
+    const trimmedApiKey = validateMidsceneApiKey(apiKey);
 
     const config: MidsceneModelConfig = {
         MIDSCENE_MODEL_API_KEY: trimmedApiKey,

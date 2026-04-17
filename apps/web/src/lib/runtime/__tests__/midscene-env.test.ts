@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { buildMidsceneModelConfig } from '@/lib/runtime/midscene-env';
+import { InvalidAiApiKeyError } from '@/lib/core/errors';
 
 const ORIGINAL_ENV = { ...process.env };
 
@@ -24,18 +25,26 @@ describe('buildMidsceneModelConfig', () => {
 
     it('throws when api key is empty', () => {
         expect(() => buildMidsceneModelConfig('')).toThrow('API key is required');
+        expect(() => buildMidsceneModelConfig('')).toThrowError(InvalidAiApiKeyError);
     });
 
     it('throws when api key contains non-ASCII characters', () => {
         expect(() => buildMidsceneModelConfig('token✅value')).toThrow(
             'API key must use visible ASCII characters only'
         );
+        expect(() => buildMidsceneModelConfig('token✅value')).toThrowError(InvalidAiApiKeyError);
     });
 
     it('throws when api key contains whitespace', () => {
         expect(() => buildMidsceneModelConfig('token with-space')).toThrow(
             'API key must use visible ASCII characters only'
         );
+        expect(() => buildMidsceneModelConfig('token with-space')).toThrowError(InvalidAiApiKeyError);
+    });
+
+    it('throws when api key is shorter than minimum length', () => {
+        expect(() => buildMidsceneModelConfig('short7')).toThrow('API key must be at least 8 characters');
+        expect(() => buildMidsceneModelConfig('short7')).toThrowError(InvalidAiApiKeyError);
     });
 
     it('applies baseUrl option to all model configs', () => {
