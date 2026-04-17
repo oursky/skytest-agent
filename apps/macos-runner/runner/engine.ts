@@ -35,6 +35,7 @@ import * as devicesModule from '../../web/src/lib/android/devices';
 import * as eventsModule from '../../web/src/types/events';
 import type { ConnectedAndroidDeviceInfo } from '../../web/src/lib/android/device-display';
 import type { BrowserConfig, TargetConfig, TestCaseFile, TestEvent, TestStep } from '../../web/src/types';
+import type { BuildMidsceneModelConfigOptions } from '../../web/src/lib/runtime/midscene-env';
 import { loadStoredRunnerCredential, saveRunnerCredential, type StoredRunnerCredential } from './credential-store';
 import { acquireRunnerProcessLock } from './process-lock';
 import { buildRunnerDisplayId, sleep } from './runtime-utils';
@@ -136,6 +137,8 @@ interface JobDetailsConfig {
     steps?: TestStep[];
     browserConfig?: Record<string, BrowserConfig | TargetConfig>;
     openRouterApiKey: string;
+    aiProvider?: string;
+    midsceneModelOptions?: BuildMidsceneModelConfigOptions;
     files: TestCaseFile[];
     resolvedVariables: Record<string, string>;
     resolvedFiles: Record<string, string>;
@@ -508,6 +511,8 @@ async function loadJobDetails(runId: string): Promise<JobDetailsPayload> {
             steps: parsed.config.steps as TestStep[] | undefined,
             browserConfig: parsed.config.browserConfig as Record<string, BrowserConfig | TargetConfig> | undefined,
             openRouterApiKey: parsed.config.openRouterApiKey,
+            aiProvider: parsed.config.aiProvider,
+            midsceneModelOptions: parsed.config.midsceneModelOptions,
             files: parsed.config.files as TestCaseFile[],
             resolvedVariables: parsed.config.resolvedVariables,
             resolvedFiles: parsed.config.resolvedFiles,
@@ -729,6 +734,8 @@ async function executeClaimedRun(runId: string) {
                 steps: details.config.steps,
                 browserConfig: details.config.browserConfig,
                 openRouterApiKey: details.config.openRouterApiKey,
+                aiProvider: details.config.aiProvider,
+                midsceneModelOptions: details.config.midsceneModelOptions,
                 testCaseId: details.testCaseId,
                 projectId: details.projectId,
                 files: details.config.files,

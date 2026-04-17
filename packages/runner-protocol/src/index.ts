@@ -242,6 +242,17 @@ export const runFileSchema = z.object({
     size: z.number().int().nonnegative(),
 });
 
+export const midsceneModelOptionsSchema = z.object({
+    baseUrl: z.string().min(1).optional(),
+    mainModel: z.string().min(1).optional(),
+    mainModelFamily: z.string().min(1).optional(),
+    planningModel: z.string().min(1).optional(),
+    planningModelFamily: z.string().min(1).optional(),
+    insightModel: z.string().min(1).optional(),
+    insightModelFamily: z.string().min(1).optional(),
+    temperature: z.number().finite().optional(),
+});
+
 export const jobDetailsResponseSchema = z.object({
     runId: z.string().min(1),
     testCaseId: z.string().min(1),
@@ -254,6 +265,8 @@ export const jobDetailsResponseSchema = z.object({
         steps: z.array(z.record(z.string(), z.unknown())).optional(),
         browserConfig: z.record(z.string(), z.record(z.string(), z.unknown())).optional(),
         openRouterApiKey: z.string().min(1),
+        aiProvider: z.string().min(1).optional(),
+        midsceneModelOptions: midsceneModelOptionsSchema.optional(),
         files: z.array(runFileSchema),
         resolvedVariables: z.record(z.string(), z.string()),
         resolvedFiles: z.record(z.string(), z.string()),

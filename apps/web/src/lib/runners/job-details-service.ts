@@ -1,7 +1,9 @@
 import { prisma } from '@/lib/core/prisma';
 import { resolveConfigs } from '@/lib/test-config/resolver';
 import { decrypt } from '@/lib/security/crypto';
+import { buildTeamAiProviderConfig, resolveTeamMidsceneConfig } from '@/lib/runtime/team-ai-config';
 import { isRunInProgressStatus, type BrowserConfig, type ConfigType, type ResolvedConfig, type TargetConfig, type TestStep } from '@/types';
+import type { BuildMidsceneModelConfigOptions } from '@/lib/runtime/midscene-env';
 
 interface SnapshotPayload {
     url?: string;
@@ -81,6 +83,16 @@ function parseSerializedJson<T>(value: string | null): T | undefined {
     }
 }
 
+function compactMidsceneModelOptions(
+    options: BuildMidsceneModelConfigOptions
+): BuildMidsceneModelConfigOptions | undefined {
+    const compacted = Object.fromEntries(
+        Object.entries(options).filter(([, value]) => value !== undefined)
+    ) as BuildMidsceneModelConfigOptions;
+
+    return Object.keys(compacted).length > 0 ? compacted : undefined;
+}
+
 function isRunnerRunOwned(input: {
     assignedRunnerId: string | null;
     leaseExpiresAt: Date | null;
@@ -129,6 +141,15 @@ export async function loadRunnerJobDetails(input: { runId: string; runnerId: str
                             team: {
                                 select: {
                                     openRouterKeyEncrypted: true,
+                                    aiProvider: true,
+                                    aiBaseUrl: true,
+                                    aiMainModel: true,
+                                    aiMainModelFamily: true,
+                                    aiPlanningModel: true,
+                                    aiPlanningModelFamily: true,
+                                    aiInsightModel: true,
+                                    aiInsightModelFamily: true,
+                                    aiTemperature: true,
                                 },
                             },
                         },
@@ -167,6 +188,8 @@ export async function loadRunnerJobDetails(input: { runId: string; runnerId: str
     }
 
     const openRouterApiKey = decrypt(encryptedKey);
+    const providerConfig = buildTeamAiProviderConfig(run.testCase.project.team);
+    const midsceneModelOptions = compactMidsceneModelOptions(resolveTeamMidsceneConfig(run.testCase.project.team));
 
     const fallbackSteps = parseSerializedJson<TestStep[]>(run.testCase.steps);
     const fallbackBrowserConfig = parseSerializedJson<Record<string, BrowserConfig | TargetConfig>>(run.testCase.browserConfig);
@@ -181,6 +204,8 @@ export async function loadRunnerJobDetails(input: { runId: string; runnerId: str
             steps: snapshot.steps ?? fallbackSteps,
             browserConfig: snapshot.browserConfig ?? fallbackBrowserConfig,
             openRouterApiKey,
+            aiProvider: providerConfig.provider,
+            midsceneModelOptions,
             files: run.files,
             resolvedVariables,
             resolvedFiles,

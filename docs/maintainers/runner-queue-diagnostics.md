@@ -55,6 +55,16 @@ Additional logs were added at key transitions:
 - run completion/failure by runner (`apps/web/src/lib/runners/event-service.ts`)
 - run cancellation (`POST /api/test-runs/:id/cancel`)
 
+## AI Provider Config Propagation
+
+For paired runners, AI provider/model settings are resolved from team configuration when job details are loaded (`POST /api/runners/v1/jobs/:id/details`), not from runner-local defaults.
+
+Payload fields returned in job details config:
+- `aiProvider`
+- `midsceneModelOptions`
+
+If Team Settings model changes are not reflected in new paired-runner executions, inspect this endpoint response first.
+
 ## Browser Concurrency Gates
 
 Local browser dispatch is gated by all of the following:

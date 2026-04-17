@@ -80,6 +80,7 @@ describe('loadRunnerJobDetails', () => {
                 steps: [{ id: 's1', target: 'main', action: 'Click' }],
                 browserConfig: { main: { type: 'browser', url: 'https://example.com', width: 1280, height: 800 } },
                 openRouterApiKey: 'decrypted-key',
+                aiProvider: 'openrouter',
                 files: [{ id: 'f1', filename: 'input.txt', storedName: 'x', mimeType: 'text/plain', size: 12 }],
                 resolvedVariables: { env: 'staging' },
                 resolvedFiles: { report: 'reports/latest.txt' },
@@ -170,6 +171,63 @@ describe('loadRunnerJobDetails', () => {
         expect(result?.config.resolvedFiles).toEqual({
             seedCsv: 'objects/seed.csv',
             'seed.csv': 'objects/seed.csv',
+        });
+    });
+
+    it('includes team AI provider and model options in job details config', async () => {
+        findUnique.mockResolvedValueOnce({
+            id: 'run-3',
+            testCaseId: 'tc-1',
+            status: 'RUNNING',
+            configurationSnapshot: JSON.stringify({
+                url: 'https://example.com',
+            }),
+            assignedRunnerId: 'runner-1',
+            leaseExpiresAt: new Date(Date.now() + 60_000),
+            files: [],
+            testCase: {
+                id: 'tc-1',
+                url: 'https://fallback.com',
+                prompt: null,
+                steps: null,
+                browserConfig: null,
+                projectId: 'project-1',
+                project: {
+                    team: {
+                        openRouterKeyEncrypted: 'encrypted',
+                        aiProvider: 'OPENROUTER',
+                        aiBaseUrl: 'https://openrouter.ai/api/v1',
+                        aiMainModel: 'qwen/qwen3.5-27b',
+                        aiMainModelFamily: 'qwen3.5',
+                        aiPlanningModel: 'qwen/qwen3.5-27b',
+                        aiPlanningModelFamily: 'qwen3.5',
+                        aiInsightModel: 'qwen/qwen3.5-27b',
+                        aiInsightModelFamily: 'qwen3.5',
+                        aiTemperature: 0.2,
+                    },
+                },
+            },
+        });
+
+        const result = await loadRunnerJobDetails({
+            runId: 'run-3',
+            runnerId: 'runner-1',
+        });
+
+        expect(result).toMatchObject({
+            config: {
+                aiProvider: 'openrouter',
+                midsceneModelOptions: {
+                    baseUrl: 'https://openrouter.ai/api/v1',
+                    mainModel: 'qwen/qwen3.5-27b',
+                    mainModelFamily: 'qwen3.5',
+                    planningModel: 'qwen/qwen3.5-27b',
+                    planningModelFamily: 'qwen3.5',
+                    insightModel: 'qwen/qwen3.5-27b',
+                    insightModelFamily: 'qwen3.5',
+                    temperature: 0.2,
+                },
+            },
         });
     });
 });
