@@ -13,6 +13,7 @@ apps/web/src/
 │   │   ├── playwright-code-execution.ts # Playwright code step runner
 │   │   ├── network-guard-summary.ts    # Network guard log emission
 │   │   ├── local-browser-runner.ts     # Browser runtime dispatch target
+│   │   ├── local-browser-runner-lifecycle.ts # Run state transitions (complete/fail/cancel)
 │   │   ├── local-browser-runner-parsers.ts # Snapshot/config parsers
 │   │   └── usage.ts               # API usage tracking
 │   ├── runners/                   # Runner orchestration + queueing services

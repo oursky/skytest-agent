@@ -82,6 +82,12 @@
   },
   "overrides": {
     "@hono/node-server": "1.19.13",
+    "@midscene/core@1.7.4": {
+      "js-yaml": "4.1.1"
+    },
+    "@midscene/shared@1.7.4": {
+      "@modelcontextprotocol/sdk": "1.29.0"
+    },
     "@modelcontextprotocol/sdk": "1.29.0",
     "hono": "4.12.14",
     "follow-redirects": "1.16.0",
