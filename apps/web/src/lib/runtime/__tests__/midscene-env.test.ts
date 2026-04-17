@@ -26,6 +26,18 @@ describe('buildMidsceneModelConfig', () => {
         expect(() => buildMidsceneModelConfig('')).toThrow('API key is required');
     });
 
+    it('throws when api key contains non-ASCII characters', () => {
+        expect(() => buildMidsceneModelConfig('token✅value')).toThrow(
+            'API key must use visible ASCII characters only'
+        );
+    });
+
+    it('throws when api key contains whitespace', () => {
+        expect(() => buildMidsceneModelConfig('token with-space')).toThrow(
+            'API key must use visible ASCII characters only'
+        );
+    });
+
     it('applies baseUrl option to all model configs', () => {
         const config = buildMidsceneModelConfig('test-key', { baseUrl: 'https://custom.ai/v1' });
 

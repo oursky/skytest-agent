@@ -11,6 +11,7 @@ import {
     type TeamAiProvider,
     type TeamAiProviderConfig,
 } from '@/lib/runtime/team-ai-config';
+import { validateMidsceneApiKey } from '@/lib/runtime/midscene-env';
 import { VALID_MODEL_FAMILIES } from '@/lib/runtime/model-families';
 import { validateRuntimeRequestUrl } from '@/lib/security/url-security-runtime';
 
@@ -195,6 +196,11 @@ export async function POST(
             fieldErrors.apiKey = 'API key is required';
         } else if (apiKeyTrimmed !== null && apiKeyTrimmed.length < MIN_API_KEY_LENGTH) {
             fieldErrors.apiKey = `API key must be at least ${MIN_API_KEY_LENGTH} characters`;
+        } else if (apiKeyTrimmed !== null) {
+            const apiKeyValidationError = validateMidsceneApiKey(apiKeyTrimmed);
+            if (apiKeyValidationError) {
+                fieldErrors.apiKey = apiKeyValidationError;
+            }
         }
 
         if (Object.keys(fieldErrors).length > 0) {

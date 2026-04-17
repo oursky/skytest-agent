@@ -179,6 +179,28 @@ describe('/api/teams/[id]/ai-key', () => {
         });
     });
 
+    it('rejects key containing non-ASCII characters', async () => {
+        const response = await POST(new Request('http://localhost/api/teams/team-1/ai-key', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ apiKey: 'copilot-token✅123' }),
+        }), {
+            params: Promise.resolve({ id: 'team-1' }),
+        });
+
+        const payload = await response.json();
+        expect(response.status).toBe(400);
+        expect(payload).toMatchObject({
+            error: 'Please fix the highlighted fields',
+            code: 'VALIDATION_ERROR',
+            details: {
+                fieldErrors: {
+                    apiKey: 'API key must use visible ASCII characters only (no spaces, newlines, or emojis)',
+                },
+            },
+        });
+    });
+
     it('updates provider config without re-posting api key', async () => {
         const response = await POST(new Request('http://localhost/api/teams/team-1/ai-key', {
             method: 'POST',
