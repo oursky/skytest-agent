@@ -10,11 +10,16 @@ const exceptionsPath = path.resolve(workspaceRoot, 'scripts/quality/adr-loc-exce
 
 const exceptionConfig = JSON.parse(readFileSync(exceptionsPath, 'utf8'));
 const maxLines = Number(exceptionConfig.maxLines ?? 900);
+const creepThreshold = Number(exceptionConfig.creepThreshold ?? Math.floor(maxLines * 0.95));
+const creepBaseRef = String(exceptionConfig.creepBaseRef ?? 'origin/main');
 const exceptionPaths = new Set(
     Array.isArray(exceptionConfig.exceptions)
         ? exceptionConfig.exceptions.map((item) => String(item.path))
         : []
 );
+
+const cliArgs = new Set(process.argv.slice(2));
+const strictCreep = cliArgs.has('--strict-creep') || process.env.STRICT_HOTSPOT_CREEP === '1';
 
 const searchRoots = [
     'apps/web/src',
@@ -86,9 +91,86 @@ function listFiles() {
     }
 }
 
+function refExists(ref) {
+    try {
+        execFileSync('git', ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], {
+            cwd: repoRoot,
+            stdio: ['ignore', 'ignore', 'ignore'],
+        });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+function ensureBaseRefAvailable() {
+    if (refExists(creepBaseRef)) {
+        return true;
+    }
+
+    const match = /^([^/\s]+)\/(.+)$/.exec(creepBaseRef);
+    if (!match) {
+        return false;
+    }
+    const [, remote, branch] = match;
+
+    try {
+        execFileSync('git', ['fetch', '--depth=1', remote, branch], {
+            cwd: repoRoot,
+            stdio: ['ignore', 'ignore', 'pipe'],
+        });
+    } catch {
+        return false;
+    }
+
+    return refExists(creepBaseRef);
+}
+
+function fileExistsAtBase(file) {
+    try {
+        execFileSync('git', ['cat-file', '-e', `${creepBaseRef}:${file}`], {
+            cwd: repoRoot,
+            stdio: ['ignore', 'ignore', 'ignore'],
+        });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+function getBaseLineCount(file) {
+    try {
+        const contents = execFileSync('git', ['show', `${creepBaseRef}:${file}`], {
+            cwd: repoRoot,
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'pipe'],
+        });
+        if (contents === '') {
+            return 0;
+        }
+        const trimmed = contents.endsWith('\n') ? contents.slice(0, -1) : contents;
+        return trimmed.split('\n').length;
+    } catch {
+        return null;
+    }
+}
+
+const baseRefAvailable = ensureBaseRefAvailable();
+if (!baseRefAvailable) {
+    const warning = `Hotspot creep check: base ref "${creepBaseRef}" is not available locally and could not be fetched; creep and birth-creep detection are skipped.`;
+    if (strictCreep) {
+        console.error(warning);
+        process.exit(1);
+    } else {
+        console.warn(warning);
+    }
+}
+
 const files = listFiles().filter((line) => /\.(ts|tsx)$/.test(line));
 
 const oversized = [];
+const creeping = [];
+const birthCreeping = [];
 for (const file of files) {
     const countRaw = execFileSync('wc', ['-l', file], {
         cwd: repoRoot,
@@ -97,15 +179,34 @@ for (const file of files) {
     }).trim();
 
     const lineCount = Number(countRaw.split(/\s+/)[0]);
-    if (lineCount <= maxLines) {
+
+    if (lineCount > maxLines) {
+        oversized.push({
+            path: file,
+            lineCount,
+            excepted: exceptionPaths.has(file),
+        });
         continue;
     }
 
-    oversized.push({
-        path: file,
-        lineCount,
-        excepted: exceptionPaths.has(file),
-    });
+    if (!baseRefAvailable || lineCount < creepThreshold || exceptionPaths.has(file)) {
+        continue;
+    }
+
+    if (!fileExistsAtBase(file)) {
+        birthCreeping.push({ path: file, lineCount });
+        continue;
+    }
+
+    const baseLineCount = getBaseLineCount(file);
+    if (baseLineCount !== null && lineCount > baseLineCount) {
+        creeping.push({
+            path: file,
+            lineCount,
+            baseLineCount,
+            addedLines: lineCount - baseLineCount,
+        });
+    }
 }
 
 const violations = oversized.filter((item) => !item.excepted);
@@ -116,6 +217,27 @@ if (violations.length > 0) {
         console.error(`- ${item.path} (${item.lineCount})`);
     }
     process.exit(1);
+}
+
+if (creeping.length > 0 || birthCreeping.length > 0) {
+    const severity = strictCreep ? 'error' : 'warning';
+    const stream = strictCreep ? console.error : console.warn;
+    stream(
+        `Hotspot creep ${severity} (threshold ${creepThreshold}/${maxLines}, base ${creepBaseRef}):`
+    );
+    for (const item of creeping) {
+        stream(
+            `- ${item.path}: ${item.baseLineCount} -> ${item.lineCount} (+${item.addedLines}). Consider extraction before adding more.`
+        );
+    }
+    for (const item of birthCreeping) {
+        stream(
+            `- ${item.path}: new file at ${item.lineCount} lines (no base). Born in creep band; consider splitting before landing.`
+        );
+    }
+    if (strictCreep) {
+        process.exit(1);
+    }
 }
 
 const excepted = oversized.filter((item) => item.excepted);

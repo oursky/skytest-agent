@@ -1,0 +1,23 @@
+{
+    "description": "Override keys that are intentionally workspace-specific. Listed keys are allowed to appear in only one of root package.json or apps/web/package.json, or to hold different values between them. Keep this list short; prefer lifting overrides to the root.",
+    "webOnly": [
+        "vite"
+    ],
+    "rootOnly": [
+        "dompurify",
+        "@midscene/android",
+        "appium-adb",
+        "undici",
+        "ajv@8.17.1",
+        "ajv@^6.12.4",
+        "brace-expansion",
+        "minimatch",
+        "qs",
+        "http-proxy-agent",
+        "https-proxy-agent",
+        "@aws-sdk/xml-builder",
+        "@xmldom/xmldom",
+        "socket.io-parser"
+    ],
+    "valueDriftAllowed": []
+}

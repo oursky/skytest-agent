@@ -29,7 +29,9 @@ COMPOSE_ARGS := -f $(COMPOSE_FILE) $(if $(COMPOSE_EXTRA_FILE),-f $(COMPOSE_EXTRA
 	seed-local-defaults \
 	bootstrap \
 	dev \
-	verify
+	verify \
+	scan-secrets \
+	scan-secrets-ensure
 
 help: ## Show available targets
 	@awk 'BEGIN {FS = ": ## "}; /^[A-Za-z0-9_.-]+: ## / {printf "%-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -97,6 +99,7 @@ seed-local-defaults: ## Seed local default Authgear user + owner team/project fo
 bootstrap: ## Install deps, start local services, and apply committed migrations
 	$(MAKE) install
 	$(MAKE) playwright-ensure
+	$(MAKE) scan-secrets-ensure
 	$(MAKE) services-up
 	$(MAKE) db-setup
 	$(MAKE) seed-local-defaults
@@ -121,5 +124,55 @@ dev: ## Boot local services, apply committed migrations, and start the web app w
 	wait $$BROWSER_WORKER_PID 2>/dev/null || true; \
 	exit $$EXIT_CODE
 
-verify: ## Run lint, TypeScript compile, and dependency audit
+verify: ## Run lint, TypeScript compile, dependency audit, and secret scan
 	$(NODE_PM) run verify
+	$(MAKE) scan-secrets
+
+scan-secrets-ensure: ## Install gitleaks matching .gitleaks-version (downloads pinned tarball)
+	@set -eu; \
+	VERSION="$$(cat .gitleaks-version)"; \
+	if command -v gitleaks >/dev/null 2>&1; then \
+		INSTALLED="$$(gitleaks version 2>/dev/null | head -n1 | awk '{print $$NF}' | sed 's/^v//')"; \
+		if [ "$$INSTALLED" = "$$VERSION" ]; then \
+			exit 0; \
+		fi; \
+		echo "gitleaks $$INSTALLED installed but .gitleaks-version pins $$VERSION." >&2; \
+		echo "Uninstall the current gitleaks (e.g. 'brew uninstall gitleaks') and rerun, or download $$VERSION from https://github.com/gitleaks/gitleaks/releases." >&2; \
+		exit 1; \
+	fi; \
+	OS="$$(uname -s | tr '[:upper:]' '[:lower:]')"; \
+	case "$$(uname -m)" in \
+		x86_64|amd64) ARCH=x64 ;; \
+		arm64|aarch64) ARCH=arm64 ;; \
+		*) echo "Unsupported arch $$(uname -m) for gitleaks install" >&2; exit 1 ;; \
+	esac; \
+	ARCHIVE="gitleaks_$${VERSION}_$${OS}_$${ARCH}.tar.gz"; \
+	TMPDIR="$$(mktemp -d)"; \
+	trap 'rm -rf "$$TMPDIR"' EXIT; \
+	echo "Downloading gitleaks $$VERSION ($$OS/$$ARCH)..."; \
+	curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v$${VERSION}/$${ARCHIVE}" -o "$$TMPDIR/gitleaks.tar.gz"; \
+	curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v$${VERSION}/gitleaks_$${VERSION}_checksums.txt" -o "$$TMPDIR/checksums.txt"; \
+	EXPECTED="$$(awk -v f="$$ARCHIVE" '$$2 == f { print $$1 }' "$$TMPDIR/checksums.txt")"; \
+	if [ -z "$$EXPECTED" ]; then echo "No checksum for $$ARCHIVE in release" >&2; exit 1; fi; \
+	if command -v sha256sum >/dev/null 2>&1; then \
+		echo "$$EXPECTED  $$TMPDIR/gitleaks.tar.gz" | sha256sum -c -; \
+	else \
+		ACTUAL="$$(shasum -a 256 "$$TMPDIR/gitleaks.tar.gz" | awk '{print $$1}')"; \
+		if [ "$$ACTUAL" != "$$EXPECTED" ]; then echo "Checksum mismatch for $$ARCHIVE" >&2; exit 1; fi; \
+	fi; \
+	tar -xzf "$$TMPDIR/gitleaks.tar.gz" -C "$$TMPDIR"; \
+	INSTALL_DIR="$${GITLEAKS_INSTALL_DIR:-/usr/local/bin}"; \
+	if [ -w "$$INSTALL_DIR" ]; then \
+		mv "$$TMPDIR/gitleaks" "$$INSTALL_DIR/gitleaks"; \
+	else \
+		sudo mv "$$TMPDIR/gitleaks" "$$INSTALL_DIR/gitleaks"; \
+	fi; \
+	gitleaks version
+
+scan-secrets: scan-secrets-ensure ## Run gitleaks secret scan (matches CI)
+	gitleaks detect \
+		--source . \
+		--config .gitleaks.toml \
+		--no-git \
+		--redact \
+		--exit-code 1
