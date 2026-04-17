@@ -43,7 +43,7 @@ describe('audit-team-ai-keys', () => {
     });
 
     it('prints one json line per team and returns exit code 1 when invalid keys exist', async () => {
-        const validKey = 'sk-valid12345';
+        const validKey = 'sk-valid12345'; // gitleaks:allow
         const invalidKey = 'sk-bad✅12345';
         mocks.findMany.mockResolvedValue([
             {
