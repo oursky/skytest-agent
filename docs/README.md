@@ -20,6 +20,7 @@ This repository keeps durable documentation in two tracks:
 - [Runner queue diagnostics](./maintainers/runner-queue-diagnostics.md)
 - [Performance observability reference](./maintainers/performance-observability-reference.md)
 - [Frontend runtime debugging](./maintainers/frontend-runtime-debugging.md)
+- [AI provider failure troubleshooting](./maintainers/ai-provider-failure-troubleshooting.md)
 - [MCP server tooling](./maintainers/mcp-server-tooling.md)
 - [CLI release and Homebrew flow](./maintainers/cli-release-homebrew.md)
 - [Test case Excel import/export format](./maintainers/test-case-excel-format.md)
