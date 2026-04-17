@@ -452,6 +452,7 @@ export const ZH_HANS_MESSAGES: Messages = {
   "results.fail.errorCode": "错误代码",
   "results.fail.infrastructure.title": "基础设施网络失败",
   "results.fail.infrastructure.body": "此失败由环境/网络条件导致（例如 DNS 解析或请求被拦截），不一定是产品行为回归。",
+  "results.fail.aiKeyInvalidFormat": "团队 AI 密钥格式无效。请在 Team Settings 重新保存密钥。",
   "results.fail.errorDetails": "错误详情：",
   "results.fail.bodyNoError": "测试执行时发生错误，请查看上方日志了解详情。",
   "timeline.screenshot": "截图",

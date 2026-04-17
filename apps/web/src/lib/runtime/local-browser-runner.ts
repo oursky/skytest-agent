@@ -1,7 +1,7 @@
 import type { Prisma } from '@prisma/client';
 import { runTest } from '@/lib/runtime/test-runner';
 import type { BuildMidsceneModelConfigOptions } from '@/lib/runtime/midscene-env';
-import { resolveTeamMidsceneConfig } from '@/lib/runtime/team-ai-config';
+import { buildTeamAiProviderConfig, resolveTeamMidsceneConfig } from '@/lib/runtime/team-ai-config';
 import { prisma } from '@/lib/core/prisma';
 import { resolveConfigs } from '@/lib/test-config/resolver';
 import { decrypt } from '@/lib/security/crypto';
@@ -11,6 +11,7 @@ import { config as appConfig } from '@/config/app';
 import { createStoredName, validateAndSanitizeFile, buildRunArtifactObjectKey } from '@/lib/security/file-security';
 import { putObjectBuffer } from '@/lib/storage/object-store-utils';
 import { UsageService } from '@/lib/runtime/usage';
+import { InvalidAiApiKeyError } from '@/lib/core/errors';
 import {
     buildResolvedConfigMapsFromSnapshot,
     parseConfigurationSnapshot,
@@ -46,6 +47,9 @@ interface LoadedRunConfig {
             steps?: TestStep[];
             browserConfig?: Record<string, BrowserConfig | TargetConfig>;
             openRouterApiKey: string;
+            teamId: string;
+            aiProvider: string;
+            aiMainModelFamily?: string;
             midsceneModelOptions?: BuildMidsceneModelConfigOptions;
             files: TestCaseFile[];
             resolvedVariables: Record<string, string>;
@@ -178,6 +182,7 @@ async function loadRunConfig(runId: string, options?: LocalBrowserRunOptions): P
                     project: {
                         select: {
                             name: true,
+                            teamId: true,
                             createdByUserId: true,
                             team: {
                                 select: {
@@ -238,6 +243,8 @@ async function loadRunConfig(runId: string, options?: LocalBrowserRunOptions): P
     }
     const fallbackSteps = parseSerializedJson<TestStep[]>(run.testCase.steps);
     const fallbackBrowserConfig = parseSerializedJson<Record<string, BrowserConfig | TargetConfig>>(run.testCase.browserConfig);
+    const providerConfig = buildTeamAiProviderConfig(run.testCase.project.team);
+    const midsceneModelOptions = resolveTeamMidsceneConfig(run.testCase.project.team);
 
     return {
         runId: run.id,
@@ -253,7 +260,10 @@ async function loadRunConfig(runId: string, options?: LocalBrowserRunOptions): P
             steps: snapshot.steps ?? fallbackSteps,
             browserConfig: snapshot.browserConfig ?? fallbackBrowserConfig,
             openRouterApiKey: decrypt(encryptedKey),
-            midsceneModelOptions: resolveTeamMidsceneConfig(run.testCase.project.team),
+            teamId: run.testCase.project.teamId,
+            aiProvider: providerConfig.provider,
+            aiMainModelFamily: midsceneModelOptions.mainModelFamily ?? providerConfig.mainModelFamily ?? undefined,
+            midsceneModelOptions,
             files: run.files,
             resolvedVariables,
             resolvedFiles,
@@ -760,7 +770,10 @@ async function executeLocalBrowserRun(
                 prompt: details.config.prompt,
                 steps: details.config.steps,
                 browserConfig: details.config.browserConfig,
+                teamId: details.config.teamId,
                 openRouterApiKey: details.config.openRouterApiKey,
+                aiProvider: details.config.aiProvider,
+                aiMainModelFamily: details.config.aiMainModelFamily,
                 midsceneModelOptions: details.config.midsceneModelOptions,
                 testCaseId: details.testCaseId,
                 projectId: details.projectId,
@@ -836,6 +849,15 @@ async function executeLocalBrowserRun(
     } catch (error) {
         await Promise.allSettled(Array.from(pendingArtifactUploads));
         await flushEvents();
+        if (error instanceof InvalidAiApiKeyError) {
+            logger.error('Invalid team AI key format detected while dispatching local browser run', {
+                runId: details.runId,
+                teamId: details.config.teamId,
+                provider: details.config.aiProvider,
+                modelFamily: details.config.aiMainModelFamily ?? null,
+                reason: error.reason,
+            });
+        }
         const errorMessage = error instanceof Error ? error.message : String(error);
         await failRun(
             runId,

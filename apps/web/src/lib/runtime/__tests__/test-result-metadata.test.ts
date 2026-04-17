@@ -39,6 +39,20 @@ describe('parseTestResultMetadata', () => {
         });
     });
 
+    it('extracts AI key invalid format metadata', () => {
+        const result = parseTestResultMetadata(JSON.stringify({
+            status: 'FAIL',
+            error: 'API key must use visible ASCII characters only',
+            errorCode: 'AI_KEY_INVALID_FORMAT',
+            errorCategory: 'CONFIGURATION',
+        }));
+
+        expect(result).toEqual({
+            errorCode: 'AI_KEY_INVALID_FORMAT',
+            errorCategory: 'CONFIGURATION',
+        });
+    });
+
     it('returns empty metadata for malformed result payload', () => {
         expect(parseTestResultMetadata('not-json')).toEqual({});
         expect(parseTestResultMetadata(undefined)).toEqual({});

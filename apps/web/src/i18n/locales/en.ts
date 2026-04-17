@@ -452,6 +452,7 @@ export const EN_MESSAGES: Messages = {
   "results.fail.errorCode": "Error Code",
   "results.fail.infrastructure.title": "Infrastructure Network Failure",
   "results.fail.infrastructure.body": "This failure was caused by environment/network conditions (for example DNS resolution or blocked requests), not necessarily by product behavior.",
+  "results.fail.aiKeyInvalidFormat": "Team AI key format invalid. Re-save key in Team Settings.",
   "results.fail.errorDetails": "Error Details:",
   "results.fail.bodyNoError": "The test encountered an error during execution. Check the logs above for details.",
   "timeline.screenshot": "Screenshot",

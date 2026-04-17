@@ -452,6 +452,7 @@ export const ZH_HANT_MESSAGES: Messages = {
   "results.fail.errorCode": "錯誤代碼",
   "results.fail.infrastructure.title": "基礎設施網路失敗",
   "results.fail.infrastructure.body": "此失敗由環境／網路條件造成（例如 DNS 解析或請求被阻擋），不一定是產品行為回歸。",
+  "results.fail.aiKeyInvalidFormat": "團隊 AI 金鑰格式無效。請到 Team Settings 重新儲存金鑰。",
   "results.fail.errorDetails": "錯誤詳情：",
   "results.fail.bodyNoError": "測試執行時發生錯誤，請查看上方日誌了解詳情。",
   "timeline.screenshot": "截圖",

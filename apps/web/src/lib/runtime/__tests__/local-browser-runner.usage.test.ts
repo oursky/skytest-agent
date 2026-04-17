@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { InvalidAiApiKeyError } from '@/lib/core/errors';
 
 const mocks = vi.hoisted(() => ({
     runTest: vi.fn(),
@@ -106,8 +107,11 @@ describe('local-browser-runner usage recording', () => {
                 projectId: 'project-1',
                 project: {
                     name: 'Shop',
+                    teamId: 'team-1',
                     createdByUserId: 'user-1',
                     team: {
+                        aiProvider: 'OPENROUTER',
+                        aiMainModelFamily: 'gpt-5',
                         openRouterKeyEncrypted: 'encrypted',
                     }
                 }
@@ -179,8 +183,11 @@ describe('local-browser-runner usage recording', () => {
                 projectId: 'project-1',
                 project: {
                     name: 'Shop',
+                    teamId: 'team-1',
                     createdByUserId: 'user-1',
                     team: {
+                        aiProvider: 'OPENROUTER',
+                        aiMainModelFamily: 'gpt-5',
                         openRouterKeyEncrypted: 'encrypted',
                     }
                 }
@@ -201,5 +208,26 @@ describe('local-browser-runner usage recording', () => {
             seedCsv: 'objects/seed.csv',
             'seed.csv': 'objects/seed.csv',
         });
+    });
+
+    it('logs invalid key failures without leaking key material', async () => {
+        const invalidKey = 'sk-invalid-✅-sentinel';
+        const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        mocks.decrypt.mockReturnValue(invalidKey);
+        mocks.runTest.mockRejectedValue(
+            new InvalidAiApiKeyError('non_ascii', 'API key must use visible ASCII characters only (no spaces, newlines, or emojis)')
+        );
+
+        await startLocalBrowserRun('run-1');
+
+        const logOutput = consoleErrorSpy.mock.calls
+            .map((args) => args.map((value) => String(value)).join(' '))
+            .join('\n');
+        consoleErrorSpy.mockRestore();
+
+        expect(logOutput).toContain('Invalid team AI key format detected while dispatching local browser run');
+        expect(logOutput).toContain('"reason":"non_ascii"');
+        expect(logOutput).not.toContain(invalidKey);
+        expect(logOutput).not.toContain('✅');
     });
 });

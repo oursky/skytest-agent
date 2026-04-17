@@ -85,7 +85,10 @@ export interface RunTestOptions {
         steps?: TestStep[];
         browserConfig?: Record<string, BrowserConfig | TargetConfig>;
         userId?: string;
+        teamId?: string;
         openRouterApiKey?: string;
+        aiProvider?: string;
+        aiMainModelFamily?: string;
         midsceneModelOptions?: BuildMidsceneModelConfigOptions;
         testCaseId?: string;
         files?: TestCaseFile[];
@@ -114,6 +117,7 @@ export type TestFailureCode =
     | 'AI_ASSERTION_FAILED'
     | 'PLAYWRIGHT_ASSERTION_FAILED'
     | 'PLAYWRIGHT_CODE_FAILED'
+    | 'AI_KEY_INVALID_FORMAT'
     | 'CONFIGURATION_ERROR'
     | 'TEST_TIMEOUT'
     | 'UNKNOWN_ERROR';

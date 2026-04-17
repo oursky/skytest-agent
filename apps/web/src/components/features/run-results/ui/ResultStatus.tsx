@@ -24,6 +24,7 @@ export default function ResultStatus({
     const isInfraNetworkFailure = errorCategory === 'INFRA_NETWORK'
         || errorCode === 'DNS_RESOLUTION_FAILED'
         || errorCode === 'NETWORK_REQUEST_BLOCKED';
+    const isAiKeyInvalidFormatFailure = errorCode === 'AI_KEY_INVALID_FORMAT';
 
     const copyErrorToClipboard = async (errorText: string) => {
         try {
@@ -120,6 +121,11 @@ export default function ResultStatus({
                                     <div className="mb-3 rounded-md border border-amber-300 bg-amber-100 p-3">
                                         <p className="text-xs font-semibold text-amber-900">{t('results.fail.infrastructure.title')}</p>
                                         <p className="mt-1 text-xs leading-relaxed text-amber-900">{t('results.fail.infrastructure.body')}</p>
+                                    </div>
+                                )}
+                                {isAiKeyInvalidFormatFailure && (
+                                    <div className="mb-3 rounded-md border border-red-300 bg-red-100 p-3">
+                                        <p className="text-xs font-semibold text-red-900">{t('results.fail.aiKeyInvalidFormat')}</p>
                                     </div>
                                 )}
                                 {errorCode && (
