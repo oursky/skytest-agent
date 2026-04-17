@@ -4,6 +4,12 @@ import { createRequestIdGuard } from '@/hooks/team/request-id-guard';
 import { useTeamSession } from '@/hooks/team/useTeamSession';
 import { reportLoadMetric } from '@/lib/telemetry/client-metrics';
 
+export function shouldMarkProjectsBootstrapLoadedWithoutSelectedTeam(
+    isTeamSessionLoading: boolean,
+): boolean {
+    return !isTeamSessionLoading;
+}
+
 export function useProjectsBootstrap(
     getAccessToken: () => Promise<string | null>,
     requestedTeamId: string,
@@ -63,7 +69,9 @@ export function useProjectsBootstrap(
             setProjects([]);
             setError(null);
             setLoadingProjects(false);
-            setHasLoadedOnce(true);
+            if (shouldMarkProjectsBootstrapLoadedWithoutSelectedTeam(isTeamSessionLoading)) {
+                setHasLoadedOnce(true);
+            }
             return;
         }
 
@@ -104,7 +112,7 @@ export function useProjectsBootstrap(
             setLoadingProjects(false);
             setHasLoadedOnce(true);
         }
-    }, [currentTeam?.id, enabled, getAccessToken, requestedTeamId, setCurrentTeam, teams]);
+    }, [currentTeam?.id, enabled, getAccessToken, isTeamSessionLoading, requestedTeamId, setCurrentTeam, teams]);
 
     useEffect(() => {
         void fetchProjects();

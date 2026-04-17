@@ -47,8 +47,19 @@ export default function Header() {
     };
 
     const handleTeamChange = async (teamId: string) => {
+        if (teamId === selectedTeamId) {
+            return;
+        }
+
         try {
             await setCurrentTeam(teamId);
+            const shouldNavigateToTeamProjects = pathname === '/projects'
+                || pathname.startsWith('/projects/')
+                || pathname === '/run';
+
+            if (shouldNavigateToTeamProjects) {
+                router.push(`/projects?teamId=${encodeURIComponent(teamId)}`);
+            }
         } catch (error) {
             console.error('Failed to switch team', error);
         }
