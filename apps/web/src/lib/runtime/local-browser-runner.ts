@@ -80,6 +80,7 @@ export function hasLocalBrowserRunCapacity(): boolean {
 export function getActiveLocalBrowserRunIds(): string[] {
     return Array.from(activeAbortControllers.keys());
 }
+
 export async function abortInactiveLocalBrowserRuns(options?: LocalBrowserRunOptions): Promise<number> {
     const activeRunIds = getActiveLocalBrowserRunIds();
     if (activeRunIds.length === 0) {
@@ -847,6 +848,8 @@ async function executeLocalBrowserRun(
                 reason: error.reason,
             });
         }
+        // UI localizes via errorCode (see ResultStatus.tsx). This fallback string
+        // is written to DB and surfaces only where errorCode branching is absent.
         const errorMessage = isInvalidAiKey
             ? 'Team AI key format invalid. Re-save key in Team Settings.'
             : error instanceof Error
@@ -876,8 +879,10 @@ export function startLocalBrowserRun(runId: string, options?: LocalBrowserRunOpt
     if (existingExecution) {
         return existingExecution;
     }
+
     const controller = new AbortController();
     activeAbortControllers.set(runId, controller);
+
     const execution = executeLocalBrowserRun(runId, controller, options)
         .catch((error) => {
             logger.error('Local browser run execution failed', error);
@@ -886,9 +891,11 @@ export function startLocalBrowserRun(runId: string, options?: LocalBrowserRunOpt
             activeAbortControllers.delete(runId);
             activeExecutions.delete(runId);
         });
+
     activeExecutions.set(runId, execution);
     return execution;
 }
+
 export function cancelLocalBrowserRun(runId: string): boolean {
     const controller = activeAbortControllers.get(runId);
     if (!controller || controller.signal.aborted) {

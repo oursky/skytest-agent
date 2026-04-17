@@ -229,5 +229,13 @@ describe('local-browser-runner usage recording', () => {
         expect(logOutput).toContain('"reason":"non_ascii"');
         expect(logOutput).not.toContain(invalidKey);
         expect(logOutput).not.toContain('✅');
+
+        const failUpdate = mocks.testRunUpdateMany.mock.calls.find(
+            ([arg]) => (arg as { data?: { status?: string } }).data?.status === 'FAIL',
+        );
+        expect(failUpdate).toBeDefined();
+        const failData = (failUpdate?.[0] as { data: { error: string } }).data;
+        expect(failData.error).toBe('Team AI key format invalid. Re-save key in Team Settings.');
+        expect(failData.error).not.toContain(invalidKey);
     });
 });
