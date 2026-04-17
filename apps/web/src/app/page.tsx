@@ -22,7 +22,9 @@ export default function Home() {
     }
 
     loginTriggeredRef.current = true;
-    void login();
+    void login().catch((error) => {
+      console.error('Failed to start login', error);
+    });
   }, [isLoading, isLoggedIn, login]);
 
   return <CenteredLoading className="min-h-screen" />;

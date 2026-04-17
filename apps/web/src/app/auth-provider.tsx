@@ -116,6 +116,10 @@ export const AuthProvider = ({
     }, [initAuthgear]);
 
     const login = async (options?: { redirectTo?: string }) => {
+        if (!hasAuthgearConfig) {
+            throw new Error('Authgear is not configured. Check Authgear server environment variables.');
+        }
+
         const authgearModule = await ensureAuthgearConfigured();
         const authgear = authgearModule.default;
 
