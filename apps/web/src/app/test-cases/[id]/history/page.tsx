@@ -332,11 +332,6 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
                                             </div>
                                             <div className="col-span-3 text-sm text-gray-500 truncate">
                                                 {run.triggeredByEmail || '-'}
-                                                {run.instanceName && (
-                                                    <span className="ml-2 inline-flex items-center rounded-full border border-gray-200 px-2 py-0.5 text-[10px] uppercase tracking-wide text-gray-500">
-                                                        {run.instanceType || 'instance'}:{run.instanceName}
-                                                    </span>
-                                                )}
                                             </div>
                                             <div className="col-span-3 flex items-center justify-end gap-2">
                                                 {isRunRunningOrQueued ? (

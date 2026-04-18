@@ -255,9 +255,6 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
         ? `/run?testCaseId=${id}&projectId=${projectId}`
         : `/run?testCaseId=${id}`;
     const runByEmail = testRun.triggeredByEmail || '-';
-    const runInstanceLabel = testRun.instanceName
-        ? `${testRun.instanceType || 'instance'}:${testRun.instanceName}`
-        : null;
 
     return (
         <main className="min-h-screen bg-gray-50 p-8">
@@ -272,7 +269,6 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                     <h1 className="text-3xl font-bold text-gray-900">{t('runDetail.title')}</h1>
                     <p className="text-xs text-gray-500 lg:justify-self-end">
                         {t('runDetail.runBy', { email: runByEmail })}
-                        {runInstanceLabel ? ` • ${runInstanceLabel}` : ''}
                     </p>
                 </div>
 
