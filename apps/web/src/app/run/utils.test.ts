@@ -3,6 +3,7 @@ import {
     appendRunStreamEvent,
     applyRunStreamStatusUpdate,
     mergeRunFormData,
+    runDetailSnapshotToResult,
     type RunViewerResult,
     type RunStreamStatusUpdate,
 } from './utils';
@@ -68,6 +69,36 @@ describe('run stream updates', () => {
 
         const { shouldStopLoading } = applyRunStreamStatusUpdate(previous, statusUpdate);
         expect(shouldStopLoading).toBe(false);
+    });
+
+    it('creates a viewer result from an authoritative run snapshot', () => {
+        const snapshot = runDetailSnapshotToResult({
+            status: 'PASS',
+            events: [
+                {
+                    type: 'log',
+                    data: { message: 'done', level: 'success' },
+                    timestamp: 3,
+                },
+            ],
+            error: null,
+            errorCode: null,
+            errorCategory: null,
+        });
+
+        expect(snapshot).toEqual({
+            status: 'PASS',
+            events: [
+                {
+                    type: 'log',
+                    data: { message: 'done', level: 'success' },
+                    timestamp: 3,
+                },
+            ],
+            error: undefined,
+            errorCode: undefined,
+            errorCategory: undefined,
+        });
     });
 });
 

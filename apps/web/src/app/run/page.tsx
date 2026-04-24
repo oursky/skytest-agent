@@ -29,7 +29,9 @@ import {
     buildEventKey,
     isExcelFilename,
     mergeRunFormData,
+    runDetailSnapshotToResult,
     RunViewerResult,
+    type RunDetailSnapshot,
 } from "./utils";
 import {
     filterSupportedVariableConfigs,
@@ -326,6 +328,31 @@ function RunPageContent() {
         }
     }, [fetchTestCase, getAccessToken, testCaseId]);
 
+    const fetchRunResultSnapshot = useCallback(async (id: string): Promise<RunViewerResult | null> => {
+        try {
+            const token = await getAccessToken();
+            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+            const response = await fetch(`/api/test-runs/${id}`, { headers });
+            if (!response.ok) {
+                return null;
+            }
+
+            const data = await response.json() as RunDetailSnapshot;
+            return runDetailSnapshotToResult(data);
+        } catch (error) {
+            console.error("Failed to fetch test run result snapshot", error);
+            return null;
+        }
+    }, [getAccessToken]);
+
+    const applyRunResultSnapshot = useCallback((snapshot: RunViewerResult) => {
+        eventKeySetRef.current = new Set(snapshot.events.map(buildEventKey));
+        setResult(snapshot);
+        if (snapshot.status && isRunTerminalStatus(snapshot.status)) {
+            setIsLoading(false);
+        }
+    }, []);
+
     const fetchProjectConfigs = useCallback(async (projId: string) => {
         try {
             const token = await getAccessToken();
@@ -444,10 +471,19 @@ function RunPageContent() {
         }
 
         if (!streamToken) {
-            setResult(prev => ({
-                ...prev,
-                error: t('run.error.connectionLost')
-            }));
+            const snapshot = await fetchRunResultSnapshot(runId);
+            if (requestId !== connectRequestIdRef.current) {
+                return;
+            }
+            if (snapshot) {
+                applyRunResultSnapshot(snapshot);
+            }
+            if (!snapshot?.status || !isRunTerminalStatus(snapshot.status)) {
+                setResult(prev => ({
+                    ...prev,
+                    error: t('run.error.connectionLost')
+                }));
+            }
             setIsLoading(false);
             return;
         }
@@ -497,14 +533,27 @@ function RunPageContent() {
             console.log('EventSource connection closed or error occurred');
             es.close();
             eventSourceRef.current = null;
-            setIsLoading(false);
 
-            setResult(prev => {
-                if (isRunTerminalStatus(prev.status)) {
-                    return prev;
+            void (async () => {
+                const snapshot = await fetchRunResultSnapshot(runId);
+                if (requestId !== connectRequestIdRef.current) {
+                    return;
                 }
-                return { ...prev, error: t('run.error.connectionLost') };
-            });
+                if (snapshot) {
+                    applyRunResultSnapshot(snapshot);
+                    if (snapshot.status && isRunTerminalStatus(snapshot.status)) {
+                        return;
+                    }
+                }
+
+                setIsLoading(false);
+                setResult(prev => {
+                    if (isRunTerminalStatus(prev.status)) {
+                        return prev;
+                    }
+                    return { ...prev, error: t('run.error.connectionLost') };
+                });
+            })();
         };
 
         if (requestId !== connectRequestIdRef.current) {
@@ -513,7 +562,7 @@ function RunPageContent() {
         }
 
         eventSourceRef.current = es;
-    }, [issueStreamToken, t]);
+    }, [applyRunResultSnapshot, fetchRunResultSnapshot, issueStreamToken, t]);
 
     useEffect(() => {
         if (projectId) fetchProjectName(projectId);

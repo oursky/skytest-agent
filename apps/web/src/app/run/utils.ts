@@ -21,6 +21,14 @@ export interface RunViewerResult {
     errorCategory?: TestFailureCategory;
 }
 
+export interface RunDetailSnapshot {
+    status?: RunViewerStatus | null;
+    events?: TestEvent[];
+    error?: string | null;
+    errorCode?: TestFailureCode | null;
+    errorCategory?: TestFailureCategory | null;
+}
+
 export interface RunStreamStatusUpdate {
     type: 'status';
     status: RunViewerStatus;
@@ -95,6 +103,16 @@ export function appendRunStreamEvent(
     return {
         ...previous,
         events: [...previous.events, event],
+    };
+}
+
+export function runDetailSnapshotToResult(snapshot: RunDetailSnapshot): RunViewerResult {
+    return {
+        status: snapshot.status ?? null,
+        events: snapshot.events ?? [],
+        error: snapshot.error ?? undefined,
+        errorCode: snapshot.errorCode ?? undefined,
+        errorCategory: snapshot.errorCategory ?? undefined,
     };
 }
 
