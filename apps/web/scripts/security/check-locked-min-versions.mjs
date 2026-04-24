@@ -10,6 +10,13 @@ const lockfilePath = path.resolve(repoRoot, 'package-lock.json');
 const FLOORS = {
     'js-yaml': '4.1.1',
     '@modelcontextprotocol/sdk': '1.26.0',
+    // GHSA-gh4j-gqv2-49f6
+    '@aws-sdk/xml-builder': '3.972.19',
+    'fast-xml-parser': '5.7.0',
+    // GHSA-2v35-w6hq-6mfw, GHSA-f6ww-3ggp-fr8h, GHSA-x6wf-f3px-wcqx, GHSA-j759-j44w-7fr8
+    '@xmldom/xmldom': '0.8.13',
+    // GHSA-w5hq-g745-h8pq
+    'uuid': '14.0.0',
 };
 
 function parseSemver(version) {
