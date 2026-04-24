@@ -1,17 +1,20 @@
 'use client';
 
+import { useEffect, useRef, useState } from 'react';
 import { compareByGroupThenName } from '@/lib/test-config/sort';
 import { useI18n } from '@/i18n';
 import type { ConfigItem, ConfigType } from '@/types';
 import { CenteredLoading } from '@/components/shared';
 import GroupSelectInput from '@/components/features/test-configurations/ui/GroupSelectInput';
 import ConfigHints from '@/components/features/test-configurations/ui/ConfigHints';
+import RandomStringGenerationDropdown from '@/components/features/test-configurations/ui/RandomStringGenerationDropdown';
 import ConfigInlineEditor from './ConfigInlineEditor';
 import { useProjectConfigs } from '../hooks/useProjectConfigs';
 import {
     buildConfigDisplayValue,
     getConfigTypeTitleKey,
 } from '@/components/features/test-configurations/model/config-utils';
+import { randomStringGenerationLabel } from '@/components/features/test-configurations/model/config-helpers';
 
 interface ProjectConfigsProps {
     projectId: string;
@@ -25,6 +28,8 @@ function normalizeConfigTypeItems(items: ConfigItem[]): ConfigItem[] {
 
 export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
     const { t } = useI18n();
+    const [randomStringDropdownOpen, setRandomStringDropdownOpen] = useState<string | null>(null);
+    const randomStringDropdownRefs = useRef<Map<string, HTMLDivElement>>(new Map());
     const {
         configs,
         isLoading,
@@ -44,6 +49,34 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
         startAdd,
         startEdit,
     } = useProjectConfigs(projectId);
+
+    useEffect(() => {
+        if (!randomStringDropdownOpen) return;
+
+        const handleClickOutside = (event: MouseEvent) => {
+            const dropdownRef = randomStringDropdownRefs.current.get(randomStringDropdownOpen);
+            if (dropdownRef && !dropdownRef.contains(event.target as Node)) {
+                setRandomStringDropdownOpen(null);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [randomStringDropdownOpen]);
+
+    const renderRandomStringDropdown = (dropdownKey: string, value: string) => (
+        <RandomStringGenerationDropdown
+            dropdownKey={dropdownKey}
+            value={value}
+            openKey={randomStringDropdownOpen}
+            setOpenKey={setRandomStringDropdownOpen}
+            dropdownRefs={randomStringDropdownRefs}
+            onChange={(generationType) => {
+                if (!editState) return;
+                setEditState({ ...editState, value: generationType });
+            }}
+        />
+    );
 
     if (isLoading) {
         return <CenteredLoading className="py-16" />;
@@ -96,9 +129,11 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                             onCancel={() => {
                                                 setEditState(null);
                                                 setError(null);
+                                                setRandomStringDropdownOpen(null);
                                             }}
                                             onRemoveGroup={handleRemoveGroup}
                                             onChange={setEditState}
+                                            renderRandomStringControl={(value) => renderRandomStringDropdown(`existing-${item.id}`, value)}
                                         />
                                     );
                                 }
@@ -110,7 +145,11 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 uppercase">{item.group}</span>
                                             )}
                                             <code className="text-sm font-mono text-gray-800 font-medium">{item.name}</code>
-                                            <span className="text-sm text-gray-500 truncate">{buildConfigDisplayValue(item)}</span>
+                                            <span className="text-sm text-gray-500 truncate">
+                                                {item.type === 'RANDOM_STRING'
+                                                    ? randomStringGenerationLabel(item.value, t)
+                                                    : buildConfigDisplayValue(item)}
+                                            </span>
                                         </div>
                                         <div className="flex items-center gap-1">
                                             {type === 'FILE' ? (
@@ -162,9 +201,11 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                     onCancel={() => {
                                         setEditState(null);
                                         setError(null);
+                                        setRandomStringDropdownOpen(null);
                                     }}
                                     onRemoveGroup={handleRemoveGroup}
                                     onChange={setEditState}
+                                    renderRandomStringControl={(value) => renderRandomStringDropdown('new-random-string', value)}
                                 />
                             )}
 

@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 import type { ConfigType } from '@/types';
 import { useI18n } from '@/i18n';
 import ConfigInlineEditorForm from '@/components/features/test-configurations/ui/ConfigInlineEditorForm';
@@ -16,6 +16,7 @@ interface ConfigInlineEditorProps {
     onCancel: () => void;
     onRemoveGroup: (group: string) => void;
     onChange: (next: ProjectConfigEditState) => void;
+    renderRandomStringControl?: (value: string) => ReactNode;
 }
 
 export default function ConfigInlineEditor({
@@ -30,6 +31,7 @@ export default function ConfigInlineEditor({
     onCancel,
     onRemoveGroup,
     onChange,
+    renderRandomStringControl,
 }: ConfigInlineEditorProps) {
     const { t } = useI18n();
 
@@ -47,6 +49,7 @@ export default function ConfigInlineEditor({
             onCancel={onCancel}
             onRemoveGroup={onRemoveGroup}
             onKeyDown={onKeyDown}
+            renderRandomStringControl={renderRandomStringControl}
             t={t}
         />
     );

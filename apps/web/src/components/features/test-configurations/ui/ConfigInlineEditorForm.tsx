@@ -260,14 +260,20 @@ export default function ConfigInlineEditorForm({
                         className={`${isGroupableConfigType(type) ? 'h-9 w-full md:w-56' : 'h-9 flex-1'} rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary`}
                         autoFocus={autoFocus}
                     />
-                    <input
-                        type="text"
-                        value={editState.value}
-                        onChange={(event) => onChange({ ...editState, value: event.target.value })}
-                        onKeyDown={onKeyDown}
-                        placeholder={type === 'URL' ? t('configs.url.placeholder') : t('configs.value.placeholder')}
-                        className={`${isGroupableConfigType(type) ? 'h-9 min-w-[220px] flex-1' : 'h-9 flex-[2]'} rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary`}
-                    />
+                    {type === 'RANDOM_STRING' && renderRandomStringControl ? (
+                        <div className="h-9 min-w-[220px] flex-1">
+                            {renderRandomStringControl(editState.value)}
+                        </div>
+                    ) : (
+                        <input
+                            type="text"
+                            value={editState.value}
+                            onChange={(event) => onChange({ ...editState, value: event.target.value })}
+                            onKeyDown={onKeyDown}
+                            placeholder={type === 'URL' ? t('configs.url.placeholder') : t('configs.value.placeholder')}
+                            className={`${isGroupableConfigType(type) ? 'h-9 min-w-[220px] flex-1' : 'h-9 flex-[2]'} rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary`}
+                        />
+                    )}
                     {renderActionButtons(variant, onSave, onCancel, t)}
                 </div>
             )}

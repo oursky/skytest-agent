@@ -4,8 +4,9 @@ import type { ConfigItem, ConfigType } from '@/types';
 import { compareByGroupThenName } from '@/lib/test-config/sort';
 import { getConfigTypeTitleKey } from '@/components/features/test-configurations/model/config-utils';
 import GroupSelectInput from '@/components/features/test-configurations/ui/GroupSelectInput';
-import { ADDABLE_TEST_CASE_CONFIG_TYPES, RANDOM_STRING_GENERATION_TYPES, TYPE_ORDER, randomStringGenerationLabel } from '../model/config-helpers';
+import { ADDABLE_TEST_CASE_CONFIG_TYPES, TYPE_ORDER, randomStringGenerationLabel } from '../model/config-helpers';
 import type { EditState, FileUploadDraft } from '../model/config-types';
+import RandomStringGenerationDropdown from './RandomStringGenerationDropdown';
 import TestCaseConfigInlineEditor from './TestCaseConfigInlineEditor';
 
 interface TestCaseVariablesSectionProps {
@@ -82,45 +83,18 @@ export default function TestCaseVariablesSection({
         .filter((group) => group.items.length > 0);
 
     const renderRandomStringDropdown = (dropdownKey: string, value: string) => (
-        <div
-            className="relative"
-            ref={(el) => {
-                if (el) {
-                    randomStringDropdownRefs.current.set(dropdownKey, el);
-                    return;
-                }
-                randomStringDropdownRefs.current.delete(dropdownKey);
+        <RandomStringGenerationDropdown
+            dropdownKey={dropdownKey}
+            value={value}
+            openKey={randomStringDropdownOpen}
+            setOpenKey={setRandomStringDropdownOpen}
+            dropdownRefs={randomStringDropdownRefs}
+            variant="compact"
+            onChange={(generationType) => {
+                if (!editState) return;
+                setEditState({ ...editState, value: generationType });
             }}
-        >
-            <button
-                type="button"
-                onClick={() => setRandomStringDropdownOpen(randomStringDropdownOpen === dropdownKey ? null : dropdownKey)}
-                className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white text-left focus:outline-none focus:ring-1 focus:ring-primary flex items-center justify-between gap-2"
-            >
-                <span className="truncate">{randomStringGenerationLabel(value, t)}</span>
-                <svg className="w-3 h-3 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-            </button>
-            {randomStringDropdownOpen === dropdownKey && (
-                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-20 py-1 min-w-[180px]">
-                    {RANDOM_STRING_GENERATION_TYPES.map((generationType) => (
-                        <button
-                            key={generationType}
-                            type="button"
-                            onClick={() => {
-                                if (!editState) return;
-                                setEditState({ ...editState, value: generationType });
-                                setRandomStringDropdownOpen(null);
-                            }}
-                            className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 ${value === generationType ? 'bg-gray-50 text-gray-900' : 'text-gray-700'}`}
-                        >
-                            {randomStringGenerationLabel(generationType, t)}
-                        </button>
-                    ))}
-                </div>
-            )}
-        </div>
+        />
     );
 
     return (
