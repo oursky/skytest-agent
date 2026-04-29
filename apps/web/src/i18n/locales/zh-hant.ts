@@ -457,6 +457,7 @@ export const ZH_HANT_MESSAGES: Messages = {
   "results.readySubtitle": "設定測試參數後，按下「執行測試」即可開始",
   "results.waiting": "等待事件…",
   "results.closeLightbox": "關閉預覽",
+  "results.slackDeliveryFailed": "Slack：未送達（{reason}）",
   "status.preparing": "準備中…",
   "status.preparing.detail": "正在準備測試環境，這可能需要一點時間。",
   "status.preparing.detailGeneric": "正在準備測試環境，這可能需要一點時間。",

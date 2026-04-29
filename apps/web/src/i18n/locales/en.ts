@@ -457,6 +457,7 @@ export const EN_MESSAGES: Messages = {
   "results.readySubtitle": "Configure your test parameters and click Run Test to begin",
   "results.waiting": "Waiting for events...",
   "results.closeLightbox": "Close lightbox",
+  "results.slackDeliveryFailed": "Slack: not delivered ({reason})",
   "status.preparing": "Setting up…",
   "status.preparing.detail": "Preparing the test environment. This may take a moment.",
   "status.preparing.detailGeneric": "Preparing the test environment. This may take a moment.",

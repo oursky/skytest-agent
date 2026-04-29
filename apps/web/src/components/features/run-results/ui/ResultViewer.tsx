@@ -326,6 +326,12 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
                                 </div>
                             )}
 
+                            {result.status === TEST_STATUS.FAIL && result.slackNotifyError && (
+                                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                                    {t('results.slackDeliveryFailed', { reason: result.slackNotifyError })}
+                                </div>
+                            )}
+
                             <ResultStatus
                                 status={result.status}
                                 error={result.error}

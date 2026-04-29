@@ -166,6 +166,7 @@ export async function GET(
             result: maskNullableText(testRun.result, maskText),
             logs: maskNullableText(testRun.logs, maskText),
             error: maskNullableText(testRun.error, maskText),
+            slackNotifyError: testRun.slackNotifyError,
             errorCode: resultMetadata.errorCode,
             errorCategory: resultMetadata.errorCategory,
             configurationSnapshot: testRun.configurationSnapshot,
