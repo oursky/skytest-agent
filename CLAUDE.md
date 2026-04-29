@@ -85,6 +85,7 @@ apps/web/src/
 | Fix test case CRUD | `apps/web/src/app/api/test-cases/` | `apps/web/src/types/test.ts`, `apps/web/src/lib/test-cases/` |
 | Fix project CRUD/configs | `apps/web/src/app/api/projects/` | `apps/web/src/lib/core/prisma.ts` |
 | Fix team runners/members/usage | `apps/web/src/app/api/teams/` | `apps/web/src/components/features/team-runners/`, `apps/web/src/components/features/team-members/`, `apps/web/src/components/features/team-usage/` |
+| Fix Slack notification | `apps/web/src/lib/integrations/slack/notifier.ts` | `apps/web/src/lib/integrations/slack/subscriber.ts`, `apps/web/src/lib/integrations/slack/sweep.ts`, `apps/web/src/lib/runners/domain-events.ts` |
 | Fix authentication | `apps/web/src/lib/security/auth.ts` | `apps/web/src/app/api/`, `apps/web/src/lib/runners/auth.ts` |
 | Fix API route auth/access guards | `apps/web/src/lib/security/team-route-access.ts` | `apps/web/src/lib/security/project-route-access.ts`, `apps/web/src/lib/security/test-case-route-access.ts`, `apps/web/src/lib/security/api-route-standards.ts` |
 | Fix MCP tooling | `apps/web/src/lib/mcp/server-registry.ts` | `apps/web/src/lib/mcp/server-tools.ts`, `apps/web/src/lib/mcp/server-schemas.ts`, `apps/web/src/lib/mcp/server-auth.ts`, `apps/web/src/lib/mcp/server-response.ts`, `apps/web/src/lib/mcp/test-case-mutation-tools.ts`, `apps/web/src/app/api/mcp/route.ts` |
