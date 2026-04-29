@@ -58,6 +58,11 @@ model Team {
   name                   String
   openRouterKeyEncrypted String?
   openRouterKeyUpdatedAt DateTime?
+  slackBotTokenEncrypted String?
+  slackTeamId            String?
+  slackTeamName          String?
+  slackBotUserId         String?
+  slackConfigUpdatedAt   DateTime?
   aiProvider             String?                  @default("OPENROUTER")
   aiBaseUrl              String?
   aiMainModel            String?
@@ -100,6 +105,11 @@ model Project {
   id              String              @id @default(cuid())
   name            String
   maxConcurrentRuns Int               @default(1)
+  slackEnabled    Boolean             @default(false)
+  slackChannelId  String?
+  slackChannelName String?
+  slackMessageTemplate String?
+  slackUpdatedAt  DateTime?
   teamId  String
   team    Team        @relation(fields: [teamId], references: [id], onDelete: Cascade)
   createdByUserId String
@@ -174,6 +184,10 @@ model TestRun {
   instanceName            String?
   startedAt               DateTime?
   completedAt             DateTime?
+  slackNotifiedAt         DateTime?
+  slackNotifyClaimedAt    DateTime?
+  slackNotifyAttempts     Int      @default(0)
+  slackNotifyError        String?
   deletedAt               DateTime?
   createdAt               DateTime @default(now())
   usageRecords            UsageRecord[]
@@ -189,6 +203,7 @@ model TestRun {
   @@index([requestedRunnerId])
   @@index([instanceType, instanceName, createdAt(sort: Desc)])
   @@index([deletedAt, completedAt(sort: Asc)])
+  @@index([status, slackNotifiedAt, completedAt])
 }
 
 model TestRunFile {
