@@ -31,17 +31,16 @@ describe('registerSlackSubscriber', () => {
     });
 
     it('notifies only for FAIL events', async () => {
-        let listener: ((event: { runId: string; status: string }) => void) | null = null;
-        subscribeRunTerminalMock.mockImplementation((inputListener: (event: { runId: string; status: string }) => void) => {
-            listener = inputListener;
-            return () => undefined;
-        });
+        subscribeRunTerminalMock.mockImplementation(() => () => undefined);
 
         registerSlackSubscriber();
-        expect(listener).not.toBeNull();
+        const listener = subscribeRunTerminalMock.mock.calls[0]?.[0] as ((event: { runId: string; status: string }) => void) | undefined;
+        if (!listener) {
+            throw new Error('listener was not registered');
+        }
 
-        listener?.({ runId: 'run-pass', status: 'PASS' });
-        listener?.({ runId: 'run-fail', status: 'FAIL' });
+        listener({ runId: 'run-pass', status: 'PASS' });
+        listener({ runId: 'run-fail', status: 'FAIL' });
         await Promise.resolve();
 
         expect(notifyRunFailedMock).toHaveBeenCalledTimes(1);
