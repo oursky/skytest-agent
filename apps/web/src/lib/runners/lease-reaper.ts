@@ -1,6 +1,7 @@
 import { config as appConfig } from '@/config/app';
 import { prisma } from '@/lib/core/prisma';
 import { BROWSER_EXECUTION_CAPABILITY } from '@/lib/runners/constants';
+import { emitRunTerminal } from '@/lib/runners/domain-events';
 import { RUN_IN_PROGRESS_STATUSES, TEST_STATUS } from '@/types';
 
 export async function reapExpiredRunnerLeases(now = new Date()) {
@@ -73,6 +74,13 @@ export async function reapExpiredRunnerLeases(now = new Date()) {
                 completedAt: now,
             },
         });
+        for (const run of runningRuns) {
+            emitRunTerminal({
+                runId: run.id,
+                status: TEST_STATUS.FAIL,
+                testCaseId: run.testCaseId,
+            });
+        }
     }
 
     const preparingTestCaseIds = [...new Set(preparingRuns.map((run) => run.testCaseId))];
@@ -163,6 +171,13 @@ export async function reapStaleLocalBrowserRuns(now = new Date()) {
                 completedAt: now,
             },
         });
+        for (const run of runningRuns) {
+            emitRunTerminal({
+                runId: run.id,
+                status: TEST_STATUS.FAIL,
+                testCaseId: run.testCaseId,
+            });
+        }
     }
 
     const preparingTestCaseIds = [...new Set(preparingRuns.map((run) => run.testCaseId))];

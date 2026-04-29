@@ -4,6 +4,7 @@ import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
 import { config as appConfig } from '@/config/app';
 import { publishRunUpdate } from '@/lib/runners/event-bus';
+import { emitRunTerminal } from '@/lib/runners/domain-events';
 import { createStoredName, validateAndSanitizeFile, buildRunArtifactObjectKey } from '@/lib/security/file-security';
 import { putObjectBuffer } from '@/lib/storage/object-store-utils';
 import { UsageService } from '@/lib/runtime/usage';
@@ -408,6 +409,11 @@ export async function failOwnedRun(input: {
             runnerId: input.runnerId,
         });
         publishRunUpdate(input.runId);
+        emitRunTerminal({
+            runId: failed.runId,
+            status: failed.status,
+            testCaseId: failed.testCaseId,
+        });
     } else {
         logger.warn('Ignored fail request for non-owned or expired run', {
             runId: input.runId,

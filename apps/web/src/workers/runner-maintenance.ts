@@ -1,6 +1,8 @@
 import { config as appConfig } from '@/config/app';
 import { createLogger } from '@/lib/core/logger';
 import { prisma } from '@/lib/core/prisma';
+import { runSlackNotificationSweep } from '@/lib/integrations/slack/sweep';
+import { registerSlackSubscriber } from '@/lib/integrations/slack/subscriber';
 import { pruneOldRunEvents } from '@/lib/runners/event-retention-service';
 import { reapExpiredRunnerLeases, reapStaleLocalBrowserRuns } from '@/lib/runners/lease-reaper';
 import { failInvalidQueuedAndroidRuns } from '@/lib/runners/queue-sanitizer';
@@ -16,6 +18,20 @@ const shutdown = createWorkerShutdownController({
 });
 const MAX_MAINTENANCE_RETRY_INTERVAL_MS = 60_000;
 
+function parseSweepIntervalMs(value: string | undefined): number {
+    const parsed = Number.parseInt(value ?? '', 10);
+    if (!Number.isFinite(parsed)) {
+        return 300_000;
+    }
+    return Math.min(60 * 60 * 1_000, Math.max(1_000, parsed));
+}
+
+const SLACK_SWEEP_INTERVAL_MS = parseSweepIntervalMs(process.env.SLACK_SWEEP_INTERVAL_MS);
+const slackNotificationsEnabled = process.env.SKYTEST_SLACK_NOTIFICATIONS === 'true';
+let lastSlackSweepAt: Date | null = null;
+
+registerSlackSubscriber();
+
 async function runMaintenanceCycle() {
     const [leaseResult, staleLocalBrowserRunResult, retentionResult, queueSanitizerResult] = await Promise.all([
         reapExpiredRunnerLeases(),
@@ -24,6 +40,18 @@ async function runMaintenanceCycle() {
         failInvalidQueuedAndroidRuns(),
     ]);
     const runRetentionResult = await enforceRunArtifactRetention();
+    let slackSweepResult = { scannedRuns: 0 };
+    const now = new Date();
+    const shouldRunSlackSweep = slackNotificationsEnabled
+        && (
+            !lastSlackSweepAt
+            || now.getTime() - lastSlackSweepAt.getTime() >= SLACK_SWEEP_INTERVAL_MS
+        );
+
+    if (shouldRunSlackSweep) {
+        slackSweepResult = await runSlackNotificationSweep(now);
+        lastSlackSweepAt = now;
+    }
 
     if (
         leaseResult.recoveredRuns > 0
@@ -33,6 +61,7 @@ async function runMaintenanceCycle() {
         || runRetentionResult.softDeletedRuns > 0
         || runRetentionResult.hardDeletedRuns > 0
         || runRetentionResult.hardDeleteFailures > 0
+        || slackSweepResult.scannedRuns > 0
     ) {
         logger.info('Runner maintenance cycle completed', {
             recoveredRuns: leaseResult.recoveredRuns,
@@ -51,6 +80,7 @@ async function runMaintenanceCycle() {
             hardDeleteFailures: runRetentionResult.hardDeleteFailures,
             artifactSoftDeleteCutoff: runRetentionResult.softDeleteCutoff.toISOString(),
             artifactHardDeleteCutoff: runRetentionResult.hardDeleteCutoff.toISOString(),
+            slackSweepScannedRuns: slackSweepResult.scannedRuns,
         });
     }
 }
@@ -63,6 +93,8 @@ async function main() {
         artifactSoftDeleteDays: appConfig.runner.artifactSoftDeleteDays,
         artifactHardDeleteDays: appConfig.runner.artifactHardDeleteDays,
         artifactHardDeleteBatchSize: appConfig.runner.artifactHardDeleteBatchSize,
+        slackNotificationsEnabled,
+        slackSweepIntervalMs: SLACK_SWEEP_INTERVAL_MS,
     });
 
     const runOnce = process.env.RUNNER_MAINTENANCE_ONCE === 'true';

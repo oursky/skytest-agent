@@ -5,11 +5,13 @@ const {
     updateManyRuns,
     updateManyTestCases,
     deleteManyLocks,
+    emitRunTerminal,
 } = vi.hoisted(() => ({
     findMany: vi.fn(),
     updateManyRuns: vi.fn(),
     updateManyTestCases: vi.fn(),
     deleteManyLocks: vi.fn(),
+    emitRunTerminal: vi.fn(),
 }));
 
 vi.mock('@/lib/core/prisma', () => ({
@@ -27,6 +29,10 @@ vi.mock('@/lib/core/prisma', () => ({
     },
 }));
 
+vi.mock('@/lib/runners/domain-events', () => ({
+    emitRunTerminal,
+}));
+
 const { reapExpiredRunnerLeases, reapStaleLocalBrowserRuns } = await import('@/lib/runners/lease-reaper');
 
 describe('reapExpiredRunnerLeases', () => {
@@ -35,6 +41,7 @@ describe('reapExpiredRunnerLeases', () => {
         updateManyRuns.mockReset();
         updateManyTestCases.mockReset();
         deleteManyLocks.mockReset();
+        emitRunTerminal.mockReset();
     });
 
     it('requeues PREPARING runs and fails RUNNING runs when leases expire', async () => {
@@ -98,6 +105,11 @@ describe('reapExpiredRunnerLeases', () => {
             },
         });
         expect(result).toEqual({ recoveredRuns: 2, requeuedRuns: 1, failedRuns: 1 });
+        expect(emitRunTerminal).toHaveBeenCalledWith({
+            runId: 'run-2',
+            status: 'FAIL',
+            testCaseId: 'tc-2',
+        });
     });
 
     it('does nothing when no expired runs are found', async () => {
@@ -125,6 +137,7 @@ describe('reapExpiredRunnerLeases', () => {
                 ],
             },
         });
+        expect(emitRunTerminal).not.toHaveBeenCalled();
         expect(result).toEqual({ recoveredRuns: 0, requeuedRuns: 0, failedRuns: 0 });
     });
 });
@@ -135,6 +148,7 @@ describe('reapStaleLocalBrowserRuns', () => {
         updateManyRuns.mockReset();
         updateManyTestCases.mockReset();
         deleteManyLocks.mockReset();
+        emitRunTerminal.mockReset();
     });
 
     it('requeues PREPARING local browser runs and fails RUNNING local browser runs when stale', async () => {
@@ -206,6 +220,11 @@ describe('reapStaleLocalBrowserRuns', () => {
             failedRuns: 1,
             staleBefore: result.staleBefore,
         });
+        expect(emitRunTerminal).toHaveBeenCalledWith({
+            runId: 'run-4',
+            status: 'FAIL',
+            testCaseId: 'tc-4',
+        });
     });
 
     it('does nothing when no stale local browser run is found', async () => {
@@ -216,6 +235,7 @@ describe('reapStaleLocalBrowserRuns', () => {
 
         expect(updateManyRuns).not.toHaveBeenCalled();
         expect(updateManyTestCases).not.toHaveBeenCalled();
+        expect(emitRunTerminal).not.toHaveBeenCalled();
         expect(result).toEqual({
             recoveredRuns: 0,
             requeuedRuns: 0,

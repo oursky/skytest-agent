@@ -16,6 +16,7 @@ const {
     countLocks,
     transaction,
     putObjectBuffer,
+    emitRunTerminal,
 } = vi.hoisted(() => ({
     findUniqueRun: vi.fn(),
     updateManyRun: vi.fn(),
@@ -32,6 +33,7 @@ const {
     countLocks: vi.fn(),
     transaction: vi.fn(),
     putObjectBuffer: vi.fn(),
+    emitRunTerminal: vi.fn(),
 }));
 
 vi.mock('@/lib/core/prisma', () => ({
@@ -64,6 +66,10 @@ vi.mock('@/lib/storage/object-store-utils', () => ({
     putObjectBuffer,
 }));
 
+vi.mock('@/lib/runners/domain-events', () => ({
+    emitRunTerminal,
+}));
+
 const { appendRunEvents, completeOwnedRun, failOwnedRun } = await import('@/lib/runners/event-service');
 
 describe('event-service', () => {
@@ -83,6 +89,7 @@ describe('event-service', () => {
         countLocks.mockReset();
         transaction.mockReset();
         putObjectBuffer.mockReset();
+        emitRunTerminal.mockReset();
 
         transaction.mockImplementation(async (callback: (tx: {
             testRun: {
@@ -400,6 +407,11 @@ describe('event-service', () => {
                 aiActions: 2,
                 testRunId: 'run-1',
             }
+        });
+        expect(emitRunTerminal).toHaveBeenCalledWith({
+            runId: 'run-1',
+            status: 'FAIL',
+            testCaseId: 'tc-1',
         });
         expect(result).toEqual({ runId: 'run-1', status: 'FAIL' });
     });
