@@ -16,3 +16,8 @@ paths = [
     '''(^|/)playwright-report/''',
     '''(^|/)package-lock\.json$''',
 ]
+
+[[rules]]
+id = "slack-token"
+description = "Slack bot/user/app token"
+regex = '''xox(?:b|p|a)-[0-9A-Za-z-]{10,}'''
