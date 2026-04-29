@@ -10,12 +10,24 @@ const {
     updateRun,
     decryptMock,
     postMessageMock,
+    appConfigMock,
 } = vi.hoisted(() => ({
     findUniqueRun: vi.fn(),
     updateManyRun: vi.fn(),
     updateRun: vi.fn(),
     decryptMock: vi.fn(),
     postMessageMock: vi.fn(),
+    appConfigMock: {
+        app: {
+            publicBaseUrl: 'https://skytest.dev',
+        },
+        slack: {
+            notifications: {
+                maxAttempts: 5,
+                claimTtlMs: 90_000,
+            },
+        },
+    },
 }));
 
 vi.mock('@/lib/core/prisma', () => ({
@@ -34,6 +46,10 @@ vi.mock('@/lib/security/crypto', () => ({
 
 vi.mock('@/lib/integrations/slack/client', () => ({
     postMessage: postMessageMock,
+}));
+
+vi.mock('@/config/app', () => ({
+    config: appConfigMock,
 }));
 
 const { notifyRunFailed } = await import('@/lib/integrations/slack/notifier');
@@ -77,9 +93,6 @@ describe('notifyRunFailed', () => {
         updateRun.mockReset();
         decryptMock.mockReset();
         postMessageMock.mockReset();
-        vi.stubEnv('APP_BASE_URL', 'https://skytest.dev');
-        vi.stubEnv('SLACK_SWEEP_MAX_ATTEMPTS', '5');
-        vi.stubEnv('SLACK_CLAIM_TTL_MS', '90000');
 
         findUniqueRun.mockResolvedValue(buildFailedRun());
         updateManyRun.mockResolvedValue({ count: 1 });

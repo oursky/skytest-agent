@@ -3,9 +3,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const {
     subscribeRunTerminalMock,
     notifyRunFailedMock,
+    appConfigMock,
 } = vi.hoisted(() => ({
     subscribeRunTerminalMock: vi.fn(),
     notifyRunFailedMock: vi.fn(),
+    appConfigMock: {
+        slack: {
+            notifications: {
+                enabled: true,
+            },
+        },
+    },
 }));
 
 vi.mock('@/lib/runners/domain-events', () => ({
@@ -14,6 +22,10 @@ vi.mock('@/lib/runners/domain-events', () => ({
 
 vi.mock('@/lib/integrations/slack/notifier', () => ({
     notifyRunFailed: notifyRunFailedMock,
+}));
+
+vi.mock('@/config/app', () => ({
+    config: appConfigMock,
 }));
 
 const {
@@ -27,7 +39,6 @@ describe('registerSlackSubscriber', () => {
         notifyRunFailedMock.mockReset();
         notifyRunFailedMock.mockResolvedValue(undefined);
         resetSlackSubscriberForTests();
-        vi.stubEnv('SKYTEST_SLACK_NOTIFICATIONS', 'true');
     });
 
     it('notifies only for FAIL events', async () => {

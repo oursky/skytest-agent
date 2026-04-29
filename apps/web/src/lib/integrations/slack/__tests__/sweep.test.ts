@@ -3,9 +3,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const {
     findManyRun,
     notifyRunFailedMock,
+    appConfigMock,
 } = vi.hoisted(() => ({
     findManyRun: vi.fn(),
     notifyRunFailedMock: vi.fn(),
+    appConfigMock: {
+        slack: {
+            notifications: {
+                batchSize: 25,
+                maxAttempts: 5,
+            },
+        },
+    },
 }));
 
 vi.mock('@/lib/core/prisma', () => ({
@@ -20,6 +29,10 @@ vi.mock('@/lib/integrations/slack/notifier', () => ({
     notifyRunFailed: notifyRunFailedMock,
 }));
 
+vi.mock('@/config/app', () => ({
+    config: appConfigMock,
+}));
+
 const { runSlackNotificationSweep } = await import('@/lib/integrations/slack/sweep');
 
 describe('runSlackNotificationSweep', () => {
@@ -27,8 +40,6 @@ describe('runSlackNotificationSweep', () => {
         findManyRun.mockReset();
         notifyRunFailedMock.mockReset();
         findManyRun.mockResolvedValue([]);
-        vi.stubEnv('SLACK_SWEEP_BATCH_SIZE', '25');
-        vi.stubEnv('SLACK_SWEEP_MAX_ATTEMPTS', '5');
     });
 
     it('queries stale failed runs and forwards each run id to notifier', async () => {

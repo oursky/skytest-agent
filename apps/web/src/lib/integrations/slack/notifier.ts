@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
+import { config as appConfig } from '@/config/app';
 import { decrypt } from '@/lib/security/crypto';
 import { postMessage } from '@/lib/integrations/slack/client';
 import { SlackApiError } from '@/lib/integrations/slack/errors';
@@ -10,41 +11,7 @@ import {
 import { TEST_STATUS } from '@/types';
 
 const logger = createLogger('integrations:slack:notifier');
-const DEFAULT_SLACK_CLAIM_TTL_MS = 90_000;
-const DEFAULT_SLACK_MAX_ATTEMPTS = 5;
 const MAX_ERROR_SUMMARY_LENGTH = 500;
-
-function parseBoundedInt(input: {
-    value: string | undefined;
-    fallback: number;
-    min: number;
-    max: number;
-}): number {
-    const parsed = Number.parseInt(input.value ?? '', 10);
-    if (!Number.isFinite(parsed)) {
-        return input.fallback;
-    }
-
-    return Math.min(input.max, Math.max(input.min, parsed));
-}
-
-function getSlackClaimTtlMs(): number {
-    return parseBoundedInt({
-        value: process.env.SLACK_CLAIM_TTL_MS,
-        fallback: DEFAULT_SLACK_CLAIM_TTL_MS,
-        min: 5_000,
-        max: 10 * 60 * 1_000,
-    });
-}
-
-function getSlackMaxAttempts(): number {
-    return parseBoundedInt({
-        value: process.env.SLACK_SWEEP_MAX_ATTEMPTS,
-        fallback: DEFAULT_SLACK_MAX_ATTEMPTS,
-        min: 1,
-        max: 50,
-    });
-}
 
 function trimErrorSummary(value: string | null): string {
     if (!value) {
@@ -137,7 +104,7 @@ export async function notifyRunFailed(runId: string): Promise<void> {
     }
 
     const now = new Date();
-    const claimCutoff = new Date(now.getTime() - getSlackClaimTtlMs());
+    const claimCutoff = new Date(now.getTime() - appConfig.slack.notifications.claimTtlMs);
     const claimResult = await prisma.testRun.updateMany({
         where: {
             id: run.id,
@@ -157,7 +124,7 @@ export async function notifyRunFailed(runId: string): Promise<void> {
         return;
     }
 
-    const baseUrl = process.env.APP_BASE_URL?.trim() ?? '';
+    const baseUrl = appConfig.app.publicBaseUrl ?? '';
     if (!baseUrl) {
         await markSlackNotified(run.id, 'APP_BASE_URL_MISSING');
         logger.warn('Slack notification skipped because APP_BASE_URL is missing', { runId: run.id });
@@ -196,7 +163,7 @@ export async function notifyRunFailed(runId: string): Promise<void> {
                 return;
             }
 
-            if (attemptsAfterClaim >= getSlackMaxAttempts()) {
+            if (attemptsAfterClaim >= appConfig.slack.notifications.maxAttempts) {
                 await markSlackNotified(run.id, `${error.code}:max_attempts`);
                 return;
             }

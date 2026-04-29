@@ -111,12 +111,12 @@ dev: ## Boot local services, apply committed migrations, and start the web app w
 	@set -a; \
 	[ -f .env.local ] && . ./.env.local; \
 	set +a; \
-	RUNNER_MAINTENANCE_ONCE=false $(NODE_PM) run runner:maintenance & \
+	APP_BASE_URL="$${APP_BASE_URL:-$(CONTROL_PLANE_URL)}" SKYTEST_SLACK_NOTIFICATIONS=true RUNNER_MAINTENANCE_ONCE=false $(NODE_PM) run runner:maintenance & \
 	MAINT_PID=$$!; \
-	SKYTEST_BROWSER_WORKER=true $(NODE_PM) run --workspace @skytest/web browser:worker & \
+	APP_BASE_URL="$${APP_BASE_URL:-$(CONTROL_PLANE_URL)}" SKYTEST_SLACK_NOTIFICATIONS=true SKYTEST_BROWSER_WORKER=true $(NODE_PM) run --workspace @skytest/web browser:worker & \
 	BROWSER_WORKER_PID=$$!; \
 	trap 'kill $$MAINT_PID $$BROWSER_WORKER_PID >/dev/null 2>&1' EXIT INT TERM; \
-	$(NODE_PM) run dev -- --hostname $(CONTROL_PLANE_HOST) --port $(CONTROL_PLANE_PORT); \
+	APP_BASE_URL="$${APP_BASE_URL:-$(CONTROL_PLANE_URL)}" SKYTEST_SLACK_NOTIFICATIONS=true $(NODE_PM) run dev -- --hostname $(CONTROL_PLANE_HOST) --port $(CONTROL_PLANE_PORT); \
 	EXIT_CODE=$$?; \
 	kill $$MAINT_PID >/dev/null 2>&1 || true; \
 	kill $$BROWSER_WORKER_PID >/dev/null 2>&1 || true; \

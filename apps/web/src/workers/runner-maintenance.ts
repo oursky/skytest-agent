@@ -17,17 +17,8 @@ const shutdown = createWorkerShutdownController({
     wake: sleeper.wake,
 });
 const MAX_MAINTENANCE_RETRY_INTERVAL_MS = 60_000;
-
-function parseSweepIntervalMs(value: string | undefined): number {
-    const parsed = Number.parseInt(value ?? '', 10);
-    if (!Number.isFinite(parsed)) {
-        return 300_000;
-    }
-    return Math.min(60 * 60 * 1_000, Math.max(1_000, parsed));
-}
-
-const SLACK_SWEEP_INTERVAL_MS = parseSweepIntervalMs(process.env.SLACK_SWEEP_INTERVAL_MS);
-const slackNotificationsEnabled = process.env.SKYTEST_SLACK_NOTIFICATIONS === 'true';
+const SLACK_SWEEP_INTERVAL_MS = appConfig.slack.notifications.sweepIntervalMs;
+const slackNotificationsEnabled = appConfig.slack.notifications.enabled;
 let lastSlackSweepAt: Date | null = null;
 
 registerSlackSubscriber();
