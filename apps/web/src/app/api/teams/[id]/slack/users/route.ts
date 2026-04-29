@@ -13,9 +13,9 @@ const logger = createLogger('api:teams:slack-users');
 function parseLimit(value: string | null): number {
     const parsed = Number.parseInt(value ?? '', 10);
     if (!Number.isFinite(parsed)) {
-        return 100;
+        return 200;
     }
-    return Math.min(200, Math.max(1, parsed));
+    return Math.min(1000, Math.max(1, parsed));
 }
 
 export async function GET(

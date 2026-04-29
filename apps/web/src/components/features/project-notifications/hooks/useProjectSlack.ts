@@ -167,7 +167,7 @@ export function useProjectSlack(projectId: string, teamId: string) {
     const searchChannels = useCallback(async (query: string): Promise<SlackChannelSummary[]> => {
         const headers = await getHeaders();
         const response = await fetch(
-            `/api/teams/${teamId}/slack/channels?q=${encodeURIComponent(query)}&limit=25`,
+            `/api/teams/${teamId}/slack/channels?q=${encodeURIComponent(query)}&limit=100`,
             { headers }
         );
         if (!response.ok) {
@@ -187,7 +187,7 @@ export function useProjectSlack(projectId: string, teamId: string) {
     const searchUsers = useCallback(async (query: string): Promise<SlackUserSummary[]> => {
         const headers = await getHeaders();
         const response = await fetch(
-            `/api/teams/${teamId}/slack/users?q=${encodeURIComponent(query)}&limit=25`,
+            `/api/teams/${teamId}/slack/users?q=${encodeURIComponent(query)}&limit=200`,
             { headers }
         );
         if (!response.ok) {

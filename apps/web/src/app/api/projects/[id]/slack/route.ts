@@ -17,7 +17,7 @@ import type { ProjectSlackSettings } from '@/types/slack';
 
 const logger = createLogger('api:projects:slack');
 const MAX_TEMPLATE_LENGTH = 3_500;
-const CANONICAL_MENTION_PATTERN = /^U[A-Z0-9]+$/;
+const CANONICAL_MENTION_PATTERN = /^[UW][A-Z0-9]+$/;
 
 function normalizeOptionalText(value: unknown): string | null {
     if (typeof value !== 'string') {
@@ -32,7 +32,7 @@ function validateMentionMarkup(template: string): string | null {
     for (const match of matches) {
         const id = match[1] ?? '';
         if (!CANONICAL_MENTION_PATTERN.test(id)) {
-            return `Invalid mention markup "${match[0]}". Use <@U123ABC>.`;
+            return `Invalid mention markup "${match[0]}". Use <@U123ABC> or <@W123ABC>.`;
         }
     }
     return null;
@@ -224,13 +224,19 @@ export async function PUT(
             }
         }
 
+        const channelIdChanged = slackChannelId !== (project.slackChannelId ?? null);
+        const slackChannelName = channelInfo?.name
+            ?? (slackChannelId
+                ? (!slackEnabled && channelIdChanged ? null : project.slackChannelName)
+                : null);
+
         const now = new Date();
         const updated = await prisma.project.update({
             where: { id: project.id },
             data: {
                 slackEnabled,
                 slackChannelId,
-                slackChannelName: channelInfo?.name ?? (slackChannelId ? project.slackChannelName : null),
+                slackChannelName,
                 slackMessageTemplate,
                 slackUpdatedAt: now,
             },

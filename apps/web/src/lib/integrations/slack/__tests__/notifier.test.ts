@@ -167,4 +167,22 @@ describe('notifyRunFailed', () => {
         expect(postMessageMock).not.toHaveBeenCalled();
         expect(updateRun).not.toHaveBeenCalled();
     });
+
+    it('marks run as exhausted on repeated unexpected errors', async () => {
+        findUniqueRun.mockResolvedValueOnce(buildFailedRun({ attempts: 4 }));
+        decryptMock.mockImplementationOnce(() => {
+            throw new Error('decrypt failed');
+        });
+
+        await notifyRunFailed('run-1');
+
+        expect(updateRun).toHaveBeenCalledWith({
+            where: { id: 'run-1' },
+            data: {
+                slackNotifiedAt: expect.any(Date),
+                slackNotifyClaimedAt: null,
+                slackNotifyError: 'unexpected:max_attempts',
+            },
+        });
+    });
 });

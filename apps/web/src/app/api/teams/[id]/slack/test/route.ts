@@ -6,6 +6,11 @@ import { decrypt } from '@/lib/security/crypto';
 import { isTeamMember } from '@/lib/security/permissions';
 import { guardTeamRouteRequest } from '@/lib/security/team-route-access';
 import { authTest } from '@/lib/integrations/slack/client';
+import {
+    SlackAuthError,
+    SlackRateLimitError,
+    SlackTransientError,
+} from '@/lib/integrations/slack/errors';
 
 const logger = createLogger('api:teams:slack-test');
 
@@ -55,6 +60,20 @@ export async function POST(
         logger.warn('Slack connection test failed', {
             error: error instanceof Error ? error.message : String(error),
         });
+        if (error instanceof SlackAuthError) {
+            return apiError({
+                status: 409,
+                code: 'CONFLICT',
+                error: 'Slack token is invalid',
+            });
+        }
+        if (error instanceof SlackRateLimitError || error instanceof SlackTransientError) {
+            return apiError({
+                status: 502,
+                code: 'INTERNAL_ERROR',
+                error: 'Slack upstream is unavailable',
+            });
+        }
         return apiError({
             status: 400,
             code: 'VALIDATION_ERROR',

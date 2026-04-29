@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+    SlackAuthError,
+    SlackTransientError,
+} from '@/lib/integrations/slack/errors';
 
 const mocks = vi.hoisted(() => ({
     guardTeamRouteRequest: vi.fn(),
@@ -82,5 +86,39 @@ describe('/api/teams/[id]/slack/test', () => {
         });
 
         expect(response.status).toBe(409);
+    });
+
+    it('maps invalid auth errors to conflict', async () => {
+        mocks.authTest.mockRejectedValueOnce(new SlackAuthError('invalid', {
+            code: 'invalid_auth',
+            status: 200,
+        }));
+
+        const response = await POST(new Request('http://localhost/api/teams/team-1/slack/test', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({}),
+        }), {
+            params: Promise.resolve({ id: 'team-1' }),
+        });
+
+        expect(response.status).toBe(409);
+    });
+
+    it('maps transient Slack errors to bad gateway', async () => {
+        mocks.authTest.mockRejectedValueOnce(new SlackTransientError('temporary', {
+            code: 'upstream_error',
+            status: 503,
+        }));
+
+        const response = await POST(new Request('http://localhost/api/teams/team-1/slack/test', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({}),
+        }), {
+            params: Promise.resolve({ id: 'team-1' }),
+        });
+
+        expect(response.status).toBe(502);
     });
 });

@@ -39,11 +39,6 @@ describe('failInvalidQueuedAndroidRuns', () => {
                 { id: 'run-1', testCaseId: 'tc-1' },
                 { id: 'run-2', testCaseId: 'tc-2' },
                 { id: 'run-3', testCaseId: 'tc-3' },
-            ])
-            .mockResolvedValueOnce([
-                { id: 'run-1', testCaseId: 'tc-1' },
-                { id: 'run-2', testCaseId: 'tc-2' },
-                { id: 'run-3', testCaseId: 'tc-3' },
             ]);
         testRunUpdateMany.mockResolvedValue({ count: 3 });
 
@@ -73,18 +68,6 @@ describe('failInvalidQueuedAndroidRuns', () => {
                 status: 'FAIL',
                 error: 'Android run is missing requestedDeviceId; please dispatch the run again.',
                 completedAt: now,
-            },
-        });
-        expect(testRunFindMany).toHaveBeenNthCalledWith(2, {
-            where: {
-                id: { in: ['run-1', 'run-2', 'run-3'] },
-                status: 'FAIL',
-                error: 'Android run is missing requestedDeviceId; please dispatch the run again.',
-                completedAt: now,
-            },
-            select: {
-                id: true,
-                testCaseId: true,
             },
         });
         expect(emitRunTerminal).toHaveBeenNthCalledWith(1, {

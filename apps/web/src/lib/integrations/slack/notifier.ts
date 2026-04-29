@@ -123,6 +123,7 @@ export async function notifyRunFailed(runId: string): Promise<void> {
     if (claimResult.count !== 1) {
         return;
     }
+    const attemptsAfterClaim = run.slackNotifyAttempts + 1;
 
     const baseUrl = appConfig.app.publicBaseUrl ?? '';
     if (!baseUrl) {
@@ -146,6 +147,13 @@ export async function notifyRunFailed(runId: string): Promise<void> {
             : 0,
         errorSummary: trimErrorSummary(run.error),
     });
+    if (rendered.truncated || rendered.missingVariables.length > 0) {
+        logger.info('Slack template required fallback rendering', {
+            runId: run.id,
+            truncated: rendered.truncated,
+            missingVariables: rendered.missingVariables,
+        });
+    }
 
     try {
         const token = decrypt(tokenEncrypted);
@@ -156,14 +164,14 @@ export async function notifyRunFailed(runId: string): Promise<void> {
         });
         await markSlackNotified(run.id, null);
     } catch (error) {
+        const attemptsExhausted = attemptsAfterClaim >= appConfig.slack.notifications.maxAttempts;
         if (error instanceof SlackApiError) {
-            const attemptsAfterClaim = run.slackNotifyAttempts + 1;
             if (!error.retryable) {
                 await markSlackNotified(run.id, error.code);
                 return;
             }
 
-            if (attemptsAfterClaim >= appConfig.slack.notifications.maxAttempts) {
+            if (attemptsExhausted) {
                 await markSlackNotified(run.id, `${error.code}:max_attempts`);
                 return;
             }
@@ -176,6 +184,10 @@ export async function notifyRunFailed(runId: string): Promise<void> {
             runId: run.id,
             error: error instanceof Error ? error.message : String(error),
         });
+        if (attemptsExhausted) {
+            await markSlackNotified(run.id, 'unexpected:max_attempts');
+            return;
+        }
         await clearSlackClaim(run.id);
     }
 }

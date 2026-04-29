@@ -40,20 +40,7 @@ export async function failInvalidQueuedAndroidRuns(now = new Date()) {
     });
 
     if (result.count > 0) {
-        const transitionedRuns = await prisma.testRun.findMany({
-            where: {
-                id: { in: invalidRuns.map((run) => run.id) },
-                status: TEST_STATUS.FAIL,
-                error: INVALID_ANDROID_QUEUE_ERROR,
-                completedAt: now,
-            },
-            select: {
-                id: true,
-                testCaseId: true,
-            },
-        });
-
-        for (const run of transitionedRuns) {
+        for (const run of invalidRuns) {
             emitRunTerminal({
                 runId: run.id,
                 status: TEST_STATUS.FAIL,

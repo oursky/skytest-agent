@@ -156,6 +156,23 @@ describe('/api/projects/[id]/slack', () => {
         expect(mocks.prisma.project.update).not.toHaveBeenCalled();
     });
 
+    it('accepts canonical workspace mention markup', async () => {
+        const response = await PUT(new Request('http://localhost/api/projects/project-1/slack', {
+            method: 'PUT',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                slackEnabled: true,
+                slackChannelId: 'C123',
+                slackMessageTemplate: 'Ping <@W123ABC>',
+            }),
+        }), {
+            params: Promise.resolve({ id: 'project-1' }),
+        });
+
+        expect(response.status).toBe(200);
+        expect(mocks.prisma.project.update).toHaveBeenCalled();
+    });
+
     it('maps retryable Slack errors to SLACK_UPSTREAM', async () => {
         mocks.getConversationInfo.mockRejectedValueOnce(new SlackTransientError('temporary', {
             code: 'upstream_error',
@@ -221,6 +238,36 @@ describe('/api/projects/[id]/slack', () => {
 
         expect(response.status).toBe(200);
         expect(mocks.getConversationInfo).not.toHaveBeenCalled();
+    });
+
+    it('clears cached channel name when disabled settings change channel id', async () => {
+        mocks.prisma.project.findUnique.mockResolvedValueOnce(buildProject({
+            slackEnabled: false,
+            channelId: 'COLD',
+            channelName: 'old-channel',
+        }));
+
+        const response = await PUT(new Request('http://localhost/api/projects/project-1/slack', {
+            method: 'PUT',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                slackEnabled: false,
+                slackChannelId: 'CNEW',
+            }),
+        }), {
+            params: Promise.resolve({ id: 'project-1' }),
+        });
+
+        expect(response.status).toBe(200);
+        expect(mocks.prisma.project.update).toHaveBeenCalledWith({
+            where: { id: 'project-1' },
+            data: expect.objectContaining({
+                slackEnabled: false,
+                slackChannelId: 'CNEW',
+                slackChannelName: null,
+            }),
+            select: expect.any(Object),
+        });
     });
 
     it('maps auth errors to TEAM_TOKEN_INVALID', async () => {

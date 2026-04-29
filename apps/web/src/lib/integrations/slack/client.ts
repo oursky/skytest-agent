@@ -13,6 +13,8 @@ const SLACK_API_BASE_URL = 'https://slack.com/api/';
 const SLACK_CONNECT_TIMEOUT_MS = 5_000;
 const SLACK_TOTAL_TIMEOUT_MS = 15_000;
 const DEFAULT_RETRY_AFTER_MS = 1_000;
+const CONNECT_ABORT_REASON = 'connect_timeout';
+const TOTAL_ABORT_REASON = 'total_timeout';
 
 interface SlackEnvelope {
     ok: boolean;
@@ -173,7 +175,7 @@ async function parseSlackBodyWithBudget(response: Response, startedAt: number): 
         response.json() as Promise<SlackEnvelope>,
         new Promise<never>((_, reject) => {
             setTimeout(() => reject(new SlackTransientError('Slack response timed out while reading body', {
-                code: 'response_timeout',
+                code: TOTAL_ABORT_REASON,
                 status: response.status || 504,
             })), remainingMs);
         }),
@@ -199,64 +201,79 @@ async function performSlackRequest<TResponse extends SlackEnvelope>(input: {
 
     const startedAt = Date.now();
     const connectAbortController = new AbortController();
+    const totalAbortController = new AbortController();
+    const requestAbortController = new AbortController();
     const connectTimeout = setTimeout(() => {
-        connectAbortController.abort();
+        connectAbortController.abort(CONNECT_ABORT_REASON);
+        requestAbortController.abort(CONNECT_ABORT_REASON);
     }, SLACK_CONNECT_TIMEOUT_MS);
+    const totalTimeout = setTimeout(() => {
+        totalAbortController.abort(TOTAL_ABORT_REASON);
+        requestAbortController.abort(TOTAL_ABORT_REASON);
+    }, SLACK_TOTAL_TIMEOUT_MS);
 
-    let response: Response;
     try {
-        response = await fetch(url.toString(), {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${input.token}`,
-                'Content-Type': 'application/json; charset=utf-8',
-            },
-            body: JSON.stringify(input.body ?? {}),
-            signal: connectAbortController.signal,
-        });
-    } catch (error) {
-        if (error instanceof Error && error.name === 'AbortError') {
-            throw new SlackTransientError('Slack request timed out while connecting', {
-                code: 'connect_timeout',
-                status: 504,
+        let response: Response;
+        try {
+            response = await fetch(url.toString(), {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${input.token}`,
+                    'Content-Type': 'application/json; charset=utf-8',
+                },
+                body: JSON.stringify(input.body ?? {}),
+                signal: requestAbortController.signal,
+            });
+        } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+                const code = requestAbortController.signal.reason === CONNECT_ABORT_REASON
+                    ? CONNECT_ABORT_REASON
+                    : TOTAL_ABORT_REASON;
+                const phase = code === CONNECT_ABORT_REASON ? 'connecting' : 'waiting for response';
+                throw new SlackTransientError(`Slack request timed out while ${phase}`, {
+                    code,
+                    status: 504,
+                });
+            }
+
+            throw new SlackTransientError('Slack request failed', {
+                code: 'network_error',
+                status: 503,
+            });
+        } finally {
+            clearTimeout(connectTimeout);
+        }
+
+        const retryAfterMs = parseRetryAfterMs(response.headers.get('Retry-After'));
+
+        if (response.status === 429) {
+            throw new SlackRateLimitError('Slack rate limited request', {
+                code: 'ratelimited',
+                status: 429,
+                retryAfterMs,
             });
         }
 
-        throw new SlackTransientError('Slack request failed', {
-            code: 'network_error',
-            status: 503,
-        });
+        if (response.status >= 500) {
+            throw new SlackTransientError(`Slack upstream error (${response.status})`, {
+                code: 'upstream_error',
+                status: response.status,
+            });
+        }
+
+        const payload = await parseSlackBodyWithBudget(response, startedAt);
+        if (!payload.ok) {
+            throw buildSlackApiError({
+                code: payload.error ?? 'unknown_error',
+                status: response.status,
+                retryAfterMs,
+            });
+        }
+
+        return payload as TResponse;
     } finally {
-        clearTimeout(connectTimeout);
+        clearTimeout(totalTimeout);
     }
-
-    const retryAfterMs = parseRetryAfterMs(response.headers.get('Retry-After'));
-
-    if (response.status === 429) {
-        throw new SlackRateLimitError('Slack rate limited request', {
-            code: 'ratelimited',
-            status: 429,
-            retryAfterMs,
-        });
-    }
-
-    if (response.status >= 500) {
-        throw new SlackTransientError(`Slack upstream error (${response.status})`, {
-            code: 'upstream_error',
-            status: response.status,
-        });
-    }
-
-    const payload = await parseSlackBodyWithBudget(response, startedAt);
-    if (!payload.ok) {
-        throw buildSlackApiError({
-            code: payload.error ?? 'unknown_error',
-            status: response.status,
-            retryAfterMs,
-        });
-    }
-
-    return payload as TResponse;
 }
 
 export async function authTest(token: string): Promise<SlackAuthTestResult> {
@@ -380,7 +397,7 @@ export async function listUsers(input: {
         token: input.token,
         path: 'users.list',
         body: {
-            limit: input.limit ?? 200,
+            limit: input.limit ?? 1000,
             cursor: input.cursor,
         },
     });
