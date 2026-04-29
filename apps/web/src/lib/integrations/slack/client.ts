@@ -42,6 +42,10 @@ interface SlackConversationsListResponse extends SlackEnvelope {
     };
 }
 
+interface SlackConversationInfoResponse extends SlackEnvelope {
+    channel?: SlackConversationEntry;
+}
+
 interface SlackUserProfile {
     email?: string;
     display_name?: string;
@@ -82,6 +86,12 @@ export interface SlackConversationSummary {
 export interface SlackConversationsPage {
     channels: SlackConversationSummary[];
     nextCursor: string | null;
+}
+
+export interface SlackConversationInfo {
+    id: string;
+    name: string;
+    isPrivate: boolean;
 }
 
 export interface SlackUserSummary {
@@ -328,6 +338,35 @@ export async function listConversations(input: {
     return {
         channels,
         nextCursor: payload.response_metadata?.next_cursor?.trim() || null,
+    };
+}
+
+export async function getConversationInfo(input: {
+    token: string;
+    channelId: string;
+}): Promise<SlackConversationInfo> {
+    const payload = await performSlackRequest<SlackConversationInfoResponse>({
+        token: input.token,
+        path: 'conversations.info',
+        body: {
+            channel: input.channelId,
+        },
+    });
+
+    const id = payload.channel?.id?.trim() ?? '';
+    const name = payload.channel?.name?.trim() ?? '';
+    if (!id || !name) {
+        throw new SlackApiError('Slack conversations.info response missing channel metadata', {
+            code: 'invalid_response',
+            status: 502,
+            retryable: true,
+        });
+    }
+
+    return {
+        id,
+        name,
+        isPrivate: payload.channel?.is_private === true,
     };
 }
 
