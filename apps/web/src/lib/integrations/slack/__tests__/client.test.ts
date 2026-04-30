@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     authTest,
+    getConversationInfo,
+    listConversations,
+    listUsers,
     postMessage,
 } from '@/lib/integrations/slack/client';
 import {
@@ -99,5 +102,73 @@ describe('slack client', () => {
         vi.stubGlobal('fetch', fetchMock);
 
         await expect(authTest('xoxb-timeout')).rejects.toBeInstanceOf(SlackTransientError);
+    });
+
+    it('uses GET query parameters for conversations.list', async () => {
+        const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({
+            ok: true,
+            channels: [],
+            response_metadata: {},
+        }));
+        vi.stubGlobal('fetch', fetchMock);
+
+        await listConversations({
+            token: 'xoxb-valid',
+            cursor: 'cursor-1',
+            limit: 50,
+        });
+
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain('https://slack.com/api/conversations.list?');
+        expect(url).toContain('limit=50');
+        expect(url).toContain('cursor=cursor-1');
+        expect(url).toContain('types=public_channel%2Cprivate_channel');
+        expect(init.method).toBe('GET');
+        const headers = init.headers as Record<string, string>;
+        expect(headers.Authorization).toBe('Bearer xoxb-valid');
+        expect(headers['Content-Type']).toBeUndefined();
+    });
+
+    it('uses GET query parameters for conversations.info', async () => {
+        const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({
+            ok: true,
+            channel: {
+                id: 'C123',
+                name: 'alerts',
+                is_private: false,
+            },
+        }));
+        vi.stubGlobal('fetch', fetchMock);
+
+        await getConversationInfo({
+            token: 'xoxb-valid',
+            channelId: 'C123',
+        });
+
+        const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain('https://slack.com/api/conversations.info?channel=C123');
+        expect(init.method).toBe('GET');
+    });
+
+    it('uses GET query parameters for users.list', async () => {
+        const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({
+            ok: true,
+            members: [],
+            response_metadata: {},
+        }));
+        vi.stubGlobal('fetch', fetchMock);
+
+        await listUsers({
+            token: 'xoxb-valid',
+            cursor: 'cursor-2',
+            limit: 200,
+        });
+
+        const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain('https://slack.com/api/users.list?');
+        expect(url).toContain('limit=200');
+        expect(url).toContain('cursor=cursor-2');
+        expect(init.method).toBe('GET');
     });
 });

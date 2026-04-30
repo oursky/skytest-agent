@@ -139,14 +139,14 @@ describe('/api/projects/[id]/slack', () => {
         expect(mocks.prisma.project.update).not.toHaveBeenCalled();
     });
 
-    it('rejects non-canonical mention markup', async () => {
+    it('rejects invalid user mention markup', async () => {
         const response = await PUT(new Request('http://localhost/api/projects/project-1/slack', {
             method: 'PUT',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
                 slackEnabled: true,
                 slackChannelId: 'C123',
-                slackMessageTemplate: 'Ping <@U123|name>',
+                slackMessageTemplate: 'Ping <@bad|name>',
             }),
         }), {
             params: Promise.resolve({ id: 'project-1' }),
@@ -156,14 +156,31 @@ describe('/api/projects/[id]/slack', () => {
         expect(mocks.prisma.project.update).not.toHaveBeenCalled();
     });
 
-    it('accepts canonical workspace mention markup', async () => {
+    it('accepts workspace mention markup with fallback label', async () => {
         const response = await PUT(new Request('http://localhost/api/projects/project-1/slack', {
             method: 'PUT',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
                 slackEnabled: true,
                 slackChannelId: 'C123',
-                slackMessageTemplate: 'Ping <@W123ABC>',
+                slackMessageTemplate: 'Ping <@W123ABC|On-call>',
+            }),
+        }), {
+            params: Promise.resolve({ id: 'project-1' }),
+        });
+
+        expect(response.status).toBe(200);
+        expect(mocks.prisma.project.update).toHaveBeenCalled();
+    });
+
+    it('accepts special mentions', async () => {
+        const response = await PUT(new Request('http://localhost/api/projects/project-1/slack', {
+            method: 'PUT',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                slackEnabled: true,
+                slackChannelId: 'C123',
+                slackMessageTemplate: 'Heads up <!here> <!subteam^S123ABC>',
             }),
         }), {
             params: Promise.resolve({ id: 'project-1' }),

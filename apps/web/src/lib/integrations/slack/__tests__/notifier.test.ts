@@ -94,7 +94,12 @@ describe('notifyRunFailed', () => {
         decryptMock.mockReset();
         postMessageMock.mockReset();
 
-        findUniqueRun.mockResolvedValue(buildFailedRun());
+        findUniqueRun.mockImplementation(async (input: { select?: { slackNotifyAttempts?: boolean; testCase?: unknown } }) => {
+            if (input.select?.slackNotifyAttempts && !input.select?.testCase) {
+                return { slackNotifyAttempts: 1 };
+            }
+            return buildFailedRun();
+        });
         updateManyRun.mockResolvedValue({ count: 1 });
         decryptMock.mockReturnValue('xoxb-token');
         postMessageMock.mockResolvedValue({ timestamp: '1.23' });
@@ -169,7 +174,9 @@ describe('notifyRunFailed', () => {
     });
 
     it('marks run as exhausted on repeated unexpected errors', async () => {
-        findUniqueRun.mockResolvedValueOnce(buildFailedRun({ attempts: 4 }));
+        findUniqueRun
+            .mockResolvedValueOnce(buildFailedRun({ attempts: 4 }))
+            .mockResolvedValueOnce({ slackNotifyAttempts: 5 });
         decryptMock.mockImplementationOnce(() => {
             throw new Error('decrypt failed');
         });

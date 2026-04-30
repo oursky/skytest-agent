@@ -45,7 +45,7 @@ The maintenance loop runs `runSlackNotificationSweep` on interval:
 - `status = FAIL`
 - `slackNotifiedAt IS NULL`
 - attempts below max
-- completed older than 90s and newer than 24h
+- completed older than `SLACK_SWEEP_STABILITY_DELAY_MS` and newer than `SLACK_SWEEP_MAX_AGE_MS`
 
 Sweep calls the same `notifyRunFailed` path, so claim logic deduplicates active path vs sweep path races.
 

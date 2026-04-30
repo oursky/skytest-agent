@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+    SlackAuthError,
+    SlackTransientError,
+} from '@/lib/integrations/slack/errors';
 
 const mocks = vi.hoisted(() => ({
     guardTeamRouteRequest: vi.fn(),
@@ -96,13 +100,47 @@ describe('/api/teams/[id]/slack', () => {
         });
     });
 
-    it('returns validation error for invalid token', async () => {
-        mocks.authTest.mockRejectedValueOnce(new Error('invalid_auth'));
+    it('returns conflict for invalid Slack token', async () => {
+        mocks.authTest.mockRejectedValueOnce(new SlackAuthError('invalid', {
+            code: 'invalid_auth',
+            status: 200,
+        }));
 
         const response = await PUT(new Request('http://localhost/api/teams/team-1/slack', {
             method: 'PUT',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ token: 'xoxb-invalid' }),
+        }), {
+            params: Promise.resolve({ id: 'team-1' }),
+        });
+
+        expect(response.status).toBe(409);
+        expect(mocks.prisma.team.update).not.toHaveBeenCalled();
+    });
+
+    it('returns bad gateway for transient Slack errors', async () => {
+        mocks.authTest.mockRejectedValueOnce(new SlackTransientError('temporary', {
+            code: 'upstream_error',
+            status: 503,
+        }));
+
+        const response = await PUT(new Request('http://localhost/api/teams/team-1/slack', {
+            method: 'PUT',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ token: 'xoxb-invalid' }),
+        }), {
+            params: Promise.resolve({ id: 'team-1' }),
+        });
+
+        expect(response.status).toBe(502);
+        expect(mocks.prisma.team.update).not.toHaveBeenCalled();
+    });
+
+    it('returns validation error for invalid JSON payload', async () => {
+        const response = await PUT(new Request('http://localhost/api/teams/team-1/slack', {
+            method: 'PUT',
+            headers: { 'content-type': 'application/json' },
+            body: '{"token":',
         }), {
             params: Promise.resolve({ id: 'team-1' }),
         });

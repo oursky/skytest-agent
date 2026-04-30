@@ -6,18 +6,19 @@ import { guardProjectRouteRequest } from '@/lib/security/project-route-access';
 import { decrypt } from '@/lib/security/crypto';
 import {
     getConversationInfo,
-    SlackConversationInfo,
 } from '@/lib/integrations/slack/client';
 import {
     SlackApiError,
     SlackAuthError,
     SlackChannelNotFoundError,
 } from '@/lib/integrations/slack/errors';
+import type { SlackConversationInfo } from '@/lib/integrations/slack/client';
 import type { ProjectSlackSettings } from '@/types/slack';
 
 const logger = createLogger('api:projects:slack');
 const MAX_TEMPLATE_LENGTH = 3_500;
-const CANONICAL_MENTION_PATTERN = /^[UW][A-Z0-9]+$/;
+const USER_MENTION_PATTERN = /^@[UW][A-Z0-9]+(?:\|[^|<>]+)?$/;
+const SPECIAL_MENTION_PATTERN = /^!(?:here|channel|everyone|subteam\^[A-Z0-9]+)(?:\|[^|<>]+)?$/;
 
 function normalizeOptionalText(value: unknown): string | null {
     if (typeof value !== 'string') {
@@ -28,11 +29,14 @@ function normalizeOptionalText(value: unknown): string | null {
 }
 
 function validateMentionMarkup(template: string): string | null {
-    const matches = template.matchAll(/<@([^>]+)>/g);
+    const matches = template.matchAll(/<([^>\r\n]+)>/g);
     for (const match of matches) {
-        const id = match[1] ?? '';
-        if (!CANONICAL_MENTION_PATTERN.test(id)) {
-            return `Invalid mention markup "${match[0]}". Use <@U123ABC> or <@W123ABC>.`;
+        const raw = match[1] ?? '';
+        if (raw.startsWith('@') && !USER_MENTION_PATTERN.test(raw)) {
+            return `Invalid mention markup "${match[0]}". Use <@U123ABC>, <@W123ABC>, or include an optional fallback label.`;
+        }
+        if (raw.startsWith('!') && !SPECIAL_MENTION_PATTERN.test(raw)) {
+            return `Invalid mention markup "${match[0]}". Use <!here>, <!channel>, <!everyone>, or <!subteam^S123ABC>.`;
         }
     }
     return null;

@@ -171,31 +171,43 @@ async function parseSlackBodyWithBudget(response: Response, startedAt: number): 
     const elapsedMs = Date.now() - startedAt;
     const remainingMs = Math.max(1, SLACK_TOTAL_TIMEOUT_MS - elapsedMs);
 
-    const payload = await Promise.race([
-        response.json() as Promise<SlackEnvelope>,
-        new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new SlackTransientError('Slack response timed out while reading body', {
-                code: TOTAL_ABORT_REASON,
-                status: response.status || 504,
-            })), remainingMs);
-        }),
-    ]);
+    let bodyTimeout: ReturnType<typeof setTimeout> | null = null;
+    try {
+        const payload = await Promise.race([
+            response.json() as Promise<SlackEnvelope>,
+            new Promise<never>((_, reject) => {
+                bodyTimeout = setTimeout(() => reject(new SlackTransientError('Slack response timed out while reading body', {
+                    code: TOTAL_ABORT_REASON,
+                    status: response.status || 504,
+                })), remainingMs);
+            }),
+        ]);
 
-    return payload;
+        return payload;
+    } finally {
+        if (bodyTimeout) {
+            clearTimeout(bodyTimeout);
+        }
+    }
 }
 
 async function performSlackRequest<TResponse extends SlackEnvelope>(input: {
     token: string;
     path: string;
-    query?: Record<string, string | undefined>;
+    method?: 'GET' | 'POST';
+    query?: Record<string, string | number | boolean | undefined>;
     body?: Record<string, unknown>;
 }): Promise<TResponse> {
     const url = new URL(input.path, SLACK_API_BASE_URL);
     if (input.query) {
         for (const [key, value] of Object.entries(input.query)) {
-            if (typeof value === 'string' && value.trim() !== '') {
-                url.searchParams.set(key, value);
+            if (typeof value === 'undefined') {
+                continue;
             }
+            if (typeof value === 'string' && value.trim() === '') {
+                continue;
+            }
+            url.searchParams.set(key, String(value));
         }
     }
 
@@ -211,17 +223,18 @@ async function performSlackRequest<TResponse extends SlackEnvelope>(input: {
         totalAbortController.abort(TOTAL_ABORT_REASON);
         requestAbortController.abort(TOTAL_ABORT_REASON);
     }, SLACK_TOTAL_TIMEOUT_MS);
+    const method = input.method ?? 'POST';
 
     try {
         let response: Response;
         try {
             response = await fetch(url.toString(), {
-                method: 'POST',
+                method,
                 headers: {
                     Authorization: `Bearer ${input.token}`,
-                    'Content-Type': 'application/json; charset=utf-8',
+                    ...(method === 'POST' ? { 'Content-Type': 'application/json; charset=utf-8' } : {}),
                 },
-                body: JSON.stringify(input.body ?? {}),
+                ...(method === 'POST' ? { body: JSON.stringify(input.body ?? {}) } : {}),
                 signal: requestAbortController.signal,
             });
         } catch (error) {
@@ -240,7 +253,8 @@ async function performSlackRequest<TResponse extends SlackEnvelope>(input: {
                 code: 'network_error',
                 status: 503,
             });
-        } finally {
+        }
+        finally {
             clearTimeout(connectTimeout);
         }
 
@@ -334,7 +348,8 @@ export async function listConversations(input: {
     const payload = await performSlackRequest<SlackConversationsListResponse>({
         token: input.token,
         path: 'conversations.list',
-        body: {
+        method: 'GET',
+        query: {
             limit: input.limit ?? 100,
             cursor: input.cursor,
             types: 'public_channel,private_channel',
@@ -365,7 +380,8 @@ export async function getConversationInfo(input: {
     const payload = await performSlackRequest<SlackConversationInfoResponse>({
         token: input.token,
         path: 'conversations.info',
-        body: {
+        method: 'GET',
+        query: {
             channel: input.channelId,
         },
     });
@@ -396,7 +412,8 @@ export async function listUsers(input: {
     const payload = await performSlackRequest<SlackUsersListResponse>({
         token: input.token,
         path: 'users.list',
-        body: {
+        method: 'GET',
+        query: {
             limit: input.limit ?? 1000,
             cursor: input.cursor,
         },

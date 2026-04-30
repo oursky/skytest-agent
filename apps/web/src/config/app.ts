@@ -179,6 +179,18 @@ const slackClaimTtlMs = parseBoundedIntEnv({
     min: 5_000,
     max: 600_000,
 });
+const slackSweepStabilityDelayMs = parseBoundedIntEnv({
+    name: 'SLACK_SWEEP_STABILITY_DELAY_MS',
+    fallback: 90_000,
+    min: 1_000,
+    max: 3_600_000,
+});
+const slackSweepMaxAgeMs = parseBoundedIntEnv({
+    name: 'SLACK_SWEEP_MAX_AGE_MS',
+    fallback: 24 * 60 * 60 * 1_000,
+    min: 60_000,
+    max: 7 * 24 * 60 * 60 * 1_000,
+});
 
 if (slackNotificationsEnabled && !appPublicBaseUrl) {
     console.warn('Slack notifications are enabled but APP_BASE_URL is not configured');
@@ -246,6 +258,8 @@ export const config = {
             batchSize: slackSweepBatchSize,
             maxAttempts: slackSweepMaxAttempts,
             claimTtlMs: slackClaimTtlMs,
+            sweepStabilityDelayMs: slackSweepStabilityDelayMs,
+            sweepMaxAgeMs: slackSweepMaxAgeMs,
         },
     },
 

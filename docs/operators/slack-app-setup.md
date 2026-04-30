@@ -14,6 +14,8 @@ Optional tuning:
 - `SLACK_SWEEP_BATCH_SIZE` (default `25`)
 - `SLACK_SWEEP_MAX_ATTEMPTS` (default `5`)
 - `SLACK_CLAIM_TTL_MS` (default `90000`)
+- `SLACK_SWEEP_STABILITY_DELAY_MS` (default `90000`)
+- `SLACK_SWEEP_MAX_AGE_MS` (default `86400000`)
 
 ## 1) Create Slack App From Manifest
 
@@ -49,7 +51,7 @@ If the bot is not invited, sends fail with `not_in_channel`.
 4. Customize the template if needed.
 5. Send a test message.
 
-Template mentions must use canonical Slack markup like `<@U123ABC>`.
+Template mentions support Slack user and special mentions such as `<@U123ABC>`, `<@U123ABC|qa-oncall>`, `<!here>`, and `<!subteam^S123ABC>`.
 
 ## Token Rotation
 

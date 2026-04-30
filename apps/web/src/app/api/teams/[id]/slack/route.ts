@@ -6,6 +6,11 @@ import { encrypt } from '@/lib/security/crypto';
 import { isTeamMember } from '@/lib/security/permissions';
 import { guardTeamRouteRequest } from '@/lib/security/team-route-access';
 import { authTest } from '@/lib/integrations/slack/client';
+import {
+    SlackAuthError,
+    SlackRateLimitError,
+    SlackTransientError,
+} from '@/lib/integrations/slack/errors';
 import type { TeamSlackSettings } from '@/types/slack';
 
 const logger = createLogger('api:teams:slack');
@@ -67,17 +72,27 @@ export async function PUT(
         return guard.response;
     }
 
+    let body: { token?: string };
     try {
-        const body = await request.json() as { token?: string };
-        const token = body.token?.trim() ?? '';
-        if (!token) {
-            return apiError({
-                status: 400,
-                code: 'VALIDATION_ERROR',
-                error: 'Slack bot token is required',
-            });
-        }
+        body = await request.json() as { token?: string };
+    } catch {
+        return apiError({
+            status: 400,
+            code: 'VALIDATION_ERROR',
+            error: 'Invalid JSON payload',
+        });
+    }
 
+    const token = body.token?.trim() ?? '';
+    if (!token) {
+        return apiError({
+            status: 400,
+            code: 'VALIDATION_ERROR',
+            error: 'Slack bot token is required',
+        });
+    }
+
+    try {
         const auth = await authTest(token);
         const now = new Date();
         await prisma.team.update({
@@ -101,10 +116,24 @@ export async function PUT(
         logger.warn('Failed to save team Slack settings', {
             error: error instanceof Error ? error.message : String(error),
         });
+        if (error instanceof SlackAuthError) {
+            return apiError({
+                status: 409,
+                code: 'CONFLICT',
+                error: 'Slack token is invalid',
+            });
+        }
+        if (error instanceof SlackRateLimitError || error instanceof SlackTransientError) {
+            return apiError({
+                status: 502,
+                code: 'INTERNAL_ERROR',
+                error: 'Slack upstream is unavailable',
+            });
+        }
         return apiError({
-            status: 400,
-            code: 'VALIDATION_ERROR',
-            error: 'Failed to validate Slack token',
+            status: 500,
+            code: 'INTERNAL_ERROR',
+            error: 'Failed to save Slack settings',
         });
     }
 }

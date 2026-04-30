@@ -123,7 +123,16 @@ export async function notifyRunFailed(runId: string): Promise<void> {
     if (claimResult.count !== 1) {
         return;
     }
-    const attemptsAfterClaim = run.slackNotifyAttempts + 1;
+    const claimedRun = await prisma.testRun.findUnique({
+        where: { id: run.id },
+        select: {
+            slackNotifyAttempts: true,
+        },
+    });
+    if (!claimedRun) {
+        return;
+    }
+    const attemptsAfterClaim = claimedRun.slackNotifyAttempts;
 
     const baseUrl = appConfig.app.publicBaseUrl ?? '';
     if (!baseUrl) {

@@ -12,6 +12,8 @@ const {
             notifications: {
                 batchSize: 25,
                 maxAttempts: 5,
+                sweepStabilityDelayMs: 90_000,
+                sweepMaxAgeMs: 24 * 60 * 60 * 1_000,
             },
         },
     },
