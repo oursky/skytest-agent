@@ -1,9 +1,9 @@
 import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
-import { config as appConfig } from '@/config/app';
 import { decrypt } from '@/lib/security/crypto';
 import { postMessage } from '@/lib/integrations/slack/client';
 import { SlackApiError } from '@/lib/integrations/slack/errors';
+import { slackNotificationPolicy } from '@/lib/integrations/slack/config';
 import {
     DEFAULT_SLACK_FAILURE_TEMPLATE,
     renderTemplate,
@@ -23,11 +23,6 @@ function trimErrorSummary(value: string | null): string {
     }
 
     return `${value.slice(0, MAX_ERROR_SUMMARY_LENGTH)}...`;
-}
-
-function buildRunUrl(baseUrl: string, runId: string, testCaseId: string): string {
-    const normalized = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-    return `${normalized}/run?runId=${encodeURIComponent(runId)}&testCaseId=${encodeURIComponent(testCaseId)}`;
 }
 
 function formatTimestamp(value: Date | null): string {
@@ -64,7 +59,6 @@ export async function notifyRunFailed(runId: string): Promise<void> {
         select: {
             id: true,
             status: true,
-            testCaseId: true,
             triggeredByEmail: true,
             startedAt: true,
             completedAt: true,
@@ -104,7 +98,7 @@ export async function notifyRunFailed(runId: string): Promise<void> {
     }
 
     const now = new Date();
-    const claimCutoff = new Date(now.getTime() - appConfig.slack.notifications.claimTtlMs);
+    const claimCutoff = new Date(now.getTime() - slackNotificationPolicy.claimTtlMs);
     const claimResult = await prisma.testRun.updateMany({
         where: {
             id: run.id,
@@ -134,20 +128,11 @@ export async function notifyRunFailed(runId: string): Promise<void> {
     }
     const attemptsAfterClaim = claimedRun.slackNotifyAttempts;
 
-    const baseUrl = appConfig.app.publicBaseUrl ?? '';
-    if (!baseUrl) {
-        await markSlackNotified(run.id, 'APP_BASE_URL_MISSING');
-        logger.warn('Slack notification skipped because APP_BASE_URL is missing', { runId: run.id });
-        return;
-    }
-
-    const runUrl = buildRunUrl(baseUrl, run.id, run.testCaseId);
     const template = run.testCase.project.slackMessageTemplate ?? DEFAULT_SLACK_FAILURE_TEMPLATE;
     const rendered = renderTemplate(template, {
         projectName: run.testCase.project.name,
         testCaseName: run.testCase.name,
         runId: run.id,
-        runUrl,
         triggeredBy: run.triggeredByEmail ?? 'system',
         startedAt: formatTimestamp(run.startedAt),
         completedAt: formatTimestamp(run.completedAt),
@@ -173,7 +158,7 @@ export async function notifyRunFailed(runId: string): Promise<void> {
         });
         await markSlackNotified(run.id, null);
     } catch (error) {
-        const attemptsExhausted = attemptsAfterClaim >= appConfig.slack.notifications.maxAttempts;
+        const attemptsExhausted = attemptsAfterClaim >= slackNotificationPolicy.maxAttempts;
         if (error instanceof SlackApiError) {
             if (!error.retryable) {
                 await markSlackNotified(run.id, error.code);

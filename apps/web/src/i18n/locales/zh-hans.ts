@@ -523,7 +523,6 @@ export const ZH_HANS_MESSAGES: Messages = {
   "project.integration.slack.mentionSearchPlaceholder": "按名称或邮箱搜索用户",
   "project.integration.slack.userSearchFailed": "搜索用户失败",
   "project.integration.slack.templateTooLong": "模板超过 3500 字符。",
-  "project.integration.slack.runUrlHint": "建议包含 {runUrl}，方便接收者快速打开失败运行。",
   "project.integration.slack.channelSelected": "已选频道：",
   "project.integration.slack.preview": "预览",
   "project.integration.slack.saving": "保存中...",

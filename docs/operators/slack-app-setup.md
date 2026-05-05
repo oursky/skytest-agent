@@ -5,17 +5,8 @@ This guide configures Slack notifications for failed runs.
 ## Prerequisites
 
 - `ENCRYPTION_SECRET` configured for your SkyTest deployment
-- `APP_BASE_URL` set to your reachable SkyTest base URL
-- `SKYTEST_SLACK_NOTIFICATIONS=true`
 
-Optional tuning:
-
-- `SLACK_SWEEP_INTERVAL_MS` (default `300000`)
-- `SLACK_SWEEP_BATCH_SIZE` (default `25`)
-- `SLACK_SWEEP_MAX_ATTEMPTS` (default `5`)
-- `SLACK_CLAIM_TTL_MS` (default `90000`)
-- `SLACK_SWEEP_STABILITY_DELAY_MS` (default `90000`)
-- `SLACK_SWEEP_MAX_AGE_MS` (default `86400000`)
+No Slack-specific environment variables are required. Notifications are active when team token + project settings are configured.
 
 ## 1) Create Slack App From Manifest
 

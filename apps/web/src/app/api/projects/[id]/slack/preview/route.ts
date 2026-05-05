@@ -52,7 +52,6 @@ export async function POST(
             projectName: project.name,
             testCaseName: 'Checkout flow',
             runId: 'run_preview_001',
-            runUrl: 'https://example.local/run?runId=run_preview_001',
             triggeredBy: 'qa@example.com',
             startedAt: '2026-04-29T12:00:00Z',
             completedAt: '2026-04-29T12:00:42Z',

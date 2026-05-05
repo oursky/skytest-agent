@@ -152,55 +152,11 @@ const midsceneGenerateReport = process.env.SKYTEST_MIDSCENE_GENERATE_REPORT === 
 const midsceneAutoPrintReportMsg = process.env.SKYTEST_MIDSCENE_AUTO_PRINT_REPORT_MSG === 'true';
 const s3ForcePathStyle = parseBooleanEnv('S3_FORCE_PATH_STYLE', false);
 const allowLocalhostTestTargets = parseBooleanEnv('ALLOW_LOCALHOST_TEST_TARGETS', false);
-const slackNotificationsEnabled = parseBooleanEnv('SKYTEST_SLACK_NOTIFICATIONS', false);
-const appPublicBaseUrlRaw = process.env.APP_BASE_URL?.trim() ?? '';
-const appPublicBaseUrl = appPublicBaseUrlRaw.length > 0 ? appPublicBaseUrlRaw : null;
-const slackSweepIntervalMs = parseBoundedIntEnv({
-    name: 'SLACK_SWEEP_INTERVAL_MS',
-    fallback: 300_000,
-    min: 1_000,
-    max: 3_600_000,
-});
-const slackSweepBatchSize = parseBoundedIntEnv({
-    name: 'SLACK_SWEEP_BATCH_SIZE',
-    fallback: 25,
-    min: 1,
-    max: 200,
-});
-const slackSweepMaxAttempts = parseBoundedIntEnv({
-    name: 'SLACK_SWEEP_MAX_ATTEMPTS',
-    fallback: 5,
-    min: 1,
-    max: 50,
-});
-const slackClaimTtlMs = parseBoundedIntEnv({
-    name: 'SLACK_CLAIM_TTL_MS',
-    fallback: 90_000,
-    min: 5_000,
-    max: 600_000,
-});
-const slackSweepStabilityDelayMs = parseBoundedIntEnv({
-    name: 'SLACK_SWEEP_STABILITY_DELAY_MS',
-    fallback: 90_000,
-    min: 1_000,
-    max: 3_600_000,
-});
-const slackSweepMaxAgeMs = parseBoundedIntEnv({
-    name: 'SLACK_SWEEP_MAX_AGE_MS',
-    fallback: 24 * 60 * 60 * 1_000,
-    min: 60_000,
-    max: 7 * 24 * 60 * 60 * 1_000,
-});
-
-if (slackNotificationsEnabled && !appPublicBaseUrl) {
-    console.warn('Slack notifications are enabled but APP_BASE_URL is not configured');
-}
 
 export const config = {
     app: {
         name: 'SkyTest Agent',
         locale: 'en-GB',
-        publicBaseUrl: appPublicBaseUrl,
     },
 
     logging: {
@@ -249,18 +205,6 @@ export const config = {
         dispatchIntervalMs: browserWorkerDispatchIntervalMs,
         maxDispatchIntervalMs: browserWorkerMaxDispatchIntervalMs,
         maxDispatchesPerCycle: browserWorkerMaxDispatchesPerCycle,
-    },
-
-    slack: {
-        notifications: {
-            enabled: slackNotificationsEnabled,
-            sweepIntervalMs: slackSweepIntervalMs,
-            batchSize: slackSweepBatchSize,
-            maxAttempts: slackSweepMaxAttempts,
-            claimTtlMs: slackClaimTtlMs,
-            sweepStabilityDelayMs: slackSweepStabilityDelayMs,
-            sweepMaxAgeMs: slackSweepMaxAgeMs,
-        },
     },
 
     test: {

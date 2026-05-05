@@ -1,6 +1,7 @@
 import { config as appConfig } from '@/config/app';
 import { createLogger } from '@/lib/core/logger';
 import { prisma } from '@/lib/core/prisma';
+import { slackNotificationPolicy } from '@/lib/integrations/slack/config';
 import { runSlackNotificationSweep } from '@/lib/integrations/slack/sweep';
 import { registerSlackSubscriber } from '@/lib/integrations/slack/subscriber';
 import { pruneOldRunEvents } from '@/lib/runners/event-retention-service';
@@ -17,8 +18,7 @@ const shutdown = createWorkerShutdownController({
     wake: sleeper.wake,
 });
 const MAX_MAINTENANCE_RETRY_INTERVAL_MS = 60_000;
-const SLACK_SWEEP_INTERVAL_MS = appConfig.slack.notifications.sweepIntervalMs;
-const slackNotificationsEnabled = appConfig.slack.notifications.enabled;
+const SLACK_SWEEP_INTERVAL_MS = slackNotificationPolicy.sweepIntervalMs;
 let lastSlackSweepAt: Date | null = null;
 
 registerSlackSubscriber();
@@ -33,11 +33,8 @@ async function runMaintenanceCycle() {
     const runRetentionResult = await enforceRunArtifactRetention();
     let slackSweepResult = { scannedRuns: 0 };
     const now = new Date();
-    const shouldRunSlackSweep = slackNotificationsEnabled
-        && (
-            !lastSlackSweepAt
-            || now.getTime() - lastSlackSweepAt.getTime() >= SLACK_SWEEP_INTERVAL_MS
-        );
+    const shouldRunSlackSweep = !lastSlackSweepAt
+        || now.getTime() - lastSlackSweepAt.getTime() >= SLACK_SWEEP_INTERVAL_MS;
 
     if (shouldRunSlackSweep) {
         slackSweepResult = await runSlackNotificationSweep(now);
@@ -84,7 +81,6 @@ async function main() {
         artifactSoftDeleteDays: appConfig.runner.artifactSoftDeleteDays,
         artifactHardDeleteDays: appConfig.runner.artifactHardDeleteDays,
         artifactHardDeleteBatchSize: appConfig.runner.artifactHardDeleteBatchSize,
-        slackNotificationsEnabled,
         slackSweepIntervalMs: SLACK_SWEEP_INTERVAL_MS,
     });
 

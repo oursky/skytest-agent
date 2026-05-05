@@ -90,8 +90,6 @@ Local defaults point to:
 
 Optional Slack notification local setup:
 
-- Enable `SKYTEST_SLACK_NOTIFICATIONS=true`
-- Set `APP_BASE_URL=http://127.0.0.1:3000`
 - Follow [slack-app-setup.md](./slack-app-setup.md) to install a workspace app and connect the token in Team Settings -> Integration
 
 ## Per-Checkout SkyTest Runtime Config

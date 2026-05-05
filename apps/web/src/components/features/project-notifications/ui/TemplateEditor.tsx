@@ -17,7 +17,6 @@ const TEMPLATE_VARIABLES = [
     'projectName',
     'testCaseName',
     'runId',
-    'runUrl',
     'triggeredBy',
     'startedAt',
     'completedAt',

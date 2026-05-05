@@ -23,6 +23,19 @@ SkyTest can post Slack messages when a project run reaches `FAIL`.
 
 The bus is process-local, so each process registers independently.
 
+## Delivery Policy
+
+Slack retry/sweep behavior uses fixed internal policy values in `lib/integrations/slack/config.ts`:
+
+- sweep interval: 5 minutes
+- sweep batch size: 25 runs
+- max attempts: 5
+- claim TTL: 90 seconds
+- sweep stability delay: 90 seconds
+- sweep max age: 24 hours
+
+There are no Slack-specific environment variables in runtime configuration.
+
 ## Notification Pipeline
 
 `notifyRunFailed` performs:
@@ -36,7 +49,7 @@ The bus is process-local, so each process registers independently.
    - retryable error -> claim cleared, retry later
    - non-retryable error -> mark notified with `slackNotifyError`
 
-Claim TTL (`SLACK_CLAIM_TTL_MS`) allows recovery after process crash.
+Claim TTL (defined in `lib/integrations/slack/config.ts`) allows recovery after process crash.
 
 ## Safety Sweep
 
@@ -45,7 +58,7 @@ The maintenance loop runs `runSlackNotificationSweep` on interval:
 - `status = FAIL`
 - `slackNotifiedAt IS NULL`
 - attempts below max
-- completed older than `SLACK_SWEEP_STABILITY_DELAY_MS` and newer than `SLACK_SWEEP_MAX_AGE_MS`
+- completed older than sweep stability delay and newer than sweep max age
 
 Sweep calls the same `notifyRunFailed` path, so claim logic deduplicates active path vs sweep path races.
 
@@ -54,7 +67,7 @@ Sweep calls the same `notifyRunFailed` path, so claim logic deduplicates active 
 - Non-retryable: `invalid_auth`, `account_inactive`, `channel_not_found`, `not_in_channel`
 - Retryable: `429`, upstream `5xx`, transport timeout/network failures
 
-If attempts exceed `SLACK_SWEEP_MAX_ATTEMPTS`, run is marked notified with terminal Slack error.
+If attempts exceed max attempts, run is marked notified with terminal Slack error.
 
 ## No-Token-Leak Invariant
 

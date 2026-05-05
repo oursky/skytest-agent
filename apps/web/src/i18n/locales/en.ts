@@ -523,7 +523,6 @@ export const EN_MESSAGES: Messages = {
   "project.integration.slack.mentionSearchPlaceholder": "Search users by name or email",
   "project.integration.slack.userSearchFailed": "Failed to search users",
   "project.integration.slack.templateTooLong": "Template exceeds 3500 characters.",
-  "project.integration.slack.runUrlHint": "Consider including {runUrl} so recipients can open the failed run quickly.",
   "project.integration.slack.channelSelected": "Selected channel:",
   "project.integration.slack.preview": "Preview",
   "project.integration.slack.saving": "Saving...",

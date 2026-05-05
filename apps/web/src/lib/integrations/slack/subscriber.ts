@@ -1,5 +1,4 @@
 import { createLogger } from '@/lib/core/logger';
-import { config as appConfig } from '@/config/app';
 import { notifyRunFailed } from '@/lib/integrations/slack/notifier';
 import { subscribeRunTerminal } from '@/lib/runners/domain-events';
 import { TEST_STATUS } from '@/types';
@@ -9,15 +8,7 @@ const logger = createLogger('integrations:slack:subscriber');
 let registered = false;
 let unsubscribeListener: (() => void) | null = null;
 
-function isSlackNotificationsEnabled(): boolean {
-    return appConfig.slack.notifications.enabled;
-}
-
 export function registerSlackSubscriber(): void {
-    if (!isSlackNotificationsEnabled()) {
-        return;
-    }
-
     if (registered) {
         return;
     }

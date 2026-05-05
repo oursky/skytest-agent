@@ -52,7 +52,7 @@ describe('renderTemplate', () => {
 
     it('falls back to default template when input is empty', () => {
         const result = renderTemplate('   ', {
-            runUrl: 'https://skytest.dev/run/run-1',
+            runId: 'run-1',
             testCaseName: 'Checkout flow',
             projectName: 'Shop',
             triggeredBy: 'qa@example.com',
@@ -62,11 +62,11 @@ describe('renderTemplate', () => {
         });
 
         expect(result.text).toContain(':rotating_light: *Test failed*');
-        expect(result.text).not.toContain('{runUrl}');
+        expect(result.text).not.toContain('{runId}');
     });
 
     it('default template contains expected placeholders', () => {
-        expect(DEFAULT_SLACK_FAILURE_TEMPLATE).toContain('{runUrl}');
+        expect(DEFAULT_SLACK_FAILURE_TEMPLATE).toContain('{runId}');
         expect(DEFAULT_SLACK_FAILURE_TEMPLATE).toContain('{errorSummary}');
     });
 });

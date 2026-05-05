@@ -1,5 +1,6 @@
 export const DEFAULT_SLACK_FAILURE_TEMPLATE = [
-    ':rotating_light: *Test failed* — <{runUrl}|{testCaseName}>',
+    ':rotating_light: *Test failed* — {testCaseName}',
+    '*Run ID:* {runId}',
     '*Project:* {projectName}',
     '*Triggered by:* {triggeredBy}',
     '*Started:* {startedAt}  *Completed:* {completedAt}',

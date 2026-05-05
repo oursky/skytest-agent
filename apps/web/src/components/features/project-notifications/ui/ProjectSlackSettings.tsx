@@ -43,7 +43,6 @@ export default function ProjectSlackSettings({ projectId, teamId }: ProjectSlack
     }, [draft.slackTemplate, loadPreview]);
 
     const templateTooLong = draft.slackTemplate.length > 3_500;
-    const runUrlMissing = !draft.slackTemplate.includes('{runUrl}');
     const canEnable = settings.parentTeamHasToken;
     const normalizedDraftChannelId = draft.slackChannelId.trim();
     const isDirty = draft.slackEnabled !== settings.slackEnabled
@@ -128,9 +127,6 @@ export default function ProjectSlackSettings({ projectId, teamId }: ProjectSlack
                     <div className="space-y-1 text-xs">
                         {templateTooLong && (
                             <p className="text-amber-700">{t('project.integration.slack.templateTooLong')}</p>
-                        )}
-                        {runUrlMissing && (
-                            <p className="text-amber-700">{t('project.integration.slack.runUrlHint')}</p>
                         )}
                         {draft.slackChannelName && (
                             <p className="text-gray-500">

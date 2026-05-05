@@ -3,20 +3,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const {
     findManyRun,
     notifyRunFailedMock,
-    appConfigMock,
 } = vi.hoisted(() => ({
     findManyRun: vi.fn(),
     notifyRunFailedMock: vi.fn(),
-    appConfigMock: {
-        slack: {
-            notifications: {
-                batchSize: 25,
-                maxAttempts: 5,
-                sweepStabilityDelayMs: 90_000,
-                sweepMaxAgeMs: 24 * 60 * 60 * 1_000,
-            },
-        },
-    },
 }));
 
 vi.mock('@/lib/core/prisma', () => ({
@@ -29,10 +18,6 @@ vi.mock('@/lib/core/prisma', () => ({
 
 vi.mock('@/lib/integrations/slack/notifier', () => ({
     notifyRunFailed: notifyRunFailedMock,
-}));
-
-vi.mock('@/config/app', () => ({
-    config: appConfigMock,
 }));
 
 const { runSlackNotificationSweep } = await import('@/lib/integrations/slack/sweep');
