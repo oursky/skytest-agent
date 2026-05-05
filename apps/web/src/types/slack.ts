@@ -14,12 +14,6 @@ export interface ProjectSlackSettings {
     parentTeamHasToken: boolean;
 }
 
-export interface SlackChannelSummary {
-    id: string;
-    name: string;
-    isPrivate: boolean;
-}
-
 export interface SlackUserSummary {
     id: string;
     displayName: string;

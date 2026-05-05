@@ -102,14 +102,14 @@ export default function TeamSlackSettings({ teamId }: TeamSlackSettingsProps) {
                         <Button
                             onClick={() => void handleConnect()}
                             variant="primary"
-                            disabled={isSaving || tokenInput.trim().length === 0}
+                            disabled={isSaving || isTesting || tokenInput.trim().length === 0}
                         >
                             {isSaving ? t('team.integration.slack.saving') : t('team.integration.slack.connect')}
                         </Button>
                         <Button
                             onClick={() => void handleTest()}
                             variant="secondary"
-                            disabled={isTesting || (!settings.hasToken && tokenInput.trim().length === 0)}
+                            disabled={isSaving || isTesting || !settings.hasToken}
                         >
                             {isTesting ? t('team.integration.slack.testing') : t('team.integration.slack.test')}
                         </Button>
@@ -135,11 +135,51 @@ export default function TeamSlackSettings({ teamId }: TeamSlackSettingsProps) {
                         <p className="text-sm text-emerald-700">{t('team.integration.slack.notice.tested')}</p>
                     )}
 
-                    <p className="text-xs text-gray-500">
-                        {t('team.integration.slack.helpPrefix')}
-                        {' '}
-                        <code className="rounded bg-gray-100 px-1 py-0.5">docs/operators/slack-app-setup.md</code>
-                    </p>
+                    <div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
+                        <p className="font-medium text-gray-700">{t('team.integration.slack.helpPrefix')}</p>
+                        <ol className="mt-2 list-decimal space-y-2 pl-4">
+                            <li>
+                                {t('team.integration.slack.setup.step1')}
+                                {' '}
+                                <a
+                                    href="https://api.slack.com/apps"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="font-medium text-primary hover:underline"
+                                >
+                                    api.slack.com/apps
+                                </a>
+                                .
+                            </li>
+                            <li>
+                                {t('team.integration.slack.setup.step2')}
+                                {' '}
+                                <a
+                                    href="https://api.slack.com/authentication/oauth-v2"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="font-medium text-primary hover:underline"
+                                >
+                                    api.slack.com/authentication/oauth-v2
+                                </a>
+                                .
+                            </li>
+                            <li>
+                                {t('team.integration.slack.setup.step3')}
+                                {' '}
+                                <a
+                                    href="https://api.slack.com/scopes"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="font-medium text-primary hover:underline"
+                                >
+                                    api.slack.com/scopes
+                                </a>
+                                .
+                            </li>
+                            <li>{t('team.integration.slack.setup.step4')}</li>
+                        </ol>
+                    </div>
                 </>
             )}
         </section>

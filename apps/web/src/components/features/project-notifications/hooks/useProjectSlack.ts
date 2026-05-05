@@ -5,7 +5,6 @@ import { useAuth } from '@/app/auth-provider';
 import { DEFAULT_SLACK_FAILURE_TEMPLATE } from '@/lib/integrations/slack/template';
 import type {
     ProjectSlackSettings,
-    SlackChannelSummary,
     SlackUserSummary,
 } from '@/types/slack';
 
@@ -164,26 +163,6 @@ export function useProjectSlack(projectId: string, teamId: string) {
         }
     }, [getHeaders, projectId]);
 
-    const searchChannels = useCallback(async (query: string): Promise<SlackChannelSummary[]> => {
-        const headers = await getHeaders();
-        const response = await fetch(
-            `/api/teams/${teamId}/slack/channels?q=${encodeURIComponent(query)}&limit=100`,
-            { headers }
-        );
-        if (!response.ok) {
-            throw new Error(await parseErrorMessage(response, 'Failed to list Slack channels'));
-        }
-        const payload = await response.json() as {
-            channels: Array<{ id: string; name: string; isPrivate: boolean }>;
-        };
-
-        return payload.channels.map((channel) => ({
-            id: channel.id,
-            name: channel.name,
-            isPrivate: channel.isPrivate,
-        }));
-    }, [getHeaders, teamId]);
-
     const searchUsers = useCallback(async (query: string): Promise<SlackUserSummary[]> => {
         const headers = await getHeaders();
         const response = await fetch(
@@ -220,7 +199,6 @@ export function useProjectSlack(projectId: string, teamId: string) {
         save,
         loadPreview,
         sendTestMessage,
-        searchChannels,
         searchUsers,
     };
 }

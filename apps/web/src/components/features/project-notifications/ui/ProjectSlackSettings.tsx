@@ -31,7 +31,6 @@ export default function ProjectSlackSettings({ projectId, teamId }: ProjectSlack
         save,
         loadPreview,
         sendTestMessage,
-        searchChannels,
         searchUsers,
     } = useProjectSlack(projectId, teamId);
 
@@ -46,9 +45,14 @@ export default function ProjectSlackSettings({ projectId, teamId }: ProjectSlack
     const templateTooLong = draft.slackTemplate.length > 3_500;
     const runUrlMissing = !draft.slackTemplate.includes('{runUrl}');
     const canEnable = settings.parentTeamHasToken;
+    const normalizedDraftChannelId = draft.slackChannelId.trim();
     const isDirty = draft.slackEnabled !== settings.slackEnabled
         || draft.slackChannelId !== (settings.slackChannelId ?? '')
         || draft.slackTemplate !== (settings.slackMessageTemplate ?? '');
+    const isDraftConfigReady = !draft.slackEnabled || (canEnable && normalizedDraftChannelId.length > 0);
+    const hasValidSavedConfig = settings.parentTeamHasToken
+        && settings.slackEnabled
+        && Boolean(settings.slackChannelId?.trim());
 
     const statusText = useMemo(() => (
         draft.slackEnabled
@@ -93,12 +97,12 @@ export default function ProjectSlackSettings({ projectId, teamId }: ProjectSlack
                     </label>
 
                     {!canEnable && (
-                        <p className="text-sm text-amber-700">
+                        <p className="text-sm text-amber-800">
                             {t('project.integration.slack.parentTokenMissing')}
                             {' '}
                             <Link
                                 href={`/teams?teamId=${encodeURIComponent(teamId)}&tab=integration`}
-                                className="font-medium underline"
+                                className="font-medium underline hover:text-amber-900"
                             >
                                 {t('project.integration.slack.openTeamIntegration')}
                             </Link>
@@ -108,9 +112,7 @@ export default function ProjectSlackSettings({ projectId, teamId }: ProjectSlack
                     <ChannelPicker
                         value={draft.slackChannelId}
                         disabled={!draft.slackEnabled || !canEnable}
-                        onChange={(value) => setDraft((prev) => ({ ...prev, slackChannelId: value }))}
-                        onPickName={(name) => setDraft((prev) => ({ ...prev, slackChannelName: name }))}
-                        searchChannels={searchChannels}
+                        onChange={(value) => setDraft((prev) => ({ ...prev, slackChannelId: value, slackChannelName: null }))}
                         t={(key) => t(key)}
                     />
 
@@ -153,14 +155,14 @@ export default function ProjectSlackSettings({ projectId, teamId }: ProjectSlack
                         <Button
                             onClick={() => void handleSave()}
                             variant="primary"
-                            disabled={!isDirty || isSaving || templateTooLong}
+                            disabled={!isDirty || isSaving || templateTooLong || !isDraftConfigReady}
                         >
                             {isSaving ? t('project.integration.slack.saving') : t('common.save')}
                         </Button>
                         <Button
                             onClick={() => void sendTestMessage()}
                             variant="secondary"
-                            disabled={!settings.slackEnabled || !settings.slackChannelId}
+                            disabled={!hasValidSavedConfig || isDirty || isSaving}
                         >
                             {t('project.integration.slack.sendTest')}
                         </Button>
