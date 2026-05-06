@@ -84,8 +84,10 @@ describe('/api/teams/[id]/slack/test', () => {
         }), {
             params: Promise.resolve({ id: 'team-1' }),
         });
+        const payload = await response.json();
 
         expect(response.status).toBe(409);
+        expect(payload).toMatchObject({ error: 'TEAM_TOKEN_MISSING' });
     });
 
     it('maps invalid auth errors to conflict', async () => {
@@ -101,8 +103,10 @@ describe('/api/teams/[id]/slack/test', () => {
         }), {
             params: Promise.resolve({ id: 'team-1' }),
         });
+        const payload = await response.json();
 
         expect(response.status).toBe(409);
+        expect(payload).toMatchObject({ error: 'TEAM_TOKEN_INVALID' });
     });
 
     it('maps transient Slack errors to bad gateway', async () => {
@@ -118,7 +122,9 @@ describe('/api/teams/[id]/slack/test', () => {
         }), {
             params: Promise.resolve({ id: 'team-1' }),
         });
+        const payload = await response.json();
 
         expect(response.status).toBe(502);
+        expect(payload).toMatchObject({ error: 'SLACK_UPSTREAM' });
     });
 });

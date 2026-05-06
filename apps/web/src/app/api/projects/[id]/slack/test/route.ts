@@ -78,11 +78,9 @@ export async function POST(
         }
 
         if (!project.slackEnabled || !project.slackChannelId) {
-            return apiError({
-                status: 409,
-                code: 'CONFLICT',
-                error: 'Slack notifications are not fully configured for this project',
-            });
+            return NextResponse.json({
+                error: 'PROJECT_SLACK_NOT_CONFIGURED',
+            }, { status: 409 });
         }
 
         if (!project.team.slackBotTokenEncrypted) {

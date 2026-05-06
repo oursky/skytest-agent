@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
-import { apiError } from '@/lib/security/api-route-standards';
 import { decrypt } from '@/lib/security/crypto';
 import { isTeamMember } from '@/lib/security/permissions';
 import { guardTeamRouteRequest } from '@/lib/security/team-route-access';
@@ -41,11 +40,9 @@ export async function POST(
             });
 
             if (!team?.slackBotTokenEncrypted) {
-                return apiError({
-                    status: 409,
-                    code: 'CONFLICT',
-                    error: 'Slack token is not configured',
-                });
+                return NextResponse.json({
+                    error: 'TEAM_TOKEN_MISSING',
+                }, { status: 409 });
             }
             token = decrypt(team.slackBotTokenEncrypted);
         }
@@ -61,23 +58,17 @@ export async function POST(
             error: error instanceof Error ? error.message : String(error),
         });
         if (error instanceof SlackAuthError) {
-            return apiError({
-                status: 409,
-                code: 'CONFLICT',
-                error: 'Slack token is invalid',
-            });
+            return NextResponse.json({
+                error: 'TEAM_TOKEN_INVALID',
+            }, { status: 409 });
         }
         if (error instanceof SlackRateLimitError || error instanceof SlackTransientError) {
-            return apiError({
-                status: 502,
-                code: 'INTERNAL_ERROR',
-                error: 'Slack upstream is unavailable',
-            });
+            return NextResponse.json({
+                error: 'SLACK_UPSTREAM',
+            }, { status: 502 });
         }
-        return apiError({
-            status: 400,
-            code: 'VALIDATION_ERROR',
-            error: 'Slack connection test failed',
-        });
+        return NextResponse.json({
+            error: 'INVALID_PAYLOAD',
+        }, { status: 400 });
     }
 }

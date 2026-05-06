@@ -3,10 +3,38 @@
 import { useMemo, useState } from 'react';
 import { Button, LoadingSpinner } from '@/components/shared';
 import { useI18n } from '@/i18n';
-import { useTeamSlack } from '@/components/features/team-integrations/hooks/useTeamSlack';
+import {
+    useTeamSlack,
+    type TeamSlackRequestError,
+} from '@/components/features/team-integrations/hooks/useTeamSlack';
 
 interface TeamSlackSettingsProps {
     teamId: string;
+}
+
+function formatTeamSlackError(t: (key: string) => string, error: TeamSlackRequestError): string {
+    switch (error.code) {
+        case 'TEAM_TOKEN_REQUIRED':
+            return t('team.integration.slack.error.tokenRequired');
+        case 'TEAM_TOKEN_MISSING':
+            return t('team.integration.slack.error.tokenMissing');
+        case 'TEAM_TOKEN_INVALID':
+            return t('team.integration.slack.error.tokenInvalid');
+        case 'SLACK_UPSTREAM':
+            return t('team.integration.slack.error.slackUpstream');
+        case 'INVALID_PAYLOAD':
+            return t('team.integration.slack.error.invalidPayload');
+        case 'TEAM_SLACK_LOAD_FAILED':
+            return t('team.integration.slack.error.loadFailed');
+        case 'TEAM_SLACK_SAVE_FAILED':
+            return t('team.integration.slack.error.saveFailed');
+        case 'TEAM_SLACK_DISCONNECT_FAILED':
+            return t('team.integration.slack.error.disconnectFailed');
+        case 'TEAM_SLACK_TEST_FAILED':
+            return t('team.integration.slack.error.testFailed');
+        default:
+            return error.message;
+    }
 }
 
 export default function TeamSlackSettings({ teamId }: TeamSlackSettingsProps) {
@@ -30,6 +58,7 @@ export default function TeamSlackSettings({ teamId }: TeamSlackSettingsProps) {
         }
         return t('team.integration.slack.status.disconnected');
     }, [settings.hasToken, t]);
+    const errorText = useMemo(() => (error ? formatTeamSlackError(t, error) : null), [error, t]);
 
     const handleConnect = async () => {
         if (!tokenInput.trim()) {
@@ -122,16 +151,16 @@ export default function TeamSlackSettings({ teamId }: TeamSlackSettingsProps) {
                         </Button>
                     </div>
 
-                    {error && (
-                        <p className="text-sm text-red-600">{error}</p>
+                    {errorText && (
+                        <p className="text-sm text-red-600">{errorText}</p>
                     )}
-                    {!error && notice === 'saved' && (
+                    {!errorText && notice === 'saved' && (
                         <p className="text-sm text-emerald-700">{t('team.integration.slack.notice.saved')}</p>
                     )}
-                    {!error && notice === 'removed' && (
+                    {!errorText && notice === 'removed' && (
                         <p className="text-sm text-emerald-700">{t('team.integration.slack.notice.removed')}</p>
                     )}
-                    {!error && notice === 'tested' && (
+                    {!errorText && notice === 'tested' && (
                         <p className="text-sm text-emerald-700">{t('team.integration.slack.notice.tested')}</p>
                     )}
 

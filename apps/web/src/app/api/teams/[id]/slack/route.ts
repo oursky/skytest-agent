@@ -76,20 +76,17 @@ export async function PUT(
     try {
         body = await request.json() as { token?: string };
     } catch {
-        return apiError({
-            status: 400,
-            code: 'VALIDATION_ERROR',
-            error: 'Invalid JSON payload',
-        });
+        return NextResponse.json({
+            error: 'INVALID_PAYLOAD',
+        }, { status: 400 });
     }
 
     const token = body.token?.trim() ?? '';
     if (!token) {
-        return apiError({
-            status: 400,
-            code: 'VALIDATION_ERROR',
-            error: 'Slack bot token is required',
-        });
+        return NextResponse.json({
+            error: 'TEAM_TOKEN_REQUIRED',
+            field: 'token',
+        }, { status: 400 });
     }
 
     try {
@@ -117,18 +114,14 @@ export async function PUT(
             error: error instanceof Error ? error.message : String(error),
         });
         if (error instanceof SlackAuthError) {
-            return apiError({
-                status: 409,
-                code: 'CONFLICT',
-                error: 'Slack token is invalid',
-            });
+            return NextResponse.json({
+                error: 'TEAM_TOKEN_INVALID',
+            }, { status: 409 });
         }
         if (error instanceof SlackRateLimitError || error instanceof SlackTransientError) {
-            return apiError({
-                status: 502,
-                code: 'INTERNAL_ERROR',
-                error: 'Slack upstream is unavailable',
-            });
+            return NextResponse.json({
+                error: 'SLACK_UPSTREAM',
+            }, { status: 502 });
         }
         return apiError({
             status: 500,

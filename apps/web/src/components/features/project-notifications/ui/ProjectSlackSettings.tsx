@@ -9,11 +9,43 @@ import {
 } from '@/lib/integrations/slack/template';
 import ChannelPicker from '@/components/features/project-notifications/ui/ChannelPicker';
 import TemplateEditor from '@/components/features/project-notifications/ui/TemplateEditor';
-import { useProjectSlack } from '@/components/features/project-notifications/hooks/useProjectSlack';
+import {
+    useProjectSlack,
+    type ProjectSlackRequestError,
+} from '@/components/features/project-notifications/hooks/useProjectSlack';
 
 interface ProjectSlackSettingsProps {
     projectId: string;
     teamId: string;
+}
+
+function formatProjectSlackError(t: (key: string, vars?: Record<string, string>) => string, error: ProjectSlackRequestError): string {
+    switch (error.code) {
+        case 'INVALID_CHANNEL':
+            return t('project.integration.slack.error.invalidChannel');
+        case 'TEAM_TOKEN_MISSING':
+            return t('project.integration.slack.error.teamTokenMissing');
+        case 'TEAM_TOKEN_INVALID':
+            return t('project.integration.slack.error.teamTokenInvalid');
+        case 'SLACK_UPSTREAM':
+            return t('project.integration.slack.error.slackUpstream');
+        case 'INVALID_TEMPLATE':
+            return error.detail
+                ? t('project.integration.slack.error.invalidTemplateWithDetail', { detail: error.detail })
+                : t('project.integration.slack.error.invalidTemplate');
+        case 'PROJECT_SLACK_NOT_CONFIGURED':
+            return t('project.integration.slack.error.notConfigured');
+        case 'PROJECT_SLACK_LOAD_FAILED':
+            return t('project.integration.slack.error.loadFailed');
+        case 'PROJECT_SLACK_SAVE_FAILED':
+            return t('project.integration.slack.error.saveFailed');
+        case 'PROJECT_SLACK_PREVIEW_FAILED':
+            return t('project.integration.slack.error.previewFailed');
+        case 'PROJECT_SLACK_TEST_FAILED':
+            return t('project.integration.slack.error.testFailed');
+        default:
+            return error.message;
+    }
 }
 
 export default function ProjectSlackSettings({ projectId, teamId }: ProjectSlackSettingsProps) {
@@ -58,6 +90,7 @@ export default function ProjectSlackSettings({ projectId, teamId }: ProjectSlack
             ? t('project.integration.slack.status.enabled')
             : t('project.integration.slack.status.disabled')
     ), [draft.slackEnabled, t]);
+    const errorText = useMemo(() => (error ? formatProjectSlackError(t, error) : null), [error, t]);
 
     const handleSave = async () => {
         await save({
@@ -164,13 +197,13 @@ export default function ProjectSlackSettings({ projectId, teamId }: ProjectSlack
                         </Button>
                     </div>
 
-                    {error && (
-                        <p className="text-sm text-red-600">{error}</p>
+                    {errorText && (
+                        <p className="text-sm text-red-600">{errorText}</p>
                     )}
-                    {!error && notice === 'saved' && (
+                    {!errorText && notice === 'saved' && (
                         <p className="text-sm text-emerald-700">{t('project.integration.slack.notice.saved')}</p>
                     )}
-                    {!error && notice === 'tested' && (
+                    {!errorText && notice === 'tested' && (
                         <p className="text-sm text-emerald-700">{t('project.integration.slack.notice.tested')}</p>
                     )}
                 </>

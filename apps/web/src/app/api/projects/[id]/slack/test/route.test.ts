@@ -93,6 +93,24 @@ describe('/api/projects/[id]/slack/test', () => {
         expect(mocks.postMessage).not.toHaveBeenCalled();
     });
 
+    it('returns PROJECT_SLACK_NOT_CONFIGURED when project Slack settings are incomplete', async () => {
+        mocks.prisma.project.findUnique.mockResolvedValueOnce(buildProject({
+            enabled: false,
+            channelId: null,
+        }));
+
+        const response = await POST(new Request('http://localhost/api/projects/project-1/slack/test', {
+            method: 'POST',
+        }), {
+            params: Promise.resolve({ id: 'project-1' }),
+        });
+        const payload = await response.json();
+
+        expect(response.status).toBe(409);
+        expect(payload).toMatchObject({ error: 'PROJECT_SLACK_NOT_CONFIGURED' });
+        expect(mocks.postMessage).not.toHaveBeenCalled();
+    });
+
     it('maps channel errors to INVALID_CHANNEL', async () => {
         mocks.postMessage.mockRejectedValueOnce(new SlackChannelNotFoundError('missing', {
             code: 'channel_not_found',

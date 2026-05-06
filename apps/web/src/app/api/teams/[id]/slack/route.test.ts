@@ -113,8 +113,10 @@ describe('/api/teams/[id]/slack', () => {
         }), {
             params: Promise.resolve({ id: 'team-1' }),
         });
+        const payload = await response.json();
 
         expect(response.status).toBe(409);
+        expect(payload).toMatchObject({ error: 'TEAM_TOKEN_INVALID' });
         expect(mocks.prisma.team.update).not.toHaveBeenCalled();
     });
 
@@ -131,8 +133,10 @@ describe('/api/teams/[id]/slack', () => {
         }), {
             params: Promise.resolve({ id: 'team-1' }),
         });
+        const payload = await response.json();
 
         expect(response.status).toBe(502);
+        expect(payload).toMatchObject({ error: 'SLACK_UPSTREAM' });
         expect(mocks.prisma.team.update).not.toHaveBeenCalled();
     });
 
@@ -144,8 +148,25 @@ describe('/api/teams/[id]/slack', () => {
         }), {
             params: Promise.resolve({ id: 'team-1' }),
         });
+        const payload = await response.json();
 
         expect(response.status).toBe(400);
+        expect(payload).toMatchObject({ error: 'INVALID_PAYLOAD' });
+        expect(mocks.prisma.team.update).not.toHaveBeenCalled();
+    });
+
+    it('returns token-required code when token is empty', async () => {
+        const response = await PUT(new Request('http://localhost/api/teams/team-1/slack', {
+            method: 'PUT',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ token: '   ' }),
+        }), {
+            params: Promise.resolve({ id: 'team-1' }),
+        });
+        const payload = await response.json();
+
+        expect(response.status).toBe(400);
+        expect(payload).toMatchObject({ error: 'TEAM_TOKEN_REQUIRED', field: 'token' });
         expect(mocks.prisma.team.update).not.toHaveBeenCalled();
     });
 
