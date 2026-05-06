@@ -153,31 +153,12 @@ export default function TeamSlackSettings({ teamId }: TeamSlackSettingsProps) {
                             </li>
                             <li>
                                 {t('team.integration.slack.setup.step2')}
-                                {' '}
-                                <a
-                                    href="https://api.slack.com/authentication/oauth-v2"
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="font-medium text-primary hover:underline"
-                                >
-                                    api.slack.com/authentication/oauth-v2
-                                </a>
-                                .
                             </li>
                             <li>
                                 {t('team.integration.slack.setup.step3')}
-                                {' '}
-                                <a
-                                    href="https://api.slack.com/scopes"
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="font-medium text-primary hover:underline"
-                                >
-                                    api.slack.com/scopes
-                                </a>
-                                .
                             </li>
                             <li>{t('team.integration.slack.setup.step4')}</li>
+                            <li>{t('team.integration.slack.setup.step5')}</li>
                         </ol>
                     </div>
                 </>

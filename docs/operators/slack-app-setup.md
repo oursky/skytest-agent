@@ -8,12 +8,12 @@ This guide configures Slack notifications for failed runs.
 
 No Slack-specific environment variables are required. Notifications are active when team token + project settings are configured.
 
-## 1) Create Slack App From Manifest
+## 1) Create Slack App And Get Bot Token
 
 1. Open <https://api.slack.com/apps>.
-2. Choose **Create New App** -> **From an app manifest**.
-3. Paste [`slack-app-manifest.yml`](./slack-app-manifest.yml).
-4. Install the app to your workspace.
+2. Go to **Features** -> **OAuth & Permissions**.
+3. Add **Bot Token Scopes**: `chat:write`, `channels:read`, `groups:read`, and `users:read`.
+4. In **OAuth Tokens** section, install the app to your workspace.
 5. Copy the **Bot User OAuth Token** (`xoxb-...`).
 
 ## 2) Connect Token In SkyTest
