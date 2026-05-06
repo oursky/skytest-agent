@@ -36,17 +36,19 @@ vi.mock('@/lib/integrations/slack/client', () => ({
     postMessage: postMessageMock,
 }));
 
-const { notifyRunFailed } = await import('@/lib/integrations/slack/notifier');
+const { notifyRunTerminal } = await import('@/lib/integrations/slack/notifier');
 
 function buildFailedRun(overrides?: Partial<{
+    status: 'PASS' | 'FAIL';
     slackEnabled: boolean;
+    slackNotifyOn: 'FAILED_ONLY' | 'BOTH_PASSED_AND_FAILED';
     slackChannelId: string | null;
     token: string | null;
     attempts: number;
 }>) {
     return {
         id: 'run-1',
-        status: 'FAIL',
+        status: overrides?.status ?? 'FAIL',
         testCaseId: 'tc-1',
         triggeredByEmail: 'qa@example.com',
         startedAt: new Date('2026-04-29T07:00:00.000Z'),
@@ -60,8 +62,10 @@ function buildFailedRun(overrides?: Partial<{
                 id: 'project-1',
                 name: 'Storefront',
                 slackEnabled: overrides?.slackEnabled ?? true,
+                slackNotifyOn: overrides?.slackNotifyOn ?? 'FAILED_ONLY',
                 slackChannelId: overrides?.slackChannelId ?? 'C123',
-                slackMessageTemplate: null,
+                slackFailureTemplate: null,
+                slackSuccessTemplate: null,
                 team: {
                     slackBotTokenEncrypted: overrides?.token ?? 'enc-token',
                 },
@@ -70,7 +74,7 @@ function buildFailedRun(overrides?: Partial<{
     };
 }
 
-describe('notifyRunFailed', () => {
+describe('notifyRunTerminal', () => {
     beforeEach(() => {
         findUniqueRun.mockReset();
         updateManyRun.mockReset();
@@ -91,7 +95,7 @@ describe('notifyRunFailed', () => {
     });
 
     it('posts and marks notified when Slack send succeeds', async () => {
-        await notifyRunFailed('run-1');
+        await notifyRunTerminal('run-1');
 
         expect(updateManyRun).toHaveBeenCalledTimes(1);
         expect(postMessageMock).toHaveBeenCalledTimes(1);
@@ -108,7 +112,7 @@ describe('notifyRunFailed', () => {
     it('skips when project notifications are disabled', async () => {
         findUniqueRun.mockResolvedValue(buildFailedRun({ slackEnabled: false }));
 
-        await notifyRunFailed('run-1');
+        await notifyRunTerminal('run-1');
 
         expect(updateManyRun).not.toHaveBeenCalled();
         expect(postMessageMock).not.toHaveBeenCalled();
@@ -120,7 +124,7 @@ describe('notifyRunFailed', () => {
             status: 503,
         }));
 
-        await notifyRunFailed('run-1');
+        await notifyRunTerminal('run-1');
 
         expect(updateRun).toHaveBeenCalledWith({
             where: { id: 'run-1' },
@@ -136,7 +140,7 @@ describe('notifyRunFailed', () => {
             status: 200,
         }));
 
-        await notifyRunFailed('run-1');
+        await notifyRunTerminal('run-1');
 
         expect(updateRun).toHaveBeenCalledWith({
             where: { id: 'run-1' },
@@ -151,7 +155,7 @@ describe('notifyRunFailed', () => {
     it('exits early when claim was already taken by another caller', async () => {
         updateManyRun.mockResolvedValueOnce({ count: 0 });
 
-        await notifyRunFailed('run-1');
+        await notifyRunTerminal('run-1');
 
         expect(postMessageMock).not.toHaveBeenCalled();
         expect(updateRun).not.toHaveBeenCalled();
@@ -165,7 +169,7 @@ describe('notifyRunFailed', () => {
             throw new Error('decrypt failed');
         });
 
-        await notifyRunFailed('run-1');
+        await notifyRunTerminal('run-1');
 
         expect(updateRun).toHaveBeenCalledWith({
             where: { id: 'run-1' },
@@ -175,5 +179,28 @@ describe('notifyRunFailed', () => {
                 slackNotifyError: 'unexpected:max_attempts',
             },
         });
+    });
+
+    it('skips PASS runs when notify mode is FAILED_ONLY', async () => {
+        findUniqueRun.mockResolvedValue(buildFailedRun({
+            status: 'PASS',
+            slackNotifyOn: 'FAILED_ONLY',
+        }));
+
+        await notifyRunTerminal('run-1');
+
+        expect(updateManyRun).not.toHaveBeenCalled();
+        expect(postMessageMock).not.toHaveBeenCalled();
+    });
+
+    it('posts PASS runs when notify mode is BOTH_PASSED_AND_FAILED', async () => {
+        findUniqueRun.mockResolvedValue(buildFailedRun({
+            status: 'PASS',
+            slackNotifyOn: 'BOTH_PASSED_AND_FAILED',
+        }));
+
+        await notifyRunTerminal('run-1');
+
+        expect(postMessageMock).toHaveBeenCalledTimes(1);
     });
 });

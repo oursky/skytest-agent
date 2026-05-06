@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
     subscribeRunTerminalMock,
-    notifyRunFailedMock,
+    notifyRunTerminalMock,
 } = vi.hoisted(() => ({
     subscribeRunTerminalMock: vi.fn(),
-    notifyRunFailedMock: vi.fn(),
+    notifyRunTerminalMock: vi.fn(),
 }));
 
 vi.mock('@/lib/runners/domain-events', () => ({
@@ -13,7 +13,7 @@ vi.mock('@/lib/runners/domain-events', () => ({
 }));
 
 vi.mock('@/lib/integrations/slack/notifier', () => ({
-    notifyRunFailed: notifyRunFailedMock,
+    notifyRunTerminal: notifyRunTerminalMock,
 }));
 
 const {
@@ -24,12 +24,12 @@ const {
 describe('registerSlackSubscriber', () => {
     beforeEach(() => {
         subscribeRunTerminalMock.mockReset();
-        notifyRunFailedMock.mockReset();
-        notifyRunFailedMock.mockResolvedValue(undefined);
+        notifyRunTerminalMock.mockReset();
+        notifyRunTerminalMock.mockResolvedValue(undefined);
         resetSlackSubscriberForTests();
     });
 
-    it('notifies only for FAIL events', async () => {
+    it('notifies for PASS and FAIL events only', async () => {
         subscribeRunTerminalMock.mockImplementation(() => () => undefined);
 
         registerSlackSubscriber();
@@ -40,10 +40,12 @@ describe('registerSlackSubscriber', () => {
 
         listener({ runId: 'run-pass', status: 'PASS' });
         listener({ runId: 'run-fail', status: 'FAIL' });
+        listener({ runId: 'run-cancelled', status: 'CANCELLED' });
         await Promise.resolve();
 
-        expect(notifyRunFailedMock).toHaveBeenCalledTimes(1);
-        expect(notifyRunFailedMock).toHaveBeenCalledWith('run-fail');
+        expect(notifyRunTerminalMock).toHaveBeenCalledTimes(2);
+        expect(notifyRunTerminalMock).toHaveBeenNthCalledWith(1, 'run-pass');
+        expect(notifyRunTerminalMock).toHaveBeenNthCalledWith(2, 'run-fail');
     });
 
     it('registers only once even when called multiple times', () => {

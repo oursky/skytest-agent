@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/core/logger';
-import { notifyRunFailed } from '@/lib/integrations/slack/notifier';
+import { notifyRunTerminal } from '@/lib/integrations/slack/notifier';
 import { subscribeRunTerminal } from '@/lib/runners/domain-events';
 import { TEST_STATUS } from '@/types';
 
@@ -14,11 +14,11 @@ export function registerSlackSubscriber(): void {
     }
 
     unsubscribeListener = subscribeRunTerminal((event) => {
-        if (event.status !== TEST_STATUS.FAIL) {
+        if (event.status !== TEST_STATUS.FAIL && event.status !== TEST_STATUS.PASS) {
             return;
         }
 
-        void notifyRunFailed(event.runId).catch((error) => {
+        void notifyRunTerminal(event.runId).catch((error) => {
             logger.warn('Slack notification failed in subscriber', {
                 runId: event.runId,
                 error: error instanceof Error ? error.message : String(error),

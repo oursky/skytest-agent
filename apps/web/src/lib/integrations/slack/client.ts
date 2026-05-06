@@ -48,27 +48,6 @@ interface SlackConversationInfoResponse extends SlackEnvelope {
     channel?: SlackConversationEntry;
 }
 
-interface SlackUserProfile {
-    email?: string;
-    display_name?: string;
-    real_name?: string;
-}
-
-interface SlackUserEntry {
-    id?: string;
-    deleted?: boolean;
-    is_bot?: boolean;
-    profile?: SlackUserProfile;
-    real_name?: string;
-}
-
-interface SlackUsersListResponse extends SlackEnvelope {
-    members?: SlackUserEntry[];
-    response_metadata?: {
-        next_cursor?: string;
-    };
-}
-
 export interface SlackAuthTestResult {
     teamId: string;
     teamName: string | null;
@@ -94,18 +73,6 @@ export interface SlackConversationInfo {
     id: string;
     name: string;
     isPrivate: boolean;
-}
-
-export interface SlackUserSummary {
-    id: string;
-    displayName: string;
-    realName: string | null;
-    email: string | null;
-}
-
-export interface SlackUsersPage {
-    users: SlackUserSummary[];
-    nextCursor: string | null;
 }
 
 function parseRetryAfterMs(value: string | null): number {
@@ -400,49 +367,5 @@ export async function getConversationInfo(input: {
         id,
         name,
         isPrivate: payload.channel?.is_private === true,
-    };
-}
-
-export async function listUsers(input: {
-    token: string;
-    cursor?: string;
-    query?: string;
-    limit?: number;
-}): Promise<SlackUsersPage> {
-    const payload = await performSlackRequest<SlackUsersListResponse>({
-        token: input.token,
-        path: 'users.list',
-        method: 'GET',
-        query: {
-            limit: input.limit ?? 1000,
-            cursor: input.cursor,
-        },
-    });
-
-    const normalizedQuery = input.query?.trim().toLowerCase() ?? '';
-    const users = (payload.members ?? [])
-        .filter((member) => !member.deleted && !member.is_bot && typeof member.id === 'string')
-        .map((member) => {
-            const displayName = member.profile?.display_name?.trim()
-                || member.real_name?.trim()
-                || member.profile?.real_name?.trim()
-                || member.id as string;
-
-            return {
-                id: member.id as string,
-                displayName,
-                realName: member.real_name?.trim() || member.profile?.real_name?.trim() || null,
-                email: member.profile?.email?.trim() || null,
-            };
-        })
-        .filter((member) => (
-            normalizedQuery.length === 0
-            || member.displayName.toLowerCase().includes(normalizedQuery)
-            || (member.email?.toLowerCase().includes(normalizedQuery) ?? false)
-        ));
-
-    return {
-        users,
-        nextCursor: payload.response_metadata?.next_cursor?.trim() || null,
     };
 }

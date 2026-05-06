@@ -12,6 +12,11 @@ enum TeamRole {
   MEMBER
 }
 
+enum SlackNotifyOn {
+  FAILED_ONLY
+  BOTH_PASSED_AND_FAILED
+}
+
 model RateLimitWindow {
   bucketKey     String
   windowStartMs BigInt
@@ -106,9 +111,11 @@ model Project {
   name            String
   maxConcurrentRuns Int               @default(1)
   slackEnabled    Boolean             @default(false)
+  slackNotifyOn   SlackNotifyOn       @default(FAILED_ONLY)
   slackChannelId  String?
   slackChannelName String?
-  slackMessageTemplate String?
+  slackFailureTemplate String?
+  slackSuccessTemplate String?
   slackUpdatedAt  DateTime?
   teamId  String
   team    Team        @relation(fields: [teamId], references: [id], onDelete: Cascade)

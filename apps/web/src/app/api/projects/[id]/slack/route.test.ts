@@ -38,16 +38,20 @@ const { GET, PUT } = await import('@/app/api/projects/[id]/slack/route');
 function buildProject(overrides?: Partial<{
     token: string | null;
     slackEnabled: boolean;
+    slackNotifyOn: 'FAILED_ONLY' | 'BOTH_PASSED_AND_FAILED';
     channelId: string | null;
     channelName: string | null;
-    template: string | null;
+    failureTemplate: string | null;
+    successTemplate: string | null;
 }>) {
     return {
         id: 'project-1',
         slackEnabled: overrides?.slackEnabled ?? false,
+        slackNotifyOn: overrides?.slackNotifyOn ?? 'FAILED_ONLY',
         slackChannelId: overrides?.channelId ?? null,
         slackChannelName: overrides?.channelName ?? null,
-        slackMessageTemplate: overrides?.template ?? null,
+        slackFailureTemplate: overrides?.failureTemplate ?? null,
+        slackSuccessTemplate: overrides?.successTemplate ?? null,
         slackUpdatedAt: new Date('2026-04-29T00:00:00.000Z'),
         team: {
             slackBotTokenEncrypted: overrides && 'token' in overrides ? overrides.token ?? null : 'enc-token',
@@ -71,9 +75,11 @@ describe('/api/projects/[id]/slack', () => {
         mocks.prisma.project.findUnique.mockResolvedValue(buildProject());
         mocks.prisma.project.update.mockImplementation(async (input: { data: Record<string, unknown> }) => ({
             slackEnabled: input.data.slackEnabled,
+            slackNotifyOn: input.data.slackNotifyOn,
             slackChannelId: input.data.slackChannelId,
             slackChannelName: input.data.slackChannelName,
-            slackMessageTemplate: input.data.slackMessageTemplate,
+            slackFailureTemplate: input.data.slackFailureTemplate,
+            slackSuccessTemplate: input.data.slackSuccessTemplate,
             slackUpdatedAt: new Date('2026-04-29T01:00:00.000Z'),
             team: {
                 slackBotTokenEncrypted: 'enc-token',
@@ -96,6 +102,7 @@ describe('/api/projects/[id]/slack', () => {
         expect(response.status).toBe(200);
         expect(payload).toMatchObject({
             slackEnabled: false,
+            slackNotifyOn: 'FAILED_ONLY',
             parentTeamHasToken: true,
         });
     });
@@ -139,57 +146,6 @@ describe('/api/projects/[id]/slack', () => {
         expect(mocks.prisma.project.update).not.toHaveBeenCalled();
     });
 
-    it('rejects invalid user mention markup', async () => {
-        const response = await PUT(new Request('http://localhost/api/projects/project-1/slack', {
-            method: 'PUT',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({
-                slackEnabled: true,
-                slackChannelId: 'C123',
-                slackMessageTemplate: 'Ping <@bad|name>',
-            }),
-        }), {
-            params: Promise.resolve({ id: 'project-1' }),
-        });
-
-        expect(response.status).toBe(400);
-        expect(mocks.prisma.project.update).not.toHaveBeenCalled();
-    });
-
-    it('accepts workspace mention markup with fallback label', async () => {
-        const response = await PUT(new Request('http://localhost/api/projects/project-1/slack', {
-            method: 'PUT',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({
-                slackEnabled: true,
-                slackChannelId: 'C123',
-                slackMessageTemplate: 'Ping <@W123ABC|On-call>',
-            }),
-        }), {
-            params: Promise.resolve({ id: 'project-1' }),
-        });
-
-        expect(response.status).toBe(200);
-        expect(mocks.prisma.project.update).toHaveBeenCalled();
-    });
-
-    it('accepts special mentions', async () => {
-        const response = await PUT(new Request('http://localhost/api/projects/project-1/slack', {
-            method: 'PUT',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({
-                slackEnabled: true,
-                slackChannelId: 'C123',
-                slackMessageTemplate: 'Heads up <!here> <!subteam^S123ABC>',
-            }),
-        }), {
-            params: Promise.resolve({ id: 'project-1' }),
-        });
-
-        expect(response.status).toBe(200);
-        expect(mocks.prisma.project.update).toHaveBeenCalled();
-    });
-
     it('maps retryable Slack errors to SLACK_UPSTREAM', async () => {
         mocks.getConversationInfo.mockRejectedValueOnce(new SlackTransientError('temporary', {
             code: 'upstream_error',
@@ -220,7 +176,8 @@ describe('/api/projects/[id]/slack', () => {
             body: JSON.stringify({
                 slackEnabled: true,
                 slackChannelId: 'C123',
-                slackMessageTemplate: 'Failed run {runId}',
+                slackFailureTemplate: 'Failed run {runId}',
+                slackSuccessTemplate: 'Passed run {runId}',
             }),
         }), {
             params: Promise.resolve({ id: 'project-1' }),
@@ -231,9 +188,36 @@ describe('/api/projects/[id]/slack', () => {
             where: { id: 'project-1' },
             data: expect.objectContaining({
                 slackEnabled: true,
+                slackNotifyOn: 'FAILED_ONLY',
                 slackChannelId: 'C123',
                 slackChannelName: 'alerts',
-                slackMessageTemplate: 'Failed run {runId}',
+                slackFailureTemplate: 'Failed run {runId}',
+                slackSuccessTemplate: 'Passed run {runId}',
+            }),
+            select: expect.any(Object),
+        });
+    });
+
+    it('persists all-completed notify mode', async () => {
+        const response = await PUT(new Request('http://localhost/api/projects/project-1/slack', {
+            method: 'PUT',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                slackEnabled: true,
+                slackNotifyOn: 'BOTH_PASSED_AND_FAILED',
+                slackChannelId: 'C123',
+                slackFailureTemplate: 'Fail {runId}',
+                slackSuccessTemplate: 'Pass {runId}',
+            }),
+        }), {
+            params: Promise.resolve({ id: 'project-1' }),
+        });
+
+        expect(response.status).toBe(200);
+        expect(mocks.prisma.project.update).toHaveBeenCalledWith({
+            where: { id: 'project-1' },
+            data: expect.objectContaining({
+                slackNotifyOn: 'BOTH_PASSED_AND_FAILED',
             }),
             select: expect.any(Object),
         });

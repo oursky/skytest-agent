@@ -2,7 +2,10 @@
 
 ## Scope
 
-SkyTest can post Slack messages when a project run reaches `FAIL`.
+SkyTest can post Slack messages when a project run reaches terminal status based on project configuration:
+
+- `FAILED_ONLY`: notify only on `FAIL`
+- `BOTH_PASSED_AND_FAILED`: notify on both `PASS` and `FAIL`
 
 ## Trigger Paths
 
@@ -16,7 +19,7 @@ SkyTest can post Slack messages when a project run reaches `FAIL`.
 ## In-Process Bus
 
 - `lib/runners/domain-events.ts` provides `emitRunTerminal` and `subscribeRunTerminal`.
-- `lib/integrations/slack/subscriber.ts` registers a `FAIL` listener and calls `notifyRunFailed(runId)`.
+- `lib/integrations/slack/subscriber.ts` registers a terminal listener for `PASS`/`FAIL` and calls `notifyRunTerminal(runId)`.
 - Subscriber registration occurs in both:
   - `src/instrumentation.ts` (web process)
   - `src/workers/runner-maintenance.ts` (maintenance worker process)
@@ -38,13 +41,16 @@ There are no Slack-specific environment variables in runtime configuration.
 
 ## Notification Pipeline
 
-`notifyRunFailed` performs:
+`notifyRunTerminal` performs:
 
 1. Load run/testCase/project/team Slack settings.
 2. Claim row atomically (`slackNotifyClaimedAt`, increment attempts).
 3. Render template safely (`&`, `<`, `>` escaped in runtime values).
 4. Post via Slack API.
-5. Persist outcome:
+5. Respect project notify mode:
+   - skip `PASS` when mode is `FAILED_ONLY`
+   - notify both `PASS`/`FAIL` when mode is `BOTH_PASSED_AND_FAILED`
+6. Persist outcome:
    - success -> `slackNotifiedAt` set
    - retryable error -> claim cleared, retry later
    - non-retryable error -> mark notified with `slackNotifyError`
@@ -55,12 +61,12 @@ Claim TTL (defined in `lib/integrations/slack/config.ts`) allows recovery after 
 
 The maintenance loop runs `runSlackNotificationSweep` on interval:
 
-- `status = FAIL`
+- `status in (PASS, FAIL)`
 - `slackNotifiedAt IS NULL`
 - attempts below max
 - completed older than sweep stability delay and newer than sweep max age
 
-Sweep calls the same `notifyRunFailed` path, so claim logic deduplicates active path vs sweep path races.
+Sweep calls the same `notifyRunTerminal` path, so claim logic deduplicates active path vs sweep path races.
 
 ## Error Classification
 

@@ -1,16 +1,14 @@
 'use client';
 
 import { useRef } from 'react';
-import MentionPicker from '@/components/features/project-notifications/ui/MentionPicker';
-import type { SlackUserSummary } from '@/types/slack';
 
 interface TemplateEditorProps {
+    title: string;
+    resetLabel: string;
     value: string;
     disabled: boolean;
     onChange: (value: string) => void;
     onReset: () => void;
-    searchUsers: (query: string) => Promise<SlackUserSummary[]>;
-    t: (key: string) => string;
 }
 
 const TEMPLATE_VARIABLES = [
@@ -25,12 +23,12 @@ const TEMPLATE_VARIABLES = [
 ];
 
 export default function TemplateEditor({
+    title,
+    resetLabel,
     value,
     disabled,
     onChange,
     onReset,
-    searchUsers,
-    t,
 }: TemplateEditorProps) {
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -57,7 +55,7 @@ export default function TemplateEditor({
         <div className="space-y-3">
             <div className="flex items-center justify-between">
                 <label className="block text-sm font-medium text-gray-700">
-                    {t('project.integration.slack.template')}
+                    {title}
                 </label>
                 <button
                     type="button"
@@ -65,7 +63,7 @@ export default function TemplateEditor({
                     disabled={disabled}
                     className="text-xs text-primary hover:underline disabled:opacity-50"
                 >
-                    {t('project.integration.slack.resetDefault')}
+                    {resetLabel}
                 </button>
             </div>
 
@@ -92,12 +90,6 @@ export default function TemplateEditor({
                 ))}
             </div>
 
-            <MentionPicker
-                disabled={disabled}
-                onInsertMention={insertAtCursor}
-                searchUsers={searchUsers}
-                t={t}
-            />
         </div>
     );
 }

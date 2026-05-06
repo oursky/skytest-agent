@@ -61,7 +61,7 @@ export async function POST(
                 name: true,
                 slackEnabled: true,
                 slackChannelId: true,
-                slackMessageTemplate: true,
+                slackFailureTemplate: true,
                 team: {
                     select: {
                         slackBotTokenEncrypted: true,
@@ -91,7 +91,7 @@ export async function POST(
         }
 
         const rendered = renderTemplate(
-            project.slackMessageTemplate ?? DEFAULT_SLACK_FAILURE_TEMPLATE,
+            project.slackFailureTemplate ?? DEFAULT_SLACK_FAILURE_TEMPLATE,
             {
                 projectName: project.name,
                 testCaseName: 'Checkout flow',

@@ -6,8 +6,10 @@ import { SlackApiError } from '@/lib/integrations/slack/errors';
 import { slackNotificationPolicy } from '@/lib/integrations/slack/config';
 import {
     DEFAULT_SLACK_FAILURE_TEMPLATE,
+    DEFAULT_SLACK_SUCCESS_TEMPLATE,
     renderTemplate,
 } from '@/lib/integrations/slack/template';
+import { PROJECT_SLACK_NOTIFY_ON } from '@/types/slack';
 import { TEST_STATUS } from '@/types';
 
 const logger = createLogger('integrations:slack:notifier');
@@ -53,7 +55,7 @@ async function markSlackNotified(runId: string, error: string | null): Promise<v
     });
 }
 
-export async function notifyRunFailed(runId: string): Promise<void> {
+export async function notifyRunTerminal(runId: string): Promise<void> {
     const run = await prisma.testRun.findUnique({
         where: { id: runId },
         select: {
@@ -73,8 +75,10 @@ export async function notifyRunFailed(runId: string): Promise<void> {
                             id: true,
                             name: true,
                             slackEnabled: true,
+                            slackNotifyOn: true,
                             slackChannelId: true,
-                            slackMessageTemplate: true,
+                            slackFailureTemplate: true,
+                            slackSuccessTemplate: true,
                             team: {
                                 select: {
                                     slackBotTokenEncrypted: true,
@@ -87,13 +91,16 @@ export async function notifyRunFailed(runId: string): Promise<void> {
         },
     });
 
-    if (!run || run.status !== TEST_STATUS.FAIL) {
+    if (!run || (run.status !== TEST_STATUS.FAIL && run.status !== TEST_STATUS.PASS)) {
         return;
     }
 
     const tokenEncrypted = run.testCase.project.team.slackBotTokenEncrypted;
     const channelId = run.testCase.project.slackChannelId;
     if (!run.testCase.project.slackEnabled || !tokenEncrypted || !channelId) {
+        return;
+    }
+    if (run.status === TEST_STATUS.PASS && run.testCase.project.slackNotifyOn !== PROJECT_SLACK_NOTIFY_ON.BOTH_PASSED_AND_FAILED) {
         return;
     }
 
@@ -128,8 +135,14 @@ export async function notifyRunFailed(runId: string): Promise<void> {
     }
     const attemptsAfterClaim = claimedRun.slackNotifyAttempts;
 
-    const template = run.testCase.project.slackMessageTemplate ?? DEFAULT_SLACK_FAILURE_TEMPLATE;
-    const rendered = renderTemplate(template, {
+    const isFailedRun = run.status === TEST_STATUS.FAIL;
+    const fallbackTemplate = isFailedRun
+        ? DEFAULT_SLACK_FAILURE_TEMPLATE
+        : DEFAULT_SLACK_SUCCESS_TEMPLATE;
+    const selectedTemplate = isFailedRun
+        ? (run.testCase.project.slackFailureTemplate ?? fallbackTemplate)
+        : (run.testCase.project.slackSuccessTemplate ?? fallbackTemplate);
+    const rendered = renderTemplate(selectedTemplate, {
         projectName: run.testCase.project.name,
         testCaseName: run.testCase.name,
         runId: run.id,
@@ -139,7 +152,9 @@ export async function notifyRunFailed(runId: string): Promise<void> {
         durationSeconds: run.startedAt && run.completedAt
             ? Math.max(0, Math.floor((run.completedAt.getTime() - run.startedAt.getTime()) / 1000))
             : 0,
-        errorSummary: trimErrorSummary(run.error),
+        errorSummary: isFailedRun ? trimErrorSummary(run.error) : '-',
+    }, {
+        fallbackTemplate,
     });
     if (rendered.truncated || rendered.missingVariables.length > 0) {
         logger.info('Slack template required fallback rendering', {

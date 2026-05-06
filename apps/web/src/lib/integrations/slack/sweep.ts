@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/core/prisma';
 import { slackNotificationPolicy } from '@/lib/integrations/slack/config';
-import { notifyRunFailed } from '@/lib/integrations/slack/notifier';
+import { notifyRunTerminal } from '@/lib/integrations/slack/notifier';
 import { TEST_STATUS } from '@/types';
 
 export async function runSlackNotificationSweep(now = new Date()): Promise<{ scannedRuns: number }> {
@@ -9,7 +9,9 @@ export async function runSlackNotificationSweep(now = new Date()): Promise<{ sca
 
     const candidates = await prisma.testRun.findMany({
         where: {
-            status: TEST_STATUS.FAIL,
+            status: {
+                in: [TEST_STATUS.FAIL, TEST_STATUS.PASS],
+            },
             slackNotifiedAt: null,
             slackNotifyAttempts: { lt: slackNotificationPolicy.maxAttempts },
             completedAt: {
@@ -27,7 +29,7 @@ export async function runSlackNotificationSweep(now = new Date()): Promise<{ sca
     });
 
     for (const run of candidates) {
-        await notifyRunFailed(run.id);
+        await notifyRunTerminal(run.id);
     }
 
     return {

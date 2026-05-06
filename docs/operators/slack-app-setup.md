@@ -1,6 +1,6 @@
 # Slack App Setup
 
-This guide configures Slack notifications for failed runs.
+This guide configures Slack notifications for project test runs.
 
 ## Prerequisites
 
@@ -37,12 +37,13 @@ If the bot is not invited, sends fail with `not_in_channel`.
 ## 4) Configure Project Notifications
 
 1. Open **Project** -> **Integration**.
-2. Enable **Notify Slack on failed runs**.
-3. Select a channel.
-4. Customize the template if needed.
-5. Send a test message.
-
-Template mentions support Slack user and special mentions such as `<@U123ABC>`, `<@U123ABC|qa-oncall>`, `<!here>`, and `<!subteam^S123ABC>`.
+2. Enable Slack notifications.
+3. Choose notification scope:
+   - **Notify for Failed test runs only**
+   - **Notify for both Passed and Failed test runs**
+4. Select a channel.
+5. Customize failed/passed message templates as needed.
+6. Send a test message.
 
 ## Token Rotation
 

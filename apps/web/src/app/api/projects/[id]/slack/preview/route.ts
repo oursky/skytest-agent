@@ -4,8 +4,10 @@ import { apiError } from '@/lib/security/api-route-standards';
 import { guardProjectRouteRequest } from '@/lib/security/project-route-access';
 import {
     DEFAULT_SLACK_FAILURE_TEMPLATE,
+    DEFAULT_SLACK_SUCCESS_TEMPLATE,
     renderTemplate,
 } from '@/lib/integrations/slack/template';
+import { TEST_STATUS } from '@/types';
 
 function normalizeTemplate(value: unknown): string | null {
     if (typeof value !== 'string') {
@@ -29,7 +31,8 @@ export async function POST(
             where: { id: guard.params.id },
             select: {
                 name: true,
-                slackMessageTemplate: true,
+                slackFailureTemplate: true,
+                slackSuccessTemplate: true,
             },
         });
         if (!project) {
@@ -42,11 +45,18 @@ export async function POST(
 
         const body = await request.json().catch(() => ({})) as {
             template?: string | null;
+            status?: string | null;
         };
+        const status = body.status === TEST_STATUS.PASS
+            ? TEST_STATUS.PASS
+            : TEST_STATUS.FAIL;
+        const fallbackTemplate = status === TEST_STATUS.PASS
+            ? DEFAULT_SLACK_SUCCESS_TEMPLATE
+            : DEFAULT_SLACK_FAILURE_TEMPLATE;
 
         const template = normalizeTemplate(body.template)
-            ?? project.slackMessageTemplate
-            ?? DEFAULT_SLACK_FAILURE_TEMPLATE;
+            ?? (status === TEST_STATUS.PASS ? project.slackSuccessTemplate : project.slackFailureTemplate)
+            ?? fallbackTemplate;
 
         const rendered = renderTemplate(template, {
             projectName: project.name,
@@ -56,7 +66,9 @@ export async function POST(
             startedAt: '2026-04-29T12:00:00Z',
             completedAt: '2026-04-29T12:00:42Z',
             durationSeconds: 42,
-            errorSummary: 'Element not found',
+            errorSummary: status === TEST_STATUS.FAIL ? 'Element not found' : '-',
+        }, {
+            fallbackTemplate,
         });
 
         return NextResponse.json(rendered);

@@ -7,6 +7,15 @@ export const DEFAULT_SLACK_FAILURE_TEMPLATE = [
     '*Error:* {errorSummary}',
 ].join('\n');
 
+export const DEFAULT_SLACK_SUCCESS_TEMPLATE = [
+    ':white_check_mark: *Test passed* — {testCaseName}',
+    '*Run ID:* {runId}',
+    '*Project:* {projectName}',
+    '*Triggered by:* {triggeredBy}',
+    '*Started:* {startedAt}  *Completed:* {completedAt}',
+    '*Duration:* {durationSeconds}s',
+].join('\n');
+
 const TEMPLATE_VARIABLE_PATTERN = /\{([a-zA-Z0-9_]+)\}/g;
 const SLACK_MESSAGE_SOFT_LIMIT = 3_500;
 
@@ -20,6 +29,10 @@ export interface RenderTemplateResult {
     missingVariables: string[];
 }
 
+interface RenderTemplateOptions {
+    fallbackTemplate?: string;
+}
+
 function escapeSlackMrkdwnValue(value: string): string {
     return value
         .replaceAll('&', '&amp;')
@@ -27,9 +40,14 @@ function escapeSlackMrkdwnValue(value: string): string {
         .replaceAll('>', '&gt;');
 }
 
-export function renderTemplate(template: string, context: SlackTemplateContext): RenderTemplateResult {
+export function renderTemplate(
+    template: string,
+    context: SlackTemplateContext,
+    options?: RenderTemplateOptions
+): RenderTemplateResult {
     const missingVariables = new Set<string>();
-    const safeTemplate = template.trim().length > 0 ? template : DEFAULT_SLACK_FAILURE_TEMPLATE;
+    const fallbackTemplate = options?.fallbackTemplate ?? DEFAULT_SLACK_FAILURE_TEMPLATE;
+    const safeTemplate = template.trim().length > 0 ? template : fallbackTemplate;
 
     const replaced = safeTemplate.replaceAll(TEMPLATE_VARIABLE_PATTERN, (fullMatch, variableName: string) => {
         const value = context[variableName];

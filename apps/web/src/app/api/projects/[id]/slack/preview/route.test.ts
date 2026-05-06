@@ -31,7 +31,8 @@ describe('/api/projects/[id]/slack/preview', () => {
         });
         mocks.prisma.project.findUnique.mockResolvedValue({
             name: 'Storefront',
-            slackMessageTemplate: null,
+            slackFailureTemplate: null,
+            slackSuccessTemplate: null,
         });
     });
 
@@ -39,7 +40,7 @@ describe('/api/projects/[id]/slack/preview', () => {
         const response = await POST(new Request('http://localhost/api/projects/project-1/slack/preview', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ template: 'Run {runId} failed in {projectName}' }),
+            body: JSON.stringify({ template: 'Run {runId} failed in {projectName}', status: 'FAIL' }),
         }), {
             params: Promise.resolve({ id: 'project-1' }),
         });
@@ -48,5 +49,19 @@ describe('/api/projects/[id]/slack/preview', () => {
         expect(response.status).toBe(200);
         expect(payload.text).toContain('run_preview_001');
         expect(payload.text).toContain('Storefront');
+    });
+
+    it('renders pass preview with pass status fallback', async () => {
+        const response = await POST(new Request('http://localhost/api/projects/project-1/slack/preview', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ status: 'PASS' }),
+        }), {
+            params: Promise.resolve({ id: 'project-1' }),
+        });
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(payload.text).toContain('Test passed');
     });
 });

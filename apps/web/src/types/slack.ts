@@ -1,3 +1,10 @@
+export const PROJECT_SLACK_NOTIFY_ON = {
+    FAILED_ONLY: 'FAILED_ONLY',
+    BOTH_PASSED_AND_FAILED: 'BOTH_PASSED_AND_FAILED',
+} as const;
+
+export type ProjectSlackNotifyOn = typeof PROJECT_SLACK_NOTIFY_ON[keyof typeof PROJECT_SLACK_NOTIFY_ON];
+
 export interface TeamSlackSettings {
     hasToken: boolean;
     slackTeamName: string | null;
@@ -7,16 +14,11 @@ export interface TeamSlackSettings {
 
 export interface ProjectSlackSettings {
     slackEnabled: boolean;
+    slackNotifyOn: ProjectSlackNotifyOn;
     slackChannelId: string | null;
     slackChannelName: string | null;
-    slackMessageTemplate: string | null;
+    slackFailureTemplate: string | null;
+    slackSuccessTemplate: string | null;
     slackUpdatedAt: string | null;
     parentTeamHasToken: boolean;
-}
-
-export interface SlackUserSummary {
-    id: string;
-    displayName: string;
-    realName: string | null;
-    email: string | null;
 }

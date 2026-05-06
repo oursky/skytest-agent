@@ -3,7 +3,6 @@ import {
     authTest,
     getConversationInfo,
     listConversations,
-    listUsers,
     postMessage,
 } from '@/lib/integrations/slack/client';
 import {
@@ -151,24 +150,4 @@ describe('slack client', () => {
         expect(init.method).toBe('GET');
     });
 
-    it('uses GET query parameters for users.list', async () => {
-        const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({
-            ok: true,
-            members: [],
-            response_metadata: {},
-        }));
-        vi.stubGlobal('fetch', fetchMock);
-
-        await listUsers({
-            token: 'xoxb-valid',
-            cursor: 'cursor-2',
-            limit: 200,
-        });
-
-        const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-        expect(url).toContain('https://slack.com/api/users.list?');
-        expect(url).toContain('limit=200');
-        expect(url).toContain('cursor=cursor-2');
-        expect(init.method).toBe('GET');
-    });
 });

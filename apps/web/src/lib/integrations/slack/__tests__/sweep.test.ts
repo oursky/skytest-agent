@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
     findManyRun,
-    notifyRunFailedMock,
+    notifyRunTerminalMock,
 } = vi.hoisted(() => ({
     findManyRun: vi.fn(),
-    notifyRunFailedMock: vi.fn(),
+    notifyRunTerminalMock: vi.fn(),
 }));
 
 vi.mock('@/lib/core/prisma', () => ({
@@ -17,7 +17,7 @@ vi.mock('@/lib/core/prisma', () => ({
 }));
 
 vi.mock('@/lib/integrations/slack/notifier', () => ({
-    notifyRunFailed: notifyRunFailedMock,
+    notifyRunTerminal: notifyRunTerminalMock,
 }));
 
 const { runSlackNotificationSweep } = await import('@/lib/integrations/slack/sweep');
@@ -25,7 +25,7 @@ const { runSlackNotificationSweep } = await import('@/lib/integrations/slack/swe
 describe('runSlackNotificationSweep', () => {
     beforeEach(() => {
         findManyRun.mockReset();
-        notifyRunFailedMock.mockReset();
+        notifyRunTerminalMock.mockReset();
         findManyRun.mockResolvedValue([]);
     });
 
@@ -40,7 +40,9 @@ describe('runSlackNotificationSweep', () => {
 
         expect(findManyRun).toHaveBeenCalledWith({
             where: {
-                status: 'FAIL',
+                status: {
+                    in: ['FAIL', 'PASS'],
+                },
                 slackNotifiedAt: null,
                 slackNotifyAttempts: { lt: 5 },
                 completedAt: {
@@ -56,15 +58,15 @@ describe('runSlackNotificationSweep', () => {
                 id: true,
             },
         });
-        expect(notifyRunFailedMock).toHaveBeenNthCalledWith(1, 'run-1');
-        expect(notifyRunFailedMock).toHaveBeenNthCalledWith(2, 'run-2');
+        expect(notifyRunTerminalMock).toHaveBeenNthCalledWith(1, 'run-1');
+        expect(notifyRunTerminalMock).toHaveBeenNthCalledWith(2, 'run-2');
         expect(result).toEqual({ scannedRuns: 2 });
     });
 
     it('returns zero when no rows match sweep filters', async () => {
         const result = await runSlackNotificationSweep();
 
-        expect(notifyRunFailedMock).not.toHaveBeenCalled();
+        expect(notifyRunTerminalMock).not.toHaveBeenCalled();
         expect(result).toEqual({ scannedRuns: 0 });
     });
 });

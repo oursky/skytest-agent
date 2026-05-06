@@ -39,7 +39,7 @@ function buildProject(overrides?: Partial<{
         name: 'Storefront',
         slackEnabled: overrides?.enabled ?? true,
         slackChannelId: overrides?.channelId ?? 'C123',
-        slackMessageTemplate: 'Failed run {runId}',
+        slackFailureTemplate: 'Failed run {runId}',
         team: {
             slackBotTokenEncrypted: overrides && 'token' in overrides ? overrides.token ?? null : 'enc-token',
         },
