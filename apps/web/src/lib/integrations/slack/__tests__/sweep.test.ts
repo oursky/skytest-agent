@@ -18,6 +18,12 @@ vi.mock('@/lib/core/prisma', () => ({
 
 vi.mock('@/lib/integrations/slack/notifier', () => ({
     notifyRunTerminal: notifyRunTerminalMock,
+    SLACK_NOTIFY_OUTCOME: {
+        SKIPPED: 'SKIPPED',
+        NOTIFIED: 'NOTIFIED',
+        RETRY_PENDING: 'RETRY_PENDING',
+        EXHAUSTED: 'EXHAUSTED',
+    },
 }));
 
 const { runSlackNotificationSweep } = await import('@/lib/integrations/slack/sweep');
@@ -26,6 +32,7 @@ describe('runSlackNotificationSweep', () => {
     beforeEach(() => {
         findManyRun.mockReset();
         notifyRunTerminalMock.mockReset();
+        notifyRunTerminalMock.mockResolvedValue('SKIPPED');
         findManyRun.mockResolvedValue([]);
     });
 
@@ -35,6 +42,9 @@ describe('runSlackNotificationSweep', () => {
             { id: 'run-1' },
             { id: 'run-2' },
         ]);
+        notifyRunTerminalMock
+            .mockResolvedValueOnce('NOTIFIED')
+            .mockResolvedValueOnce('EXHAUSTED');
 
         const result = await runSlackNotificationSweep(now);
 
@@ -60,13 +70,25 @@ describe('runSlackNotificationSweep', () => {
         });
         expect(notifyRunTerminalMock).toHaveBeenNthCalledWith(1, 'run-1');
         expect(notifyRunTerminalMock).toHaveBeenNthCalledWith(2, 'run-2');
-        expect(result).toEqual({ scannedRuns: 2 });
+        expect(result).toEqual({
+            scannedRuns: 2,
+            notifiedRuns: 1,
+            retryPendingRuns: 0,
+            exhaustedRuns: 1,
+            skippedRuns: 0,
+        });
     });
 
     it('returns zero when no rows match sweep filters', async () => {
         const result = await runSlackNotificationSweep();
 
         expect(notifyRunTerminalMock).not.toHaveBeenCalled();
-        expect(result).toEqual({ scannedRuns: 0 });
+        expect(result).toEqual({
+            scannedRuns: 0,
+            notifiedRuns: 0,
+            retryPendingRuns: 0,
+            exhaustedRuns: 0,
+            skippedRuns: 0,
+        });
     });
 });

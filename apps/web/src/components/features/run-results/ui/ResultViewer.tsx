@@ -34,6 +34,37 @@ interface ResultViewerProps {
     meta?: ResultViewerMeta;
 }
 
+function resolveSlackDeliveryFailureReason(slackNotifyError: string, t: (key: string, vars?: Record<string, string | number>) => string): string {
+    const [errorCode] = slackNotifyError.split(':');
+    const exhausted = slackNotifyError.endsWith(':max_attempts');
+
+    const reasonKey = (() => {
+        switch (errorCode) {
+            case 'invalid_auth':
+                return 'results.slackDeliveryReason.invalidAuth';
+            case 'not_in_channel':
+                return 'results.slackDeliveryReason.notInChannel';
+            case 'channel_not_found':
+                return 'results.slackDeliveryReason.channelNotFound';
+            case 'missing_scope':
+                return 'results.slackDeliveryReason.missingScope';
+            case 'token_revoked':
+                return 'results.slackDeliveryReason.tokenRevoked';
+            case 'ratelimited':
+                return 'results.slackDeliveryReason.rateLimited';
+            default:
+                return 'results.slackDeliveryReason.unknown';
+        }
+    })();
+
+    const reason = t(reasonKey);
+    if (!exhausted) {
+        return reason;
+    }
+
+    return t('results.slackDeliveryReason.maxAttempts', { reason });
+}
+
 function buildConfigSummaryLines(config?: TestData): string[] {
     if (!config) {
         return [];
@@ -328,7 +359,9 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
 
                             {result.status === TEST_STATUS.FAIL && result.slackNotifyError && (
                                 <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                                    {t('results.slackDeliveryFailed', { reason: result.slackNotifyError })}
+                                    {t('results.slackDeliveryFailed', {
+                                        reason: resolveSlackDeliveryFailureReason(result.slackNotifyError, t),
+                                    })}
                                 </div>
                             )}
 

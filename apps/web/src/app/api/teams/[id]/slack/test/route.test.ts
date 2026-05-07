@@ -127,4 +127,23 @@ describe('/api/teams/[id]/slack/test', () => {
         expect(response.status).toBe(502);
         expect(payload).toMatchObject({ error: 'SLACK_UPSTREAM' });
     });
+
+    it('returns internal error for unexpected failures', async () => {
+        mocks.authTest.mockRejectedValueOnce(new Error('db timeout'));
+
+        const response = await POST(new Request('http://localhost/api/teams/team-1/slack/test', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({}),
+        }), {
+            params: Promise.resolve({ id: 'team-1' }),
+        });
+        const payload = await response.json();
+
+        expect(response.status).toBe(500);
+        expect(payload).toMatchObject({
+            code: 'INTERNAL_ERROR',
+            error: 'Failed to test Slack connection',
+        });
+    });
 });

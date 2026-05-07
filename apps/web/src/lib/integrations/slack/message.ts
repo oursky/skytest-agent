@@ -1,26 +1,3 @@
-import { TEST_STATUS } from '@/types';
-
-type SlackRunMessageStatus = typeof TEST_STATUS.FAIL | typeof TEST_STATUS.PASS;
-
-interface BuildSlackRunMessageInput {
-    status: SlackRunMessageStatus;
-    testCaseName: string;
-    testCaseId: string;
-    runId: string;
-    startedAt: Date | null;
-    completedAt: Date | null;
-    errorSummary: string;
-    durationSeconds: number;
-    appBaseUrl: string | null;
-}
-
-function escapeSlackMrkdwnValue(value: string): string {
-    return value
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;');
-}
-
 function toUnixTimestampSeconds(date: Date): number {
     return Math.floor(date.getTime() / 1000);
 }
@@ -45,7 +22,7 @@ function formatRunLabel(date: Date | null): string {
     return `Run - ${formatFallbackDate(date)}`;
 }
 
-function buildRunUrl(input: {
+export function buildRunUrl(input: {
     appBaseUrl: string | null;
     testCaseId: string;
     runId: string;
@@ -105,23 +82,4 @@ export function resolveSlackAppBaseUrlFromEnv(): string | null {
     } catch {
         return null;
     }
-}
-
-export function buildSlackRunMessage(input: BuildSlackRunMessageInput): string {
-    const runUrl = buildRunUrl({
-        appBaseUrl: input.appBaseUrl,
-        testCaseId: input.testCaseId,
-        runId: input.runId,
-    });
-    const header = input.status === TEST_STATUS.FAIL ? ':x: Test failed' : ':white_check_mark: Test passed';
-    const lines = [
-        `${header} — ${escapeSlackMrkdwnValue(input.testCaseName)}`,
-        `Run ID: ${buildSlackRunReference({ runUrl, startedAt: input.startedAt })}`,
-        `Started: ${formatSlackDateToken(input.startedAt)} Completed: ${formatSlackDateToken(input.completedAt)}`,
-        input.status === TEST_STATUS.FAIL
-            ? `Error: ${escapeSlackMrkdwnValue(input.errorSummary)}`
-            : `Duration: ${input.durationSeconds}s`,
-    ];
-
-    return lines.join('\n');
 }

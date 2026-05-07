@@ -327,6 +327,11 @@ export async function completeOwnedRun(input: {
             runnerId: input.runnerId,
         });
         publishRunUpdate(input.runId);
+        emitRunTerminal({
+            runId: completed.runId,
+            status: completed.status,
+            testCaseId: completed.testCaseId,
+        });
     } else {
         logger.warn('Ignored complete request for non-owned or expired run', {
             runId: input.runId,

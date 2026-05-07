@@ -1,49 +1,32 @@
 import { describe, expect, it } from 'vitest';
-import { TEST_STATUS } from '@/types';
 import {
-    buildSlackRunMessage,
+    buildRunUrl,
     resolveSlackAppBaseUrlFromEnv,
 } from '@/lib/integrations/slack/message';
 
 describe('slack message', () => {
-    it('renders failed message with run link and date tokens', () => {
-        const text = buildSlackRunMessage({
-            status: TEST_STATUS.FAIL,
-            testCaseName: 'Checkout flow',
-            testCaseId: 'tc-1',
-            runId: 'run-1',
-            startedAt: new Date('2026-05-07T09:33:00.000Z'),
-            completedAt: new Date('2026-05-07T09:33:42.000Z'),
-            errorSummary: 'Element not found',
-            durationSeconds: 42,
-            appBaseUrl: 'http://localhost:3000/',
+    it('builds run urls with trimmed base url and encoded path segments', () => {
+        const url = buildRunUrl({
+            appBaseUrl: ' https://skytest.example.com/ ',
+            testCaseId: 'TC 1/alpha',
+            runId: 'run/42',
         });
 
-        expect(text).toContain(':x: Test failed — Checkout flow');
-        expect(text).toContain('Run ID: <!date^');
-        expect(text).toContain('^Run - {date_short} {time}^http://localhost:3000/test-cases/tc-1/history/run-1|Run - 7 May 2026, 09:33 UTC>');
-        expect(text).toContain('Started: <!date^1778146380^{date_num} {time_secs}|7 May 2026, 09:33 UTC>');
-        expect(text).toContain('Error: Element not found');
+        expect(url).toBe('https://skytest.example.com/test-cases/TC%201%2Falpha/history/run%2F42');
     });
 
-    it('renders passed message with duration line', () => {
-        const text = buildSlackRunMessage({
-            status: TEST_STATUS.PASS,
-            testCaseName: 'Login flow',
-            testCaseId: 'tc-2',
-            runId: 'run-2',
-            startedAt: new Date('2026-05-07T09:00:00.000Z'),
-            completedAt: new Date('2026-05-07T09:00:30.000Z'),
-            errorSummary: 'ignored',
-            durationSeconds: 30,
+    it('returns null when base url is unavailable', () => {
+        expect(buildRunUrl({
             appBaseUrl: null,
-        });
+            testCaseId: 'tc-1',
+            runId: 'run-1',
+        })).toBeNull();
 
-        expect(text).toContain(':white_check_mark: Test passed — Login flow');
-        expect(text).toContain('Run ID: <!date^');
-        expect(text).toContain('|Run - 7 May 2026, 09:00 UTC>');
-        expect(text).toContain('Duration: 30s');
-        expect(text).not.toContain('Error:');
+        expect(buildRunUrl({
+            appBaseUrl: '   ',
+            testCaseId: 'tc-1',
+            runId: 'run-1',
+        })).toBeNull();
     });
 
     it('resolves base url from SKYTEST_BASE_URL first', () => {

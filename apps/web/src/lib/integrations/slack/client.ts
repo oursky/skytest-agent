@@ -37,13 +37,6 @@ interface SlackConversationEntry {
     is_private?: boolean;
 }
 
-interface SlackConversationsListResponse extends SlackEnvelope {
-    channels?: SlackConversationEntry[];
-    response_metadata?: {
-        next_cursor?: string;
-    };
-}
-
 interface SlackConversationInfoResponse extends SlackEnvelope {
     channel?: SlackConversationEntry;
 }
@@ -60,17 +53,6 @@ export interface SlackAuthTestResult {
 
 export interface SlackPostMessageResult {
     timestamp: string;
-}
-
-export interface SlackConversationSummary {
-    id: string;
-    name: string;
-    isPrivate: boolean;
-}
-
-export interface SlackConversationsPage {
-    channels: SlackConversationSummary[];
-    nextCursor: string | null;
 }
 
 export interface SlackConversationInfo {
@@ -307,40 +289,6 @@ export async function postMessage(input: {
 
     return {
         timestamp: payload.ts,
-    };
-}
-
-export async function listConversations(input: {
-    token: string;
-    cursor?: string;
-    query?: string;
-    limit?: number;
-}): Promise<SlackConversationsPage> {
-    const payload = await performSlackRequest<SlackConversationsListResponse>({
-        token: input.token,
-        path: 'conversations.list',
-        method: 'GET',
-        query: {
-            limit: input.limit ?? 100,
-            cursor: input.cursor,
-            types: 'public_channel,private_channel',
-            exclude_archived: true,
-        },
-    });
-
-    const normalizedQuery = input.query?.trim().toLowerCase() ?? '';
-    const channels = (payload.channels ?? [])
-        .filter((channel) => typeof channel.id === 'string' && typeof channel.name === 'string')
-        .map((channel) => ({
-            id: channel.id as string,
-            name: channel.name as string,
-            isPrivate: channel.is_private === true,
-        }))
-        .filter((channel) => normalizedQuery.length === 0 || channel.name.toLowerCase().includes(normalizedQuery));
-
-    return {
-        channels,
-        nextCursor: payload.response_metadata?.next_cursor?.trim() || null,
     };
 }
 

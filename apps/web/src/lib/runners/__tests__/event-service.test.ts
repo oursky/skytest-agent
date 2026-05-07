@@ -350,6 +350,11 @@ describe('event-service', () => {
                 testRunId: 'run-1',
             }
         });
+        expect(emitRunTerminal).toHaveBeenCalledWith({
+            runId: 'run-1',
+            status: 'PASS',
+            testCaseId: 'tc-1',
+        });
         expect(result).toEqual({ runId: 'run-1', status: 'PASS' });
     });
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
+import { apiError } from '@/lib/security/api-route-standards';
 import { decrypt } from '@/lib/security/crypto';
 import { isTeamMember } from '@/lib/security/permissions';
 import { guardTeamRouteRequest } from '@/lib/security/team-route-access';
@@ -67,8 +68,10 @@ export async function POST(
                 error: 'SLACK_UPSTREAM',
             }, { status: 502 });
         }
-        return NextResponse.json({
-            error: 'INVALID_PAYLOAD',
-        }, { status: 400 });
+        return apiError({
+            status: 500,
+            code: 'INTERNAL_ERROR',
+            error: 'Failed to test Slack connection',
+        });
     }
 }

@@ -6,6 +6,7 @@ import { SlackApiError } from '@/lib/integrations/slack/errors';
 import { slackNotificationPolicy } from '@/lib/integrations/slack/config';
 import {
     buildSlackRunReference,
+    buildRunUrl,
     formatSlackDateToken,
     resolveSlackAppBaseUrlFromEnv,
 } from '@/lib/integrations/slack/message';
@@ -21,6 +22,14 @@ import { TEST_STATUS } from '@/types';
 const logger = createLogger('integrations:slack:notifier');
 const MAX_ERROR_SUMMARY_LENGTH = 500;
 const slackAppBaseUrl = resolveSlackAppBaseUrlFromEnv();
+export const SLACK_NOTIFY_OUTCOME = {
+    SKIPPED: 'SKIPPED',
+    NOTIFIED: 'NOTIFIED',
+    RETRY_PENDING: 'RETRY_PENDING',
+    EXHAUSTED: 'EXHAUSTED',
+} as const;
+
+export type SlackNotifyOutcome = typeof SLACK_NOTIFY_OUTCOME[keyof typeof SLACK_NOTIFY_OUTCOME];
 
 function trimErrorSummary(value: string | null): string {
     if (!value) {
@@ -32,23 +41,6 @@ function trimErrorSummary(value: string | null): string {
     }
 
     return `${value.slice(0, MAX_ERROR_SUMMARY_LENGTH)}...`;
-}
-
-function buildRunUrl(input: {
-    appBaseUrl: string | null;
-    testCaseId: string;
-    runId: string;
-}): string | null {
-    if (!input.appBaseUrl) {
-        return null;
-    }
-
-    const baseUrl = input.appBaseUrl.trim();
-    if (!baseUrl) {
-        return null;
-    }
-
-    return `${baseUrl.replace(/\/+$/, '')}/test-cases/${encodeURIComponent(input.testCaseId)}/history/${encodeURIComponent(input.runId)}`;
 }
 
 async function clearSlackClaim(runId: string): Promise<void> {
@@ -71,7 +63,7 @@ async function markSlackNotified(runId: string, error: string | null): Promise<v
     });
 }
 
-export async function notifyRunTerminal(runId: string): Promise<void> {
+export async function notifyRunTerminal(runId: string): Promise<SlackNotifyOutcome> {
     const run = await prisma.testRun.findUnique({
         where: { id: runId },
         select: {
@@ -89,7 +81,6 @@ export async function notifyRunTerminal(runId: string): Promise<void> {
                     name: true,
                     project: {
                         select: {
-                            id: true,
                             name: true,
                             slackEnabled: true,
                             slackNotifyOn: true,
@@ -109,16 +100,16 @@ export async function notifyRunTerminal(runId: string): Promise<void> {
     });
 
     if (!run || (run.status !== TEST_STATUS.FAIL && run.status !== TEST_STATUS.PASS)) {
-        return;
+        return SLACK_NOTIFY_OUTCOME.SKIPPED;
     }
 
     const tokenEncrypted = run.testCase.project.team.slackBotTokenEncrypted;
     const channelId = run.testCase.project.slackChannelId;
     if (!run.testCase.project.slackEnabled || !tokenEncrypted || !channelId) {
-        return;
+        return SLACK_NOTIFY_OUTCOME.SKIPPED;
     }
     if (run.status === TEST_STATUS.PASS && run.testCase.project.slackNotifyOn !== PROJECT_SLACK_NOTIFY_ON.BOTH_PASSED_AND_FAILED) {
-        return;
+        return SLACK_NOTIFY_OUTCOME.SKIPPED;
     }
 
     const now = new Date();
@@ -139,18 +130,9 @@ export async function notifyRunTerminal(runId: string): Promise<void> {
     });
 
     if (claimResult.count !== 1) {
-        return;
+        return SLACK_NOTIFY_OUTCOME.SKIPPED;
     }
-    const claimedRun = await prisma.testRun.findUnique({
-        where: { id: run.id },
-        select: {
-            slackNotifyAttempts: true,
-        },
-    });
-    if (!claimedRun) {
-        return;
-    }
-    const attemptsAfterClaim = claimedRun.slackNotifyAttempts;
+    const attemptsAfterClaim = run.slackNotifyAttempts + 1;
 
     const isFailedRun = run.status === TEST_STATUS.FAIL;
     const fallbackTemplate = isFailedRun
@@ -198,21 +180,22 @@ export async function notifyRunTerminal(runId: string): Promise<void> {
             text: rendered.text,
         });
         await markSlackNotified(run.id, null);
+        return SLACK_NOTIFY_OUTCOME.NOTIFIED;
     } catch (error) {
         const attemptsExhausted = attemptsAfterClaim >= slackNotificationPolicy.maxAttempts;
         if (error instanceof SlackApiError) {
             if (!error.retryable) {
                 await markSlackNotified(run.id, error.code);
-                return;
+                return SLACK_NOTIFY_OUTCOME.EXHAUSTED;
             }
 
             if (attemptsExhausted) {
                 await markSlackNotified(run.id, `${error.code}:max_attempts`);
-                return;
+                return SLACK_NOTIFY_OUTCOME.EXHAUSTED;
             }
 
             await clearSlackClaim(run.id);
-            return;
+            return SLACK_NOTIFY_OUTCOME.RETRY_PENDING;
         }
 
         logger.warn('Unexpected Slack notification failure', {
@@ -221,8 +204,9 @@ export async function notifyRunTerminal(runId: string): Promise<void> {
         });
         if (attemptsExhausted) {
             await markSlackNotified(run.id, 'unexpected:max_attempts');
-            return;
+            return SLACK_NOTIFY_OUTCOME.EXHAUSTED;
         }
         await clearSlackClaim(run.id);
+        return SLACK_NOTIFY_OUTCOME.RETRY_PENDING;
     }
 }

@@ -31,7 +31,13 @@ async function runMaintenanceCycle() {
         failInvalidQueuedAndroidRuns(),
     ]);
     const runRetentionResult = await enforceRunArtifactRetention();
-    let slackSweepResult = { scannedRuns: 0 };
+    let slackSweepResult = {
+        scannedRuns: 0,
+        notifiedRuns: 0,
+        retryPendingRuns: 0,
+        exhaustedRuns: 0,
+        skippedRuns: 0,
+    };
     const now = new Date();
     const shouldRunSlackSweep = !lastSlackSweepAt
         || now.getTime() - lastSlackSweepAt.getTime() >= SLACK_SWEEP_INTERVAL_MS;
@@ -69,6 +75,10 @@ async function runMaintenanceCycle() {
             artifactSoftDeleteCutoff: runRetentionResult.softDeleteCutoff.toISOString(),
             artifactHardDeleteCutoff: runRetentionResult.hardDeleteCutoff.toISOString(),
             slackSweepScannedRuns: slackSweepResult.scannedRuns,
+            slackSweepNotifiedRuns: slackSweepResult.notifiedRuns,
+            slackSweepRetryPendingRuns: slackSweepResult.retryPendingRuns,
+            slackSweepExhaustedRuns: slackSweepResult.exhaustedRuns,
+            slackSweepSkippedRuns: slackSweepResult.skippedRuns,
         });
     }
 }
