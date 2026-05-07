@@ -80,6 +80,7 @@ export interface TestRun {
     status: TestStatus;
     result?: string;
     error?: string;
+    slackNotifyError?: string | null;
     errorCode?: TestFailureCode;
     errorCategory?: TestFailureCategory;
     createdAt: string;

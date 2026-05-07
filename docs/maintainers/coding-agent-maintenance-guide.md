@@ -8,6 +8,7 @@ It complements `AGENTS.md` with repository-specific runtime invariants.
 
 - `AGENTS.md` (repo workflow, constraints, style)
 - [android-runtime-maintenance.md](./android-runtime-maintenance.md)
+- [slack-notification-architecture.md](./slack-notification-architecture.md)
 - [../operators/android-runtime-deployment-checklist.md](../operators/android-runtime-deployment-checklist.md)
 - [../../infra/README.md](../../infra/README.md)
 

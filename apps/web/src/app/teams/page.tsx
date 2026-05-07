@@ -13,6 +13,7 @@ import {
 import TeamAiSettings from '@/components/features/team-ai/ui/TeamAiSettings';
 import TeamMembers from '@/components/features/team-members/ui/TeamMembers';
 import TeamUsage from '@/components/features/team-usage/ui/TeamUsage';
+import TeamSlackSettings from '@/components/features/team-integrations/ui/TeamSlackSettings';
 import { TeamRunners } from '@/components/features/team-runners';
 import { useTeamsBootstrap, type TeamMemberBootstrap } from '@/hooks/team/useTeamsBootstrap';
 import { useTeamSession } from '@/hooks/team/useTeamSession';
@@ -20,11 +21,11 @@ import { useI18n } from '@/i18n';
 import { runOnEnterKey } from '@/utils/keyboard/enterKey';
 type TeamMemberOption = TeamMemberBootstrap;
 
-type TeamTab = 'api' | 'members' | 'runners' | 'settings';
+type TeamTab = 'api' | 'members' | 'runners' | 'integration' | 'settings';
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function resolveTeamTab(value: string | null): TeamTab {
-    if (value === 'members' || value === 'settings' || value === 'runners') {
+    if (value === 'members' || value === 'settings' || value === 'runners' || value === 'integration') {
         return value;
     }
 
@@ -101,6 +102,7 @@ export default function TeamsPage() {
         { id: 'api' as const, label: t('team.page.tab.api') },
         { id: 'members' as const, label: t('team.page.tab.members') },
         { id: 'runners' as const, label: t('team.page.tab.runners') },
+        { id: 'integration' as const, label: t('team.page.tab.integration') },
         { id: 'settings' as const, label: t('team.page.tab.settings'), hidden: !canAccessSettings },
     ];
 
@@ -387,6 +389,12 @@ export default function TeamsPage() {
 
                             {visibleTab === 'runners' && (
                                 <TeamRunners teamId={currentTeam.id} />
+                            )}
+
+                            {visibleTab === 'integration' && (
+                                <div className="space-y-6">
+                                    <TeamSlackSettings teamId={currentTeam.id} />
+                                </div>
                             )}
 
                             {visibleTab === 'settings' && canAccessSettings && (

@@ -286,7 +286,6 @@ export function registerTestCaseMutationTools(server: McpServer): void {
                         projectId,
                         displayId,
                         status: TEST_STATUS.DRAFT,
-                        source: 'agent',
                     },
                 });
 

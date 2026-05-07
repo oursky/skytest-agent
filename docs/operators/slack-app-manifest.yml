@@ -1,0 +1,27 @@
+display_information:
+  name: SkyTest
+  description: Post failed test run notifications from SkyTest
+  background_color: "#0f172a"
+
+features:
+  bot_user:
+    display_name: SkyTest
+    always_online: false
+
+oauth_config:
+  scopes:
+    bot:
+      - chat:write
+      - users:read
+      - users:read.email
+      - channels:read
+      - groups:read
+
+settings:
+  event_subscriptions:
+    bot_events: []
+  interactivity:
+    is_enabled: false
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false

@@ -26,5 +26,5 @@ export interface Project {
     canManageProject?: boolean;
 }
 
-export type ProjectTab = 'test-cases' | 'variables' | 'settings';
+export type ProjectTab = 'test-cases' | 'variables' | 'integration' | 'settings';
 export type SortColumn = 'id' | 'name' | 'status' | 'updated';

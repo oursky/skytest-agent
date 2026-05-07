@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
 import { publishRunUpdate } from '@/lib/runners/event-bus';
+import { emitRunTerminal } from '@/lib/runners/domain-events';
 import { config as appConfig } from '@/config/app';
 import { UsageService } from '@/lib/runtime/usage';
 import {
@@ -138,6 +139,12 @@ export async function completeRun(
             });
         }
         publishRunUpdate(runId);
+        emitRunTerminal({
+            runId,
+            status: TEST_STATUS.PASS,
+            testCaseId,
+            projectId: usage.projectId,
+        });
         triggerQueuedBrowserDispatch('complete', runId);
     }
 }
@@ -183,6 +190,12 @@ export async function failRun(
             });
         }
         publishRunUpdate(runId);
+        emitRunTerminal({
+            runId,
+            status: TEST_STATUS.FAIL,
+            testCaseId,
+            projectId: usage.projectId,
+        });
         triggerQueuedBrowserDispatch('fail', runId);
     }
 }
@@ -202,6 +215,10 @@ export async function failRunWithoutTestCase(runId: string, error: string, optio
 
     if (updated.count > 0) {
         publishRunUpdate(runId);
+        emitRunTerminal({
+            runId,
+            status: TEST_STATUS.FAIL,
+        });
         triggerQueuedBrowserDispatch('fail_without_test_case', runId);
     }
 }
@@ -245,6 +262,12 @@ export async function cancelRun(
             });
         }
         publishRunUpdate(runId);
+        emitRunTerminal({
+            runId,
+            status: TEST_STATUS.CANCELLED,
+            testCaseId,
+            projectId: usage.projectId,
+        });
         triggerQueuedBrowserDispatch('cancel', runId);
     }
 }

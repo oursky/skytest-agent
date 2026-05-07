@@ -1,5 +1,4 @@
 "use client";
-
 import { useState, useEffect, use, useCallback, useRef } from "react";
 import { useAuth } from "../../auth-provider";
 import Link from "next/link";
@@ -13,6 +12,7 @@ import { isActiveRunStatus } from '@/utils/status/statusHelpers';
 import { parsePageSize } from '@/utils/pagination/pagination';
 import { ProjectConfigs } from '@/components/features/project-configurations';
 import ProjectSettingsPanel from '@/components/features/projects/ui/ProjectSettingsPanel';
+import ProjectSlackSettings from '@/components/features/project-notifications/ui/ProjectSlackSettings';
 import { useCurrentTeam } from '@/hooks/team/useCurrentTeam';
 import TestCaseImportReviewDialog from '@/components/features/test-cases/ui/TestCaseImportReviewDialog';
 import ProjectTestCasesToolbar from '@/components/features/test-cases/ui/ProjectTestCasesToolbar';
@@ -84,6 +84,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     useEffect(() => {
         const tab = searchParams.get('tab');
         if (tab === 'variables') { setActiveTab('variables'); return; }
+        if (tab === 'integration') { setActiveTab('integration'); return; }
         if (tab === 'settings') { setActiveTab('settings'); return; }
         if (tab === 'test-cases') { setActiveTab('test-cases'); }
     }, [searchParams]);
@@ -564,6 +565,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     const projectTabs = [
         { id: 'test-cases' as const, label: t('project.tab.testCases') },
         { id: 'variables' as const, label: t('project.tab.configs') },
+        { id: 'integration' as const, label: t('project.tab.integration') },
         { id: 'settings' as const, label: t('project.tab.settings') },
     ];
 
@@ -653,6 +655,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                         onStartEdit={handleStartProjectSettingsEdit}
                         t={t}
                     />
+                )}
+
+                {activeTab === 'integration' && project && currentTeam && (
+                    <ProjectSlackSettings projectId={id} teamId={currentTeam.id} />
                 )}
 
                 <div className={`bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden ${activeTab !== 'test-cases' ? 'hidden' : ''}`}>
