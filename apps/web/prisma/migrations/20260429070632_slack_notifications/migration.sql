@@ -1,8 +1,13 @@
+-- CreateEnum
+CREATE TYPE "SlackNotifyOn" AS ENUM ('FAILED_ONLY', 'BOTH_PASSED_AND_FAILED');
+
 -- AlterTable
-ALTER TABLE "Project" ADD COLUMN     "slackChannelId" TEXT,
+ALTER TABLE "Project" ADD COLUMN     "slackEnabled" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "slackNotifyOn" "SlackNotifyOn" NOT NULL DEFAULT 'FAILED_ONLY',
+ADD COLUMN     "slackChannelId" TEXT,
 ADD COLUMN     "slackChannelName" TEXT,
-ADD COLUMN     "slackEnabled" BOOLEAN NOT NULL DEFAULT false,
-ADD COLUMN     "slackMessageTemplate" TEXT,
+ADD COLUMN     "slackFailureTemplate" TEXT,
+ADD COLUMN     "slackSuccessTemplate" TEXT,
 ADD COLUMN     "slackUpdatedAt" TIMESTAMP(3);
 
 -- AlterTable
