@@ -5,7 +5,6 @@ const mocks = vi.hoisted(() => ({
     resolveUserId: vi.fn(),
     isProjectMember: vi.fn(),
     projectFindUnique: vi.fn(),
-    testCaseFindFirst: vi.fn(),
     testCaseFindMany: vi.fn(),
     testCaseUpdate: vi.fn(),
     testCaseCreate: vi.fn(),
@@ -46,7 +45,6 @@ vi.mock('@/lib/core/prisma', () => ({
     prisma: {
         project: { findUnique: mocks.projectFindUnique },
         testCase: {
-            findFirst: mocks.testCaseFindFirst,
             findMany: mocks.testCaseFindMany,
             update: mocks.testCaseUpdate,
             create: mocks.testCaseCreate,
@@ -67,7 +65,6 @@ describe('POST /api/projects/[id]/test-cases/sync', () => {
         mocks.resolveUserId.mockResolvedValue('user-1');
         mocks.projectFindUnique.mockResolvedValue({ id: 'project-1' });
         mocks.isProjectMember.mockResolvedValue(true);
-        mocks.testCaseFindFirst.mockResolvedValue({ source: '/tmp/sample-workspace/.skytest/tests/scenario-a/CASE-A02.case.yaml' });
         mocks.testCaseFindMany.mockResolvedValue([
             { id: 'tc-existing', displayId: 'CASE-A02', status: 'DRAFT' },
         ]);
@@ -131,7 +128,9 @@ describe('POST /api/projects/[id]/test-cases/sync', () => {
     });
 
     it('returns validation error when root cannot be resolved', async () => {
-        mocks.testCaseFindFirst.mockResolvedValue(null);
+        mocks.testCaseFindMany.mockResolvedValueOnce([
+            { source: 'agent' },
+        ]);
 
         const request = new Request('http://localhost/api/projects/project-1/test-cases/sync', {
             method: 'POST',

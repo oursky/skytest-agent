@@ -54,7 +54,7 @@ const { PUT } = await import('@/app/api/test-cases/[id]/route');
 
 describe('PUT /api/test-cases/[id]', () => {
     const testCaseId = 'tc_123';
-    const sourcePath = '/tmp/case-study/CASE-C02.case.yaml';
+    const sourcePath = '/tmp/case-study/.skytest/tests/CASE-C02.case.yaml';
 
     beforeEach(() => {
         mocks.guardTestCaseRouteRequest.mockReset();
@@ -170,6 +170,50 @@ describe('PUT /api/test-cases/[id]', () => {
         expect(response.status).toBe(200);
         expect(mocks.writeCatalogCaseFile).toHaveBeenCalledWith(
             expect.objectContaining({ sourcePath })
+        );
+    });
+
+    it('updates non-catalog source rows as DB-only and clears stale source metadata', async () => {
+        mocks.prisma.testCase.findUnique.mockResolvedValueOnce({
+            id: testCaseId,
+            source: 'agent',
+            sourceHash: 'bad-hash',
+            files: [],
+            configs: [],
+        });
+        mocks.prisma.testCase.update.mockResolvedValueOnce({
+            id: testCaseId,
+            displayId: 'CASE-C02',
+            source: null,
+            sourceHash: null,
+        });
+
+        const request = new Request('http://localhost/api/test-cases/tc_123', {
+            method: 'PUT',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                displayId: 'CASE-C02',
+                name: 'Updated',
+                url: 'http://localhost',
+                prompt: '',
+                steps: [],
+                browserConfig: {},
+            }),
+        });
+
+        const response = await PUT(request, {
+            params: Promise.resolve({ id: testCaseId }),
+        });
+
+        expect(response.status).toBe(200);
+        expect(mocks.writeCatalogCaseFile).not.toHaveBeenCalled();
+        expect(mocks.prisma.testCase.update).toHaveBeenCalledWith(
+            expect.objectContaining({
+                data: expect.objectContaining({
+                    source: null,
+                    sourceHash: null,
+                }),
+            })
         );
     });
 });

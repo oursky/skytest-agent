@@ -17,6 +17,8 @@ export interface ProjectSlackSettings {
     slackNotifyOn: ProjectSlackNotifyOn;
     slackChannelId: string | null;
     slackChannelName: string | null;
+    slackFailureTemplate: string | null;
+    slackSuccessTemplate: string | null;
     slackUpdatedAt: string | null;
     parentTeamHasToken: boolean;
 }

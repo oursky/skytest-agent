@@ -18,7 +18,12 @@ const TEMPLATE_VARIABLE_PATTERN = /\{([a-zA-Z0-9_]+)\}/g;
 const SLACK_MESSAGE_SOFT_LIMIT = 3_500;
 
 export interface SlackTemplateContext {
-    [key: string]: string | number | null | undefined;
+    [key: string]: string | number | SlackRawValue | null | undefined;
+}
+
+export interface SlackRawValue {
+    __rawSlack: true;
+    value: string;
 }
 
 export interface RenderTemplateResult {
@@ -38,6 +43,22 @@ function escapeSlackMrkdwnValue(value: string): string {
         .replaceAll('>', '&gt;');
 }
 
+function isSlackRawValue(value: unknown): value is SlackRawValue {
+    if (typeof value !== 'object' || value === null) {
+        return false;
+    }
+
+    const candidate = value as Partial<SlackRawValue>;
+    return candidate.__rawSlack === true && typeof candidate.value === 'string';
+}
+
+export function rawSlack(value: string): SlackRawValue {
+    return {
+        __rawSlack: true,
+        value,
+    };
+}
+
 export function renderTemplate(
     template: string,
     context: SlackTemplateContext,
@@ -52,6 +73,10 @@ export function renderTemplate(
         if (value === undefined || value === null) {
             missingVariables.add(variableName);
             return fullMatch;
+        }
+
+        if (isSlackRawValue(value)) {
+            return value.value;
         }
 
         return escapeSlackMrkdwnValue(String(value));

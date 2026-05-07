@@ -88,11 +88,14 @@ export async function POST(
 
         let catalogRoot = explicitRoot;
         if (!catalogRoot) {
-            const sourceBackedCase = await prisma.testCase.findFirst({
+            const sourceCandidates = await prisma.testCase.findMany({
                 where: { projectId, source: { not: null } },
                 select: { source: true },
+                orderBy: { updatedAt: 'desc' },
+                take: 100,
             });
-            catalogRoot = resolveRuntimeRootFromSourcePath(sourceBackedCase?.source) ?? '';
+            const sourceBackedCase = sourceCandidates.find((testCase) => resolveRuntimeRootFromSourcePath(testCase.source));
+            catalogRoot = sourceBackedCase ? (resolveRuntimeRootFromSourcePath(sourceBackedCase.source) ?? '') : '';
         }
 
         if (!catalogRoot) {

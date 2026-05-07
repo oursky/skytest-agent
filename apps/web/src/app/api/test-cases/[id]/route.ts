@@ -11,6 +11,7 @@ import { deleteObjectIfExists } from '@/lib/storage/object-store-utils';
 import { guardTestCaseRouteRequest } from '@/lib/security/test-case-route-access';
 import { loadTestCatalog } from '@/lib/test-cases/catalog-loader';
 import { writeCatalogCaseFile } from '@/lib/test-cases/catalog-writeback';
+import { resolveRuntimeRootFromSourcePath } from '@/lib/test-cases/source-path-utils';
 
 const logger = createLogger('api:test-cases:id');
 
@@ -130,13 +131,18 @@ export async function PUT(
             updateData.status = TEST_STATUS.DRAFT;
         }
 
-        if (existingTestCase.source) {
+        const sourceRuntimeRoot = resolveRuntimeRootFromSourcePath(existingTestCase.source);
+        if (sourceRuntimeRoot) {
             try {
-                let sourcePath = existingTestCase.source;
+                const sourcePathFromDb = existingTestCase.source;
+                if (!sourcePathFromDb) {
+                    return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Source-backed test case path is missing' });
+                }
+                let sourcePath = sourcePathFromDb;
                 try {
                     const { catalog } = await loadTestCatalog(process.cwd());
                     const catalogEntry = catalog.get(normalizedDisplayId);
-                    if (!catalogEntry || catalogEntry.sourcePath !== existingTestCase.source) {
+                    if (!catalogEntry || catalogEntry.sourcePath !== sourcePathFromDb) {
                         return apiError({
                             status: 409,
                             code: 'VALIDATION_ERROR',
@@ -148,7 +154,7 @@ export async function PUT(
                     logger.warn('Falling back to persisted source path for source-backed test case update', {
                         testCaseId: id,
                         displayId: normalizedDisplayId,
-                        sourcePath: existingTestCase.source,
+                        sourcePath: sourcePathFromDb,
                         error: catalogError instanceof Error ? catalogError.message : String(catalogError),
                     });
                 }
@@ -196,6 +202,11 @@ export async function PUT(
                 }
                 throw error;
             }
+        }
+
+        if (existingTestCase.source) {
+            updateData.source = null;
+            updateData.sourceHash = null;
         }
 
         const testCase = await prisma.testCase.update({

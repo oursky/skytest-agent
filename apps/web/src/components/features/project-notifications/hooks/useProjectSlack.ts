@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/app/auth-provider';
+import {
+    DEFAULT_SLACK_FAILURE_TEMPLATE,
+    DEFAULT_SLACK_SUCCESS_TEMPLATE,
+} from '@/lib/integrations/slack/template';
 import { PROJECT_SLACK_NOTIFY_ON } from '@/types/slack';
 import type {
     ProjectSlackNotifyOn,
@@ -29,6 +33,8 @@ const DEFAULT_PROJECT_SLACK_SETTINGS: ProjectSlackSettings = {
     slackNotifyOn: PROJECT_SLACK_NOTIFY_ON.FAILED_ONLY,
     slackChannelId: null,
     slackChannelName: null,
+    slackFailureTemplate: null,
+    slackSuccessTemplate: null,
     slackUpdatedAt: null,
     parentTeamHasToken: false,
 };
@@ -81,6 +87,8 @@ export function useProjectSlack(projectId: string) {
         slackNotifyOn: PROJECT_SLACK_NOTIFY_ON.FAILED_ONLY as ProjectSlackNotifyOn,
         slackChannelId: '',
         slackChannelName: null as string | null,
+        slackFailureTemplate: DEFAULT_SLACK_FAILURE_TEMPLATE,
+        slackSuccessTemplate: DEFAULT_SLACK_SUCCESS_TEMPLATE,
     });
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
@@ -113,6 +121,8 @@ export function useProjectSlack(projectId: string) {
                 slackNotifyOn: payload.slackNotifyOn,
                 slackChannelId: payload.slackChannelId ?? '',
                 slackChannelName: payload.slackChannelName ?? null,
+                slackFailureTemplate: payload.slackFailureTemplate ?? DEFAULT_SLACK_FAILURE_TEMPLATE,
+                slackSuccessTemplate: payload.slackSuccessTemplate ?? DEFAULT_SLACK_SUCCESS_TEMPLATE,
             });
         } catch (loadError) {
             setError(createRequestError(
@@ -132,6 +142,8 @@ export function useProjectSlack(projectId: string) {
         slackEnabled: boolean;
         slackNotifyOn: ProjectSlackNotifyOn;
         slackChannelId: string | null;
+        slackFailureTemplate: string | null;
+        slackSuccessTemplate: string | null;
     }): Promise<boolean> => {
         setIsSaving(true);
         setError(null);
@@ -161,6 +173,8 @@ export function useProjectSlack(projectId: string) {
                 slackNotifyOn: payload.slackNotifyOn,
                 slackChannelId: payload.slackChannelId ?? '',
                 slackChannelName: payload.slackChannelName ?? null,
+                slackFailureTemplate: payload.slackFailureTemplate ?? DEFAULT_SLACK_FAILURE_TEMPLATE,
+                slackSuccessTemplate: payload.slackSuccessTemplate ?? DEFAULT_SLACK_SUCCESS_TEMPLATE,
             });
             setNotice('saved');
             return true;

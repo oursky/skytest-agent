@@ -63,7 +63,7 @@ function buildRunUrl(input: {
     return `${baseUrl.replace(/\/+$/, '')}/test-cases/${encodeURIComponent(input.testCaseId)}/history/${encodeURIComponent(input.runId)}`;
 }
 
-function formatRunReference(input: {
+export function buildSlackRunReference(input: {
     runUrl: string | null;
     startedAt: Date | null;
 }): string {
@@ -80,7 +80,7 @@ function formatRunReference(input: {
     return `<!date^${timestamp}^Run - {date_short} {time}|${fallback}>`;
 }
 
-function formatSlackDateToken(date: Date | null): string {
+export function formatSlackDateToken(date: Date | null): string {
     if (!date) {
         return '-';
     }
@@ -118,7 +118,7 @@ export function buildSlackRunMessage(input: BuildSlackRunMessageInput): string {
     const lines = [
         `${header} ${escapeSlackMrkdwnValue(input.testCaseDisplayId)}`,
         `*Test Case:* ${escapeSlackMrkdwnValue(input.testCaseName)}`,
-        `*Run ID:* ${formatRunReference({ runUrl, startedAt: input.startedAt })}`,
+        `*Run ID:* ${buildSlackRunReference({ runUrl, startedAt: input.startedAt })}`,
         `*Started:* ${formatSlackDateToken(input.startedAt)}  *Completed:* ${formatSlackDateToken(input.completedAt)}`,
         input.status === TEST_STATUS.FAIL
             ? `*Error:* ${escapeSlackMrkdwnValue(input.errorSummary)}`
