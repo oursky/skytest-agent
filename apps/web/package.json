@@ -93,7 +93,7 @@
       "@modelcontextprotocol/sdk": "1.29.0"
     },
     "@modelcontextprotocol/sdk": "1.29.0",
-    "hono": "4.12.14",
+    "hono": "4.12.18",
     "follow-redirects": "1.16.0",
     "axios": "1.16.0",
     "form-data@4.0.2": "4.0.4",
@@ -105,7 +105,7 @@
       "postcss": "8.5.12"
     },
     "js-yaml": "4.1.1",
-    "basic-ftp": "5.3.0",
+    "basic-ftp": "5.3.1",
     "yauzl": "3.2.1",
     "@appium/support": {
       ".": "7.0.6",
