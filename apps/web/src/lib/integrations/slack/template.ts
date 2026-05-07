@@ -1,15 +1,15 @@
 export const DEFAULT_SLACK_FAILURE_TEMPLATE = [
-    '*Test failed* {testCaseDisplayId}',
+    '*Test failed* {testCaseID}',
     '*Test Case:* {testCaseName}',
-    '*Run ID:* {runReference}',
+    '*Run ID:* {runId}',
     '*Started:* {startedAt}  *Completed:* {completedAt}',
     '*Error:* {errorSummary}',
 ].join('\n');
 
 export const DEFAULT_SLACK_SUCCESS_TEMPLATE = [
-    '*Test passed* {testCaseDisplayId}',
+    '*Test passed* {testCaseID}',
     '*Test Case:* {testCaseName}',
-    '*Run ID:* {runReference}',
+    '*Run ID:* {runId}',
     '*Started:* {startedAt}  *Completed:* {completedAt}',
     '*Duration:* {durationSeconds}s',
 ].join('\n');

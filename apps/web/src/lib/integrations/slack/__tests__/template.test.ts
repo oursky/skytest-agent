@@ -52,8 +52,9 @@ describe('renderTemplate', () => {
 
     it('falls back to default template when input is empty', () => {
         const result = renderTemplate('   ', {
-            runId: 'run-1',
+            runId: 'Run - 1',
             runReference: 'Run - 1',
+            testCaseID: 'TC-1',
             testCaseDisplayId: 'TC-1',
             testCaseName: 'Checkout flow',
             startedAt: '2026-04-29T00:00:00Z',
@@ -62,11 +63,11 @@ describe('renderTemplate', () => {
         });
 
         expect(result.text).toContain('*Test failed* TC-1');
-        expect(result.text).not.toContain('{runReference}');
+        expect(result.text).not.toContain('{runId}');
     });
 
     it('default template contains expected placeholders', () => {
-        expect(DEFAULT_SLACK_FAILURE_TEMPLATE).toContain('{runReference}');
+        expect(DEFAULT_SLACK_FAILURE_TEMPLATE).toContain('{runId}');
         expect(DEFAULT_SLACK_FAILURE_TEMPLATE).toContain('{errorSummary}');
     });
 });

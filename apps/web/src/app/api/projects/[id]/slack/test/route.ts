@@ -14,9 +14,16 @@ import {
     SlackChannelNotFoundError,
 } from '@/lib/integrations/slack/errors';
 import {
-    buildSlackRunMessage,
+    buildSlackRunReference,
+    formatSlackDateToken,
     resolveSlackAppBaseUrlFromEnv,
 } from '@/lib/integrations/slack/message';
+import {
+    DEFAULT_SLACK_FAILURE_TEMPLATE,
+    DEFAULT_SLACK_SUCCESS_TEMPLATE,
+    rawSlack,
+    renderTemplate,
+} from '@/lib/integrations/slack/template';
 import { TEST_STATUS } from '@/types';
 
 const logger = createLogger('api:projects:slack-test');
@@ -102,6 +109,23 @@ function resolveRequestBaseUrl(request: Request): string | null {
     return resolveSlackAppBaseUrlFromEnv();
 }
 
+function buildRunUrl(input: {
+    appBaseUrl: string | null;
+    testCaseId: string;
+    runId: string;
+}): string | null {
+    if (!input.appBaseUrl) {
+        return null;
+    }
+
+    const baseUrl = input.appBaseUrl.trim();
+    if (!baseUrl) {
+        return null;
+    }
+
+    return `${baseUrl.replace(/\/+$/, '')}/test-cases/${encodeURIComponent(input.testCaseId)}/history/${encodeURIComponent(input.runId)}`;
+}
+
 export async function POST(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
@@ -116,8 +140,11 @@ export async function POST(
             where: { id: guard.params.id },
             select: {
                 id: true,
+                name: true,
                 slackEnabled: true,
                 slackChannelId: true,
+                slackFailureTemplate: true,
+                slackSuccessTemplate: true,
                 team: {
                     select: {
                         slackBotTokenEncrypted: true,
@@ -166,6 +193,7 @@ export async function POST(
                 startedAt: true,
                 completedAt: true,
                 error: true,
+                triggeredByEmail: true,
                 testCase: {
                     select: {
                         id: true,
@@ -180,28 +208,50 @@ export async function POST(
         const startedAt = latestRun?.startedAt ?? now;
         const completedAt = latestRun?.completedAt ?? new Date(startedAt.getTime() + 42_000);
         const durationSeconds = Math.max(0, Math.floor((completedAt.getTime() - startedAt.getTime()) / 1000));
-        const text = buildSlackRunMessage({
-            status,
+        const runId = latestRun?.id || 'run_test_message';
+        const testCaseId = latestRun?.testCase.id || 'test_case_sample';
+        const appBaseUrl = resolveRequestBaseUrl(request);
+        const runUrl = buildRunUrl({
+            appBaseUrl,
+            testCaseId,
+            runId,
+        });
+
+        const fallbackTemplate = status === TEST_STATUS.PASS
+            ? DEFAULT_SLACK_SUCCESS_TEMPLATE
+            : DEFAULT_SLACK_FAILURE_TEMPLATE;
+        const selectedTemplate = status === TEST_STATUS.PASS
+            ? (project.slackSuccessTemplate ?? fallbackTemplate)
+            : (project.slackFailureTemplate ?? fallbackTemplate);
+
+        const rendered = renderTemplate(selectedTemplate, {
+            projectName: project.name,
+            testCaseID: latestRun?.testCase.displayId?.trim() || 'CASE-TEST-001',
             testCaseDisplayId: latestRun?.testCase.displayId?.trim() || 'CASE-TEST-001',
             testCaseName: latestRun?.testCase.name || 'Checkout flow',
-            testCaseId: latestRun?.testCase.id || 'test_case_sample',
-            runId: latestRun?.id || 'run_test_message',
-            startedAt,
-            completedAt,
-            errorSummary: latestRun?.error || 'Element not found',
+            runId: rawSlack(buildSlackRunReference({ runUrl, startedAt })),
+            runReference: rawSlack(buildSlackRunReference({ runUrl, startedAt })),
+            runRawId: runId,
+            triggeredBy: latestRun?.triggeredByEmail ?? 'qa@example.com',
+            startedAt: rawSlack(formatSlackDateToken(startedAt)),
+            completedAt: rawSlack(formatSlackDateToken(completedAt)),
             durationSeconds,
-            appBaseUrl: resolveRequestBaseUrl(request),
+            errorSummary: latestRun?.error || 'Element not found',
+        }, {
+            fallbackTemplate,
         });
 
         const token = decrypt(project.team.slackBotTokenEncrypted);
         await sendTestMessageWithJoinFallback({
             token,
             channelId: project.slackChannelId,
-            text,
+            text: rendered.text,
         });
 
         return NextResponse.json({
             success: true,
+            truncated: rendered.truncated,
+            missingVariables: rendered.missingVariables,
         });
     } catch (error) {
         logger.warn('Failed to send project Slack test message', {
