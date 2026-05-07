@@ -16,7 +16,6 @@ import {
 import {
     buildSlackRunReference,
     formatSlackDateToken,
-    resolveSlackAppBaseUrlFromEnv,
 } from '@/lib/integrations/slack/message';
 import {
     DEFAULT_SLACK_FAILURE_TEMPLATE,
@@ -96,36 +95,6 @@ function resolveStatus(value: unknown): typeof TEST_STATUS.FAIL | typeof TEST_ST
     return value === TEST_STATUS.PASS ? TEST_STATUS.PASS : TEST_STATUS.FAIL;
 }
 
-function resolveRequestBaseUrl(request: Request): string | null {
-    try {
-        const origin = new URL(request.url).origin;
-        if (origin) {
-            return origin;
-        }
-    } catch {
-        // noop
-    }
-
-    return resolveSlackAppBaseUrlFromEnv();
-}
-
-function buildRunUrl(input: {
-    appBaseUrl: string | null;
-    testCaseId: string;
-    runId: string;
-}): string | null {
-    if (!input.appBaseUrl) {
-        return null;
-    }
-
-    const baseUrl = input.appBaseUrl.trim();
-    if (!baseUrl) {
-        return null;
-    }
-
-    return `${baseUrl.replace(/\/+$/, '')}/test-cases/${encodeURIComponent(input.testCaseId)}/history/${encodeURIComponent(input.runId)}`;
-}
-
 export async function POST(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
@@ -178,44 +147,11 @@ export async function POST(
         };
         const status = resolveStatus(body.status);
 
-        const latestRun = await prisma.testRun.findFirst({
-            where: {
-                testCase: {
-                    projectId: project.id,
-                },
-                deletedAt: null,
-            },
-            orderBy: {
-                createdAt: 'desc',
-            },
-            select: {
-                id: true,
-                startedAt: true,
-                completedAt: true,
-                error: true,
-                triggeredByEmail: true,
-                testCase: {
-                    select: {
-                        id: true,
-                        displayId: true,
-                        name: true,
-                    },
-                },
-            },
-        });
-
         const now = new Date();
-        const startedAt = latestRun?.startedAt ?? now;
-        const completedAt = latestRun?.completedAt ?? new Date(startedAt.getTime() + 42_000);
+        const startedAt = now;
+        const completedAt = new Date(startedAt.getTime() + 42_000);
         const durationSeconds = Math.max(0, Math.floor((completedAt.getTime() - startedAt.getTime()) / 1000));
-        const runId = latestRun?.id || 'run_test_message';
-        const testCaseId = latestRun?.testCase.id || 'test_case_sample';
-        const appBaseUrl = resolveRequestBaseUrl(request);
-        const runUrl = buildRunUrl({
-            appBaseUrl,
-            testCaseId,
-            runId,
-        });
+        const runReference = buildSlackRunReference({ runUrl: null, startedAt });
 
         const fallbackTemplate = status === TEST_STATUS.PASS
             ? DEFAULT_SLACK_SUCCESS_TEMPLATE
@@ -226,17 +162,16 @@ export async function POST(
 
         const rendered = renderTemplate(selectedTemplate, {
             projectName: project.name,
-            testCaseID: latestRun?.testCase.displayId?.trim() || 'CASE-TEST-001',
-            testCaseDisplayId: latestRun?.testCase.displayId?.trim() || 'CASE-TEST-001',
-            testCaseName: latestRun?.testCase.name || 'Checkout flow',
-            runId: rawSlack(buildSlackRunReference({ runUrl, startedAt })),
-            runReference: rawSlack(buildSlackRunReference({ runUrl, startedAt })),
-            runRawId: runId,
-            triggeredBy: latestRun?.triggeredByEmail ?? 'qa@example.com',
+            testCaseID: 'CASE-TEST-001',
+            testCaseName: 'Checkout flow',
+            runId: rawSlack(runReference),
+            runReference: rawSlack(runReference),
+            runRawId: 'run_test_message',
+            triggeredBy: 'test@example.com',
             startedAt: rawSlack(formatSlackDateToken(startedAt)),
             completedAt: rawSlack(formatSlackDateToken(completedAt)),
             durationSeconds,
-            errorSummary: latestRun?.error || 'Element not found',
+            errorSummary: 'Element not found',
         }, {
             fallbackTemplate,
         });

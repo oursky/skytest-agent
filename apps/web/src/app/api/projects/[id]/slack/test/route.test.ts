@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SlackChannelNotFoundError } from '@/lib/integrations/slack/errors';
 
 const mocks = vi.hoisted(() => ({
@@ -6,9 +6,6 @@ const mocks = vi.hoisted(() => ({
     prisma: {
         project: {
             findUnique: vi.fn(),
-        },
-        testRun: {
-            findFirst: vi.fn(),
         },
     },
     decrypt: vi.fn(),
@@ -42,24 +39,13 @@ function buildProject(overrides?: Partial<{
 }>) {
     return {
         id: 'project-1',
+        name: 'Storefront',
         slackEnabled: overrides?.enabled ?? true,
         slackChannelId: overrides?.channelId ?? 'C123',
+        slackFailureTemplate: null,
+        slackSuccessTemplate: null,
         team: {
             slackBotTokenEncrypted: overrides && 'token' in overrides ? overrides.token ?? null : 'enc-token',
-        },
-    };
-}
-
-function buildLatestRun() {
-    return {
-        id: 'run-1',
-        startedAt: new Date('2026-05-07T09:33:00.000Z'),
-        completedAt: new Date('2026-05-07T09:33:42.000Z'),
-        error: 'Element not found',
-        testCase: {
-            id: 'tc-1',
-            displayId: 'TC-001',
-            name: 'Checkout flow',
         },
     };
 }
@@ -68,10 +54,11 @@ describe('/api/projects/[id]/slack/test', () => {
     beforeEach(() => {
         mocks.guardProjectRouteRequest.mockReset();
         mocks.prisma.project.findUnique.mockReset();
-        mocks.prisma.testRun.findFirst.mockReset();
         mocks.decrypt.mockReset();
         mocks.postMessage.mockReset();
         mocks.joinConversation.mockReset();
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-05-07T09:33:00.000Z'));
 
         mocks.guardProjectRouteRequest.mockResolvedValue({
             ok: true,
@@ -79,7 +66,6 @@ describe('/api/projects/[id]/slack/test', () => {
             params: { id: 'project-1' },
         });
         mocks.prisma.project.findUnique.mockResolvedValue(buildProject());
-        mocks.prisma.testRun.findFirst.mockResolvedValue(buildLatestRun());
         mocks.decrypt.mockReturnValue('xoxb-token');
         mocks.postMessage.mockResolvedValue({ timestamp: '1.23' });
         mocks.joinConversation.mockResolvedValue({
@@ -87,6 +73,10 @@ describe('/api/projects/[id]/slack/test', () => {
             name: 'alerts',
             isPrivate: false,
         });
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
     });
 
     it('sends a failed Slack test message by default', async () => {
@@ -102,12 +92,22 @@ describe('/api/projects/[id]/slack/test', () => {
         expect(mocks.postMessage).toHaveBeenCalledWith({
             token: 'xoxb-token',
             channel: 'C123',
-            text: expect.stringContaining('*Test failed* TC-001'),
+            text: expect.stringContaining(':x: *Test Failed* CASE-TEST-001'),
         });
         expect(mocks.postMessage).toHaveBeenCalledWith({
             token: 'xoxb-token',
             channel: 'C123',
-            text: expect.stringContaining('^Run - {date_short} {time}^http://localhost:3000/test-cases/tc-1/history/run-1|Run - 7 May 2026, 09:33 UTC>'),
+            text: expect.stringContaining('^Run - {date_short} {time}|Run - 7 May 2026, 09:33 UTC>'),
+        });
+        expect(mocks.postMessage).not.toHaveBeenCalledWith({
+            token: 'xoxb-token',
+            channel: 'C123',
+            text: expect.stringContaining('http://localhost:3000/test-cases/'),
+        });
+        expect(mocks.postMessage).toHaveBeenCalledWith({
+            token: 'xoxb-token',
+            channel: 'C123',
+            text: expect.stringContaining('*Started:* <!date^1778146380^{date_num} {time_secs}|7 May 2026, 09:33 UTC>'),
         });
     });
 
@@ -124,7 +124,7 @@ describe('/api/projects/[id]/slack/test', () => {
         expect(mocks.postMessage).toHaveBeenCalledWith({
             token: 'xoxb-token',
             channel: 'C123',
-            text: expect.stringContaining('*Test passed* TC-001'),
+            text: expect.stringContaining(':white_check_mark: *Test Passed* CASE-TEST-001'),
         });
         expect(mocks.postMessage).toHaveBeenCalledWith({
             token: 'xoxb-token',

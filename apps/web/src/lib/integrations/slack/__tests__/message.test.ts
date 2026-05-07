@@ -9,7 +9,6 @@ describe('slack message', () => {
     it('renders failed message with run link and date tokens', () => {
         const text = buildSlackRunMessage({
             status: TEST_STATUS.FAIL,
-            testCaseDisplayId: 'TC-001',
             testCaseName: 'Checkout flow',
             testCaseId: 'tc-1',
             runId: 'run-1',
@@ -20,17 +19,16 @@ describe('slack message', () => {
             appBaseUrl: 'http://localhost:3000/',
         });
 
-        expect(text).toContain('*Test failed* TC-001');
-        expect(text).toContain('*Run ID:* <!date^');
+        expect(text).toContain(':x: Test failed — Checkout flow');
+        expect(text).toContain('Run ID: <!date^');
         expect(text).toContain('^Run - {date_short} {time}^http://localhost:3000/test-cases/tc-1/history/run-1|Run - 7 May 2026, 09:33 UTC>');
-        expect(text).toContain('*Started:* <!date^');
-        expect(text).toContain('*Error:* Element not found');
+        expect(text).toContain('Started: <!date^1778146380^{date_num} {time_secs}|7 May 2026, 09:33 UTC>');
+        expect(text).toContain('Error: Element not found');
     });
 
     it('renders passed message with duration line', () => {
         const text = buildSlackRunMessage({
             status: TEST_STATUS.PASS,
-            testCaseDisplayId: 'TC-002',
             testCaseName: 'Login flow',
             testCaseId: 'tc-2',
             runId: 'run-2',
@@ -41,11 +39,11 @@ describe('slack message', () => {
             appBaseUrl: null,
         });
 
-        expect(text).toContain('*Test passed* TC-002');
-        expect(text).toContain('*Run ID:* <!date^');
+        expect(text).toContain(':white_check_mark: Test passed — Login flow');
+        expect(text).toContain('Run ID: <!date^');
         expect(text).toContain('|Run - 7 May 2026, 09:00 UTC>');
-        expect(text).toContain('*Duration:* 30s');
-        expect(text).not.toContain('*Error:*');
+        expect(text).toContain('Duration: 30s');
+        expect(text).not.toContain('Error:');
     });
 
     it('resolves base url from SKYTEST_BASE_URL first', () => {

@@ -167,8 +167,7 @@ export async function notifyRunTerminal(runId: string): Promise<void> {
     });
     const rendered = renderTemplate(selectedTemplate, {
         projectName: run.testCase.project.name,
-        testCaseID: (run.testCase.displayId || '').trim() || run.testCase.id,
-        testCaseDisplayId: (run.testCase.displayId || '').trim() || run.testCase.id,
+        testCaseID: (run.testCase.displayId || '').trim(),
         testCaseName: run.testCase.name,
         runId: rawSlack(buildSlackRunReference({ runUrl, startedAt: run.startedAt })),
         runReference: rawSlack(buildSlackRunReference({ runUrl, startedAt: run.startedAt })),

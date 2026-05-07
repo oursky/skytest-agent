@@ -55,14 +55,16 @@ describe('renderTemplate', () => {
             runId: 'Run - 1',
             runReference: 'Run - 1',
             testCaseID: 'TC-1',
-            testCaseDisplayId: 'TC-1',
             testCaseName: 'Checkout flow',
+            projectName: 'Storefront',
+            triggeredBy: 'test@example.com',
             startedAt: '2026-04-29T00:00:00Z',
             completedAt: '2026-04-29T00:00:42Z',
+            durationSeconds: 42,
             errorSummary: 'Element not found',
         });
 
-        expect(result.text).toContain('*Test failed* TC-1');
+        expect(result.text).toContain(':x: *Test Failed* TC-1');
         expect(result.text).not.toContain('{runId}');
     });
 

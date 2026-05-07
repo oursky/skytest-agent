@@ -13,6 +13,7 @@ interface TemplateEditorProps {
 
 const TEMPLATE_VARIABLES = [
     'projectName',
+    'testCaseID',
     'testCaseName',
     'runId',
     'triggeredBy',

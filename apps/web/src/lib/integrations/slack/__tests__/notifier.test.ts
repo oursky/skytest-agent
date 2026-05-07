@@ -45,18 +45,20 @@ function buildFailedRun(overrides?: Partial<{
     slackChannelId: string | null;
     token: string | null;
     attempts: number;
+    displayId: string | null;
 }>) {
     return {
         id: 'run-1',
         status: overrides?.status ?? 'FAIL',
         testCaseId: 'tc-1',
-        triggeredByEmail: 'qa@example.com',
+        triggeredByEmail: 'test@example.com',
         startedAt: new Date('2026-04-29T07:00:00.000Z'),
         completedAt: new Date('2026-04-29T07:01:00.000Z'),
         error: 'Locator not found',
         slackNotifyAttempts: overrides?.attempts ?? 0,
         testCase: {
             id: 'tc-1',
+            displayId: overrides && 'displayId' in overrides ? overrides.displayId : 'TC-001',
             name: 'Checkout',
             project: {
                 id: 'project-1',
@@ -99,6 +101,11 @@ describe('notifyRunTerminal', () => {
 
         expect(updateManyRun).toHaveBeenCalledTimes(1);
         expect(postMessageMock).toHaveBeenCalledTimes(1);
+        expect(postMessageMock).toHaveBeenCalledWith({
+            token: 'xoxb-token',
+            channel: 'C123',
+            text: expect.stringContaining(':x: *Test Failed* TC-001'),
+        });
         expect(updateRun).toHaveBeenCalledWith({
             where: { id: 'run-1' },
             data: {
@@ -202,5 +209,17 @@ describe('notifyRunTerminal', () => {
         await notifyRunTerminal('run-1');
 
         expect(postMessageMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not fall back to internal test case id when display id is empty', async () => {
+        findUniqueRun.mockResolvedValue(buildFailedRun({ displayId: null }));
+
+        await notifyRunTerminal('run-1');
+
+        expect(postMessageMock).toHaveBeenCalledWith({
+            token: 'xoxb-token',
+            channel: 'C123',
+            text: expect.stringContaining(':x: *Test Failed* \n*Test Case:* Checkout'),
+        });
     });
 });
