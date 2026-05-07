@@ -1,8 +1,6 @@
 import { config as appConfig } from '@/config/app';
 import { createLogger } from '@/lib/core/logger';
 import { prisma } from '@/lib/core/prisma';
-import { slackNotificationPolicy } from '@/lib/integrations/slack/config';
-import { runSlackNotificationSweep } from '@/lib/integrations/slack/sweep';
 import { registerSlackSubscriber } from '@/lib/integrations/slack/subscriber';
 import { pruneOldRunEvents } from '@/lib/runners/event-retention-service';
 import { reapExpiredRunnerLeases, reapStaleLocalBrowserRuns } from '@/lib/runners/lease-reaper';
@@ -18,8 +16,6 @@ const shutdown = createWorkerShutdownController({
     wake: sleeper.wake,
 });
 const MAX_MAINTENANCE_RETRY_INTERVAL_MS = 60_000;
-const SLACK_SWEEP_INTERVAL_MS = slackNotificationPolicy.sweepIntervalMs;
-let lastSlackSweepAt: Date | null = null;
 
 registerSlackSubscriber();
 
@@ -31,21 +27,6 @@ async function runMaintenanceCycle() {
         failInvalidQueuedAndroidRuns(),
     ]);
     const runRetentionResult = await enforceRunArtifactRetention();
-    let slackSweepResult = {
-        scannedRuns: 0,
-        notifiedRuns: 0,
-        retryPendingRuns: 0,
-        exhaustedRuns: 0,
-        skippedRuns: 0,
-    };
-    const now = new Date();
-    const shouldRunSlackSweep = !lastSlackSweepAt
-        || now.getTime() - lastSlackSweepAt.getTime() >= SLACK_SWEEP_INTERVAL_MS;
-
-    if (shouldRunSlackSweep) {
-        slackSweepResult = await runSlackNotificationSweep(now);
-        lastSlackSweepAt = now;
-    }
 
     if (
         leaseResult.recoveredRuns > 0
@@ -55,7 +36,6 @@ async function runMaintenanceCycle() {
         || runRetentionResult.softDeletedRuns > 0
         || runRetentionResult.hardDeletedRuns > 0
         || runRetentionResult.hardDeleteFailures > 0
-        || slackSweepResult.scannedRuns > 0
     ) {
         logger.info('Runner maintenance cycle completed', {
             recoveredRuns: leaseResult.recoveredRuns,
@@ -74,11 +54,6 @@ async function runMaintenanceCycle() {
             hardDeleteFailures: runRetentionResult.hardDeleteFailures,
             artifactSoftDeleteCutoff: runRetentionResult.softDeleteCutoff.toISOString(),
             artifactHardDeleteCutoff: runRetentionResult.hardDeleteCutoff.toISOString(),
-            slackSweepScannedRuns: slackSweepResult.scannedRuns,
-            slackSweepNotifiedRuns: slackSweepResult.notifiedRuns,
-            slackSweepRetryPendingRuns: slackSweepResult.retryPendingRuns,
-            slackSweepExhaustedRuns: slackSweepResult.exhaustedRuns,
-            slackSweepSkippedRuns: slackSweepResult.skippedRuns,
         });
     }
 }
@@ -91,7 +66,6 @@ async function main() {
         artifactSoftDeleteDays: appConfig.runner.artifactSoftDeleteDays,
         artifactHardDeleteDays: appConfig.runner.artifactHardDeleteDays,
         artifactHardDeleteBatchSize: appConfig.runner.artifactHardDeleteBatchSize,
-        slackSweepIntervalMs: SLACK_SWEEP_INTERVAL_MS,
     });
 
     const runOnce = process.env.RUNNER_MAINTENANCE_ONCE === 'true';

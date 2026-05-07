@@ -210,7 +210,6 @@ model TestRun {
   @@index([requestedRunnerId])
   @@index([instanceType, instanceName, createdAt(sort: Desc)])
   @@index([deletedAt, completedAt(sort: Asc)])
-  @@index([status, slackNotifiedAt, completedAt])
 }
 
 model TestRunFile {
