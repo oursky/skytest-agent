@@ -1,6 +1,7 @@
 import { config as appConfig } from '@/config/app';
 import { createLogger } from '@/lib/core/logger';
 import { prisma } from '@/lib/core/prisma';
+import { registerSlackSubscriber } from '@/lib/integrations/slack/subscriber';
 import { dispatchQueuedBrowserRuns } from '@/lib/runtime/browser-run-dispatcher';
 import { abortInactiveLocalBrowserRuns } from '@/lib/runtime/local-browser-runner';
 import { createWakeableSleeper, createWorkerShutdownController } from '@/workers/loop-utils';
@@ -12,6 +13,8 @@ const shutdown = createWorkerShutdownController({
     workerLabel: 'browser runner worker',
     wake: sleeper.wake,
 });
+
+registerSlackSubscriber();
 
 async function main() {
     if (!appConfig.browserWorker.enabled) {

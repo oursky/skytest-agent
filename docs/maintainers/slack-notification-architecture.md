@@ -20,22 +20,19 @@ SkyTest can post Slack messages when a project run reaches terminal status based
 
 - `lib/runners/domain-events.ts` provides `emitRunTerminal` and `subscribeRunTerminal`.
 - `lib/integrations/slack/subscriber.ts` registers a terminal listener for `PASS`/`FAIL` and calls `notifyRunTerminal(runId)`.
-- Subscriber registration occurs in both:
+- Subscriber registration occurs in:
   - `src/instrumentation.ts` (web process)
+  - `src/workers/browser-runner.ts` (browser worker process)
   - `src/workers/runner-maintenance.ts` (maintenance worker process)
 
 The bus is process-local, so each process registers independently.
 
 ## Delivery Policy
 
-Slack retry/sweep behavior uses fixed internal policy values in `lib/integrations/slack/config.ts`:
+Slack notification behavior uses fixed internal policy values in `lib/integrations/slack/config.ts`:
 
-- sweep interval: 5 minutes
-- sweep batch size: 25 runs
 - max attempts: 5
 - claim TTL: 90 seconds
-- sweep stability delay: 90 seconds
-- sweep max age: 24 hours
 
 There are no Slack-specific environment variables in runtime configuration.
 
@@ -52,21 +49,10 @@ There are no Slack-specific environment variables in runtime configuration.
    - notify both `PASS`/`FAIL` when mode is `BOTH_PASSED_AND_FAILED`
 6. Persist outcome:
    - success -> `slackNotifiedAt` set
-   - retryable error -> claim cleared, retry later
+   - retryable error -> claim cleared
    - non-retryable error -> mark notified with `slackNotifyError`
 
 Claim TTL (defined in `lib/integrations/slack/config.ts`) allows recovery after process crash.
-
-## Safety Sweep
-
-The maintenance loop runs `runSlackNotificationSweep` on interval:
-
-- `status in (PASS, FAIL)`
-- `slackNotifiedAt IS NULL`
-- attempts below max
-- completed older than sweep stability delay and newer than sweep max age
-
-Sweep calls the same `notifyRunTerminal` path, so claim logic deduplicates active path vs sweep path races.
 
 ## Error Classification
 
