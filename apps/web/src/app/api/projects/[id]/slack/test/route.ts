@@ -95,6 +95,16 @@ function resolveStatus(value: unknown): typeof TEST_STATUS.FAIL | typeof TEST_ST
     return value === TEST_STATUS.PASS ? TEST_STATUS.PASS : TEST_STATUS.FAIL;
 }
 
+function formatDurationMinutesSeconds(durationSeconds: number): string {
+    if (durationSeconds < 60) {
+        return `${durationSeconds}s`;
+    }
+
+    const minutes = Math.floor(durationSeconds / 60);
+    const seconds = durationSeconds % 60;
+    return `${minutes}m${String(seconds).padStart(2, '0')}s`;
+}
+
 export async function POST(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
@@ -171,6 +181,7 @@ export async function POST(
             startedAt: rawSlack(formatSlackDateToken(startedAt)),
             completedAt: rawSlack(formatSlackDateToken(completedAt)),
             durationSeconds,
+            durationMinutesSeconds: formatDurationMinutesSeconds(durationSeconds),
             errorSummary: 'Element not found',
         }, {
             fallbackTemplate,
