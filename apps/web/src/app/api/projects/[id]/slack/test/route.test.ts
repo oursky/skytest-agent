@@ -7,6 +7,9 @@ const mocks = vi.hoisted(() => ({
         project: {
             findUnique: vi.fn(),
         },
+        testRun: {
+            findFirst: vi.fn(),
+        },
     },
     decrypt: vi.fn(),
     postMessage: vi.fn(),
@@ -38,12 +41,25 @@ function buildProject(overrides?: Partial<{
     channelId: string | null;
 }>) {
     return {
-        name: 'Storefront',
+        id: 'project-1',
         slackEnabled: overrides?.enabled ?? true,
         slackChannelId: overrides?.channelId ?? 'C123',
-        slackFailureTemplate: 'Failed run {runId}',
         team: {
             slackBotTokenEncrypted: overrides && 'token' in overrides ? overrides.token ?? null : 'enc-token',
+        },
+    };
+}
+
+function buildLatestRun() {
+    return {
+        id: 'run-1',
+        startedAt: new Date('2026-05-07T09:33:00.000Z'),
+        completedAt: new Date('2026-05-07T09:33:42.000Z'),
+        error: 'Element not found',
+        testCase: {
+            id: 'tc-1',
+            displayId: 'TC-001',
+            name: 'Checkout flow',
         },
     };
 }
@@ -52,6 +68,7 @@ describe('/api/projects/[id]/slack/test', () => {
     beforeEach(() => {
         mocks.guardProjectRouteRequest.mockReset();
         mocks.prisma.project.findUnique.mockReset();
+        mocks.prisma.testRun.findFirst.mockReset();
         mocks.decrypt.mockReset();
         mocks.postMessage.mockReset();
         mocks.joinConversation.mockReset();
@@ -62,6 +79,7 @@ describe('/api/projects/[id]/slack/test', () => {
             params: { id: 'project-1' },
         });
         mocks.prisma.project.findUnique.mockResolvedValue(buildProject());
+        mocks.prisma.testRun.findFirst.mockResolvedValue(buildLatestRun());
         mocks.decrypt.mockReturnValue('xoxb-token');
         mocks.postMessage.mockResolvedValue({ timestamp: '1.23' });
         mocks.joinConversation.mockResolvedValue({
@@ -71,8 +89,8 @@ describe('/api/projects/[id]/slack/test', () => {
         });
     });
 
-    it('sends a Slack test message for configured project', async () => {
-        const response = await POST(new Request('http://localhost/api/projects/project-1/slack/test', {
+    it('sends a failed Slack test message by default', async () => {
+        const response = await POST(new Request('http://localhost:3000/api/projects/project-1/slack/test', {
             method: 'POST',
         }), {
             params: Promise.resolve({ id: 'project-1' }),
@@ -84,14 +102,41 @@ describe('/api/projects/[id]/slack/test', () => {
         expect(mocks.postMessage).toHaveBeenCalledWith({
             token: 'xoxb-token',
             channel: 'C123',
-            text: expect.stringContaining('Test message from SkyTest'),
+            text: expect.stringContaining('*Test failed* TC-001'),
+        });
+        expect(mocks.postMessage).toHaveBeenCalledWith({
+            token: 'xoxb-token',
+            channel: 'C123',
+            text: expect.stringContaining('^Run - {date_short} {time}^http://localhost:3000/test-cases/tc-1/history/run-1|Run - 7 May 2026, 09:33 UTC>'),
+        });
+    });
+
+    it('sends a passed Slack test message when status is PASS', async () => {
+        const response = await POST(new Request('http://localhost:3000/api/projects/project-1/slack/test', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ status: 'PASS' }),
+        }), {
+            params: Promise.resolve({ id: 'project-1' }),
+        });
+
+        expect(response.status).toBe(200);
+        expect(mocks.postMessage).toHaveBeenCalledWith({
+            token: 'xoxb-token',
+            channel: 'C123',
+            text: expect.stringContaining('*Test passed* TC-001'),
+        });
+        expect(mocks.postMessage).toHaveBeenCalledWith({
+            token: 'xoxb-token',
+            channel: 'C123',
+            text: expect.stringContaining('*Duration:* 42s'),
         });
     });
 
     it('returns TEAM_TOKEN_MISSING when team token is absent', async () => {
         mocks.prisma.project.findUnique.mockResolvedValueOnce(buildProject({ token: null }));
 
-        const response = await POST(new Request('http://localhost/api/projects/project-1/slack/test', {
+        const response = await POST(new Request('http://localhost:3000/api/projects/project-1/slack/test', {
             method: 'POST',
         }), {
             params: Promise.resolve({ id: 'project-1' }),
@@ -107,7 +152,7 @@ describe('/api/projects/[id]/slack/test', () => {
             channelId: null,
         }));
 
-        const response = await POST(new Request('http://localhost/api/projects/project-1/slack/test', {
+        const response = await POST(new Request('http://localhost:3000/api/projects/project-1/slack/test', {
             method: 'POST',
         }), {
             params: Promise.resolve({ id: 'project-1' }),
@@ -125,7 +170,7 @@ describe('/api/projects/[id]/slack/test', () => {
             status: 200,
         }));
 
-        const response = await POST(new Request('http://localhost/api/projects/project-1/slack/test', {
+        const response = await POST(new Request('http://localhost:3000/api/projects/project-1/slack/test', {
             method: 'POST',
         }), {
             params: Promise.resolve({ id: 'project-1' }),
@@ -147,7 +192,7 @@ describe('/api/projects/[id]/slack/test', () => {
             }))
             .mockResolvedValueOnce({ timestamp: '2.34' });
 
-        const response = await POST(new Request('http://localhost/api/projects/project-1/slack/test', {
+        const response = await POST(new Request('http://localhost:3000/api/projects/project-1/slack/test', {
             method: 'POST',
         }), {
             params: Promise.resolve({ id: 'project-1' }),
@@ -170,7 +215,7 @@ describe('/api/projects/[id]/slack/test', () => {
         }));
         mocks.joinConversation.mockRejectedValueOnce(new Error('missing_scope'));
 
-        const response = await POST(new Request('http://localhost/api/projects/project-1/slack/test', {
+        const response = await POST(new Request('http://localhost:3000/api/projects/project-1/slack/test', {
             method: 'POST',
         }), {
             params: Promise.resolve({ id: 'project-1' }),

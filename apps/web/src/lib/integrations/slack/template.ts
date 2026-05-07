@@ -1,17 +1,15 @@
 export const DEFAULT_SLACK_FAILURE_TEMPLATE = [
-    ':rotating_light: *Test failed* — {testCaseName}',
-    '*Run ID:* {runId}',
-    '*Project:* {projectName}',
-    '*Triggered by:* {triggeredBy}',
+    '*Test failed* {testCaseDisplayId}',
+    '*Test Case:* {testCaseName}',
+    '*Run ID:* {runReference}',
     '*Started:* {startedAt}  *Completed:* {completedAt}',
     '*Error:* {errorSummary}',
 ].join('\n');
 
 export const DEFAULT_SLACK_SUCCESS_TEMPLATE = [
-    ':white_check_mark: *Test passed* — {testCaseName}',
-    '*Run ID:* {runId}',
-    '*Project:* {projectName}',
-    '*Triggered by:* {triggeredBy}',
+    '*Test passed* {testCaseDisplayId}',
+    '*Test Case:* {testCaseName}',
+    '*Run ID:* {runReference}',
     '*Started:* {startedAt}  *Completed:* {completedAt}',
     '*Duration:* {durationSeconds}s',
 ].join('\n');

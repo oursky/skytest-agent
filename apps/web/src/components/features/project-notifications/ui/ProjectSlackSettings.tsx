@@ -1,17 +1,12 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import Link from 'next/link';
 import { Button, LoadingSpinner } from '@/components/shared';
 import { useI18n } from '@/i18n';
-import {
-    DEFAULT_SLACK_FAILURE_TEMPLATE,
-    DEFAULT_SLACK_SUCCESS_TEMPLATE,
-} from '@/lib/integrations/slack/template';
 import { PROJECT_SLACK_NOTIFY_ON } from '@/types/slack';
 import { TEST_STATUS } from '@/types';
 import ChannelPicker from '@/components/features/project-notifications/ui/ChannelPicker';
-import TemplateEditor from '@/components/features/project-notifications/ui/TemplateEditor';
 import {
     useProjectSlack,
     type ProjectSlackRequestError,
@@ -32,18 +27,12 @@ function formatProjectSlackError(t: (key: string, vars?: Record<string, string>)
             return t('project.integration.slack.error.teamTokenInvalid');
         case 'SLACK_UPSTREAM':
             return t('project.integration.slack.error.slackUpstream');
-        case 'INVALID_TEMPLATE':
-            return error.detail
-                ? t('project.integration.slack.error.invalidTemplateWithDetail', { detail: error.detail })
-                : t('project.integration.slack.error.invalidTemplate');
         case 'PROJECT_SLACK_NOT_CONFIGURED':
             return t('project.integration.slack.error.notConfigured');
         case 'PROJECT_SLACK_LOAD_FAILED':
             return t('project.integration.slack.error.loadFailed');
         case 'PROJECT_SLACK_SAVE_FAILED':
             return t('project.integration.slack.error.saveFailed');
-        case 'PROJECT_SLACK_PREVIEW_FAILED':
-            return t('project.integration.slack.error.previewFailed');
         case 'PROJECT_SLACK_TEST_FAILED':
             return t('project.integration.slack.error.testFailed');
         default:
@@ -59,34 +48,17 @@ export default function ProjectSlackSettings({ projectId, teamId }: ProjectSlack
         setDraft,
         isLoading,
         isSaving,
-        isPreviewLoading,
-        preview,
         error,
         notice,
         save,
-        loadPreview,
         sendTestMessage,
     } = useProjectSlack(projectId);
 
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            void loadPreview(draft.slackFailureTemplate || DEFAULT_SLACK_FAILURE_TEMPLATE, TEST_STATUS.FAIL);
-            void loadPreview(draft.slackSuccessTemplate || DEFAULT_SLACK_SUCCESS_TEMPLATE, TEST_STATUS.PASS);
-        }, 350);
-
-        return () => clearTimeout(timer);
-    }, [draft.slackFailureTemplate, draft.slackSuccessTemplate, loadPreview]);
-
-    const failureTemplateTooLong = draft.slackFailureTemplate.length > 3_500;
-    const successTemplateTooLong = draft.slackSuccessTemplate.length > 3_500;
-    const hasTemplateTooLong = failureTemplateTooLong || successTemplateTooLong;
     const canEnable = settings.parentTeamHasToken;
     const normalizedDraftChannelId = draft.slackChannelId.trim();
     const isDirty = draft.slackEnabled !== settings.slackEnabled
         || draft.slackNotifyOn !== settings.slackNotifyOn
-        || draft.slackChannelId !== (settings.slackChannelId ?? '')
-        || draft.slackFailureTemplate !== (settings.slackFailureTemplate ?? DEFAULT_SLACK_FAILURE_TEMPLATE)
-        || draft.slackSuccessTemplate !== (settings.slackSuccessTemplate ?? DEFAULT_SLACK_SUCCESS_TEMPLATE);
+        || draft.slackChannelId !== (settings.slackChannelId ?? '');
     const isDraftConfigReady = !draft.slackEnabled || (canEnable && normalizedDraftChannelId.length > 0);
     const hasValidSavedConfig = settings.parentTeamHasToken
         && settings.slackEnabled
@@ -104,8 +76,6 @@ export default function ProjectSlackSettings({ projectId, teamId }: ProjectSlack
             slackEnabled: draft.slackEnabled,
             slackNotifyOn: draft.slackNotifyOn,
             slackChannelId: draft.slackChannelId.trim() || null,
-            slackFailureTemplate: draft.slackFailureTemplate.trim() || null,
-            slackSuccessTemplate: draft.slackSuccessTemplate.trim() || null,
         });
     };
 
@@ -181,74 +151,35 @@ export default function ProjectSlackSettings({ projectId, teamId }: ProjectSlack
                         t={(key) => t(key)}
                     />
 
-                    <TemplateEditor
-                        title={t('project.integration.slack.template.failedTitle')}
-                        resetLabel={t('project.integration.slack.resetDefault')}
-                        value={draft.slackFailureTemplate}
-                        disabled={!draft.slackEnabled}
-                        onChange={(value) => setDraft((prev) => ({ ...prev, slackFailureTemplate: value }))}
-                        onReset={() => setDraft((prev) => ({ ...prev, slackFailureTemplate: DEFAULT_SLACK_FAILURE_TEMPLATE }))}
-                    />
-
-                    <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
-                        <div className="mb-2 flex items-center justify-between text-sm font-medium text-gray-700">
-                            <span>{t('project.integration.slack.preview.failed')}</span>
-                            {isPreviewLoading.fail && <span className="text-xs text-gray-500">{t('common.loading')}</span>}
-                        </div>
-                        <pre className="whitespace-pre-wrap text-xs text-gray-700">
-                            {preview.fail?.text ?? ''}
-                        </pre>
-                    </div>
-
-                    <TemplateEditor
-                        title={t('project.integration.slack.template.passedTitle')}
-                        resetLabel={t('project.integration.slack.resetDefault')}
-                        value={draft.slackSuccessTemplate}
-                        disabled={!draft.slackEnabled || draft.slackNotifyOn === PROJECT_SLACK_NOTIFY_ON.FAILED_ONLY}
-                        onChange={(value) => setDraft((prev) => ({ ...prev, slackSuccessTemplate: value }))}
-                        onReset={() => setDraft((prev) => ({ ...prev, slackSuccessTemplate: DEFAULT_SLACK_SUCCESS_TEMPLATE }))}
-                    />
-
-                    <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
-                        <div className="mb-2 flex items-center justify-between text-sm font-medium text-gray-700">
-                            <span>{t('project.integration.slack.preview.passed')}</span>
-                            {isPreviewLoading.pass && <span className="text-xs text-gray-500">{t('common.loading')}</span>}
-                        </div>
-                        <pre className="whitespace-pre-wrap text-xs text-gray-700">
-                            {preview.pass?.text ?? ''}
-                        </pre>
-                    </div>
-
-                    <div className="space-y-1 text-xs">
-                        {failureTemplateTooLong && (
-                            <p className="text-amber-700">{t('project.integration.slack.templateTooLongFailed')}</p>
-                        )}
-                        {successTemplateTooLong && (
-                            <p className="text-amber-700">{t('project.integration.slack.templateTooLongPassed')}</p>
-                        )}
-                        {draft.slackChannelName && (
-                            <p className="text-gray-500">
-                                {t('project.integration.slack.channelSelected')}
-                                {' '}
-                                <span className="font-medium">#{draft.slackChannelName}</span>
-                            </p>
-                        )}
-                    </div>
+                    {draft.slackChannelName && (
+                        <p className="text-xs text-gray-500">
+                            {t('project.integration.slack.channelSelected')}
+                            {' '}
+                            <span className="font-medium">#{draft.slackChannelName}</span>
+                        </p>
+                    )}
 
                     <div className="flex flex-wrap gap-2">
                         <Button
                             onClick={() => void handleSave()}
                             variant="primary"
-                            disabled={!isDirty || isSaving || hasTemplateTooLong || !isDraftConfigReady}
+                            disabled={!isDirty || isSaving || !isDraftConfigReady}
                         >
                             {isSaving ? t('project.integration.slack.saving') : t('common.save')}
                         </Button>
                         <Button
-                            onClick={() => void sendTestMessage()}
+                            onClick={() => void sendTestMessage(TEST_STATUS.FAIL)}
                             variant="secondary"
                             disabled={!hasValidSavedConfig || isDirty || isSaving}
                         >
-                            {t('project.integration.slack.sendTest')}
+                            {t('project.integration.slack.sendTestFailed')}
+                        </Button>
+                        <Button
+                            onClick={() => void sendTestMessage(TEST_STATUS.PASS)}
+                            variant="secondary"
+                            disabled={!hasValidSavedConfig || isDirty || isSaving}
+                        >
+                            {t('project.integration.slack.sendTestPassed')}
                         </Button>
                     </div>
 

@@ -539,6 +539,8 @@ export const ZH_HANT_MESSAGES: Messages = {
   "project.integration.slack.preview.passed": "通過訊息預覽",
   "project.integration.slack.saving": "儲存中...",
   "project.integration.slack.sendTest": "傳送測試訊息",
+  "project.integration.slack.sendTestFailed": "傳送測試訊息（失敗）",
+  "project.integration.slack.sendTestPassed": "傳送測試訊息（通過）",
   "project.integration.slack.notice.saved": "Slack 設定已儲存。",
   "project.integration.slack.notice.tested": "測試訊息已送出。",
   "project.integration.slack.error.invalidChannel": "Slack 頻道無效，或 Bot 沒有該頻道的存取權限。",

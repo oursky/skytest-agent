@@ -53,20 +53,20 @@ describe('renderTemplate', () => {
     it('falls back to default template when input is empty', () => {
         const result = renderTemplate('   ', {
             runId: 'run-1',
+            runReference: 'Run - 1',
+            testCaseDisplayId: 'TC-1',
             testCaseName: 'Checkout flow',
-            projectName: 'Shop',
-            triggeredBy: 'qa@example.com',
             startedAt: '2026-04-29T00:00:00Z',
             completedAt: '2026-04-29T00:00:42Z',
             errorSummary: 'Element not found',
         });
 
-        expect(result.text).toContain(':rotating_light: *Test failed*');
-        expect(result.text).not.toContain('{runId}');
+        expect(result.text).toContain('*Test failed* TC-1');
+        expect(result.text).not.toContain('{runReference}');
     });
 
     it('default template contains expected placeholders', () => {
-        expect(DEFAULT_SLACK_FAILURE_TEMPLATE).toContain('{runId}');
+        expect(DEFAULT_SLACK_FAILURE_TEMPLATE).toContain('{runReference}');
         expect(DEFAULT_SLACK_FAILURE_TEMPLATE).toContain('{errorSummary}');
     });
 });

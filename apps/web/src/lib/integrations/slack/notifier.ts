@@ -5,15 +5,15 @@ import { postMessage } from '@/lib/integrations/slack/client';
 import { SlackApiError } from '@/lib/integrations/slack/errors';
 import { slackNotificationPolicy } from '@/lib/integrations/slack/config';
 import {
-    DEFAULT_SLACK_FAILURE_TEMPLATE,
-    DEFAULT_SLACK_SUCCESS_TEMPLATE,
-    renderTemplate,
-} from '@/lib/integrations/slack/template';
+    buildSlackRunMessage,
+    resolveSlackAppBaseUrlFromEnv,
+} from '@/lib/integrations/slack/message';
 import { PROJECT_SLACK_NOTIFY_ON } from '@/types/slack';
 import { TEST_STATUS } from '@/types';
 
 const logger = createLogger('integrations:slack:notifier');
 const MAX_ERROR_SUMMARY_LENGTH = 500;
+const slackAppBaseUrl = resolveSlackAppBaseUrlFromEnv();
 
 function trimErrorSummary(value: string | null): string {
     if (!value) {
@@ -25,14 +25,6 @@ function trimErrorSummary(value: string | null): string {
     }
 
     return `${value.slice(0, MAX_ERROR_SUMMARY_LENGTH)}...`;
-}
-
-function formatTimestamp(value: Date | null): string {
-    if (!value) {
-        return '-';
-    }
-
-    return value.toISOString();
 }
 
 async function clearSlackClaim(runId: string): Promise<void> {
@@ -69,6 +61,7 @@ export async function notifyRunTerminal(runId: string): Promise<void> {
             testCase: {
                 select: {
                     id: true,
+                    displayId: true,
                     name: true,
                     project: {
                         select: {
@@ -77,8 +70,6 @@ export async function notifyRunTerminal(runId: string): Promise<void> {
                             slackEnabled: true,
                             slackNotifyOn: true,
                             slackChannelId: true,
-                            slackFailureTemplate: true,
-                            slackSuccessTemplate: true,
                             team: {
                                 select: {
                                     slackBotTokenEncrypted: true,
@@ -136,40 +127,28 @@ export async function notifyRunTerminal(runId: string): Promise<void> {
     const attemptsAfterClaim = claimedRun.slackNotifyAttempts;
 
     const isFailedRun = run.status === TEST_STATUS.FAIL;
-    const fallbackTemplate = isFailedRun
-        ? DEFAULT_SLACK_FAILURE_TEMPLATE
-        : DEFAULT_SLACK_SUCCESS_TEMPLATE;
-    const selectedTemplate = isFailedRun
-        ? (run.testCase.project.slackFailureTemplate ?? fallbackTemplate)
-        : (run.testCase.project.slackSuccessTemplate ?? fallbackTemplate);
-    const rendered = renderTemplate(selectedTemplate, {
-        projectName: run.testCase.project.name,
+    const testCaseDisplayId = (run.testCase.displayId || '').trim() || run.testCase.id;
+    const messageText = buildSlackRunMessage({
+        status: isFailedRun ? TEST_STATUS.FAIL : TEST_STATUS.PASS,
+        testCaseDisplayId,
         testCaseName: run.testCase.name,
         runId: run.id,
-        triggeredBy: run.triggeredByEmail ?? 'system',
-        startedAt: formatTimestamp(run.startedAt),
-        completedAt: formatTimestamp(run.completedAt),
+        testCaseId: run.testCase.id,
+        startedAt: run.startedAt,
+        completedAt: run.completedAt,
+        errorSummary: isFailedRun ? trimErrorSummary(run.error) : '-',
         durationSeconds: run.startedAt && run.completedAt
             ? Math.max(0, Math.floor((run.completedAt.getTime() - run.startedAt.getTime()) / 1000))
             : 0,
-        errorSummary: isFailedRun ? trimErrorSummary(run.error) : '-',
-    }, {
-        fallbackTemplate,
+        appBaseUrl: slackAppBaseUrl,
     });
-    if (rendered.truncated || rendered.missingVariables.length > 0) {
-        logger.info('Slack template required fallback rendering', {
-            runId: run.id,
-            truncated: rendered.truncated,
-            missingVariables: rendered.missingVariables,
-        });
-    }
 
     try {
         const token = decrypt(tokenEncrypted);
         await postMessage({
             token,
             channel: channelId,
-            text: rendered.text,
+            text: messageText,
         });
         await markSlackNotified(run.id, null);
     } catch (error) {

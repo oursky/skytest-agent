@@ -2,22 +2,12 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/app/auth-provider';
-import {
-    DEFAULT_SLACK_FAILURE_TEMPLATE,
-    DEFAULT_SLACK_SUCCESS_TEMPLATE,
-} from '@/lib/integrations/slack/template';
 import { PROJECT_SLACK_NOTIFY_ON } from '@/types/slack';
 import type {
     ProjectSlackNotifyOn,
     ProjectSlackSettings,
 } from '@/types/slack';
 import { TEST_STATUS } from '@/types';
-
-interface SlackPreviewResponse {
-    text: string;
-    truncated: boolean;
-    missingVariables: string[];
-}
 
 interface SlackErrorPayload {
     error?: string;
@@ -39,8 +29,6 @@ const DEFAULT_PROJECT_SLACK_SETTINGS: ProjectSlackSettings = {
     slackNotifyOn: PROJECT_SLACK_NOTIFY_ON.FAILED_ONLY,
     slackChannelId: null,
     slackChannelName: null,
-    slackFailureTemplate: null,
-    slackSuccessTemplate: null,
     slackUpdatedAt: null,
     parentTeamHasToken: false,
 };
@@ -93,19 +81,9 @@ export function useProjectSlack(projectId: string) {
         slackNotifyOn: PROJECT_SLACK_NOTIFY_ON.FAILED_ONLY as ProjectSlackNotifyOn,
         slackChannelId: '',
         slackChannelName: null as string | null,
-        slackFailureTemplate: DEFAULT_SLACK_FAILURE_TEMPLATE,
-        slackSuccessTemplate: DEFAULT_SLACK_SUCCESS_TEMPLATE,
     });
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
-    const [isPreviewLoading, setIsPreviewLoading] = useState({
-        fail: false,
-        pass: false,
-    });
-    const [preview, setPreview] = useState({
-        fail: null as SlackPreviewResponse | null,
-        pass: null as SlackPreviewResponse | null,
-    });
     const [error, setError] = useState<ProjectSlackRequestError | null>(null);
     const [notice, setNotice] = useState<string | null>(null);
 
@@ -135,8 +113,6 @@ export function useProjectSlack(projectId: string) {
                 slackNotifyOn: payload.slackNotifyOn,
                 slackChannelId: payload.slackChannelId ?? '',
                 slackChannelName: payload.slackChannelName ?? null,
-                slackFailureTemplate: payload.slackFailureTemplate ?? DEFAULT_SLACK_FAILURE_TEMPLATE,
-                slackSuccessTemplate: payload.slackSuccessTemplate ?? DEFAULT_SLACK_SUCCESS_TEMPLATE,
             });
         } catch (loadError) {
             setError(createRequestError(
@@ -156,8 +132,6 @@ export function useProjectSlack(projectId: string) {
         slackEnabled: boolean;
         slackNotifyOn: ProjectSlackNotifyOn;
         slackChannelId: string | null;
-        slackFailureTemplate: string | null;
-        slackSuccessTemplate: string | null;
     }): Promise<boolean> => {
         setIsSaving(true);
         setError(null);
@@ -187,8 +161,6 @@ export function useProjectSlack(projectId: string) {
                 slackNotifyOn: payload.slackNotifyOn,
                 slackChannelId: payload.slackChannelId ?? '',
                 slackChannelName: payload.slackChannelName ?? null,
-                slackFailureTemplate: payload.slackFailureTemplate ?? DEFAULT_SLACK_FAILURE_TEMPLATE,
-                slackSuccessTemplate: payload.slackSuccessTemplate ?? DEFAULT_SLACK_SUCCESS_TEMPLATE,
             });
             setNotice('saved');
             return true;
@@ -203,53 +175,20 @@ export function useProjectSlack(projectId: string) {
         }
     }, [getHeaders, projectId]);
 
-    const loadPreview = useCallback(async (
-        template: string | null,
+    const sendTestMessage = useCallback(async (
         status: typeof TEST_STATUS.FAIL | typeof TEST_STATUS.PASS
-    ): Promise<SlackPreviewResponse | null> => {
-        const key = status === TEST_STATUS.FAIL ? 'fail' : 'pass';
-        setIsPreviewLoading((prev) => ({ ...prev, [key]: true }));
-        setError(null);
-        try {
-            const headers = await getHeaders();
-            const response = await fetch(`/api/projects/${projectId}/slack/preview`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...headers,
-                },
-                body: JSON.stringify({ template, status }),
-            });
-            if (!response.ok) {
-                setError(await parseRequestError(
-                    response,
-                    'PROJECT_SLACK_PREVIEW_FAILED',
-                    'Failed to render Slack preview'
-                ));
-                return null;
-            }
-            const payload = await response.json() as SlackPreviewResponse;
-            setPreview((prev) => ({ ...prev, [key]: payload }));
-            return payload;
-        } catch (previewError) {
-            setError(createRequestError(
-                'PROJECT_SLACK_PREVIEW_FAILED',
-                previewError instanceof Error ? previewError.message : 'Failed to render Slack preview'
-            ));
-            return null;
-        } finally {
-            setIsPreviewLoading((prev) => ({ ...prev, [key]: false }));
-        }
-    }, [getHeaders, projectId]);
-
-    const sendTestMessage = useCallback(async (): Promise<boolean> => {
+    ): Promise<boolean> => {
         setError(null);
         setNotice(null);
         try {
             const headers = await getHeaders();
             const response = await fetch(`/api/projects/${projectId}/slack/test`, {
                 method: 'POST',
-                headers,
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...headers,
+                },
+                body: JSON.stringify({ status }),
             });
             if (!response.ok) {
                 setError(await parseRequestError(
@@ -276,14 +215,11 @@ export function useProjectSlack(projectId: string) {
         setDraft,
         isLoading,
         isSaving,
-        isPreviewLoading,
-        preview,
         error,
         notice,
         setNotice,
         load,
         save,
-        loadPreview,
         sendTestMessage,
     };
 }

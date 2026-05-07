@@ -539,6 +539,8 @@ export const ZH_HANS_MESSAGES: Messages = {
   "project.integration.slack.preview.passed": "通过消息预览",
   "project.integration.slack.saving": "保存中...",
   "project.integration.slack.sendTest": "发送测试消息",
+  "project.integration.slack.sendTestFailed": "发送测试消息（失败）",
+  "project.integration.slack.sendTestPassed": "发送测试消息（通过）",
   "project.integration.slack.notice.saved": "Slack 设置已保存。",
   "project.integration.slack.notice.tested": "测试消息已发送。",
   "project.integration.slack.error.invalidChannel": "Slack 频道无效，或 Bot 无法访问该频道。",

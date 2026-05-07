@@ -41,8 +41,6 @@ function buildProject(overrides?: Partial<{
     slackNotifyOn: 'FAILED_ONLY' | 'BOTH_PASSED_AND_FAILED';
     channelId: string | null;
     channelName: string | null;
-    failureTemplate: string | null;
-    successTemplate: string | null;
 }>) {
     return {
         id: 'project-1',
@@ -50,8 +48,6 @@ function buildProject(overrides?: Partial<{
         slackNotifyOn: overrides?.slackNotifyOn ?? 'FAILED_ONLY',
         slackChannelId: overrides?.channelId ?? null,
         slackChannelName: overrides?.channelName ?? null,
-        slackFailureTemplate: overrides?.failureTemplate ?? null,
-        slackSuccessTemplate: overrides?.successTemplate ?? null,
         slackUpdatedAt: new Date('2026-04-29T00:00:00.000Z'),
         team: {
             slackBotTokenEncrypted: overrides && 'token' in overrides ? overrides.token ?? null : 'enc-token',
@@ -78,8 +74,6 @@ describe('/api/projects/[id]/slack', () => {
             slackNotifyOn: input.data.slackNotifyOn,
             slackChannelId: input.data.slackChannelId,
             slackChannelName: input.data.slackChannelName,
-            slackFailureTemplate: input.data.slackFailureTemplate,
-            slackSuccessTemplate: input.data.slackSuccessTemplate,
             slackUpdatedAt: new Date('2026-04-29T01:00:00.000Z'),
             team: {
                 slackBotTokenEncrypted: 'enc-token',
@@ -105,6 +99,8 @@ describe('/api/projects/[id]/slack', () => {
             slackNotifyOn: 'FAILED_ONLY',
             parentTeamHasToken: true,
         });
+        expect(payload).not.toHaveProperty('slackFailureTemplate');
+        expect(payload).not.toHaveProperty('slackSuccessTemplate');
     });
 
     it('rejects enabled config when team token is missing', async () => {
@@ -176,8 +172,6 @@ describe('/api/projects/[id]/slack', () => {
             body: JSON.stringify({
                 slackEnabled: true,
                 slackChannelId: 'C123',
-                slackFailureTemplate: 'Failed run {runId}',
-                slackSuccessTemplate: 'Passed run {runId}',
             }),
         }), {
             params: Promise.resolve({ id: 'project-1' }),
@@ -191,8 +185,6 @@ describe('/api/projects/[id]/slack', () => {
                 slackNotifyOn: 'FAILED_ONLY',
                 slackChannelId: 'C123',
                 slackChannelName: 'alerts',
-                slackFailureTemplate: 'Failed run {runId}',
-                slackSuccessTemplate: 'Passed run {runId}',
             }),
             select: expect.any(Object),
         });
@@ -206,8 +198,6 @@ describe('/api/projects/[id]/slack', () => {
                 slackEnabled: true,
                 slackNotifyOn: 'BOTH_PASSED_AND_FAILED',
                 slackChannelId: 'C123',
-                slackFailureTemplate: 'Fail {runId}',
-                slackSuccessTemplate: 'Pass {runId}',
             }),
         }), {
             params: Promise.resolve({ id: 'project-1' }),

@@ -20,7 +20,6 @@ import {
 } from '@/types/slack';
 
 const logger = createLogger('api:projects:slack');
-const MAX_TEMPLATE_LENGTH = 3_500;
 
 function normalizeOptionalText(value: unknown): string | null {
     if (typeof value !== 'string') {
@@ -35,8 +34,6 @@ function projectSettingsResponse(input: {
     slackNotifyOn: ProjectSlackNotifyOn;
     slackChannelId: string | null;
     slackChannelName: string | null;
-    slackFailureTemplate: string | null;
-    slackSuccessTemplate: string | null;
     slackUpdatedAt: Date | null;
     parentTeamHasToken: boolean;
 }): ProjectSlackSettings {
@@ -45,8 +42,6 @@ function projectSettingsResponse(input: {
         slackNotifyOn: input.slackNotifyOn,
         slackChannelId: input.slackChannelId,
         slackChannelName: input.slackChannelName,
-        slackFailureTemplate: input.slackFailureTemplate,
-        slackSuccessTemplate: input.slackSuccessTemplate,
         slackUpdatedAt: input.slackUpdatedAt?.toISOString() ?? null,
         parentTeamHasToken: input.parentTeamHasToken,
     };
@@ -97,8 +92,6 @@ export async function GET(
                 slackNotifyOn: true,
                 slackChannelId: true,
                 slackChannelName: true,
-                slackFailureTemplate: true,
-                slackSuccessTemplate: true,
                 slackUpdatedAt: true,
                 team: {
                     select: {
@@ -121,8 +114,6 @@ export async function GET(
             slackNotifyOn: project.slackNotifyOn,
             slackChannelId: project.slackChannelId,
             slackChannelName: project.slackChannelName,
-            slackFailureTemplate: project.slackFailureTemplate,
-            slackSuccessTemplate: project.slackSuccessTemplate,
             slackUpdatedAt: project.slackUpdatedAt,
             parentTeamHasToken: Boolean(project.team.slackBotTokenEncrypted),
         }));
@@ -154,8 +145,6 @@ export async function PUT(
                 slackNotifyOn: true,
                 slackChannelId: true,
                 slackChannelName: true,
-                slackFailureTemplate: true,
-                slackSuccessTemplate: true,
                 team: {
                     select: {
                         slackBotTokenEncrypted: true,
@@ -175,8 +164,6 @@ export async function PUT(
             slackEnabled?: boolean;
             slackNotifyOn?: ProjectSlackNotifyOn | null;
             slackChannelId?: string | null;
-            slackFailureTemplate?: string | null;
-            slackSuccessTemplate?: string | null;
         };
 
         const slackEnabled = body.slackEnabled === true;
@@ -184,24 +171,6 @@ export async function PUT(
             ? PROJECT_SLACK_NOTIFY_ON.BOTH_PASSED_AND_FAILED
             : PROJECT_SLACK_NOTIFY_ON.FAILED_ONLY;
         const slackChannelId = normalizeOptionalText(body.slackChannelId);
-        const slackFailureTemplate = normalizeOptionalText(body.slackFailureTemplate);
-        const slackSuccessTemplate = normalizeOptionalText(body.slackSuccessTemplate);
-
-        if (slackFailureTemplate && slackFailureTemplate.length > MAX_TEMPLATE_LENGTH) {
-            return NextResponse.json({
-                error: 'INVALID_TEMPLATE',
-                field: 'slackFailureTemplate',
-                detail: `Template must be ${MAX_TEMPLATE_LENGTH} characters or fewer`,
-            }, { status: 400 });
-        }
-
-        if (slackSuccessTemplate && slackSuccessTemplate.length > MAX_TEMPLATE_LENGTH) {
-            return NextResponse.json({
-                error: 'INVALID_TEMPLATE',
-                field: 'slackSuccessTemplate',
-                detail: `Template must be ${MAX_TEMPLATE_LENGTH} characters or fewer`,
-            }, { status: 400 });
-        }
 
         let channelInfo: SlackConversationInfo | null = null;
         if (slackEnabled) {
@@ -244,8 +213,6 @@ export async function PUT(
                 slackNotifyOn,
                 slackChannelId,
                 slackChannelName,
-                slackFailureTemplate,
-                slackSuccessTemplate,
                 slackUpdatedAt: now,
             },
             select: {
@@ -253,8 +220,6 @@ export async function PUT(
                 slackNotifyOn: true,
                 slackChannelId: true,
                 slackChannelName: true,
-                slackFailureTemplate: true,
-                slackSuccessTemplate: true,
                 slackUpdatedAt: true,
                 team: {
                     select: {
@@ -269,8 +234,6 @@ export async function PUT(
             slackNotifyOn: updated.slackNotifyOn,
             slackChannelId: updated.slackChannelId,
             slackChannelName: updated.slackChannelName,
-            slackFailureTemplate: updated.slackFailureTemplate,
-            slackSuccessTemplate: updated.slackSuccessTemplate,
             slackUpdatedAt: updated.slackUpdatedAt,
             parentTeamHasToken: Boolean(updated.team.slackBotTokenEncrypted),
         }));

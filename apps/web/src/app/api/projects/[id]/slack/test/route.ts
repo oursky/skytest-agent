@@ -14,9 +14,10 @@ import {
     SlackChannelNotFoundError,
 } from '@/lib/integrations/slack/errors';
 import {
-    DEFAULT_SLACK_FAILURE_TEMPLATE,
-    renderTemplate,
-} from '@/lib/integrations/slack/template';
+    buildSlackRunMessage,
+    resolveSlackAppBaseUrlFromEnv,
+} from '@/lib/integrations/slack/message';
+import { TEST_STATUS } from '@/types';
 
 const logger = createLogger('api:projects:slack-test');
 
@@ -84,6 +85,23 @@ function mapSlackPostError(error: unknown): NextResponse {
     });
 }
 
+function resolveStatus(value: unknown): typeof TEST_STATUS.FAIL | typeof TEST_STATUS.PASS {
+    return value === TEST_STATUS.PASS ? TEST_STATUS.PASS : TEST_STATUS.FAIL;
+}
+
+function resolveRequestBaseUrl(request: Request): string | null {
+    try {
+        const origin = new URL(request.url).origin;
+        if (origin) {
+            return origin;
+        }
+    } catch {
+        // noop
+    }
+
+    return resolveSlackAppBaseUrlFromEnv();
+}
+
 export async function POST(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
@@ -97,10 +115,9 @@ export async function POST(
         const project = await prisma.project.findUnique({
             where: { id: guard.params.id },
             select: {
-                name: true,
+                id: true,
                 slackEnabled: true,
                 slackChannelId: true,
-                slackFailureTemplate: true,
                 team: {
                     select: {
                         slackBotTokenEncrypted: true,
@@ -129,31 +146,62 @@ export async function POST(
             }, { status: 409 });
         }
 
-        const rendered = renderTemplate(
-            project.slackFailureTemplate ?? DEFAULT_SLACK_FAILURE_TEMPLATE,
-            {
-                projectName: project.name,
-                testCaseName: 'Checkout flow',
-                runId: 'run_test_message',
-                triggeredBy: 'qa@example.com',
-                startedAt: '2026-04-29T12:00:00Z',
-                completedAt: '2026-04-29T12:00:42Z',
-                durationSeconds: 42,
-                errorSummary: 'Element not found',
-            }
-        );
+        const body = await request.json().catch(() => ({})) as {
+            status?: string;
+        };
+        const status = resolveStatus(body.status);
+
+        const latestRun = await prisma.testRun.findFirst({
+            where: {
+                testCase: {
+                    projectId: project.id,
+                },
+                deletedAt: null,
+            },
+            orderBy: {
+                createdAt: 'desc',
+            },
+            select: {
+                id: true,
+                startedAt: true,
+                completedAt: true,
+                error: true,
+                testCase: {
+                    select: {
+                        id: true,
+                        displayId: true,
+                        name: true,
+                    },
+                },
+            },
+        });
+
+        const now = new Date();
+        const startedAt = latestRun?.startedAt ?? now;
+        const completedAt = latestRun?.completedAt ?? new Date(startedAt.getTime() + 42_000);
+        const durationSeconds = Math.max(0, Math.floor((completedAt.getTime() - startedAt.getTime()) / 1000));
+        const text = buildSlackRunMessage({
+            status,
+            testCaseDisplayId: latestRun?.testCase.displayId?.trim() || 'CASE-TEST-001',
+            testCaseName: latestRun?.testCase.name || 'Checkout flow',
+            testCaseId: latestRun?.testCase.id || 'test_case_sample',
+            runId: latestRun?.id || 'run_test_message',
+            startedAt,
+            completedAt,
+            errorSummary: latestRun?.error || 'Element not found',
+            durationSeconds,
+            appBaseUrl: resolveRequestBaseUrl(request),
+        });
 
         const token = decrypt(project.team.slackBotTokenEncrypted);
         await sendTestMessageWithJoinFallback({
             token,
             channelId: project.slackChannelId,
-            text: `🧪 Test message from SkyTest\n\n${rendered.text}`,
+            text,
         });
 
         return NextResponse.json({
             success: true,
-            truncated: rendered.truncated,
-            missingVariables: rendered.missingVariables,
         });
     } catch (error) {
         logger.warn('Failed to send project Slack test message', {
