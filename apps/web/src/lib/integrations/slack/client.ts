@@ -48,6 +48,10 @@ interface SlackConversationInfoResponse extends SlackEnvelope {
     channel?: SlackConversationEntry;
 }
 
+interface SlackConversationsJoinResponse extends SlackEnvelope {
+    channel?: SlackConversationEntry;
+}
+
 export interface SlackAuthTestResult {
     teamId: string;
     teamName: string | null;
@@ -357,6 +361,35 @@ export async function getConversationInfo(input: {
     const name = payload.channel?.name?.trim() ?? '';
     if (!id || !name) {
         throw new SlackApiError('Slack conversations.info response missing channel metadata', {
+            code: 'invalid_response',
+            status: 502,
+            retryable: true,
+        });
+    }
+
+    return {
+        id,
+        name,
+        isPrivate: payload.channel?.is_private === true,
+    };
+}
+
+export async function joinConversation(input: {
+    token: string;
+    channelId: string;
+}): Promise<SlackConversationInfo> {
+    const payload = await performSlackRequest<SlackConversationsJoinResponse>({
+        token: input.token,
+        path: 'conversations.join',
+        body: {
+            channel: input.channelId,
+        },
+    });
+
+    const id = payload.channel?.id?.trim() ?? '';
+    const name = payload.channel?.name?.trim() ?? '';
+    if (!id || !name) {
+        throw new SlackApiError('Slack conversations.join response missing channel metadata', {
             code: 'invalid_response',
             status: 502,
             retryable: true,

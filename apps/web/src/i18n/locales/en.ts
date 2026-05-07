@@ -137,7 +137,7 @@ export const EN_MESSAGES: Messages = {
   "team.integration.slack.helpPrefix": "Setup guide",
   "team.integration.slack.setup.step1": "Create or open your Slack app at",
   "team.integration.slack.setup.step2": "Go to Features > OAuth & Permissions.",
-  "team.integration.slack.setup.step3": "Add Bot Token Scopes: chat:write, channels:read, groups:read, and users:read.",
+  "team.integration.slack.setup.step3": "Add Bot Token Scopes: chat:write, channels:read, channels:join, groups:read, and users:read.",
   "team.integration.slack.setup.step4": "In OAuth Tokens section, install the app to your workspace.",
   "team.integration.slack.setup.step5": "Copy the Bot User OAuth Token (xoxb-...), paste it above, then click Connect and Test connection.",
   "team.page.error.load": "Failed to load team details.",

@@ -4,7 +4,10 @@ import { createLogger } from '@/lib/core/logger';
 import { apiError } from '@/lib/security/api-route-standards';
 import { guardProjectRouteRequest } from '@/lib/security/project-route-access';
 import { decrypt } from '@/lib/security/crypto';
-import { postMessage } from '@/lib/integrations/slack/client';
+import {
+    joinConversation,
+    postMessage,
+} from '@/lib/integrations/slack/client';
 import {
     SlackApiError,
     SlackAuthError,
@@ -16,6 +19,42 @@ import {
 } from '@/lib/integrations/slack/template';
 
 const logger = createLogger('api:projects:slack-test');
+
+async function sendTestMessageWithJoinFallback(input: {
+    token: string;
+    channelId: string;
+    text: string;
+}): Promise<void> {
+    let channelMembershipError: SlackChannelNotFoundError | null = null;
+    try {
+        await postMessage({
+            token: input.token,
+            channel: input.channelId,
+            text: input.text,
+        });
+        return;
+    } catch (error) {
+        if (!(error instanceof SlackChannelNotFoundError) || error.code !== 'not_in_channel') {
+            throw error;
+        }
+        channelMembershipError = error;
+    }
+
+    try {
+        await joinConversation({
+            token: input.token,
+            channelId: input.channelId,
+        });
+    } catch {
+        throw channelMembershipError;
+    }
+
+    await postMessage({
+        token: input.token,
+        channel: input.channelId,
+        text: input.text,
+    });
+}
 
 function mapSlackPostError(error: unknown): NextResponse {
     if (error instanceof SlackAuthError) {
@@ -105,9 +144,9 @@ export async function POST(
         );
 
         const token = decrypt(project.team.slackBotTokenEncrypted);
-        await postMessage({
+        await sendTestMessageWithJoinFallback({
             token,
-            channel: project.slackChannelId,
+            channelId: project.slackChannelId,
             text: `🧪 Test message from SkyTest\n\n${rendered.text}`,
         });
 

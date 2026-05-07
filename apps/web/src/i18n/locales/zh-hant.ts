@@ -137,7 +137,7 @@ export const ZH_HANT_MESSAGES: Messages = {
   "team.integration.slack.helpPrefix": "設定步驟",
   "team.integration.slack.setup.step1": "先在這裡建立或開啟你的 Slack App：",
   "team.integration.slack.setup.step2": "前往 Features > OAuth & Permissions。",
-  "team.integration.slack.setup.step3": "新增 Bot Token Scopes：chat:write、channels:read、groups:read、users:read。",
+  "team.integration.slack.setup.step3": "新增 Bot Token Scopes：chat:write、channels:read、channels:join、groups:read、users:read。",
   "team.integration.slack.setup.step4": "在 OAuth Tokens 區段，將 App 安裝到你的工作區。",
   "team.integration.slack.setup.step5": "複製 Bot User OAuth Token（xoxb-...）貼到上方，按下「連線」再按「測試連線」。",
   "team.page.error.load": "載入團隊詳情失敗。",

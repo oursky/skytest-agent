@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     authTest,
     getConversationInfo,
+    joinConversation,
     listConversations,
     postMessage,
 } from '@/lib/integrations/slack/client';
@@ -148,6 +149,33 @@ describe('slack client', () => {
         const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
         expect(url).toContain('https://slack.com/api/conversations.info?channel=C123');
         expect(init.method).toBe('GET');
+    });
+
+    it('joins a conversation with POST body', async () => {
+        const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({
+            ok: true,
+            channel: {
+                id: 'C123',
+                name: 'alerts',
+                is_private: false,
+            },
+        }));
+        vi.stubGlobal('fetch', fetchMock);
+
+        const result = await joinConversation({
+            token: 'xoxb-valid',
+            channelId: 'C123',
+        });
+
+        expect(result).toEqual({
+            id: 'C123',
+            name: 'alerts',
+            isPrivate: false,
+        });
+        const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+        expect(url).toContain('https://slack.com/api/conversations.join');
+        expect(init.method).toBe('POST');
+        expect(init.body).toBe(JSON.stringify({ channel: 'C123' }));
     });
 
 });

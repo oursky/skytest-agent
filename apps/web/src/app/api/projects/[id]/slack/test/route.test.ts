@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
     },
     decrypt: vi.fn(),
     postMessage: vi.fn(),
+    joinConversation: vi.fn(),
 }));
 
 vi.mock('@/lib/security/project-route-access', () => ({
@@ -26,6 +27,7 @@ vi.mock('@/lib/security/crypto', () => ({
 
 vi.mock('@/lib/integrations/slack/client', () => ({
     postMessage: mocks.postMessage,
+    joinConversation: mocks.joinConversation,
 }));
 
 const { POST } = await import('@/app/api/projects/[id]/slack/test/route');
@@ -52,6 +54,7 @@ describe('/api/projects/[id]/slack/test', () => {
         mocks.prisma.project.findUnique.mockReset();
         mocks.decrypt.mockReset();
         mocks.postMessage.mockReset();
+        mocks.joinConversation.mockReset();
 
         mocks.guardProjectRouteRequest.mockResolvedValue({
             ok: true,
@@ -61,6 +64,11 @@ describe('/api/projects/[id]/slack/test', () => {
         mocks.prisma.project.findUnique.mockResolvedValue(buildProject());
         mocks.decrypt.mockReturnValue('xoxb-token');
         mocks.postMessage.mockResolvedValue({ timestamp: '1.23' });
+        mocks.joinConversation.mockResolvedValue({
+            id: 'C123',
+            name: 'alerts',
+            isPrivate: false,
+        });
     });
 
     it('sends a Slack test message for configured project', async () => {
@@ -129,5 +137,51 @@ describe('/api/projects/[id]/slack/test', () => {
             error: 'INVALID_CHANNEL',
             field: 'slackChannelId',
         });
+    });
+
+    it('joins channel and retries once when bot is not in channel', async () => {
+        mocks.postMessage
+            .mockRejectedValueOnce(new SlackChannelNotFoundError('not in channel', {
+                code: 'not_in_channel',
+                status: 200,
+            }))
+            .mockResolvedValueOnce({ timestamp: '2.34' });
+
+        const response = await POST(new Request('http://localhost/api/projects/project-1/slack/test', {
+            method: 'POST',
+        }), {
+            params: Promise.resolve({ id: 'project-1' }),
+        });
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(payload.success).toBe(true);
+        expect(mocks.joinConversation).toHaveBeenCalledWith({
+            token: 'xoxb-token',
+            channelId: 'C123',
+        });
+        expect(mocks.postMessage).toHaveBeenCalledTimes(2);
+    });
+
+    it('keeps INVALID_CHANNEL response when auto-join fails', async () => {
+        mocks.postMessage.mockRejectedValueOnce(new SlackChannelNotFoundError('not in channel', {
+            code: 'not_in_channel',
+            status: 200,
+        }));
+        mocks.joinConversation.mockRejectedValueOnce(new Error('missing_scope'));
+
+        const response = await POST(new Request('http://localhost/api/projects/project-1/slack/test', {
+            method: 'POST',
+        }), {
+            params: Promise.resolve({ id: 'project-1' }),
+        });
+        const payload = await response.json();
+
+        expect(response.status).toBe(400);
+        expect(payload).toMatchObject({
+            error: 'INVALID_CHANNEL',
+            field: 'slackChannelId',
+        });
+        expect(mocks.postMessage).toHaveBeenCalledTimes(1);
     });
 });
