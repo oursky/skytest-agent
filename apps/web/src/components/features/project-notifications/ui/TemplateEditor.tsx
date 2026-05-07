@@ -19,6 +19,7 @@ const TEMPLATE_VARIABLES = [
     'triggeredBy',
     'startedAt',
     'completedAt',
+    'durationMinutesSeconds',
     'durationSeconds',
     'errorSummary',
 ];

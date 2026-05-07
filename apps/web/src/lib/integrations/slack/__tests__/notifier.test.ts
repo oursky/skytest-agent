@@ -202,6 +202,31 @@ describe('notifyRunTerminal', () => {
         await notifyRunTerminal('run-1');
 
         expect(postMessageMock).toHaveBeenCalledTimes(1);
+        expect(postMessageMock).toHaveBeenCalledWith({
+            token: 'xoxb-token',
+            channel: 'C123',
+            text: expect.stringContaining('*Duration:* 1m00s'),
+        });
+    });
+
+    it('wraps truncated failure errors in code fences', async () => {
+        findUniqueRun.mockResolvedValueOnce({
+            ...buildFailedRun({ status: 'FAIL' }),
+            error: `Error details: ${'x'.repeat(700)}`,
+        });
+
+        await notifyRunTerminal('run-1');
+
+        expect(postMessageMock).toHaveBeenCalledWith({
+            token: 'xoxb-token',
+            channel: 'C123',
+            text: expect.stringContaining('*Error:* ```\n'),
+        });
+        expect(postMessageMock).toHaveBeenCalledWith({
+            token: 'xoxb-token',
+            channel: 'C123',
+            text: expect.stringContaining('...\n```'),
+        });
     });
 
     it('does not fall back to internal test case id when display id is empty', async () => {

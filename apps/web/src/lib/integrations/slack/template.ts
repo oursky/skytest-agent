@@ -15,7 +15,7 @@ export const DEFAULT_SLACK_SUCCESS_TEMPLATE = [
     '*Project:* {projectName}',
     '*Triggered by:* {triggeredBy}',
     '*Started:* {startedAt} *Completed:* {completedAt}',
-    '*Duration:* {durationSeconds}s',
+    '*Duration:* {durationMinutesSeconds}',
 ].join('\n');
 
 const TEMPLATE_VARIABLE_PATTERN = /\{([a-zA-Z0-9_]+)\}/g;

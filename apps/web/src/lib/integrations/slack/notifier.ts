@@ -40,7 +40,13 @@ function trimErrorSummary(value: string | null): string {
         return value;
     }
 
-    return `${value.slice(0, MAX_ERROR_SUMMARY_LENGTH)}...`;
+    return `\`\`\`\n${value.slice(0, MAX_ERROR_SUMMARY_LENGTH)}...\n\`\`\``;
+}
+
+function formatDurationMinutesSeconds(durationSeconds: number): string {
+    const minutes = Math.floor(durationSeconds / 60);
+    const seconds = durationSeconds % 60;
+    return `${minutes}m${String(seconds).padStart(2, '0')}s`;
 }
 
 async function clearSlackClaim(runId: string): Promise<void> {
@@ -147,6 +153,9 @@ export async function notifyRunTerminal(runId: string): Promise<SlackNotifyOutco
         testCaseId: run.testCase.id,
         runId: run.id,
     });
+    const durationSeconds = run.startedAt && run.completedAt
+        ? Math.max(0, Math.floor((run.completedAt.getTime() - run.startedAt.getTime()) / 1000))
+        : 0;
     const rendered = renderTemplate(selectedTemplate, {
         projectName: run.testCase.project.name,
         testCaseID: (run.testCase.displayId || '').trim(),
@@ -157,9 +166,8 @@ export async function notifyRunTerminal(runId: string): Promise<SlackNotifyOutco
         triggeredBy: run.triggeredByEmail ?? 'system',
         startedAt: rawSlack(formatSlackDateToken(run.startedAt)),
         completedAt: rawSlack(formatSlackDateToken(run.completedAt)),
-        durationSeconds: run.startedAt && run.completedAt
-            ? Math.max(0, Math.floor((run.completedAt.getTime() - run.startedAt.getTime()) / 1000))
-            : 0,
+        durationSeconds,
+        durationMinutesSeconds: formatDurationMinutesSeconds(durationSeconds),
         errorSummary: isFailedRun ? trimErrorSummary(run.error) : '-',
     }, {
         fallbackTemplate,
