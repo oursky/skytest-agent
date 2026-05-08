@@ -1,24 +1,23 @@
 export const DEFAULT_SLACK_FAILURE_TEMPLATE = [
-    ':x: *Test Failed* {testCaseID}',
+    ':x: *Test Failed* {projectName} {testCaseID}',
     '*Test Case:* {testCaseName}',
-    '*Run ID:* {runId}',
-    '*Project:* {projectName}',
-    '*Triggered by:* {triggeredBy}',
-    '*Started:* {startedAt} *Completed:* {completedAt}',
-    '*Error:* {errorSummary}',
+    '*Test Run Link:* {testRunLink}',
+    '*Start Time:* {startedAt} *End Time:* {completedAt}',
+    '*Error:*',
+    '```',
+    '{errorSummary}',
+    '```',
 ].join('\n');
 
 export const DEFAULT_SLACK_SUCCESS_TEMPLATE = [
-    ':white_check_mark: *Test Passed* {testCaseID}',
+    ':white_check_mark: *Test Passed* {projectName} {testCaseID}',
     '*Test Case:* {testCaseName}',
-    '*Run ID:* {runId}',
-    '*Project:* {projectName}',
-    '*Triggered by:* {triggeredBy}',
-    '*Started:* {startedAt} *Completed:* {completedAt}',
-    '*Duration:* {durationMinutesSeconds}',
+    '*Test Run Link:* {testRunLink}',
+    '*Start Time:* {startedAt} *End Time:* {completedAt}',
+    '*Duration:* {durationMinSec}',
 ].join('\n');
 
-const TEMPLATE_VARIABLE_PATTERN = /\{([a-zA-Z0-9_]+)\}/g;
+const TEMPLATE_VARIABLE_PATTERN = /\{([^{}]+)\}/g;
 const SLACK_MESSAGE_SOFT_LIMIT = 3_500;
 
 export interface SlackTemplateContext {
@@ -72,7 +71,8 @@ export function renderTemplate(
     const fallbackTemplate = options?.fallbackTemplate ?? DEFAULT_SLACK_FAILURE_TEMPLATE;
     const safeTemplate = template.trim().length > 0 ? template : fallbackTemplate;
 
-    const replaced = safeTemplate.replaceAll(TEMPLATE_VARIABLE_PATTERN, (fullMatch, variableName: string) => {
+    const replaced = safeTemplate.replaceAll(TEMPLATE_VARIABLE_PATTERN, (fullMatch, capturedVariableName: string) => {
+        const variableName = capturedVariableName.trim();
         const value = context[variableName];
         if (value === undefined || value === null) {
             missingVariables.add(variableName);

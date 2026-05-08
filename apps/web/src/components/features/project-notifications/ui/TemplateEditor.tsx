@@ -15,12 +15,11 @@ const TEMPLATE_VARIABLES = [
     'projectName',
     'testCaseID',
     'testCaseName',
-    'runId',
+    'testRunLink',
     'triggeredBy',
     'startedAt',
     'completedAt',
-    'durationMinutesSeconds',
-    'durationSeconds',
+    'durationMinSec',
     'errorSummary',
 ];
 

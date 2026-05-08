@@ -176,8 +176,8 @@ describe('/api/projects/[id]/slack', () => {
             body: JSON.stringify({
                 slackEnabled: true,
                 slackChannelId: 'C123',
-                slackFailureTemplate: 'Failed run {runId}',
-                slackSuccessTemplate: 'Passed run {runId}',
+                slackFailureTemplate: 'Failed run {testRunLink}',
+                slackSuccessTemplate: 'Passed run {durationMinSec}',
             }),
         }), {
             params: Promise.resolve({ id: 'project-1' }),
@@ -191,8 +191,8 @@ describe('/api/projects/[id]/slack', () => {
                 slackNotifyOn: 'FAILED_ONLY',
                 slackChannelId: 'C123',
                 slackChannelName: 'alerts',
-                slackFailureTemplate: 'Failed run {runId}',
-                slackSuccessTemplate: 'Passed run {runId}',
+                slackFailureTemplate: 'Failed run {testRunLink}',
+                slackSuccessTemplate: 'Passed run {durationMinSec}',
             }),
             select: expect.any(Object),
         });
@@ -206,8 +206,8 @@ describe('/api/projects/[id]/slack', () => {
                 slackEnabled: true,
                 slackNotifyOn: 'BOTH_PASSED_AND_FAILED',
                 slackChannelId: 'C123',
-                slackFailureTemplate: 'Fail {runId}',
-                slackSuccessTemplate: 'Pass {runId}',
+                slackFailureTemplate: 'Fail {testRunLink}',
+                slackSuccessTemplate: 'Pass {durationMinSec}',
             }),
         }), {
             params: Promise.resolve({ id: 'project-1' }),

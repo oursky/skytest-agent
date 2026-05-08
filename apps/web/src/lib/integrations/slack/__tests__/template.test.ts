@@ -6,22 +6,22 @@ import {
 
 describe('renderTemplate', () => {
     it('renders all provided variables', () => {
-        const result = renderTemplate('Run {runId} failed in {projectName}', {
-            runId: 'run-123',
+        const result = renderTemplate('Run {testRunLink} failed in {projectName}', {
+            testRunLink: 'http://localhost/run/123',
             projectName: 'Checkout',
         });
 
-        expect(result.text).toBe('Run run-123 failed in Checkout');
+        expect(result.text).toBe('Run http://localhost/run/123 failed in Checkout');
         expect(result.truncated).toBe(false);
         expect(result.missingVariables).toEqual([]);
     });
 
     it('keeps unknown variables and reports them', () => {
-        const result = renderTemplate('Run {runId} failed by {owner}', {
-            runId: 'run-123',
+        const result = renderTemplate('Run {testRunLink} failed by {owner}', {
+            testRunLink: 'http://localhost/run/123',
         });
 
-        expect(result.text).toBe('Run run-123 failed by {owner}');
+        expect(result.text).toBe('Run http://localhost/run/123 failed by {owner}');
         expect(result.missingVariables).toEqual(['owner']);
     });
 
@@ -43,33 +43,41 @@ describe('renderTemplate', () => {
     });
 
     it('preserves mention markup written directly in template', () => {
-        const result = renderTemplate('Notify <@U123ABC> about {runId}', {
-            runId: 'run-123',
+        const result = renderTemplate('Notify <@U123ABC> about {testRunLink}', {
+            testRunLink: 'http://localhost/run/123',
         });
 
-        expect(result.text).toBe('Notify <@U123ABC> about run-123');
+        expect(result.text).toBe('Notify <@U123ABC> about http://localhost/run/123');
     });
 
     it('falls back to default template when input is empty', () => {
         const result = renderTemplate('   ', {
-            runId: 'Run - 1',
-            runReference: 'Run - 1',
+            testRunLink: 'http://localhost/run/123',
             testCaseID: 'TC-1',
             testCaseName: 'Checkout flow',
             projectName: 'Storefront',
             triggeredBy: 'test@example.com',
             startedAt: '2026-04-29T00:00:00Z',
             completedAt: '2026-04-29T00:00:42Z',
-            durationSeconds: 42,
+            durationMinSec: '42s',
             errorSummary: 'Element not found',
         });
 
-        expect(result.text).toContain(':x: *Test Failed* TC-1');
-        expect(result.text).not.toContain('{runId}');
+        expect(result.text).toContain(':x: *Test Failed* Storefront TC-1');
+        expect(result.text).not.toContain('{testRunLink}');
     });
 
     it('default template contains expected placeholders', () => {
-        expect(DEFAULT_SLACK_FAILURE_TEMPLATE).toContain('{runId}');
+        expect(DEFAULT_SLACK_FAILURE_TEMPLATE).toContain('{testRunLink}');
         expect(DEFAULT_SLACK_FAILURE_TEMPLATE).toContain('{errorSummary}');
+    });
+
+    it('trims variable names inside braces', () => {
+        const result = renderTemplate('Run link: { testRunLink }', {
+            testRunLink: 'https://example.com/history/run-1',
+        });
+
+        expect(result.text).toBe('Run link: https://example.com/history/run-1');
+        expect(result.missingVariables).toEqual([]);
     });
 });

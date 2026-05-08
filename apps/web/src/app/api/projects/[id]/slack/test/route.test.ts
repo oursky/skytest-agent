@@ -92,22 +92,12 @@ describe('/api/projects/[id]/slack/test', () => {
         expect(mocks.postMessage).toHaveBeenCalledWith({
             token: 'xoxb-token',
             channel: 'C123',
-            text: expect.stringContaining(':x: *Test Failed* CASE-TEST-001'),
+            text: expect.stringContaining(':x: *Test Failed* Storefront CASE-TEST-001'),
         });
         expect(mocks.postMessage).toHaveBeenCalledWith({
             token: 'xoxb-token',
             channel: 'C123',
-            text: expect.stringContaining('^Run - {date_short} {time}|Run - 7 May 2026, 09:33 UTC>'),
-        });
-        expect(mocks.postMessage).not.toHaveBeenCalledWith({
-            token: 'xoxb-token',
-            channel: 'C123',
-            text: expect.stringContaining('http://localhost:3000/test-cases/'),
-        });
-        expect(mocks.postMessage).toHaveBeenCalledWith({
-            token: 'xoxb-token',
-            channel: 'C123',
-            text: expect.stringContaining('*Started:* <!date^1778146380^{date_num} {time_secs}|7 May 2026, 09:33 UTC>'),
+            text: expect.stringContaining('*Test Run Link:* http://localhost:3000/test-cases/case-test-001/history/run_test_message'),
         });
     });
 
@@ -124,7 +114,7 @@ describe('/api/projects/[id]/slack/test', () => {
         expect(mocks.postMessage).toHaveBeenCalledWith({
             token: 'xoxb-token',
             channel: 'C123',
-            text: expect.stringContaining(':white_check_mark: *Test Passed* CASE-TEST-001'),
+            text: expect.stringContaining(':white_check_mark: *Test Passed* Storefront CASE-TEST-001'),
         });
         expect(mocks.postMessage).toHaveBeenCalledWith({
             token: 'xoxb-token',

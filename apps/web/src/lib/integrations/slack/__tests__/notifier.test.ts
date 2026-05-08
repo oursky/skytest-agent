@@ -99,7 +99,7 @@ describe('notifyRunTerminal', () => {
         expect(postMessageMock).toHaveBeenCalledWith({
             token: 'xoxb-token',
             channel: 'C123',
-            text: expect.stringContaining(':x: *Test Failed* TC-001'),
+            text: expect.stringContaining(':x: *Test Failed* Storefront TC-001'),
         });
         expect(updateRun).toHaveBeenCalledWith({
             where: { id: 'run-1' },
@@ -220,7 +220,7 @@ describe('notifyRunTerminal', () => {
         expect(postMessageMock).toHaveBeenCalledWith({
             token: 'xoxb-token',
             channel: 'C123',
-            text: expect.stringContaining('*Error:* ```\n'),
+            text: expect.stringContaining('*Error:*\n```'),
         });
         expect(postMessageMock).toHaveBeenCalledWith({
             token: 'xoxb-token',
@@ -237,7 +237,7 @@ describe('notifyRunTerminal', () => {
         expect(postMessageMock).toHaveBeenCalledWith({
             token: 'xoxb-token',
             channel: 'C123',
-            text: expect.stringContaining(':x: *Test Failed* \n*Test Case:* Checkout'),
+            text: expect.stringContaining(':x: *Test Failed* Storefront \n*Test Case:* Checkout'),
         });
     });
 });

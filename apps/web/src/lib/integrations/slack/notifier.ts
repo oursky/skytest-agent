@@ -5,7 +5,6 @@ import { postMessage } from '@/lib/integrations/slack/client';
 import { SlackApiError } from '@/lib/integrations/slack/errors';
 import { slackNotificationPolicy } from '@/lib/integrations/slack/config';
 import {
-    buildSlackRunReference,
     buildRunUrl,
     formatSlackDateToken,
     resolveSlackAppBaseUrlFromEnv,
@@ -36,11 +35,9 @@ function trimErrorSummary(value: string | null): string {
         return 'Unknown error';
     }
 
-    if (value.length <= MAX_ERROR_SUMMARY_LENGTH) {
-        return value;
-    }
-
-    return `\`\`\`\n${value.slice(0, MAX_ERROR_SUMMARY_LENGTH)}...\n\`\`\``;
+    return value.length <= MAX_ERROR_SUMMARY_LENGTH
+        ? value
+        : `${value.slice(0, MAX_ERROR_SUMMARY_LENGTH)}...`;
 }
 
 function formatDurationMinutesSeconds(durationSeconds: number): string {
@@ -160,14 +157,11 @@ export async function notifyRunTerminal(runId: string): Promise<SlackNotifyOutco
         projectName: run.testCase.project.name,
         testCaseID: (run.testCase.displayId || '').trim(),
         testCaseName: run.testCase.name,
-        runId: rawSlack(buildSlackRunReference({ runUrl, startedAt: run.startedAt })),
-        runReference: rawSlack(buildSlackRunReference({ runUrl, startedAt: run.startedAt })),
-        runRawId: run.id,
+        testRunLink: runUrl ?? '-',
         triggeredBy: run.triggeredByEmail ?? 'system',
         startedAt: rawSlack(formatSlackDateToken(run.startedAt)),
         completedAt: rawSlack(formatSlackDateToken(run.completedAt)),
-        durationSeconds,
-        durationMinutesSeconds: formatDurationMinutesSeconds(durationSeconds),
+        durationMinSec: formatDurationMinutesSeconds(durationSeconds),
         errorSummary: isFailedRun ? trimErrorSummary(run.error) : '-',
     }, {
         fallbackTemplate,

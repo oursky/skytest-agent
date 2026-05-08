@@ -14,14 +14,6 @@ function formatFallbackDate(date: Date): string {
     }).format(date);
 }
 
-function formatRunLabel(date: Date | null): string {
-    if (!date) {
-        return 'Run';
-    }
-
-    return `Run - ${formatFallbackDate(date)}`;
-}
-
 export function buildRunUrl(input: {
     appBaseUrl: string | null;
     testCaseId: string;
@@ -37,23 +29,6 @@ export function buildRunUrl(input: {
     }
 
     return `${baseUrl.replace(/\/+$/, '')}/test-cases/${encodeURIComponent(input.testCaseId)}/history/${encodeURIComponent(input.runId)}`;
-}
-
-export function buildSlackRunReference(input: {
-    runUrl: string | null;
-    startedAt: Date | null;
-}): string {
-    if (!input.startedAt) {
-        return input.runUrl ? `<${input.runUrl}|Run>` : 'Run';
-    }
-
-    const timestamp = toUnixTimestampSeconds(input.startedAt);
-    const fallback = `${formatRunLabel(input.startedAt)} UTC`;
-    if (input.runUrl) {
-        return `<!date^${timestamp}^Run - {date_short} {time}^${input.runUrl}|${fallback}>`;
-    }
-
-    return `<!date^${timestamp}^Run - {date_short} {time}|${fallback}>`;
 }
 
 export function formatSlackDateToken(date: Date | null): string {

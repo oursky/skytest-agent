@@ -13,10 +13,7 @@ import {
     SlackAuthError,
     SlackChannelNotFoundError,
 } from '@/lib/integrations/slack/errors';
-import {
-    buildSlackRunReference,
-    formatSlackDateToken,
-} from '@/lib/integrations/slack/message';
+import { formatSlackDateToken } from '@/lib/integrations/slack/message';
 import {
     DEFAULT_SLACK_FAILURE_TEMPLATE,
     DEFAULT_SLACK_SUCCESS_TEMPLATE,
@@ -161,7 +158,7 @@ export async function POST(
         const startedAt = now;
         const completedAt = new Date(startedAt.getTime() + 42_000);
         const durationSeconds = Math.max(0, Math.floor((completedAt.getTime() - startedAt.getTime()) / 1000));
-        const runReference = buildSlackRunReference({ runUrl: null, startedAt });
+        const testRunLink = `${new URL(request.url).origin}/test-cases/case-test-001/history/run_test_message`;
 
         const fallbackTemplate = status === TEST_STATUS.PASS
             ? DEFAULT_SLACK_SUCCESS_TEMPLATE
@@ -174,14 +171,11 @@ export async function POST(
             projectName: project.name,
             testCaseID: 'CASE-TEST-001',
             testCaseName: 'Checkout flow',
-            runId: rawSlack(runReference),
-            runReference: rawSlack(runReference),
-            runRawId: 'run_test_message',
+            testRunLink,
             triggeredBy: 'test@example.com',
             startedAt: rawSlack(formatSlackDateToken(startedAt)),
             completedAt: rawSlack(formatSlackDateToken(completedAt)),
-            durationSeconds,
-            durationMinutesSeconds: formatDurationMinutesSeconds(durationSeconds),
+            durationMinSec: formatDurationMinutesSeconds(durationSeconds),
             errorSummary: 'Element not found',
         }, {
             fallbackTemplate,

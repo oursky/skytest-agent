@@ -184,6 +184,7 @@ export default function ProjectSlackSettings({ projectId, teamId }: ProjectSlack
                         onChange={(value) => setDraft((prev) => ({ ...prev, slackSuccessTemplate: value }))}
                         onReset={() => setDraft((prev) => ({ ...prev, slackSuccessTemplate: DEFAULT_SLACK_SUCCESS_TEMPLATE }))}
                     />
+                    <p className="text-xs text-gray-500">{t('project.integration.slack.template.mentionTip')}</p>
 
                     <div className="space-y-1 text-xs">
                         {failureTemplateTooLong && (
