@@ -67,6 +67,8 @@ function RunPageContent() {
     const eventSourceRef = useRef<EventSource | null>(null);
     const connectRequestIdRef = useRef(0);
     const eventKeySetRef = useRef<Set<string>>(new Set());
+    const reconnectAttemptRef = useRef(0);
+    const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [currentTestCaseId, setCurrentTestCaseId] = useState<string | null>(null);
     const [currentRunId, setCurrentRunId] = useState<string | null>(null);
     const [projectIdFromTestCase, setProjectIdFromTestCase] = useState<string | null>(null);
@@ -442,24 +444,35 @@ function RunPageContent() {
         return typeof data.streamToken === 'string' ? data.streamToken : null;
     }, [getAccessToken]);
 
-    const connectToRun = useCallback(async (runId: string) => {
+    const connectToRun = useCallback(async (runId: string, options?: { preserveStreamState?: boolean }) => {
+        const preserveStreamState = options?.preserveStreamState === true;
         connectRequestIdRef.current += 1;
         const requestId = connectRequestIdRef.current;
+
+        if (reconnectTimerRef.current) {
+            clearTimeout(reconnectTimerRef.current);
+            reconnectTimerRef.current = null;
+        }
 
         if (eventSourceRef.current) {
             eventSourceRef.current.close();
             eventSourceRef.current = null;
         }
-        eventKeySetRef.current = new Set();
+        if (!preserveStreamState) {
+            eventKeySetRef.current = new Set();
+            reconnectAttemptRef.current = 0;
+        }
 
-        setResult(prev => ({
-            ...prev,
-            status: prev.status ?? TEST_STATUS.QUEUED,
-            events: [],
-            error: undefined,
-            errorCode: undefined,
-            errorCategory: undefined,
-        }));
+        if (!preserveStreamState) {
+            setResult(prev => ({
+                ...prev,
+                status: prev.status ?? TEST_STATUS.QUEUED,
+                events: [],
+                error: undefined,
+                errorCode: undefined,
+                errorCategory: undefined,
+            }));
+        }
         setCurrentRunId(runId);
 
         const streamToken = await issueStreamToken('test-run-events', runId);
@@ -475,13 +488,23 @@ function RunPageContent() {
             if (snapshot) {
                 applyRunResultSnapshot(snapshot);
             }
-            if (!snapshot?.status || !isRunTerminalStatus(snapshot.status)) {
-                setResult(prev => ({
-                    ...prev,
-                    error: t('run.error.connectionLost')
-                }));
+            if (snapshot?.status && isRunTerminalStatus(snapshot.status)) {
+                reconnectAttemptRef.current = 0;
+                return;
             }
-            setIsLoading(false);
+            setResult(prev => ({
+                ...prev,
+                error: t('run.error.connectionLost')
+            }));
+            const attempt = reconnectAttemptRef.current + 1;
+            reconnectAttemptRef.current = attempt;
+            const retryDelayMs = Math.min(10_000, Math.max(1_000, 1_000 * (2 ** (attempt - 1))));
+            reconnectTimerRef.current = setTimeout(() => {
+                if (requestId !== connectRequestIdRef.current) {
+                    return;
+                }
+                void connectToRun(runId, { preserveStreamState: true });
+            }, retryDelayMs);
             return;
         }
 
@@ -501,6 +524,9 @@ function RunPageContent() {
                         const { next, shouldStopLoading } = applyRunStreamStatusUpdate(prev, data);
                         if (shouldStopLoading) {
                             setIsLoading(false);
+                            reconnectAttemptRef.current = 0;
+                        } else {
+                            reconnectAttemptRef.current = 0;
                         }
                         return next;
                     });
@@ -539,17 +565,26 @@ function RunPageContent() {
                 if (snapshot) {
                     applyRunResultSnapshot(snapshot);
                     if (snapshot.status && isRunTerminalStatus(snapshot.status)) {
+                        reconnectAttemptRef.current = 0;
                         return;
                     }
                 }
 
-                setIsLoading(false);
-                setResult(prev => {
-                    if (isRunTerminalStatus(prev.status)) {
-                        return prev;
+                setResult(prev => (
+                    isRunTerminalStatus(prev.status)
+                        ? prev
+                        : { ...prev, error: t('run.error.connectionLost') }
+                ));
+
+                const attempt = reconnectAttemptRef.current + 1;
+                reconnectAttemptRef.current = attempt;
+                const retryDelayMs = Math.min(10_000, Math.max(1_000, 1_000 * (2 ** (attempt - 1))));
+                reconnectTimerRef.current = setTimeout(() => {
+                    if (requestId !== connectRequestIdRef.current) {
+                        return;
                     }
-                    return { ...prev, error: t('run.error.connectionLost') };
-                });
+                    void connectToRun(runId, { preserveStreamState: true });
+                }, retryDelayMs);
             })();
         };
 
@@ -578,6 +613,10 @@ function RunPageContent() {
     useEffect(() => {
         return () => {
             connectRequestIdRef.current += 1;
+            if (reconnectTimerRef.current) {
+                clearTimeout(reconnectTimerRef.current);
+                reconnectTimerRef.current = null;
+            }
             if (eventSourceRef.current) {
                 eventSourceRef.current.close();
                 eventSourceRef.current = null;
