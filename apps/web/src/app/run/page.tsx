@@ -44,6 +44,7 @@ import {
     handleProceedImportReviewHelper,
 } from "./run-page-import-review";
 import { ensureTestCaseFromDataHelper } from "./run-page-test-case-helper";
+import { fetchWithAccessToken, issueRunStreamToken } from "./run-page-api";
 import { ActiveRunPanel, RunPageHeader, RunPageImportControls, RunPageLayout, RunPageSkeleton } from "./run-page-panels";
 
 interface TestData {
@@ -192,9 +193,7 @@ function RunPageContent() {
 
     const fetchProjectName = useCallback(async (projId: string) => {
         try {
-            const token = await getAccessToken();
-            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const response = await fetch(`/api/projects/${projId}`, { headers });
+            const response = await fetchWithAccessToken(getAccessToken, `/api/projects/${projId}`);
             if (response.ok) {
                 const data = await response.json() as { name?: string; teamId?: string | null };
                 setProjectName(typeof data.name === 'string' ? data.name : '');
@@ -207,9 +206,7 @@ function RunPageContent() {
 
     const fetchTestCase = useCallback(async (id: string) => {
         try {
-            const token = await getAccessToken();
-            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const response = await fetch(`/api/test-cases/${id}`, { headers });
+            const response = await fetchWithAccessToken(getAccessToken, `/api/test-cases/${id}`);
             if (response.ok) {
                 const data = await response.json();
 
@@ -253,9 +250,7 @@ function RunPageContent() {
 
     const fetchTestRun = useCallback(async (id: string) => {
         try {
-            const token = await getAccessToken();
-            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const response = await fetch(`/api/test-runs/${id}`, { headers });
+            const response = await fetchWithAccessToken(getAccessToken, `/api/test-runs/${id}`);
             if (response.ok) {
                 const data = await response.json() as {
                     configurationSnapshot?: string | null;
@@ -329,9 +324,7 @@ function RunPageContent() {
 
     const fetchRunResultSnapshot = useCallback(async (id: string): Promise<RunViewerResult | null> => {
         try {
-            const token = await getAccessToken();
-            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const response = await fetch(`/api/test-runs/${id}`, { headers });
+            const response = await fetchWithAccessToken(getAccessToken, `/api/test-runs/${id}`);
             if (!response.ok) {
                 return null;
             }
@@ -354,9 +347,7 @@ function RunPageContent() {
 
     const fetchProjectConfigs = useCallback(async (projId: string) => {
         try {
-            const token = await getAccessToken();
-            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const response = await fetch(`/api/projects/${projId}/configs`, { headers });
+            const response = await fetchWithAccessToken(getAccessToken, `/api/projects/${projId}/configs`);
             if (response.ok) {
                 setProjectConfigs(await response.json());
             } else {
@@ -370,9 +361,7 @@ function RunPageContent() {
 
     const fetchTestCaseConfigs = useCallback(async (tcId: string) => {
         try {
-            const token = await getAccessToken();
-            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const response = await fetch(`/api/test-cases/${tcId}/configs`, { headers });
+            const response = await fetchWithAccessToken(getAccessToken, `/api/test-cases/${tcId}/configs`);
             if (response.ok) {
                 setTestCaseConfigs(await response.json());
             } else {
@@ -411,9 +400,7 @@ function RunPageContent() {
         }
 
         try {
-            const token = await getAccessToken();
-            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const response = await fetch(`/api/test-cases/${id}/files`, { headers });
+            const response = await fetchWithAccessToken(getAccessToken, `/api/test-cases/${id}/files`);
             if (response.ok) {
                 const files = await response.json();
                 setTestCaseFiles(files);
@@ -422,27 +409,6 @@ function RunPageContent() {
             console.error("Failed to fetch files", error);
         }
     }, [currentTestCaseId, getAccessToken, testCaseId]);
-
-    const issueStreamToken = useCallback(async (scope: 'test-run-events', resourceId: string): Promise<string | null> => {
-        const token = await getAccessToken();
-        if (!token) return null;
-
-        const response = await fetch('/api/stream-tokens', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
-            },
-            body: JSON.stringify({ scope, resourceId }),
-        });
-
-        if (!response.ok) {
-            return null;
-        }
-
-        const data = await response.json() as { streamToken?: string };
-        return typeof data.streamToken === 'string' ? data.streamToken : null;
-    }, [getAccessToken]);
 
     const connectToRun = useCallback(async (runId: string, options?: { preserveStreamState?: boolean }) => {
         const preserveStreamState = options?.preserveStreamState === true;
@@ -475,7 +441,7 @@ function RunPageContent() {
         }
         setCurrentRunId(runId);
 
-        const streamToken = await issueStreamToken('test-run-events', runId);
+        const streamToken = await issueRunStreamToken(getAccessToken, runId);
         if (requestId !== connectRequestIdRef.current) {
             return;
         }
@@ -594,7 +560,7 @@ function RunPageContent() {
         }
 
         eventSourceRef.current = es;
-    }, [applyRunResultSnapshot, fetchRunResultSnapshot, issueStreamToken, t]);
+    }, [applyRunResultSnapshot, fetchRunResultSnapshot, getAccessToken, t]);
 
     useEffect(() => {
         if (projectId) fetchProjectName(projectId);
@@ -646,9 +612,7 @@ function RunPageContent() {
                 eventSourceRef.current.close();
                 eventSourceRef.current = null;
             }
-            const token = await getAccessToken();
-            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const resp = await fetch(`/api/test-runs/${currentRunId}/cancel`, { method: 'POST', headers });
+            const resp = await fetchWithAccessToken(getAccessToken, `/api/test-runs/${currentRunId}/cancel`, { method: 'POST' });
             if (!resp.ok) throw new Error(t('run.error.failedToStop'));
             setResult(prev => ({ ...prev, status: TEST_STATUS.CANCELLED, error: t('run.error.testStopped'), errorCode: undefined, errorCategory: undefined }));
             setTestCaseStatus(TEST_STATUS.CANCELLED);
@@ -671,16 +635,10 @@ function RunPageContent() {
             throw new Error(t('run.error.testCaseIdRequired'));
         }
 
-        const token = await getAccessToken();
-        const headers: HeadersInit = {
-            "Content-Type": "application/json",
-            ...(token ? { "Authorization": `Bearer ${token}` } : {})
-        };
-
         if (effectiveTestCaseId) {
-            const response = await fetch(`/api/test-cases/${effectiveTestCaseId}`, {
+            const response = await fetchWithAccessToken(getAccessToken, `/api/test-cases/${effectiveTestCaseId}`, {
                 method: "PUT",
-                headers,
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ ...data, displayId: finalDisplayId, ...(options?.saveDraft ? { saveDraft: true } : {}) }),
             });
             if (!response.ok) {
@@ -693,9 +651,9 @@ function RunPageContent() {
                 return null;
             }
 
-            const response = await fetch(`/api/projects/${effectiveProjectId}/test-cases`, {
+            const response = await fetchWithAccessToken(getAccessToken, `/api/projects/${effectiveProjectId}/test-cases`, {
                 method: "POST",
-                headers,
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ ...data, displayId: finalDisplayId, ...(options?.saveDraft ? { saveDraft: true } : {}) }),
             });
             if (!response.ok) {
@@ -739,13 +697,9 @@ function RunPageContent() {
         }
 
         try {
-            const token = await getAccessToken();
-            const response = await fetch('/api/test-runs/dispatch', {
+            const response = await fetchWithAccessToken(getAccessToken, '/api/test-runs/dispatch', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ...data, testCaseId: activeTestCaseId }),
             });
 
