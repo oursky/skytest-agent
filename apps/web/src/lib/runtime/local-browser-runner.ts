@@ -331,6 +331,32 @@ async function appendRunEvents(runId: string, events: RunEventInput[], options?:
     }
 }
 
+async function touchRunActivity(runId: string, options?: LocalBrowserRunOptions): Promise<void> {
+    const now = new Date();
+    await prisma.testRun.updateMany({
+        where: {
+            id: runId,
+            status: { in: [...RUN_IN_PROGRESS_STATUSES] },
+            ...(options?.runnerId
+                ? {
+                    assignedRunnerId: options.runnerId,
+                    leaseExpiresAt: { gt: now },
+                }
+                : {
+                    assignedRunnerId: null,
+                }),
+        },
+        data: {
+            lastEventAt: now,
+            ...(options?.runnerId
+                ? {
+                    leaseExpiresAt: createLeaseExpiry(now),
+                }
+                : {}),
+        },
+    });
+}
+
 async function uploadRunArtifact(runId: string, input: {
     filename: string;
     mimeType: string;
@@ -564,6 +590,9 @@ async function executeLocalBrowserRun(
                     kind: 'STATUS',
                     message: 'Running test steps',
                 });
+            },
+            async onStepHeartbeat() {
+                await touchRunActivity(runId, options);
             },
         });
 

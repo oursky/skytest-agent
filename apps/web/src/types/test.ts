@@ -100,6 +100,7 @@ export interface RunTestOptions {
     onCleanup?: (cleanup: () => Promise<void>) => void;
     onPreparing?: () => Promise<void>;
     onRunning?: () => Promise<void>;
+    onStepHeartbeat?: () => Promise<void>;
 }
 
 export type TestFailureCategory =

@@ -77,6 +77,78 @@ function createLogger(onEvent: EventHandler) {
     };
 }
 
+async function runWithTimeoutAndHeartbeat<T>(
+    operation: () => Promise<T>,
+    options: {
+        timeoutMs: number;
+        timeoutMessage: string;
+        signal?: AbortSignal;
+        heartbeatIntervalMs?: number;
+        onHeartbeat?: () => Promise<void>;
+    }
+): Promise<T> {
+    const {
+        timeoutMs,
+        timeoutMessage,
+        signal,
+        heartbeatIntervalMs = 0,
+        onHeartbeat,
+    } = options;
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+    let heartbeatHandle: ReturnType<typeof setInterval> | null = null;
+    let abortListener: (() => void) | null = null;
+    let heartbeatInFlight = false;
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutHandle = setTimeout(() => {
+            reject(new Error(timeoutMessage));
+        }, timeoutMs);
+    });
+
+    const abortPromise = new Promise<never>((_, reject) => {
+        if (!signal) {
+            return;
+        }
+        if (signal.aborted) {
+            reject(new Error('Aborted'));
+            return;
+        }
+
+        abortListener = () => reject(new Error('Aborted'));
+        signal.addEventListener('abort', abortListener, { once: true });
+    });
+
+    if (onHeartbeat && heartbeatIntervalMs > 0) {
+        heartbeatHandle = setInterval(() => {
+            if (heartbeatInFlight || signal?.aborted) {
+                return;
+            }
+            heartbeatInFlight = true;
+            void onHeartbeat().catch((error) => {
+                serverLogger.debug('Failed to send browser AI step heartbeat', {
+                    error: getErrorMessage(error),
+                });
+            }).finally(() => {
+                heartbeatInFlight = false;
+            });
+        }, heartbeatIntervalMs);
+    }
+
+    try {
+        return await Promise.race([operation(), timeoutPromise, abortPromise]);
+    } finally {
+        if (timeoutHandle) {
+            clearTimeout(timeoutHandle);
+        }
+        if (heartbeatHandle) {
+            clearInterval(heartbeatHandle);
+        }
+        if (signal && abortListener) {
+            signal.removeEventListener('abort', abortListener);
+        }
+    }
+}
+
 async function captureScreenshot(
     page: Page,
     label: string,
@@ -565,7 +637,8 @@ async function executeSteps(
     materializedExecutionFiles: MaterializedExecutionFiles,
     signal?: AbortSignal,
     resolvedVariables?: Record<string, string>,
-    resolvedConfigFiles?: Record<string, string>
+    resolvedConfigFiles?: Record<string, string>,
+    onStepHeartbeat?: () => Promise<void>
 ): Promise<void> {
     const log = createLogger(onEvent);
     const { pages, agents } = targets;
@@ -656,19 +729,41 @@ async function executeSteps(
                     && /^(verify|assert|check|confirm|ensure|validate)/i.test(normalizedStepAction);
                 const quotedStrings = extractQuotedStrings(stepAction);
                 const useQuotedStringShortcut = shouldUseQuotedStringShortcut(stepAction, quotedStrings);
+                const stepTimeoutSeconds = Math.ceil(config.runner.browserAiStepTimeoutMs / 1000);
+                const runBrowserAiOperation = async (
+                    operation: () => Promise<unknown>,
+                    operationLabel: string
+                ): Promise<void> => {
+                    if (isAndroid) {
+                        await operation();
+                        return;
+                    }
+                    await runWithTimeoutAndHeartbeat(async () => {
+                        await operation();
+                    }, {
+                        timeoutMs: config.runner.browserAiStepTimeoutMs,
+                        timeoutMessage: `Step ${i + 1} browser AI ${operationLabel} timed out after ${stepTimeoutSeconds}s`,
+                        signal,
+                        heartbeatIntervalMs: config.runner.browserStepHeartbeatIntervalMs,
+                        onHeartbeat: onStepHeartbeat,
+                    });
+                };
 
                 if (isVerification) {
                     if (useQuotedStringShortcut) {
                         try {
-                            await verifyQuotedStringsExist({
-                                agent,
-                                expectedStrings: quotedStrings,
-                                log,
-                                targetLabel,
-                                browserId: effectiveTargetId,
-                                isAndroidAgent: isAndroid,
-                                androidSignal: signal,
-                            });
+                            await runBrowserAiOperation(
+                                () => verifyQuotedStringsExist({
+                                    agent,
+                                    expectedStrings: quotedStrings,
+                                    log,
+                                    targetLabel,
+                                    browserId: effectiveTargetId,
+                                    isAndroidAgent: isAndroid,
+                                    androidSignal: signal,
+                                }),
+                                'verification'
+                            );
                         } catch (assertError: unknown) {
                             const assertErrorMessage = getErrorMessage(assertError);
                             let recoveredAndRetried = false;
@@ -718,7 +813,10 @@ async function executeSteps(
                                     signal
                                 );
                             } else {
-                                await agent.aiAssert(stepAction);
+                                await runBrowserAiOperation(
+                                    () => agent.aiAssert(stepAction),
+                                    'assertion'
+                                );
                             }
                         } catch (assertError: unknown) {
                             const assertErrorMessage = getErrorMessage(assertError);
@@ -824,7 +922,10 @@ async function executeSteps(
                                 }
                             }
                         } else {
-                            await agent.aiAct(stepAction);
+                            await runBrowserAiOperation(
+                                () => agent.aiAct(stepAction),
+                                'action'
+                            );
                         }
                     } catch (actError: unknown) {
                         const errMsg = getErrorMessage(actError);
@@ -930,7 +1031,16 @@ async function cleanupTargets(targets: ExecutionTargets): Promise<void> {
 }
 
 export async function runTest(options: RunTestOptions): Promise<TestResult> {
-    const { config: testConfig, onEvent, signal, runId, onCleanup, onPreparing, onRunning } = options;
+    const {
+        config: testConfig,
+        onEvent,
+        signal,
+        runId,
+        onCleanup,
+        onPreparing,
+        onRunning,
+        onStepHeartbeat,
+    } = options;
     const {
         url,
         prompt,
@@ -1064,7 +1174,8 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
                 materializedExecutionFiles,
                 runSignal,
                 vars,
-                materializedExecutionFiles.configFiles
+                materializedExecutionFiles.configFiles,
+                onStepHeartbeat
             );
 
             if (runSignal.aborted) throw new Error('Aborted');

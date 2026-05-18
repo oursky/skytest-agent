@@ -93,6 +93,18 @@ const runnerRunStatusMaxCancellationPollIntervalMs = parseBoundedIntEnv({
     min: runnerRunStatusPollIntervalMs,
     max: runnerRunStatusMaxPollIntervalMs,
 });
+const runnerBrowserAiStepTimeoutMs = parseBoundedIntEnv({
+    name: 'RUNNER_BROWSER_AI_STEP_TIMEOUT_MS',
+    fallback: 180_000,
+    min: 5_000,
+    max: 600_000,
+});
+const runnerBrowserStepHeartbeatIntervalMs = parseBoundedIntEnv({
+    name: 'RUNNER_BROWSER_STEP_HEARTBEAT_INTERVAL_MS',
+    fallback: 60_000,
+    min: 10_000,
+    max: 300_000,
+});
 const browserWorkerDispatchIntervalMs = parseBoundedIntEnv({
     name: 'BROWSER_WORKER_DISPATCH_INTERVAL_MS',
     fallback: 1_000,
@@ -192,6 +204,8 @@ export const config = {
         runStatusPollIntervalMs: runnerRunStatusPollIntervalMs,
         runStatusMaxPollIntervalMs: runnerRunStatusMaxPollIntervalMs,
         runStatusMaxCancellationPollIntervalMs: runnerRunStatusMaxCancellationPollIntervalMs,
+        browserAiStepTimeoutMs: runnerBrowserAiStepTimeoutMs,
+        browserStepHeartbeatIntervalMs: runnerBrowserStepHeartbeatIntervalMs,
         leaseReaperIntervalMs: runnerLeaseReaperIntervalMs,
         localBrowserStaleTimeoutMs: runnerLocalBrowserStaleTimeoutMs,
         eventRetentionDays: runnerEventRetentionDays,
