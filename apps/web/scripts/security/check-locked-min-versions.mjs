@@ -10,6 +10,8 @@ const lockfilePath = path.resolve(repoRoot, 'package-lock.json');
 const FLOORS = {
     'js-yaml': '4.1.1',
     '@modelcontextprotocol/sdk': '1.26.0',
+    // GHSA-v6h2-p8h4-qcjw
+    'brace-expansion': '5.0.6',
     // GHSA-gh4j-gqv2-49f6
     '@aws-sdk/xml-builder': '3.972.19',
     'fast-xml-parser': '5.7.0',
