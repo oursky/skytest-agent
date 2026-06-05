@@ -1,8 +1,6 @@
 {
     "description": "Override keys that are intentionally workspace-specific. Listed keys are allowed to appear in only one of root package.json or apps/web/package.json, or to hold different values between them. Keep this list short; prefer lifting overrides to the root.",
-    "webOnly": [
-        "vite"
-    ],
+    "webOnly": [],
     "rootOnly": [
         "dompurify",
         "@midscene/android",
@@ -13,6 +11,7 @@
         "brace-expansion",
         "minimatch",
         "qs",
+        "tmp",
         "http-proxy-agent",
         "https-proxy-agent",
         "@aws-sdk/xml-builder",

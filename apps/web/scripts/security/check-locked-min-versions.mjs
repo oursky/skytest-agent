@@ -19,6 +19,14 @@ const FLOORS = {
     '@xmldom/xmldom': '0.8.13',
     // GHSA-w5hq-g745-h8pq
     'uuid': '14.0.0',
+    // GHSA-xrhx-7g5j-rcj5, GHSA-3hrh-pfw6-9m5x, GHSA-f577-qrjj-4474, GHSA-2gcr-mfcq-wcc3
+    'hono': '4.12.21',
+    // GHSA-q8mj-m7cp-5q26
+    'qs': '6.15.2',
+    // GHSA-ph9p-34f9-6g65
+    'tmp': '0.2.6',
+    // GHSA-5xrq-8626-4rwp
+    'vitest': '4.1.0',
 };
 
 function parseSemver(version) {
