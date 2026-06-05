@@ -77,11 +77,12 @@ exports[`mcp manifest compatibility > keeps tool registration names and input sc
     "name": "create_test_case",
   },
   {
-    "description": "Update one test case per call (name, steps, browserConfig, url, prompt, and test-case variables/configs)",
+    "description": "Update one test case per call (displayId, name, steps, browserConfig, url, prompt, and test-case variables/configs)",
     "inputKeys": [
       "activeRunResolution",
       "browserConfig",
       "configs",
+      "displayId",
       "name",
       "prompt",
       "removeConfigNames",

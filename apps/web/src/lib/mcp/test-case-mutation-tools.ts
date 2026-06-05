@@ -374,6 +374,7 @@ export function registerTestCaseMutationTools(server: McpServer): void {
     const updateTestCaseHandler = async ({
         testCaseId,
         activeRunResolution,
+        displayId,
         name,
         url,
         prompt,
@@ -386,6 +387,7 @@ export function registerTestCaseMutationTools(server: McpServer): void {
     }: {
         testCaseId: string;
         activeRunResolution?: 'cancel_and_save' | 'do_not_save';
+        displayId?: string;
         name?: string;
         url?: string;
         prompt?: string;
@@ -405,7 +407,8 @@ export function registerTestCaseMutationTools(server: McpServer): void {
         if (!testCase) return errorResult('Not found');
         if (!await isTestCaseProjectMember(userId, testCaseId)) return errorResult('Forbidden');
 
-        const changedFields: Array<'name' | 'url' | 'prompt' | 'steps' | 'browserConfig' | 'configs'> = [];
+        const changedFields: Array<'displayId' | 'name' | 'url' | 'prompt' | 'steps' | 'browserConfig' | 'configs'> = [];
+        if (displayId !== undefined) changedFields.push('displayId');
         if (name !== undefined) changedFields.push('name');
         if (url !== undefined) changedFields.push('url');
         if (prompt !== undefined) changedFields.push('prompt');
@@ -424,6 +427,7 @@ export function registerTestCaseMutationTools(server: McpServer): void {
             return errorResult('At least one field change is required.', {
                 code: 'NO_CHANGES_PROVIDED',
                 allowedFields: [
+                    'displayId',
                     'name',
                     'url',
                     'prompt',
@@ -493,6 +497,7 @@ export function registerTestCaseMutationTools(server: McpServer): void {
         }
 
         const updateData: Record<string, unknown> = {};
+        if (displayId !== undefined) updateData.displayId = displayId.trim();
         if (name !== undefined) updateData.name = name;
         if (url !== undefined) updateData.url = url;
         if (prompt !== undefined) updateData.prompt = prompt;
@@ -628,9 +633,10 @@ export function registerTestCaseMutationTools(server: McpServer): void {
     });
 
     server.registerTool('update_test_case', {
-        description: 'Update one test case per call (name, steps, browserConfig, url, prompt, and test-case variables/configs)',
+        description: 'Update one test case per call (displayId, name, steps, browserConfig, url, prompt, and test-case variables/configs)',
         inputSchema: {
             testCaseId: z.string().describe('Test case ID'),
+            displayId: z.string().optional().describe('User-facing display ID'),
             name: z.string().optional(),
             url: z.string().optional(),
             prompt: z.string().optional(),
