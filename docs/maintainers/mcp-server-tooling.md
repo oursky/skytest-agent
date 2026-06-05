@@ -48,6 +48,7 @@ This document defines SkyTest MCP tool behavior for maintainers.
 - Input: `{ projectId, testCase }`
 - Creates exactly one test case per call.
 - Accepted config types: `URL`, `VARIABLE`, `RANDOM_STRING`, `APP_ID`.
+- `RANDOM_STRING` configs require one of: `TIMESTAMP_DATETIME`, `TIMESTAMP_UNIX`, `UUID`. Invalid values are skipped with a warning.
 - `FILE` variables are rejected with a warning (MCP cannot upload file content).
 - If a test-case variable matches an existing project-level config (same type and value), it is skipped with a warning naming the matching project variable.
 - Android device names are resolved against runner-synced team inventory. If no match is found, the test case is still created but the response includes a warning so the caller can confirm with the user.
@@ -57,6 +58,7 @@ This document defines SkyTest MCP tool behavior for maintainers.
 
 - Scope: one test case ID per call.
 - Allowed mutable fields: `name`, `url`, `prompt`, `steps`, `browserConfig`, `configs`, `variables`, `removeConfigNames`, `removeVariableNames`.
+- `RANDOM_STRING` config upserts require one of: `TIMESTAMP_DATETIME`, `TIMESTAMP_UNIX`, `UUID`. Invalid values are skipped with a warning.
 - One or more mutable fields may be provided in each call.
 - If active runs exist (`QUEUED`, `PREPARING`, `RUNNING`), caller must choose:
   - `cancel_and_save`

@@ -1,6 +1,7 @@
 import type { ConfigType } from '@/types';
 
 const VALID_CONFIG_TYPES: ConfigType[] = ['URL', 'VARIABLE', 'RANDOM_STRING', 'FILE', 'APP_ID'];
+const VALID_RANDOM_STRING_VALUES = ['TIMESTAMP_DATETIME', 'TIMESTAMP_UNIX', 'UUID'];
 
 export function normalizeConfigName(name: string): string {
     const trimmed = name.trim();
@@ -33,4 +34,11 @@ export function validateConfigName(name: string): string | null {
 
 export function validateConfigType(type: string): type is ConfigType {
     return VALID_CONFIG_TYPES.includes(type as ConfigType);
+}
+
+export function validateConfigValue(type: ConfigType, value: string): string | null {
+    if (type === 'RANDOM_STRING' && !VALID_RANDOM_STRING_VALUES.includes(value)) {
+        return 'Random string value must be TIMESTAMP_DATETIME, TIMESTAMP_UNIX, or UUID';
+    }
+    return null;
 }

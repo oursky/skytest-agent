@@ -4,7 +4,7 @@ import { prisma } from '@/lib/core/prisma';
 import { cleanStepsForStorage, normalizeTargetConfigMap } from '@/lib/runtime/test-case-utils';
 import { isGroupableConfigType, normalizeConfigGroup } from '@/lib/test-config/sort';
 import { normalizeBrowserConfig } from '@/lib/test-config/browser-target';
-import { validateConfigName, normalizeConfigName, validateConfigType } from '@/lib/test-config/validation';
+import { validateConfigName, normalizeConfigName, validateConfigType, validateConfigValue } from '@/lib/test-config/validation';
 import { resolveAndroidDeviceSelector, type AndroidDeviceSelectorInventory } from '@/lib/mcp/android-selector';
 import { cancelRunDurably } from '@/lib/mcp/run-cancellation';
 import { getUserId, type McpHandlerExtra, verifyProjectAccess } from '@/lib/mcp/server-auth';
@@ -308,6 +308,11 @@ export function registerTestCaseMutationTools(server: McpServer): void {
                         const normalizedName = normalizeConfigName(configInput.name);
                         const configType = configInput.type as ConfigType;
                         const configValue = configInput.value ?? '';
+                        const valueError = validateConfigValue(configType, configValue);
+                        if (valueError) {
+                            warnings.push(`Config "${normalizedName}": ${valueError}`);
+                            continue;
+                        }
                         if (configType === 'FILE') {
                             warnings.push(`Config "${normalizedName}" skipped: FILE upload is not supported in MCP create_test_case.`);
                             continue;
@@ -571,6 +576,11 @@ export function registerTestCaseMutationTools(server: McpServer): void {
                     const normalizedName = normalizeConfigName(configInput.name);
                     const configType = configInput.type as ConfigType;
                     const configValue = configInput.value ?? '';
+                    const valueError = validateConfigValue(configType, configValue);
+                    if (valueError) {
+                        warnings.push(`Config "${normalizedName}": ${valueError}`);
+                        continue;
+                    }
                     if (configType === 'FILE') {
                         warnings.push(`Config "${normalizedName}" skipped: FILE upload is not supported in MCP update_test_case.`);
                         continue;

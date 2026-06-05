@@ -10,7 +10,7 @@ export const mcpStepSchema = z.object({
 export const mcpConfigSchema = z.object({
     name: z.string().describe('Variable/config name (UPPER_SNAKE_CASE)'),
     type: z.string().describe('URL | VARIABLE | RANDOM_STRING | APP_ID'),
-    value: z.string().optional().describe('Config value'),
+    value: z.string().optional().describe('Config value. RANDOM_STRING requires TIMESTAMP_DATETIME, TIMESTAMP_UNIX, or UUID'),
     masked: z.boolean().optional().describe('Mask value in UI (VARIABLE type only)'),
     group: z.string().nullable().optional().describe('Group name for team'),
 });
