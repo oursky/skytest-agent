@@ -224,12 +224,6 @@ export const config = {
 
     scheduler: {
         enabled: schedulerWorkerEnabled,
-        evaluationIntervalMs: parseBoundedIntEnv({
-            name: 'SKYTEST_SCHEDULER_EVALUATION_INTERVAL_MS',
-            fallback: 30_000,
-            min: 5_000,
-            max: 300_000,
-        }),
         maxDuePerTick: parseBoundedIntEnv({
             name: 'SKYTEST_SCHEDULER_MAX_DUE_PER_TICK',
             fallback: 50,

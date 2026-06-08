@@ -23,7 +23,6 @@ COMPOSE_ARGS := -f $(COMPOSE_FILE) $(if $(COMPOSE_EXTRA_FILE),-f $(COMPOSE_EXTRA
 	app \
 	maintenance \
 	browser-worker \
-	scheduler-worker \
 	playwright-install \
 	playwright-ensure \
 	runner-reset \
@@ -75,14 +74,11 @@ db-setup: db-generate db-migrate-deploy ## Generate Prisma client and apply comm
 app: ## Start the local Next.js control plane
 	$(NODE_PM) run dev -- --hostname $(CONTROL_PLANE_HOST) --port $(CONTROL_PLANE_PORT)
 
-maintenance: ## Start the runner maintenance worker loop
-	RUNNER_MAINTENANCE_ONCE=false $(NODE_PM) run runner:maintenance
+maintenance: ## Start the runner maintenance worker loop (also runs the scheduler tick)
+	RUNNER_MAINTENANCE_ONCE=false SKYTEST_SCHEDULER=true $(NODE_PM) run runner:maintenance
 
 browser-worker: ## Start the browser run dispatch worker loop
 	SKYTEST_BROWSER_WORKER=true $(NODE_PM) run --workspace @skytest/web browser:worker
-
-scheduler-worker: ## Start the scheduler worker loop
-	SKYTEST_SCHEDULER=true $(NODE_PM) run --workspace @skytest/web scheduler:worker
 
 playwright-install: ## Install Playwright Chromium locally
 	$(NODE_PM) run playwright:install
@@ -108,28 +104,24 @@ bootstrap: ## Install deps, start local services, and apply committed migrations
 	$(MAKE) db-setup
 	$(MAKE) seed-local-defaults
 
-dev: ## Boot local services, apply committed migrations, and start the web app with maintenance + browser + scheduler workers
+dev: ## Boot local services, apply committed migrations, and start the web app with maintenance (incl. scheduler) + browser workers
 	$(MAKE) services-up
 	$(MAKE) db-setup
 	$(MAKE) playwright-ensure
 	@set -a; \
 	[ -f .env.local ] && . ./.env.local; \
 	set +a; \
-	RUNNER_MAINTENANCE_ONCE=false $(NODE_PM) run runner:maintenance & \
+	RUNNER_MAINTENANCE_ONCE=false SKYTEST_SCHEDULER=true $(NODE_PM) run runner:maintenance & \
 	MAINT_PID=$$!; \
 	SKYTEST_BROWSER_WORKER=true $(NODE_PM) run --workspace @skytest/web browser:worker & \
 	BROWSER_WORKER_PID=$$!; \
-	SKYTEST_SCHEDULER=true $(NODE_PM) run --workspace @skytest/web scheduler:worker & \
-	SCHEDULER_PID=$$!; \
-	trap 'kill $$MAINT_PID $$BROWSER_WORKER_PID $$SCHEDULER_PID >/dev/null 2>&1' EXIT INT TERM; \
+	trap 'kill $$MAINT_PID $$BROWSER_WORKER_PID >/dev/null 2>&1' EXIT INT TERM; \
 	$(NODE_PM) run dev -- --hostname $(CONTROL_PLANE_HOST) --port $(CONTROL_PLANE_PORT); \
 	EXIT_CODE=$$?; \
 	kill $$MAINT_PID >/dev/null 2>&1 || true; \
 	kill $$BROWSER_WORKER_PID >/dev/null 2>&1 || true; \
-	kill $$SCHEDULER_PID >/dev/null 2>&1 || true; \
 	wait $$MAINT_PID 2>/dev/null || true; \
 	wait $$BROWSER_WORKER_PID 2>/dev/null || true; \
-	wait $$SCHEDULER_PID 2>/dev/null || true; \
 	exit $$EXIT_CODE
 
 verify: ## Run lint, TypeScript compile, dependency audit, and secret scan
