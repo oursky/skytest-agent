@@ -11,7 +11,8 @@ import { getStatusBadgeClass } from '@/utils/status/statusBadge';
 import { isActiveRunStatus } from '@/utils/status/statusHelpers';
 import { parsePageSize } from '@/utils/pagination/pagination';
 import { ProjectConfigs } from '@/components/features/project-configurations';
-import ProjectSettingsTab from '@/components/features/projects/ui/ProjectSettingsTab';
+import ProjectSettingsPanel from '@/components/features/projects/ui/ProjectSettingsPanel';
+import { ProjectSchedulesPanel } from '@/components/features/project-scheduler';
 import ProjectSlackSettings from '@/components/features/project-notifications/ui/ProjectSlackSettings';
 import { useCurrentTeam } from '@/hooks/team/useCurrentTeam';
 import TestCaseImportReviewDialog from '@/components/features/test-cases/ui/TestCaseImportReviewDialog';
@@ -79,7 +80,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
     useEffect(() => {
         const tab = searchParams.get('tab');
-        if (tab === 'variables' || tab === 'integration' || tab === 'settings' || tab === 'test-cases') {
+        if (tab === 'variables' || tab === 'integration' || tab === 'scheduler' || tab === 'settings' || tab === 'test-cases') {
             setActiveTab(tab);
         }
     }, [searchParams]);
@@ -557,6 +558,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         { id: 'test-cases' as const, label: t('project.tab.testCases') },
         { id: 'variables' as const, label: t('project.tab.configs') },
         { id: 'integration' as const, label: t('project.tab.integration') },
+        { id: 'scheduler' as const, label: t('project.tab.scheduler') },
         { id: 'settings' as const, label: t('project.tab.settings') },
     ];
 
@@ -623,15 +625,22 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     <ProjectConfigs projectId={id} />
                 )}
 
-                {activeTab === 'settings' && project && (
-                    <ProjectSettingsTab
+                {activeTab === 'scheduler' && project && (
+                    <ProjectSchedulesPanel
                         projectId={id}
                         canManageProject={Boolean(project.canManageProject)}
-                        testCases={testCases.map((testCase) => ({
+                        availableTestCases={testCases.map((testCase) => ({
                             id: testCase.id,
                             displayId: testCase.displayId,
                             name: testCase.name,
                         }))}
+                        t={t}
+                    />
+                )}
+
+                {activeTab === 'settings' && project && (
+                    <ProjectSettingsPanel
+                        canManageProject={Boolean(project.canManageProject)}
                         maxConcurrentRunsLimit={project.maxConcurrentRunsLimit}
                         maxConcurrentRunsInput={maxConcurrentRunsInput}
                         isEditing={isEditingProjectSettings}

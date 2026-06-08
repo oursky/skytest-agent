@@ -8,16 +8,20 @@ import { humanizeSchedule } from '../model/schedule-form';
 interface ScheduleReadRowProps {
     schedule: ScheduleRecord;
     canManageProject: boolean;
+    isToggling?: boolean;
     t: (key: string, values?: Record<string, string | number>) => string;
     onEdit: () => void;
+    onToggleEnabled: () => void;
     onDelete: () => void;
 }
 
 export default function ScheduleReadRow({
     schedule,
     canManageProject,
+    isToggling = false,
     t,
     onEdit,
+    onToggleEnabled,
     onDelete,
 }: ScheduleReadRowProps) {
     return (
@@ -32,7 +36,7 @@ export default function ScheduleReadRow({
                     </div>
                     <p className="text-sm text-gray-600">{humanizeSchedule(schedule, t)}</p>
                     <div className="text-sm text-gray-500">
-                        <p>{t('project.scheduler.testCases.selectedCount', { count: schedule.testCases.length })}</p>
+                        <p>{t('project.scheduler.testCases.selectedCountLabel', { count: schedule.testCases.length })}</p>
                         <p>{t('project.scheduler.preview.nextRun', { value: schedule.nextRunAt ? formatDateTimeCompact(schedule.nextRunAt) : '-' })}</p>
                     </div>
                 </div>
@@ -40,6 +44,9 @@ export default function ScheduleReadRow({
                 {canManageProject && (
                     <div className="flex items-center gap-2">
                         <Button variant="secondary" size="sm" onClick={onEdit}>{t('common.edit')}</Button>
+                        <Button variant="secondary" size="sm" disabled={isToggling} onClick={onToggleEnabled}>
+                            {schedule.enabled ? t('project.scheduler.disable') : t('project.scheduler.enable')}
+                        </Button>
                         <Button variant="danger" size="sm" onClick={onDelete}>{t('common.delete')}</Button>
                     </div>
                 )}

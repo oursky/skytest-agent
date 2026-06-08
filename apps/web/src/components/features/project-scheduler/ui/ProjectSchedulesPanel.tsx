@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Button, CenteredLoading, Modal } from '@/components/shared';
 import { useProjectSchedules } from '../hooks/useProjectSchedules';
-import { type ProjectScheduleTestCaseOption } from '../model/schedule-form';
+import { scheduleToUpsertInput, type ProjectScheduleTestCaseOption } from '../model/schedule-form';
 import ScheduleEditor from './ScheduleEditor';
 import ScheduleReadRow from './ScheduleReadRow';
 
@@ -31,6 +31,7 @@ export default function ProjectSchedulesPanel({
     const [editingId, setEditingId] = useState<string | 'new' | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [deleteId, setDeleteId] = useState<string | null>(null);
+    const [togglingId, setTogglingId] = useState<string | null>(null);
 
     if (isLoading) {
         return <CenteredLoading className="py-12" />;
@@ -124,8 +125,20 @@ export default function ProjectSchedulesPanel({
                             key={schedule.id}
                             schedule={schedule}
                             canManageProject={canManageProject}
+                            isToggling={togglingId === schedule.id}
                             t={t}
                             onEdit={() => setEditingId(schedule.id)}
+                            onToggleEnabled={async () => {
+                                setTogglingId(schedule.id);
+                                try {
+                                    await updateSchedule(schedule.id, {
+                                        ...scheduleToUpsertInput(schedule),
+                                        enabled: !schedule.enabled,
+                                    });
+                                } finally {
+                                    setTogglingId(null);
+                                }
+                            }}
                             onDelete={() => setDeleteId(schedule.id)}
                         />
                     )

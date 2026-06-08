@@ -61,52 +61,56 @@ export default function IntervalPatternField({
         { value: 6, label: t('project.scheduler.weekday.6') },
     ];
 
+    const patternSelectOptions = patternOptions.map((option) => ({
+        value: option.value,
+        label: t(option.labelKey),
+    }));
+
     return (
         <div className="space-y-3">
-            <div className="grid gap-2 sm:grid-cols-2">
-                {patternOptions.map((option) => (
-                    <label key={option.value} className="flex items-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-700">
-                        <input
-                            type="radio"
-                            name="schedule-pattern"
-                            checked={patternType === option.value}
-                            onChange={() => onPatternTypeChange(option.value)}
-                            disabled={disabled}
-                            className="h-4 w-4"
-                        />
-                        <span>{t(option.labelKey)}</span>
-                    </label>
-                ))}
+            <div className="max-w-[12rem]">
+                <CustomSelect
+                    value={patternType}
+                    options={patternSelectOptions}
+                    onChange={onPatternTypeChange}
+                    disabled={disabled}
+                    fullWidth
+                    buttonClassName="h-10 w-full rounded-md border border-gray-300 px-3 text-left text-sm"
+                />
             </div>
 
             {patternType !== SCHEDULE_PATTERN_TYPE.CUSTOM && (
-                <div className="grid gap-3 md:grid-cols-3">
+                <div className="flex flex-wrap gap-3">
                     <input
                         type="time"
                         value={time}
                         onChange={(event) => onTimeChange(event.target.value)}
                         disabled={disabled}
-                        className="h-10 rounded-md border border-gray-300 px-3 text-sm"
+                        className="h-10 w-32 rounded-md border border-gray-300 px-3 text-sm"
                     />
                     {patternType === SCHEDULE_PATTERN_TYPE.WEEKLY && (
-                        <CustomSelect
-                            value={weekday}
-                            options={weekdayOptions}
-                            onChange={onWeekdayChange}
-                            disabled={disabled}
-                            fullWidth
-                            buttonClassName="h-10 rounded-md border border-gray-300 px-3 text-left text-sm"
-                        />
+                        <div className="w-40">
+                            <CustomSelect
+                                value={weekday}
+                                options={weekdayOptions}
+                                onChange={onWeekdayChange}
+                                disabled={disabled}
+                                fullWidth
+                                buttonClassName="h-10 w-full rounded-md border border-gray-300 px-3 text-left text-sm"
+                            />
+                        </div>
                     )}
                     {patternType === SCHEDULE_PATTERN_TYPE.MONTHLY && (
-                        <CustomSelect
-                            value={dayOfMonth}
-                            options={dayOfMonthOptions}
-                            onChange={onDayOfMonthChange}
-                            disabled={disabled}
-                            fullWidth
-                            buttonClassName="h-10 rounded-md border border-gray-300 px-3 text-left text-sm"
-                        />
+                        <div className="w-40">
+                            <CustomSelect
+                                value={dayOfMonth}
+                                options={dayOfMonthOptions}
+                                onChange={onDayOfMonthChange}
+                                disabled={disabled}
+                                fullWidth
+                                buttonClassName="h-10 w-full rounded-md border border-gray-300 px-3 text-left text-sm"
+                            />
+                        </div>
                     )}
                 </div>
             )}
@@ -119,13 +123,13 @@ export default function IntervalPatternField({
                         onChange={(event) => onCustomCronChange(event.target.value)}
                         disabled={disabled}
                         placeholder="0 9 * * *"
-                        className="h-10 w-full rounded-md border border-gray-300 px-3 text-sm"
+                        className="h-10 w-full max-w-sm rounded-md border border-gray-300 px-3 text-sm"
                     />
                     <a
                         href="https://en.wikipedia.org/wiki/Cron"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs text-primary hover:underline"
+                        className="block text-xs text-primary hover:underline"
                     >
                         {t('project.scheduler.cronHelp')}
                     </a>

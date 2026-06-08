@@ -50,7 +50,7 @@ export default function ScheduleEditor({
                         type="text"
                         value={form.description}
                         onChange={(event) => setForm((previous) => ({ ...previous, description: event.target.value }))}
-                        className="h-10 w-full rounded-md border border-gray-300 px-3 text-sm"
+                        className="h-10 w-full max-w-md rounded-md border border-gray-300 px-3 text-sm"
                     />
                 </div>
 
@@ -58,7 +58,6 @@ export default function ScheduleEditor({
                     <label className="mb-1 block text-sm font-medium text-gray-700">{t('project.scheduler.fields.timezone')}</label>
                     <TimezoneSelect
                         value={form.timezone}
-                        t={t}
                         onChange={(value) => setForm((previous) => ({ ...previous, timezone: value }))}
                     />
                 </div>

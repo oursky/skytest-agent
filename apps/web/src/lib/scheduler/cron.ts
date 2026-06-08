@@ -136,14 +136,6 @@ function validateTimezone(timezone: string): void {
         return;
     }
 
-    const supportedValuesOf = Intl.supportedValuesOf as ((key: 'timeZone') => string[]) | undefined;
-    if (typeof supportedValuesOf === 'function') {
-        if (!supportedValuesOf('timeZone').includes(value)) {
-            throw new SchedulerValidationError('Invalid timezone');
-        }
-        return;
-    }
-
     try {
         Intl.DateTimeFormat(undefined, { timeZone: value }).format(new Date());
     } catch {

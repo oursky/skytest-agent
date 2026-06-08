@@ -1,5 +1,5 @@
 import { computeNextRunAt, compileCron, resolveSchedulePatternFields } from '@/lib/scheduler/cron';
-import { SCHEDULE_PATTERN_TYPE, type SchedulePatternType, type ScheduleRecord } from '@/types';
+import { SCHEDULE_PATTERN_TYPE, type SchedulePatternType, type ScheduleRecord, type ScheduleUpsertInput } from '@/types';
 
 export interface ProjectScheduleFormState {
     description: string;
@@ -49,11 +49,41 @@ export function mapScheduleToForm(schedule: ScheduleRecord): ProjectScheduleForm
     };
 }
 
+export function formatTimezoneLabel(timezone: string): string {
+    if (timezone === 'UTC') {
+        return 'UTC';
+    }
+    // POSIX Etc/GMT zones invert the sign: Etc/GMT-8 is UTC+8.
+    const match = /^Etc\/GMT([+-])(\d{1,2})$/.exec(timezone);
+    if (match) {
+        return `UTC${match[1] === '-' ? '+' : '-'}${match[2]}`;
+    }
+    return timezone;
+}
+
+export function scheduleToUpsertInput(schedule: ScheduleRecord): ScheduleUpsertInput {
+    return {
+        description: schedule.description,
+        timezone: schedule.timezone,
+        patternType: schedule.patternType,
+        time: schedule.time ?? undefined,
+        weekday: schedule.weekday ?? undefined,
+        dayOfMonth: schedule.dayOfMonth ?? undefined,
+        customCron: schedule.customCron ?? undefined,
+        enabled: schedule.enabled,
+        testCaseIds: schedule.testCases.map((testCase) => testCase.id),
+    };
+}
+
 export function createSchedulePreview(form: ProjectScheduleFormState): {
     cronExpression: string | null;
     nextRunAt: string | null;
     error: string | null;
 } {
+    if (form.patternType === SCHEDULE_PATTERN_TYPE.CUSTOM && !form.customCron.trim()) {
+        return { cronExpression: null, nextRunAt: null, error: null };
+    }
+
     try {
         const cronExpression = compileCron({
             patternType: form.patternType,
@@ -84,7 +114,7 @@ export function humanizeSchedule(
     schedule: ScheduleRecord,
     t: (key: string, values?: Record<string, string | number>) => string
 ): string {
-    const timezone = schedule.timezone;
+    const timezone = formatTimezoneLabel(schedule.timezone);
     const time = schedule.time ?? '09:00';
     if (schedule.patternType === SCHEDULE_PATTERN_TYPE.CUSTOM) {
         return t('project.scheduler.cadence.custom', { cron: schedule.cronExpression, timezone });
