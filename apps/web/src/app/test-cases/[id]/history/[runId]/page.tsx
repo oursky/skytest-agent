@@ -11,6 +11,7 @@ import { formatDateTime } from "@/utils/time/dateFormatter";
 import { useI18n } from "@/i18n";
 import { parseStoredEvents } from "@/lib/runtime/test-events";
 import { resolveSnapshotTestCaseIdentity } from "./snapshot-utils";
+import { isSchedulerTriggered } from '@/lib/test-runs/trigger-label';
 
 import { type TestStep, type BrowserConfig, type TargetConfig, type ConfigItem, type TestEvent, type TestStatus } from "@/types";
 
@@ -25,6 +26,7 @@ interface TestRun {
     testCaseDisplayId?: string | null;
     testCaseName?: string | null;
     triggeredByEmail?: string | null;
+    triggerSource?: string | null;
     instanceId?: string | null;
     instanceType?: string | null;
     instanceName?: string | null;
@@ -254,7 +256,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
     const runPageHref = projectId
         ? `/run?testCaseId=${id}&projectId=${projectId}`
         : `/run?testCaseId=${id}`;
-    const runByEmail = testRun.triggeredByEmail || '-';
+    const runByEmail = isSchedulerTriggered(testRun) ? t('run.trigger.scheduler') : (testRun.triggeredByEmail || '-');
 
     return (
         <main className="min-h-screen bg-gray-50 p-8">

@@ -11,6 +11,7 @@ import { getStatusBadgeClass } from '@/utils/status/statusBadge';
 import { isActiveRunStatus } from '@/utils/status/statusHelpers';
 import { parsePageSize } from '@/utils/pagination/pagination';
 import { ProjectConfigs } from '@/components/features/project-configurations';
+import { ProjectSchedulesPanel } from '@/components/features/project-scheduler';
 import ProjectSettingsPanel from '@/components/features/projects/ui/ProjectSettingsPanel';
 import ProjectSlackSettings from '@/components/features/project-notifications/ui/ProjectSlackSettings';
 import { useCurrentTeam } from '@/hooks/team/useCurrentTeam';
@@ -633,28 +634,40 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 )}
 
                 {activeTab === 'settings' && project && (
-                    <ProjectSettingsPanel
-                        canManageProject={Boolean(project.canManageProject)}
-                        maxConcurrentRunsLimit={project.maxConcurrentRunsLimit}
-                        maxConcurrentRunsInput={maxConcurrentRunsInput}
-                        isEditing={isEditingProjectSettings}
-                        isSaving={isSavingSettings}
-                        isSaveDisabled={isProjectSettingsSaveDisabled}
-                        settingsError={settingsError}
-                        onInputChange={(value) => {
-                            setMaxConcurrentRunsInput(value);
-                            setSettingsError('');
-                        }}
-                        onEnterSave={() => {
-                            void handleSaveProjectSettings();
-                        }}
-                        onSave={() => {
-                            void handleSaveProjectSettings();
-                        }}
-                        onCancel={handleCancelProjectSettingsEdit}
-                        onStartEdit={handleStartProjectSettingsEdit}
-                        t={t}
-                    />
+                    <div className="space-y-6">
+                        <ProjectSchedulesPanel
+                            projectId={id}
+                            canManageProject={Boolean(project.canManageProject)}
+                            availableTestCases={testCases.map((testCase) => ({
+                                id: testCase.id,
+                                displayId: testCase.displayId,
+                                name: testCase.name,
+                            }))}
+                            t={t}
+                        />
+                        <ProjectSettingsPanel
+                            canManageProject={Boolean(project.canManageProject)}
+                            maxConcurrentRunsLimit={project.maxConcurrentRunsLimit}
+                            maxConcurrentRunsInput={maxConcurrentRunsInput}
+                            isEditing={isEditingProjectSettings}
+                            isSaving={isSavingSettings}
+                            isSaveDisabled={isProjectSettingsSaveDisabled}
+                            settingsError={settingsError}
+                            onInputChange={(value) => {
+                                setMaxConcurrentRunsInput(value);
+                                setSettingsError('');
+                            }}
+                            onEnterSave={() => {
+                                void handleSaveProjectSettings();
+                            }}
+                            onSave={() => {
+                                void handleSaveProjectSettings();
+                            }}
+                            onCancel={handleCancelProjectSettingsEdit}
+                            onStartEdit={handleStartProjectSettingsEdit}
+                            t={t}
+                        />
+                    </div>
                 )}
 
                 {activeTab === 'integration' && project && currentTeam && (
