@@ -21,15 +21,6 @@ interface IntervalPatternFieldProps {
     onCustomCronChange: (value: string) => void;
 }
 
-const weekdayOptions = [
-    { value: 0, label: 'Sunday' },
-    { value: 1, label: 'Monday' },
-    { value: 2, label: 'Tuesday' },
-    { value: 3, label: 'Wednesday' },
-    { value: 4, label: 'Thursday' },
-    { value: 5, label: 'Friday' },
-    { value: 6, label: 'Saturday' },
-];
 
 const dayOfMonthOptions = Array.from({ length: 28 }, (_, index) => ({
     value: index + 1,
@@ -60,6 +51,16 @@ export default function IntervalPatternField({
     onDayOfMonthChange,
     onCustomCronChange,
 }: IntervalPatternFieldProps) {
+    const weekdayOptions = [
+        { value: 0, label: t('project.scheduler.weekday.0') },
+        { value: 1, label: t('project.scheduler.weekday.1') },
+        { value: 2, label: t('project.scheduler.weekday.2') },
+        { value: 3, label: t('project.scheduler.weekday.3') },
+        { value: 4, label: t('project.scheduler.weekday.4') },
+        { value: 5, label: t('project.scheduler.weekday.5') },
+        { value: 6, label: t('project.scheduler.weekday.6') },
+    ];
+
     return (
         <div className="space-y-3">
             <div className="grid gap-2 sm:grid-cols-2">

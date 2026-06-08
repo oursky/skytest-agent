@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/core/prisma';
-import { computeNextRunAt, compileCron, resolveSchedulePatternFields, SchedulerValidationError } from '@/lib/scheduler/cron';
+import { computeNextRunAt, compileCron, resolveSchedulePatternFields, validateCronAndTimezone, SchedulerValidationError } from '@/lib/scheduler/cron';
 import { type ScheduleRecord, type ScheduleUpsertInput } from '@/types';
 
 const MAX_DESCRIPTION_LENGTH = 500;
@@ -229,6 +229,7 @@ async function prepareScheduleMutation(input: {
     });
     const timezone = input.body.timezone.trim();
     const enabled = input.body.enabled ?? true;
+    validateCronAndTimezone(cronExpression, timezone);
     const nextRunAt = enabled ? computeNextRunAt(cronExpression, timezone, new Date()) : null;
     if (enabled && !nextRunAt) {
         throw new SchedulerValidationError('Schedule does not have a future run time');

@@ -30,7 +30,7 @@ export default function ScheduleReadRow({
                             {schedule.enabled ? t('project.scheduler.status.enabled') : t('project.scheduler.status.disabled')}
                         </span>
                     </div>
-                    <p className="text-sm text-gray-600">{humanizeSchedule(schedule)}</p>
+                    <p className="text-sm text-gray-600">{humanizeSchedule(schedule, t)}</p>
                     <div className="text-sm text-gray-500">
                         <p>{t('project.scheduler.testCases.selectedCount', { count: schedule.testCases.length })}</p>
                         <p>{t('project.scheduler.preview.nextRun', { value: schedule.nextRunAt ? formatDateTimeCompact(schedule.nextRunAt) : '-' })}</p>

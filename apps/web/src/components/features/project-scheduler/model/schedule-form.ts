@@ -80,17 +80,35 @@ export function createSchedulePreview(form: ProjectScheduleFormState): {
     }
 }
 
-export function humanizeSchedule(schedule: ScheduleRecord): string {
+export function humanizeSchedule(
+    schedule: ScheduleRecord,
+    t: (key: string, values?: Record<string, string | number>) => string
+): string {
     const timezone = schedule.timezone;
+    const time = schedule.time ?? '09:00';
     if (schedule.patternType === SCHEDULE_PATTERN_TYPE.CUSTOM) {
-        return `${schedule.cronExpression} (${timezone})`;
+        return t('project.scheduler.cadence.custom', { cron: schedule.cronExpression, timezone });
     }
     if (schedule.patternType === SCHEDULE_PATTERN_TYPE.DAILY) {
-        return `Every day at ${schedule.time ?? '09:00'} (${timezone})`;
+        return t('project.scheduler.cadence.daily', { time, timezone });
     }
     if (schedule.patternType === SCHEDULE_PATTERN_TYPE.WEEKLY) {
-        const weekdayLabel = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][schedule.weekday ?? 0] ?? 'Sun';
-        return `Every ${weekdayLabel} at ${schedule.time ?? '09:00'} (${timezone})`;
+        const weekdayLabels = [
+            t('project.scheduler.weekday.0'),
+            t('project.scheduler.weekday.1'),
+            t('project.scheduler.weekday.2'),
+            t('project.scheduler.weekday.3'),
+            t('project.scheduler.weekday.4'),
+            t('project.scheduler.weekday.5'),
+            t('project.scheduler.weekday.6'),
+        ];
+        const weekday = schedule.weekday ?? 0;
+        const normalizedWeekday = weekday >= 0 && weekday <= 6 ? weekday : 0;
+        return t('project.scheduler.cadence.weekly', {
+            weekday: weekdayLabels[normalizedWeekday],
+            time,
+            timezone,
+        });
     }
-    return `Day ${schedule.dayOfMonth ?? 1} each month at ${schedule.time ?? '09:00'} (${timezone})`;
+    return t('project.scheduler.cadence.monthly', { day: schedule.dayOfMonth ?? 1, time, timezone });
 }

@@ -105,4 +105,46 @@ describe('runSchedulerTick', () => {
             failedRuns: 1,
         });
     });
+
+    it('disables a schedule whose next run cannot be computed and keeps processing the tick', async () => {
+        mocks.queryRaw
+            .mockResolvedValueOnce([
+                {
+                    id: 'schedule-poison',
+                    cronExpression: 'not-a-cron',
+                    timezone: 'UTC',
+                    createdByUserId: 'user-1',
+                },
+            ])
+            .mockResolvedValueOnce([
+                {
+                    id: 'schedule-1',
+                    cronExpression: '0 9 * * *',
+                    timezone: 'Etc/UTC',
+                    createdByUserId: 'user-1',
+                },
+            ])
+            .mockResolvedValueOnce([]);
+        mocks.computeNextRunAt
+            .mockImplementationOnce(() => {
+                throw new Error('cannot find next');
+            })
+            .mockReturnValueOnce(new Date('2026-06-09T09:00:00.000Z'));
+        mocks.scheduleTestCaseFindMany.mockResolvedValueOnce([{ testCaseId: 'tc-1' }]);
+        mocks.scheduleUpdate.mockResolvedValue({ id: 'schedule-1' });
+        mocks.queueTestCaseRun.mockResolvedValue({ ok: true, data: { runId: 'run-1' } });
+
+        const result = await runSchedulerTick(5);
+
+        expect(result).toEqual({
+            claimedSchedules: 1,
+            enqueuedRuns: 1,
+            failedRuns: 0,
+        });
+        expect(mocks.scheduleUpdate).toHaveBeenCalledWith({
+            where: { id: 'schedule-poison' },
+            data: { enabled: false, nextRunAt: null },
+        });
+        expect(mocks.queueTestCaseRun).toHaveBeenCalledTimes(1);
+    });
 });

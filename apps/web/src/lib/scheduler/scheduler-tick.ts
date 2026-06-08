@@ -26,12 +26,17 @@ interface ClaimedSchedule {
     testCaseIds: string[];
 }
 
+type ClaimOutcome =
+    | { kind: 'empty' }
+    | { kind: 'skipped' }
+    | { kind: 'claimed'; schedule: ClaimedSchedule };
+
 export async function runSchedulerTick(maxDuePerTick: number): Promise<SchedulerTickResult> {
     const now = new Date();
     const claimedSchedules: ClaimedSchedule[] = [];
 
     for (let index = 0; index < maxDuePerTick; index += 1) {
-        const claimedSchedule = await prisma.$transaction(async (tx) => {
+        const outcome = await prisma.$transaction(async (tx): Promise<ClaimOutcome> => {
             const rows = await tx.$queryRaw<DueScheduleRow[]>(Prisma.sql`
                 SELECT
                     s.id,
@@ -49,14 +54,30 @@ export async function runSchedulerTick(maxDuePerTick: number): Promise<Scheduler
 
             const row = rows[0];
             if (!row) {
-                return null;
+                return { kind: 'empty' };
+            }
+
+            let nextRunAt: Date | null;
+            try {
+                nextRunAt = computeNextRunAt(row.cronExpression, row.timezone, now);
+            } catch (error) {
+                await tx.schedule.update({
+                    where: { id: row.id },
+                    data: { enabled: false, nextRunAt: null },
+                });
+                logger.error('Disabled schedule with uncomputable next run time', {
+                    scheduleId: row.id,
+                    cronExpression: row.cronExpression,
+                    timezone: row.timezone,
+                    error: error instanceof Error ? error.message : String(error),
+                });
+                return { kind: 'skipped' };
             }
 
             const linkedTestCases = await tx.scheduleTestCase.findMany({
                 where: { scheduleId: row.id },
                 select: { testCaseId: true },
             });
-            const nextRunAt = computeNextRunAt(row.cronExpression, row.timezone, now);
 
             await tx.schedule.update({
                 where: { id: row.id },
@@ -68,17 +89,23 @@ export async function runSchedulerTick(maxDuePerTick: number): Promise<Scheduler
             });
 
             return {
-                id: row.id,
-                createdByUserId: row.createdByUserId,
-                testCaseIds: linkedTestCases.map((entry) => entry.testCaseId),
-            } satisfies ClaimedSchedule;
+                kind: 'claimed',
+                schedule: {
+                    id: row.id,
+                    createdByUserId: row.createdByUserId,
+                    testCaseIds: linkedTestCases.map((entry) => entry.testCaseId),
+                },
+            };
         });
 
-        if (!claimedSchedule) {
+        if (outcome.kind === 'empty') {
             break;
         }
+        if (outcome.kind === 'skipped') {
+            continue;
+        }
 
-        claimedSchedules.push(claimedSchedule);
+        claimedSchedules.push(outcome.schedule);
     }
 
     let enqueuedRuns = 0;
