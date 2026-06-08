@@ -12,16 +12,16 @@ export class SchedulerValidationError extends Error {
 
 export interface SchedulePatternFields {
     time: string | null;
-    weekday: number | null;
-    dayOfMonth: number | null;
+    weekdays: number[];
+    daysOfMonth: number[];
     customCron: string | null;
 }
 
 export function compileCron(input: {
     patternType: SchedulePatternType;
     time?: string;
-    weekday?: number;
-    dayOfMonth?: number;
+    weekdays?: number[];
+    daysOfMonth?: number[];
     customCron?: string;
 }): string {
     switch (input.patternType) {
@@ -31,13 +31,13 @@ export function compileCron(input: {
         }
         case SCHEDULE_PATTERN_TYPE.WEEKLY: {
             const { hour, minute } = parseTime(input.time);
-            const weekday = parseWeekday(input.weekday);
-            return `${minute} ${hour} * * ${weekday}`;
+            const weekdays = parseIntList(input.weekdays, 0, 6, 'Select at least one weekday');
+            return `${minute} ${hour} * * ${weekdays.join(',')}`;
         }
         case SCHEDULE_PATTERN_TYPE.MONTHLY: {
             const { hour, minute } = parseTime(input.time);
-            const dayOfMonth = parseDayOfMonth(input.dayOfMonth);
-            return `${minute} ${hour} ${dayOfMonth} * *`;
+            const daysOfMonth = parseIntList(input.daysOfMonth, 1, 28, 'Select at least one day of month');
+            return `${minute} ${hour} ${daysOfMonth.join(',')} * *`;
         }
         case SCHEDULE_PATTERN_TYPE.CUSTOM: {
             const customCron = typeof input.customCron === 'string' ? input.customCron.trim() : '';
@@ -91,8 +91,8 @@ export function resolveSchedulePatternFields(
     if (patternType === SCHEDULE_PATTERN_TYPE.CUSTOM) {
         return {
             time: null,
-            weekday: null,
-            dayOfMonth: null,
+            weekdays: [],
+            daysOfMonth: [],
             customCron: cronExpression,
         };
     }
@@ -105,24 +105,22 @@ export function resolveSchedulePatternFields(
         : null;
 
     if (patternType === SCHEDULE_PATTERN_TYPE.DAILY) {
-        return { time, weekday: null, dayOfMonth: null, customCron: null };
+        return { time, weekdays: [], daysOfMonth: [], customCron: null };
     }
 
     if (patternType === SCHEDULE_PATTERN_TYPE.WEEKLY) {
-        const weekday = Number.parseInt(weekdayField ?? '', 10);
         return {
             time,
-            weekday: Number.isInteger(weekday) ? weekday : null,
-            dayOfMonth: null,
+            weekdays: parseCronIntList(weekdayField, 0, 6),
+            daysOfMonth: [],
             customCron: null,
         };
     }
 
-    const dayOfMonth = Number.parseInt(dayOfMonthField ?? '', 10);
     return {
         time,
-        weekday: null,
-        dayOfMonth: Number.isInteger(dayOfMonth) && monthField === '*' ? dayOfMonth : null,
+        weekdays: [],
+        daysOfMonth: monthField === '*' ? parseCronIntList(dayOfMonthField, 1, 28) : [],
         customCron: null,
     };
 }
@@ -155,18 +153,28 @@ function parseTime(value: string | undefined): { hour: number; minute: number } 
     return { hour, minute };
 }
 
-function parseWeekday(value: number | undefined): number {
-    if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 6) {
-        throw new SchedulerValidationError('Weekday must be between 0 and 6');
+function parseIntList(values: number[] | undefined, min: number, max: number, message: string): number[] {
+    if (!Array.isArray(values) || values.length === 0) {
+        throw new SchedulerValidationError(message);
     }
-    return value;
+    const unique = new Set<number>();
+    for (const value of values) {
+        if (typeof value !== 'number' || !Number.isInteger(value) || value < min || value > max) {
+            throw new SchedulerValidationError(message);
+        }
+        unique.add(value);
+    }
+    return [...unique].sort((left, right) => left - right);
 }
 
-function parseDayOfMonth(value: number | undefined): number {
-    if (typeof value !== 'number' || !Number.isInteger(value) || value < 1 || value > 28) {
-        throw new SchedulerValidationError('Day of month must be between 1 and 28');
+function parseCronIntList(field: string | undefined, min: number, max: number): number[] {
+    if (!field) {
+        return [];
     }
-    return value;
+    const values = field.split(',')
+        .map((part) => Number.parseInt(part, 10))
+        .filter((value) => Number.isInteger(value) && value >= min && value <= max);
+    return [...new Set(values)].sort((left, right) => left - right);
 }
 
 function toCronParserExpression(cron: string): string {

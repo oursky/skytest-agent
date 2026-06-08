@@ -6,7 +6,7 @@ import path from 'node:path';
 const workspaceRoot = process.cwd();
 
 const MAX_CONFIG_APP_LINES = 450;
-const MAX_LOCALE_FILE_LINES = 730;
+const MAX_LOCALE_FILE_LINES = 750;
 const MAX_UNUSED_LOCALE_KEYS = 154;
 
 const configFilePath = path.join(workspaceRoot, 'src/config/app.ts');

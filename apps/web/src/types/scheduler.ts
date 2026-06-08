@@ -28,8 +28,8 @@ export interface ScheduleRecord {
     createdAt: string;
     updatedAt: string;
     time: string | null;
-    weekday: number | null;
-    dayOfMonth: number | null;
+    weekdays: number[];
+    daysOfMonth: number[];
     customCron: string | null;
     testCases: ScheduleTestCaseSummary[];
 }
@@ -39,8 +39,8 @@ export interface ScheduleUpsertInput {
     timezone: string;
     patternType: SchedulePatternType;
     time?: string;
-    weekday?: number;
-    dayOfMonth?: number;
+    weekdays?: number[];
+    daysOfMonth?: number[];
     customCron?: string;
     enabled?: boolean;
     testCaseIds: string[];

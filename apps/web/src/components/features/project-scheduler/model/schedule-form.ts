@@ -1,13 +1,17 @@
 import { computeNextRunAt, compileCron, resolveSchedulePatternFields } from '@/lib/scheduler/cron';
 import { SCHEDULE_PATTERN_TYPE, type SchedulePatternType, type ScheduleRecord, type ScheduleUpsertInput } from '@/types';
 
+// Cron weekday values (0=Sun) ordered Monday-first for display.
+export const WEEKDAY_DISPLAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+export const DAY_OF_MONTH_VALUES = Array.from({ length: 28 }, (_, index) => index + 1);
+
 export interface ProjectScheduleFormState {
     description: string;
     timezone: string;
     patternType: SchedulePatternType;
     time: string;
-    weekday: number;
-    dayOfMonth: number;
+    weekdays: number[];
+    daysOfMonth: number[];
     customCron: string;
     enabled: boolean;
     testCaseIds: string[];
@@ -25,8 +29,8 @@ export function createDefaultScheduleForm(): ProjectScheduleFormState {
         timezone: 'UTC',
         patternType: SCHEDULE_PATTERN_TYPE.DAILY,
         time: '09:00',
-        weekday: 1,
-        dayOfMonth: 1,
+        weekdays: [1],
+        daysOfMonth: [1],
         customCron: '',
         enabled: true,
         testCaseIds: [],
@@ -41,8 +45,8 @@ export function mapScheduleToForm(schedule: ScheduleRecord): ProjectScheduleForm
         timezone: schedule.timezone,
         patternType: schedule.patternType,
         time: fields.time ?? schedule.time ?? '09:00',
-        weekday: fields.weekday ?? schedule.weekday ?? 1,
-        dayOfMonth: fields.dayOfMonth ?? schedule.dayOfMonth ?? 1,
+        weekdays: fields.weekdays.length ? fields.weekdays : [1],
+        daysOfMonth: fields.daysOfMonth.length ? fields.daysOfMonth : [1],
         customCron: fields.customCron ?? schedule.customCron ?? '',
         enabled: schedule.enabled,
         testCaseIds: schedule.testCases.map((testCase) => testCase.id),
@@ -67,8 +71,8 @@ export function scheduleToUpsertInput(schedule: ScheduleRecord): ScheduleUpsertI
         timezone: schedule.timezone,
         patternType: schedule.patternType,
         time: schedule.time ?? undefined,
-        weekday: schedule.weekday ?? undefined,
-        dayOfMonth: schedule.dayOfMonth ?? undefined,
+        weekdays: schedule.weekdays.length ? schedule.weekdays : undefined,
+        daysOfMonth: schedule.daysOfMonth.length ? schedule.daysOfMonth : undefined,
         customCron: schedule.customCron ?? undefined,
         enabled: schedule.enabled,
         testCaseIds: schedule.testCases.map((testCase) => testCase.id),
@@ -88,8 +92,8 @@ export function createSchedulePreview(form: ProjectScheduleFormState): {
         const cronExpression = compileCron({
             patternType: form.patternType,
             time: form.time,
-            weekday: form.weekday,
-            dayOfMonth: form.dayOfMonth,
+            weekdays: form.weekdays,
+            daysOfMonth: form.daysOfMonth,
             customCron: form.customCron,
         });
         const nextRunAt = form.enabled
@@ -132,13 +136,12 @@ export function humanizeSchedule(
             t('project.scheduler.weekday.5'),
             t('project.scheduler.weekday.6'),
         ];
-        const weekday = schedule.weekday ?? 0;
-        const normalizedWeekday = weekday >= 0 && weekday <= 6 ? weekday : 0;
-        return t('project.scheduler.cadence.weekly', {
-            weekday: weekdayLabels[normalizedWeekday],
-            time,
-            timezone,
-        });
+        const weekday = WEEKDAY_DISPLAY_ORDER
+            .filter((value) => schedule.weekdays.includes(value))
+            .map((value) => weekdayLabels[value])
+            .join(', ');
+        return t('project.scheduler.cadence.weekly', { weekday, time, timezone });
     }
-    return t('project.scheduler.cadence.monthly', { day: schedule.dayOfMonth ?? 1, time, timezone });
+    const days = [...schedule.daysOfMonth].sort((left, right) => left - right).join(', ');
+    return t('project.scheduler.cadence.monthly', { day: days, time, timezone });
 }

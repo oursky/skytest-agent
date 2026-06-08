@@ -12,14 +12,26 @@ describe('scheduler cron utilities', () => {
         expect(compileCron({
             patternType: SCHEDULE_PATTERN_TYPE.WEEKLY,
             time: '18:45',
-            weekday: 2,
+            weekdays: [2],
         })).toBe('45 18 * * 2');
+
+        expect(compileCron({
+            patternType: SCHEDULE_PATTERN_TYPE.WEEKLY,
+            time: '18:45',
+            weekdays: [5, 1, 3, 1],
+        })).toBe('45 18 * * 1,3,5');
 
         expect(compileCron({
             patternType: SCHEDULE_PATTERN_TYPE.MONTHLY,
             time: '06:30',
-            dayOfMonth: 28,
+            daysOfMonth: [28],
         })).toBe('30 6 28 * *');
+
+        expect(compileCron({
+            patternType: SCHEDULE_PATTERN_TYPE.MONTHLY,
+            time: '06:30',
+            daysOfMonth: [15, 1],
+        })).toBe('30 6 1,15 * *');
     });
 
     it('rejects invalid schedule inputs', () => {
@@ -44,17 +56,24 @@ describe('scheduler cron utilities', () => {
     });
 
     it('derives editor fields from stored preset schedules', () => {
-        expect(resolveSchedulePatternFields(SCHEDULE_PATTERN_TYPE.WEEKLY, '45 18 * * 2')).toEqual({
+        expect(resolveSchedulePatternFields(SCHEDULE_PATTERN_TYPE.WEEKLY, '45 18 * * 1,3,5')).toEqual({
             time: '18:45',
-            weekday: 2,
-            dayOfMonth: null,
+            weekdays: [1, 3, 5],
+            daysOfMonth: [],
+            customCron: null,
+        });
+
+        expect(resolveSchedulePatternFields(SCHEDULE_PATTERN_TYPE.MONTHLY, '30 6 1,15 * *')).toEqual({
+            time: '06:30',
+            weekdays: [],
+            daysOfMonth: [1, 15],
             customCron: null,
         });
 
         expect(resolveSchedulePatternFields(SCHEDULE_PATTERN_TYPE.CUSTOM, '*/5 * * * *')).toEqual({
             time: null,
-            weekday: null,
-            dayOfMonth: null,
+            weekdays: [],
+            daysOfMonth: [],
             customCron: '*/5 * * * *',
         });
     });

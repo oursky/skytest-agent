@@ -67,8 +67,8 @@ export default function ScheduleEditor({
                     <IntervalPatternField
                         patternType={form.patternType}
                         time={form.time}
-                        weekday={form.weekday}
-                        dayOfMonth={form.dayOfMonth}
+                        weekdays={form.weekdays}
+                        daysOfMonth={form.daysOfMonth}
                         customCron={form.customCron}
                         cronPreview={preview.cronExpression}
                         nextRunPreview={preview.nextRunAt ? formatDateTimeCompact(preview.nextRunAt) : null}
@@ -76,8 +76,8 @@ export default function ScheduleEditor({
                         t={t}
                         onPatternTypeChange={(value) => setForm((previous) => ({ ...previous, patternType: value }))}
                         onTimeChange={(value) => setForm((previous) => ({ ...previous, time: value }))}
-                        onWeekdayChange={(value) => setForm((previous) => ({ ...previous, weekday: value }))}
-                        onDayOfMonthChange={(value) => setForm((previous) => ({ ...previous, dayOfMonth: value }))}
+                        onWeekdaysChange={(value) => setForm((previous) => ({ ...previous, weekdays: value }))}
+                        onDaysOfMonthChange={(value) => setForm((previous) => ({ ...previous, daysOfMonth: value }))}
                         onCustomCronChange={(value) => setForm((previous) => ({ ...previous, customCron: value }))}
                     />
                 </div>
@@ -125,8 +125,8 @@ export default function ScheduleEditor({
                                 timezone: form.timezone,
                                 patternType: form.patternType,
                                 time: form.time,
-                                weekday: form.weekday,
-                                dayOfMonth: form.dayOfMonth,
+                                weekdays: form.weekdays,
+                                daysOfMonth: form.daysOfMonth,
                                 customCron: form.customCron,
                                 enabled: form.enabled,
                                 testCaseIds: form.testCaseIds,

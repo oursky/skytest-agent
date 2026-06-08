@@ -223,8 +223,8 @@ async function prepareScheduleMutation(input: {
     const cronExpression = compileCron({
         patternType: input.body.patternType,
         time: input.body.time,
-        weekday: input.body.weekday,
-        dayOfMonth: input.body.dayOfMonth,
+        weekdays: input.body.weekdays,
+        daysOfMonth: input.body.daysOfMonth,
         customCron: input.body.customCron,
     });
     const timezone = input.body.timezone.trim();
@@ -296,8 +296,8 @@ function serializeScheduleRecord(schedule: {
         createdAt: schedule.createdAt.toISOString(),
         updatedAt: schedule.updatedAt.toISOString(),
         time: fields.time,
-        weekday: fields.weekday,
-        dayOfMonth: fields.dayOfMonth,
+        weekdays: fields.weekdays,
+        daysOfMonth: fields.daysOfMonth,
         customCron: fields.customCron,
         testCases: schedule.testCases.map(({ testCase }) => ({
             id: testCase.id,
