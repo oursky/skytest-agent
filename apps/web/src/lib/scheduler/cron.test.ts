@@ -28,6 +28,7 @@ describe('scheduler cron utilities', () => {
             time: '25:00',
         })).toThrow(SchedulerValidationError);
 
+        expect(() => validateCronAndTimezone('* * * * *', 'UTC')).not.toThrow();
         expect(() => validateCronAndTimezone('* * * * * *', 'UTC')).toThrow(SchedulerValidationError);
         expect(() => validateCronAndTimezone('* * * * *', 'Mars/Olympus')).toThrow(SchedulerValidationError);
     });

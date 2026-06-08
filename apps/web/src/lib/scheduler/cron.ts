@@ -132,6 +132,9 @@ function validateTimezone(timezone: string): void {
     if (!value) {
         throw new SchedulerValidationError('Timezone is required');
     }
+    if (value === 'UTC') {
+        return;
+    }
 
     const supportedValuesOf = Intl.supportedValuesOf as ((key: 'timeZone') => string[]) | undefined;
     if (typeof supportedValuesOf === 'function') {
