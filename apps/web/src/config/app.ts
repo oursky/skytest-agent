@@ -160,6 +160,7 @@ const playwrightCodeExpectTimeoutMs = parseBoundedIntEnv({
     max: 120_000,
 });
 const browserWorkerEnabled = process.env.SKYTEST_BROWSER_WORKER === 'true';
+const schedulerWorkerEnabled = process.env.SKYTEST_SCHEDULER === 'true';
 const midsceneGenerateReport = process.env.SKYTEST_MIDSCENE_GENERATE_REPORT === 'true';
 const midsceneAutoPrintReportMsg = process.env.SKYTEST_MIDSCENE_AUTO_PRINT_REPORT_MSG === 'true';
 const s3ForcePathStyle = parseBooleanEnv('S3_FORCE_PATH_STYLE', false);
@@ -219,6 +220,22 @@ export const config = {
         dispatchIntervalMs: browserWorkerDispatchIntervalMs,
         maxDispatchIntervalMs: browserWorkerMaxDispatchIntervalMs,
         maxDispatchesPerCycle: browserWorkerMaxDispatchesPerCycle,
+    },
+
+    scheduler: {
+        enabled: schedulerWorkerEnabled,
+        evaluationIntervalMs: parseBoundedIntEnv({
+            name: 'SKYTEST_SCHEDULER_EVALUATION_INTERVAL_MS',
+            fallback: 30_000,
+            min: 5_000,
+            max: 300_000,
+        }),
+        maxDuePerTick: parseBoundedIntEnv({
+            name: 'SKYTEST_SCHEDULER_MAX_DUE_PER_TICK',
+            fallback: 50,
+            min: 1,
+            max: 1_000,
+        }),
     },
 
     test: {

@@ -107,7 +107,7 @@ If you add features that expose Android state/control:
 The top-level `Makefile` is the source of truth for multi-step local workflows:
 
 - `make bootstrap` installs dependencies, starts local services, and applies the schema
-- `make dev` starts the local control plane and the maintenance loop
+- `make dev` starts the local control plane plus the maintenance, browser, and scheduler workers
 - `make app` starts only the Next.js control plane
 - `make maintenance` starts only the maintenance loop
 - `make runner-reset` clears local runner state

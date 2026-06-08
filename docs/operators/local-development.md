@@ -37,7 +37,7 @@ npm run skytest -- local down
 
 - `skytest local setup` runs bootstrap (`make bootstrap`) and then `skytest init`.
 - `skytest local up` runs `make dev` in foreground.
-- `skytest local up -d` starts `make dev` in background and waits for full readiness (health endpoint + app + maintenance worker + browser worker), then returns.
+- `skytest local up -d` starts `make dev` in background and waits for full readiness (health endpoint + app + maintenance worker + browser worker + scheduler worker), then returns.
 - `skytest local status` checks compose services and key local processes.
 - `skytest local down` runs runner reset and then stops compose services.
 - `skytest local update` is the post-`git pull` refresh flow (install, services up, DB setup, Playwright ensure, seed defaults, init).
@@ -50,6 +50,8 @@ npm run skytest -- local down
 - installs Playwright Chromium when it is not already available locally
 - starts the Next.js control plane on `http://127.0.0.1:3000`
 - starts the runner maintenance loop
+- starts the browser worker loop
+- starts the scheduler worker loop
 
 Browser test runs execute inside the control-plane process. Android test runs execute on external macOS runners paired to the same control plane.
 
@@ -71,7 +73,7 @@ make verify
 npm run --workspace @skytest/web smoke:storage
 ```
 
-Use `make app` and `make maintenance` in separate terminals when you want to run the control plane and the maintenance loop independently.
+Use `make app`, `make maintenance`, and `make scheduler-worker` in separate terminals when you want to run the control plane and workers independently.
 
 ## Environment
 
