@@ -49,6 +49,7 @@ export async function GET(
                     createdAt: true,
                     error: true,
                     triggeredByEmail: true,
+                    triggerSource: true,
                     instanceId: true,
                     instanceType: true,
                     instanceName: true,

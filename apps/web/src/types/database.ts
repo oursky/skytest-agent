@@ -66,6 +66,7 @@ export interface TestRun {
     id: string;
     testCaseId: string;
     triggeredByEmail?: string | null;
+    triggerSource?: string | null;
     instanceId?: string | null;
     instanceType?: string | null;
     instanceName?: string | null;

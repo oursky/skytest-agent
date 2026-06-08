@@ -9,6 +9,7 @@ export * from './runtime-config';
 export * from './runtime-instance';
 export * from './test-catalog';
 export * from './slack';
+export * from './scheduler';
 export type {
     CompatibilityMetadata,
     ClaimJobRequest,

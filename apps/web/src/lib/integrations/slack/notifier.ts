@@ -17,6 +17,7 @@ import {
 } from '@/lib/integrations/slack/template';
 import { PROJECT_SLACK_NOTIFY_ON } from '@/types/slack';
 import { TEST_STATUS } from '@/types';
+import { isSchedulerTriggered } from '@/lib/test-runs/trigger-label';
 
 const logger = createLogger('integrations:slack:notifier');
 const MAX_ERROR_SUMMARY_LENGTH = 500;
@@ -73,6 +74,7 @@ export async function notifyRunTerminal(runId: string): Promise<SlackNotifyOutco
             id: true,
             status: true,
             triggeredByEmail: true,
+            triggerSource: true,
             startedAt: true,
             completedAt: true,
             error: true,
@@ -158,7 +160,7 @@ export async function notifyRunTerminal(runId: string): Promise<SlackNotifyOutco
         testCaseID: (run.testCase.displayId || '').trim(),
         testCaseName: run.testCase.name,
         testRunLink: runUrl ?? '-',
-        triggeredBy: run.triggeredByEmail ?? 'system',
+        triggeredBy: isSchedulerTriggered(run) ? 'Scheduler' : (run.triggeredByEmail ?? 'system'),
         startedAt: rawSlack(formatSlackDateToken(run.startedAt)),
         completedAt: rawSlack(formatSlackDateToken(run.completedAt)),
         durationMinSec: formatDurationMinutesSeconds(durationSeconds),
