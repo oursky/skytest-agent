@@ -17,7 +17,7 @@ import {
     hasAndroidTargets,
     isEmulatorProfileInventoryDevice,
 } from '@/lib/android/target-requests';
-import { TEST_STATUS, type BrowserConfig, type ResolvedConfig, type TargetConfig, type TestStep } from '@/types';
+import { RUN_TRIGGER_SOURCE, TEST_STATUS, type BrowserConfig, type ResolvedConfig, type RunTriggerSource, type TargetConfig, type TestStep } from '@/types';
 
 function validateAndroidTargets(
     browserConfig: Record<string, BrowserConfig | TargetConfig> | undefined
@@ -89,16 +89,23 @@ export interface QueueTestCaseRunFailure {
     details?: unknown;
 }
 
+export interface QueueTestCaseRunTrigger {
+    source: RunTriggerSource;
+}
+
 export async function queueTestCaseRun(
     userId: string,
     testCaseId: string,
-    overrides?: RunTestOverrides
+    overrides?: RunTestOverrides,
+    trigger: QueueTestCaseRunTrigger = { source: RUN_TRIGGER_SOURCE.USER }
 ): Promise<{ ok: true; data: QueueTestCaseRunResult } | { ok: false; failure: QueueTestCaseRunFailure }> {
     const user = await prisma.user.findUnique({
         where: { id: userId },
         select: { email: true },
     });
-    const triggeredByEmail = typeof user?.email === 'string' ? user.email : null;
+    const triggeredByEmail = trigger.source === RUN_TRIGGER_SOURCE.SCHEDULER
+        ? null
+        : (typeof user?.email === 'string' ? user.email : null);
 
     const testCase = await prisma.testCase.findUnique({
         where: { id: testCaseId },
@@ -301,6 +308,7 @@ export async function queueTestCaseRun(
             requestedDeviceId,
             requestedRunnerId,
             triggeredByEmail,
+            triggerSource: trigger.source,
         }
     });
 

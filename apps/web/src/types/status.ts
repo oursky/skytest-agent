@@ -8,7 +8,13 @@ export const TEST_STATUS = {
     CANCELLED: 'CANCELLED',
 } as const;
 
+export const RUN_TRIGGER_SOURCE = {
+    USER: 'USER',
+    SCHEDULER: 'SCHEDULER',
+} as const;
+
 export type TestStatus = typeof TEST_STATUS[keyof typeof TEST_STATUS];
+export type RunTriggerSource = typeof RUN_TRIGGER_SOURCE[keyof typeof RUN_TRIGGER_SOURCE];
 export type RunTerminalStatus = typeof RUN_TERMINAL_STATUSES[number];
 export type RunInProgressStatus = typeof RUN_IN_PROGRESS_STATUSES[number];
 export type RunActiveStatus = typeof RUN_ACTIVE_STATUSES[number];

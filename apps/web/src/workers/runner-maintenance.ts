@@ -6,6 +6,7 @@ import { pruneOldRunEvents } from '@/lib/runners/event-retention-service';
 import { reapExpiredRunnerLeases, reapStaleLocalBrowserRuns } from '@/lib/runners/lease-reaper';
 import { failInvalidQueuedAndroidRuns } from '@/lib/runners/queue-sanitizer';
 import { enforceRunArtifactRetention } from '@/lib/runners/run-retention-service';
+import { runSchedulerTick } from '@/lib/scheduler/scheduler-tick';
 import { createWakeableSleeper, createWorkerShutdownController } from '@/workers/loop-utils';
 
 const logger = createLogger('worker:runner-maintenance');
@@ -58,6 +59,22 @@ async function runMaintenanceCycle() {
     }
 }
 
+async function runSchedulerTickSafely() {
+    if (!appConfig.scheduler.enabled) {
+        return;
+    }
+    try {
+        const result = await runSchedulerTick(appConfig.scheduler.maxDuePerTick);
+        if (result.claimedSchedules > 0) {
+            logger.info('Scheduler tick completed', result);
+        }
+    } catch (error) {
+        logger.warn('Scheduler tick failed', {
+            error: error instanceof Error ? error.message : String(error),
+        });
+    }
+}
+
 async function main() {
     logger.info('Runner maintenance worker started', {
         leaseReaperIntervalMs: appConfig.runner.leaseReaperIntervalMs,
@@ -66,11 +83,14 @@ async function main() {
         artifactSoftDeleteDays: appConfig.runner.artifactSoftDeleteDays,
         artifactHardDeleteDays: appConfig.runner.artifactHardDeleteDays,
         artifactHardDeleteBatchSize: appConfig.runner.artifactHardDeleteBatchSize,
+        schedulerEnabled: appConfig.scheduler.enabled,
+        schedulerMaxDuePerTick: appConfig.scheduler.maxDuePerTick,
     });
 
     const runOnce = process.env.RUNNER_MAINTENANCE_ONCE === 'true';
     if (runOnce) {
         await runMaintenanceCycle();
+        await runSchedulerTickSafely();
         return;
     }
 
@@ -86,6 +106,8 @@ async function main() {
             });
             nextIntervalMs = Math.min(MAX_MAINTENANCE_RETRY_INTERVAL_MS, Math.floor(nextIntervalMs * 2));
         }
+
+        await runSchedulerTickSafely();
 
         if (!shutdown.isShutdownRequested()) {
             await sleeper.sleepOrWake(nextIntervalMs);

@@ -46,12 +46,15 @@ function buildFailedRun(overrides?: Partial<{
     token: string | null;
     attempts: number;
     displayId: string | null;
+    triggerSource: 'USER' | 'SCHEDULER';
+    slackFailureTemplate: string | null;
 }>) {
     return {
         id: 'run-1',
         status: overrides?.status ?? 'FAIL',
         testCaseId: 'tc-1',
         triggeredByEmail: 'test@example.com',
+        triggerSource: overrides?.triggerSource ?? 'USER',
         startedAt: new Date('2026-04-29T07:00:00.000Z'),
         completedAt: new Date('2026-04-29T07:01:00.000Z'),
         error: 'Locator not found',
@@ -66,7 +69,7 @@ function buildFailedRun(overrides?: Partial<{
                 slackEnabled: overrides?.slackEnabled ?? true,
                 slackNotifyOn: overrides?.slackNotifyOn ?? 'FAILED_ONLY',
                 slackChannelId: overrides?.slackChannelId ?? 'C123',
-                slackFailureTemplate: null,
+                slackFailureTemplate: overrides?.slackFailureTemplate ?? null,
                 slackSuccessTemplate: null,
                 team: {
                     slackBotTokenEncrypted: overrides?.token ?? 'enc-token',
@@ -108,6 +111,21 @@ describe('notifyRunTerminal', () => {
                 slackNotifyClaimedAt: null,
                 slackNotifyError: null,
             },
+        });
+    });
+
+    it('renders scheduler as the trigger label for scheduled runs', async () => {
+        findUniqueRun.mockResolvedValueOnce(buildFailedRun({
+            triggerSource: 'SCHEDULER',
+            slackFailureTemplate: '*Triggered by:* {triggeredBy}',
+        }));
+
+        await notifyRunTerminal('run-1');
+
+        expect(postMessageMock).toHaveBeenCalledWith({
+            token: 'xoxb-token',
+            channel: 'C123',
+            text: expect.stringContaining('*Triggered by:* Scheduler'),
         });
     });
 

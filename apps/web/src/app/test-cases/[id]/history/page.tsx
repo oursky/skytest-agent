@@ -12,6 +12,7 @@ import { getStatusBadgeClass } from '@/utils/status/statusBadge';
 import { parsePageSize } from '@/utils/pagination/pagination';
 import { isRunActiveStatus, type TestStatus } from '@/types';
 import { reportLoadMetric } from "@/lib/telemetry/client-metrics";
+import { isSchedulerTriggered } from '@/lib/test-runs/trigger-label';
 
 interface TestRun {
     id: string;
@@ -20,6 +21,7 @@ interface TestRun {
     result: string;
     error: string | null;
     triggeredByEmail?: string | null;
+    triggerSource?: string | null;
     instanceId?: string | null;
     instanceType?: string | null;
     instanceName?: string | null;
@@ -331,7 +333,7 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
                                                 {formatDateTime(run.createdAt)}
                                             </div>
                                             <div className="col-span-3 text-sm text-gray-500 truncate">
-                                                {run.triggeredByEmail || '-'}
+                                                {isSchedulerTriggered(run) ? t('run.trigger.scheduler') : (run.triggeredByEmail || '-')}
                                             </div>
                                             <div className="col-span-3 flex items-center justify-end gap-2">
                                                 {isRunRunningOrQueued ? (

@@ -485,6 +485,7 @@ export async function POST(request: Request) {
                 requestedDeviceId,
                 requestedRunnerId,
                 triggeredByEmail,
+                triggerSource: 'USER',
                 instanceId: instanceIdentity.instanceId,
                 instanceType: instanceIdentity.instanceType,
                 instanceName: instanceIdentity.instanceName,

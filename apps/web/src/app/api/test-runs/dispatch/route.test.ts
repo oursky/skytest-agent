@@ -192,6 +192,7 @@ describe('POST /api/test-runs/dispatch', () => {
                 requiredCapability: 'BROWSER',
                 requiredRunnerKind: null,
                 triggeredByEmail: 'runner@example.com',
+                triggerSource: 'USER',
             },
         });
         expect(payload).toMatchObject({

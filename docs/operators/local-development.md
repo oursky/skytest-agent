@@ -49,7 +49,8 @@ npm run skytest -- local down
 - generates the Prisma client and applies the schema
 - installs Playwright Chromium when it is not already available locally
 - starts the Next.js control plane on `http://127.0.0.1:3000`
-- starts the runner maintenance loop
+- starts the runner maintenance loop (which also runs the scheduler tick)
+- starts the browser worker loop
 
 Browser test runs execute inside the control-plane process. Android test runs execute on external macOS runners paired to the same control plane.
 
@@ -71,7 +72,7 @@ make verify
 npm run --workspace @skytest/web smoke:storage
 ```
 
-Use `make app` and `make maintenance` in separate terminals when you want to run the control plane and the maintenance loop independently.
+Use `make app` and `make maintenance` in separate terminals when you want to run the control plane and workers independently. `make maintenance` also runs the scheduler tick.
 
 ## Environment
 

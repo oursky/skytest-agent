@@ -74,8 +74,8 @@ db-setup: db-generate db-migrate-deploy ## Generate Prisma client and apply comm
 app: ## Start the local Next.js control plane
 	$(NODE_PM) run dev -- --hostname $(CONTROL_PLANE_HOST) --port $(CONTROL_PLANE_PORT)
 
-maintenance: ## Start the runner maintenance worker loop
-	RUNNER_MAINTENANCE_ONCE=false $(NODE_PM) run runner:maintenance
+maintenance: ## Start the runner maintenance worker loop (also runs the scheduler tick)
+	RUNNER_MAINTENANCE_ONCE=false SKYTEST_SCHEDULER=true $(NODE_PM) run runner:maintenance
 
 browser-worker: ## Start the browser run dispatch worker loop
 	SKYTEST_BROWSER_WORKER=true $(NODE_PM) run --workspace @skytest/web browser:worker
@@ -104,14 +104,14 @@ bootstrap: ## Install deps, start local services, and apply committed migrations
 	$(MAKE) db-setup
 	$(MAKE) seed-local-defaults
 
-dev: ## Boot local services, apply committed migrations, and start the web app with maintenance + browser worker
+dev: ## Boot local services, apply committed migrations, and start the web app with maintenance (incl. scheduler) + browser workers
 	$(MAKE) services-up
 	$(MAKE) db-setup
 	$(MAKE) playwright-ensure
 	@set -a; \
 	[ -f .env.local ] && . ./.env.local; \
 	set +a; \
-	RUNNER_MAINTENANCE_ONCE=false $(NODE_PM) run runner:maintenance & \
+	RUNNER_MAINTENANCE_ONCE=false SKYTEST_SCHEDULER=true $(NODE_PM) run runner:maintenance & \
 	MAINT_PID=$$!; \
 	SKYTEST_BROWSER_WORKER=true $(NODE_PM) run --workspace @skytest/web browser:worker & \
 	BROWSER_WORKER_PID=$$!; \
