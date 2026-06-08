@@ -107,9 +107,43 @@ describe('queueTestCaseRun', () => {
                 requiredCapability: 'BROWSER',
                 requiredRunnerKind: null,
                 triggeredByEmail: 'runner@example.com',
+                triggerSource: 'USER',
             }),
         });
         expect(mocks.testRunFileCreateMany).toHaveBeenCalledTimes(1);
+    });
+
+    it('stores scheduler-triggered runs without a triggering email', async () => {
+        mocks.testCaseFindUnique.mockResolvedValueOnce({
+            id: 'tc-1',
+            url: 'https://example.com',
+            prompt: 'Open homepage',
+            steps: JSON.stringify([{ id: 'step_1', target: 'browser_a', action: 'Open homepage' }]),
+            browserConfig: JSON.stringify({
+                browser_a: { type: 'browser', url: 'https://example.com', width: 1280, height: 800 }
+            }),
+            files: [],
+            project: {
+                teamId: 'team-1',
+                team: {
+                    openRouterKeyEncrypted: 'encrypted-key',
+                    memberships: [{ id: 'm-1' }],
+                },
+            },
+        });
+
+        const result = await queueTestCaseRun('user-1', 'tc-1', undefined, {
+            source: 'SCHEDULER',
+        });
+
+        expect(result.ok).toBe(true);
+        expect(mocks.testRunCreate).toHaveBeenCalledWith({
+            data: expect.objectContaining({
+                testCaseId: 'tc-1',
+                triggeredByEmail: null,
+                triggerSource: 'SCHEDULER',
+            }),
+        });
     });
 
     it('stores resolved configurations in the run snapshot', async () => {
