@@ -28,11 +28,8 @@ export default function TimezoneSelect({ value, disabled = false, onChange }: Ti
             const timezone = offsetToTimezone(offset);
             offsetOptions.push({ value: timezone, label: formatTimezoneLabel(timezone) });
         }
-        if (!offsetOptions.some((option) => option.value === value)) {
-            offsetOptions.unshift({ value, label: formatTimezoneLabel(value) });
-        }
         return offsetOptions;
-    }, [value]);
+    }, []);
 
     return (
         <div className="max-w-[12rem]">

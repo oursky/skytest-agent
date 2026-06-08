@@ -132,9 +132,6 @@ function validateTimezone(timezone: string): void {
     if (!value) {
         throw new SchedulerValidationError('Timezone is required');
     }
-    if (value === 'UTC') {
-        return;
-    }
 
     try {
         Intl.DateTimeFormat(undefined, { timeZone: value }).format(new Date());
