@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Button, CenteredLoading, Modal } from '@/components/shared';
 import { useProjectSchedules } from '../hooks/useProjectSchedules';
 import { type ProjectScheduleTestCaseOption } from '../model/schedule-form';
@@ -31,8 +31,6 @@ export default function ProjectSchedulesPanel({
     const [editingId, setEditingId] = useState<string | 'new' | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [deleteId, setDeleteId] = useState<string | null>(null);
-
-    const scheduleById = useMemo(() => new Map(schedules.map((schedule) => [schedule.id, schedule])), [schedules]);
 
     if (isLoading) {
         return <CenteredLoading className="py-12" />;

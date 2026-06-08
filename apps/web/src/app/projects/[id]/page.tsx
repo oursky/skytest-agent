@@ -11,8 +11,7 @@ import { getStatusBadgeClass } from '@/utils/status/statusBadge';
 import { isActiveRunStatus } from '@/utils/status/statusHelpers';
 import { parsePageSize } from '@/utils/pagination/pagination';
 import { ProjectConfigs } from '@/components/features/project-configurations';
-import { ProjectSchedulesPanel } from '@/components/features/project-scheduler';
-import ProjectSettingsPanel from '@/components/features/projects/ui/ProjectSettingsPanel';
+import ProjectSettingsTab from '@/components/features/projects/ui/ProjectSettingsTab';
 import ProjectSlackSettings from '@/components/features/project-notifications/ui/ProjectSlackSettings';
 import { useCurrentTeam } from '@/hooks/team/useCurrentTeam';
 import TestCaseImportReviewDialog from '@/components/features/test-cases/ui/TestCaseImportReviewDialog';
@@ -73,21 +72,16 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     }, [isAuthLoading, isLoggedIn, router]);
 
     useEffect(() => {
-        if (!project || !currentTeam) {
-            return;
-        }
-
-        if (project.teamId !== currentTeam.id) {
+        if (project && currentTeam && project.teamId !== currentTeam.id) {
             router.replace(`/projects?teamId=${encodeURIComponent(currentTeam.id)}`);
         }
     }, [project, currentTeam, router]);
 
     useEffect(() => {
         const tab = searchParams.get('tab');
-        if (tab === 'variables') { setActiveTab('variables'); return; }
-        if (tab === 'integration') { setActiveTab('integration'); return; }
-        if (tab === 'settings') { setActiveTab('settings'); return; }
-        if (tab === 'test-cases') { setActiveTab('test-cases'); }
+        if (tab === 'variables' || tab === 'integration' || tab === 'settings' || tab === 'test-cases') {
+            setActiveTab(tab);
+        }
     }, [searchParams]);
 
     useEffect(() => {
@@ -112,11 +106,9 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
     const handleTabChange = useCallback((tab: ProjectTab) => {
         setActiveTab(tab);
-
         const params = new URLSearchParams(searchParams.toString());
         params.set('tab', tab);
         const query = params.toString();
-
         router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
     }, [pathname, router, searchParams]);
 
@@ -423,9 +415,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     };
 
     const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-        if (e.key === 'Enter') {
-            handleSearch();
-        }
+        if (e.key === 'Enter') handleSearch();
     };
 
     const filteredTestCases = filterProjectTestCases(testCases, searchQuery);
@@ -634,40 +624,34 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 )}
 
                 {activeTab === 'settings' && project && (
-                    <div className="space-y-6">
-                        <ProjectSchedulesPanel
-                            projectId={id}
-                            canManageProject={Boolean(project.canManageProject)}
-                            availableTestCases={testCases.map((testCase) => ({
-                                id: testCase.id,
-                                displayId: testCase.displayId,
-                                name: testCase.name,
-                            }))}
-                            t={t}
-                        />
-                        <ProjectSettingsPanel
-                            canManageProject={Boolean(project.canManageProject)}
-                            maxConcurrentRunsLimit={project.maxConcurrentRunsLimit}
-                            maxConcurrentRunsInput={maxConcurrentRunsInput}
-                            isEditing={isEditingProjectSettings}
-                            isSaving={isSavingSettings}
-                            isSaveDisabled={isProjectSettingsSaveDisabled}
-                            settingsError={settingsError}
-                            onInputChange={(value) => {
-                                setMaxConcurrentRunsInput(value);
-                                setSettingsError('');
-                            }}
-                            onEnterSave={() => {
-                                void handleSaveProjectSettings();
-                            }}
-                            onSave={() => {
-                                void handleSaveProjectSettings();
-                            }}
-                            onCancel={handleCancelProjectSettingsEdit}
-                            onStartEdit={handleStartProjectSettingsEdit}
-                            t={t}
-                        />
-                    </div>
+                    <ProjectSettingsTab
+                        projectId={id}
+                        canManageProject={Boolean(project.canManageProject)}
+                        testCases={testCases.map((testCase) => ({
+                            id: testCase.id,
+                            displayId: testCase.displayId,
+                            name: testCase.name,
+                        }))}
+                        maxConcurrentRunsLimit={project.maxConcurrentRunsLimit}
+                        maxConcurrentRunsInput={maxConcurrentRunsInput}
+                        isEditing={isEditingProjectSettings}
+                        isSaving={isSavingSettings}
+                        isSaveDisabled={isProjectSettingsSaveDisabled}
+                        settingsError={settingsError}
+                        onInputChange={(value) => {
+                            setMaxConcurrentRunsInput(value);
+                            setSettingsError('');
+                        }}
+                        onEnterSave={() => {
+                            void handleSaveProjectSettings();
+                        }}
+                        onSave={() => {
+                            void handleSaveProjectSettings();
+                        }}
+                        onCancel={handleCancelProjectSettingsEdit}
+                        onStartEdit={handleStartProjectSettingsEdit}
+                        t={t}
+                    />
                 )}
 
                 {activeTab === 'integration' && project && currentTeam && (
