@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 type SelectValue = string | number;
@@ -22,6 +22,7 @@ interface CustomSelectProps<T extends SelectValue> {
     optionClassName?: string;
     disabled?: boolean;
     fullWidth?: boolean;
+    menuHeader?: ReactNode;
     footerActionLabel?: string;
     onFooterAction?: () => void;
     footerActionClassName?: string;
@@ -55,6 +56,7 @@ export default function CustomSelect<T extends SelectValue>({
     optionClassName = '',
     disabled = false,
     fullWidth = false,
+    menuHeader,
     footerActionLabel,
     onFooterAction,
     footerActionClassName = '',
@@ -158,9 +160,18 @@ export default function CustomSelect<T extends SelectValue>({
         };
 
         const handleKeyDown = (event: KeyboardEvent) => {
+            const target = event.target as HTMLElement | null;
+            const isTextInputTarget = target instanceof HTMLInputElement
+                || target instanceof HTMLTextAreaElement
+                || target?.isContentEditable;
+
             if (event.key === 'Escape') {
                 setIsOpen(false);
                 buttonRef.current?.focus();
+                return;
+            }
+
+            if (isTextInputTarget) {
                 return;
             }
 
@@ -236,41 +247,48 @@ export default function CustomSelect<T extends SelectValue>({
                 transformOrigin: menuStyle.placement === 'top' ? 'bottom' : 'top',
                 ...(fullWidth ? { width: menuStyle.minWidth } : {}),
             }}
-            className={`fixed z-[70] max-h-64 overflow-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg ${fullWidth ? 'w-full' : 'min-w-full'} ${menuClassName}`.trim()}
+            className={`fixed z-[70] flex max-h-64 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg ${fullWidth ? 'w-full' : 'min-w-full'} ${menuClassName}`.trim()}
         >
-            {options.map((option, index) => (
-                <button
-                    key={String(option.value)}
-                    ref={(element) => {
-                        optionRefs.current[index] = element;
-                    }}
-                    type="button"
-                    role="option"
-                    aria-selected={option.value === value}
-                    disabled={option.disabled}
-                    onMouseEnter={() => {
-                        if (!option.disabled) {
-                            setFocusIndex(index);
-                        }
-                    }}
-                    onClick={() => {
-                        if (option.disabled) {
-                            return;
-                        }
-                        onChange(option.value);
-                        setIsOpen(false);
-                        buttonRef.current?.focus();
-                    }}
-                    className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50 focus:bg-gray-50 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${option.value === value ? 'font-semibold text-primary' : 'text-gray-700'} ${optionClassName}`.trim()}
-                >
-                    <span className="truncate">{option.label}</span>
-                    {option.value === value && (
-                        <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                    )}
-                </button>
-            ))}
+            {menuHeader && (
+                <div className="border-b border-gray-100 px-3 py-2">
+                    {menuHeader}
+                </div>
+            )}
+            <div className="overflow-y-auto">
+                {options.map((option, index) => (
+                    <button
+                        key={String(option.value)}
+                        ref={(element) => {
+                            optionRefs.current[index] = element;
+                        }}
+                        type="button"
+                        role="option"
+                        aria-selected={option.value === value}
+                        disabled={option.disabled}
+                        onMouseEnter={() => {
+                            if (!option.disabled) {
+                                setFocusIndex(index);
+                            }
+                        }}
+                        onClick={() => {
+                            if (option.disabled) {
+                                return;
+                            }
+                            onChange(option.value);
+                            setIsOpen(false);
+                            buttonRef.current?.focus();
+                        }}
+                        className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50 focus:bg-gray-50 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${option.value === value ? 'font-semibold text-primary' : 'text-gray-700'} ${optionClassName}`.trim()}
+                    >
+                        <span className="truncate">{option.label}</span>
+                        {option.value === value && (
+                            <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                        )}
+                    </button>
+                ))}
+            </div>
             {footerActionLabel && onFooterAction && (
                 <div className="border-t border-gray-100 px-1 pt-1">
                     <button

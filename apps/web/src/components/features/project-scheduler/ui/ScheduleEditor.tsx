@@ -16,6 +16,7 @@ import TestCasePicker from './TestCasePicker';
 import TimezoneSelect from './TimezoneSelect';
 
 interface ScheduleEditorProps {
+    projectId: string;
     schedule?: ScheduleRecord;
     availableTestCases: ProjectScheduleTestCaseOption[];
     isSaving: boolean;
@@ -25,6 +26,7 @@ interface ScheduleEditorProps {
 }
 
 export default function ScheduleEditor({
+    projectId,
     schedule,
     availableTestCases,
     isSaving,
@@ -56,6 +58,7 @@ export default function ScheduleEditor({
                     <label className="mb-1 block text-sm font-medium text-gray-700">{t('project.scheduler.fields.timezone')}</label>
                     <TimezoneSelect
                         value={form.timezone}
+                        t={t}
                         onChange={(value) => setForm((previous) => ({ ...previous, timezone: value }))}
                     />
                 </div>
@@ -83,6 +86,7 @@ export default function ScheduleEditor({
                 <div>
                     <label className="mb-1 block text-sm font-medium text-gray-700">{t('project.scheduler.fields.testCases')}</label>
                     <TestCasePicker
+                        projectId={projectId}
                         testCases={availableTestCases}
                         selectedIds={form.testCaseIds}
                         t={t}

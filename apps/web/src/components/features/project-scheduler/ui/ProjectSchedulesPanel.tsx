@@ -72,6 +72,7 @@ export default function ProjectSchedulesPanel({
             <div className="mt-6 space-y-4">
                 {editingId === 'new' && (
                     <ScheduleEditor
+                        projectId={projectId}
                         availableTestCases={availableTestCases}
                         isSaving={isSaving}
                         t={t}
@@ -100,6 +101,7 @@ export default function ProjectSchedulesPanel({
                     editingId === schedule.id ? (
                         <ScheduleEditor
                             key={schedule.id}
+                            projectId={projectId}
                             schedule={schedule}
                             availableTestCases={availableTestCases}
                             isSaving={isSaving}

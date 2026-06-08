@@ -21,6 +21,59 @@ export async function GET(
 
     try {
         const { id } = guard.params;
+        const { searchParams } = new URL(request.url);
+        const isSummaryMode = searchParams.has('summary')
+            || searchParams.has('search')
+            || searchParams.has('page')
+            || searchParams.has('limit');
+
+        if (isSummaryMode) {
+            const search = searchParams.get('search')?.trim() ?? '';
+            const pageParam = Number.parseInt(searchParams.get('page') ?? '1', 10);
+            const limitParam = Number.parseInt(searchParams.get('limit') ?? '20', 10);
+            const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1;
+            const limit = Number.isFinite(limitParam) && limitParam > 0
+                ? Math.min(limitParam, 100)
+                : 20;
+
+            const where = search
+                ? {
+                    projectId: id,
+                    OR: [
+                        { displayId: { contains: search, mode: 'insensitive' as const } },
+                        { name: { contains: search, mode: 'insensitive' as const } },
+                    ],
+                }
+                : { projectId: id };
+
+            const [total, testCases] = await prisma.$transaction([
+                prisma.testCase.count({ where }),
+                prisma.testCase.findMany({
+                    where,
+                    skip: (page - 1) * limit,
+                    take: limit,
+                    orderBy: [
+                        { displayId: 'asc' },
+                        { name: 'asc' },
+                    ],
+                    select: {
+                        id: true,
+                        displayId: true,
+                        name: true,
+                    },
+                }),
+            ]);
+
+            return NextResponse.json({
+                data: testCases,
+                pagination: {
+                    page,
+                    limit,
+                    total,
+                    totalPages: Math.max(1, Math.ceil(total / limit)),
+                },
+            });
+        }
 
         const testCases = await prisma.testCase.findMany({
             where: { projectId: id },
