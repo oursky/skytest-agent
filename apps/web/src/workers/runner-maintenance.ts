@@ -34,9 +34,8 @@ async function runMaintenanceCycle() {
         || staleLocalBrowserRunResult.recoveredRuns > 0
         || retentionResult.deletedEvents > 0
         || queueSanitizerResult.failedRuns > 0
-        || runRetentionResult.softDeletedRuns > 0
-        || runRetentionResult.hardDeletedRuns > 0
-        || runRetentionResult.hardDeleteFailures > 0
+        || runRetentionResult.purgedRuns > 0
+        || runRetentionResult.purgeFailures > 0
     ) {
         logger.info('Runner maintenance cycle completed', {
             recoveredRuns: leaseResult.recoveredRuns,
@@ -49,12 +48,10 @@ async function runMaintenanceCycle() {
             deletedEvents: retentionResult.deletedEvents,
             retentionCutoff: retentionResult.cutoff.toISOString(),
             failedInvalidQueuedRuns: queueSanitizerResult.failedRuns,
-            softDeletedRuns: runRetentionResult.softDeletedRuns,
-            hardDeletedRuns: runRetentionResult.hardDeletedRuns,
-            hardDeletedArtifacts: runRetentionResult.hardDeletedArtifacts,
-            hardDeleteFailures: runRetentionResult.hardDeleteFailures,
-            artifactSoftDeleteCutoff: runRetentionResult.softDeleteCutoff.toISOString(),
-            artifactHardDeleteCutoff: runRetentionResult.hardDeleteCutoff.toISOString(),
+            purgedRuns: runRetentionResult.purgedRuns,
+            purgedArtifacts: runRetentionResult.purgedArtifacts,
+            purgeFailures: runRetentionResult.purgeFailures,
+            artifactRetentionCutoff: runRetentionResult.retentionCutoff.toISOString(),
         });
     }
 }
@@ -80,9 +77,8 @@ async function main() {
         leaseReaperIntervalMs: appConfig.runner.leaseReaperIntervalMs,
         localBrowserStaleTimeoutMs: appConfig.runner.localBrowserStaleTimeoutMs,
         eventRetentionDays: appConfig.runner.eventRetentionDays,
-        artifactSoftDeleteDays: appConfig.runner.artifactSoftDeleteDays,
-        artifactHardDeleteDays: appConfig.runner.artifactHardDeleteDays,
-        artifactHardDeleteBatchSize: appConfig.runner.artifactHardDeleteBatchSize,
+        artifactRetentionDays: appConfig.runner.artifactRetentionDays,
+        artifactRetentionBatchSize: appConfig.runner.artifactRetentionBatchSize,
         schedulerEnabled: appConfig.scheduler.enabled,
         schedulerMaxDuePerTick: appConfig.scheduler.maxDuePerTick,
     });

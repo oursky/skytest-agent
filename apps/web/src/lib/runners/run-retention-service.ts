@@ -10,13 +10,13 @@ function daysAgo(now: Date, days: number): Date {
     return new Date(now.getTime() - (days * 24 * 60 * 60 * 1000));
 }
 
-interface HardDeleteCandidate {
+interface PurgeCandidate {
     id: string;
     files: Array<{ storedName: string }>;
     events: Array<{ artifactKey: string | null }>;
 }
 
-function collectArtifactKeys(run: HardDeleteCandidate): string[] {
+function collectArtifactKeys(run: PurgeCandidate): string[] {
     const keys = new Set<string>();
     for (const file of run.files) {
         keys.add(file.storedName);
@@ -30,32 +30,27 @@ function collectArtifactKeys(run: HardDeleteCandidate): string[] {
 }
 
 export async function enforceRunArtifactRetention(now = new Date()) {
-    const softDeleteCutoff = daysAgo(now, appConfig.runner.artifactSoftDeleteDays);
-    const hardDeleteCutoff = daysAgo(now, appConfig.runner.artifactHardDeleteDays);
+    const retentionCutoff = daysAgo(now, appConfig.runner.artifactRetentionDays);
 
-    const softDeleteResult = await prisma.testRun.updateMany({
+    const purgeCandidates = await prisma.testRun.findMany({
         where: {
-            deletedAt: null,
             status: { in: [...RUN_TERMINAL_STATUSES] },
-            completedAt: {
-                not: null,
-                lt: softDeleteCutoff,
-            },
-        },
-        data: {
-            deletedAt: now,
-        },
-    });
-
-    const hardDeleteCandidates = await prisma.testRun.findMany({
-        where: {
-            deletedAt: { lt: hardDeleteCutoff },
-            status: { in: [...RUN_TERMINAL_STATUSES] },
+            OR: [
+                {
+                    completedAt: {
+                        not: null,
+                        lt: retentionCutoff,
+                    },
+                },
+                {
+                    deletedAt: { not: null },
+                },
+            ],
         },
         orderBy: {
-            deletedAt: 'asc',
+            completedAt: 'asc',
         },
-        take: appConfig.runner.artifactHardDeleteBatchSize,
+        take: appConfig.runner.artifactRetentionBatchSize,
         select: {
             id: true,
             files: {
@@ -74,19 +69,19 @@ export async function enforceRunArtifactRetention(now = new Date()) {
         },
     });
 
-    let hardDeletedRuns = 0;
-    let hardDeletedArtifacts = 0;
-    let hardDeleteFailures = 0;
+    let purgedRuns = 0;
+    let purgedArtifacts = 0;
+    let purgeFailures = 0;
 
-    for (const run of hardDeleteCandidates) {
+    for (const run of purgeCandidates) {
         const artifactKeys = collectArtifactKeys(run);
         let failedArtifactDeletes = 0;
         try {
             const { failedKeys } = await objectStore.deleteObjects(artifactKeys);
             failedArtifactDeletes = failedKeys.length;
-            hardDeletedArtifacts += artifactKeys.length - failedArtifactDeletes;
+            purgedArtifacts += artifactKeys.length - failedArtifactDeletes;
         } catch (error) {
-            hardDeleteFailures += 1;
+            purgeFailures += 1;
             logger.warn('Failed to batch-delete run artifacts during retention', {
                 runId: run.id,
                 error: error instanceof Error ? error.message : String(error),
@@ -95,7 +90,7 @@ export async function enforceRunArtifactRetention(now = new Date()) {
         }
 
         if (failedArtifactDeletes > 0) {
-            hardDeleteFailures += 1;
+            purgeFailures += 1;
             logger.warn('Failed to delete one or more run artifacts during retention', {
                 runId: run.id,
                 failedArtifactDeletes,
@@ -107,10 +102,10 @@ export async function enforceRunArtifactRetention(now = new Date()) {
             await prisma.testRun.delete({
                 where: { id: run.id },
             });
-            hardDeletedRuns += 1;
+            purgedRuns += 1;
         } catch (error) {
-            hardDeleteFailures += 1;
-            logger.warn('Failed to hard-delete retained test run', {
+            purgeFailures += 1;
+            logger.warn('Failed to purge retained test run', {
                 runId: run.id,
                 error: error instanceof Error ? error.message : String(error),
             });
@@ -118,11 +113,9 @@ export async function enforceRunArtifactRetention(now = new Date()) {
     }
 
     return {
-        softDeletedRuns: softDeleteResult.count,
-        hardDeletedRuns,
-        hardDeletedArtifacts,
-        hardDeleteFailures,
-        softDeleteCutoff,
-        hardDeleteCutoff,
+        purgedRuns,
+        purgedArtifacts,
+        purgeFailures,
+        retentionCutoff,
     };
 }

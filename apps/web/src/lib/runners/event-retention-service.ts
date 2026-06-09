@@ -15,6 +15,7 @@ export async function pruneOldRunEvents(now = new Date()) {
         const eventsToDelete = await prisma.testRunEvent.findMany({
             where: {
                 createdAt: { lt: cutoff },
+                artifactKey: null,
             },
             orderBy: {
                 createdAt: 'asc',

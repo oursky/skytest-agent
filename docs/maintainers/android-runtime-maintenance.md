@@ -78,7 +78,7 @@ For connected physical devices, the same app-specific cleanup toggle semantics a
   - `connected-device:<serial>` for physical devices
   - `emulator-profile:<profileName>` for emulator profiles
   - lock identity key is `(hostFingerprint, resourceKey)`
-- Lease expiry recovery, event retention, and run artifact soft/hard retention run in `apps/web/src/workers/runner-maintenance.ts`.
+- Lease expiry recovery, event retention, and the 90-day run artifact retention purge run in `apps/web/src/workers/runner-maintenance.ts`.
 
 ## Copy Log Behavior
 

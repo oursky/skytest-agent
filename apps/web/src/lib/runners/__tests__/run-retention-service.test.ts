@@ -1,12 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
-    updateMany,
     findMany,
     deleteRun,
     deleteObjects,
 } = vi.hoisted(() => ({
-    updateMany: vi.fn(),
     findMany: vi.fn(),
     deleteRun: vi.fn(),
     deleteObjects: vi.fn(),
@@ -15,7 +13,6 @@ const {
 vi.mock('@/lib/core/prisma', () => ({
     prisma: {
         testRun: {
-            updateMany,
             findMany,
             delete: deleteRun,
         },
@@ -32,15 +29,13 @@ const { enforceRunArtifactRetention } = await import('@/lib/runners/run-retentio
 
 describe('enforceRunArtifactRetention', () => {
     beforeEach(() => {
-        updateMany.mockReset();
         findMany.mockReset();
         deleteRun.mockReset();
         deleteObjects.mockReset();
     });
 
-    it('soft deletes old completed runs and hard deletes expired soft-deleted runs', async () => {
+    it('purges runs past the retention cutoff or already soft-deleted, removing their artifacts', async () => {
         const now = new Date('2026-03-08T00:00:00.000Z');
-        updateMany.mockResolvedValueOnce({ count: 2 });
         findMany.mockResolvedValueOnce([
             {
                 id: 'run-1',
@@ -53,26 +48,23 @@ describe('enforceRunArtifactRetention', () => {
 
         const result = await enforceRunArtifactRetention(now);
 
-        expect(updateMany).toHaveBeenCalledWith({
-            where: {
-                deletedAt: null,
-                status: { in: ['PASS', 'FAIL', 'CANCELLED'] },
-                completedAt: {
-                    not: null,
-                    lt: new Date('2026-02-06T00:00:00.000Z'),
-                },
-            },
-            data: {
-                deletedAt: now,
-            },
-        });
         expect(findMany).toHaveBeenCalledWith({
             where: {
-                deletedAt: { lt: new Date('2026-03-01T00:00:00.000Z') },
                 status: { in: ['PASS', 'FAIL', 'CANCELLED'] },
+                OR: [
+                    {
+                        completedAt: {
+                            not: null,
+                            lt: new Date('2025-12-08T00:00:00.000Z'),
+                        },
+                    },
+                    {
+                        deletedAt: { not: null },
+                    },
+                ],
             },
             orderBy: {
-                deletedAt: 'asc',
+                completedAt: 'asc',
             },
             take: 50,
             select: {
@@ -99,15 +91,13 @@ describe('enforceRunArtifactRetention', () => {
         ]);
         expect(deleteRun).toHaveBeenCalledWith({ where: { id: 'run-1' } });
         expect(result).toMatchObject({
-            softDeletedRuns: 2,
-            hardDeletedRuns: 1,
-            hardDeletedArtifacts: 2,
-            hardDeleteFailures: 0,
+            purgedRuns: 1,
+            purgedArtifacts: 2,
+            purgeFailures: 0,
         });
     });
 
     it('keeps a run for retry when artifact deletion fails', async () => {
-        updateMany.mockResolvedValueOnce({ count: 0 });
         findMany.mockResolvedValueOnce([
             {
                 id: 'run-2',
@@ -121,10 +111,9 @@ describe('enforceRunArtifactRetention', () => {
 
         expect(deleteRun).not.toHaveBeenCalled();
         expect(result).toMatchObject({
-            softDeletedRuns: 0,
-            hardDeletedRuns: 0,
-            hardDeletedArtifacts: 0,
-            hardDeleteFailures: 1,
+            purgedRuns: 0,
+            purgedArtifacts: 0,
+            purgeFailures: 1,
         });
     });
 });

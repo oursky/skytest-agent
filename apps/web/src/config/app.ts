@@ -129,20 +129,14 @@ const runnerEventRetentionDays = parseBoundedIntEnv({
     min: 1,
     max: 3_650,
 });
-const runnerArtifactSoftDeleteDays = parseBoundedIntEnv({
-    name: 'RUNNER_ARTIFACT_SOFT_DELETE_DAYS',
-    fallback: 30,
+const runnerArtifactRetentionDays = parseBoundedIntEnv({
+    name: 'RUNNER_ARTIFACT_RETENTION_DAYS',
+    fallback: 90,
     min: 1,
     max: 3_650,
 });
-const runnerArtifactHardDeleteDays = parseBoundedIntEnv({
-    name: 'RUNNER_ARTIFACT_HARD_DELETE_DAYS',
-    fallback: 7,
-    min: 0,
-    max: 3_650,
-});
-const runnerArtifactHardDeleteBatchSize = parseBoundedIntEnv({
-    name: 'RUNNER_ARTIFACT_HARD_DELETE_BATCH_SIZE',
+const runnerArtifactRetentionBatchSize = parseBoundedIntEnv({
+    name: 'RUNNER_ARTIFACT_RETENTION_BATCH_SIZE',
     fallback: 50,
     min: 1,
     max: 2_000,
@@ -210,9 +204,8 @@ export const config = {
         leaseReaperIntervalMs: runnerLeaseReaperIntervalMs,
         localBrowserStaleTimeoutMs: runnerLocalBrowserStaleTimeoutMs,
         eventRetentionDays: runnerEventRetentionDays,
-        artifactSoftDeleteDays: runnerArtifactSoftDeleteDays,
-        artifactHardDeleteDays: runnerArtifactHardDeleteDays,
-        artifactHardDeleteBatchSize: runnerArtifactHardDeleteBatchSize,
+        artifactRetentionDays: runnerArtifactRetentionDays,
+        artifactRetentionBatchSize: runnerArtifactRetentionBatchSize,
     },
 
     browserWorker: {

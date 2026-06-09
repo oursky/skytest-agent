@@ -33,6 +33,7 @@ describe('pruneOldRunEvents', () => {
         expect(findMany).toHaveBeenNthCalledWith(1, {
             where: {
                 createdAt: { lt: new Date('2026-02-05T00:00:00.000Z') },
+                artifactKey: null,
             },
             orderBy: {
                 createdAt: 'asc',
