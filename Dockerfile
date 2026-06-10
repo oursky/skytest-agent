@@ -46,6 +46,7 @@ RUN apt-get update \
 
 COPY --from=builder --chown=pwuser:pwuser /app/node_modules /app/node_modules
 COPY --from=builder --chown=pwuser:pwuser /app/apps/web /app/apps/web
+COPY --from=builder --chown=pwuser:pwuser /app/packages/runner-protocol /app/packages/runner-protocol
 
 USER pwuser
 
