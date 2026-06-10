@@ -11,6 +11,9 @@ export interface ScheduleTestCaseSummary {
     id: string;
     displayId: string | null;
     name: string;
+    status: string;
+    lastRunId: string | null;
+    lastRunAt: string | null;
 }
 
 export interface ScheduleRecord {

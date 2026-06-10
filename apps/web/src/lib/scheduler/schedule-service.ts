@@ -24,6 +24,7 @@ export async function listProjectSchedules(projectId: string): Promise<ScheduleR
                             id: true,
                             displayId: true,
                             name: true,
+                            status: true,
                         },
                     },
                 },
@@ -31,7 +32,10 @@ export async function listProjectSchedules(projectId: string): Promise<ScheduleR
         },
     });
 
-    return schedules.map(serializeScheduleRecord);
+    const latestRuns = await buildLatestRunMap(
+        schedules.flatMap((schedule) => schedule.testCases.map(({ testCase }) => testCase.id))
+    );
+    return schedules.map((schedule) => serializeScheduleRecord(schedule, latestRuns));
 }
 
 export async function getProjectSchedule(projectId: string, scheduleId: string): Promise<ScheduleRecord | null> {
@@ -53,6 +57,7 @@ export async function getProjectSchedule(projectId: string, scheduleId: string):
                             id: true,
                             displayId: true,
                             name: true,
+                            status: true,
                         },
                     },
                 },
@@ -60,7 +65,12 @@ export async function getProjectSchedule(projectId: string, scheduleId: string):
         },
     });
 
-    return schedule ? serializeScheduleRecord(schedule) : null;
+    if (!schedule) {
+        return null;
+    }
+
+    const latestRuns = await buildLatestRunMap(schedule.testCases.map(({ testCase }) => testCase.id));
+    return serializeScheduleRecord(schedule, latestRuns);
 }
 
 export async function createProjectSchedule(input: {
@@ -100,6 +110,7 @@ export async function createProjectSchedule(input: {
                             id: true,
                             displayId: true,
                             name: true,
+                            status: true,
                         },
                     },
                 },
@@ -107,7 +118,8 @@ export async function createProjectSchedule(input: {
         },
     });
 
-    return serializeScheduleRecord(schedule);
+    const latestRuns = await buildLatestRunMap(schedule.testCases.map(({ testCase }) => testCase.id));
+    return serializeScheduleRecord(schedule, latestRuns);
 }
 
 export async function updateProjectSchedule(input: {
@@ -165,6 +177,7 @@ export async function updateProjectSchedule(input: {
                                 id: true,
                                 displayId: true,
                                 name: true,
+                                status: true,
                             },
                         },
                     },
@@ -173,7 +186,8 @@ export async function updateProjectSchedule(input: {
         });
     });
 
-    return serializeScheduleRecord(schedule);
+    const latestRuns = await buildLatestRunMap(schedule.testCases.map(({ testCase }) => testCase.id));
+    return serializeScheduleRecord(schedule, latestRuns);
 }
 
 export async function deleteProjectSchedule(projectId: string, scheduleId: string): Promise<boolean> {
@@ -257,6 +271,48 @@ async function prepareScheduleMutation(input: {
     };
 }
 
+interface LatestRunSummary {
+    id: string;
+    status: string;
+    at: Date;
+}
+
+async function buildLatestRunMap(testCaseIds: string[]): Promise<Map<string, LatestRunSummary>> {
+    const uniqueIds = [...new Set(testCaseIds)];
+    if (uniqueIds.length === 0) {
+        return new Map();
+    }
+
+    const runs = await prisma.testRun.findMany({
+        where: {
+            testCaseId: { in: uniqueIds },
+            deletedAt: null,
+        },
+        orderBy: [
+            { testCaseId: 'asc' },
+            { createdAt: 'desc' },
+        ],
+        distinct: ['testCaseId'],
+        select: {
+            id: true,
+            testCaseId: true,
+            status: true,
+            createdAt: true,
+            startedAt: true,
+            completedAt: true,
+        },
+    });
+
+    return new Map(runs.map((run) => [
+        run.testCaseId,
+        {
+            id: run.id,
+            status: run.status,
+            at: run.completedAt ?? run.startedAt ?? run.createdAt,
+        },
+    ]));
+}
+
 function serializeScheduleRecord(schedule: {
     id: string;
     projectId: string;
@@ -276,9 +332,10 @@ function serializeScheduleRecord(schedule: {
             id: string;
             displayId: string | null;
             name: string;
+            status: string;
         };
     }>;
-}): ScheduleRecord {
+}, latestRuns: Map<string, LatestRunSummary>): ScheduleRecord {
     const fields = resolveSchedulePatternFields(schedule.patternType, schedule.cronExpression);
 
     return {
@@ -299,10 +356,16 @@ function serializeScheduleRecord(schedule: {
         weekdays: fields.weekdays,
         daysOfMonth: fields.daysOfMonth,
         customCron: fields.customCron,
-        testCases: schedule.testCases.map(({ testCase }) => ({
-            id: testCase.id,
-            displayId: testCase.displayId,
-            name: testCase.name,
-        })),
+        testCases: schedule.testCases.map(({ testCase }) => {
+            const latestRun = latestRuns.get(testCase.id);
+            return {
+                id: testCase.id,
+                displayId: testCase.displayId,
+                name: testCase.name,
+                status: testCase.status,
+                lastRunId: latestRun?.id ?? null,
+                lastRunAt: latestRun?.at.toISOString() ?? null,
+            };
+        }),
     };
 }
