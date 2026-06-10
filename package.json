@@ -46,6 +46,7 @@
     },
     "qs": "6.15.2",
     "tmp": "0.2.7",
+    "shell-quote": "1.8.4",
     "ip-address": "10.2.0",
     "http-proxy-agent": "7.0.2",
     "https-proxy-agent": "7.0.6",
