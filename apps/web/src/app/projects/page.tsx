@@ -6,8 +6,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
     Button,
+    CenteredLoading,
     Modal,
-    PageHeaderSkeleton,
     SectionLoadingState,
 } from "@/components/shared";
 import { formatDateTime } from "@/utils/time/dateFormatter";
@@ -153,39 +153,10 @@ export default function ProjectsPage() {
         setEditName("");
     };
 
-    const isPageLoading = isAuthLoading
-        || (isLoggedIn && isProjectsInitialLoading);
-    const showProjectsGridSkeleton = !isPageLoading
-        && isProjectsBootstrapLoading
-        && teams.length > 0
-        && projects.length === 0;
-
-    if (isPageLoading) {
+    if (isAuthLoading || (isLoggedIn && isProjectsInitialLoading)) {
         return (
             <main className="min-h-[calc(100dvh-4.5rem)] bg-gray-50">
-                <div className="max-w-7xl mx-auto px-8 py-8">
-                    <PageHeaderSkeleton />
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {Array.from({ length: 6 }, (_, index) => (
-                            <div
-                                key={`project-skeleton-${index}`}
-                                className="bg-white p-6 rounded-lg shadow-sm border border-gray-200"
-                            >
-                                <div className="flex items-start justify-between mb-3">
-                                    <div className="skeleton-block h-6 w-40" />
-                                    <div className="flex gap-2">
-                                        <div className="skeleton-block h-8 w-8" />
-                                        <div className="skeleton-block h-8 w-8" />
-                                    </div>
-                                </div>
-                                <div className="space-y-3">
-                                    <div className="skeleton-block h-4 w-28" />
-                                    <div className="skeleton-block h-3 w-40" />
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
+                <CenteredLoading className="min-h-[calc(100dvh-4.5rem)]" />
             </main>
         );
     }
@@ -319,27 +290,11 @@ export default function ProjectsPage() {
                         </div>
                     )}
 
+                    {isProjectsBootstrapLoading && projects.length === 0 ? (
+                        <CenteredLoading className="py-16" />
+                    ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {showProjectsGridSkeleton
-                            ? Array.from({ length: 6 }, (_, index) => (
-                                <div
-                                    key={`project-grid-skeleton-${index}`}
-                                    className="bg-white p-6 rounded-lg shadow-sm border border-gray-200"
-                                >
-                                    <div className="flex items-start justify-between mb-3">
-                                        <div className="skeleton-block h-6 w-40" />
-                                        <div className="flex gap-2">
-                                            <div className="skeleton-block h-8 w-8" />
-                                            <div className="skeleton-block h-8 w-8" />
-                                        </div>
-                                    </div>
-                                    <div className="space-y-3">
-                                        <div className="skeleton-block h-4 w-28" />
-                                        <div className="skeleton-block h-3 w-40" />
-                                    </div>
-                                </div>
-                            ))
-                            : projects.map((project) => (
+                        {projects.map((project) => (
                                 <div
                                     key={project.id}
                                     className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow group relative flex flex-col"
@@ -401,6 +356,7 @@ export default function ProjectsPage() {
                                 </div>
                             ))}
                     </div>
+                    )}
 
                     {projects.length === 0 && !isCreating && teams.length > 0 && !isProjectsBootstrapLoading && (
                         <div className="text-center py-16">

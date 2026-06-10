@@ -13,7 +13,14 @@ export default function Header() {
     const router = useRouter();
     const pathname = usePathname();
     const { locale, setLocale, t } = useI18n();
-    const { teams, currentTeam, loading: isTeamSessionLoading, setCurrentTeam } = useTeamSession();
+    const {
+        teams,
+        currentTeam,
+        loading: isTeamSessionLoading,
+        pendingTeamId,
+        previewTeamSwitch,
+        setCurrentTeam,
+    } = useTeamSession();
 
     const localeOptions = useMemo(() => Object.keys(LOCALE_META) as Locale[], []);
     const selectedTeamId = useMemo(() => {
@@ -28,6 +35,7 @@ export default function Header() {
     const [isCreateTeamOpen, setIsCreateTeamOpen] = useState(false);
     const [newTeamName, setNewTeamName] = useState('');
     const { createTeam, isSubmitting: isCreateTeamSubmitting } = useCreateTeam();
+    const displayedTeamId = pendingTeamId ?? selectedTeamId;
 
     useEffect(() => {
         const closeDropdown = () => {
@@ -47,19 +55,22 @@ export default function Header() {
     };
 
     const handleTeamChange = async (teamId: string) => {
-        if (teamId === selectedTeamId) {
+        if (teamId === displayedTeamId) {
+            return;
+        }
+
+        const shouldNavigateToTeamProjects = pathname === '/projects'
+            || pathname.startsWith('/projects/')
+            || pathname === '/run';
+
+        if (shouldNavigateToTeamProjects) {
+            previewTeamSwitch(teamId);
+            router.push(`/projects?teamId=${encodeURIComponent(teamId)}`);
             return;
         }
 
         try {
             await setCurrentTeam(teamId);
-            const shouldNavigateToTeamProjects = pathname === '/projects'
-                || pathname.startsWith('/projects/')
-                || pathname === '/run';
-
-            if (shouldNavigateToTeamProjects) {
-                router.push(`/projects?teamId=${encodeURIComponent(teamId)}`);
-            }
         } catch (error) {
             console.error('Failed to switch team', error);
         }
@@ -156,7 +167,7 @@ export default function Header() {
                                     <div className="h-9 min-w-40 lg:min-w-56">
                                         {isLoggedIn && teams.length > 0 ? (
                                             <CustomSelect
-                                                value={selectedTeamId}
+                                                value={displayedTeamId}
                                                 options={teams.map((team) => ({
                                                     value: team.id,
                                                     label: team.name,

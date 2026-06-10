@@ -50,12 +50,15 @@ export function useProjectsBootstrap(
 
         if (hasRequestedTeam && currentTeam?.id !== requestedTeamId) {
             try {
+                setLoadingProjects(true);
+                setProjects([]);
                 await setCurrentTeam(requestedTeamId);
             } catch {
                 if (!requestIdGuardRef.current.isLatest(requestId)) {
                     return;
                 }
                 setError('Failed to switch team');
+                setLoadingProjects(false);
                 setHasLoadedOnce(true);
             }
             return;

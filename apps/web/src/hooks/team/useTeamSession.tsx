@@ -32,6 +32,8 @@ interface TeamSessionContextValue {
     currentTeamId: string | null;
     loading: boolean;
     error: string | null;
+    pendingTeamId: string | null;
+    previewTeamSwitch: (teamId: string | null) => void;
     refresh: (teamIdOverride?: string) => Promise<TeamSessionPayload | null>;
     setCurrentTeam: (teamId: string) => Promise<CurrentTeam>;
     createTeam: (name: string) => Promise<{ teamId: string }>;
@@ -50,8 +52,15 @@ export function TeamSessionProvider({ children }: { children: React.ReactNode })
     const [loading, setLoading] = useState(false);
     const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [pendingTeamId, setPendingTeamId] = useState<string | null>(null);
     const requestIdGuardRef = useRef(createRequestIdGuard());
     const mutationIdGuardRef = useRef(createRequestIdGuard());
+
+    useEffect(() => {
+        if (pendingTeamId && currentTeam?.id === pendingTeamId) {
+            setPendingTeamId(null);
+        }
+    }, [currentTeam?.id, pendingTeamId]);
 
     const applyCanonicalPayload = useCallback((payload: TeamSessionPayload) => {
         assertTeamSessionInvariants(payload.teams, payload.currentTeam);
@@ -108,12 +117,19 @@ export function TeamSessionProvider({ children }: { children: React.ReactNode })
     const switchTeam = useCallback(async (teamId: string): Promise<CurrentTeam> => {
         const mutationId = mutationIdGuardRef.current.next();
         requestIdGuardRef.current.next();
-        const result = await switchTeamAndFetchSession(getMutationContext(), teamId);
-        if (!mutationIdGuardRef.current.isLatest(mutationId)) {
+        setPendingTeamId(teamId);
+        try {
+            const result = await switchTeamAndFetchSession(getMutationContext(), teamId);
+            if (!mutationIdGuardRef.current.isLatest(mutationId)) {
+                return result.switchedTeam;
+            }
+            applyCanonicalPayload(result.session);
             return result.switchedTeam;
+        } finally {
+            if (mutationIdGuardRef.current.isLatest(mutationId)) {
+                setPendingTeamId(null);
+            }
         }
-        applyCanonicalPayload(result.session);
-        return result.switchedTeam;
     }, [applyCanonicalPayload, getMutationContext]);
 
     const createTeam = useCallback(async (name: string): Promise<{ teamId: string }> => {
@@ -181,6 +197,8 @@ export function TeamSessionProvider({ children }: { children: React.ReactNode })
         currentTeamId: currentTeam?.id ?? null,
         loading: loading || (enabled && !hasLoadedOnce),
         error,
+        pendingTeamId,
+        previewTeamSwitch: setPendingTeamId,
         refresh,
         setCurrentTeam: switchTeam,
         createTeam,
@@ -194,6 +212,7 @@ export function TeamSessionProvider({ children }: { children: React.ReactNode })
         error,
         hasLoadedOnce,
         loading,
+        pendingTeamId,
         refresh,
         removeMember,
         switchTeam,
