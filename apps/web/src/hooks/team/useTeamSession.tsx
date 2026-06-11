@@ -10,10 +10,6 @@ import {
     useState,
 } from 'react';
 import { useAuth } from '@/app/auth-provider';
-import {
-    CURRENT_TEAM_CHANGED_EVENT,
-    TEAMS_CHANGED_EVENT,
-} from '@/hooks/team/team-session-events';
 import { assertTeamSessionInvariants } from '@/hooks/team/team-session-invariants';
 import {
     createTeamAndFetchSession,
@@ -23,6 +19,10 @@ import {
     switchTeamAndFetchSession,
 } from '@/hooks/team/team-session-mutations';
 import { createRequestIdGuard } from '@/hooks/team/request-id-guard';
+import {
+    readTabTeamSelection,
+    writeTabTeamSelection,
+} from '@/hooks/team/tab-team-selection';
 import type { CurrentTeam, TeamOption } from '@/hooks/team/types';
 import type { TeamSessionPayload } from '@/hooks/team/team-session-mutations';
 
@@ -66,6 +66,7 @@ export function TeamSessionProvider({ children }: { children: React.ReactNode })
         assertTeamSessionInvariants(payload.teams, payload.currentTeam);
         setTeams(payload.teams);
         setCurrentTeam(payload.currentTeam);
+        writeTabTeamSelection(payload.currentTeam?.id ?? null);
         setError(null);
     }, []);
 
@@ -89,7 +90,8 @@ export function TeamSessionProvider({ children }: { children: React.ReactNode })
 
         try {
             setLoading(true);
-            const payload = await fetchTeamSessionPayload(getMutationContext(), teamIdOverride);
+            const tabTeamId = teamIdOverride ?? readTabTeamSelection() ?? undefined;
+            const payload = await fetchTeamSessionPayload(getMutationContext(), tabTeamId);
             if (!requestIdGuardRef.current.isLatest(requestId)) {
                 return null;
             }
@@ -166,29 +168,6 @@ export function TeamSessionProvider({ children }: { children: React.ReactNode })
 
     useEffect(() => {
         void refresh();
-    }, [refresh]);
-
-    useEffect(() => {
-        if (typeof window === 'undefined') {
-            return;
-        }
-
-        const handleTeamsChanged = () => {
-            void refresh();
-        };
-
-        const handleCurrentTeamChanged = (event: Event) => {
-            const teamId = (event as CustomEvent<{ teamId?: string | null }>).detail?.teamId;
-            void refresh(typeof teamId === 'string' ? teamId : undefined);
-        };
-
-        window.addEventListener(TEAMS_CHANGED_EVENT, handleTeamsChanged);
-        window.addEventListener(CURRENT_TEAM_CHANGED_EVENT, handleCurrentTeamChanged);
-
-        return () => {
-            window.removeEventListener(TEAMS_CHANGED_EVENT, handleTeamsChanged);
-            window.removeEventListener(CURRENT_TEAM_CHANGED_EVENT, handleCurrentTeamChanged);
-        };
     }, [refresh]);
 
     const value = useMemo<TeamSessionContextValue>(() => ({
