@@ -1,7 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { createRequestIdGuard } from '@/hooks/team/request-id-guard';
-import { useTeamSession } from '@/hooks/team/useTeamSession';
-import { reportLoadMetric } from '@/lib/telemetry/client-metrics';
+import { useCallback } from 'react';
+import { useTeamScopedBootstrap } from '@/hooks/team/useTeamScopedBootstrap';
 
 export interface TeamDetailsBootstrap {
     id: string;
@@ -19,171 +17,88 @@ export interface TeamMemberBootstrap {
     role: 'OWNER' | 'MEMBER';
 }
 
-interface TeamDetailsResponse {
-    id: string;
-    name: string;
-    role: 'OWNER' | 'MEMBER';
-    canRename: boolean;
-    canDelete: boolean;
-    canTransferOwnership: boolean;
+interface TeamMembersResponse {
+    members: TeamMemberBootstrap[];
 }
 
-interface TeamMembersResponse {
-    members: Array<{
-        id: string;
-        userId: string | null;
-        email: string | null;
-        role: 'OWNER' | 'MEMBER';
-    }>;
+interface TeamPageData {
+    teamDetails: TeamDetailsBootstrap | null;
+    members: TeamMemberBootstrap[];
 }
+
+const EMPTY_TEAM_PAGE_DATA: TeamPageData = { teamDetails: null, members: [] };
 
 export function useTeamsBootstrap(
     getAccessToken: () => Promise<string | null>,
     requestedTeamId: string,
     enabled = true,
 ) {
-    const {
-        teams,
-        currentTeam,
-        loading: isTeamSessionLoading,
-        error: teamSessionError,
-        refresh: refreshTeamSession,
-        setCurrentTeam,
-    } = useTeamSession();
-    const [teamDetails, setTeamDetails] = useState<TeamDetailsBootstrap | null>(null);
-    const [members, setMembers] = useState<TeamMemberBootstrap[]>([]);
-    const [loadingDetails, setLoadingDetails] = useState(false);
-    const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const hasLoadedOnceRef = useRef(false);
-    const requestIdGuardRef = useRef(createRequestIdGuard());
+    const loadForTeam = useCallback(async ({ teamId, token }: { teamId: string; token: string | null }): Promise<TeamPageData> => {
+        const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
 
-    useEffect(() => {
-        hasLoadedOnceRef.current = hasLoadedOnce;
-    }, [hasLoadedOnce]);
+        const [teamResponse, membersResponse] = await Promise.all([
+            fetch(`/api/teams/${encodeURIComponent(teamId)}`, { headers }),
+            fetch(`/api/teams/${encodeURIComponent(teamId)}/members`, { headers }),
+        ]);
 
-    const fetchTeamData = useCallback(async () => {
-        const requestId = requestIdGuardRef.current.next();
-
-        if (!enabled) {
-            setTeamDetails(null);
-            setMembers([]);
-            setLoadingDetails(false);
-            setHasLoadedOnce(false);
-            setError(null);
-            return;
+        if (!teamResponse.ok) {
+            throw new Error('Failed to fetch team details');
+        }
+        if (!membersResponse.ok) {
+            throw new Error('Failed to fetch team members');
         }
 
-        const hasRequestedTeam = requestedTeamId.length > 0
-            && teams.some((team) => team.id === requestedTeamId);
+        const teamPayload = await teamResponse.json() as TeamDetailsBootstrap;
+        const membersPayload = await membersResponse.json() as TeamMembersResponse;
 
-        if (hasRequestedTeam && currentTeam?.id !== requestedTeamId) {
-            try {
-                await setCurrentTeam(requestedTeamId);
-            } catch {
-                if (!requestIdGuardRef.current.isLatest(requestId)) {
-                    return;
-                }
-                setError('Failed to switch team');
-                setHasLoadedOnce(true);
-            }
-            return;
-        }
-
-        if (!currentTeam) {
-            if (!requestIdGuardRef.current.isLatest(requestId)) {
-                return;
-            }
-            setTeamDetails(null);
-            setMembers([]);
-            setError(null);
-            setLoadingDetails(false);
-            setHasLoadedOnce(true);
-            return;
-        }
-
-        try {
-            const requestStartedAt = performance.now();
-            const wasRefreshRequest = hasLoadedOnceRef.current;
-            setLoadingDetails(true);
-            const token = await getAccessToken();
-            const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
-
-            const [teamResponse, membersResponse] = await Promise.all([
-                fetch(`/api/teams/${encodeURIComponent(currentTeam.id)}`, { headers }),
-                fetch(`/api/teams/${encodeURIComponent(currentTeam.id)}/members`, { headers }),
-            ]);
-
-            if (!teamResponse.ok) {
-                throw new Error('Failed to fetch team details');
-            }
-            if (!membersResponse.ok) {
-                throw new Error('Failed to fetch team members');
-            }
-
-            const teamPayload = await teamResponse.json() as TeamDetailsResponse;
-            const membersPayload = await membersResponse.json() as TeamMembersResponse;
-
-            if (!requestIdGuardRef.current.isLatest(requestId)) {
-                return;
-            }
-
-            setTeamDetails({
+        return {
+            teamDetails: {
                 id: teamPayload.id,
                 name: teamPayload.name,
                 role: teamPayload.role,
                 canRename: teamPayload.canRename,
                 canDelete: teamPayload.canDelete,
                 canTransferOwnership: teamPayload.canTransferOwnership,
-            });
-            setMembers(membersPayload.members.map((member) => ({
+            },
+            members: membersPayload.members.map((member) => ({
                 id: member.id,
                 userId: member.userId,
                 email: member.email,
                 role: member.role,
-            })));
-            setError(null);
-            reportLoadMetric({
-                elapsedMs: performance.now() - requestStartedAt,
-                isRefreshRequest: wasRefreshRequest,
-                context: 'teams-bootstrap',
-            });
-        } catch (teamDataError) {
-            if (!requestIdGuardRef.current.isLatest(requestId)) {
-                return;
-            }
-            console.error('Error fetching teams page data:', teamDataError);
-            setError('Failed to load teams page data');
-        } finally {
-            if (!requestIdGuardRef.current.isLatest(requestId)) {
-                return;
-            }
-            setLoadingDetails(false);
-            setHasLoadedOnce(true);
-        }
-    }, [currentTeam, enabled, getAccessToken, requestedTeamId, setCurrentTeam, teams]);
+            })),
+        };
+    }, []);
 
-    useEffect(() => {
-        void fetchTeamData();
-    }, [fetchTeamData]);
-
-    const refresh = useCallback(async () => {
-        await refreshTeamSession(requestedTeamId || undefined);
-        await fetchTeamData();
-    }, [fetchTeamData, refreshTeamSession, requestedTeamId]);
+    const {
+        teams,
+        currentTeam,
+        data,
+        loading,
+        isInitialLoading,
+        hasLoadedOnce,
+        error,
+        refresh,
+        setCurrentTeam,
+    } = useTeamScopedBootstrap<TeamPageData>({
+        getAccessToken,
+        requestedTeamId,
+        enabled,
+        emptyValue: EMPTY_TEAM_PAGE_DATA,
+        telemetryContext: 'teams-bootstrap',
+        loadErrorMessage: 'Failed to load teams page data',
+        loadForTeam,
+    });
 
     return {
         teams,
         currentTeam,
-        teamDetails,
-        members,
-        loading: loadingDetails || isTeamSessionLoading || (enabled && !hasLoadedOnce),
-        isInitialLoading: enabled && !hasLoadedOnce,
+        teamDetails: data.teamDetails,
+        members: data.members,
+        loading,
+        isInitialLoading,
         hasLoadedOnce,
-        error: error ?? teamSessionError,
+        error,
         refresh,
         setCurrentTeam,
-        setTeamDetails,
-        setMembers,
     };
 }
