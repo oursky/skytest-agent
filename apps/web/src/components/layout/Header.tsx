@@ -7,6 +7,7 @@ import { Button, CustomSelect, Modal } from '@/components/shared';
 import { LOCALE_META, useI18n, type Locale } from '@/i18n';
 import { useTeamSession } from '@/hooks/team/useTeamSession';
 import { useCreateTeam } from '@/hooks/team/useCreateTeam';
+import { resolveTeamSwitchHref } from '@/hooks/team/team-switch-target';
 
 export default function Header() {
     const { isLoggedIn, isLoading: isAuthLoading, user, logout, openSettings } = useAuth();
@@ -59,13 +60,10 @@ export default function Header() {
             return;
         }
 
-        const shouldNavigateToTeamProjects = pathname === '/projects'
-            || pathname.startsWith('/projects/')
-            || pathname === '/run';
-
-        if (shouldNavigateToTeamProjects) {
+        const navigateHref = resolveTeamSwitchHref(pathname, teamId);
+        if (navigateHref) {
             previewTeamSwitch(teamId);
-            router.push(`/projects?teamId=${encodeURIComponent(teamId)}`);
+            router.push(navigateHref);
             return;
         }
 
