@@ -317,7 +317,7 @@ Before each `create_test_case` call, verify:
 - [ ] `testCaseId` is set (e.g., `REG-SKY-234`)
 - [ ] Target IDs used consistently in every step's `target` field
 - [ ] All `{{VAR}}` references have matching variables (either test-case-level or project-level)
-- [ ] Step `type` set correctly (default `ai-action`)
+- [ ] Step `type` set correctly (`playwright-code` for deterministic browser interactions with known labels; `ai-action` for visual verification and unknown structure)
 - [ ] Passwords use `masked: true` and empty `value`
 - [ ] No `FILE` variables in payload
 - [ ] Only test-case-specific variables included (not duplicating project-level configs)
@@ -331,14 +331,12 @@ Before each `create_test_case` call, verify:
     "name": "[Checkout] Verify checkout button responds after fix",
     "testCaseId": "REG-SKY-234",
     "browserTargets": [
-      { "id": "browser_a", "name": "Primary Browser", "url": "{{BASE_URL}}", "width": 1920, "height": 1080 }
+      { "id": "browser_a", "name": "Customer Web App", "url": "{{BASE_URL}}", "width": 1920, "height": 1080 }
     ],
     "steps": [
-      { "id": "step_1", "target": "browser_a", "action": "Navigate to the login page", "type": "ai-action" },
-      { "id": "step_2", "target": "browser_a", "action": "Fill in the 'Email' field with '{{LOGIN_EMAIL}}' and the 'Password' field with '{{LOGIN_PASSWORD}}', then click the 'Sign In' button", "type": "ai-action" },
-      { "id": "step_3", "target": "browser_a", "action": "Navigate to the checkout page by clicking 'Cart' in the top navigation", "type": "ai-action" },
-      { "id": "step_4", "target": "browser_a", "action": "Click the 'Checkout' button", "type": "ai-action" },
-      { "id": "step_5", "target": "browser_a", "action": "Verify the payment confirmation screen appears displaying the order total and a 'Confirm Payment' button", "type": "ai-action" }
+      { "id": "step_1", "target": "browser_a", "action": "await page.getByRole('textbox', { name: 'Email' }).fill(vars['LOGIN_EMAIL']);\nawait page.getByRole('textbox', { name: 'Password' }).fill(vars['LOGIN_PASSWORD']);\nawait page.getByRole('button', { name: 'Sign In' }).click();\nawait expect(page.getByRole('link', { name: 'Cart' })).toBeVisible();", "type": "playwright-code" },
+      { "id": "step_2", "target": "browser_a", "action": "await page.getByRole('link', { name: 'Cart' }).click();\nawait expect(page.getByRole('heading', { name: 'Your Cart' })).toBeVisible();\nawait page.getByRole('button', { name: 'Checkout' }).click();", "type": "playwright-code" },
+      { "id": "step_3", "target": "browser_a", "action": "Verify the payment confirmation screen appears displaying the order total and a 'Confirm Payment' button", "type": "ai-action" }
     ],
     "variables": [
       { "name": "CART_ITEM", "type": "VARIABLE", "value": "Test Product A" }
@@ -383,11 +381,13 @@ exist at the project level. Only `CART_ITEM` is new and specific to this test.
 
 #### Step writing rules
 
-- Use natural language referencing visible UI elements by their labels
-- Batch related sub-actions into one step (fill multiple fields at once)
+- **Playwright-first for browser interactions.** Deterministic interactions — clicking buttons/links, filling inputs, selecting dropdowns or datepickers, login — run faster and more reliably as `playwright-code` than as ai-action. Write them as playwright-code with role/label locators (`getByRole('button', { name: 'Save' })`) whenever the exact label is known from the bug's screenshots, the user's description, or an existing test case in the project. Reuse the login step from an existing project test case verbatim when one exists.
+- **ai-action for the rest**: visual/fuzzy verification, scrolling, and steps on screens whose structure you can't confirm. Never fabricate selectors — if structure is unknown, use ai-action.
+- playwright-code steps get globals `page`, `expect`, and `vars` (use `vars['LOGIN_EMAIL']`, never hardcode). Insert `await expect(...).toBeVisible()` between page transitions as wait gates.
+- For ai-action: use natural language referencing visible UI labels, batch related sub-actions into one step, and use `{{VARIABLE}}` for all configurable values.
 - Prefix assertion steps with: Verify / Assert / Check / Confirm / Ensure / Validate
-- Use `{{VARIABLE}}` for all configurable values — never hardcode credentials or URLs
 - Each step must reference a target ID defined in the targets array
+- Android steps remain ai-action (playwright-code is browser-only)
 
 #### Assertion depth
 

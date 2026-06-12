@@ -163,67 +163,55 @@ If changing operator-facing runtime behavior, also read:
 - `npx prisma studio --schema apps/web/prisma/schema.prisma` - Open DB GUI
 - `npx prisma migrate deploy --schema apps/web/prisma/schema.prisma` - Apply committed migrations
 
+## Skills
+
+On-demand agent workflows live in `skills/` (installation: `skills/README.md`):
+
+- **Development**: `/commit` (plan + verify-gated commits), `/review`, `/plan`, `/debug` — wired to this repo's verify tooling and maintainer docs
+- **SkyTest**: `/skytest` (create/manage test cases via MCP, playwright-code-first), `/skytest-fix` (diagnose failing runs)
+- **Linear**: `/linear-bug-report`, `/linear-bug-revise`, `/linear-bug-to-skytest`
+
 ## Common Patterns
 
-### API Endpoint with Auth + Ownership
+### API Route with Access Guard
+
+Use the route guards in `apps/web/src/lib/security/` — never hand-roll auth or ownership checks. Access is team-membership based, not single-owner `userId` equality.
+
 ```typescript
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/core/prisma';
-import { verifyAuth } from '@/lib/security/auth';
+import { guardProjectRouteRequest } from '@/lib/security/project-route-access';
+import { apiError } from '@/lib/security/api-route-standards';
 
 export async function GET(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const authPayload = await verifyAuth(request);
-    if (!authPayload) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await guardProjectRouteRequest({ request, params });
+    if (!guard.ok) {
+        return guard.response;
     }
 
-    const { id } = await params;
-
-    try {
-        const resource = await prisma.testCase.findUnique({
-            where: { id },
-            include: { project: { select: { userId: true } } }
-        });
-
-        if (!resource) {
-            return NextResponse.json({ error: 'Not found' }, { status: 404 });
-        }
-
-        if (resource.project.userId !== authPayload.userId) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
-
-        return NextResponse.json(resource);
-    } catch (error) {
-        console.error('Failed:', error);
-        return NextResponse.json({ error: 'Failed' }, { status: 500 });
+    const { id } = guard.params;
+    const { userId } = guard;
+    const project = await prisma.project.findFirst({
+        where: {
+            id,
+            team: { memberships: { some: { userId } } },
+        },
+        select: { id: true, name: true, teamId: true },
+    });
+    if (!project) {
+        return apiError({ status: 404, code: 'NOT_FOUND', error: 'Not found' });
     }
+
+    return NextResponse.json(project);
 }
 ```
 
-### Ownership Check for Nested Resources
-```typescript
-// testRun -> testCase -> project -> user
-const testRun = await prisma.testRun.findUnique({
-    where: { id },
-    include: {
-        testCase: {
-            include: { project: { select: { userId: true } } }
-        }
-    }
-});
-
-if (!testRun) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
-}
-
-if (testRun.testCase.project.userId !== authPayload.userId) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-}
-```
+- Pick the guard matching the route scope: `guardTeamRouteRequest`, `guardProjectRouteRequest`, or `guardTestCaseRouteRequest`.
+- Scope every Prisma query by team membership (`team: { memberships: { some: { userId } } }`) — the guard alone does not scope nested resources (test runs, configs, files).
+- Use `apiError` from `api-route-standards.ts` for error responses, not ad-hoc `NextResponse.json({ error })`.
 
 ### Pagination
 ```typescript
@@ -250,10 +238,11 @@ return NextResponse.json({
 4. Re-export from `apps/web/src/types/index.ts`
 
 ## Security Checklist
-- [ ] `verifyAuth(request)` called at route start
-- [ ] Ownership verified via `project.userId === authPayload.userId`
+- [ ] Route wrapped in the matching access guard (`guardTeamRouteRequest` / `guardProjectRouteRequest` / `guardTestCaseRouteRequest`)
+- [ ] Prisma queries scoped by team membership, not raw IDs
 - [ ] Input validated before database operations
 - [ ] Sensitive fields not exposed in responses
+- [ ] Errors returned via `apiError` (no internal details leaked)
 
 ## File Placement
 

@@ -1,14 +1,17 @@
 # SkyTest Skills
 
-SkyTest skills for MCP-capable agents. The workflow is split into four phases that can be run individually or chained in sequence. Use `/skytest` if you're unsure which skill to start with.
+SkyTest skills for MCP-capable agents. Two skills cover the full lifecycle: `skytest` creates and manages test cases directly from user instructions (no separate explore/plan phase), and `skytest-fix` diagnoses and repairs failing runs.
 
 | Skill | Command | Description |
 |-------|---------|-------------|
-| [skytest](./skytest/SKILL.md) | `/skytest` | Router — pick the right skill based on your situation |
-| [skytest-1-explore](./skytest-1-explore/SKILL.md) | `/skytest-1-explore` | Explore a web/mobile app section, produce a UI skeleton, and understand login flow |
-| [skytest-2-plan](./skytest-2-plan/SKILL.md) | `/skytest-2-plan` | Design prioritized test cases from a UI skeleton |
-| [skytest-3-tools](./skytest-3-tools/SKILL.md) | `/skytest-3-tools` | Create, update, delete, and run test cases via SkyTest MCP |
-| [skytest-4-fix](./skytest-4-fix/SKILL.md) | `/skytest-4-fix` | Diagnose failing runs, propose fixes, and update tests for stable regression coverage |
+| [skytest](./skytest/SKILL.md) | `/skytest` | Create, update, run, and manage test cases via MCP from short prompts or exact step lists — playwright-code-first for deterministic interactions |
+| [skytest-fix](./skytest-fix/SKILL.md) | `/skytest-fix` | Diagnose failing runs with a failure taxonomy and stabilize tests, defaulting to playwright-code conversion for flaky interaction steps |
+
+## Design Notes
+
+- **No explore/plan pipeline.** Users describe the flow (even briefly); the skill inherits conventions (login step, target name, viewport, ID format, variables) from existing test cases in the project and only asks what it cannot infer. Element detail comes from connected browser tools or screenshots, captured only for the screens the flow touches.
+- **Playwright-first.** Clicks, fills, dropdown/datepicker selection, and login run as `playwright-code` steps when selectors are known; `ai-action` is reserved for visual verification, scrolling, and unknown structure.
+- **Coverage mode.** Asking to "cover a section" applies the one-concern-per-test decomposition (nav smoke + list/detail, pagination, sorting, create, edit, delete) without a separate planning session.
 
 ## Setup
 

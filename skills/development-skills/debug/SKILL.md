@@ -30,6 +30,16 @@ Before changing code, capture:
 - System boundary involved (API, database, external service, browser, CLI, etc.)
 - Network requests/responses if applicable
 
+**Use the repo's purpose-built diagnostics first:**
+
+| Symptom | Tool / doc |
+|---------|-----------|
+| `npm run verify` failure | `npm run --workspace @skytest/web verify:explain` — attributes the failure to its checker |
+| Runs stuck queued / claiming / dispatch issues | `docs/maintainers/runner-queue-diagnostics.md` |
+| Frontend ↔ runtime integration (SSE, run status, artifacts) | `docs/maintainers/frontend-runtime-debugging.md` |
+| Android device/emulator runtime | `docs/maintainers/android-runtime-maintenance.md` |
+| Unsure where a behavior lives | Task Routing table in `CLAUDE.md` |
+
 ### 3. Trace the root cause
 
 - Trace data flow from the symptom to the root cause

@@ -59,12 +59,17 @@ Group **only the staged files** into **commit units** in **dependency order** (t
 - **Body** (optional): Bullet points for non-trivial units
 - **Footer**: If the user gave one (e.g. `refs: #42`), use the same footer on every commit
 
-### 5. Show the plan, then stop
+### 5. Check docs-sync for runtime behavior changes
+
+If the staged set changes operator-facing runtime behavior (runner queueing, Android lifecycle, import/export, dispatch), check whether matching doc updates in `docs/operators/`, `docs/maintainers/`, or `infra/` are part of the staged set. If they're missing, flag it in the plan — the repo requires docs to ship in the same change series.
+
+### 6. Show the plan, then stop
 
 Output:
 
 - Numbered list of units with **suggested title** and **files**
 - Footer line if provided
+- Docs-sync flag if applicable
 - **Stop.** Do not run Phase B. Add: "Reply with 'ok' or 'please commit' to create these commits."
 
 Example:
@@ -89,7 +94,14 @@ Reply with 'ok' or 'please commit' to create these commits.
 
 When the user replies with an approval signal ("ok", "please commit", "go ahead", "approved", "yes", "do it", "execute", or equivalent), then:
 
-### 6. Create commits in order
+### 7. Verify before committing
+
+Run `npm run verify` once for the staged set (repo rule: lint, TypeScript compile, dependency audit before committing).
+
+- If it fails, run `npm run --workspace @skytest/web verify:explain` to attribute the failure to its checker, report the attribution, and **do not commit** — unless the user explicitly waives verification.
+- Skip only if the user already ran verify in this session on the same staged set.
+
+### 8. Create commits in order
 
 For each unit, in order (each unit contains only files from the originally staged set):
 
@@ -103,7 +115,7 @@ For each unit, in order (each unit contains only files from the originally stage
 3. `git commit -m "<title>" [-m "<body>" -m "<footer>"]`
    Use multiple `-m` for body and footer so they become separate paragraphs.
 
-### 7. Report
+### 9. Report
 
 - Print `git log --oneline -<N>` for the new commits
 - Confirm working tree is clean or list what's left uncommitted

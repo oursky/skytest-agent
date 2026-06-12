@@ -4,7 +4,7 @@ This directory is organized into three skill sets:
 
 - [development-skills](./development-skills/README.md): skills for contributors working on this codebase (planning, debugging, reviewing, and commit workflows).
 - [linear-skills](./linear-skills/README.md): skills for creating/revising Linear bug reports and converting bug tickets into regression tests.
-- [skytest-skills](./skytest-skills/README.md): skills for exploring apps, planning tests, managing tests via MCP, and fixing unstable test flows.
+- [skytest-skills](./skytest-skills/README.md): skills for creating/managing test cases via MCP directly from user instructions, and fixing unstable test flows.
 
 ## Installation
 

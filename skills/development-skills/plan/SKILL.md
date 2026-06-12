@@ -20,6 +20,7 @@ Align on intent before writing code. Shape the design, identify impacted files, 
 
 - Restate the request and success criteria in your own words
 - Ask clarifying questions for missing constraints or edge cases
+- Locate the domain via the Task Routing table in `CLAUDE.md`, and read the matching `docs/maintainers/` reference before planning runtime-adjacent work (runner queueing, Android lifecycle, dispatch, import/export, MCP tooling)
 - Identify impacted files, dependencies, and risks
 - Identify which architectural layers are involved (data, API, UI, infra, etc.)
 - If the change crosses system boundaries, explicitly state the end-state behavior before writing tasks
@@ -35,6 +36,9 @@ Align on intent before writing code. Shape the design, identify impacted files, 
 
 - List the files you will touch and the tests you will run
 - Keep tasks bite-sized (one clear step each) with exact paths and validation steps
+- End with a verification task: `npm run verify` (lint, TypeScript compile, dependency audit)
+- If the change alters operator-facing runtime behavior, include explicit tasks to update `docs/operators/`, `docs/maintainers/`, and `infra/` in the same change series
+- For non-trivial changes, include a task to capture design notes in a focused doc under `docs/maintainers/`
 - If the work is part of a larger effort, include:
   - branch strategy
   - merge order
