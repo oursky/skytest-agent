@@ -440,6 +440,7 @@ export default function ConfigurationsSection({
         <TargetConfigurationsPanel
             readOnly={readOnly}
             projectId={projectId}
+            currentTestCaseId={testCaseId}
             browsers={browsers}
             androidDeviceOptions={androidDeviceOptions}
             urlConfigs={urlConfigs}

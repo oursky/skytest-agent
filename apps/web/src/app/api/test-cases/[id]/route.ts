@@ -10,6 +10,7 @@ import { BrowserConfig, TargetConfig, TEST_CASE_KIND, TEST_STATUS, type TestCase
 import { deleteObjectIfExists } from '@/lib/storage/object-store-utils';
 import { guardTestCaseRouteRequest } from '@/lib/security/test-case-route-access';
 import { loadTestCatalog } from '@/lib/test-cases/catalog-loader';
+import { validateLoginFlowReferences } from '@/lib/test-cases/login-flow-access';
 import { writeCatalogCaseFile } from '@/lib/test-cases/catalog-writeback';
 import { resolveRuntimeRootFromSourcePath } from '@/lib/test-cases/source-path-utils';
 
@@ -122,6 +123,19 @@ export async function PUT(
         const normalizedBrowserConfig = hasBrowserConfig
             ? normalizeTargetConfigMap(browserConfig as Record<string, BrowserConfig | TargetConfig>)
             : undefined;
+        const resolvedKind = parseTestCaseKind(rawKind ?? existingTestCase.kind);
+
+        if (normalizedBrowserConfig) {
+            const loginFlowValidation = await validateLoginFlowReferences({
+                projectId: existingTestCase.projectId,
+                hostKind: resolvedKind,
+                testCaseId: id,
+                browserConfig: normalizedBrowserConfig,
+            });
+            if (!loginFlowValidation.ok) {
+                return apiError({ status: 400, code: 'VALIDATION_ERROR', error: loginFlowValidation.error });
+            }
+        }
 
         const updateData: Record<string, unknown> = {
             name,
@@ -130,7 +144,7 @@ export async function PUT(
             steps: cleanedSteps ? JSON.stringify(cleanedSteps) : undefined,
             browserConfig: normalizedBrowserConfig ? JSON.stringify(normalizedBrowserConfig) : undefined,
             displayId: normalizedDisplayId,
-            kind: parseTestCaseKind(rawKind ?? existingTestCase.kind),
+            kind: resolvedKind,
         };
 
         if (preserveStatus !== true) {

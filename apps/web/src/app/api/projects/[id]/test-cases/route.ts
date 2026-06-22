@@ -3,8 +3,9 @@ import { apiError } from '@/lib/security/api-route-standards';
 import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
 import { cleanStepsForStorage } from '@/lib/runtime/test-case-utils';
-import { TEST_CASE_KIND, TEST_STATUS, type TestCaseKind, type TestStep } from '@/types';
+import { TEST_CASE_KIND, TEST_STATUS, type BrowserConfig, type TargetConfig, type TestCaseKind, type TestStep } from '@/types';
 import { guardProjectRouteRequest } from '@/lib/security/project-route-access';
+import { validateLoginFlowReferences } from '@/lib/test-cases/login-flow-access';
 
 const logger = createLogger('api:projects:test-cases');
 
@@ -155,6 +156,17 @@ export async function POST(
         }
         if (!saveDraft && ((!url && !hasBrowserConfig) || (!prompt && !hasSteps))) {
             return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Name, and either URL or BrowserConfig, and either Prompt or Steps are required' });
+        }
+
+        if (hasBrowserConfig) {
+            const loginFlowValidation = await validateLoginFlowReferences({
+                projectId: id,
+                hostKind: kind,
+                browserConfig: browserConfig as Record<string, BrowserConfig | TargetConfig>,
+            });
+            if (!loginFlowValidation.ok) {
+                return apiError({ status: 400, code: 'VALIDATION_ERROR', error: loginFlowValidation.error });
+            }
         }
 
         const testCase = await prisma.testCase.create({

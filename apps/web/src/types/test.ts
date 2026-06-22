@@ -7,6 +7,8 @@ export interface BrowserConfig {
     url: string;
     width: number;
     height: number;
+    loginFlowId?: string;        // TestCase id (kind=LOGIN_FLOW) to run as a login prefix
+    reuseGroupSession?: boolean;  // continue a run group's live session instead of re-logging in
 }
 
 export const TEST_CASE_KIND = {

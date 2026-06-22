@@ -34,10 +34,13 @@ export function normalizeBrowserConfig(configValue: Partial<BrowserConfig>): Bro
         width: configValue.width,
         height: configValue.height,
     });
+    const loginFlowId = typeof configValue.loginFlowId === 'string' ? configValue.loginFlowId.trim() : '';
     return {
         name: configValue.name,
         url: configValue.url || '',
         width: viewport.width,
         height: viewport.height,
+        ...(loginFlowId ? { loginFlowId } : {}),
+        ...(typeof configValue.reuseGroupSession === 'boolean' ? { reuseGroupSession: configValue.reuseGroupSession } : {}),
     };
 }

@@ -9,10 +9,12 @@ import {
     isSameAndroidDeviceSelector,
 } from '../model/device-utils';
 import type { BrowserEntry } from '../model/types';
+import LoginFlowSelect from './LoginFlowSelect';
 
 interface TargetConfigurationsPanelProps {
     readOnly?: boolean;
     projectId?: string;
+    currentTestCaseId?: string;
     browsers: BrowserEntry[];
     androidDeviceOptions: AndroidDeviceOption[];
     urlConfigs: ConfigItem[];
@@ -59,6 +61,7 @@ function isSameRunnerScopedAndroidOption(option: AndroidDeviceOption, config: An
 export default function TargetConfigurationsPanel({
     readOnly,
     projectId,
+    currentTestCaseId,
     browsers,
     androidDeviceOptions,
     urlConfigs,
@@ -422,6 +425,25 @@ export default function TargetConfigurationsPanel({
                                                 />
                                             </div>
                                         </div>
+                                        <LoginFlowSelect
+                                            projectId={projectId}
+                                            value={cfg.loginFlowId}
+                                            excludeTestCaseId={currentTestCaseId}
+                                            disabled={readOnly}
+                                            onChange={(loginFlowId) => onUpdateTarget(index, { loginFlowId, ...(loginFlowId ? {} : { reuseGroupSession: false }) })}
+                                        />
+                                        {cfg.loginFlowId && (
+                                            <label className="flex items-start gap-2 text-xs text-gray-600">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={cfg.reuseGroupSession ?? false}
+                                                    onChange={(e) => onUpdateTarget(index, { reuseGroupSession: e.target.checked })}
+                                                    disabled={readOnly}
+                                                    className="mt-0.5 h-3.5 w-3.5 rounded border-gray-300 text-primary focus:ring-primary disabled:opacity-50"
+                                                />
+                                                <span>{t('configs.browser.reuseSession')}</span>
+                                            </label>
+                                        )}
                                     </div>
                                 </div>
                             );
