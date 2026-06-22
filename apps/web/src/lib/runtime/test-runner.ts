@@ -292,6 +292,14 @@ export async function createBrowserTargetContext(params: {
         viewport: { width: browserConfig.width, height: browserConfig.height },
     });
 
+    if (browserConfig.webauthnVirtualAuthenticator) {
+        // Install a virtual WebAuthn authenticator so passkey ceremonies
+        // (navigator.credentials.create()/get()) resolve headlessly without real
+        // hardware. Must be installed before the page touches navigator.credentials.
+        await context.credentials.install();
+        log(`[${targetLabel}] Virtual passkey authenticator enabled`, 'info', targetId);
+    }
+
     const networkGuard = createBrowserNetworkGuard({ targetId, targetLabel, log, signal });
     await context.route('**/*', async (route) => {
         await networkGuard.handleRoute(route);

@@ -761,6 +761,7 @@ export const ZH_HANS_MESSAGES: Messages = {
   "configs.browser.loginFlow": "登录流程",
   "configs.browser.loginFlow.none": "无",
   "configs.browser.reuseSession": "重用运行组现有的登录会话（在运行组中运行时跳过重新登录）",
+  "configs.browser.webauthn": "启用通行密钥（passkey）测试（安装虚拟 WebAuthn 验证器，让无头环境也能完成通行密钥登录／注册）",
   "configs.browser.addBrowser": "添加浏览器目标",
   "configs.android.appId": "App ID",
   "configs.android.appId.placeholder": "选择 App ID",

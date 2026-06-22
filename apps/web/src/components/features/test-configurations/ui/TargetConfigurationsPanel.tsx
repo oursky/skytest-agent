@@ -444,6 +444,16 @@ export default function TargetConfigurationsPanel({
                                                 <span>{t('configs.browser.reuseSession')}</span>
                                             </label>
                                         )}
+                                        <label className="flex items-start gap-2 text-xs text-gray-600">
+                                            <input
+                                                type="checkbox"
+                                                checked={cfg.webauthnVirtualAuthenticator ?? false}
+                                                onChange={(e) => onUpdateTarget(index, { webauthnVirtualAuthenticator: e.target.checked })}
+                                                disabled={readOnly}
+                                                className="mt-0.5 h-3.5 w-3.5 rounded border-gray-300 text-primary focus:ring-primary disabled:opacity-50"
+                                            />
+                                            <span>{t('configs.browser.webauthn')}</span>
+                                        </label>
                                     </div>
                                 </div>
                             );

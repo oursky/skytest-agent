@@ -57,6 +57,7 @@ interface PreparedUnit {
     prompt?: string;
     viewport: { width: number; height: number };
     reuseGroupSession: boolean;
+    webauthnVirtualAuthenticator: boolean;
     resolvedVariables: Record<string, string>;
     resolvedConfigFiles: Record<string, string>;
     materializedExecutionFiles: Awaited<ReturnType<typeof prepareExecutionFiles>>;
@@ -88,6 +89,7 @@ async function prepareMemberUnit(details: LoadedRunConfig): Promise<PreparedUnit
         prompt: details.config.prompt ? sub(details.config.prompt) : details.config.prompt,
         viewport: { width: normalizedPrimary.width, height: normalizedPrimary.height },
         reuseGroupSession: normalizedPrimary.reuseGroupSession ?? false,
+        webauthnVirtualAuthenticator: normalizedPrimary.webauthnVirtualAuthenticator ?? false,
         resolvedVariables: vars,
         resolvedConfigFiles: materializedExecutionFiles.configFiles,
         materializedExecutionFiles,
@@ -270,7 +272,7 @@ export async function executeLocalBrowserSession(
     let targets: ExecutionTargets;
     try {
         targets = await setupExecutionTargets(
-            { [targetId]: { width: openPrepared.viewport.width, height: openPrepared.viewport.height, url: '' } },
+            { [targetId]: { width: openPrepared.viewport.width, height: openPrepared.viewport.height, url: '', webauthnVirtualAuthenticator: openPrepared.webauthnVirtualAuthenticator } },
             routedOnEvent,
             openMember.id,
             openDetails.projectId,
@@ -319,7 +321,7 @@ export async function executeLocalBrowserSession(
                         const created = await createBrowserTargetContext({
                             browser: targets.browser!,
                             targetId,
-                            browserConfig: { width: prepared.viewport.width, height: prepared.viewport.height, url: '' },
+                            browserConfig: { width: prepared.viewport.width, height: prepared.viewport.height, url: '', webauthnVirtualAuthenticator: prepared.webauthnVirtualAuthenticator },
                             onEvent: routedOnEvent,
                             midsceneModelConfig,
                             signal: controller.signal,

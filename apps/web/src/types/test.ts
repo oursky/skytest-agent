@@ -9,6 +9,7 @@ export interface BrowserConfig {
     height: number;
     loginFlowId?: string;        // TestCase id (kind=LOGIN_FLOW) to run as a login prefix
     reuseGroupSession?: boolean;  // continue a run group's live session instead of re-logging in
+    webauthnVirtualAuthenticator?: boolean; // install a virtual WebAuthn authenticator so passkey ceremonies work headlessly
 }
 
 export const TEST_CASE_KIND = {

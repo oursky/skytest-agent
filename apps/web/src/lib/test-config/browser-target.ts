@@ -42,5 +42,6 @@ export function normalizeBrowserConfig(configValue: Partial<BrowserConfig>): Bro
         height: viewport.height,
         ...(loginFlowId ? { loginFlowId } : {}),
         ...(typeof configValue.reuseGroupSession === 'boolean' ? { reuseGroupSession: configValue.reuseGroupSession } : {}),
+        ...(typeof configValue.webauthnVirtualAuthenticator === 'boolean' ? { webauthnVirtualAuthenticator: configValue.webauthnVirtualAuthenticator } : {}),
     };
 }

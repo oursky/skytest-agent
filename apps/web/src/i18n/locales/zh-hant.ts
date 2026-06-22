@@ -761,6 +761,7 @@ export const ZH_HANT_MESSAGES: Messages = {
   "configs.browser.loginFlow": "登入流程",
   "configs.browser.loginFlow.none": "無",
   "configs.browser.reuseSession": "重用執行群組現有的登入工作階段（在執行群組中執行時略過重新登入）",
+  "configs.browser.webauthn": "啟用密鑰（passkey）測試（安裝虛擬 WebAuthn 驗證器，讓無頭環境也能完成密鑰登入／註冊）",
   "configs.browser.addBrowser": "新增瀏覽器目標",
   "configs.android.appId": "App ID",
   "configs.android.appId.placeholder": "選擇 App ID",

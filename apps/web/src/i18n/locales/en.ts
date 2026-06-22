@@ -761,6 +761,7 @@ export const EN_MESSAGES: Messages = {
   "configs.browser.loginFlow": "Login Flow",
   "configs.browser.loginFlow.none": "None",
   "configs.browser.reuseSession": "Reuse the run group's existing login session (skip re-login when run in a Run Group)",
+  "configs.browser.webauthn": "Enable passkey testing (install a virtual WebAuthn authenticator so passkey login/registration works headlessly)",
   "configs.browser.addBrowser": "Add Browser Target",
   "configs.android.appId": "App ID",
   "configs.android.appId.placeholder": "Select App ID or type one",
