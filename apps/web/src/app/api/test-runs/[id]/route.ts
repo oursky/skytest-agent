@@ -3,12 +3,13 @@ import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
 import { isTestEvent } from '@/lib/runtime/test-events';
 import { objectStore } from '@/lib/storage/object-store';
-import { isRunActiveStatus, isScreenshotData, type TestEvent, type LogLevel } from '@/types';
+import { isRunActiveStatus, isScreenshotData, type TestEvent, type LogLevel, type BrowserConfig, type TargetConfig } from '@/types';
 import { parseTestResultMetadata } from '@/lib/runtime/test-result-metadata';
 import { loadMaskedVariableValuesForTestCase } from '@/lib/runtime/masked-variables';
 import { createExactValueMasker, maskEventForViewer, maskNullableText } from '@/lib/runtime/log-masking';
 import { guardTestRunRouteRequest } from '@/lib/security/test-run-route-access';
 import { apiError } from '@/lib/security/api-route-standards';
+import { parseSerializedJson } from '@/lib/runtime/local-browser-runner-parsers';
 
 const logger = createLogger('api:test-runs:id');
 
@@ -179,7 +180,7 @@ export async function GET(
             testCaseUrl: testRun.testCase.url,
             testCasePrompt: testRun.testCase.prompt,
             testCaseSteps: testRun.testCase.steps,
-            testCaseBrowserConfig: testRun.testCase.browserConfig,
+            testCaseBrowserConfig: parseSerializedJson<Record<string, BrowserConfig | TargetConfig>>(testRun.testCase.browserConfig),
             projectId: testRun.testCase.projectId,
             projectName: testRun.testCase.project.name,
             projectTeamId: testRun.testCase.project.teamId,
