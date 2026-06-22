@@ -6,6 +6,7 @@ export const TEST_STATUS = {
     PASS: 'PASS',
     FAIL: 'FAIL',
     CANCELLED: 'CANCELLED',
+    SKIPPED: 'SKIPPED',
 } as const;
 
 export const RUN_TRIGGER_SOURCE = {
@@ -35,6 +36,16 @@ export const RUN_TERMINAL_STATUSES = [
     TEST_STATUS.CANCELLED,
 ] as const;
 
+// A run is "settled" once it will never execute further. SKIPPED members of a
+// run session never run (an earlier member failed), so they are settled too,
+// but they are not part of the dispatch terminal set above.
+export const RUN_SETTLED_STATUSES = [
+    TEST_STATUS.PASS,
+    TEST_STATUS.FAIL,
+    TEST_STATUS.CANCELLED,
+    TEST_STATUS.SKIPPED,
+] as const;
+
 export const RUN_IN_PROGRESS_STATUSES = [
     TEST_STATUS.PREPARING,
     TEST_STATUS.RUNNING,
@@ -47,11 +58,16 @@ export const RUN_ACTIVE_STATUSES = [
 ] as const;
 
 const runTerminalStatusSet = new Set<string>(RUN_TERMINAL_STATUSES);
+const runSettledStatusSet = new Set<string>(RUN_SETTLED_STATUSES);
 const runInProgressStatusSet = new Set<string>(RUN_IN_PROGRESS_STATUSES);
 const runActiveStatusSet = new Set<string>(RUN_ACTIVE_STATUSES);
 
 export function isRunTerminalStatus(status: string | null | undefined): status is RunTerminalStatus {
     return typeof status === 'string' && runTerminalStatusSet.has(status);
+}
+
+export function isRunSettledStatus(status: string | null | undefined): boolean {
+    return typeof status === 'string' && runSettledStatusSet.has(status);
 }
 
 export function isRunInProgressStatus(status: string | null | undefined): status is RunInProgressStatus {

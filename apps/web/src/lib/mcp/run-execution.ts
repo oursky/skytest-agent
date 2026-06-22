@@ -18,6 +18,7 @@ import {
     isEmulatorProfileInventoryDevice,
 } from '@/lib/android/target-requests';
 import { RUN_TRIGGER_SOURCE, TEST_STATUS, type BrowserConfig, type ResolvedConfig, type RunTriggerSource, type TargetConfig, type TestStep } from '@/types';
+import { createRunSession } from '@/lib/runtime/run-session-service';
 
 function validateAndroidTargets(
     browserConfig: Record<string, BrowserConfig | TargetConfig> | undefined
@@ -294,14 +295,25 @@ export async function queueTestCaseRun(
         resolvedConfigurations,
     }));
 
+    const requiredCapability = requestHasAndroidTargets
+        ? ANDROID_EXECUTION_CAPABILITY
+        : BROWSER_EXECUTION_CAPABILITY;
+    const runSessionId = await createRunSession({
+        projectId: testCase.projectId,
+        requiredCapability,
+        triggeredByEmail,
+        triggerSource: trigger.source,
+    });
+
     const testRun = await prisma.testRun.create({
         data: {
             testCaseId,
+            runSessionId,
+            sessionPosition: 0,
+            kind: testCase.kind,
             status: TEST_STATUS.QUEUED,
             configurationSnapshot,
-            requiredCapability: requestHasAndroidTargets
-                ? ANDROID_EXECUTION_CAPABILITY
-                : BROWSER_EXECUTION_CAPABILITY,
+            requiredCapability,
             requiredRunnerKind: requestHasAndroidTargets
                 ? ANDROID_EXECUTION_RUNNER_KIND
                 : null,

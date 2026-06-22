@@ -133,6 +133,7 @@ model Project {
   schedules       Schedule[]
   configs         ProjectConfig[]
   usageRecords    UsageRecord[]
+  runSessions     RunSession[]
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
 
@@ -182,6 +183,11 @@ model TestRun {
   id                      String   @id @default(cuid())
   testCaseId              String
   testCase                TestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  runSessionId            String?
+  runSession              RunSession? @relation(fields: [runSessionId], references: [id], onDelete: Cascade)
+  sessionPosition         Int?
+  kind                    String   @default("TEST") // TEST | LOGIN_FLOW (denormalized from TestCase.kind)
+  reusedSession           Boolean  @default(false)
   triggeredByEmail        String?
   triggerSource           String   @default("USER")
   requiredCapability      String?
@@ -222,6 +228,33 @@ model TestRun {
   @@index([requestedRunnerId])
   @@index([instanceType, instanceName, createdAt(sort: Desc)])
   @@index([deletedAt, completedAt(sort: Asc)])
+  @@index([runSessionId, sessionPosition])
+}
+
+model RunSession {
+  id                   String      @id @default(cuid())
+  projectId            String
+  project              Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  kind                 String      @default("SINGLE") // SINGLE | GROUP
+  status               String      // QUEUED | PREPARING | RUNNING | PASS | FAIL | CANCELLED
+  triggeredByEmail     String?
+  triggerSource        String      @default("USER")
+  requiredCapability   String?
+  assignedRunnerId     String?
+  leaseExpiresAt       DateTime?
+  startedAt            DateTime?
+  completedAt          DateTime?
+  slackNotifiedAt      DateTime?
+  slackNotifyClaimedAt DateTime?
+  slackNotifyAttempts  Int         @default(0)
+  slackNotifyError     String?
+  deletedAt            DateTime?
+  createdAt            DateTime    @default(now())
+  memberRuns           TestRun[]
+
+  @@index([status, requiredCapability, createdAt(sort: Asc)])
+  @@index([projectId, createdAt(sort: Desc)])
+  @@index([assignedRunnerId, leaseExpiresAt])
 }
 
 model Schedule {

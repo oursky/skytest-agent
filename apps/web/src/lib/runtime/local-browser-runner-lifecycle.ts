@@ -2,6 +2,7 @@ import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
 import { publishRunUpdate } from '@/lib/runners/event-bus';
 import { emitRunTerminal } from '@/lib/runners/domain-events';
+import { recomputeRunSessionForMember } from '@/lib/runtime/run-session-service';
 import { config as appConfig } from '@/config/app';
 import { UsageService } from '@/lib/runtime/usage';
 import {
@@ -97,6 +98,7 @@ export async function updateRunStatusWithOwnership(
 
     if (result.count > 0) {
         publishRunUpdate(runId);
+        await recomputeRunSessionForMember(runId);
     }
 }
 

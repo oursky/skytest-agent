@@ -2,6 +2,7 @@ import { config as appConfig } from '@/config/app';
 import { createLogger } from '@/lib/core/logger';
 import { prisma } from '@/lib/core/prisma';
 import { registerSlackSubscriber } from '@/lib/integrations/slack/subscriber';
+import { registerRunSessionRollupSubscriber } from '@/lib/runtime/run-session-service';
 import { pruneOldRunEvents } from '@/lib/runners/event-retention-service';
 import { reapExpiredRunnerLeases, reapStaleLocalBrowserRuns } from '@/lib/runners/lease-reaper';
 import { failInvalidQueuedAndroidRuns } from '@/lib/runners/queue-sanitizer';
@@ -19,6 +20,7 @@ const shutdown = createWorkerShutdownController({
 const MAX_MAINTENANCE_RETRY_INTERVAL_MS = 60_000;
 
 registerSlackSubscriber();
+registerRunSessionRollupSubscriber();
 
 async function runMaintenanceCycle() {
     const [leaseResult, staleLocalBrowserRunResult, retentionResult, queueSanitizerResult] = await Promise.all([

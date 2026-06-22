@@ -8,6 +8,7 @@ export const STATUS_BADGE_CLASSES: Record<TestStatus, string> = {
     [TEST_STATUS.PASS]: 'bg-green-100 text-green-800 border-green-200',
     [TEST_STATUS.FAIL]: 'bg-red-100 text-red-800 border-red-200',
     [TEST_STATUS.CANCELLED]: 'bg-gray-100 text-gray-800 border-gray-200',
+    [TEST_STATUS.SKIPPED]: 'bg-slate-100 text-slate-600 border-slate-200',
 };
 
 export function getStatusBadgeClass(status?: string | null): string {

@@ -5,9 +5,14 @@ const mocks = vi.hoisted(() => ({
     testCaseFindUnique: vi.fn(),
     testRunCreate: vi.fn(),
     testRunFileCreateMany: vi.fn(),
+    createRunSession: vi.fn(),
     resolveConfigs: vi.fn(),
     validateTargetUrl: vi.fn(),
     getTeamDevicesAvailability: vi.fn(),
+}));
+
+vi.mock('@/lib/runtime/run-session-service', () => ({
+    createRunSession: mocks.createRunSession,
 }));
 
 vi.mock('@/lib/core/prisma', () => ({
@@ -47,6 +52,8 @@ describe('queueTestCaseRun', () => {
         mocks.userFindUnique.mockReset();
         mocks.testRunCreate.mockReset();
         mocks.testRunFileCreateMany.mockReset();
+        mocks.createRunSession.mockReset();
+        mocks.createRunSession.mockResolvedValue('session-1');
         mocks.resolveConfigs.mockReset();
         mocks.validateTargetUrl.mockReset();
         mocks.getTeamDevicesAvailability.mockReset();

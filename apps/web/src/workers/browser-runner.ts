@@ -4,6 +4,7 @@ import { prisma } from '@/lib/core/prisma';
 import { registerSlackSubscriber } from '@/lib/integrations/slack/subscriber';
 import { dispatchQueuedBrowserRuns } from '@/lib/runtime/browser-run-dispatcher';
 import { abortInactiveLocalBrowserRuns } from '@/lib/runtime/local-browser-runner';
+import { registerRunSessionRollupSubscriber } from '@/lib/runtime/run-session-service';
 import { createWakeableSleeper, createWorkerShutdownController } from '@/workers/loop-utils';
 
 const logger = createLogger('worker:browser-runner');
@@ -15,6 +16,7 @@ const shutdown = createWorkerShutdownController({
 });
 
 registerSlackSubscriber();
+registerRunSessionRollupSubscriber();
 
 async function main() {
     if (!appConfig.browserWorker.enabled) {
