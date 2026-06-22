@@ -1,11 +1,11 @@
 # Playwright ≥ 1.61 upgrade & native passkey support (Phase 5)
 
-**Status:** Pinned, not yet installed/validated. `apps/web/package.json` pins
-`playwright` and `@playwright/test` at **1.61.0**, but the lockfile and
-`node_modules` must be regenerated and the upgrade validated in a real dev/CI
-environment (see "Why this is not finished in-repo" below). This unblocks the
-native WebAuthn (passkey) auth path described in the login-flows / run-groups
-architecture (§3.4, §3.6, D5).
+**Status:** Not yet upgraded. In-repo pins are deliberately kept at **1.57.0**
+(the version installable in this build environment) so the tree stays clean,
+consistent, and green. The 1.61 upgrade — pins **plus** the override below — is
+prescribed here and must be installed and validated in a real dev/CI environment
+(see "Why this is not finished in-repo"). It unblocks the native WebAuthn
+(passkey) auth path in the login-flows / run-groups architecture (§3.4, §3.6, D5).
 
 This document is the runbook for completing the upgrade and wiring passkey /
 session-auth support on top of the session engine that already shipped in
@@ -23,12 +23,15 @@ such API (0 matches for `credentials` / `WebAuthn` / `VirtualAuthenticator` in
 
 ## Why this is not finished in-repo
 
-The pins were bumped to 1.61.0, but the change could not be completed here:
+The pins were bumped to 1.61.0 and an override forcing a single version was
+tried, but the change could not be completed in this build environment:
 
 1. **The sandbox npm cannot materialize `playwright-core@1.61`.** Even after a
-   clean reinstall, only `playwright-core@1.57` lands on disk (the registry
-   serves the 1.61 tarball, so this is an environment constraint, not a
-   dependency conflict).
+   clean reinstall — and even with the override below forcing `playwright-core`
+   to 1.61 for the whole tree — only `playwright-core@1.57` lands on disk (npm
+   records the 1.61 resolution and flags the on-disk copy "invalid"). The
+   registry serves the 1.61 tarball, so this is an environment fetch constraint,
+   not a dependency conflict.
 2. **Version skew → type error.** With our app on 1.61 and `@midscene/web`'s
    subtree resolved to its own `playwright@1.57`, two `playwright-core` type
    trees coexist. `runTest` passes a `Page` created by our `chromium` (1.61) to
@@ -38,8 +41,9 @@ The pins were bumped to 1.61.0, but the change could not be completed here:
 
 `@midscene/web` (both 1.9.2 and latest 1.9.8) declares `playwright` as
 `^1.45.0` — a range that already permits 1.61 — so **upgrading midscene does not
-gate or fix this.** The fix is to force a single Playwright version across the
-whole tree.
+gate or fix this.** The fix is the override below (forces a single Playwright
+version across the whole tree, eliminating the skew); it resolves correctly in a
+normal npm environment that can fetch the 1.61 tarball.
 
 ## Procedure (run in a real dev/CI environment)
 
