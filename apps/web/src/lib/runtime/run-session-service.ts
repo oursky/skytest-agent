@@ -24,6 +24,7 @@ const logger = createLogger('runtime:run-session-service');
 export interface CreateRunSessionInput {
     projectId: string;
     kind?: RunSessionKind;
+    runGroupId?: string | null;
     requiredCapability: string;
     triggeredByEmail?: string | null;
     triggerSource: RunTriggerSource;
@@ -54,6 +55,7 @@ export async function createRunSession(input: CreateRunSessionInput): Promise<st
         data: {
             projectId: input.projectId,
             kind: input.kind ?? RUN_SESSION_KIND.SINGLE,
+            runGroupId: input.runGroupId ?? null,
             status: TEST_STATUS.QUEUED,
             requiredCapability: input.requiredCapability,
             triggeredByEmail: input.triggeredByEmail ?? null,

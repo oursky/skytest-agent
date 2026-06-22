@@ -13,6 +13,8 @@ import { finalizeMemberRunResult } from '@/lib/runtime/run-member-finalize';
 import {
     setupExecutionTargets,
     cleanupTargets,
+    createBrowserTargetContext,
+    closeBrowserTargetContext,
     executeUnit,
     type ExecutionTargets,
     type ActionCounter,
@@ -25,11 +27,13 @@ import {
 } from '@/lib/runtime/local-browser-runner-lifecycle';
 import { recomputeRunSessionForMember } from '@/lib/runtime/run-session-service';
 import {
+    RUN_SESSION_KIND,
     TEST_STATUS,
     isRunInProgressStatus,
     type BrowserConfig,
     type TargetConfig,
     type TestEvent,
+    type TestResult,
     type TestStep,
 } from '@/types';
 
@@ -39,6 +43,8 @@ interface SessionMember {
     id: string;
     sessionPosition: number | null;
     testCaseId: string;
+    kind: string;
+    reusedSession: boolean;
 }
 
 function isAndroidConfig(cfg: BrowserConfig | TargetConfig): boolean {
@@ -49,12 +55,14 @@ interface PreparedUnit {
     url?: string;
     steps?: TestStep[];
     prompt?: string;
+    viewport: { width: number; height: number };
+    reuseGroupSession: boolean;
     resolvedVariables: Record<string, string>;
     resolvedConfigFiles: Record<string, string>;
     materializedExecutionFiles: Awaited<ReturnType<typeof prepareExecutionFiles>>;
 }
 
-/** Resolves a member's url/steps (config variable + file substitution) and materializes its files. */
+/** Resolves a member's url/steps/viewport (variable + file substitution) and materializes its files. */
 async function prepareMemberUnit(details: LoadedRunConfig): Promise<PreparedUnit> {
     const materializedExecutionFiles = await prepareExecutionFiles(
         details.config.files,
@@ -66,37 +74,24 @@ async function prepareMemberUnit(details: LoadedRunConfig): Promise<PreparedUnit
     const sub = (text: string) => substituteAll(text, vars, fileRefs);
 
     const browserConfig = details.config.browserConfig;
-    const primaryBrowserUrl = browserConfig
-        ? Object.values(browserConfig)
-            .filter((cfg): cfg is BrowserConfig => !isAndroidConfig(cfg))
-            .map((cfg) => cfg.url)
-            .find((url) => !!url)
+    const primaryBrowser = browserConfig
+        ? Object.values(browserConfig).find((cfg): cfg is BrowserConfig => !isAndroidConfig(cfg))
         : undefined;
-    const rawUrl = primaryBrowserUrl ?? details.config.url;
+    const normalizedPrimary = primaryBrowser
+        ? normalizeBrowserConfig(primaryBrowser)
+        : normalizeBrowserConfig({ url: details.config.url ?? '' });
+    const rawUrl = normalizedPrimary.url || details.config.url;
 
     return {
         url: rawUrl ? sub(rawUrl) : rawUrl,
         steps: details.config.steps?.map((step) => ({ ...step, action: sub(step.action) })),
         prompt: details.config.prompt ? sub(details.config.prompt) : details.config.prompt,
+        viewport: { width: normalizedPrimary.width, height: normalizedPrimary.height },
+        reuseGroupSession: normalizedPrimary.reuseGroupSession ?? false,
         resolvedVariables: vars,
         resolvedConfigFiles: materializedExecutionFiles.configFiles,
         materializedExecutionFiles,
     };
-}
-
-/** Derives the shared browser target id + viewport from the anchor (test) member's config. */
-function resolveAnchorBrowserTarget(details: LoadedRunConfig): { targetId: string; config: BrowserConfig } | null {
-    const browserConfig = details.config.browserConfig;
-    if (browserConfig) {
-        const entry = Object.entries(browserConfig).find(([, cfg]) => !isAndroidConfig(cfg));
-        if (entry) {
-            return { targetId: entry[0], config: normalizeBrowserConfig(entry[1] as BrowserConfig) };
-        }
-    }
-    if (details.config.url) {
-        return { targetId: 'main', config: normalizeBrowserConfig({ url: details.config.url }) };
-    }
-    return null;
 }
 
 /** Transitions a queued member to PREPARING. Returns whether the member is runnable
@@ -131,62 +126,154 @@ async function markMembersSkipped(runIds: string[]): Promise<void> {
     await recomputeRunSessionForMember(runIds[0]);
 }
 
+interface MemberRunContext {
+    targets: ExecutionTargets;
+    targetId: string;
+    actionCounter: ActionCounter;
+    controller: AbortController;
+    setCurrentOnEvent: (handler: (event: TestEvent) => void) => void;
+    options?: LocalBrowserRunOptions;
+}
+
 /**
- * Runs an ordered, multi-member browser session inside one shared browser so the
- * authenticated state from a login-flow prefix carries into the test that follows.
- * The last member is the anchor test (defines viewport + target id); earlier members
- * are login-flow prefixes executed against the anchor's primary browser target.
- * Stops on the first non-pass member and marks the rest SKIPPED.
+ * Runs one member (navigate + steps) against the shared browser's target, with the
+ * member's own event sink, liveness watcher, and maxDuration guard; finalizes the
+ * member run. Steps are retargeted to the shared target id. Returns the result.
+ */
+async function runSessionMember(
+    member: SessionMember,
+    details: LoadedRunConfig,
+    prepared: PreparedUnit,
+    ctx: MemberRunContext,
+): Promise<TestResult> {
+    const usage = {
+        actorUserId: details.usage.actorUserId,
+        projectId: details.projectId,
+        description: details.usage.description,
+    };
+    const sink = createRunEventSink(member.id, ctx.options);
+    const watcher = createRunStatusWatcher(member.id, ctx.controller.signal, () => ctx.controller.abort(), ctx.options);
+    watcher.start();
+
+    const memberController = new AbortController();
+    const onSessionAbort = () => memberController.abort();
+    if (ctx.controller.signal.aborted) {
+        memberController.abort();
+    } else {
+        ctx.controller.signal.addEventListener('abort', onSessionAbort, { once: true });
+    }
+    let timedOut = false;
+    const timeoutHandle = setTimeout(() => {
+        timedOut = true;
+        memberController.abort();
+    }, appConfig.test.maxDuration * 1000);
+
+    let result: TestResult;
+    try {
+        await updateRunStatusWithOwnership(member.id, TEST_STATUS.RUNNING, ctx.options);
+        sink.queueEvent({ kind: 'STATUS', message: 'Running test steps' });
+        ctx.setCurrentOnEvent((event) => sink.handleTestEvent(event));
+
+        const execConfigs: Record<string, BrowserConfig> = {
+            [ctx.targetId]: { width: prepared.viewport.width, height: prepared.viewport.height, url: prepared.url ?? '' },
+        };
+        const execSteps = prepared.steps?.map((step) => ({ ...step, target: ctx.targetId }));
+
+        result = await executeUnit({
+            targets: ctx.targets,
+            targetConfigs: execConfigs,
+            steps: execSteps,
+            prompt: prepared.prompt,
+            onEvent: (event) => sink.handleTestEvent(event),
+            runId: member.id,
+            materializedExecutionFiles: prepared.materializedExecutionFiles,
+            signal: memberController.signal,
+            resolvedVariables: prepared.resolvedVariables,
+            resolvedConfigFiles: prepared.resolvedConfigFiles,
+            onStepHeartbeat: async () => { await touchRunActivity(member.id, ctx.options); },
+            actionCounter: ctx.actionCounter,
+        });
+    } finally {
+        ctx.setCurrentOnEvent(() => {});
+        clearTimeout(timeoutHandle);
+        ctx.controller.signal.removeEventListener('abort', onSessionAbort);
+        watcher.stop();
+    }
+
+    if (timedOut && result.status === TEST_STATUS.CANCELLED) {
+        result = {
+            status: TEST_STATUS.FAIL,
+            error: `Test exceeded maximum duration (${appConfig.test.maxDuration}s)`,
+            errorCode: 'TEST_TIMEOUT',
+            errorCategory: 'TIMEOUT',
+            actionCount: result.actionCount,
+        };
+    }
+
+    await sink.settleUploads();
+    await sink.flush();
+    await finalizeMemberRunResult(member.id, member.testCaseId, usage, result, ctx.options);
+    return result;
+}
+
+async function loadOrderedMembers(sessionId: string): Promise<SessionMember[]> {
+    return prisma.testRun.findMany({
+        where: { runSessionId: sessionId },
+        orderBy: { sessionPosition: 'asc' },
+        select: { id: true, sessionPosition: true, testCaseId: true, kind: true, reusedSession: true },
+    });
+}
+
+/**
+ * Executes a run session inside one shared browser. SINGLE sessions are a login-flow
+ * prefix followed by the test (members continue in the same authenticated context).
+ * GROUP sessions run an ordered list of cases sequentially, resetting the browser
+ * context between cases unless a case opts into reusing the group's live session (#5).
+ * Both stop on the first non-pass member and mark the remaining members SKIPPED (#6).
  */
 export async function executeLocalBrowserSession(
     sessionId: string,
     controller: AbortController,
     options?: LocalBrowserRunOptions,
 ): Promise<void> {
-    const members: SessionMember[] = await prisma.testRun.findMany({
-        where: { runSessionId: sessionId },
-        orderBy: { sessionPosition: 'asc' },
-        select: { id: true, sessionPosition: true, testCaseId: true },
-    });
+    const session = await prisma.runSession.findUnique({ where: { id: sessionId }, select: { kind: true } });
+    const members = await loadOrderedMembers(sessionId);
     if (members.length === 0) {
         return;
     }
 
-    const anchor = members[members.length - 1];
-    const anchorDetails = await loadRunConfig(anchor.id, options, { allowNonRunning: true });
-    if (!anchorDetails) {
+    const isGroup = session?.kind === RUN_SESSION_KIND.GROUP;
+    // SINGLE (login prefix): the test is the anchor and defines the viewport, the
+    // prefix runs in its context. GROUP: the first member opens the context, later
+    // members reset to their own viewport unless they reuse the live session.
+    const openMember = isGroup ? members[0] : members[members.length - 1];
+    const openDetails = await loadRunConfig(openMember.id, options, { allowNonRunning: true });
+    if (!openDetails) {
         await Promise.all(members.map((member) => failRunWithoutTestCase(member.id, 'Run is not executable', options).catch(() => {})));
         return;
     }
 
-    const anchorTarget = resolveAnchorBrowserTarget(anchorDetails);
-    if (!anchorTarget) {
-        await Promise.all(members.map((member) => failRunWithoutTestCase(member.id, 'Session requires a browser target', options).catch(() => {})));
-        return;
-    }
+    const openPrepared = await prepareMemberUnit(openDetails);
+    await openPrepared.materializedExecutionFiles.cleanup();
 
+    const targetId = 'session_main';
     const midsceneModelConfig = buildMidsceneModelConfig(
-        anchorDetails.config.openRouterApiKey,
-        anchorDetails.config.midsceneModelOptions,
+        openDetails.config.openRouterApiKey,
+        openDetails.config.midsceneModelOptions,
     );
     const actionCounter: ActionCounter = { count: 0 };
-    const openConfigs: Record<string, BrowserConfig> = {
-        [anchorTarget.targetId]: { ...anchorTarget.config, url: '' },
-    };
 
-    // The Playwright agents are created once at open time with a fixed event
-    // handler, but each member persists to its own run. Route agent events (AI
-    // tips/screenshots) to whichever member is currently executing.
     let currentOnEvent: (event: TestEvent) => void = () => {};
     const routedOnEvent = (event: TestEvent) => currentOnEvent(event);
+    const setCurrentOnEvent = (handler: (event: TestEvent) => void) => { currentOnEvent = handler; };
 
     let targets: ExecutionTargets;
     try {
         targets = await setupExecutionTargets(
-            openConfigs,
+            { [targetId]: { width: openPrepared.viewport.width, height: openPrepared.viewport.height, url: '' } },
             routedOnEvent,
-            anchor.id,
-            anchorDetails.projectId,
+            openMember.id,
+            openDetails.projectId,
             midsceneModelConfig,
             controller.signal,
             actionCounter,
@@ -198,10 +285,11 @@ export async function executeLocalBrowserSession(
         return;
     }
 
+    const ctx: MemberRunContext = { targets, targetId, actionCounter, controller, setCurrentOnEvent, options };
+
     try {
         for (let index = 0; index < members.length; index += 1) {
             const member = members[index];
-            const isAnchor = index === members.length - 1;
             if (controller.signal.aborted) {
                 await markMembersSkipped(members.slice(index).map((m) => m.id));
                 break;
@@ -209,7 +297,6 @@ export async function executeLocalBrowserSession(
 
             const runnable = await claimSessionMember(member.id);
             if (!runnable) {
-                // Member was cancelled/settled externally; stop the session and skip the rest.
                 await markMembersSkipped(members.slice(index + 1).map((m) => m.id));
                 break;
             }
@@ -220,87 +307,41 @@ export async function executeLocalBrowserSession(
                 break;
             }
 
-            const usage = {
-                actorUserId: details.usage.actorUserId,
-                projectId: details.projectId,
-                description: details.usage.description,
-            };
-            const sink = createRunEventSink(member.id, options);
-            const watcher = createRunStatusWatcher(member.id, controller.signal, () => controller.abort(), options);
-            watcher.start();
-
-            const memberController = new AbortController();
-            const onSessionAbort = () => memberController.abort();
-            if (controller.signal.aborted) {
-                memberController.abort();
-            } else {
-                controller.signal.addEventListener('abort', onSessionAbort, { once: true });
-            }
-            let timedOut = false;
-            const timeoutHandle = setTimeout(() => {
-                timedOut = true;
-                memberController.abort();
-            }, appConfig.test.maxDuration * 1000);
-
-            let result;
+            const prepared = await prepareMemberUnit(details);
             try {
-                await updateRunStatusWithOwnership(member.id, TEST_STATUS.RUNNING, options);
-                sink.queueEvent({ kind: 'STATUS', message: 'Running test steps' });
+                if (index > 0) {
+                    // GROUP cases reset to a fresh context unless they reuse the live
+                    // session; SINGLE prefix members always continue in the same context.
+                    const reuse = isGroup ? prepared.reuseGroupSession : true;
+                    if (!reuse) {
+                        await prisma.testRun.update({ where: { id: member.id }, data: { reusedSession: false } }).catch(() => {});
+                        await closeBrowserTargetContext(targets, targetId);
+                        const created = await createBrowserTargetContext({
+                            browser: targets.browser!,
+                            targetId,
+                            browserConfig: { width: prepared.viewport.width, height: prepared.viewport.height, url: '' },
+                            onEvent: routedOnEvent,
+                            midsceneModelConfig,
+                            signal: controller.signal,
+                            actionCounter,
+                            navigate: false,
+                        });
+                        targets.contexts.set(targetId, created.context);
+                        targets.pages.set(targetId, created.page);
+                        targets.agents.set(targetId, created.agent);
+                        targets.browserNetworkGuards.set(targetId, created.networkGuard);
+                    } else {
+                        await prisma.testRun.update({ where: { id: member.id }, data: { reusedSession: true } }).catch(() => {});
+                    }
+                }
 
-                const prepared = await prepareMemberUnit(details);
-                // Every member runs against the anchor's shared browser context so the
-                // login prefix's cookies persist into the test. Prefix members are
-                // retargeted onto the anchor's primary browser target.
-                const execConfigs: Record<string, BrowserConfig> = {
-                    [anchorTarget.targetId]: { ...anchorTarget.config, url: prepared.url ?? '' },
-                };
-                const execSteps = isAnchor
-                    ? prepared.steps
-                    : prepared.steps?.map((step) => ({ ...step, target: anchorTarget.targetId }));
-
-                currentOnEvent = (event) => sink.handleTestEvent(event);
-                try {
-                    result = await executeUnit({
-                        targets,
-                        targetConfigs: execConfigs,
-                        steps: execSteps,
-                        prompt: isAnchor ? prepared.prompt : undefined,
-                        onEvent: (event) => sink.handleTestEvent(event),
-                        runId: member.id,
-                        materializedExecutionFiles: prepared.materializedExecutionFiles,
-                        signal: memberController.signal,
-                        resolvedVariables: prepared.resolvedVariables,
-                        resolvedConfigFiles: prepared.resolvedConfigFiles,
-                        onStepHeartbeat: async () => { await touchRunActivity(member.id, options); },
-                        actionCounter,
-                    });
-                } finally {
-                    await prepared.materializedExecutionFiles.cleanup();
+                const result = await runSessionMember(member, details, prepared, ctx);
+                if (result.status !== TEST_STATUS.PASS) {
+                    await markMembersSkipped(members.slice(index + 1).map((m) => m.id));
+                    break;
                 }
             } finally {
-                currentOnEvent = () => {};
-                clearTimeout(timeoutHandle);
-                controller.signal.removeEventListener('abort', onSessionAbort);
-                watcher.stop();
-            }
-
-            if (timedOut && result.status === TEST_STATUS.CANCELLED) {
-                result = {
-                    status: TEST_STATUS.FAIL,
-                    error: `Test exceeded maximum duration (${appConfig.test.maxDuration}s)`,
-                    errorCode: 'TEST_TIMEOUT' as const,
-                    errorCategory: 'TIMEOUT' as const,
-                    actionCount: result.actionCount,
-                };
-            }
-
-            await sink.settleUploads();
-            await sink.flush();
-            await finalizeMemberRunResult(member.id, member.testCaseId, usage, result, options);
-
-            if (result.status !== TEST_STATUS.PASS) {
-                await markMembersSkipped(members.slice(index + 1).map((m) => m.id));
-                break;
+                await prepared.materializedExecutionFiles.cleanup();
             }
         }
     } finally {

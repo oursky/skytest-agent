@@ -134,6 +134,7 @@ model Project {
   configs         ProjectConfig[]
   usageRecords    UsageRecord[]
   runSessions     RunSession[]
+  runGroups       RunGroup[]
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
 
@@ -157,6 +158,7 @@ model TestCase {
   sourceHash String?
   testRuns  TestRun[]
   scheduleLinks ScheduleTestCase[]
+  runGroupItems RunGroupItem[]
   files     TestCaseFile[]
   configs   TestCaseConfig[]
   createdAt DateTime         @default(now())
@@ -236,6 +238,8 @@ model RunSession {
   projectId            String
   project              Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   kind                 String      @default("SINGLE") // SINGLE | GROUP
+  runGroupId           String?
+  runGroup             RunGroup?   @relation(fields: [runGroupId], references: [id], onDelete: SetNull)
   status               String      // QUEUED | PREPARING | RUNNING | PASS | FAIL | CANCELLED
   triggeredByEmail     String?
   triggerSource        String      @default("USER")
@@ -255,6 +259,34 @@ model RunSession {
   @@index([status, requiredCapability, createdAt(sort: Asc)])
   @@index([projectId, createdAt(sort: Desc)])
   @@index([assignedRunnerId, leaseExpiresAt])
+  @@index([runGroupId, createdAt(sort: Desc)])
+}
+
+model RunGroup {
+  id          String         @id @default(cuid())
+  projectId   String
+  project     Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  displayId   String?
+  loginFlowId String?
+  items       RunGroupItem[]
+  sessions    RunSession[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([projectId, updatedAt(sort: Desc)])
+}
+
+model RunGroupItem {
+  id         String   @id @default(cuid())
+  runGroupId String
+  runGroup   RunGroup @relation(fields: [runGroupId], references: [id], onDelete: Cascade)
+  testCaseId String
+  testCase   TestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  position   Int
+
+  @@unique([runGroupId, testCaseId])
+  @@index([runGroupId, position])
 }
 
 model Schedule {
