@@ -9,6 +9,13 @@ export interface BrowserConfig {
     height: number;
 }
 
+export const TEST_CASE_KIND = {
+    TEST: 'TEST',
+    LOGIN_FLOW: 'LOGIN_FLOW',
+} as const;
+
+export type TestCaseKind = typeof TEST_CASE_KIND[keyof typeof TEST_CASE_KIND];
+
 export type TargetType = 'browser' | 'android';
 
 export interface BrowserTargetConfig {
@@ -72,6 +79,7 @@ export interface TestData {
     url?: string;
     prompt?: string;
     name?: string;
+    kind?: TestCaseKind;
     steps?: TestStep[];
     browserConfig?: Record<string, BrowserConfig | TargetConfig>;
     files?: TestCaseFile[];

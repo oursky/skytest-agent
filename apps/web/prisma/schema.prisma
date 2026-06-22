@@ -143,6 +143,7 @@ model Project {
 model TestCase {
   id        String           @id @default(cuid())
   displayId String?          // User-editable display ID (optional)
+  kind      String           @default("TEST") // TEST | LOGIN_FLOW
   status    String           @default("DRAFT") // DRAFT | PASS | FAIL | CANCELLED | RUNNING | QUEUED
   name      String
   projectId String
@@ -160,7 +161,7 @@ model TestCase {
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
 
-  @@index([projectId, updatedAt(sort: Desc)])
+  @@index([projectId, kind, updatedAt(sort: Desc)])
 }
 
 model TestCaseFile {

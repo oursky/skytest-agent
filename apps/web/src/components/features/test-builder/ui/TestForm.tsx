@@ -158,6 +158,7 @@ export default function TestForm({ onSubmit, isLoading, submitOnEnter = true, in
         const sampleData: TestData = {
             name: showNameInput ? sampleName : undefined,
             displayId: sampleDisplayId || undefined,
+            kind: initialData?.kind,
             url: SAMPLE_URL_CONFIG_VALUE,
             prompt: '',
             steps: sampleSteps,
@@ -181,13 +182,16 @@ export default function TestForm({ onSubmit, isLoading, submitOnEnter = true, in
         setActiveTab('test-steps');
     };
 
-    const getCurrentData = (): TestData => buildTestData(
-        browsers,
-        steps,
-        showNameInput,
-        name,
-        displayId
-    );
+    const getCurrentData = (): TestData => ({
+        ...buildTestData(
+            browsers,
+            steps,
+            showNameInput,
+            name,
+            displayId
+        ),
+        kind: initialData?.kind,
+    });
 
     const hasMissingRequiredTestCaseId = showNameInput && !readOnly && !displayId?.trim();
 

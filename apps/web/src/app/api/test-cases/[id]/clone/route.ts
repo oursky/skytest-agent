@@ -49,6 +49,7 @@ export async function POST(
                 browserConfig: existingTestCase.browserConfig,
                 projectId: existingTestCase.projectId,
                 displayId: existingTestCase.displayId,
+                kind: existingTestCase.kind,
                 status: TEST_STATUS.DRAFT,
             },
         });

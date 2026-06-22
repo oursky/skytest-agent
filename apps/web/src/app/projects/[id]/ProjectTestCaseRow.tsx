@@ -11,6 +11,7 @@ interface ProjectTestCaseRowProps {
     testCase: TestCase;
     projectId: string;
     isSelected: boolean;
+    canSelect?: boolean;
     onToggleSelect: (testCaseId: string) => void;
     isEditingDisplayId: boolean;
     isSavingDisplayId: boolean;
@@ -30,6 +31,7 @@ export default function ProjectTestCaseRow({
     testCase,
     projectId,
     isSelected,
+    canSelect = true,
     onToggleSelect,
     isEditingDisplayId,
     isSavingDisplayId,
@@ -54,10 +56,15 @@ export default function ProjectTestCaseRow({
             <div className="md:col-span-1 flex items-center">
                 <input
                     type="checkbox"
-                    checked={isSelected}
-                    onChange={() => onToggleSelect(testCase.id)}
+                    checked={canSelect && isSelected}
+                    onChange={() => {
+                        if (canSelect) {
+                            onToggleSelect(testCase.id);
+                        }
+                    }}
+                    disabled={!canSelect}
                     aria-label={t('project.table.selectOne', { name: testCase.name })}
-                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary disabled:opacity-30"
                 />
             </div>
             <div className="md:col-span-3 flex items-center">

@@ -18,6 +18,7 @@ import {
     type TestCaseFile,
     type ConfigItem,
     type TestStatus,
+    type TestCaseKind,
 } from "@/types";
 import { parseTestCaseExcel, type ParsedTestCaseExcel } from "@/utils/excel/testCaseExcel";
 import { useI18n } from "@/i18n";
@@ -52,6 +53,7 @@ interface TestData {
     prompt: string;
     name?: string;
     displayId?: string;
+    kind?: TestCaseKind;
     steps?: TestStep[];
     browserConfig?: Record<string, BrowserConfig | TargetConfig>;
 }
@@ -80,6 +82,7 @@ function RunPageContent() {
     const runId = searchParams.get("runId");
     const testCaseId = searchParams.get("testCaseId");
     const testCaseName = searchParams.get("name");
+    const testCaseKind: TestCaseKind = searchParams.get("kind") === "LOGIN_FLOW" ? "LOGIN_FLOW" : "TEST";
     const [initialData, setInitialData] = useState<TestData | undefined>(undefined);
 
     const [activeRunId, setActiveRunId] = useState<string | null>(null);
@@ -212,6 +215,7 @@ function RunPageContent() {
 
                 setInitialData({
                     name: data.name,
+                    kind: data.kind === 'LOGIN_FLOW' ? 'LOGIN_FLOW' : 'TEST',
                     url: data.url,
                     prompt: data.prompt,
                     steps: data.steps,
@@ -599,9 +603,11 @@ function RunPageContent() {
             fetchTestCase(testCaseId);
             refreshFiles(testCaseId);
         } else if (testCaseName) {
-            setInitialData({ name: testCaseName, url: '', prompt: '' });
+            setInitialData({ name: testCaseName, url: '', prompt: '', kind: testCaseKind });
+        } else if (testCaseKind === 'LOGIN_FLOW') {
+            setInitialData({ name: '', url: '', prompt: '', kind: testCaseKind });
         }
-    }, [testCaseId, testCaseName, isAuthLoading, isLoggedIn, fetchTestCase, refreshFiles]);
+    }, [testCaseId, testCaseName, testCaseKind, isAuthLoading, isLoggedIn, fetchTestCase, refreshFiles]);
 
     const handleStopTest = async () => {
         if (!currentRunId) return;
@@ -639,7 +645,7 @@ function RunPageContent() {
             const response = await fetchWithAccessToken(getAccessToken, `/api/test-cases/${effectiveTestCaseId}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ ...data, displayId: finalDisplayId, ...(options?.saveDraft ? { saveDraft: true } : {}) }),
+                body: JSON.stringify({ ...data, kind: data.kind ?? testCaseKind, displayId: finalDisplayId, ...(options?.saveDraft ? { saveDraft: true } : {}) }),
             });
             if (!response.ok) {
                 throw new Error('Failed to save test case');
@@ -654,7 +660,7 @@ function RunPageContent() {
             const response = await fetchWithAccessToken(getAccessToken, `/api/projects/${effectiveProjectId}/test-cases`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ ...data, displayId: finalDisplayId, ...(options?.saveDraft ? { saveDraft: true } : {}) }),
+                body: JSON.stringify({ ...data, kind: data.kind ?? testCaseKind, displayId: finalDisplayId, ...(options?.saveDraft ? { saveDraft: true } : {}) }),
             });
             if (!response.ok) {
                 throw new Error('Failed to create test case');
@@ -666,7 +672,7 @@ function RunPageContent() {
             setIsDirty(false);
             return newTestCase.id;
         }
-    }, [testCaseId, currentTestCaseId, projectId, projectIdFromTestCase, displayId, getAccessToken, t]);
+    }, [testCaseId, currentTestCaseId, projectId, projectIdFromTestCase, displayId, testCaseKind, getAccessToken, t]);
 
     const handleRunTest = useCallback(async (data: TestData) => {
         setIsLoading(true);
