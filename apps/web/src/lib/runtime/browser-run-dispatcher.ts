@@ -56,6 +56,7 @@ async function claimBrowserRunWithFilter(filterSql: Prisma.Sql): Promise<string 
               AND tr."assignedRunnerId" IS NULL
               AND tr."requiredCapability" = ${BROWSER_EXECUTION_CAPABILITY}
               AND tr."requiredRunnerKind" IS NULL
+              AND (tr."sessionPosition" IS NULL OR tr."sessionPosition" = 0)
               AND (
                   SELECT COUNT(*)
                   FROM "TestRun" activeTr

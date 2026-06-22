@@ -17,8 +17,8 @@ import {
     hasAndroidTargets,
     isEmulatorProfileInventoryDevice,
 } from '@/lib/android/target-requests';
-import { RUN_TRIGGER_SOURCE, TEST_STATUS, type BrowserConfig, type ResolvedConfig, type RunTriggerSource, type TargetConfig, type TestStep } from '@/types';
-import { createRunSession } from '@/lib/runtime/run-session-service';
+import { RUN_TRIGGER_SOURCE, TEST_CASE_KIND, TEST_STATUS, type BrowserConfig, type ResolvedConfig, type RunTriggerSource, type TargetConfig, type TestStep } from '@/types';
+import { createRunSession, resolveLoginFlowId } from '@/lib/runtime/run-session-service';
 
 function validateAndroidTargets(
     browserConfig: Record<string, BrowserConfig | TargetConfig> | undefined
@@ -305,11 +305,31 @@ export async function queueTestCaseRun(
         triggerSource: trigger.source,
     });
 
+    const loginFlowId = requestHasAndroidTargets
+        ? null
+        : await resolveLoginFlowId(testCase.projectId, normalizedBrowserConfig);
+    let testSessionPosition = 0;
+    if (loginFlowId) {
+        await prisma.testRun.create({
+            data: {
+                testCaseId: loginFlowId,
+                runSessionId,
+                sessionPosition: 0,
+                kind: TEST_CASE_KIND.LOGIN_FLOW,
+                status: TEST_STATUS.QUEUED,
+                requiredCapability: BROWSER_EXECUTION_CAPABILITY,
+                triggeredByEmail,
+                triggerSource: trigger.source,
+            },
+        });
+        testSessionPosition = 1;
+    }
+
     const testRun = await prisma.testRun.create({
         data: {
             testCaseId,
             runSessionId,
-            sessionPosition: 0,
+            sessionPosition: testSessionPosition,
             kind: testCase.kind,
             status: TEST_STATUS.QUEUED,
             configurationSnapshot,

@@ -5,14 +5,18 @@ import {
     subscribeRunTerminal,
 } from '@/lib/runners/domain-events';
 import { rollupRunSessionStatus } from '@/lib/runtime/run-session-status';
+import { collectLoginFlowIds } from '@/lib/test-cases/login-flow-access';
 import {
     RUN_SESSION_KIND,
+    TEST_CASE_KIND,
     TEST_STATUS,
     isRunTerminalStatus,
+    type BrowserConfig,
     type RunSessionKind,
     type RunTriggerSource,
     type RunStatus,
     type RunTerminalStatus,
+    type TargetConfig,
 } from '@/types';
 
 const logger = createLogger('runtime:run-session-service');
@@ -23,6 +27,26 @@ export interface CreateRunSessionInput {
     requiredCapability: string;
     triggeredByEmail?: string | null;
     triggerSource: RunTriggerSource;
+}
+
+/**
+ * Returns the first valid login-flow id referenced by a test's browser config, or
+ * null. A reference is valid only when it points at a LOGIN_FLOW test case in the
+ * same project (re-validated here at run-build time, not just at save time).
+ */
+export async function resolveLoginFlowId(
+    projectId: string,
+    browserConfig: Record<string, BrowserConfig | TargetConfig> | null | undefined,
+): Promise<string | null> {
+    const ids = collectLoginFlowIds(browserConfig);
+    if (ids.length === 0) {
+        return null;
+    }
+    const flow = await prisma.testCase.findFirst({
+        where: { id: { in: ids }, projectId, kind: TEST_CASE_KIND.LOGIN_FLOW },
+        select: { id: true },
+    });
+    return flow?.id ?? null;
 }
 
 export async function createRunSession(input: CreateRunSessionInput): Promise<string> {

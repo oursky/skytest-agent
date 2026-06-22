@@ -57,7 +57,7 @@ function isAndroidTarget(cfg: BrowserConfig | TargetConfig): cfg is AndroidTarge
     return 'type' in cfg && cfg.type === 'android';
 }
 
-interface ExecutionTargets {
+export interface ExecutionTargets {
     browser: Browser | null;
     contexts: Map<string, BrowserContext>;
     pages: Map<string, Page>;
@@ -255,11 +255,11 @@ function getBrowserNiceName(browserId: string): string {
     return browserId === 'main' ? 'Browser' : browserId.replace('browser_', 'Browser ').toUpperCase();
 }
 
-interface ActionCounter {
+export interface ActionCounter {
     count: number;
 }
 
-async function setupExecutionTargets(
+export async function setupExecutionTargets(
     targetConfigs: Record<string, BrowserConfig | TargetConfig>,
     onEvent: EventHandler,
     runId: string,
@@ -1014,7 +1014,7 @@ async function captureErrorScreenshots(
     }
 }
 
-async function cleanupTargets(targets: ExecutionTargets): Promise<void> {
+export async function cleanupTargets(targets: ExecutionTargets): Promise<void> {
     try {
         if (targets.browser) await targets.browser.close();
     } catch (e) {
@@ -1027,6 +1027,124 @@ async function cleanupTargets(targets: ExecutionTargets): Promise<void> {
         } catch (e) {
             serverLogger.warn(`Failed to release device for ${targetId}`, e);
         }
+    }
+}
+
+export interface ExecuteUnitParams {
+    targets: ExecutionTargets;
+    targetConfigs: Record<string, BrowserConfig | TargetConfig>;
+    steps?: TestStep[];
+    prompt?: string;
+    onEvent: EventHandler;
+    runId: string;
+    materializedExecutionFiles: MaterializedExecutionFiles;
+    signal?: AbortSignal;
+    resolvedVariables?: Record<string, string>;
+    resolvedConfigFiles?: Record<string, string>;
+    onStepHeartbeat?: () => Promise<void>;
+    actionCounter?: ActionCounter;
+    navigate?: boolean;
+}
+
+/**
+ * Runs a single unit (navigate + steps) against an already-open BrowserSession,
+ * without owning the browser lifecycle. The session orchestrator uses this to run
+ * multiple ordered member runs (e.g. a login flow followed by a test case) inside
+ * one shared, authenticated browser. `runTest` remains the single-run engine.
+ */
+export async function executeUnit(params: ExecuteUnitParams): Promise<TestResult> {
+    const {
+        targets,
+        targetConfigs,
+        steps,
+        prompt,
+        onEvent,
+        runId,
+        materializedExecutionFiles,
+        signal,
+        resolvedVariables,
+        resolvedConfigFiles,
+        onStepHeartbeat,
+        actionCounter,
+        navigate = true,
+    } = params;
+    const log = createLogger(onEvent);
+
+    try {
+        if (signal?.aborted) throw new Error('Aborted');
+
+        if (navigate) {
+            for (const [targetId, targetConfig] of Object.entries(targetConfigs)) {
+                if (isAndroidTarget(targetConfig)) continue;
+                const url = (targetConfig as BrowserConfig).url;
+                if (!url) continue;
+                const page = targets.pages.get(targetId);
+                if (!page) continue;
+
+                const preflight = await validateRuntimeRequestUrl(url);
+                if (!preflight.valid) {
+                    const code = preflight.code ? `[${preflight.code}] ` : '';
+                    const reason = preflight.error ?? 'URL is not allowed';
+                    throw new ConfigurationError(`${getBrowserNiceName(targetId)} preflight check failed: ${code}${reason}`, 'url');
+                }
+                const targetLabel = getBrowserNiceName(targetId);
+                log(`[${targetLabel}] Navigating to ${url}...`, 'info', targetId);
+                await page.goto(url, {
+                    timeout: config.test.browser.timeout,
+                    waitUntil: 'domcontentloaded',
+                });
+                await captureScreenshot(page, `[${targetLabel}] Initial Page Load`, onEvent, log, targetId);
+            }
+        }
+
+        const effectiveSteps = steps && steps.length > 0
+            ? steps
+            : prompt
+                ? convertPromptToSteps(prompt)
+                : null;
+        if (!effectiveSteps || effectiveSteps.length === 0) {
+            throw new ConfigurationError('Instructions (Prompt or Steps) are required');
+        }
+
+        if (signal?.aborted) throw new Error('Aborted');
+
+        await executeSteps(
+            effectiveSteps,
+            targets,
+            targetConfigs,
+            onEvent,
+            runId,
+            materializedExecutionFiles,
+            signal,
+            resolvedVariables,
+            resolvedConfigFiles,
+            onStepHeartbeat,
+        );
+
+        if (signal?.aborted) throw new Error('Aborted');
+
+        await captureFinalScreenshots(targets, onEvent, signal);
+        return { status: TEST_STATUS.PASS, actionCount: actionCounter?.count };
+    } catch (error: unknown) {
+        if (signal?.aborted || (error instanceof Error && error.message === 'Aborted')) {
+            return { status: TEST_STATUS.CANCELLED, error: 'Test was cancelled by user', actionCount: actionCounter?.count };
+        }
+        const networkGuardSummaries = collectBrowserNetworkGuardSummaries(targets.browserNetworkGuards);
+        const failureClassification = classifyRunFailure(error, { networkGuardSummaries });
+        const msg = getErrorMessage(error);
+        log(
+            `Failure classified as ${failureClassification.code} (${failureClassification.category})`,
+            'error',
+        );
+        log(`❌ Test failed: ${msg}`, 'error');
+        await captureErrorScreenshots(targets, onEvent);
+        return {
+            status: TEST_STATUS.FAIL,
+            error: msg,
+            errorCode: failureClassification.code,
+            errorCategory: failureClassification.category,
+            actionCount: actionCounter?.count,
+        };
     }
 }
 
