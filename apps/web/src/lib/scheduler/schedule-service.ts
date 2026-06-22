@@ -96,6 +96,9 @@ export async function createProjectSchedule(input: {
             testCases: {
                 create: prepared.testCaseIds.map((testCaseId) => ({ testCaseId })),
             },
+            runGroups: {
+                create: prepared.runGroupIds.map((runGroupId) => ({ runGroupId })),
+            },
         },
         include: {
             testCases: {
@@ -150,6 +153,9 @@ export async function updateProjectSchedule(input: {
         await tx.scheduleTestCase.deleteMany({
             where: { scheduleId: input.scheduleId },
         });
+        await tx.scheduleRunGroup.deleteMany({
+            where: { scheduleId: input.scheduleId },
+        });
 
         return tx.schedule.update({
             where: { id: input.scheduleId },
@@ -162,6 +168,9 @@ export async function updateProjectSchedule(input: {
                 nextRunAt: prepared.nextRunAt,
                 testCases: {
                     create: prepared.testCaseIds.map((testCaseId) => ({ testCaseId })),
+                },
+                runGroups: {
+                    create: prepared.runGroupIds.map((runGroupId) => ({ runGroupId })),
                 },
             },
             include: {
@@ -215,6 +224,7 @@ async function prepareScheduleMutation(input: {
     enabled: boolean;
     nextRunAt: Date | null;
     testCaseIds: string[];
+    runGroupIds: string[];
 }> {
     const description = input.body.description.trim();
     if (!description) {
@@ -230,8 +240,14 @@ async function prepareScheduleMutation(input: {
             .map((testCaseId) => testCaseId.trim())
             .filter(Boolean)
     )];
-    if (testCaseIds.length === 0) {
-        throw new SchedulerValidationError('At least one test case is required');
+    const runGroupIds = [...new Set(
+        (input.body.runGroupIds ?? [])
+            .filter((runGroupId): runGroupId is string => typeof runGroupId === 'string')
+            .map((runGroupId) => runGroupId.trim())
+            .filter(Boolean)
+    )];
+    if (testCaseIds.length === 0 && runGroupIds.length === 0) {
+        throw new SchedulerValidationError('At least one test case or run group is required');
     }
 
     const cronExpression = compileCron({
@@ -260,6 +276,16 @@ async function prepareScheduleMutation(input: {
         throw new SchedulerValidationError('One or more selected test cases do not belong to this project');
     }
 
+    if (runGroupIds.length > 0) {
+        const matchingRunGroups = await prisma.runGroup.findMany({
+            where: { projectId: input.projectId, id: { in: runGroupIds } },
+            select: { id: true },
+        });
+        if (matchingRunGroups.length !== runGroupIds.length) {
+            throw new SchedulerValidationError('One or more selected run groups do not belong to this project');
+        }
+    }
+
     return {
         description,
         timezone,
@@ -268,6 +294,7 @@ async function prepareScheduleMutation(input: {
         enabled,
         nextRunAt,
         testCaseIds,
+        runGroupIds,
     };
 }
 

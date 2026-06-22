@@ -35,6 +35,10 @@ const DEFAULT_PROJECT_SLACK_SETTINGS: ProjectSlackSettings = {
     slackChannelName: null,
     slackFailureTemplate: null,
     slackSuccessTemplate: null,
+    slackGroupNotifyEnabled: false,
+    slackGroupNotifyOn: PROJECT_SLACK_NOTIFY_ON.FAILED_ONLY,
+    slackGroupSuccessTemplate: null,
+    slackGroupFailureTemplate: null,
     slackUpdatedAt: null,
     parentTeamHasToken: false,
 };

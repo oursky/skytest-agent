@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
 import { queueTestCaseRun } from '@/lib/mcp/run-execution';
+import { queueRunGroupRun } from '@/lib/run-groups/run-group-service';
 import { computeNextRunAt } from '@/lib/scheduler/cron';
 import { RUN_TRIGGER_SOURCE } from '@/types';
 
@@ -24,6 +25,7 @@ interface ClaimedSchedule {
     id: string;
     createdByUserId: string;
     testCaseIds: string[];
+    runGroups: { runGroupId: string; projectId: string }[];
 }
 
 type ClaimOutcome =
@@ -78,6 +80,10 @@ export async function runSchedulerTick(maxDuePerTick: number): Promise<Scheduler
                 where: { scheduleId: row.id },
                 select: { testCaseId: true },
             });
+            const linkedRunGroups = await tx.scheduleRunGroup.findMany({
+                where: { scheduleId: row.id },
+                select: { runGroupId: true, runGroup: { select: { projectId: true } } },
+            });
 
             await tx.schedule.update({
                 where: { id: row.id },
@@ -94,6 +100,7 @@ export async function runSchedulerTick(maxDuePerTick: number): Promise<Scheduler
                     id: row.id,
                     createdByUserId: row.createdByUserId,
                     testCaseIds: linkedTestCases.map((entry) => entry.testCaseId),
+                    runGroups: linkedRunGroups.map((entry) => ({ runGroupId: entry.runGroupId, projectId: entry.runGroup.projectId })),
                 },
             };
         });
@@ -112,8 +119,8 @@ export async function runSchedulerTick(maxDuePerTick: number): Promise<Scheduler
     let failedRuns = 0;
 
     for (const schedule of claimedSchedules) {
-        if (schedule.testCaseIds.length === 0) {
-            logger.info('Claimed schedule with no linked test cases', {
+        if (schedule.testCaseIds.length === 0 && schedule.runGroups.length === 0) {
+            logger.info('Claimed schedule with no linked test cases or run groups', {
                 scheduleId: schedule.id,
             });
             continue;
@@ -138,6 +145,24 @@ export async function runSchedulerTick(maxDuePerTick: number): Promise<Scheduler
                 testCaseId,
                 error: result.failure.error,
                 details: result.failure.details,
+            });
+        }
+
+        for (const group of schedule.runGroups) {
+            const result = await queueRunGroupRun(group.projectId, group.runGroupId, {
+                triggerSource: RUN_TRIGGER_SOURCE.SCHEDULER,
+            });
+
+            if (result.ok) {
+                enqueuedRuns += 1;
+                continue;
+            }
+
+            failedRuns += 1;
+            logger.warn('Failed to enqueue scheduled run group', {
+                scheduleId: schedule.id,
+                runGroupId: group.runGroupId,
+                error: result.error,
             });
         }
     }

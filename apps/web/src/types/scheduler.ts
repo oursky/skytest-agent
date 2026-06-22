@@ -47,4 +47,5 @@ export interface ScheduleUpsertInput {
     customCron?: string;
     enabled?: boolean;
     testCaseIds: string[];
+    runGroupIds?: string[];
 }

@@ -4,8 +4,9 @@ export async function register() {
     }
 
     // The API process is control-plane only. No host-local runner bootstrap happens here.
-    const { registerSlackSubscriber } = await import('@/lib/integrations/slack/subscriber');
+    const { registerSlackSubscriber, registerSlackGroupSubscriber } = await import('@/lib/integrations/slack/subscriber');
     registerSlackSubscriber();
+    registerSlackGroupSubscriber();
     const { registerRunSessionRollupSubscriber } = await import('@/lib/runtime/run-session-service');
     registerRunSessionRollupSubscriber();
 }

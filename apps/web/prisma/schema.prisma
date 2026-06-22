@@ -124,6 +124,10 @@ model Project {
   slackChannelName String?
   slackFailureTemplate String?
   slackSuccessTemplate String?
+  slackGroupNotifyEnabled Boolean          @default(false)
+  slackGroupNotifyOn   SlackNotifyOn       @default(FAILED_ONLY)
+  slackGroupSuccessTemplate String?
+  slackGroupFailureTemplate String?
   slackUpdatedAt  DateTime?
   teamId  String
   team    Team        @relation(fields: [teamId], references: [id], onDelete: Cascade)
@@ -271,6 +275,7 @@ model RunGroup {
   loginFlowId String?
   items       RunGroupItem[]
   sessions    RunSession[]
+  scheduleLinks ScheduleRunGroup[]
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
@@ -306,9 +311,20 @@ model Schedule {
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
   testCases       ScheduleTestCase[]
+  runGroups       ScheduleRunGroup[]
 
   @@index([enabled, nextRunAt])
   @@index([projectId])
+}
+
+model ScheduleRunGroup {
+  scheduleId String
+  schedule   Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  runGroupId String
+  runGroup   RunGroup @relation(fields: [runGroupId], references: [id], onDelete: Cascade)
+
+  @@id([scheduleId, runGroupId])
+  @@index([runGroupId])
 }
 
 model ScheduleTestCase {

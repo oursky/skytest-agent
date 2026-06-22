@@ -31,6 +31,21 @@ export function buildRunUrl(input: {
     return `${baseUrl.replace(/\/+$/, '')}/test-cases/${encodeURIComponent(input.testCaseId)}/history/${encodeURIComponent(input.runId)}`;
 }
 
+export function buildRunGroupUrl(input: {
+    appBaseUrl: string | null;
+    projectId: string;
+    sessionId: string;
+}): string | null {
+    if (!input.appBaseUrl) {
+        return null;
+    }
+    const baseUrl = input.appBaseUrl.trim();
+    if (!baseUrl) {
+        return null;
+    }
+    return `${baseUrl.replace(/\/+$/, '')}/run-groups/runs/${encodeURIComponent(input.sessionId)}?projectId=${encodeURIComponent(input.projectId)}`;
+}
+
 export function formatSlackDateToken(date: Date | null): string {
     if (!date) {
         return '-';

@@ -16,7 +16,7 @@ import {
     renderTemplate,
 } from '@/lib/integrations/slack/template';
 import { PROJECT_SLACK_NOTIFY_ON } from '@/types/slack';
-import { TEST_STATUS } from '@/types';
+import { RUN_SESSION_KIND, TEST_STATUS } from '@/types';
 import { isSchedulerTriggered } from '@/lib/test-runs/trigger-label';
 
 const logger = createLogger('integrations:slack:notifier');
@@ -79,6 +79,7 @@ export async function notifyRunTerminal(runId: string): Promise<SlackNotifyOutco
             completedAt: true,
             error: true,
             slackNotifyAttempts: true,
+            runSession: { select: { kind: true } },
             testCase: {
                 select: {
                     id: true,
@@ -90,6 +91,7 @@ export async function notifyRunTerminal(runId: string): Promise<SlackNotifyOutco
                             slackEnabled: true,
                             slackNotifyOn: true,
                             slackChannelId: true,
+                            slackGroupNotifyEnabled: true,
                             slackFailureTemplate: true,
                             slackSuccessTemplate: true,
                             team: {
@@ -105,6 +107,12 @@ export async function notifyRunTerminal(runId: string): Promise<SlackNotifyOutco
     });
 
     if (!run || (run.status !== TEST_STATUS.FAIL && run.status !== TEST_STATUS.PASS)) {
+        return SLACK_NOTIFY_OUTCOME.SKIPPED;
+    }
+
+    // When a member belongs to a GROUP session and group notifications are enabled,
+    // the per-case notification is suppressed in favour of one group-level message.
+    if (run.runSession?.kind === RUN_SESSION_KIND.GROUP && run.testCase.project.slackGroupNotifyEnabled) {
         return SLACK_NOTIFY_OUTCOME.SKIPPED;
     }
 
