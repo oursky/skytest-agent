@@ -553,6 +553,8 @@ export const EN_MESSAGES: Messages = {
   "project.scheduler.fields.timezone": "Timezone",
   "project.scheduler.fields.interval": "Interval",
   "project.scheduler.fields.testCases": "Test cases",
+  "project.scheduler.fields.runGroups": "Run groups",
+  "project.scheduler.runGroups.empty": "No run groups in this project yet.",
   "project.scheduler.fields.enabled": "Enabled",
   "project.scheduler.fields.selectDays": "Select days",
   "project.scheduler.pattern.daily": "Every day",

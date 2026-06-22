@@ -16,6 +16,12 @@ export interface ScheduleTestCaseSummary {
     lastRunAt: string | null;
 }
 
+export interface ScheduleRunGroupSummary {
+    id: string;
+    displayId: string | null;
+    name: string;
+}
+
 export interface ScheduleRecord {
     id: string;
     projectId: string;
@@ -35,6 +41,7 @@ export interface ScheduleRecord {
     daysOfMonth: number[];
     customCron: string | null;
     testCases: ScheduleTestCaseSummary[];
+    runGroups: ScheduleRunGroupSummary[];
 }
 
 export interface ScheduleUpsertInput {

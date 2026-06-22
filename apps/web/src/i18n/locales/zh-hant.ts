@@ -553,6 +553,8 @@ export const ZH_HANT_MESSAGES: Messages = {
   "project.scheduler.fields.timezone": "時區",
   "project.scheduler.fields.interval": "週期",
   "project.scheduler.fields.testCases": "測試案例",
+  "project.scheduler.fields.runGroups": "執行群組",
+  "project.scheduler.runGroups.empty": "此專案尚無執行群組。",
   "project.scheduler.fields.enabled": "啟用",
   "project.scheduler.fields.selectDays": "選擇日期",
   "project.scheduler.pattern.daily": "每天",

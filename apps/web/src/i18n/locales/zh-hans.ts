@@ -553,6 +553,8 @@ export const ZH_HANS_MESSAGES: Messages = {
   "project.scheduler.fields.timezone": "时区",
   "project.scheduler.fields.interval": "周期",
   "project.scheduler.fields.testCases": "测试用例",
+  "project.scheduler.fields.runGroups": "运行组",
+  "project.scheduler.runGroups.empty": "此项目尚无运行组。",
   "project.scheduler.fields.enabled": "启用",
   "project.scheduler.fields.selectDays": "选择日期",
   "project.scheduler.pattern.daily": "每天",

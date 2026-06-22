@@ -13,6 +13,7 @@ import {
 } from '../model/schedule-form';
 import IntervalPatternField from './IntervalPatternField';
 import TestCasePicker from './TestCasePicker';
+import RunGroupSchedulePicker from './RunGroupSchedulePicker';
 import TimezoneSelect from './TimezoneSelect';
 
 interface ScheduleEditorProps {
@@ -93,6 +94,16 @@ export default function ScheduleEditor({
                     />
                 </div>
 
+                <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700">{t('project.scheduler.fields.runGroups')}</label>
+                    <RunGroupSchedulePicker
+                        projectId={projectId}
+                        selectedIds={form.runGroupIds}
+                        t={t}
+                        onChange={(nextSelectedIds) => setForm((previous) => ({ ...previous, runGroupIds: nextSelectedIds }))}
+                    />
+                </div>
+
                 <label className="flex items-center gap-2 text-sm text-gray-700">
                     <input
                         type="checkbox"
@@ -116,7 +127,7 @@ export default function ScheduleEditor({
                                 setError(t('project.scheduler.validation.descriptionRequired'));
                                 return;
                             }
-                            if (form.testCaseIds.length === 0) {
+                            if (form.testCaseIds.length === 0 && form.runGroupIds.length === 0) {
                                 setError(t('project.scheduler.validation.testCasesRequired'));
                                 return;
                             }
@@ -130,6 +141,7 @@ export default function ScheduleEditor({
                                 customCron: form.customCron,
                                 enabled: form.enabled,
                                 testCaseIds: form.testCaseIds,
+                                runGroupIds: form.runGroupIds,
                             });
                         }}
                     >

@@ -29,6 +29,13 @@ export async function listProjectSchedules(projectId: string): Promise<ScheduleR
                     },
                 },
             },
+            runGroups: {
+                select: {
+                    runGroup: {
+                        select: { id: true, name: true, displayId: true },
+                    },
+                },
+            },
         },
     });
 
@@ -59,6 +66,13 @@ export async function getProjectSchedule(projectId: string, scheduleId: string):
                             name: true,
                             status: true,
                         },
+                    },
+                },
+            },
+            runGroups: {
+                select: {
+                    runGroup: {
+                        select: { id: true, name: true, displayId: true },
                     },
                 },
             },
@@ -115,6 +129,13 @@ export async function createProjectSchedule(input: {
                             name: true,
                             status: true,
                         },
+                    },
+                },
+            },
+            runGroups: {
+                select: {
+                    runGroup: {
+                        select: { id: true, name: true, displayId: true },
                     },
                 },
             },
@@ -188,6 +209,13 @@ export async function updateProjectSchedule(input: {
                                 name: true,
                                 status: true,
                             },
+                        },
+                    },
+                },
+                runGroups: {
+                    select: {
+                        runGroup: {
+                            select: { id: true, name: true, displayId: true },
                         },
                     },
                 },
@@ -362,6 +390,13 @@ function serializeScheduleRecord(schedule: {
             status: string;
         };
     }>;
+    runGroups: Array<{
+        runGroup: {
+            id: string;
+            name: string;
+            displayId: string | null;
+        };
+    }>;
 }, latestRuns: Map<string, LatestRunSummary>): ScheduleRecord {
     const fields = resolveSchedulePatternFields(schedule.patternType, schedule.cronExpression);
 
@@ -394,5 +429,10 @@ function serializeScheduleRecord(schedule: {
                 lastRunAt: latestRun?.at.toISOString() ?? null,
             };
         }),
+        runGroups: schedule.runGroups.map(({ runGroup }) => ({
+            id: runGroup.id,
+            displayId: runGroup.displayId,
+            name: runGroup.name,
+        })),
     };
 }
