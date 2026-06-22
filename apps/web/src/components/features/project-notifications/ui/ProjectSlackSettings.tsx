@@ -7,6 +7,8 @@ import { useI18n } from '@/i18n';
 import {
     DEFAULT_SLACK_FAILURE_TEMPLATE,
     DEFAULT_SLACK_SUCCESS_TEMPLATE,
+    DEFAULT_SLACK_GROUP_FAILURE_TEMPLATE,
+    DEFAULT_SLACK_GROUP_SUCCESS_TEMPLATE,
 } from '@/lib/integrations/slack/template';
 import { PROJECT_SLACK_NOTIFY_ON } from '@/types/slack';
 import { TEST_STATUS } from '@/types';
@@ -65,14 +67,21 @@ export default function ProjectSlackSettings({ projectId, teamId }: ProjectSlack
 
     const failureTemplateTooLong = draft.slackFailureTemplate.length > 3_500;
     const successTemplateTooLong = draft.slackSuccessTemplate.length > 3_500;
-    const hasTemplateTooLong = failureTemplateTooLong || successTemplateTooLong;
+    const groupFailureTemplateTooLong = draft.slackGroupFailureTemplate.length > 3_500;
+    const groupSuccessTemplateTooLong = draft.slackGroupSuccessTemplate.length > 3_500;
+    const hasTemplateTooLong = failureTemplateTooLong || successTemplateTooLong
+        || groupFailureTemplateTooLong || groupSuccessTemplateTooLong;
     const canEnable = settings.parentTeamHasToken;
     const normalizedDraftChannelId = draft.slackChannelId.trim();
     const isDirty = draft.slackEnabled !== settings.slackEnabled
         || draft.slackNotifyOn !== settings.slackNotifyOn
         || draft.slackChannelId !== (settings.slackChannelId ?? '')
         || draft.slackFailureTemplate !== (settings.slackFailureTemplate ?? DEFAULT_SLACK_FAILURE_TEMPLATE)
-        || draft.slackSuccessTemplate !== (settings.slackSuccessTemplate ?? DEFAULT_SLACK_SUCCESS_TEMPLATE);
+        || draft.slackSuccessTemplate !== (settings.slackSuccessTemplate ?? DEFAULT_SLACK_SUCCESS_TEMPLATE)
+        || draft.slackGroupNotifyEnabled !== settings.slackGroupNotifyEnabled
+        || draft.slackGroupNotifyOn !== settings.slackGroupNotifyOn
+        || draft.slackGroupFailureTemplate !== (settings.slackGroupFailureTemplate ?? DEFAULT_SLACK_GROUP_FAILURE_TEMPLATE)
+        || draft.slackGroupSuccessTemplate !== (settings.slackGroupSuccessTemplate ?? DEFAULT_SLACK_GROUP_SUCCESS_TEMPLATE);
     const isDraftConfigReady = !draft.slackEnabled || (canEnable && normalizedDraftChannelId.length > 0);
     const hasValidSavedConfig = settings.parentTeamHasToken
         && settings.slackEnabled
@@ -92,6 +101,10 @@ export default function ProjectSlackSettings({ projectId, teamId }: ProjectSlack
             slackChannelId: draft.slackChannelId.trim() || null,
             slackFailureTemplate: draft.slackFailureTemplate.trim() || null,
             slackSuccessTemplate: draft.slackSuccessTemplate.trim() || null,
+            slackGroupNotifyEnabled: draft.slackGroupNotifyEnabled,
+            slackGroupNotifyOn: draft.slackGroupNotifyOn,
+            slackGroupFailureTemplate: draft.slackGroupFailureTemplate.trim() || null,
+            slackGroupSuccessTemplate: draft.slackGroupSuccessTemplate.trim() || null,
         });
     };
 
@@ -185,6 +198,61 @@ export default function ProjectSlackSettings({ projectId, teamId }: ProjectSlack
                         onReset={() => setDraft((prev) => ({ ...prev, slackSuccessTemplate: DEFAULT_SLACK_SUCCESS_TEMPLATE }))}
                     />
                     <p className="text-xs text-gray-500">{t('project.integration.slack.template.mentionTip')}</p>
+
+                    <div className="space-y-3 rounded-md border border-gray-200 p-3">
+                        <label className="flex items-center gap-3">
+                            <input
+                                type="checkbox"
+                                checked={draft.slackGroupNotifyEnabled}
+                                disabled={!draft.slackEnabled}
+                                onChange={(event) => setDraft((prev) => ({ ...prev, slackGroupNotifyEnabled: event.target.checked }))}
+                                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                            />
+                            <span className="text-sm font-medium text-gray-700">{t('project.integration.slack.group.enable')}</span>
+                        </label>
+                        <p className="text-xs text-gray-500">{t('project.integration.slack.group.suppressionNote')}</p>
+
+                        <div className="space-y-2">
+                            <p className="text-sm font-medium text-gray-700">{t('project.integration.slack.notifyMode.title')}</p>
+                            <label className="flex items-center gap-2 text-sm text-gray-700">
+                                <input
+                                    type="radio"
+                                    name="slack-group-notify-mode"
+                                    checked={draft.slackGroupNotifyOn === PROJECT_SLACK_NOTIFY_ON.FAILED_ONLY}
+                                    disabled={!draft.slackEnabled || !draft.slackGroupNotifyEnabled}
+                                    onChange={() => setDraft((prev) => ({ ...prev, slackGroupNotifyOn: PROJECT_SLACK_NOTIFY_ON.FAILED_ONLY }))}
+                                />
+                                <span>{t('project.integration.slack.notifyMode.failedOnly')}</span>
+                            </label>
+                            <label className="flex items-center gap-2 text-sm text-gray-700">
+                                <input
+                                    type="radio"
+                                    name="slack-group-notify-mode"
+                                    checked={draft.slackGroupNotifyOn === PROJECT_SLACK_NOTIFY_ON.BOTH_PASSED_AND_FAILED}
+                                    disabled={!draft.slackEnabled || !draft.slackGroupNotifyEnabled}
+                                    onChange={() => setDraft((prev) => ({ ...prev, slackGroupNotifyOn: PROJECT_SLACK_NOTIFY_ON.BOTH_PASSED_AND_FAILED }))}
+                                />
+                                <span>{t('project.integration.slack.notifyMode.bothPassedAndFailed')}</span>
+                            </label>
+                        </div>
+
+                        <TemplateEditor
+                            title={t('project.integration.slack.group.failedTitle')}
+                            resetLabel={t('project.integration.slack.resetDefault')}
+                            value={draft.slackGroupFailureTemplate}
+                            disabled={!draft.slackEnabled || !draft.slackGroupNotifyEnabled}
+                            onChange={(value) => setDraft((prev) => ({ ...prev, slackGroupFailureTemplate: value }))}
+                            onReset={() => setDraft((prev) => ({ ...prev, slackGroupFailureTemplate: DEFAULT_SLACK_GROUP_FAILURE_TEMPLATE }))}
+                        />
+                        <TemplateEditor
+                            title={t('project.integration.slack.group.passedTitle')}
+                            resetLabel={t('project.integration.slack.resetDefault')}
+                            value={draft.slackGroupSuccessTemplate}
+                            disabled={!draft.slackEnabled || !draft.slackGroupNotifyEnabled || draft.slackGroupNotifyOn === PROJECT_SLACK_NOTIFY_ON.FAILED_ONLY}
+                            onChange={(value) => setDraft((prev) => ({ ...prev, slackGroupSuccessTemplate: value }))}
+                            onReset={() => setDraft((prev) => ({ ...prev, slackGroupSuccessTemplate: DEFAULT_SLACK_GROUP_SUCCESS_TEMPLATE }))}
+                        />
+                    </div>
 
                     <div className="space-y-1 text-xs">
                         {failureTemplateTooLong && (
