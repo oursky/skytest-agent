@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/app/auth-provider';
 import { useI18n } from '@/i18n';
 import { fetchWithAccessToken } from '@/app/run/run-page-api';
+import { CustomSelect } from '@/components/shared';
 
 interface TestCaseOption {
     id: string;
@@ -69,29 +70,54 @@ export default function OrderedTestCasePicker({ projectId, value, onChange }: Or
             ) : (
                 <ol className="space-y-1">
                     {value.map((id, index) => (
-                        <li key={id} className="flex items-center gap-2 rounded border border-gray-200 bg-white px-2 py-1.5 text-xs">
-                            <span className="w-5 text-gray-400">{index + 1}</span>
+                        <li key={id} className="flex items-center gap-1.5 rounded border border-gray-200 bg-white px-2 py-1.5 text-xs">
+                            <span className="w-5 shrink-0 text-gray-400">{index + 1}</span>
                             <span className="flex-1 truncate">{label(id)}</span>
-                            <button type="button" onClick={() => move(index, -1)} disabled={index === 0} className="px-1 text-gray-500 disabled:opacity-30" aria-label={t('runGroup.items.moveUp')}>↑</button>
-                            <button type="button" onClick={() => move(index, 1)} disabled={index === value.length - 1} className="px-1 text-gray-500 disabled:opacity-30" aria-label={t('runGroup.items.moveDown')}>↓</button>
-                            <button type="button" onClick={() => onChange(value.filter((v) => v !== id))} className="px-1 text-gray-400 hover:text-red-500" aria-label={t('common.remove')}>✕</button>
+                            <button
+                                type="button"
+                                onClick={() => move(index, -1)}
+                                disabled={index === 0}
+                                className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:pointer-events-none disabled:opacity-30"
+                                aria-label={t('runGroup.items.moveUp')}
+                            >
+                                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => move(index, 1)}
+                                disabled={index === value.length - 1}
+                                className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:pointer-events-none disabled:opacity-30"
+                                aria-label={t('runGroup.items.moveDown')}
+                            >
+                                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => onChange(value.filter((v) => v !== id))}
+                                className="rounded p-1 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                                aria-label={t('common.remove')}
+                            >
+                                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
                         </li>
                     ))}
                 </ol>
             )}
             {available.length > 0 && (
-                <select
+                <CustomSelect
                     value=""
-                    onChange={(event) => { if (event.target.value) onChange([...value, event.target.value]); }}
-                    className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-primary"
-                >
-                    <option value="">{t('runGroup.items.add')}</option>
-                    {available.map((option) => (
-                        <option key={option.id} value={option.id}>
-                            {option.displayId ? `${option.displayId} ${option.name}` : option.name}
-                        </option>
-                    ))}
-                </select>
+                    options={[
+                        { value: '', label: t('runGroup.items.add') },
+                        ...available.map((option) => ({
+                            value: option.id,
+                            label: option.displayId ? `${option.displayId} ${option.name}` : option.name,
+                        })),
+                    ]}
+                    onChange={(next) => { if (next) onChange([...value, next]); }}
+                    fullWidth
+                    ariaLabel={t('runGroup.items.add')}
+                    buttonClassName="px-2 py-1.5 text-xs"
+                />
             )}
         </div>
     );

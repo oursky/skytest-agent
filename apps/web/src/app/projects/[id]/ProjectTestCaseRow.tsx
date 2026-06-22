@@ -116,13 +116,20 @@ export default function ProjectTestCaseRow({
                     </button>
                 )}
             </div>
-            <div className="md:col-span-8 flex items-center">
+            <div className="md:col-span-8 flex flex-col justify-center gap-0.5">
                 <Link
                     href={`/run?testCaseId=${testCase.id}&projectId=${projectId}`}
                     className="font-medium text-gray-900 hover:text-primary transition-colors"
                 >
                     {testCase.name}
                 </Link>
+                {testCase.kind === 'LOGIN_FLOW' && (
+                    <span className="text-xs text-gray-400">
+                        {testCase.usedByCount
+                            ? t('project.loginFlow.usedBy', { count: testCase.usedByCount })
+                            : t('project.loginFlow.unused')}
+                    </span>
+                )}
             </div>
             <div className="flex items-center gap-4 md:contents">
                 <div className="md:col-span-3 flex items-center">

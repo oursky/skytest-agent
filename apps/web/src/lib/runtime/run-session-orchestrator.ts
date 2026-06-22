@@ -51,6 +51,15 @@ function isAndroidConfig(cfg: BrowserConfig | TargetConfig): boolean {
     return 'type' in cfg && cfg.type === 'android';
 }
 
+/** Whether a loaded member wants a virtual WebAuthn authenticator on its primary browser. */
+function loadedConfigWantsWebauthn(details: LoadedRunConfig): boolean {
+    const browserConfig = details.config.browserConfig;
+    const primaryBrowser = browserConfig
+        ? Object.values(browserConfig).find((cfg): cfg is BrowserConfig => !isAndroidConfig(cfg))
+        : undefined;
+    return primaryBrowser ? (normalizeBrowserConfig(primaryBrowser).webauthnVirtualAuthenticator ?? false) : false;
+}
+
 interface PreparedUnit {
     url?: string;
     steps?: TestStep[];
@@ -258,6 +267,17 @@ export async function executeLocalBrowserSession(
     const openPrepared = await prepareMemberUnit(openDetails);
     await openPrepared.materializedExecutionFiles.cleanup();
 
+    // The shared context is created once from the anchor, but a prefix member (e.g. a
+    // passkey-based login flow) may need the virtual authenticator even when the anchor
+    // does not — so enable it if any member in the session requires it.
+    const otherMemberConfigs = await Promise.all(
+        members
+            .filter((member) => member.id !== openMember.id)
+            .map((member) => loadRunConfig(member.id, options, { allowNonRunning: true })),
+    );
+    const sessionWantsWebauthn = openPrepared.webauthnVirtualAuthenticator
+        || otherMemberConfigs.some((details) => (details ? loadedConfigWantsWebauthn(details) : false));
+
     const targetId = 'session_main';
     const midsceneModelConfig = buildMidsceneModelConfig(
         openDetails.config.openRouterApiKey,
@@ -272,7 +292,7 @@ export async function executeLocalBrowserSession(
     let targets: ExecutionTargets;
     try {
         targets = await setupExecutionTargets(
-            { [targetId]: { width: openPrepared.viewport.width, height: openPrepared.viewport.height, url: '', webauthnVirtualAuthenticator: openPrepared.webauthnVirtualAuthenticator } },
+            { [targetId]: { width: openPrepared.viewport.width, height: openPrepared.viewport.height, url: '', webauthnVirtualAuthenticator: sessionWantsWebauthn } },
             routedOnEvent,
             openMember.id,
             openDetails.projectId,

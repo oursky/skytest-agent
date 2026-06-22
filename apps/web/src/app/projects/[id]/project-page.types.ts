@@ -12,6 +12,7 @@ export interface TestCase {
     name: string;
     updatedAt: string;
     testRuns: TestRun[];
+    usedByCount?: number;
 }
 
 export interface ProjectPageProps {

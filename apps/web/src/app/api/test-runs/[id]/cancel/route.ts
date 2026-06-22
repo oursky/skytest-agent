@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
-import { publishRunUpdate } from '@/lib/runners/event-bus';
-import { RUN_ACTIVE_STATUSES, TEST_STATUS, isRunActiveStatus } from '@/types';
+import { cancelActiveTestRun } from '@/lib/runtime/cancel-run';
 import { guardTestRunRouteRequest } from '@/lib/security/test-run-route-access';
 import { apiError } from '@/lib/security/api-route-standards';
 
@@ -23,16 +21,9 @@ export async function POST(
         const { id } = guard.params;
         const { userId } = guard;
 
-        const testRun = await prisma.testRun.findUnique({
-            where: { id },
-            include: {
-                testCase: {
-                    select: { projectId: true }
-                }
-            }
-        });
+        const result = await cancelActiveTestRun(id);
 
-        if (!testRun || testRun.deletedAt) {
+        if (!result) {
             return apiError({
                 status: 404,
                 code: 'NOT_FOUND',
@@ -40,59 +31,15 @@ export async function POST(
             });
         }
 
-        let finalStatus = testRun.status;
-        if (isRunActiveStatus(testRun.status)) {
-            const completedAt = new Date();
-            finalStatus = await prisma.$transaction(async (tx) => {
-                const updateResult = await tx.testRun.updateMany({
-                    where: {
-                        id,
-                        status: { in: [...RUN_ACTIVE_STATUSES] },
-                    },
-                    data: {
-                        status: TEST_STATUS.CANCELLED,
-                        error: 'Cancelled by user',
-                        completedAt,
-                        assignedRunnerId: null,
-                        leaseExpiresAt: null,
-                    }
-                });
-
-                if (updateResult.count !== 1) {
-                    const latestRun = await tx.testRun.findUnique({
-                        where: { id },
-                        select: { status: true },
-                    });
-                    return latestRun?.status ?? testRun.status;
-                }
-
-                await tx.testCase.update({
-                    where: { id: testRun.testCaseId },
-                    data: { status: TEST_STATUS.CANCELLED }
-                });
-
-                await tx.androidResourceLock.deleteMany({
-                    where: {
-                        runId: id,
-                    },
-                });
-
-                return TEST_STATUS.CANCELLED;
-            });
-
-            if (finalStatus === TEST_STATUS.CANCELLED) {
-                publishRunUpdate(id);
-            }
-        }
         logger.info('Cancelled test run', {
             runId: id,
-            previousStatus: testRun.status,
-            previousAssignedRunnerId: testRun.assignedRunnerId,
-            finalStatus,
+            previousStatus: result.previousStatus,
+            previousAssignedRunnerId: result.previousAssignedRunnerId,
+            finalStatus: result.finalStatus,
             cancelledByUserId: userId,
         });
 
-        return NextResponse.json({ success: true, id: testRun.id, status: finalStatus });
+        return NextResponse.json({ success: true, id: result.id, status: result.finalStatus });
     } catch (error) {
         logger.error('Failed to cancel test run', error);
         return apiError({

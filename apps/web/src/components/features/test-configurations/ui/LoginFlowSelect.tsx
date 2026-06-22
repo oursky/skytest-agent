@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/app/auth-provider';
 import { useI18n } from '@/i18n';
 import { fetchWithAccessToken } from '@/app/run/run-page-api';
+import { CustomSelect } from '@/components/shared';
 
 interface LoginFlowOption {
     id: string;
@@ -57,24 +58,29 @@ export default function LoginFlowSelect({
         };
     }, [projectId, getAccessToken]);
 
-    const visibleOptions = options.filter((option) => option.id !== excludeTestCaseId);
+    const selectOptions = useMemo(() => {
+        const visibleOptions = options.filter((option) => option.id !== excludeTestCaseId);
+        return [
+            { value: '', label: t('configs.browser.loginFlow.none') },
+            ...visibleOptions.map((option) => ({
+                value: option.id,
+                label: option.displayId ? `${option.displayId} ${option.name}` : option.name,
+            })),
+        ];
+    }, [options, excludeTestCaseId, t]);
 
     return (
         <div>
             <label className="text-[10px] font-medium text-gray-500 uppercase">{t('configs.browser.loginFlow')}</label>
-            <select
+            <CustomSelect
                 value={value ?? ''}
-                onChange={(event) => onChange(event.target.value || undefined)}
+                options={selectOptions}
+                onChange={(next) => onChange(next || undefined)}
                 disabled={disabled}
-                className="w-full mt-0.5 px-2 py-1.5 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
-            >
-                <option value="">{t('configs.browser.loginFlow.none')}</option>
-                {visibleOptions.map((option) => (
-                    <option key={option.id} value={option.id}>
-                        {option.displayId ? `${option.displayId} ${option.name}` : option.name}
-                    </option>
-                ))}
-            </select>
+                fullWidth
+                ariaLabel={t('configs.browser.loginFlow')}
+                buttonClassName="mt-0.5 px-2 py-1.5 text-xs"
+            />
         </div>
     );
 }

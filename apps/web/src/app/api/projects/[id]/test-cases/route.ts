@@ -5,7 +5,8 @@ import { createLogger } from '@/lib/core/logger';
 import { cleanStepsForStorage } from '@/lib/runtime/test-case-utils';
 import { TEST_CASE_KIND, TEST_STATUS, type BrowserConfig, type TargetConfig, type TestCaseKind, type TestStep } from '@/types';
 import { guardProjectRouteRequest } from '@/lib/security/project-route-access';
-import { validateLoginFlowReferences } from '@/lib/test-cases/login-flow-access';
+import { validateLoginFlowReferences, collectLoginFlowIds } from '@/lib/test-cases/login-flow-access';
+import { parseSerializedJson } from '@/lib/runtime/local-browser-runner-parsers';
 
 const logger = createLogger('api:projects:test-cases');
 
@@ -93,6 +94,7 @@ export async function GET(
                 status: true,
                 name: true,
                 updatedAt: true,
+                browserConfig: true,
                 testRuns: {
                     take: 1,
                     orderBy: { createdAt: 'desc' },
@@ -107,11 +109,28 @@ export async function GET(
             },
         });
 
-        return NextResponse.json(testCases.map((testCase) => ({
-            ...testCase,
-            sourcePath: testCase.source,
-            sourceHash: testCase.sourceHash,
-        })));
+        const loginFlowUsage = new Map<string, number>();
+        for (const testCase of testCases) {
+            if (testCase.kind === TEST_CASE_KIND.LOGIN_FLOW) {
+                continue;
+            }
+            const browserConfig = parseSerializedJson<Record<string, BrowserConfig | TargetConfig>>(testCase.browserConfig);
+            for (const flowId of collectLoginFlowIds(browserConfig)) {
+                loginFlowUsage.set(flowId, (loginFlowUsage.get(flowId) ?? 0) + 1);
+            }
+        }
+
+        return NextResponse.json(testCases.map(({ browserConfig, ...testCase }) => {
+            void browserConfig;
+            return {
+                ...testCase,
+                sourcePath: testCase.source,
+                sourceHash: testCase.sourceHash,
+                ...(testCase.kind === TEST_CASE_KIND.LOGIN_FLOW
+                    ? { usedByCount: loginFlowUsage.get(testCase.id) ?? 0 }
+                    : {}),
+            };
+        }));
     } catch (error) {
         logger.error('Failed to fetch test cases', error);
         return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to fetch test cases' });

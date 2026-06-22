@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { TestStep, BrowserConfig, TargetConfig, ConfigItem, TestCaseFile } from '@/types';
+import { TestStep, BrowserConfig, TargetConfig, ConfigItem, TestCaseFile, TEST_CASE_KIND } from '@/types';
 import BuilderForm from './BuilderForm';
 import ConfigurationsSection from '@/components/features/test-configurations/ConfigurationsSection';
 import ConfigHints from '@/components/features/test-configurations/ui/ConfigHints';
@@ -58,6 +58,7 @@ const SAMPLE_CONFIGS_TO_ENSURE = [
 export default function TestForm({ onSubmit, isLoading, submitOnEnter = true, initialData, showNameInput, readOnly, onExport, onImport, testCaseId, onSaveDraft, onDiscard, isSaving, displayId, onDisplayIdChange, projectId, teamId, projectConfigs, testCaseConfigs, testCaseFiles, onTestCaseConfigsChange, onEnsureTestCase }: TestFormProps) {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
+    const isLoginFlow = initialData?.kind === TEST_CASE_KIND.LOGIN_FLOW;
     const [activeTab, setActiveTab] = useState<TestFormTab>('configurations');
     const {
         name,
@@ -221,7 +222,7 @@ export default function TestForm({ onSubmit, isLoading, submitOnEnter = true, in
         <form onSubmit={handleSubmit} className="glass-panel h-[800px] flex flex-col">
             <div className="p-6 pb-0 border-b border-gray-200">
                 <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-semibold text-foreground">{t('testForm.title')}</h2>
+                    <h2 className="text-xl font-semibold text-foreground">{isLoginFlow ? t('testForm.title.loginFlow') : t('testForm.title')}</h2>
                     {(onExport || onImport) && (
                         <div className="flex items-center gap-2">
                             {onImport && (
@@ -279,7 +280,7 @@ export default function TestForm({ onSubmit, isLoading, submitOnEnter = true, in
                             </button>
                         </nav>
 
-                        {!readOnly && (
+                        {!readOnly && !isLoginFlow && (
                             <button
                                 type="button"
                                 onClick={handleLoadSampleData}
@@ -301,13 +302,13 @@ export default function TestForm({ onSubmit, isLoading, submitOnEnter = true, in
                         {showNameInput && (
                             <div className="space-y-2">
                                 <label className="block text-sm font-medium text-foreground">
-                                    {t('testForm.testCaseName')} {!readOnly && <span className="text-red-500">*</span>}
+                                    {isLoginFlow ? t('testForm.loginFlowName') : t('testForm.testCaseName')} {!readOnly && <span className="text-red-500">*</span>}
                                 </label>
                                 <input
                                     type="text"
                                     required
                                     className="input-field"
-                                    placeholder={t('testForm.testCaseName.placeholder')}
+                                    placeholder={isLoginFlow ? t('testForm.loginFlowName.placeholder') : t('testForm.testCaseName.placeholder')}
                                     value={name}
                                     onChange={(e) => setName(e.target.value)}
                                     disabled={readOnly}
@@ -318,13 +319,13 @@ export default function TestForm({ onSubmit, isLoading, submitOnEnter = true, in
                         {showNameInput && (onDisplayIdChange || readOnly) && (
                             <div className="space-y-2">
                                 <label className="block text-sm font-medium text-foreground">
-                                    {t('testForm.testCaseId')} {!readOnly && <span className="text-red-500">*</span>}
+                                    {isLoginFlow ? t('testForm.loginFlowId') : t('testForm.testCaseId')} {!readOnly && <span className="text-red-500">*</span>}
                                 </label>
                                 <input
                                     type="text"
                                     className="input-field"
                                     required={!readOnly}
-                                    placeholder={t('testForm.testCaseId.placeholder')}
+                                    placeholder={isLoginFlow ? t('testForm.loginFlowId.placeholder') : t('testForm.testCaseId.placeholder')}
                                     value={displayId || ''}
                                     onChange={(e) => onDisplayIdChange?.(e.target.value)}
                                     disabled={readOnly}
@@ -341,6 +342,7 @@ export default function TestForm({ onSubmit, isLoading, submitOnEnter = true, in
                             onTestCaseConfigsChange={(updatedTestCaseId) => onTestCaseConfigsChange?.(updatedTestCaseId || testCaseId)}
                             onEnsureTestCaseId={onEnsureTestCase ? () => onEnsureTestCase(getCurrentData()) : undefined}
                             readOnly={readOnly}
+                            isLoginFlow={isLoginFlow}
                             browsers={browsers}
                             setBrowsers={setBrowsers}
                         />

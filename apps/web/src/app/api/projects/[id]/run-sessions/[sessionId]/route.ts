@@ -3,6 +3,9 @@ import { prisma } from '@/lib/core/prisma';
 import { guardProjectRouteRequest } from '@/lib/security/project-route-access';
 import { apiError } from '@/lib/security/api-route-standards';
 import { createLogger } from '@/lib/core/logger';
+import { cancelActiveTestRun } from '@/lib/runtime/cancel-run';
+import { recomputeRunSessionStatus } from '@/lib/runtime/run-session-service';
+import { RUN_ACTIVE_STATUSES } from '@/types';
 
 const logger = createLogger('api:projects:run-session');
 
@@ -63,5 +66,57 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     } catch (error) {
         logger.error('Failed to load run session', error);
         return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to load run session' });
+    }
+}
+
+export async function POST(request: Request, { params }: { params: Promise<{ id: string; sessionId: string }> }) {
+    const guard = await guardProjectRouteRequest({ request, params });
+    if (!guard.ok) {
+        return guard.response;
+    }
+    try {
+        const { id: projectId, sessionId } = guard.params;
+        const { userId } = guard;
+
+        const session = await prisma.runSession.findFirst({
+            where: { id: sessionId, projectId },
+            select: {
+                id: true,
+                memberRuns: {
+                    where: { status: { in: [...RUN_ACTIVE_STATUSES] } },
+                    select: { id: true },
+                },
+            },
+        });
+        if (!session) {
+            return apiError({ status: 404, code: 'NOT_FOUND', error: 'Run session not found' });
+        }
+
+        let cancelledCount = 0;
+        for (const member of session.memberRuns) {
+            const result = await cancelActiveTestRun(member.id);
+            if (result?.cancelled) {
+                cancelledCount += 1;
+            }
+        }
+
+        await recomputeRunSessionStatus(sessionId);
+
+        const updated = await prisma.runSession.findUnique({
+            where: { id: sessionId },
+            select: { status: true },
+        });
+
+        logger.info('Cancelled run session', {
+            sessionId,
+            projectId,
+            cancelledMembers: cancelledCount,
+            cancelledByUserId: userId,
+        });
+
+        return NextResponse.json({ success: true, id: sessionId, status: updated?.status ?? null, cancelledMembers: cancelledCount });
+    } catch (error) {
+        logger.error('Failed to cancel run session', error);
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to cancel run session' });
     }
 }

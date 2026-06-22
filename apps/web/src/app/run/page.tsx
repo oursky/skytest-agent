@@ -5,7 +5,6 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth } from "../auth-provider";
 import { TestForm } from "@/components/features/test-builder";
 import { ResultViewer } from "@/components/features/run-results";
-import { Breadcrumbs } from "@/components/layout";
 import type { TestCaseImportReviewData } from "@/components/features/test-cases/ui/TestCaseImportReviewDialog";
 import {
     TEST_STATUS,
@@ -28,6 +27,7 @@ import {
     applyRunStreamStatusUpdate,
     buildEventKey,
     isExcelFilename,
+    buildRunPageView,
     mergeRunFormData,
     runDetailSnapshotToResult,
     RunViewerResult,
@@ -805,15 +805,14 @@ function RunPageContent() {
         return <RunPageSkeleton />;
     }
 
+    const runView = buildRunPageView(initialData?.kind ?? testCaseKind, !!testCaseId, t);
+
+    const breadcrumbItems = (projectId || projectIdFromTestCase) && projectName
+        ? [{ label: projectName, href: `/projects/${projectId || projectIdFromTestCase}` }, { label: runView.breadcrumbLabel }]
+        : undefined;
+
     return (
         <>
-            {(projectId || projectIdFromTestCase) && projectName && (
-                <Breadcrumbs items={[
-                    { label: projectName, href: `/projects/${projectId || projectIdFromTestCase}` },
-                    { label: testCaseId ? t('run.breadcrumb.runTest') : t('run.breadcrumb.newRun') }
-                ]} />
-            )}
-
             <RunPageImportControls
                 importReviewData={importReviewData}
                 isProcessing={isImportReviewProcessing}
@@ -824,7 +823,9 @@ function RunPageContent() {
             />
 
             <RunPageHeader
-                title={testCaseId ? t('run.title.runTest') : t('run.title.startNewRun')}
+                title={runView.headerTitle}
+                subtitle={runView.headerSubtitle}
+                breadcrumbItems={breadcrumbItems}
                 showStopButton={isRunActiveStatus(result.status)}
                 stopLabel={result.status === TEST_STATUS.QUEUED ? t('run.button.quitQueue') : t('run.button.stopTest')}
                 onStop={handleStopTest}
