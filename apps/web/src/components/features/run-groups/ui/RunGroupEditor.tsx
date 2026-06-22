@@ -61,40 +61,41 @@ export default function RunGroupEditor({ projectId, group, onSaved, onCancel }: 
     };
 
     return (
-        <div className="space-y-4 rounded-lg border border-gray-200 bg-white p-4">
-            <h3 className="text-sm font-semibold text-gray-900">{group ? t('runGroup.edit') : t('runGroup.new')}</h3>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="space-y-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-gray-900">{group ? t('runGroup.edit') : t('runGroup.new')}</h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                    <label className="text-[10px] font-medium text-gray-500 uppercase">{t('runGroup.name')}</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('runGroup.name')}</label>
                     <input
                         type="text"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         placeholder={t('runGroup.name.placeholder')}
-                        className="w-full mt-0.5 px-2 py-1.5 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                        className="input-field"
                     />
                 </div>
                 <div>
-                    <label className="text-[10px] font-medium text-gray-500 uppercase">{t('runGroup.displayId')}</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('runGroup.displayId')}</label>
                     <input
                         type="text"
                         value={displayId}
                         onChange={(e) => setDisplayId(e.target.value)}
                         placeholder="GROUP-001"
-                        className="w-full mt-0.5 px-2 py-1.5 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                        className="input-field"
                     />
                 </div>
             </div>
             <LoginFlowSelect
                 projectId={projectId}
                 value={loginFlowId}
+                size="md"
                 onChange={setLoginFlowId}
             />
             <OrderedTestCasePicker projectId={projectId} value={testCaseIds} onChange={setTestCaseIds} />
-            {error && <p className="text-xs text-red-600">{error}</p>}
+            {error && <p className="text-sm text-red-600">{error}</p>}
             <div className="flex justify-end gap-2">
-                <Button type="button" variant="secondary" size="sm" onClick={onCancel} disabled={isSaving}>{t('common.cancel')}</Button>
-                <Button type="button" size="sm" onClick={() => { void handleSave(); }} disabled={isSaving}>{t('common.save')}</Button>
+                <Button type="button" variant="secondary" size="md" onClick={onCancel} disabled={isSaving}>{t('common.cancel')}</Button>
+                <Button type="button" variant="primary" size="md" onClick={() => { void handleSave(); }} disabled={isSaving}>{t('common.save')}</Button>
             </div>
         </div>
     );

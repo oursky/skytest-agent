@@ -223,7 +223,7 @@ export default function TestForm({ onSubmit, isLoading, submitOnEnter = true, in
             <div className="p-6 pb-0 border-b border-gray-200">
                 <div className="flex items-center justify-between">
                     <h2 className="text-xl font-semibold text-foreground">{isLoginFlow ? t('testForm.title.loginFlow') : t('testForm.title')}</h2>
-                    {(onExport || onImport) && (
+                    {!isLoginFlow && (onExport || onImport) && (
                         <div className="flex items-center gap-2">
                             {onImport && (
                                 <button

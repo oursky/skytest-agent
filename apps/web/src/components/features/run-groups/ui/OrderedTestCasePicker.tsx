@@ -66,13 +66,13 @@ export default function OrderedTestCasePicker({ projectId, value, onChange }: Or
         <div className="space-y-2">
             <label className="block text-sm font-medium text-foreground">{t('runGroup.items')}</label>
             {value.length === 0 ? (
-                <p className="text-xs text-gray-500">{t('runGroup.items.empty')}</p>
+                <p className="text-sm text-gray-500">{t('runGroup.items.empty')}</p>
             ) : (
-                <ol className="space-y-1">
+                <ol className="space-y-1.5">
                     {value.map((id, index) => (
-                        <li key={id} className="flex items-center gap-1.5 rounded border border-gray-200 bg-white px-2 py-1.5 text-xs">
+                        <li key={id} className="flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm">
                             <span className="w-5 shrink-0 text-gray-400">{index + 1}</span>
-                            <span className="flex-1 truncate">{label(id)}</span>
+                            <span className="flex-1 truncate text-gray-900">{label(id)}</span>
                             <button
                                 type="button"
                                 onClick={() => move(index, -1)}
@@ -80,7 +80,7 @@ export default function OrderedTestCasePicker({ projectId, value, onChange }: Or
                                 className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:pointer-events-none disabled:opacity-30"
                                 aria-label={t('runGroup.items.moveUp')}
                             >
-                                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
                             </button>
                             <button
                                 type="button"
@@ -89,7 +89,7 @@ export default function OrderedTestCasePicker({ projectId, value, onChange }: Or
                                 className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:pointer-events-none disabled:opacity-30"
                                 aria-label={t('runGroup.items.moveDown')}
                             >
-                                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                             </button>
                             <button
                                 type="button"
@@ -97,7 +97,7 @@ export default function OrderedTestCasePicker({ projectId, value, onChange }: Or
                                 className="rounded p-1 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
                                 aria-label={t('common.remove')}
                             >
-                                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
                         </li>
                     ))}
@@ -116,7 +116,6 @@ export default function OrderedTestCasePicker({ projectId, value, onChange }: Or
                     onChange={(next) => { if (next) onChange([...value, next]); }}
                     fullWidth
                     ariaLabel={t('runGroup.items.add')}
-                    buttonClassName="px-2 py-1.5 text-xs"
                 />
             )}
         </div>

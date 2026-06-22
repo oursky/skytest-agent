@@ -7,6 +7,7 @@ import {
     TEST_STATUS,
     RUN_ACTIVE_STATUSES,
     type RunGroupSummary,
+    type RunGroupSessionSummary,
     type RunGroupUpsertInput,
     type RunTriggerSource,
 } from '@/types';
@@ -94,6 +95,57 @@ export async function listRunGroups(projectId: string): Promise<RunGroupSummary[
         include: groupInclude,
     });
     return groups.map(serializeRunGroup);
+}
+
+export async function listRunGroupSessions(
+    projectId: string,
+    groupId: string,
+    page: number,
+    limit: number,
+): Promise<RunGroupResult<{ groupName: string; projectName: string; sessions: RunGroupSessionSummary[]; total: number }>> {
+    const group = await prisma.runGroup.findFirst({
+        where: { id: groupId, projectId },
+        select: { id: true, name: true, project: { select: { name: true } } },
+    });
+    if (!group) {
+        return { ok: false, status: 404, error: 'Run group not found' };
+    }
+    const where = { runGroupId: groupId, deletedAt: null };
+    const [total, sessions] = await prisma.$transaction([
+        prisma.runSession.count({ where }),
+        prisma.runSession.findMany({
+            where,
+            orderBy: { createdAt: 'desc' },
+            skip: (page - 1) * limit,
+            take: limit,
+            select: {
+                id: true,
+                status: true,
+                createdAt: true,
+                completedAt: true,
+                triggeredByEmail: true,
+                triggerSource: true,
+                _count: { select: { memberRuns: true } },
+            },
+        }),
+    ]);
+    return {
+        ok: true,
+        data: {
+            groupName: group.name,
+            projectName: group.project.name,
+            total,
+            sessions: sessions.map((session) => ({
+                id: session.id,
+                status: session.status,
+                createdAt: session.createdAt.toISOString(),
+                completedAt: session.completedAt?.toISOString() ?? null,
+                memberCount: session._count.memberRuns,
+                triggeredByEmail: session.triggeredByEmail,
+                triggerSource: session.triggerSource,
+            })),
+        },
+    };
 }
 
 export async function getRunGroup(projectId: string, groupId: string): Promise<RunGroupSummary | null> {

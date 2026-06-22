@@ -49,6 +49,7 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
     const [testRuns, setTestRuns] = useState<TestRun[]>([]);
     const [totalRuns, setTotalRuns] = useState(0);
     const [testCaseName, setTestCaseName] = useState<string>("");
+    const [isLoginFlow, setIsLoginFlow] = useState(false);
     const [projectId, setProjectId] = useState<string>("");
     const [projectName, setProjectName] = useState<string>("");
     const [isLoading, setIsLoading] = useState(true);
@@ -80,6 +81,7 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
             if (response.ok) {
                 const data = await response.json();
                 setTestCaseName(data.name);
+                setIsLoginFlow(data.kind === 'LOGIN_FLOW');
                 setProjectId(data.projectId);
                 setProjectName(typeof data.projectName === 'string' ? data.projectName : '');
             }
@@ -290,7 +292,7 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
 
             <div className="max-w-7xl mx-auto px-8 py-8">
                 <Breadcrumbs items={[
-                    { label: projectName, href: projectId ? `/projects/${projectId}` : undefined },
+                    { label: projectName, href: projectId ? `/projects/${projectId}${isLoginFlow ? '?tab=login-flows' : ''}` : undefined },
                     { label: testCaseName }
                 ]} />
 

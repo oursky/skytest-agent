@@ -38,6 +38,7 @@ interface TestCase {
     id: string;
     displayId?: string;
     name: string;
+    kind?: string;
     url: string;
     prompt: string;
     steps?: TestStep[];
@@ -262,7 +263,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
         <main className="min-h-screen bg-gray-50 p-8">
             <div className="max-w-7xl mx-auto">
                 <Breadcrumbs items={[
-                    { label: projectName, href: projectId ? `/projects/${projectId}` : undefined },
+                    { label: projectName, href: projectId ? `/projects/${projectId}${testCase?.kind === 'LOGIN_FLOW' ? '?tab=login-flows' : ''}` : undefined },
                     { label: testData?.name || testCase?.name || t('runDetail.breadcrumb.testCaseFallback'), href: runPageHref },
                     { label: t('runDetail.breadcrumb.runPrefix', { time: formatDateTime(testRun.createdAt) }) }
                 ]} />

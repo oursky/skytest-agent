@@ -24,3 +24,13 @@ export interface RunGroupUpsertInput {
     loginFlowId?: string | null;
     testCaseIds: string[];
 }
+
+export interface RunGroupSessionSummary {
+    id: string;
+    status: string;
+    createdAt: string;
+    completedAt: string | null;
+    memberCount: number;
+    triggeredByEmail: string | null;
+    triggerSource: string;
+}

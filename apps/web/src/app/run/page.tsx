@@ -808,7 +808,7 @@ function RunPageContent() {
     const runView = buildRunPageView(initialData?.kind ?? testCaseKind, !!testCaseId, t);
 
     const breadcrumbItems = (projectId || projectIdFromTestCase) && projectName
-        ? [{ label: projectName, href: `/projects/${projectId || projectIdFromTestCase}` }, { label: runView.breadcrumbLabel }]
+        ? [{ label: projectName, href: `/projects/${projectId || projectIdFromTestCase}${runView.isLoginFlow ? '?tab=login-flows' : ''}` }, { label: runView.breadcrumbLabel }]
         : undefined;
 
     return (

@@ -610,6 +610,15 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     />
                 </div>
 
+                {activeTab === 'login-flows' && (
+                    <div className="mb-4 flex items-start gap-3 rounded-lg border border-indigo-100 bg-indigo-50/60 p-4">
+                        <svg className="mt-0.5 h-5 w-5 shrink-0 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                        </svg>
+                        <p className="text-sm text-indigo-900/80">{t('project.loginFlows.caption')}</p>
+                    </div>
+                )}
+
                 {(activeTab === 'test-cases' || activeTab === 'login-flows') && (
                     <ProjectTestCasesToolbar
                         projectId={id}
@@ -683,30 +692,22 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     <ProjectSlackSettings projectId={id} teamId={currentTeam.id} />
                 )}
 
-                {activeTab === 'login-flows' && (
-                    <div className="mb-4 flex items-start gap-3 rounded-lg border border-indigo-100 bg-indigo-50/60 p-4">
-                        <svg className="mt-0.5 h-5 w-5 shrink-0 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                        </svg>
-                        <p className="text-sm text-indigo-900/80">{t('project.loginFlows.caption')}</p>
-                    </div>
-                )}
-
                 <div className={`bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden ${activeTab !== 'test-cases' && activeTab !== 'login-flows' ? 'hidden' : ''}`}>
                     <div className="hidden md:grid grid-cols-24 gap-4 p-4 border-b border-gray-200 bg-gray-50 text-sm font-medium text-gray-500">
-                        <div className="col-span-1 flex items-center">
-                            <input
-                                type="checkbox"
-                                checked={activeTab === 'test-cases' && allFilteredSelected}
-                                onChange={activeTab === 'test-cases' ? handleToggleSelectAllFiltered : undefined}
-                                disabled={activeTab !== 'test-cases'}
-                                aria-label={t('project.table.selectAll')}
-                                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary disabled:opacity-30"
-                            />
-                        </div>
+                        {activeTab === 'test-cases' && (
+                            <div className="col-span-1 flex items-center">
+                                <input
+                                    type="checkbox"
+                                    checked={allFilteredSelected}
+                                    onChange={handleToggleSelectAllFiltered}
+                                    aria-label={t('project.table.selectAll')}
+                                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary disabled:opacity-30"
+                                />
+                            </div>
+                        )}
                         <button
                             onClick={() => handleSort('id')}
-                            className="col-span-3 flex items-center gap-1 hover:text-gray-700 transition-colors text-left"
+                            className={`${activeTab === 'test-cases' ? 'col-span-3' : 'col-span-4'} flex items-center gap-1 hover:text-gray-700 transition-colors text-left`}
                         >
                             {t('project.table.id')}
                             <SortIcon column="id" sortColumn={sortColumn} sortDirection={sortDirection} />
