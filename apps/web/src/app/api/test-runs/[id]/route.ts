@@ -3,7 +3,7 @@ import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
 import { isTestEvent } from '@/lib/runtime/test-events';
 import { objectStore } from '@/lib/storage/object-store';
-import { isRunActiveStatus, isScreenshotData, TEST_CASE_KIND, type TestEvent, type LogLevel, type BrowserConfig, type TargetConfig, type LoginFlowPrefixInfo } from '@/types';
+import { isRunActiveStatus, isScreenshotData, TEST_CASE_KIND, type TestEvent, type LogLevel, type BrowserConfig, type TargetConfig, type TestStep, type LoginFlowPrefixInfo } from '@/types';
 import { parseTestResultMetadata } from '@/lib/runtime/test-result-metadata';
 import { loadMaskedVariableValuesForTestCase } from '@/lib/runtime/masked-variables';
 import { createExactValueMasker, maskEventForViewer, maskNullableText } from '@/lib/runtime/log-masking';
@@ -202,7 +202,7 @@ export async function GET(
             testCaseName: testRun.testCase.name,
             testCaseUrl: testRun.testCase.url,
             testCasePrompt: testRun.testCase.prompt,
-            testCaseSteps: testRun.testCase.steps,
+            testCaseSteps: parseSerializedJson<TestStep[]>(testRun.testCase.steps),
             testCaseBrowserConfig: parseSerializedJson<Record<string, BrowserConfig | TargetConfig>>(testRun.testCase.browserConfig),
             projectId: testRun.testCase.projectId,
             projectName: testRun.testCase.project.name,

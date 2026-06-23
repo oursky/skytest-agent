@@ -37,7 +37,7 @@ export function hasMissingRequiredTestingTargetFields(browsers: BrowserEntry[]):
 }
 
 export function buildSteps(data: TestData | undefined, browserId: string, validBrowserIds: Set<string>): TestStep[] {
-    if (data?.steps && data.steps.length > 0) {
+    if (Array.isArray(data?.steps) && data.steps.length > 0) {
         return data.steps.map((step) => ({
             ...step,
             target: validBrowserIds.has(step.target) ? step.target : browserId,
