@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/auth-provider';
 import { useI18n } from '@/i18n';
 import { fetchWithAccessToken } from '@/app/run/run-page-api';
-import { LoadingSpinner, Modal } from '@/components/shared';
+import { Modal } from '@/components/shared';
 import { getStatusBadgeClass } from '@/utils/status/statusBadge';
 import { formatDateTimeCompact } from '@/utils/time/dateFormatter';
 import { isRunActiveStatus, type TestGroupSummary } from '@/types';
@@ -67,12 +67,10 @@ export default function TestGroupsPanel({ projectId, canManageProject }: TestGro
     const router = useRouter();
     const [groups, setGroups] = useState<TestGroupSummary[]>([]);
     const [editor, setEditor] = useState<EditorState>(null);
-    const [runningId, setRunningId] = useState<string | null>(null);
     const [pendingDelete, setPendingDelete] = useState<TestGroupSummary | null>(null);
     const [search, setSearch] = useState('');
     const [sortColumn, setSortColumn] = useState<SortColumn>('id');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-    const [error, setError] = useState('');
 
     const handleSort = (column: SortColumn) => {
         if (sortColumn === column) {
@@ -94,7 +92,9 @@ export default function TestGroupsPanel({ projectId, canManageProject }: TestGro
         }
     }, [projectId, getAccessToken]);
 
-    useEffect(() => { void refresh(); }, [refresh]);
+    useEffect(() => {
+        void (async () => { await refresh(); })();
+    }, [refresh]);
 
     const visibleGroups = useMemo(() => {
         const query = search.trim().toLowerCase();
@@ -119,22 +119,8 @@ export default function TestGroupsPanel({ projectId, canManageProject }: TestGro
         });
     }, [groups, search, sortColumn, sortDirection]);
 
-    const handleRun = async (group: TestGroupSummary) => {
-        setRunningId(group.id);
-        setError('');
-        try {
-            const response = await fetchWithAccessToken(getAccessToken, `/api/projects/${projectId}/test-groups/${group.id}/run`, { method: 'POST' });
-            const body = await response.json().catch(() => null) as { sessionId?: string; error?: string } | null;
-            if (!response.ok || !body?.sessionId) {
-                setError(body?.error ?? t('testGroup.error.runFailed'));
-                return;
-            }
-            router.push(`/test-groups/runs/${body.sessionId}?projectId=${projectId}`);
-        } catch {
-            setError(t('testGroup.error.runFailed'));
-        } finally {
-            setRunningId(null);
-        }
+    const openRunLauncher = (group: TestGroupSummary) => {
+        router.push(`/test-groups/${group.id}/run?projectId=${projectId}`);
     };
 
 
@@ -192,7 +178,6 @@ export default function TestGroupsPanel({ projectId, canManageProject }: TestGro
                 )}
             </div>
 
-            {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
 
             <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
                 <div className="hidden grid-cols-24 gap-4 border-b border-gray-200 bg-gray-50 p-4 text-sm font-medium text-gray-500 md:grid">
@@ -223,7 +208,6 @@ export default function TestGroupsPanel({ projectId, canManageProject }: TestGro
                     <div className="divide-y divide-gray-100">
                         {visibleGroups.map((group) => {
                             const isActive = isRunActiveStatus(group.lastSessionStatus);
-                            const isStarting = runningId === group.id;
                             return (
                                 <div key={group.id} className="flex flex-col gap-4 p-4 transition-colors hover:bg-gray-50 md:grid md:grid-cols-24 md:items-center">
                                     <div className="md:col-span-4 flex items-center">
@@ -266,13 +250,13 @@ export default function TestGroupsPanel({ projectId, canManageProject }: TestGro
                                         ) : (
                                             <button
                                                 type="button"
-                                                onClick={() => { void handleRun(group); }}
-                                                disabled={isStarting || group.items.length === 0 || !canManageProject}
+                                                onClick={() => openRunLauncher(group)}
+                                                disabled={group.items.length === 0 || !canManageProject}
                                                 className="inline-flex items-center justify-center rounded-md p-2 text-gray-500 transition-colors hover:bg-primary/10 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
                                                 title={t('testGroup.tooltip.run')}
                                                 aria-label={t('testGroup.tooltip.run')}
                                             >
-                                                {isStarting ? <LoadingSpinner size={18} /> : <PlayIcon />}
+                                                <PlayIcon />
                                             </button>
                                         )}
                                         <Link
