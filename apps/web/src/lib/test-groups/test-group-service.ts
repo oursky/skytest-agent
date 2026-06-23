@@ -10,6 +10,8 @@ import {
     type TestGroupFailureMode,
     type TestGroupSummary,
     type TestGroupSessionSummary,
+    type TestGroupRunPreview,
+    type TestGroupRunPreviewMember,
     type TestGroupUpsertInput,
     type RunTriggerSource,
 } from '@/types';
@@ -210,6 +212,93 @@ export async function getTestGroup(projectId: string, groupId: string): Promise<
         include: groupInclude,
     });
     return group ? serializeTestGroup(group) : null;
+}
+
+/**
+ * Builds the run-launcher preview for a group: the cases that will run (login flows
+ * first, then test cases in order), each with its latest run status and start time so
+ * the launcher mirrors the live "Test Group Run" table before a run is triggered.
+ */
+export async function getTestGroupRunPreview(projectId: string, groupId: string): Promise<TestGroupRunPreview | null> {
+    const group = await prisma.testGroup.findFirst({
+        where: { id: groupId, projectId },
+        select: {
+            id: true,
+            name: true,
+            displayId: true,
+            loginSessions: { select: { loginFlowId: true, position: true, loginFlow: { select: { displayId: true, name: true } } } },
+            items: { select: { testCaseId: true, position: true, testCase: { select: { displayId: true, name: true } } } },
+        },
+    });
+    if (!group) {
+        return null;
+    }
+
+    const orderedMembers = [
+        ...group.loginSessions
+            .slice()
+            .sort((a, b) => a.position - b.position)
+            .map((session, index) => ({
+                testCaseId: session.loginFlowId,
+                kind: TEST_CASE_KIND.LOGIN_FLOW,
+                position: index,
+                displayId: session.loginFlow.displayId,
+                name: session.loginFlow.name,
+            })),
+        ...group.items
+            .slice()
+            .sort((a, b) => a.position - b.position)
+            .map((item, index) => ({
+                testCaseId: item.testCaseId,
+                kind: TEST_CASE_KIND.TEST,
+                position: group.loginSessions.length + index,
+                displayId: item.testCase.displayId,
+                name: item.testCase.name,
+            })),
+    ];
+
+    const caseIds = orderedMembers.map((member) => member.testCaseId);
+    const latestRuns = caseIds.length > 0
+        ? await prisma.testRun.findMany({
+            where: { testCaseId: { in: caseIds }, deletedAt: null },
+            orderBy: { createdAt: 'desc' },
+            select: { testCaseId: true, status: true, startedAt: true, createdAt: true },
+        })
+        : [];
+    const latestByCase = new Map<string, { status: string; startedAt: Date | null; createdAt: Date }>();
+    for (const run of latestRuns) {
+        if (!latestByCase.has(run.testCaseId)) {
+            latestByCase.set(run.testCaseId, run);
+        }
+    }
+
+    const activeSession = await prisma.runSession.findFirst({
+        where: { testGroupId: groupId, deletedAt: null, status: { in: [...RUN_ACTIVE_STATUSES] } },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, status: true },
+    });
+
+    const members: TestGroupRunPreviewMember[] = orderedMembers.map((member) => {
+        const latest = latestByCase.get(member.testCaseId);
+        return {
+            testCaseId: member.testCaseId,
+            kind: member.kind,
+            position: member.position,
+            displayId: member.displayId,
+            name: member.name,
+            status: latest?.status ?? null,
+            startedAt: (latest?.startedAt ?? latest?.createdAt)?.toISOString() ?? null,
+        };
+    });
+
+    return {
+        id: group.id,
+        name: group.name,
+        displayId: group.displayId,
+        members,
+        activeSessionId: activeSession?.id ?? null,
+        activeSessionStatus: activeSession?.status ?? null,
+    };
 }
 
 export async function createTestGroup(projectId: string, input: TestGroupUpsertInput): Promise<TestGroupResult<TestGroupSummary>> {

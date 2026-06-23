@@ -7,6 +7,7 @@ import { normalizeBrowserConfig } from '@/lib/test-config/browser-target';
 import { validateConfigName, normalizeConfigName, validateConfigType, validateConfigValue } from '@/lib/test-config/validation';
 import { resolveAndroidDeviceSelector, type AndroidDeviceSelectorInventory } from '@/lib/mcp/android-selector';
 import { cancelRunDurably } from '@/lib/mcp/run-cancellation';
+import { CANCELLATION_REASON } from '@/lib/runtime/cancellation-reasons';
 import { getUserId, type McpHandlerExtra, verifyProjectAccess } from '@/lib/mcp/server-auth';
 import { errorResult, textResult, withToolTelemetry, type ToolResponse } from '@/lib/mcp/server-response';
 import { mcpConfigSchema, mcpStepSchema } from '@/lib/mcp/server-schemas';
@@ -483,7 +484,7 @@ export function registerTestCaseMutationTools(server: McpServer): void {
 
             for (const run of activeRuns) {
                 try {
-                    const cancelled = await cancelRunDurably(run.id, 'Cancelled to allow MCP test case update');
+                    const cancelled = await cancelRunDurably(run.id, CANCELLATION_REASON.MCP_FOR_UPDATE);
                     if (cancelled) {
                         cancelledRunIds.push(run.id);
                     } else {

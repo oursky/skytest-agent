@@ -97,7 +97,7 @@ describe('POST /api/test-runs/[id]/cancel', () => {
             },
             data: {
                 status: 'CANCELLED',
-                error: 'Cancelled by user',
+                error: 'This test run was stopped manually.',
                 completedAt: expect.any(Date),
                 assignedRunnerId: null,
                 leaseExpiresAt: null,

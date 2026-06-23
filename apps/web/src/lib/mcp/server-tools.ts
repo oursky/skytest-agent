@@ -2,6 +2,7 @@ import { prisma } from '@/lib/core/prisma';
 import { parseTestCaseJson } from '@/lib/runtime/test-case-utils';
 import { compareByGroupThenName } from '@/lib/test-config/sort';
 import { cancelRunDurably } from '@/lib/mcp/run-cancellation';
+import { CANCELLATION_REASON } from '@/lib/runtime/cancellation-reasons';
 import { deleteObjectKeysBestEffort } from '@/lib/mcp/storage-cleanup';
 import { queueTestCaseRun } from '@/lib/mcp/run-execution';
 import { listTestRuns } from '@/lib/mcp/run-query';
@@ -371,7 +372,7 @@ export async function stopAllRunsTool(
     const cancelledRunIds: string[] = [];
     const failures: Array<{ runId: string; error: string }> = [];
     const skippedCancellations: Array<{ runId: string; reason: string }> = [];
-    const cancellationReason = reason?.trim() || 'Cancelled by MCP stop_all_runs';
+    const cancellationReason = reason?.trim() || CANCELLATION_REASON.MCP;
 
     for (const run of activeRuns) {
         try {
@@ -447,7 +448,7 @@ export async function stopAllQueuesTool(
     const cancelledRunIds: string[] = [];
     const failures: Array<{ runId: string; error: string }> = [];
     const skippedCancellations: Array<{ runId: string; reason: string }> = [];
-    const cancellationReason = reason?.trim() || 'Cancelled by MCP stop_all_queues';
+    const cancellationReason = reason?.trim() || CANCELLATION_REASON.MCP;
 
     for (const run of queuedRuns) {
         try {

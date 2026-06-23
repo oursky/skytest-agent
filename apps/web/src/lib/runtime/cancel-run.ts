@@ -1,7 +1,8 @@
 import { prisma } from '@/lib/core/prisma';
 import { publishRunUpdate } from '@/lib/runners/event-bus';
 import { recomputeRunSessionStatus } from '@/lib/runtime/run-session-service';
-import { RUN_ACTIVE_STATUSES, TEST_STATUS, isRunActiveStatus } from '@/types';
+import { CANCELLATION_REASON } from '@/lib/runtime/cancellation-reasons';
+import { RUN_ACTIVE_STATUSES, RUN_SESSION_KIND, TEST_STATUS, isRunActiveStatus } from '@/types';
 
 export interface CancelTestRunResult {
     id: string;
@@ -19,7 +20,10 @@ export interface CancelTestRunResult {
  * per-run cancel route and the run-session cancel route so both paths transition
  * identically.
  */
-export async function cancelActiveTestRun(runId: string): Promise<CancelTestRunResult | null> {
+export async function cancelActiveTestRun(
+    runId: string,
+    reason: string = CANCELLATION_REASON.USER_SINGLE,
+): Promise<CancelTestRunResult | null> {
     const testRun = await prisma.testRun.findUnique({
         where: { id: runId },
         select: { id: true, status: true, testCaseId: true, assignedRunnerId: true, deletedAt: true },
@@ -40,7 +44,7 @@ export async function cancelActiveTestRun(runId: string): Promise<CancelTestRunR
                 },
                 data: {
                     status: TEST_STATUS.CANCELLED,
-                    error: 'Cancelled by user',
+                    error: reason,
                     completedAt,
                     assignedRunnerId: null,
                     leaseExpiresAt: null,
@@ -91,6 +95,7 @@ export async function cancelActiveRunSession(sessionId: string): Promise<{ cance
     const session = await prisma.runSession.findUnique({
         where: { id: sessionId },
         select: {
+            kind: true,
             memberRuns: {
                 where: { status: { in: [...RUN_ACTIVE_STATUSES] } },
                 select: { id: true },
@@ -98,9 +103,13 @@ export async function cancelActiveRunSession(sessionId: string): Promise<{ cance
         },
     });
 
+    const reason = session?.kind === RUN_SESSION_KIND.GROUP
+        ? CANCELLATION_REASON.USER_GROUP
+        : CANCELLATION_REASON.USER_SINGLE;
+
     let cancelledMembers = 0;
     for (const member of session?.memberRuns ?? []) {
-        const result = await cancelActiveTestRun(member.id);
+        const result = await cancelActiveTestRun(member.id, reason);
         if (result?.cancelled) {
             cancelledMembers += 1;
         }

@@ -19,6 +19,7 @@ import {
     type ActionCounter,
 } from '@/lib/runtime/test-runner';
 import { shouldStopAfterFailure } from '@/lib/runtime/test-group-session-plan';
+import { CANCELLATION_REASON } from '@/lib/runtime/cancellation-reasons';
 import {
     failRunWithoutTestCase,
     updateRunStatusWithOwnership,
@@ -117,11 +118,7 @@ async function claimSessionMember(runId: string): Promise<boolean> {
     return run ? isRunInProgressStatus(run.status) : false;
 }
 
-const CANCEL_REASON = {
-    USER: 'Cancelled by user.',
-    LOGIN_FLOW_FAILED: 'Cancelled because a login flow failed before this test ran.',
-    EARLIER_CASE_FAILED: 'Cancelled because an earlier test case in the group failed.',
-} as const;
+const CANCEL_REASON = CANCELLATION_REASON;
 
 /**
  * Cancels session members that never get to run (an earlier member failed, a login
@@ -262,8 +259,8 @@ async function propagatePrefixOutcomeToTest(
     const cancelled = prefixStatus === TEST_STATUS.CANCELLED;
     const status = cancelled ? TEST_STATUS.CANCELLED : TEST_STATUS.FAIL;
     const error = cancelled
-        ? `Cancelled by user in login flow "${flowLabel}" before the test ran. View the cancelled login flow run: ${flowLink}`
-        : `Failed in login flow "${flowLabel}" before the test ran. View the failed login flow run: ${flowLink}`;
+        ? `This test did not run because its login flow "${flowLabel}" was stopped. View the stopped login flow run: ${flowLink}`
+        : `This test did not run because its login flow "${flowLabel}" failed. View the failed login flow run: ${flowLink}`;
     const result = JSON.stringify({
         status,
         error,
@@ -508,7 +505,7 @@ export async function executeLocalBrowserSession(
 
     if (loginMembers.length > 0) {
         if (controller.signal.aborted) {
-            await cancelRemainingMembers(members, CANCEL_REASON.USER);
+            await cancelRemainingMembers(members, CANCEL_REASON.USER_SINGLE);
             return;
         }
         // Login flows are independent (each opens its own browser and captures its own
@@ -529,7 +526,7 @@ export async function executeLocalBrowserSession(
     }
 
     if (controller.signal.aborted) {
-        await cancelRemainingMembers([testMember], CANCEL_REASON.USER);
+        await cancelRemainingMembers([testMember], CANCEL_REASON.USER_SINGLE);
         return;
     }
     await runTestMemberWithBaselines(testMember, baselines, controller, options);
@@ -573,7 +570,7 @@ export async function executeGroupSession(
     // The group's login flows are independent — run them in parallel, capture baselines.
     if (loginMembers.length > 0) {
         if (controller.signal.aborted) {
-            await cancelRemainingMembers(members, CANCEL_REASON.USER);
+            await cancelRemainingMembers(members, CANCEL_REASON.USER_GROUP);
             return;
         }
         const concurrency = await loadSessionLoginConcurrency(sessionId);
@@ -594,7 +591,7 @@ export async function executeGroupSession(
     // Test cases run in sequence; each reuses a group login session only when opted in.
     for (let index = 0; index < testMembers.length; index += 1) {
         if (controller.signal.aborted) {
-            await cancelRemainingMembers(testMembers.slice(index), CANCEL_REASON.USER);
+            await cancelRemainingMembers(testMembers.slice(index), CANCEL_REASON.USER_GROUP);
             return;
         }
         const result = await runTestMemberWithBaselines(testMembers[index], baselines, controller, options, true);

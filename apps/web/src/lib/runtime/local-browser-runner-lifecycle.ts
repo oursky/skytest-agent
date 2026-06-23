@@ -5,8 +5,10 @@ import { emitRunTerminal } from '@/lib/runners/domain-events';
 import { recomputeRunSessionForMember } from '@/lib/runtime/run-session-service';
 import { config as appConfig } from '@/config/app';
 import { UsageService } from '@/lib/runtime/usage';
+import { CANCELLATION_REASON } from '@/lib/runtime/cancellation-reasons';
 import {
     RUN_IN_PROGRESS_STATUSES,
+    RUN_SESSION_KIND,
     TEST_STATUS,
     type RunInProgressStatus,
 } from '@/types';
@@ -233,11 +235,18 @@ export async function cancelRun(
     options?: LocalBrowserRunOptions
 ): Promise<void> {
     const now = new Date();
+    const owningRun = await prisma.testRun.findUnique({
+        where: { id: runId },
+        select: { runSession: { select: { kind: true } } },
+    });
+    const reason = owningRun?.runSession?.kind === RUN_SESSION_KIND.GROUP
+        ? CANCELLATION_REASON.USER_GROUP
+        : CANCELLATION_REASON.USER_SINGLE;
     const updated = await prisma.testRun.updateMany({
         where: buildRunOwnershipWhere(runId, options),
         data: {
             status: TEST_STATUS.CANCELLED,
-            error: 'Cancelled by user',
+            error: reason,
             completedAt: now,
             assignedRunnerId: null,
             leaseExpiresAt: null,

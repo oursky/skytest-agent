@@ -43,6 +43,25 @@ export interface TestGroupSummary {
     updatedAt: string;
 }
 
+export interface TestGroupRunPreviewMember {
+    testCaseId: string;
+    kind: 'LOGIN_FLOW' | 'TEST';
+    position: number;
+    displayId?: string | null;
+    name: string;
+    status: string | null;
+    startedAt: string | null;
+}
+
+export interface TestGroupRunPreview {
+    id: string;
+    name: string;
+    displayId?: string | null;
+    members: TestGroupRunPreviewMember[];
+    activeSessionId: string | null;
+    activeSessionStatus: string | null;
+}
+
 export interface TestGroupLoginSessionInput {
     loginFlowId: string;
     name?: string;
