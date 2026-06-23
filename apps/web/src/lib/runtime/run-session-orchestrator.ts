@@ -296,6 +296,11 @@ async function runLoginPrefix(
     controller: AbortController,
     options?: LocalBrowserRunOptions,
 ): Promise<{ status: string; storageState?: BrowserStorageState; projectId: string }> {
+    const runnable = await claimSessionMember(login.id);
+    if (!runnable) {
+        // Settled externally before we could run it (e.g. the session was cancelled).
+        return { status: TEST_STATUS.CANCELLED, projectId: '' };
+    }
     const details = await loadRunConfig(login.id, options, { allowNonRunning: true });
     if (!details) {
         await failRunWithoutTestCase(login.id, 'Run is not executable', options).catch(() => {});
@@ -447,6 +452,34 @@ async function runTestMemberWithBaselines(
  * sessions. A login flow that fails/cancels propagates its outcome to the test with a
  * reason + link (and the test does not run).
  */
+/** Runs tasks over items with at most `limit` in flight; results stay in item order. */
+async function runWithConcurrency<T, R>(items: T[], limit: number, task: (item: T) => Promise<R>): Promise<R[]> {
+    const results: R[] = new Array(items.length);
+    let cursor = 0;
+    const workerCount = Math.max(1, Math.min(limit, items.length));
+    const workers = Array.from({ length: workerCount }, async () => {
+        for (;;) {
+            const index = cursor;
+            cursor += 1;
+            if (index >= items.length) {
+                break;
+            }
+            results[index] = await task(items[index]);
+        }
+    });
+    await Promise.all(workers);
+    return results;
+}
+
+/** Parallelism for a session's independent login flows: the project's max-concurrent setting. */
+async function loadSessionLoginConcurrency(sessionId: string): Promise<number> {
+    const session = await prisma.runSession.findUnique({
+        where: { id: sessionId },
+        select: { project: { select: { maxConcurrentRuns: true } } },
+    });
+    return Math.max(1, session?.project?.maxConcurrentRuns ?? 1);
+}
+
 export async function executeLocalBrowserSession(
     sessionId: string,
     controller: AbortController,
@@ -461,25 +494,26 @@ export async function executeLocalBrowserSession(
 
     const baselines = new Map<string, BrowserStorageState>();
 
-    for (let index = 0; index < loginMembers.length; index += 1) {
-        const login = loginMembers[index];
+    if (loginMembers.length > 0) {
         if (controller.signal.aborted) {
-            await markMembersSkipped(members.slice(index).map((m) => m.id));
+            await markMembersSkipped(members.map((m) => m.id));
             return;
         }
-        const runnable = await claimSessionMember(login.id);
-        if (!runnable) {
-            await markMembersSkipped(members.slice(index + 1).map((m) => m.id));
+        // Login flows are independent (each opens its own browser and captures its own
+        // baseline), so run them in parallel up to the project's max-concurrent setting
+        // instead of serially.
+        const concurrency = await loadSessionLoginConcurrency(sessionId);
+        const outcomes = await runWithConcurrency(loginMembers, concurrency, (login) => runLoginPrefix(login, controller, options));
+
+        const failureIndex = outcomes.findIndex((outcome) => outcome.status !== TEST_STATUS.PASS || !outcome.storageState);
+        if (failureIndex >= 0) {
+            const outcome = outcomes[failureIndex];
+            await propagatePrefixOutcomeToTest(testMember, loginMembers[failureIndex], outcome.status, outcome.projectId);
             return;
         }
-        const outcome = await runLoginPrefix(login, controller, options);
-        if (outcome.status === TEST_STATUS.PASS && outcome.storageState) {
-            baselines.set(login.testCaseId, outcome.storageState);
-        } else {
-            await markMembersSkipped(loginMembers.slice(index + 1).map((m) => m.id));
-            await propagatePrefixOutcomeToTest(testMember, login, outcome.status, outcome.projectId);
-            return;
-        }
+        outcomes.forEach((outcome, index) => {
+            baselines.set(loginMembers[index].testCaseId, outcome.storageState!);
+        });
     }
 
     if (controller.signal.aborted) {
