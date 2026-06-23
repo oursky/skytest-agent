@@ -1,6 +1,6 @@
 import { chromium, Page, BrowserContext, Browser, ConsoleMessage } from 'playwright';
 import { PlaywrightAgent } from '@midscene/web/playwright';
-import { TEST_STATUS, TestStep, BrowserConfig, TargetConfig, AndroidTargetConfig, AndroidAgent, AndroidDevice, TestEvent, TestResult, RunTestOptions } from '@/types';
+import { TEST_STATUS, TestStep, BrowserConfig, TargetConfig, AndroidTargetConfig, AndroidAgent, AndroidDevice, TestEvent, TestResult, RunTestOptions, type BrowserStorageState } from '@/types';
 import { config } from '@/config/app';
 import { ConfigurationError, InvalidAiApiKeyError, TestExecutionError, getErrorMessage } from '@/lib/core/errors';
 import { substituteAll } from '@/lib/test-config/substitution';
@@ -31,9 +31,6 @@ import { executePlaywrightCode, resolvePlaywrightCodeStepContext } from '@/lib/r
 import { prepareExecutionFiles, type MaterializedExecutionFiles } from '@/lib/runtime/execution-files';
 import { classifyRunFailure } from '@/lib/runtime/run-failure-classifier';
 import { extractQuotedStrings, shouldUseQuotedStringShortcut, formatAssertionFailureMessage } from '@/lib/runtime/assertion-shortcuts';
-
-/** A Playwright storage-state snapshot (cookies + origins) used to seed an authenticated context. */
-export type BrowserStorageState = Awaited<ReturnType<BrowserContext['storageState']>>;
 import { collectBrowserNetworkGuardSummaries, emitBrowserNetworkGuardSummaries } from '@/lib/runtime/network-guard-summary';
 import { validateRuntimeRequestUrl } from '@/lib/security/url-security-runtime';
 
@@ -1216,6 +1213,7 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
         onPreparing,
         onRunning,
         onStepHeartbeat,
+        targetStorageStates,
     } = options;
     const {
         url,
@@ -1314,7 +1312,8 @@ export async function runTest(options: RunTestOptions): Promise<TestResult> {
             projectId,
             midsceneModelConfig,
             runSignal,
-            actionCounter
+            actionCounter,
+            targetStorageStates
         );
 
             if (onCleanup && executionTargets) {

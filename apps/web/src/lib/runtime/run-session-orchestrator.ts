@@ -10,8 +10,9 @@ import { buildMidsceneModelConfig } from '@/lib/runtime/midscene-env';
 import { prepareExecutionFiles } from '@/lib/runtime/execution-files';
 import { loadRunConfig, type LoadedRunConfig } from '@/lib/runtime/run-config-loader';
 import { createRunEventSink, createRunStatusWatcher, touchRunActivity } from '@/lib/runtime/run-event-sink';
-import { finalizeMemberRunResult } from '@/lib/runtime/run-member-finalize';
+import { finalizeMemberRunError, finalizeMemberRunResult } from '@/lib/runtime/run-member-finalize';
 import {
+    runTest,
     setupExecutionTargets,
     cleanupTargets,
     createBrowserTargetContext,
@@ -19,9 +20,8 @@ import {
     executeUnit,
     type ExecutionTargets,
     type ActionCounter,
-    type BrowserStorageState,
 } from '@/lib/runtime/test-runner';
-import { shouldStopAfterFailure } from '@/lib/runtime/test-group-session-plan';
+import { resolveTargetSessionLoginFlowId, shouldStopAfterFailure } from '@/lib/runtime/test-group-session-plan';
 import {
     failRunWithoutTestCase,
     updateRunStatusWithOwnership,
@@ -30,7 +30,6 @@ import {
 } from '@/lib/runtime/local-browser-runner-lifecycle';
 import { recomputeRunSessionForMember } from '@/lib/runtime/run-session-service';
 import {
-    RUN_SESSION_KIND,
     TEST_CASE_KIND,
     TEST_STATUS,
     TEST_GROUP_FAILURE_MODE,
@@ -42,6 +41,7 @@ import {
     type TestStep,
     type TestGroupFailureMode,
     type RunTerminalStatus,
+    type BrowserStorageState,
 } from '@/types';
 
 const logger = createLogger('runtime:run-session-orchestrator');
@@ -287,55 +287,24 @@ async function loadOrderedMembers(sessionId: string): Promise<SessionMember[]> {
 }
 
 /**
- * Executes a run session inside one shared browser. SINGLE sessions are a login-flow
- * prefix followed by the test (members continue in the same authenticated context).
- * GROUP sessions run an ordered list of cases sequentially, resetting the browser
- * context between cases unless a case opts into reusing the group's live session (#5).
- * Both stop on the first non-pass member and mark the remaining members SKIPPED (#6).
+ * Runs one login-flow prefix in its own browser context and, on pass, captures its
+ * post-login storageState so the test can restore it per target. Finalizes the login
+ * member (events/status) like any other run.
  */
-export async function executeLocalBrowserSession(
-    sessionId: string,
+async function runLoginPrefix(
+    login: SessionMember,
     controller: AbortController,
     options?: LocalBrowserRunOptions,
-): Promise<void> {
-    const session = await prisma.runSession.findUnique({ where: { id: sessionId }, select: { kind: true } });
-    const members = await loadOrderedMembers(sessionId);
-    if (members.length === 0) {
-        return;
+): Promise<{ status: string; storageState?: BrowserStorageState; projectId: string }> {
+    const details = await loadRunConfig(login.id, options, { allowNonRunning: true });
+    if (!details) {
+        await failRunWithoutTestCase(login.id, 'Run is not executable', options).catch(() => {});
+        return { status: TEST_STATUS.FAIL, projectId: '' };
     }
-
-    const isGroup = session?.kind === RUN_SESSION_KIND.GROUP;
-    // SINGLE (login prefix): the test is the anchor and defines the viewport, the
-    // prefix runs in its context. GROUP: the first member opens the context, later
-    // members reset to their own viewport unless they reuse the live session.
-    const openMember = isGroup ? members[0] : members[members.length - 1];
-    const openDetails = await loadRunConfig(openMember.id, options, { allowNonRunning: true });
-    if (!openDetails) {
-        await Promise.all(members.map((member) => failRunWithoutTestCase(member.id, 'Run is not executable', options).catch(() => {})));
-        return;
-    }
-
-    const openPrepared = await prepareMemberUnit(openDetails);
-    await openPrepared.materializedExecutionFiles.cleanup();
-
-    // The shared context is created once from the anchor, but a prefix member (e.g. a
-    // passkey-based login flow) may need the virtual authenticator even when the anchor
-    // does not — so enable it if any member in the session requires it.
-    const otherMemberConfigs = await Promise.all(
-        members
-            .filter((member) => member.id !== openMember.id)
-            .map((member) => loadRunConfig(member.id, options, { allowNonRunning: true })),
-    );
-    const sessionWantsWebauthn = openPrepared.webauthnVirtualAuthenticator
-        || otherMemberConfigs.some((details) => (details ? loadedConfigWantsWebauthn(details) : false));
-
+    const prepared = await prepareMemberUnit(details);
     const targetId = 'session_main';
-    const midsceneModelConfig = buildMidsceneModelConfig(
-        openDetails.config.openRouterApiKey,
-        openDetails.config.midsceneModelOptions,
-    );
+    const midsceneModelConfig = buildMidsceneModelConfig(details.config.openRouterApiKey, details.config.midsceneModelOptions);
     const actionCounter: ActionCounter = { count: 0 };
-
     let currentOnEvent: (event: TestEvent) => void = () => {};
     const routedOnEvent = (event: TestEvent) => currentOnEvent(event);
     const setCurrentOnEvent = (handler: (event: TestEvent) => void) => { currentOnEvent = handler; };
@@ -343,92 +312,182 @@ export async function executeLocalBrowserSession(
     let targets: ExecutionTargets;
     try {
         targets = await setupExecutionTargets(
-            { [targetId]: { width: openPrepared.viewport.width, height: openPrepared.viewport.height, url: '', webauthnVirtualAuthenticator: sessionWantsWebauthn } },
+            { [targetId]: { width: prepared.viewport.width, height: prepared.viewport.height, url: '', webauthnVirtualAuthenticator: prepared.webauthnVirtualAuthenticator } },
             routedOnEvent,
-            openMember.id,
-            openDetails.projectId,
+            login.id,
+            details.projectId,
             midsceneModelConfig,
             controller.signal,
             actionCounter,
         );
     } catch (error) {
-        const message = getErrorMessage(error);
-        logger.error('Failed to open shared browser session', { sessionId, error: message });
-        await Promise.all(members.map((member) => failRunWithoutTestCase(member.id, message, options).catch(() => {})));
-        return;
+        await failRunWithoutTestCase(login.id, getErrorMessage(error), options).catch(() => {});
+        await prepared.materializedExecutionFiles.cleanup();
+        return { status: TEST_STATUS.FAIL, projectId: details.projectId };
     }
 
     const ctx: MemberRunContext = { targets, targetId, actionCounter, controller, setCurrentOnEvent, options };
-
     try {
-        for (let index = 0; index < members.length; index += 1) {
-            const member = members[index];
-            if (controller.signal.aborted) {
-                await markMembersSkipped(members.slice(index).map((m) => m.id));
-                break;
-            }
-
-            const runnable = await claimSessionMember(member.id);
-            if (!runnable) {
-                await markMembersSkipped(members.slice(index + 1).map((m) => m.id));
-                break;
-            }
-            const details = await loadRunConfig(member.id, options, { allowNonRunning: true });
-            if (!details) {
-                await failRunWithoutTestCase(member.id, 'Run is not executable', options).catch(() => {});
-                await markMembersSkipped(members.slice(index + 1).map((m) => m.id));
-                break;
-            }
-
-            const prepared = await prepareMemberUnit(details);
-            try {
-                if (index > 0) {
-                    // GROUP cases reset to a fresh context unless they reuse the live
-                    // session; SINGLE prefix members always continue in the same context.
-                    const reuse = isGroup ? prepared.reuseGroupSession : true;
-                    if (!reuse) {
-                        await prisma.testRun.update({ where: { id: member.id }, data: { reusedSession: false } }).catch(() => {});
-                        await closeBrowserTargetContext(targets, targetId);
-                        const created = await createBrowserTargetContext({
-                            browser: targets.browser!,
-                            targetId,
-                            browserConfig: { width: prepared.viewport.width, height: prepared.viewport.height, url: '', webauthnVirtualAuthenticator: prepared.webauthnVirtualAuthenticator },
-                            onEvent: routedOnEvent,
-                            midsceneModelConfig,
-                            signal: controller.signal,
-                            actionCounter,
-                            navigate: false,
-                        });
-                        targets.contexts.set(targetId, created.context);
-                        targets.pages.set(targetId, created.page);
-                        targets.agents.set(targetId, created.agent);
-                        targets.browserNetworkGuards.set(targetId, created.networkGuard);
-                    } else {
-                        await prisma.testRun.update({ where: { id: member.id }, data: { reusedSession: true } }).catch(() => {});
-                    }
+        const result = await runSessionMember(login, details, prepared, ctx);
+        let storageState: BrowserStorageState | undefined;
+        if (result.status === TEST_STATUS.PASS) {
+            const context = targets.contexts.get(targetId);
+            if (context) {
+                try {
+                    storageState = await context.storageState();
+                } catch {
+                    // No baseline captured — the dependent target will run unauthenticated.
                 }
-
-                const result = await runSessionMember(member, details, prepared, ctx);
-                if (result.status !== TEST_STATUS.PASS) {
-                    const isLastMember = index === members.length - 1;
-                    if (!isGroup && !isLastMember) {
-                        // A login-flow prefix did not pass: skip any other prefixes and
-                        // propagate the outcome (fail/cancel + reason) to the test member.
-                        const testMember = members[members.length - 1];
-                        await markMembersSkipped(members.slice(index + 1, members.length - 1).map((m) => m.id));
-                        await propagatePrefixOutcomeToTest(testMember, member, result.status, openDetails.projectId);
-                    } else {
-                        await markMembersSkipped(members.slice(index + 1).map((m) => m.id));
-                    }
-                    break;
-                }
-            } finally {
-                await prepared.materializedExecutionFiles.cleanup();
             }
         }
+        return { status: result.status, storageState, projectId: details.projectId };
     } finally {
+        await prepared.materializedExecutionFiles.cleanup();
         await cleanupTargets(targets);
     }
+}
+
+/**
+ * Runs the test member through the full multi-target engine, seeding each browser target
+ * that reuses a login flow with that flow's captured storageState. Steps route to their
+ * own targets, so a multi-target test (e.g. Shopper A + Shopper B) runs as independently
+ * authenticated sessions rather than collapsing into one shared browser.
+ */
+async function runTestMemberWithBaselines(
+    testMember: SessionMember,
+    baselines: Map<string, BrowserStorageState>,
+    controller: AbortController,
+    options?: LocalBrowserRunOptions,
+): Promise<void> {
+    const runnable = await claimSessionMember(testMember.id);
+    if (!runnable) {
+        return;
+    }
+    const details = await loadRunConfig(testMember.id, options, { allowNonRunning: true });
+    if (!details) {
+        await failRunWithoutTestCase(testMember.id, 'Run is not executable', options).catch(() => {});
+        return;
+    }
+
+    const targetStorageStates: Record<string, BrowserStorageState> = {};
+    const browserConfig = details.config.browserConfig ?? {};
+    const availableLoginFlowIds = new Set(baselines.keys());
+    for (const [targetKey, cfg] of Object.entries(browserConfig)) {
+        if (!cfg || isAndroidConfig(cfg)) {
+            continue;
+        }
+        const browser = cfg as BrowserConfig;
+        const loginFlowId = resolveTargetSessionLoginFlowId(
+            { loginFlowId: browser.loginFlowId ?? null, reuseEnabled: browser.reuseGroupSession ?? false },
+            availableLoginFlowIds,
+        );
+        const baseline = loginFlowId ? baselines.get(loginFlowId) : undefined;
+        if (baseline) {
+            targetStorageStates[targetKey] = baseline;
+        }
+    }
+
+    const sink = createRunEventSink(testMember.id, options);
+    const statusWatcher = createRunStatusWatcher(testMember.id, controller.signal, () => controller.abort(), options);
+    const usage = {
+        actorUserId: details.usage.actorUserId,
+        projectId: details.projectId,
+        description: details.usage.description,
+    };
+    statusWatcher.start();
+    try {
+        const result = await runTest({
+            runId: testMember.id,
+            config: {
+                url: details.config.url,
+                prompt: details.config.prompt,
+                steps: details.config.steps,
+                browserConfig: details.config.browserConfig,
+                teamId: details.config.teamId,
+                openRouterApiKey: details.config.openRouterApiKey,
+                aiProvider: details.config.aiProvider,
+                midsceneModelOptions: details.config.midsceneModelOptions,
+                testCaseId: details.testCaseId,
+                projectId: details.projectId,
+                files: details.config.files,
+                resolvedVariables: details.config.resolvedVariables,
+                resolvedFiles: details.config.resolvedFiles,
+            },
+            targetStorageStates,
+            signal: controller.signal,
+            onEvent: (event) => sink.handleTestEvent(event),
+            async onPreparing() {
+                await updateRunStatusWithOwnership(testMember.id, TEST_STATUS.PREPARING, options);
+                sink.queueEvent({ kind: 'STATUS', message: 'Preparing run execution' });
+            },
+            async onRunning() {
+                await updateRunStatusWithOwnership(testMember.id, TEST_STATUS.RUNNING, options);
+                sink.queueEvent({ kind: 'STATUS', message: 'Running test steps' });
+            },
+            async onStepHeartbeat() {
+                await touchRunActivity(testMember.id, options);
+            },
+        });
+        await sink.settleUploads();
+        await sink.flush();
+        await finalizeMemberRunResult(testMember.id, details.testCaseId, usage, result, options);
+    } catch (error) {
+        await sink.settleUploads();
+        await sink.flush();
+        await finalizeMemberRunError(testMember.id, details.testCaseId, usage, error, options);
+    } finally {
+        statusWatcher.stop();
+    }
+}
+
+/**
+ * Executes a SINGLE run session: one or more login-flow prefixes followed by the test.
+ * Each login flow runs in its own context and its post-login storageState is captured;
+ * the test then runs through the multi-target engine with each target seeded from its
+ * login flow's baseline, so per-target login flows yield independent authenticated
+ * sessions. A login flow that fails/cancels propagates its outcome to the test with a
+ * reason + link (and the test does not run).
+ */
+export async function executeLocalBrowserSession(
+    sessionId: string,
+    controller: AbortController,
+    options?: LocalBrowserRunOptions,
+): Promise<void> {
+    const members = await loadOrderedMembers(sessionId);
+    if (members.length === 0) {
+        return;
+    }
+    const testMember = members[members.length - 1];
+    const loginMembers = members.slice(0, members.length - 1);
+
+    const baselines = new Map<string, BrowserStorageState>();
+
+    for (let index = 0; index < loginMembers.length; index += 1) {
+        const login = loginMembers[index];
+        if (controller.signal.aborted) {
+            await markMembersSkipped(members.slice(index).map((m) => m.id));
+            return;
+        }
+        const runnable = await claimSessionMember(login.id);
+        if (!runnable) {
+            await markMembersSkipped(members.slice(index + 1).map((m) => m.id));
+            return;
+        }
+        const outcome = await runLoginPrefix(login, controller, options);
+        if (outcome.status === TEST_STATUS.PASS && outcome.storageState) {
+            baselines.set(login.testCaseId, outcome.storageState);
+        } else {
+            await markMembersSkipped(loginMembers.slice(index + 1).map((m) => m.id));
+            await propagatePrefixOutcomeToTest(testMember, login, outcome.status, outcome.projectId);
+            return;
+        }
+    }
+
+    if (controller.signal.aborted) {
+        await markMembersSkipped([testMember.id]);
+        return;
+    }
+    await runTestMemberWithBaselines(testMember, baselines, controller, options);
 }
 
 async function loadGroupFailureMode(testGroupId: string | null): Promise<TestGroupFailureMode> {

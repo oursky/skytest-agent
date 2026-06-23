@@ -1,6 +1,10 @@
+import type { BrowserContext } from 'playwright';
 import type { TestEvent } from './events';
 import type { RunTerminalStatus } from './status';
 import type { BuildMidsceneModelConfigOptions } from '@/lib/runtime/midscene-env';
+
+/** A Playwright storage-state snapshot (cookies + origins) used to seed an authenticated context. */
+export type BrowserStorageState = Awaited<ReturnType<BrowserContext['storageState']>>;
 
 export interface BrowserConfig {
     name?: string;
@@ -106,6 +110,7 @@ export interface RunTestOptions {
         resolvedVariables?: Record<string, string>;
         resolvedFiles?: Record<string, string>;
     };
+    targetStorageStates?: Record<string, BrowserStorageState>;
     onEvent: (event: TestEvent) => void;
     signal?: AbortSignal;
     onCleanup?: (cleanup: () => Promise<void>) => void;
