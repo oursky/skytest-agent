@@ -10,6 +10,7 @@ import {
     type TestCaseFile,
     type TestData,
     type BrowserConfig,
+    type LoginFlowPrefixInfo,
 } from '@/types';
 import { formatTime } from '@/utils/time/dateFormatter';
 import TimelineEvent from './TimelineEvent';
@@ -30,7 +31,7 @@ interface ResultViewerMeta {
 }
 
 interface ResultViewerProps {
-    result: Omit<TestRun, 'id' | 'testCaseId' | 'createdAt' | 'status'> & { status: TestRun['status'] | null; events: TestEvent[] };
+    result: Omit<TestRun, 'id' | 'testCaseId' | 'createdAt' | 'status'> & { status: TestRun['status'] | null; events: TestEvent[]; loginFlowPrefixes?: LoginFlowPrefixInfo[] };
     meta?: ResultViewerMeta;
 }
 
@@ -335,6 +336,24 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
                         </div>
                     ) : (
                         <>
+                            {result.status === TEST_STATUS.QUEUED && (result.loginFlowPrefixes?.length ?? 0) > 0 && (
+                                <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm">
+                                    <p className="font-medium text-blue-900">{t('results.queuedForLoginFlow')}</p>
+                                    <ul className="mt-2 space-y-1.5">
+                                        {result.loginFlowPrefixes!.map((flow) => (
+                                            <li key={flow.runId} className="flex items-center gap-2">
+                                                <span className={`status-badge ${getStatusBadgeClass(flow.status)}`}>{flow.status}</span>
+                                                <a
+                                                    href={`/test-cases/${flow.testCaseId}/history/${flow.runId}`}
+                                                    className="truncate text-blue-700 hover:underline"
+                                                >
+                                                    {flow.displayId ? `${flow.displayId} ${flow.name}` : flow.name}
+                                                </a>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
                             {events.map((event, index) => (
                                 <TimelineEvent
                                     key={index}

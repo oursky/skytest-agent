@@ -3,7 +3,7 @@ import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
 import { isTestEvent } from '@/lib/runtime/test-events';
 import { objectStore } from '@/lib/storage/object-store';
-import { isRunActiveStatus, isScreenshotData, type TestEvent, type LogLevel, type BrowserConfig, type TargetConfig } from '@/types';
+import { isRunActiveStatus, isScreenshotData, TEST_CASE_KIND, type TestEvent, type LogLevel, type BrowserConfig, type TargetConfig, type LoginFlowPrefixInfo } from '@/types';
 import { parseTestResultMetadata } from '@/lib/runtime/test-result-metadata';
 import { loadMaskedVariableValuesForTestCase } from '@/lib/runtime/masked-variables';
 import { createExactValueMasker, maskEventForViewer, maskNullableText } from '@/lib/runtime/log-masking';
@@ -161,9 +161,32 @@ export async function GET(
         );
         const resultMetadata = parseTestResultMetadata(testRun.result);
 
+        // Login-flow prefixes that run before this test in the same session. Surfaced so
+        // a QUEUED test reads as "waiting for its login flow(s)" rather than just queued.
+        let loginFlowPrefixes: LoginFlowPrefixInfo[] = [];
+        if (testRun.runSessionId && testRun.sessionPosition != null) {
+            const prefixRuns = await prisma.testRun.findMany({
+                where: {
+                    runSessionId: testRun.runSessionId,
+                    kind: TEST_CASE_KIND.LOGIN_FLOW,
+                    sessionPosition: { lt: testRun.sessionPosition },
+                },
+                orderBy: { sessionPosition: 'asc' },
+                select: { id: true, status: true, testCaseId: true, testCase: { select: { displayId: true, name: true } } },
+            });
+            loginFlowPrefixes = prefixRuns.map((prefix) => ({
+                runId: prefix.id,
+                testCaseId: prefix.testCaseId,
+                displayId: prefix.testCase.displayId,
+                name: prefix.testCase.name,
+                status: prefix.status,
+            }));
+        }
+
         return NextResponse.json({
             id: testRun.id,
             status: testRun.status,
+            loginFlowPrefixes,
             result: maskNullableText(testRun.result, maskText),
             logs: maskNullableText(testRun.logs, maskText),
             error: maskNullableText(testRun.error, maskText),

@@ -7,6 +7,7 @@ import {
     type TestEvent,
     type TestFailureCategory,
     type TestFailureCode,
+    type LoginFlowPrefixInfo,
     type TestStep,
     type TargetConfig,
     type TestCaseKind,
@@ -20,6 +21,7 @@ export interface RunViewerResult {
     error?: string;
     errorCode?: TestFailureCode;
     errorCategory?: TestFailureCategory;
+    loginFlowPrefixes?: LoginFlowPrefixInfo[];
 }
 
 export interface RunDetailSnapshot {
@@ -28,6 +30,7 @@ export interface RunDetailSnapshot {
     error?: string | null;
     errorCode?: TestFailureCode | null;
     errorCategory?: TestFailureCategory | null;
+    loginFlowPrefixes?: LoginFlowPrefixInfo[] | null;
 }
 
 export interface RunStreamStatusUpdate {
@@ -145,6 +148,7 @@ export function runDetailSnapshotToResult(snapshot: RunDetailSnapshot): RunViewe
         error: snapshot.error ?? undefined,
         errorCode: snapshot.errorCode ?? undefined,
         errorCategory: snapshot.errorCategory ?? undefined,
+        loginFlowPrefixes: snapshot.loginFlowPrefixes ?? undefined,
     };
 }
 
