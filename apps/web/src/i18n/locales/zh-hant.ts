@@ -486,7 +486,7 @@ export const ZH_HANT_MESSAGES: Messages = {
   "results.eventsCount": "{count} 則事件",
   "results.readyTitle": "準備執行",
   "results.readySubtitle": "設定測試參數後，按下「執行測試」即可開始",
-  "results.queuedForLoginFlow": "排隊中 — 等待下方的登入流程完成後，此測試才會開始：",
+  "results.queuedForLoginFlow": "等待下方的登入流程完成後，此測試才會開始：",
   "results.waiting": "等待事件…",
   "results.closeLightbox": "關閉預覽",
   "results.slackDeliveryFailed": "Slack：未送達（{reason}）",

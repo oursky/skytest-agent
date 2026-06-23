@@ -486,7 +486,7 @@ export const ZH_HANS_MESSAGES: Messages = {
   "results.eventsCount": "{count} 条事件",
   "results.readyTitle": "准备就绪",
   "results.readySubtitle": "配置测试参数后，点击“运行测试”开始",
-  "results.queuedForLoginFlow": "排队中 — 等待下方的登录流程完成后，此测试才会开始：",
+  "results.queuedForLoginFlow": "等待下方的登录流程完成后，此测试才会开始：",
   "results.waiting": "等待事件…",
   "results.closeLightbox": "关闭预览",
   "results.slackDeliveryFailed": "Slack：未送达（{reason}）",

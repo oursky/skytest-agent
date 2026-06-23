@@ -486,7 +486,7 @@ export const EN_MESSAGES: Messages = {
   "results.eventsCount": "{count} events",
   "results.readyTitle": "Ready to Run",
   "results.readySubtitle": "Configure your test parameters and click Run Test to begin",
-  "results.queuedForLoginFlow": "Queued — waiting for the login flow(s) below to finish before this test starts:",
+  "results.queuedForLoginFlow": "Waiting for the login flow(s) below to finish before this test starts:",
   "results.waiting": "Waiting for events...",
   "results.closeLightbox": "Close lightbox",
   "results.slackDeliveryFailed": "Slack: not delivered ({reason})",
