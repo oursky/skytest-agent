@@ -31,6 +31,9 @@ import { executePlaywrightCode, resolvePlaywrightCodeStepContext } from '@/lib/r
 import { prepareExecutionFiles, type MaterializedExecutionFiles } from '@/lib/runtime/execution-files';
 import { classifyRunFailure } from '@/lib/runtime/run-failure-classifier';
 import { extractQuotedStrings, shouldUseQuotedStringShortcut, formatAssertionFailureMessage } from '@/lib/runtime/assertion-shortcuts';
+
+/** A Playwright storage-state snapshot (cookies + origins) used to seed an authenticated context. */
+export type BrowserStorageState = Awaited<ReturnType<BrowserContext['storageState']>>;
 import { collectBrowserNetworkGuardSummaries, emitBrowserNetworkGuardSummaries } from '@/lib/runtime/network-guard-summary';
 import { validateRuntimeRequestUrl } from '@/lib/security/url-security-runtime';
 
@@ -280,6 +283,7 @@ export async function createBrowserTargetContext(params: {
     signal?: AbortSignal;
     actionCounter?: ActionCounter;
     navigate?: boolean;
+    storageState?: BrowserStorageState;
 }): Promise<BrowserTargetContext> {
     const { browser, targetId, onEvent, midsceneModelConfig, signal, actionCounter, navigate = true } = params;
     const log = createLogger(onEvent);
@@ -290,6 +294,7 @@ export async function createBrowserTargetContext(params: {
 
     const context = await browser.newContext({
         viewport: { width: browserConfig.width, height: browserConfig.height },
+        ...(params.storageState ? { storageState: params.storageState } : {}),
     });
 
     if (browserConfig.webauthnVirtualAuthenticator) {
@@ -381,7 +386,8 @@ export async function setupExecutionTargets(
     projectId: string | undefined,
     midsceneModelConfig: Record<string, string | number>,
     signal?: AbortSignal,
-    actionCounter?: ActionCounter
+    actionCounter?: ActionCounter,
+    targetStorageStates?: Record<string, BrowserStorageState>
 ): Promise<ExecutionTargets> {
     const log = createLogger(onEvent);
 
@@ -658,6 +664,7 @@ export async function setupExecutionTargets(
                     signal,
                     actionCounter,
                     navigate: true,
+                    storageState: targetStorageStates?.[browserId],
                 });
                 browserNetworkGuards.set(browserId, created.networkGuard);
                 contexts.set(browserId, created.context);

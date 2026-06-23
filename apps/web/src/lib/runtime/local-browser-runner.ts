@@ -6,13 +6,14 @@ import { InvalidAiApiKeyError } from '@/lib/core/errors';
 import { loadRunConfig } from '@/lib/runtime/run-config-loader';
 import { createRunEventSink, createRunStatusWatcher, touchRunActivity } from '@/lib/runtime/run-event-sink';
 import { finalizeMemberRunError, finalizeMemberRunResult } from '@/lib/runtime/run-member-finalize';
-import { executeLocalBrowserSession } from '@/lib/runtime/run-session-orchestrator';
+import { executeGroupSession, executeLocalBrowserSession } from '@/lib/runtime/run-session-orchestrator';
 import {
     failRunWithoutTestCase,
     updateRunStatusWithOwnership,
     type LocalBrowserRunOptions,
 } from '@/lib/runtime/local-browser-runner-lifecycle';
 import {
+    RUN_SESSION_KIND,
     TEST_STATUS,
     isRunInProgressStatus,
 } from '@/types';
@@ -197,11 +198,15 @@ async function runClaimedBrowserWork(
         where: { id: runId },
         select: {
             runSessionId: true,
-            runSession: { select: { _count: { select: { memberRuns: true } } } },
+            runSession: { select: { kind: true, _count: { select: { memberRuns: true } } } },
         },
     });
     const sessionId = run?.runSessionId ?? null;
     const memberCount = run?.runSession?._count.memberRuns ?? 1;
+    if (sessionId && run?.runSession?.kind === RUN_SESSION_KIND.GROUP) {
+        await executeGroupSession(sessionId, controller, options);
+        return;
+    }
     if (sessionId && memberCount > 1) {
         await executeLocalBrowserSession(sessionId, controller, options);
         return;

@@ -325,17 +325,21 @@ export async function queueTestGroupRun(
 
     let position = 0;
     const memberData: { testCaseId: string; sessionPosition: number; kind: string }[] = [];
-    // Phase 1 keeps the single shared-context runtime: materialize the first login
-    // session as the login prefix. Per-session routing arrives with the orchestrator rework.
-    const prefixLoginFlowId = group.loginSessions[0]?.loginFlowId ?? null;
-    if (prefixLoginFlowId) {
-        const flow = await prisma.testCase.findFirst({
-            where: { id: prefixLoginFlowId, projectId, kind: TEST_CASE_KIND.LOGIN_FLOW },
+    // One login-flow member per login session establishes a reusable baseline; the
+    // orchestrator captures each session's storageState and restores it for the cases
+    // whose targets reuse it.
+    const sessionFlowIds = group.loginSessions.map((session) => session.loginFlowId);
+    if (sessionFlowIds.length > 0) {
+        const validFlows = await prisma.testCase.findMany({
+            where: { id: { in: sessionFlowIds }, projectId, kind: TEST_CASE_KIND.LOGIN_FLOW },
             select: { id: true },
         });
-        if (flow) {
-            memberData.push({ testCaseId: flow.id, sessionPosition: position, kind: TEST_CASE_KIND.LOGIN_FLOW });
-            position += 1;
+        const validFlowIds = new Set(validFlows.map((flow) => flow.id));
+        for (const loginFlowId of sessionFlowIds) {
+            if (validFlowIds.has(loginFlowId)) {
+                memberData.push({ testCaseId: loginFlowId, sessionPosition: position, kind: TEST_CASE_KIND.LOGIN_FLOW });
+                position += 1;
+            }
         }
     }
     for (const item of group.items) {

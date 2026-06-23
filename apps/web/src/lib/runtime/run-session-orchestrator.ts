@@ -18,7 +18,9 @@ import {
     executeUnit,
     type ExecutionTargets,
     type ActionCounter,
+    type BrowserStorageState,
 } from '@/lib/runtime/test-runner';
+import { shouldStopAfterFailure } from '@/lib/runtime/test-group-session-plan';
 import {
     failRunWithoutTestCase,
     updateRunStatusWithOwnership,
@@ -28,13 +30,16 @@ import {
 import { recomputeRunSessionForMember } from '@/lib/runtime/run-session-service';
 import {
     RUN_SESSION_KIND,
+    TEST_CASE_KIND,
     TEST_STATUS,
+    TEST_GROUP_FAILURE_MODE,
     isRunInProgressStatus,
     type BrowserConfig,
     type TargetConfig,
     type TestEvent,
     type TestResult,
     type TestStep,
+    type TestGroupFailureMode,
 } from '@/types';
 
 const logger = createLogger('runtime:run-session-orchestrator');
@@ -66,6 +71,7 @@ interface PreparedUnit {
     prompt?: string;
     viewport: { width: number; height: number };
     reuseGroupSession: boolean;
+    loginFlowId: string | null;
     webauthnVirtualAuthenticator: boolean;
     resolvedVariables: Record<string, string>;
     resolvedConfigFiles: Record<string, string>;
@@ -98,6 +104,7 @@ async function prepareMemberUnit(details: LoadedRunConfig): Promise<PreparedUnit
         prompt: details.config.prompt ? sub(details.config.prompt) : details.config.prompt,
         viewport: { width: normalizedPrimary.width, height: normalizedPrimary.height },
         reuseGroupSession: normalizedPrimary.reuseGroupSession ?? false,
+        loginFlowId: normalizedPrimary.loginFlowId ?? null,
         webauthnVirtualAuthenticator: normalizedPrimary.webauthnVirtualAuthenticator ?? false,
         resolvedVariables: vars,
         resolvedConfigFiles: materializedExecutionFiles.configFiles,
@@ -359,6 +366,161 @@ export async function executeLocalBrowserSession(
 
                 const result = await runSessionMember(member, details, prepared, ctx);
                 if (result.status !== TEST_STATUS.PASS) {
+                    await markMembersSkipped(members.slice(index + 1).map((m) => m.id));
+                    break;
+                }
+            } finally {
+                await prepared.materializedExecutionFiles.cleanup();
+            }
+        }
+    } finally {
+        await cleanupTargets(targets);
+    }
+}
+
+async function loadGroupFailureMode(testGroupId: string | null): Promise<TestGroupFailureMode> {
+    if (!testGroupId) {
+        return TEST_GROUP_FAILURE_MODE.STOP;
+    }
+    const group = await prisma.testGroup.findUnique({ where: { id: testGroupId }, select: { onFailure: true } });
+    return group?.onFailure === TEST_GROUP_FAILURE_MODE.CONTINUE
+        ? TEST_GROUP_FAILURE_MODE.CONTINUE
+        : TEST_GROUP_FAILURE_MODE.STOP;
+}
+
+/**
+ * Executes a GROUP run session with multiple login sessions (Option A: baseline restore).
+ * Each login-flow member runs once and its post-login storageState is captured, keyed by
+ * login flow. Every member then runs in a fresh context: a test case whose primary target
+ * reuses a session is seeded with that session's captured baseline, so a logout in one case
+ * cannot affect later cases. Failure handling follows the group's onFailure mode (STOP skips
+ * the remaining cases; CONTINUE runs them — cases depending on a failed login session simply
+ * start unauthenticated).
+ */
+export async function executeGroupSession(
+    sessionId: string,
+    controller: AbortController,
+    options?: LocalBrowserRunOptions,
+): Promise<void> {
+    const session = await prisma.runSession.findUnique({ where: { id: sessionId }, select: { testGroupId: true } });
+    const mode = await loadGroupFailureMode(session?.testGroupId ?? null);
+    const members = await loadOrderedMembers(sessionId);
+    if (members.length === 0) {
+        return;
+    }
+
+    const openMember = members[0];
+    const openDetails = await loadRunConfig(openMember.id, options, { allowNonRunning: true });
+    if (!openDetails) {
+        await Promise.all(members.map((member) => failRunWithoutTestCase(member.id, 'Run is not executable', options).catch(() => {})));
+        return;
+    }
+    const openPrepared = await prepareMemberUnit(openDetails);
+    await openPrepared.materializedExecutionFiles.cleanup();
+
+    const otherMemberConfigs = await Promise.all(
+        members
+            .filter((member) => member.id !== openMember.id)
+            .map((member) => loadRunConfig(member.id, options, { allowNonRunning: true })),
+    );
+    const sessionWantsWebauthn = openPrepared.webauthnVirtualAuthenticator
+        || otherMemberConfigs.some((details) => (details ? loadedConfigWantsWebauthn(details) : false));
+
+    const targetId = 'session_main';
+    const midsceneModelConfig = buildMidsceneModelConfig(
+        openDetails.config.openRouterApiKey,
+        openDetails.config.midsceneModelOptions,
+    );
+    const actionCounter: ActionCounter = { count: 0 };
+
+    let currentOnEvent: (event: TestEvent) => void = () => {};
+    const routedOnEvent = (event: TestEvent) => currentOnEvent(event);
+    const setCurrentOnEvent = (handler: (event: TestEvent) => void) => { currentOnEvent = handler; };
+
+    let targets: ExecutionTargets;
+    try {
+        targets = await setupExecutionTargets(
+            { [targetId]: { width: openPrepared.viewport.width, height: openPrepared.viewport.height, url: '', webauthnVirtualAuthenticator: sessionWantsWebauthn } },
+            routedOnEvent,
+            openMember.id,
+            openDetails.projectId,
+            midsceneModelConfig,
+            controller.signal,
+            actionCounter,
+        );
+    } catch (error) {
+        const message = getErrorMessage(error);
+        logger.error('Failed to open group browser session', { sessionId, error: message });
+        await Promise.all(members.map((member) => failRunWithoutTestCase(member.id, message, options).catch(() => {})));
+        return;
+    }
+
+    const ctx: MemberRunContext = { targets, targetId, actionCounter, controller, setCurrentOnEvent, options };
+    const baselines = new Map<string, BrowserStorageState>();
+
+    try {
+        for (let index = 0; index < members.length; index += 1) {
+            const member = members[index];
+            if (controller.signal.aborted) {
+                await markMembersSkipped(members.slice(index).map((m) => m.id));
+                break;
+            }
+
+            const runnable = await claimSessionMember(member.id);
+            if (!runnable) {
+                await markMembersSkipped(members.slice(index + 1).map((m) => m.id));
+                break;
+            }
+            const details = await loadRunConfig(member.id, options, { allowNonRunning: true });
+            if (!details) {
+                await failRunWithoutTestCase(member.id, 'Run is not executable', options).catch(() => {});
+                if (shouldStopAfterFailure(mode)) {
+                    await markMembersSkipped(members.slice(index + 1).map((m) => m.id));
+                    break;
+                }
+                continue;
+            }
+
+            const prepared = await prepareMemberUnit(details);
+            const isLogin = member.kind === TEST_CASE_KIND.LOGIN_FLOW;
+            const seed = !isLogin && prepared.reuseGroupSession && prepared.loginFlowId
+                ? baselines.get(prepared.loginFlowId)
+                : undefined;
+            try {
+                if (index > 0) {
+                    await closeBrowserTargetContext(targets, targetId);
+                    const created = await createBrowserTargetContext({
+                        browser: targets.browser!,
+                        targetId,
+                        browserConfig: { width: prepared.viewport.width, height: prepared.viewport.height, url: '', webauthnVirtualAuthenticator: prepared.webauthnVirtualAuthenticator },
+                        onEvent: routedOnEvent,
+                        midsceneModelConfig,
+                        signal: controller.signal,
+                        actionCounter,
+                        navigate: false,
+                        storageState: seed,
+                    });
+                    targets.contexts.set(targetId, created.context);
+                    targets.pages.set(targetId, created.page);
+                    targets.agents.set(targetId, created.agent);
+                    targets.browserNetworkGuards.set(targetId, created.networkGuard);
+                }
+                await prisma.testRun.update({ where: { id: member.id }, data: { reusedSession: !!seed } }).catch(() => {});
+
+                const result = await runSessionMember(member, details, prepared, ctx);
+
+                if (isLogin && result.status === TEST_STATUS.PASS) {
+                    const context = targets.contexts.get(targetId);
+                    if (context) {
+                        try {
+                            baselines.set(member.testCaseId, await context.storageState());
+                        } catch {
+                            // A baseline-capture failure just means dependent cases run unauthenticated.
+                        }
+                    }
+                }
+
+                if (result.status !== TEST_STATUS.PASS && shouldStopAfterFailure(mode)) {
                     await markMembersSkipped(members.slice(index + 1).map((m) => m.id));
                     break;
                 }
