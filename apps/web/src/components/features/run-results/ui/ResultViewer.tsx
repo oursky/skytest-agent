@@ -21,6 +21,7 @@ import { fetchWithAccessToken } from '@/app/run/run-page-api';
 import { isAndroidTargetConfig, normalizeAndroidTargetConfig } from '@/lib/android/target-config';
 import { formatAndroidDeviceSelectorDisplay } from '@/lib/android/device-selector-display';
 import { normalizeBrowserConfig } from '@/lib/test-config/browser-target';
+import { browserTargetLabel } from '@/utils/runtime/browserTargetLabel';
 
 interface ResultViewerMeta {
     runId?: string | null;
@@ -253,10 +254,10 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
             const t = formatTime(ev.timestamp);
             if (ev.type === 'log' && 'message' in ev.data) {
                 const level = ev.data.level?.toUpperCase() || 'INFO';
-                const prefix = ev.browserId ? `[${t}] [${level}] [${ev.browserId}]` : `[${t}] [${level}]`;
+                const prefix = ev.browserId ? `[${t}] [${level}] [${browserTargetLabel(ev.browserId)}]` : `[${t}] [${level}]`;
                 lines.push(`${prefix} ${ev.data.message}`);
             } else if (ev.type === 'screenshot' && 'label' in ev.data) {
-                const prefix = ev.browserId ? `[${t}] [SCREENSHOT] [${ev.browserId}]` : `[${t}] [SCREENSHOT]`;
+                const prefix = ev.browserId ? `[${t}] [SCREENSHOT] [${browserTargetLabel(ev.browserId)}]` : `[${t}] [SCREENSHOT]`;
                 lines.push(`${prefix} ${ev.data.label}`);
             }
         }

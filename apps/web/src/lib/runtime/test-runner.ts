@@ -11,6 +11,7 @@ import { createBrowserNetworkGuard, type BrowserNetworkGuard } from '@/lib/runti
 import { androidDeviceManager, type AndroidDeviceLease } from '@/lib/android/device-manager';
 import { normalizeAndroidTargetConfig } from '@/lib/android/target-config';
 import { normalizeBrowserConfig } from '@/lib/test-config/browser-target';
+import { browserTargetLabel } from '@/utils/runtime/browserTargetLabel';
 import {
     assertValidAndroidPackageName,
     clearAndroidAppData,
@@ -252,7 +253,7 @@ function validateConfiguration(
 }
 
 function getBrowserNiceName(browserId: string): string {
-    return browserId === 'main' ? 'Browser' : browserId.replace('browser_', 'Browser ').toUpperCase();
+    return browserTargetLabel(browserId);
 }
 
 export interface ActionCounter {
