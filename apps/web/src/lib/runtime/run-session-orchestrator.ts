@@ -117,19 +117,39 @@ async function claimSessionMember(runId: string): Promise<boolean> {
     return run ? isRunInProgressStatus(run.status) : false;
 }
 
-async function markMembersSkipped(runIds: string[]): Promise<void> {
-    if (runIds.length === 0) {
+const CANCEL_REASON = {
+    USER: 'Cancelled by user.',
+    LOGIN_FLOW_FAILED: 'Cancelled because a login flow failed before this test ran.',
+    EARLIER_CASE_FAILED: 'Cancelled because an earlier test case in the group failed.',
+} as const;
+
+/**
+ * Cancels session members that never get to run (an earlier member failed, a login
+ * flow failed, or the run was stopped), recording a reason so the run viewer can
+ * explain why. Replaces the old SKIPPED status — everything that doesn't run settles
+ * CANCELLED. Each affected test case's status is set to CANCELLED too.
+ */
+async function cancelRemainingMembers(members: SessionMember[], reason: string): Promise<void> {
+    if (members.length === 0) {
         return;
     }
     const now = new Date();
-    await prisma.testRun.updateMany({
-        where: { id: { in: runIds }, status: { in: [TEST_STATUS.QUEUED, TEST_STATUS.PREPARING] } },
-        data: { status: TEST_STATUS.SKIPPED, completedAt: now, assignedRunnerId: null, leaseExpiresAt: null },
-    });
-    for (const runId of runIds) {
-        publishRunUpdate(runId);
+    const result = JSON.stringify({ status: TEST_STATUS.CANCELLED, error: reason, errorCode: 'SESSION_CANCELLED', errorCategory: 'CANCELLED' });
+    let firstCancelledId: string | null = null;
+    for (const member of members) {
+        const updated = await prisma.testRun.updateMany({
+            where: { id: member.id, status: { in: [TEST_STATUS.QUEUED, TEST_STATUS.PREPARING] } },
+            data: { status: TEST_STATUS.CANCELLED, error: reason, result, completedAt: now, assignedRunnerId: null, leaseExpiresAt: null },
+        });
+        if (updated.count > 0) {
+            await prisma.testCase.update({ where: { id: member.testCaseId }, data: { status: TEST_STATUS.CANCELLED } }).catch(() => {});
+            publishRunUpdate(member.id);
+            firstCancelledId = firstCancelledId ?? member.id;
+        }
     }
-    await recomputeRunSessionForMember(runIds[0]);
+    if (firstCancelledId) {
+        await recomputeRunSessionForMember(firstCancelledId);
+    }
 }
 
 interface MemberRunContext {
@@ -488,7 +508,7 @@ export async function executeLocalBrowserSession(
 
     if (loginMembers.length > 0) {
         if (controller.signal.aborted) {
-            await markMembersSkipped(members.map((m) => m.id));
+            await cancelRemainingMembers(members, CANCEL_REASON.USER);
             return;
         }
         // Login flows are independent (each opens its own browser and captures its own
@@ -509,7 +529,7 @@ export async function executeLocalBrowserSession(
     }
 
     if (controller.signal.aborted) {
-        await markMembersSkipped([testMember.id]);
+        await cancelRemainingMembers([testMember], CANCEL_REASON.USER);
         return;
     }
     await runTestMemberWithBaselines(testMember, baselines, controller, options);
@@ -553,7 +573,7 @@ export async function executeGroupSession(
     // The group's login flows are independent — run them in parallel, capture baselines.
     if (loginMembers.length > 0) {
         if (controller.signal.aborted) {
-            await markMembersSkipped(members.map((m) => m.id));
+            await cancelRemainingMembers(members, CANCEL_REASON.USER);
             return;
         }
         const concurrency = await loadSessionLoginConcurrency(sessionId);
@@ -566,7 +586,7 @@ export async function executeGroupSession(
         // A failed login session can't authenticate its dependent cases. STOP halts the
         // group; CONTINUE lets unrelated cases proceed (dependent ones run unauthenticated).
         if (outcomes.some((outcome) => outcome.status !== TEST_STATUS.PASS) && shouldStopAfterFailure(mode)) {
-            await markMembersSkipped(testMembers.map((m) => m.id));
+            await cancelRemainingMembers(testMembers, CANCEL_REASON.LOGIN_FLOW_FAILED);
             return;
         }
     }
@@ -574,12 +594,12 @@ export async function executeGroupSession(
     // Test cases run in sequence; each reuses a group login session only when opted in.
     for (let index = 0; index < testMembers.length; index += 1) {
         if (controller.signal.aborted) {
-            await markMembersSkipped(testMembers.slice(index).map((m) => m.id));
+            await cancelRemainingMembers(testMembers.slice(index), CANCEL_REASON.USER);
             return;
         }
         const result = await runTestMemberWithBaselines(testMembers[index], baselines, controller, options, true);
         if (result.status !== TEST_STATUS.PASS && shouldStopAfterFailure(mode)) {
-            await markMembersSkipped(testMembers.slice(index + 1).map((m) => m.id));
+            await cancelRemainingMembers(testMembers.slice(index + 1), CANCEL_REASON.EARLIER_CASE_FAILED);
             return;
         }
     }

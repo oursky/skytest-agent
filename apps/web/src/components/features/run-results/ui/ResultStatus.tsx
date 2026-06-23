@@ -68,11 +68,15 @@ export default function ResultStatus({
                     </div>
                     <div className="flex-1 space-y-2">
                         <h3 className="text-lg font-semibold text-gray-900">{t('results.cancelled.title')}</h3>
-                        <p className="text-sm text-gray-700 leading-relaxed">
-                            {eventCount > 0
-                                ? t('results.cancelled.bodyWithEvents')
-                                : t('results.cancelled.bodyNoEvents')}
-                        </p>
+                        {error ? (
+                            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{error}</p>
+                        ) : (
+                            <p className="text-sm text-gray-700 leading-relaxed">
+                                {eventCount > 0
+                                    ? t('results.cancelled.bodyWithEvents')
+                                    : t('results.cancelled.bodyNoEvents')}
+                            </p>
+                        )}
                     </div>
                 </div>
             </div>

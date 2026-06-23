@@ -6,8 +6,8 @@ import { TEST_STATUS, type RunStatus } from '@/types';
  * Priority: a single failure or cancellation decides the whole session; any
  * member still executing keeps the session RUNNING; otherwise the session is
  * QUEUED (nothing started) or PASS (every member settled without failure).
- * SKIPPED members only appear after an earlier member failed, so a session that
- * reaches "all settled, no failures" is necessarily a pass.
+ * Members that never run are CANCELLED, and a failure outranks a cancellation,
+ * so a session that reaches "all settled, no failures" is necessarily a pass.
  */
 export function rollupRunSessionStatus(memberStatuses: readonly string[]): RunStatus {
     if (memberStatuses.length === 0) {

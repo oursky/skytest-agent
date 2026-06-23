@@ -12,7 +12,7 @@ describe('rollupRunSessionStatus', () => {
     });
 
     it('is FAIL when any member failed, regardless of other states', () => {
-        expect(rollupRunSessionStatus([TEST_STATUS.PASS, TEST_STATUS.FAIL, TEST_STATUS.SKIPPED])).toBe(TEST_STATUS.FAIL);
+        expect(rollupRunSessionStatus([TEST_STATUS.PASS, TEST_STATUS.FAIL, TEST_STATUS.CANCELLED])).toBe(TEST_STATUS.FAIL);
     });
 
     it('prefers FAIL over CANCELLED', () => {

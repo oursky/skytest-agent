@@ -6,7 +6,6 @@ export const TEST_STATUS = {
     PASS: 'PASS',
     FAIL: 'FAIL',
     CANCELLED: 'CANCELLED',
-    SKIPPED: 'SKIPPED',
 } as const;
 
 export const RUN_TRIGGER_SOURCE = {
@@ -36,14 +35,13 @@ export const RUN_TERMINAL_STATUSES = [
     TEST_STATUS.CANCELLED,
 ] as const;
 
-// A run is "settled" once it will never execute further. SKIPPED members of a
-// run session never run (an earlier member failed), so they are settled too,
-// but they are not part of the dispatch terminal set above.
+// A run is "settled" once it will never execute further. Session members that
+// never run (an earlier member failed, a login flow failed, or the user stopped
+// the run) are CANCELLED with a reason, so the settled set matches the terminal set.
 export const RUN_SETTLED_STATUSES = [
     TEST_STATUS.PASS,
     TEST_STATUS.FAIL,
     TEST_STATUS.CANCELLED,
-    TEST_STATUS.SKIPPED,
 ] as const;
 
 export const RUN_IN_PROGRESS_STATUSES = [

@@ -85,7 +85,7 @@ export async function cancelActiveTestRun(runId: string): Promise<CancelTestRunR
  * Cancels every still-active member of a run session, then rolls up the session status.
  * Used so that stopping any one member (e.g. a login flow that runs before the test)
  * cancels the whole run the user triggered — siblings and the test all settle CANCELLED
- * rather than being left queued or marked SKIPPED.
+ * rather than being left queued.
  */
 export async function cancelActiveRunSession(sessionId: string): Promise<{ cancelledMembers: number }> {
     const session = await prisma.runSession.findUnique({
