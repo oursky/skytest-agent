@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Button } from '@/components/shared';
+import { Button, Toggle } from '@/components/shared';
 import { formatDateTimeCompact } from '@/utils/time/dateFormatter';
 import type { ScheduleRecord, ScheduleUpsertInput } from '@/types';
 import {
@@ -24,6 +24,7 @@ interface ScheduleEditorProps {
     t: (key: string, values?: Record<string, string | number>) => string;
     onCancel: () => void;
     onSave: (input: ScheduleUpsertInput) => Promise<void>;
+    onToggleEnabled?: (enabled: boolean) => Promise<void>;
 }
 
 export default function ScheduleEditor({
@@ -34,6 +35,7 @@ export default function ScheduleEditor({
     t,
     onCancel,
     onSave,
+    onToggleEnabled,
 }: ScheduleEditorProps) {
     const [form, setForm] = useState<ProjectScheduleFormState>(() => (
         schedule ? mapScheduleToForm(schedule) : createDefaultScheduleForm()
@@ -45,6 +47,24 @@ export default function ScheduleEditor({
     return (
         <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
             <div className="grid gap-4">
+                <div className="space-y-1">
+                    <div className="flex items-center gap-3">
+                        <Toggle
+                            checked={form.enabled}
+                            disabled={isSaving}
+                            aria-label={t('project.scheduler.fields.enabled')}
+                            onChange={(value) => {
+                                setForm((previous) => ({ ...previous, enabled: value }));
+                                if (schedule && onToggleEnabled) {
+                                    void onToggleEnabled(value);
+                                }
+                            }}
+                        />
+                        <span className="text-sm font-medium text-gray-700">{t('project.scheduler.fields.enabled')}</span>
+                    </div>
+                    <p className="text-xs text-gray-500">{t('project.scheduler.fields.enabledCaption')}</p>
+                </div>
+
                 <div>
                     <label className="mb-1 block text-sm font-medium text-gray-700">{t('project.scheduler.fields.description')}</label>
                     <input
@@ -84,17 +104,6 @@ export default function ScheduleEditor({
                 </div>
 
                 <div>
-                    <label className="mb-1 block text-sm font-medium text-gray-700">{t('project.scheduler.fields.testCases')}</label>
-                    <TestCasePicker
-                        projectId={projectId}
-                        testCases={availableTestCases}
-                        selectedIds={form.testCaseIds}
-                        t={t}
-                        onChange={(nextSelectedIds) => setForm((previous) => ({ ...previous, testCaseIds: nextSelectedIds }))}
-                    />
-                </div>
-
-                <div>
                     <label className="mb-1 block text-sm font-medium text-gray-700">{t('project.scheduler.fields.testGroups')}</label>
                     <TestGroupSchedulePicker
                         projectId={projectId}
@@ -104,15 +113,16 @@ export default function ScheduleEditor({
                     />
                 </div>
 
-                <label className="flex items-center gap-2 text-sm text-gray-700">
-                    <input
-                        type="checkbox"
-                        checked={form.enabled}
-                        onChange={(event) => setForm((previous) => ({ ...previous, enabled: event.target.checked }))}
-                        className="h-4 w-4"
+                <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700">{t('project.scheduler.fields.testCases')}</label>
+                    <TestCasePicker
+                        projectId={projectId}
+                        testCases={availableTestCases}
+                        selectedIds={form.testCaseIds}
+                        t={t}
+                        onChange={(nextSelectedIds) => setForm((previous) => ({ ...previous, testCaseIds: nextSelectedIds }))}
                     />
-                    <span>{t('project.scheduler.fields.enabled')}</span>
-                </label>
+                </div>
 
                 {error && <p className="text-sm text-red-600">{error}</p>}
 

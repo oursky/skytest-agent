@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Button, LoadingSpinner } from '@/components/shared';
+import { Button, LoadingSpinner, Toggle } from '@/components/shared';
 import { useI18n } from '@/i18n';
 import {
     DEFAULT_SLACK_FAILURE_TEMPLATE,
@@ -51,21 +51,6 @@ function formatProjectSlackError(t: (key: string, vars?: Record<string, string>)
         default:
             return error.message;
     }
-}
-
-function Toggle({ checked, disabled, onChange }: { checked: boolean; disabled?: boolean; onChange: (value: boolean) => void }) {
-    return (
-        <button
-            type="button"
-            role="switch"
-            aria-checked={checked}
-            disabled={disabled}
-            onClick={() => onChange(!checked)}
-            className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${checked ? 'bg-primary' : 'bg-gray-300'}`}
-        >
-            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-4' : 'translate-x-0.5'}`} />
-        </button>
-    );
 }
 
 export default function ProjectSlackSettings({ projectId, teamId }: ProjectSlackSettingsProps) {
