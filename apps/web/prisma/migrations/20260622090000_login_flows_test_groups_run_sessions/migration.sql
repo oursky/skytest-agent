@@ -19,6 +19,7 @@ CREATE TABLE "RunSession" (
     "id" TEXT NOT NULL,
     "projectId" TEXT NOT NULL,
     "kind" TEXT NOT NULL DEFAULT 'SINGLE',
+    "testGroupId" TEXT,
     "status" TEXT NOT NULL,
     "triggeredByEmail" TEXT,
     "triggerSource" TEXT NOT NULL DEFAULT 'USER',
@@ -56,9 +57,6 @@ ALTER TABLE "TestRun" ADD CONSTRAINT "TestRun_runSessionId_fkey" FOREIGN KEY ("r
 ALTER TABLE "RunSession" ADD CONSTRAINT "RunSession_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- ===== Test groups =====
--- AlterTable
-ALTER TABLE "RunSession" ADD COLUMN "testGroupId" TEXT;
-
 -- CreateTable
 CREATE TABLE "TestGroup" (
     "id" TEXT NOT NULL,
