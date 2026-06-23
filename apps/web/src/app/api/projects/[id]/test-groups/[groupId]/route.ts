@@ -35,7 +35,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         const body = (await request.json()) as TestGroupUpsertInput;
         const result = await updateTestGroup(guard.params.id, guard.params.groupId, body);
         if (!result.ok) {
-            return apiError({ status: result.status, code: result.status === 404 ? 'NOT_FOUND' : 'VALIDATION_ERROR', error: result.error });
+            const code = result.status === 404 ? 'NOT_FOUND' : result.status === 409 ? 'CONFLICT' : 'VALIDATION_ERROR';
+            return apiError({ status: result.status, code, error: result.error });
         }
         return NextResponse.json(result.data);
     } catch (error) {
@@ -52,7 +53,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     try {
         const result = await deleteTestGroup(guard.params.id, guard.params.groupId);
         if (!result.ok) {
-            return apiError({ status: result.status, code: 'NOT_FOUND', error: result.error });
+            return apiError({ status: result.status, code: result.status === 409 ? 'CONFLICT' : 'NOT_FOUND', error: result.error });
         }
         return NextResponse.json({ ok: true });
     } catch (error) {

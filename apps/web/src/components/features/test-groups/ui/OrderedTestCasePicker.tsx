@@ -16,9 +16,10 @@ interface OrderedTestCasePickerProps {
     projectId: string;
     value: string[];
     onChange: (testCaseIds: string[]) => void;
+    readOnly?: boolean;
 }
 
-export default function OrderedTestCasePicker({ projectId, value, onChange }: OrderedTestCasePickerProps) {
+export default function OrderedTestCasePicker({ projectId, value, onChange, readOnly = false }: OrderedTestCasePickerProps) {
     const { t } = useI18n();
     const { getAccessToken } = useAuth();
     const [options, setOptions] = useState<TestCaseOption[]>([]);
@@ -76,7 +77,7 @@ export default function OrderedTestCasePicker({ projectId, value, onChange }: Or
                             <button
                                 type="button"
                                 onClick={() => move(index, -1)}
-                                disabled={index === 0}
+                                disabled={readOnly || index === 0}
                                 className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:pointer-events-none disabled:opacity-30"
                                 aria-label={t('testGroup.items.moveUp')}
                             >
@@ -85,7 +86,7 @@ export default function OrderedTestCasePicker({ projectId, value, onChange }: Or
                             <button
                                 type="button"
                                 onClick={() => move(index, 1)}
-                                disabled={index === value.length - 1}
+                                disabled={readOnly || index === value.length - 1}
                                 className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:pointer-events-none disabled:opacity-30"
                                 aria-label={t('testGroup.items.moveDown')}
                             >
@@ -94,7 +95,8 @@ export default function OrderedTestCasePicker({ projectId, value, onChange }: Or
                             <button
                                 type="button"
                                 onClick={() => onChange(value.filter((v) => v !== id))}
-                                className="rounded p-1 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                                disabled={readOnly}
+                                className="rounded p-1 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:pointer-events-none disabled:opacity-30"
                                 aria-label={t('common.remove')}
                             >
                                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -103,7 +105,7 @@ export default function OrderedTestCasePicker({ projectId, value, onChange }: Or
                     ))}
                 </ol>
             )}
-            {available.length > 0 && (
+            {!readOnly && available.length > 0 && (
                 <CustomSelect
                     value=""
                     options={[

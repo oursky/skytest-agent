@@ -6,6 +6,8 @@ import {
     TEST_CASE_KIND,
     TEST_STATUS,
     RUN_ACTIVE_STATUSES,
+    TEST_GROUP_FAILURE_MODE,
+    type TestGroupFailureMode,
     type TestGroupSummary,
     type TestGroupSessionSummary,
     type TestGroupUpsertInput,
@@ -14,22 +16,50 @@ import {
 
 export type TestGroupResult<T> = { ok: true; data: T } | { ok: false; status: 400 | 404 | 409; error: string };
 
-function normalizeUpsert(input: TestGroupUpsertInput): { name: string; displayId: string | null; loginFlowId: string | null; testCaseIds: string[] } {
-    const name = typeof input.name === 'string' ? input.name.trim() : '';
-    const displayId = typeof input.displayId === 'string' && input.displayId.trim() ? input.displayId.trim() : null;
-    const loginFlowId = typeof input.loginFlowId === 'string' && input.loginFlowId.trim() ? input.loginFlowId.trim() : null;
-    const seen = new Set<string>();
-    const testCaseIds = Array.isArray(input.testCaseIds)
-        ? input.testCaseIds.filter((id) => typeof id === 'string' && id && !seen.has(id) && (seen.add(id), true))
-        : [];
-    return { name, displayId, loginFlowId, testCaseIds };
+interface NormalizedUpsert {
+    name: string;
+    displayId: string | null;
+    onFailure: TestGroupFailureMode;
+    loginSessions: { loginFlowId: string; name: string }[];
+    testCaseIds: string[];
 }
 
-/** Validates that a group's case ids and optional login flow belong to the project and are the right kind. */
+/** Default name for a login session by index: "Login Session A", "B", … (falls back to a number past Z). */
+function defaultLoginSessionName(index: number): string {
+    const letter = index < 26 ? String.fromCharCode(65 + index) : String(index + 1);
+    return `Login Session ${letter}`;
+}
+
+function normalizeUpsert(input: TestGroupUpsertInput): NormalizedUpsert {
+    const name = typeof input.name === 'string' ? input.name.trim() : '';
+    const displayId = typeof input.displayId === 'string' && input.displayId.trim() ? input.displayId.trim() : null;
+    const onFailure: TestGroupFailureMode = input.onFailure === TEST_GROUP_FAILURE_MODE.CONTINUE
+        ? TEST_GROUP_FAILURE_MODE.CONTINUE
+        : TEST_GROUP_FAILURE_MODE.STOP;
+
+    const seenFlows = new Set<string>();
+    const loginSessions = Array.isArray(input.loginSessions)
+        ? input.loginSessions
+            .map((session) => ({
+                loginFlowId: typeof session.loginFlowId === 'string' ? session.loginFlowId.trim() : '',
+                name: typeof session.name === 'string' ? session.name.trim() : '',
+            }))
+            .filter((session) => session.loginFlowId && !seenFlows.has(session.loginFlowId) && (seenFlows.add(session.loginFlowId), true))
+            .map((session, index) => ({ loginFlowId: session.loginFlowId, name: session.name || defaultLoginSessionName(index) }))
+        : [];
+
+    const seenCases = new Set<string>();
+    const testCaseIds = Array.isArray(input.testCaseIds)
+        ? input.testCaseIds.filter((id) => typeof id === 'string' && id && !seenCases.has(id) && (seenCases.add(id), true))
+        : [];
+    return { name, displayId, onFailure, loginSessions, testCaseIds };
+}
+
+/** Validates that a group's case ids and login-session flow ids belong to the project and are the right kind. */
 async function validateGroupMembers(
     projectId: string,
     testCaseIds: string[],
-    loginFlowId: string | null,
+    loginFlowIds: string[],
 ): Promise<TestGroupResult<true>> {
     if (testCaseIds.length > 0) {
         const cases = await prisma.testCase.findMany({
@@ -40,33 +70,58 @@ async function validateGroupMembers(
             return { ok: false, status: 400, error: 'All test group items must be test cases in this project' };
         }
     }
-    if (loginFlowId) {
-        const flow = await prisma.testCase.findFirst({
-            where: { id: loginFlowId, projectId, kind: TEST_CASE_KIND.LOGIN_FLOW },
+    if (loginFlowIds.length > 0) {
+        const flows = await prisma.testCase.findMany({
+            where: { id: { in: loginFlowIds }, projectId, kind: TEST_CASE_KIND.LOGIN_FLOW },
             select: { id: true },
         });
-        if (!flow) {
-            return { ok: false, status: 400, error: 'Login flow must be a login flow in this project' };
+        if (flows.length !== loginFlowIds.length) {
+            return { ok: false, status: 400, error: 'Every login session must reference a login flow in this project' };
         }
     }
     return { ok: true, data: true };
 }
 
-function serializeTestGroup(group: {
+/** Whether a group has a run session that is still queued/preparing/running. */
+async function hasActiveSession(groupId: string): Promise<boolean> {
+    const active = await prisma.runSession.findFirst({
+        where: { testGroupId: groupId, deletedAt: null, status: { in: [...RUN_ACTIVE_STATUSES] } },
+        select: { id: true },
+    });
+    return active !== null;
+}
+
+interface SerializableTestGroup {
     id: string;
     name: string;
     displayId: string | null;
-    loginFlowId: string | null;
+    onFailure: string;
     updatedAt: Date;
-    items: { testCaseId: string; position: number; testCase: { displayId: string | null; name: string; browserConfig: string | null } }[];
+    loginSessions: { id: string; loginFlowId: string; name: string; position: number; loginFlow: { displayId: string | null; name: string } }[];
+    items: { testCaseId: string; position: number; testCase: { displayId: string | null; name: string } }[];
     sessions: { id: string; status: string; createdAt: Date }[];
-}): TestGroupSummary {
+}
+
+function serializeTestGroup(group: SerializableTestGroup): TestGroupSummary {
     const latest = group.sessions[0];
     return {
         id: group.id,
         name: group.name,
         displayId: group.displayId,
-        loginFlowId: group.loginFlowId,
+        onFailure: group.onFailure === TEST_GROUP_FAILURE_MODE.CONTINUE
+            ? TEST_GROUP_FAILURE_MODE.CONTINUE
+            : TEST_GROUP_FAILURE_MODE.STOP,
+        loginSessions: group.loginSessions
+            .slice()
+            .sort((a, b) => a.position - b.position)
+            .map((session) => ({
+                id: session.id,
+                loginFlowId: session.loginFlowId,
+                name: session.name,
+                position: session.position,
+                displayId: session.loginFlow.displayId,
+                flowName: session.loginFlow.name,
+            })),
         items: group.items
             .slice()
             .sort((a, b) => a.position - b.position)
@@ -84,7 +139,8 @@ function serializeTestGroup(group: {
 }
 
 const groupInclude = {
-    items: { include: { testCase: { select: { displayId: true, name: true, browserConfig: true } } } },
+    loginSessions: { include: { loginFlow: { select: { displayId: true, name: true } } } },
+    items: { include: { testCase: { select: { displayId: true, name: true } } } },
     sessions: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' as const }, take: 1, select: { id: true, status: true, createdAt: true } },
 };
 
@@ -157,11 +213,11 @@ export async function getTestGroup(projectId: string, groupId: string): Promise<
 }
 
 export async function createTestGroup(projectId: string, input: TestGroupUpsertInput): Promise<TestGroupResult<TestGroupSummary>> {
-    const { name, displayId, loginFlowId, testCaseIds } = normalizeUpsert(input);
+    const { name, displayId, onFailure, loginSessions, testCaseIds } = normalizeUpsert(input);
     if (!name) {
         return { ok: false, status: 400, error: 'Name is required' };
     }
-    const validation = await validateGroupMembers(projectId, testCaseIds, loginFlowId);
+    const validation = await validateGroupMembers(projectId, testCaseIds, loginSessions.map((session) => session.loginFlowId));
     if (!validation.ok) {
         return validation;
     }
@@ -170,7 +226,8 @@ export async function createTestGroup(projectId: string, input: TestGroupUpsertI
             projectId,
             name,
             displayId,
-            loginFlowId,
+            onFailure,
+            loginSessions: { create: loginSessions.map((session, position) => ({ loginFlowId: session.loginFlowId, name: session.name, position })) },
             items: { create: testCaseIds.map((testCaseId, position) => ({ testCaseId, position })) },
         },
         include: groupInclude,
@@ -183,22 +240,27 @@ export async function updateTestGroup(projectId: string, groupId: string, input:
     if (!existing) {
         return { ok: false, status: 404, error: 'Test group not found' };
     }
-    const { name, displayId, loginFlowId, testCaseIds } = normalizeUpsert(input);
+    if (await hasActiveSession(groupId)) {
+        return { ok: false, status: 409, error: 'This test group is running and cannot be edited' };
+    }
+    const { name, displayId, onFailure, loginSessions, testCaseIds } = normalizeUpsert(input);
     if (!name) {
         return { ok: false, status: 400, error: 'Name is required' };
     }
-    const validation = await validateGroupMembers(projectId, testCaseIds, loginFlowId);
+    const validation = await validateGroupMembers(projectId, testCaseIds, loginSessions.map((session) => session.loginFlowId));
     if (!validation.ok) {
         return validation;
     }
     const group = await prisma.$transaction(async (tx) => {
         await tx.testGroupItem.deleteMany({ where: { testGroupId: groupId } });
+        await tx.testGroupLoginSession.deleteMany({ where: { testGroupId: groupId } });
         return tx.testGroup.update({
             where: { id: groupId },
             data: {
                 name,
                 displayId,
-                loginFlowId,
+                onFailure,
+                loginSessions: { create: loginSessions.map((session, position) => ({ loginFlowId: session.loginFlowId, name: session.name, position })) },
                 items: { create: testCaseIds.map((testCaseId, position) => ({ testCaseId, position })) },
             },
             include: groupInclude,
@@ -211,6 +273,9 @@ export async function deleteTestGroup(projectId: string, groupId: string): Promi
     const existing = await prisma.testGroup.findFirst({ where: { id: groupId, projectId }, select: { id: true } });
     if (!existing) {
         return { ok: false, status: 404, error: 'Test group not found' };
+    }
+    if (await hasActiveSession(groupId)) {
+        return { ok: false, status: 409, error: 'This test group is running and cannot be deleted' };
     }
     await prisma.testGroup.delete({ where: { id: groupId } });
     return { ok: true, data: true };
@@ -233,7 +298,10 @@ export async function queueTestGroupRun(
 ): Promise<TestGroupResult<{ sessionId: string }>> {
     const group = await prisma.testGroup.findFirst({
         where: { id: groupId, projectId },
-        include: { items: { orderBy: { position: 'asc' }, select: { testCaseId: true } } },
+        include: {
+            items: { orderBy: { position: 'asc' }, select: { testCaseId: true } },
+            loginSessions: { orderBy: { position: 'asc' }, select: { loginFlowId: true } },
+        },
     });
     if (!group) {
         return { ok: false, status: 404, error: 'Test group not found' };
@@ -242,11 +310,7 @@ export async function queueTestGroupRun(
         return { ok: false, status: 400, error: 'Test group has no test cases' };
     }
 
-    const activeSession = await prisma.runSession.findFirst({
-        where: { testGroupId: groupId, deletedAt: null, status: { in: [...RUN_ACTIVE_STATUSES] } },
-        select: { id: true },
-    });
-    if (activeSession) {
+    if (await hasActiveSession(groupId)) {
         return { ok: false, status: 409, error: 'This test group already has a run in progress' };
     }
 
@@ -261,9 +325,12 @@ export async function queueTestGroupRun(
 
     let position = 0;
     const memberData: { testCaseId: string; sessionPosition: number; kind: string }[] = [];
-    if (group.loginFlowId) {
+    // Phase 1 keeps the single shared-context runtime: materialize the first login
+    // session as the login prefix. Per-session routing arrives with the orchestrator rework.
+    const prefixLoginFlowId = group.loginSessions[0]?.loginFlowId ?? null;
+    if (prefixLoginFlowId) {
         const flow = await prisma.testCase.findFirst({
-            where: { id: group.loginFlowId, projectId, kind: TEST_CASE_KIND.LOGIN_FLOW },
+            where: { id: prefixLoginFlowId, projectId, kind: TEST_CASE_KIND.LOGIN_FLOW },
             select: { id: true },
         });
         if (flow) {

@@ -1,3 +1,19 @@
+export const TEST_GROUP_FAILURE_MODE = {
+    STOP: 'STOP',
+    CONTINUE: 'CONTINUE',
+} as const;
+
+export type TestGroupFailureMode = typeof TEST_GROUP_FAILURE_MODE[keyof typeof TEST_GROUP_FAILURE_MODE];
+
+export interface TestGroupLoginSessionSummary {
+    id: string;
+    loginFlowId: string;
+    name: string;
+    position: number;
+    displayId?: string | null;
+    flowName: string;
+}
+
 export interface TestGroupItemSummary {
     testCaseId: string;
     position: number;
@@ -10,7 +26,8 @@ export interface TestGroupSummary {
     id: string;
     name: string;
     displayId?: string | null;
-    loginFlowId?: string | null;
+    onFailure: TestGroupFailureMode;
+    loginSessions: TestGroupLoginSessionSummary[];
     items: TestGroupItemSummary[];
     lastSessionId?: string | null;
     lastSessionStatus?: string | null;
@@ -18,10 +35,16 @@ export interface TestGroupSummary {
     updatedAt: string;
 }
 
+export interface TestGroupLoginSessionInput {
+    loginFlowId: string;
+    name?: string;
+}
+
 export interface TestGroupUpsertInput {
     name: string;
     displayId?: string | null;
-    loginFlowId?: string | null;
+    onFailure?: TestGroupFailureMode;
+    loginSessions?: TestGroupLoginSessionInput[];
     testCaseIds: string[];
 }
 

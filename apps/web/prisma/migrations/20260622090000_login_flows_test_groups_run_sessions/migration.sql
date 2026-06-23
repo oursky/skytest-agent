@@ -65,11 +65,22 @@ CREATE TABLE "TestGroup" (
     "projectId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "displayId" TEXT,
-    "loginFlowId" TEXT,
+    "onFailure" TEXT NOT NULL DEFAULT 'STOP',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "TestGroup_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "TestGroupLoginSession" (
+    "id" TEXT NOT NULL,
+    "testGroupId" TEXT NOT NULL,
+    "loginFlowId" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "position" INTEGER NOT NULL,
+
+    CONSTRAINT "TestGroupLoginSession_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -105,6 +116,21 @@ ALTER TABLE "TestGroupItem" ADD CONSTRAINT "TestGroupItem_testGroupId_fkey" FORE
 
 -- AddForeignKey
 ALTER TABLE "TestGroupItem" ADD CONSTRAINT "TestGroupItem_testCaseId_fkey" FOREIGN KEY ("testCaseId") REFERENCES "TestCase"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- CreateIndex
+CREATE UNIQUE INDEX "TestGroupLoginSession_testGroupId_loginFlowId_key" ON "TestGroupLoginSession"("testGroupId", "loginFlowId");
+
+-- CreateIndex
+CREATE INDEX "TestGroupLoginSession_testGroupId_position_idx" ON "TestGroupLoginSession"("testGroupId", "position");
+
+-- CreateIndex
+CREATE INDEX "TestGroupLoginSession_loginFlowId_idx" ON "TestGroupLoginSession"("loginFlowId");
+
+-- AddForeignKey
+ALTER TABLE "TestGroupLoginSession" ADD CONSTRAINT "TestGroupLoginSession_testGroupId_fkey" FOREIGN KEY ("testGroupId") REFERENCES "TestGroup"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TestGroupLoginSession" ADD CONSTRAINT "TestGroupLoginSession_loginFlowId_fkey" FOREIGN KEY ("loginFlowId") REFERENCES "TestCase"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- ===== Group notifications & schedule test-group links =====
 -- AlterTable
