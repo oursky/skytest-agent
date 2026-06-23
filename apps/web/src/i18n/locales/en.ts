@@ -567,6 +567,7 @@ export const EN_MESSAGES: Messages = {
   "testGroup.tooltip.run": "Test group",
   "testGroup.tooltip.stop": "Stop running group",
   "testGroup.tooltip.viewLast": "View last run",
+  "testGroup.tooltip.viewRunning": "View running run",
   "testGroup.tooltip.history": "Run history",
   "testGroup.history.title": "Test Group History",
   "testGroup.history.empty.title": "No runs yet",

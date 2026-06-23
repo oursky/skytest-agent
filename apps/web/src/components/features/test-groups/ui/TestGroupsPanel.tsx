@@ -42,9 +42,10 @@ const PlayIcon = () => (
     </svg>
 );
 
-const StopIcon = () => (
+const EyeIcon = () => (
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <rect x={6} y={6} width={12} height={12} rx={2} strokeWidth={2} />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
     </svg>
 );
 
@@ -67,7 +68,6 @@ export default function TestGroupsPanel({ projectId, canManageProject }: TestGro
     const [groups, setGroups] = useState<TestGroupSummary[]>([]);
     const [editor, setEditor] = useState<EditorState>(null);
     const [runningId, setRunningId] = useState<string | null>(null);
-    const [stoppingId, setStoppingId] = useState<string | null>(null);
     const [pendingDelete, setPendingDelete] = useState<TestGroupSummary | null>(null);
     const [search, setSearch] = useState('');
     const [sortColumn, setSortColumn] = useState<SortColumn>('id');
@@ -137,19 +137,6 @@ export default function TestGroupsPanel({ projectId, canManageProject }: TestGro
         }
     };
 
-    const handleStop = async (group: TestGroupSummary) => {
-        if (!group.lastSessionId) return;
-        setStoppingId(group.id);
-        setError('');
-        try {
-            await fetchWithAccessToken(getAccessToken, `/api/projects/${projectId}/run-sessions/${group.lastSessionId}`, { method: 'POST' });
-            await refresh();
-        } catch {
-            setError(t('testGroup.error.stopFailed'));
-        } finally {
-            setStoppingId(null);
-        }
-    };
 
     const handleDelete = async (group: TestGroupSummary) => {
         await fetchWithAccessToken(getAccessToken, `/api/projects/${projectId}/test-groups/${group.id}`, { method: 'DELETE' });
@@ -237,7 +224,6 @@ export default function TestGroupsPanel({ projectId, canManageProject }: TestGro
                         {visibleGroups.map((group) => {
                             const isActive = isRunActiveStatus(group.lastSessionStatus);
                             const isStarting = runningId === group.id;
-                            const isStopping = stoppingId === group.id;
                             return (
                                 <div key={group.id} className="flex flex-col gap-4 p-4 transition-colors hover:bg-gray-50 md:grid md:grid-cols-24 md:items-center">
                                     <div className="md:col-span-4 flex items-center">
@@ -260,35 +246,23 @@ export default function TestGroupsPanel({ projectId, canManageProject }: TestGro
                                         <span className="text-xs text-gray-400">{t('testGroup.caseCount', { count: group.items.length })}</span>
                                     </div>
                                     <div className="md:col-span-4 flex items-center">
-                                        {group.lastSessionStatus && group.lastSessionId ? (
-                                            <Link
-                                                href={`/test-groups/runs/${group.lastSessionId}?projectId=${projectId}`}
-                                                className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${getStatusBadgeClass(group.lastSessionStatus)}`}
-                                                title={t('testGroup.tooltip.viewLast')}
-                                            >
-                                                {group.lastSessionStatus}
-                                            </Link>
-                                        ) : (
-                                            <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${getStatusBadgeClass('DRAFT')}`}>
-                                                DRAFT
-                                            </span>
-                                        )}
+                                        <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${getStatusBadgeClass(group.lastSessionStatus ?? 'DRAFT')}`}>
+                                            {group.lastSessionStatus ?? 'DRAFT'}
+                                        </span>
                                     </div>
                                     <div className="md:col-span-4 flex items-center text-sm text-gray-500">
                                         {group.lastSessionAt ? formatDateTimeCompact(group.lastSessionAt) : formatDateTimeCompact(group.updatedAt)}
                                     </div>
                                     <div className="md:col-span-4 flex items-center justify-end gap-1">
-                                        {isActive ? (
-                                            <button
-                                                type="button"
-                                                onClick={() => { void handleStop(group); }}
-                                                disabled={isStopping || !canManageProject}
-                                                className="inline-flex items-center justify-center rounded-md p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
-                                                title={t('testGroup.tooltip.stop')}
-                                                aria-label={t('testGroup.tooltip.stop')}
+                                        {isActive && group.lastSessionId ? (
+                                            <Link
+                                                href={`/test-groups/runs/${group.lastSessionId}?projectId=${projectId}`}
+                                                className="inline-flex items-center justify-center rounded-md p-2 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600"
+                                                title={t('testGroup.tooltip.viewRunning')}
+                                                aria-label={t('testGroup.tooltip.viewRunning')}
                                             >
-                                                {isStopping ? <LoadingSpinner size={18} /> : <StopIcon />}
-                                            </button>
+                                                <EyeIcon />
+                                            </Link>
                                         ) : (
                                             <button
                                                 type="button"

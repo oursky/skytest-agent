@@ -147,7 +147,7 @@ export default function TestGroupRunPage({ params }: { params: Promise<{ session
                                                     {member.displayId && <span className="font-mono text-xs text-gray-500">{member.displayId}</span>}
                                                     <span className="truncate text-sm font-medium text-gray-900">{member.name}</span>
                                                 </Link>
-                                                {member.kind === 'LOGIN_FLOW' && <span className="shrink-0 rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] text-indigo-600">{t('project.tab.loginFlows')}</span>}
+                                                {member.kind === 'LOGIN_FLOW' && <span className="shrink-0 rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] text-indigo-600">{t('configs.browser.loginFlow')}</span>}
                                                 {member.reusedSession && <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">{t('testGroup.run.reused')}</span>}
                                             </div>
                                             <div className="md:col-span-2">

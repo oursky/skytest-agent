@@ -567,6 +567,7 @@ export const ZH_HANT_MESSAGES: Messages = {
   "testGroup.tooltip.run": "測試群組",
   "testGroup.tooltip.stop": "停止執行中的群組",
   "testGroup.tooltip.viewLast": "檢視上次執行",
+  "testGroup.tooltip.viewRunning": "檢視執行中",
   "testGroup.tooltip.history": "執行紀錄",
   "testGroup.history.title": "測試群組紀錄",
   "testGroup.history.empty.title": "尚無執行紀錄",

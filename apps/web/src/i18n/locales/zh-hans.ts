@@ -567,6 +567,7 @@ export const ZH_HANS_MESSAGES: Messages = {
   "testGroup.tooltip.run": "测试组",
   "testGroup.tooltip.stop": "停止运行中的组",
   "testGroup.tooltip.viewLast": "查看上次运行",
+  "testGroup.tooltip.viewRunning": "查看运行中",
   "testGroup.tooltip.history": "运行记录",
   "testGroup.history.title": "测试组记录",
   "testGroup.history.empty.title": "暂无运行记录",
