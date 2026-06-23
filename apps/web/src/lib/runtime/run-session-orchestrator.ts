@@ -21,7 +21,7 @@ import {
     type ExecutionTargets,
     type ActionCounter,
 } from '@/lib/runtime/test-runner';
-import { resolveTargetSessionLoginFlowId, shouldStopAfterFailure } from '@/lib/runtime/test-group-session-plan';
+import { shouldStopAfterFailure } from '@/lib/runtime/test-group-session-plan';
 import {
     failRunWithoutTestCase,
     updateRunStatusWithOwnership,
@@ -369,19 +369,18 @@ async function runTestMemberWithBaselines(
         return;
     }
 
+    // Seed every browser target whose attached login flow produced a baseline. A login
+    // flow attached to a target means "authenticate this target with this flow", so it
+    // always applies here — reuseGroupSession only gates reuse of a Test Group's session,
+    // not standalone login-flow prefixes.
     const targetStorageStates: Record<string, BrowserStorageState> = {};
     const browserConfig = details.config.browserConfig ?? {};
-    const availableLoginFlowIds = new Set(baselines.keys());
     for (const [targetKey, cfg] of Object.entries(browserConfig)) {
         if (!cfg || isAndroidConfig(cfg)) {
             continue;
         }
         const browser = cfg as BrowserConfig;
-        const loginFlowId = resolveTargetSessionLoginFlowId(
-            { loginFlowId: browser.loginFlowId ?? null, reuseEnabled: browser.reuseGroupSession ?? false },
-            availableLoginFlowIds,
-        );
-        const baseline = loginFlowId ? baselines.get(loginFlowId) : undefined;
+        const baseline = browser.loginFlowId ? baselines.get(browser.loginFlowId) : undefined;
         if (baseline) {
             targetStorageStates[targetKey] = baseline;
         }
