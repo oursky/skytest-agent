@@ -30,7 +30,7 @@ import {
 } from '@/lib/runners/constants';
 import { RUN_TRIGGER_SOURCE, TEST_CASE_KIND, TEST_STATUS, type BrowserConfig, type ResolvedConfig, type TargetConfig, type TestStep } from '@/types';
 import { guardTestCaseRouteRequest } from '@/lib/security/test-case-route-access';
-import { createRunSession, resolveLoginFlowId } from '@/lib/runtime/run-session-service';
+import { createRunSession, resolveLoginFlowIds } from '@/lib/runtime/run-session-service';
 import { apiError } from '@/lib/security/api-route-standards';
 
 const logger = createLogger('api:test-runs-dispatch');
@@ -482,16 +482,16 @@ export async function POST(request: Request) {
             triggerSource: RUN_TRIGGER_SOURCE.USER,
         });
 
-        const loginFlowId = requestHasAndroidTargets
-            ? null
-            : await resolveLoginFlowId(testCase.project.id, browserConfig);
+        const loginFlowIds = requestHasAndroidTargets
+            ? []
+            : await resolveLoginFlowIds(testCase.project.id, browserConfig);
         let testSessionPosition = 0;
-        if (loginFlowId) {
+        for (const loginFlowId of loginFlowIds) {
             await prisma.testRun.create({
                 data: {
                     testCaseId: loginFlowId,
                     runSessionId,
-                    sessionPosition: 0,
+                    sessionPosition: testSessionPosition,
                     kind: TEST_CASE_KIND.LOGIN_FLOW,
                     status: TEST_STATUS.QUEUED,
                     requiredCapability: BROWSER_EXECUTION_CAPABILITY,
@@ -499,7 +499,7 @@ export async function POST(request: Request) {
                     triggerSource: 'USER',
                 },
             });
-            testSessionPosition = 1;
+            testSessionPosition += 1;
         }
 
         const testRun = await prisma.testRun.create({

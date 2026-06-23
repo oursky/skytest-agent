@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
     testCaseFileFindMany: vi.fn(),
     testRunCreate: vi.fn(),
     createRunSession: vi.fn(),
-    resolveLoginFlowId: vi.fn(),
+    resolveLoginFlowIds: vi.fn(),
     ensureRuntimeInstanceIdentity: vi.fn(),
     loadRuntimeConfigForCwd: vi.fn(),
     validateConfigUrls: vi.fn(),
@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/runtime/run-session-service', () => ({
     createRunSession: mocks.createRunSession,
-    resolveLoginFlowId: mocks.resolveLoginFlowId,
+    resolveLoginFlowIds: mocks.resolveLoginFlowIds,
 }));
 
 vi.mock('@/lib/security/test-case-route-access', () => ({
@@ -66,8 +66,8 @@ describe('POST /api/test-runs/dispatch runtime identity', () => {
         mocks.testRunCreate.mockReset();
         mocks.createRunSession.mockReset();
         mocks.createRunSession.mockResolvedValue('session-1');
-        mocks.resolveLoginFlowId.mockReset();
-        mocks.resolveLoginFlowId.mockResolvedValue(null);
+        mocks.resolveLoginFlowIds.mockReset();
+        mocks.resolveLoginFlowIds.mockResolvedValue([]);
         mocks.ensureRuntimeInstanceIdentity.mockReset();
         mocks.loadRuntimeConfigForCwd.mockReset();
         mocks.validateConfigUrls.mockReset();

@@ -31,23 +31,26 @@ export interface CreateRunSessionInput {
 }
 
 /**
- * Returns the first valid login-flow id referenced by a test's browser config, or
- * null. A reference is valid only when it points at a LOGIN_FLOW test case in the
- * same project (re-validated here at run-build time, not just at save time).
+ * Returns every valid login-flow id referenced by a test's browser targets, in target
+ * order (deduped). A reference is valid only when it points at a LOGIN_FLOW test case in
+ * the same project (re-validated here at run-build time, not just at save time). Each one
+ * runs as its own login prefix before the test, so multiple browser sessions with
+ * different login flows are all established in order.
  */
-export async function resolveLoginFlowId(
+export async function resolveLoginFlowIds(
     projectId: string,
     browserConfig: Record<string, BrowserConfig | TargetConfig> | null | undefined,
-): Promise<string | null> {
+): Promise<string[]> {
     const ids = collectLoginFlowIds(browserConfig);
     if (ids.length === 0) {
-        return null;
+        return [];
     }
-    const flow = await prisma.testCase.findFirst({
+    const flows = await prisma.testCase.findMany({
         where: { id: { in: ids }, projectId, kind: TEST_CASE_KIND.LOGIN_FLOW },
         select: { id: true },
     });
-    return flow?.id ?? null;
+    const valid = new Set(flows.map((flow) => flow.id));
+    return ids.filter((id) => valid.has(id));
 }
 
 export async function createRunSession(input: CreateRunSessionInput): Promise<string> {

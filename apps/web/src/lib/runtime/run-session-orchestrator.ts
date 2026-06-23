@@ -3,6 +3,7 @@ import { createLogger } from '@/lib/core/logger';
 import { config as appConfig } from '@/config/app';
 import { getErrorMessage } from '@/lib/core/errors';
 import { publishRunUpdate } from '@/lib/runners/event-bus';
+import { emitRunTerminal } from '@/lib/runners/domain-events';
 import { substituteAll } from '@/lib/test-config/substitution';
 import { normalizeBrowserConfig } from '@/lib/test-config/browser-target';
 import { buildMidsceneModelConfig } from '@/lib/runtime/midscene-env';
@@ -40,6 +41,7 @@ import {
     type TestResult,
     type TestStep,
     type TestGroupFailureMode,
+    type RunTerminalStatus,
 } from '@/types';
 
 const logger = createLogger('runtime:run-session-orchestrator');
@@ -234,6 +236,48 @@ async function runSessionMember(
     return result;
 }
 
+/**
+ * When a login-flow prefix does not pass in a SINGLE session, propagate its outcome to
+ * the test member (which never ran): FAIL if the login flow failed, CANCELLED if the user
+ * cancelled it — with a clear reason naming the login flow and a link to its run.
+ */
+async function propagatePrefixOutcomeToTest(
+    testMember: SessionMember,
+    loginMember: SessionMember,
+    prefixStatus: string,
+    projectId: string,
+): Promise<void> {
+    const loginFlow = await prisma.testCase.findUnique({
+        where: { id: loginMember.testCaseId },
+        select: { displayId: true, name: true },
+    });
+    const flowLabel = `${loginFlow?.displayId ? `${loginFlow.displayId} ` : ''}${loginFlow?.name ?? 'login flow'}`.trim();
+    const flowLink = `/test-cases/${loginMember.testCaseId}/history/${loginMember.id}`;
+    const cancelled = prefixStatus === TEST_STATUS.CANCELLED;
+    const status = cancelled ? TEST_STATUS.CANCELLED : TEST_STATUS.FAIL;
+    const error = cancelled
+        ? `Cancelled by user in login flow "${flowLabel}" before the test ran. View the cancelled login flow run: ${flowLink}`
+        : `Failed in login flow "${flowLabel}" before the test ran. View the failed login flow run: ${flowLink}`;
+    const result = JSON.stringify({
+        status,
+        error,
+        errorCode: cancelled ? 'LOGIN_FLOW_CANCELLED' : 'LOGIN_FLOW_FAILED',
+        errorCategory: 'LOGIN_FLOW',
+    });
+
+    const now = new Date();
+    const updated = await prisma.testRun.updateMany({
+        where: { id: testMember.id, status: { in: [TEST_STATUS.QUEUED, TEST_STATUS.PREPARING] } },
+        data: { status, error, result, completedAt: now, assignedRunnerId: null, leaseExpiresAt: null },
+    });
+    if (updated.count > 0) {
+        await prisma.testCase.update({ where: { id: testMember.testCaseId }, data: { status } }).catch(() => {});
+        publishRunUpdate(testMember.id);
+        emitRunTerminal({ runId: testMember.id, status: status as RunTerminalStatus, testCaseId: testMember.testCaseId, projectId });
+        await recomputeRunSessionForMember(testMember.id);
+    }
+}
+
 async function loadOrderedMembers(sessionId: string): Promise<SessionMember[]> {
     return prisma.testRun.findMany({
         where: { runSessionId: sessionId },
@@ -366,7 +410,16 @@ export async function executeLocalBrowserSession(
 
                 const result = await runSessionMember(member, details, prepared, ctx);
                 if (result.status !== TEST_STATUS.PASS) {
-                    await markMembersSkipped(members.slice(index + 1).map((m) => m.id));
+                    const isLastMember = index === members.length - 1;
+                    if (!isGroup && !isLastMember) {
+                        // A login-flow prefix did not pass: skip any other prefixes and
+                        // propagate the outcome (fail/cancel + reason) to the test member.
+                        const testMember = members[members.length - 1];
+                        await markMembersSkipped(members.slice(index + 1, members.length - 1).map((m) => m.id));
+                        await propagatePrefixOutcomeToTest(testMember, member, result.status, openDetails.projectId);
+                    } else {
+                        await markMembersSkipped(members.slice(index + 1).map((m) => m.id));
+                    }
                     break;
                 }
             } finally {

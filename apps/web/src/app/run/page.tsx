@@ -747,8 +747,7 @@ function RunPageContent() {
             await saveTestCase(data, { saveDraft: true });
 
             if (effectiveProjectId) {
-                const isLoginFlow = (data.kind ?? testCaseKind) === 'LOGIN_FLOW';
-                router.push(`/projects/${effectiveProjectId}${isLoginFlow ? '?tab=login-flows' : ''}`);
+                router.push(`/projects/${effectiveProjectId}${(data.kind ?? testCaseKind) === 'LOGIN_FLOW' ? '?tab=login-flows' : ''}`);
             } else {
                 router.push('/projects');
             }
@@ -763,8 +762,7 @@ function RunPageContent() {
     const handleDiscard = useCallback(() => {
         const effectiveProjectId = projectId || projectIdFromTestCase;
         if (effectiveProjectId) {
-            const isLoginFlow = (initialData?.kind ?? testCaseKind) === 'LOGIN_FLOW';
-            router.push(`/projects/${effectiveProjectId}${isLoginFlow ? '?tab=login-flows' : ''}`);
+            router.push(`/projects/${effectiveProjectId}${(initialData?.kind ?? testCaseKind) === 'LOGIN_FLOW' ? '?tab=login-flows' : ''}`);
         } else {
             router.push('/projects');
         }
