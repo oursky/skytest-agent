@@ -211,18 +211,21 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
             />
 
             <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">{t('testGroup.onFailure')}</label>
-                <div className="inline-flex rounded-md border border-gray-300 p-0.5">
+                <span className="block text-sm font-medium text-gray-700">{t('testGroup.onFailure')}</span>
+                <div className="space-y-2">
                     {[TEST_GROUP_FAILURE_MODE.STOP, TEST_GROUP_FAILURE_MODE.CONTINUE].map((mode) => (
-                        <button
-                            key={mode}
-                            type="button"
-                            onClick={() => setOnFailure(mode)}
-                            disabled={readOnly}
-                            className={`rounded px-3 py-1.5 text-sm transition-colors disabled:opacity-50 ${onFailure === mode ? 'bg-primary text-white' : 'text-gray-600 hover:bg-gray-100'}`}
-                        >
+                        <label key={mode} className={`flex items-center gap-2 text-sm ${readOnly ? 'text-gray-400' : 'cursor-pointer text-gray-700'}`}>
+                            <input
+                                type="radio"
+                                name="testGroupOnFailure"
+                                value={mode}
+                                checked={onFailure === mode}
+                                onChange={() => setOnFailure(mode)}
+                                disabled={readOnly}
+                                className="h-4 w-4 text-primary focus:ring-primary disabled:opacity-50"
+                            />
                             {mode === TEST_GROUP_FAILURE_MODE.STOP ? t('testGroup.onFailure.stop') : t('testGroup.onFailure.continue')}
-                        </button>
+                        </label>
                     ))}
                 </div>
             </div>
