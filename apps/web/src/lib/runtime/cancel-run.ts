@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/core/prisma';
 import { publishRunUpdate } from '@/lib/runners/event-bus';
+import { recomputeRunSessionStatus } from '@/lib/runtime/run-session-service';
 import { RUN_ACTIVE_STATUSES, TEST_STATUS, isRunActiveStatus } from '@/types';
 
 export interface CancelTestRunResult {
@@ -78,4 +79,33 @@ export async function cancelActiveTestRun(runId: string): Promise<CancelTestRunR
         finalStatus,
         cancelled: finalStatus === TEST_STATUS.CANCELLED,
     };
+}
+
+/**
+ * Cancels every still-active member of a run session, then rolls up the session status.
+ * Used so that stopping any one member (e.g. a login flow that runs before the test)
+ * cancels the whole run the user triggered — siblings and the test all settle CANCELLED
+ * rather than being left queued or marked SKIPPED.
+ */
+export async function cancelActiveRunSession(sessionId: string): Promise<{ cancelledMembers: number }> {
+    const session = await prisma.runSession.findUnique({
+        where: { id: sessionId },
+        select: {
+            memberRuns: {
+                where: { status: { in: [...RUN_ACTIVE_STATUSES] } },
+                select: { id: true },
+            },
+        },
+    });
+
+    let cancelledMembers = 0;
+    for (const member of session?.memberRuns ?? []) {
+        const result = await cancelActiveTestRun(member.id);
+        if (result?.cancelled) {
+            cancelledMembers += 1;
+        }
+    }
+
+    await recomputeRunSessionStatus(sessionId);
+    return { cancelledMembers };
 }

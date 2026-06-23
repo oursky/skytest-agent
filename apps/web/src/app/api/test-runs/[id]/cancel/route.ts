@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
-import { cancelActiveTestRun } from '@/lib/runtime/cancel-run';
+import { cancelActiveTestRun, cancelActiveRunSession } from '@/lib/runtime/cancel-run';
 import { guardTestRunRouteRequest } from '@/lib/security/test-run-route-access';
 import { apiError } from '@/lib/security/api-route-standards';
 
@@ -21,8 +22,33 @@ export async function POST(
         const { id } = guard.params;
         const { userId } = guard;
 
-        const result = await cancelActiveTestRun(id);
+        const run = await prisma.testRun.findUnique({
+            where: { id },
+            select: { runSessionId: true, deletedAt: true },
+        });
+        if (!run || run.deletedAt) {
+            return apiError({
+                status: 404,
+                code: 'NOT_FOUND',
+                error: 'Test run not found',
+            });
+        }
 
+        // A run that belongs to a session (e.g. a login-flow prefix before the test) is
+        // part of one user-triggered run — cancelling any member cancels them all.
+        if (run.runSessionId) {
+            const { cancelledMembers } = await cancelActiveRunSession(run.runSessionId);
+            const final = await prisma.testRun.findUnique({ where: { id }, select: { status: true } });
+            logger.info('Cancelled run session via member', {
+                runId: id,
+                sessionId: run.runSessionId,
+                cancelledMembers,
+                cancelledByUserId: userId,
+            });
+            return NextResponse.json({ success: true, id, status: final?.status ?? null });
+        }
+
+        const result = await cancelActiveTestRun(id);
         if (!result) {
             return apiError({
                 status: 404,

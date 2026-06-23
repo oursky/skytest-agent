@@ -133,7 +133,8 @@ describe('POST /api/test-runs/[id]/cancel', () => {
         };
         mocks.testRunFindUnique
             .mockResolvedValueOnce(terminalRun) // guardTestRunRouteRequest lookup
-            .mockResolvedValueOnce(terminalRun); // route lookup
+            .mockResolvedValueOnce(terminalRun) // route session lookup
+            .mockResolvedValueOnce(terminalRun); // cancelActiveTestRun lookup
 
         const request = new Request('http://localhost/api/test-runs/run-1/cancel', { method: 'POST' });
 
@@ -163,7 +164,8 @@ describe('POST /api/test-runs/[id]/cancel', () => {
         };
         mocks.testRunFindUnique
             .mockResolvedValueOnce(activeRun) // guardTestRunRouteRequest lookup
-            .mockResolvedValueOnce(activeRun); // route lookup
+            .mockResolvedValueOnce(activeRun) // route session lookup
+            .mockResolvedValueOnce(activeRun); // cancelActiveTestRun lookup
         mocks.testRunUpdateMany.mockResolvedValueOnce({ count: 0 });
         mocks.testRunFindUnique.mockResolvedValueOnce({
             status: 'PASS',

@@ -16,6 +16,8 @@ import { formatTime } from '@/utils/time/dateFormatter';
 import TimelineEvent from './TimelineEvent';
 import ResultStatus from './ResultStatus';
 import { useI18n } from '@/i18n';
+import { useAuth } from '@/app/auth-provider';
+import { fetchWithAccessToken } from '@/app/run/run-page-api';
 import { isAndroidTargetConfig, normalizeAndroidTargetConfig } from '@/lib/android/target-config';
 import { formatAndroidDeviceSelectorDisplay } from '@/lib/android/device-selector-display';
 import { normalizeBrowserConfig } from '@/lib/test-config/browser-target';
@@ -111,12 +113,45 @@ function buildConfigSummaryLines(config?: TestData): string[] {
 
 export default function ResultViewer({ result, meta }: ResultViewerProps) {
     const { t } = useI18n();
+    const { getAccessToken } = useAuth();
 
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const [autoScroll, setAutoScroll] = useState(true);
     const [lightboxImage, setLightboxImage] = useState<{ src: string; label: string } | null>(null);
     const [copied, setCopied] = useState(false);
+    const [livePrefixes, setLivePrefixes] = useState<LoginFlowPrefixInfo[]>([]);
     const events = result.events;
+
+    // While the test sits QUEUED behind its login flow(s), the live SSE stream carries no
+    // login-flow status, so poll the run for its login-flow prefixes to show what it's
+    // actually waiting on.
+    const runId = meta?.runId;
+    const isQueued = result.status === TEST_STATUS.QUEUED;
+    useEffect(() => {
+        if (!isQueued || !runId) {
+            return;
+        }
+        let cancelled = false;
+        const poll = async () => {
+            try {
+                const response = await fetchWithAccessToken(getAccessToken, `/api/test-runs/${runId}`);
+                if (!response.ok) return;
+                const data = await response.json() as { loginFlowPrefixes?: LoginFlowPrefixInfo[] };
+                if (!cancelled && Array.isArray(data.loginFlowPrefixes)) {
+                    setLivePrefixes(data.loginFlowPrefixes);
+                }
+            } catch {
+                // Transient failure; the next tick retries.
+            }
+        };
+        void poll();
+        const interval = setInterval(() => { void poll(); }, 3000);
+        return () => { cancelled = true; clearInterval(interval); };
+    }, [isQueued, runId, getAccessToken]);
+
+    const loginFlowPrefixes = (result.loginFlowPrefixes?.length ?? 0) > 0
+        ? result.loginFlowPrefixes!
+        : livePrefixes;
 
     const targetTypeMap = useMemo<Record<string, 'browser' | 'android'>>(() => {
         const cfg = meta?.config?.browserConfig ?? {};
@@ -336,11 +371,11 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
                         </div>
                     ) : (
                         <>
-                            {result.status === TEST_STATUS.QUEUED && (result.loginFlowPrefixes?.length ?? 0) > 0 && (
+                            {result.status === TEST_STATUS.QUEUED && loginFlowPrefixes.length > 0 && (
                                 <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm">
                                     <p className="font-medium text-blue-900">{t('results.queuedForLoginFlow')}</p>
                                     <ul className="mt-2 space-y-1.5">
-                                        {result.loginFlowPrefixes!.map((flow) => (
+                                        {loginFlowPrefixes.map((flow) => (
                                             <li key={flow.runId} className="flex items-center gap-2">
                                                 <span className={`status-badge ${getStatusBadgeClass(flow.status)}`}>{flow.status}</span>
                                                 <a
