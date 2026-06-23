@@ -5,7 +5,7 @@ import { verifyAuth, resolveOrCreateUserId } from '@/lib/security/auth';
 import { createLogger } from '@/lib/core/logger';
 import { isTeamMember } from '@/lib/security/permissions';
 import { config as appConfig } from '@/config/app';
-import { RUN_ACTIVE_STATUSES } from '@/types';
+import { RUN_ACTIVE_STATUSES, TEST_CASE_KIND } from '@/types';
 import { guardTeamRouteRequest } from '@/lib/security/team-route-access';
 
 const logger = createLogger('api:projects');
@@ -49,7 +49,7 @@ export async function GET(request: Request) {
             },
             include: {
                 _count: {
-                    select: { testCases: true },
+                    select: { testCases: { where: { kind: TEST_CASE_KIND.TEST } } },
                 },
                 team: {
                     select: {
