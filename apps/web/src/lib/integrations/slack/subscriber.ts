@@ -113,7 +113,8 @@ export function registerSlackGroupSubscriber(): void {
         if (event.kind !== RUN_SESSION_KIND.GROUP) {
             return;
         }
-        if (event.status !== TEST_STATUS.FAIL && event.status !== TEST_STATUS.PASS) {
+        // Notify on any terminal settle except cancellation (cancel/stop never notifies).
+        if (event.status === TEST_STATUS.CANCELLED) {
             return;
         }
         enqueueGroupNotification(event.sessionId);

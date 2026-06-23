@@ -38,9 +38,6 @@ function projectSettingsResponse(input: {
     slackFailureTemplate: string | null;
     slackSuccessTemplate: string | null;
     slackGroupNotifyEnabled: boolean;
-    slackGroupNotifyOn: ProjectSlackNotifyOn;
-    slackGroupSuccessTemplate: string | null;
-    slackGroupFailureTemplate: string | null;
     slackUpdatedAt: Date | null;
     parentTeamHasToken: boolean;
 }): ProjectSlackSettings {
@@ -52,9 +49,6 @@ function projectSettingsResponse(input: {
         slackFailureTemplate: input.slackFailureTemplate,
         slackSuccessTemplate: input.slackSuccessTemplate,
         slackGroupNotifyEnabled: input.slackGroupNotifyEnabled,
-        slackGroupNotifyOn: input.slackGroupNotifyOn,
-        slackGroupSuccessTemplate: input.slackGroupSuccessTemplate,
-        slackGroupFailureTemplate: input.slackGroupFailureTemplate,
         slackUpdatedAt: input.slackUpdatedAt?.toISOString() ?? null,
         parentTeamHasToken: input.parentTeamHasToken,
     };
@@ -108,9 +102,6 @@ export async function GET(
                 slackFailureTemplate: true,
                 slackSuccessTemplate: true,
                 slackGroupNotifyEnabled: true,
-                slackGroupNotifyOn: true,
-                slackGroupSuccessTemplate: true,
-                slackGroupFailureTemplate: true,
                 slackUpdatedAt: true,
                 team: {
                     select: {
@@ -136,9 +127,6 @@ export async function GET(
             slackFailureTemplate: project.slackFailureTemplate,
             slackSuccessTemplate: project.slackSuccessTemplate,
             slackGroupNotifyEnabled: project.slackGroupNotifyEnabled,
-            slackGroupNotifyOn: project.slackGroupNotifyOn,
-            slackGroupSuccessTemplate: project.slackGroupSuccessTemplate,
-            slackGroupFailureTemplate: project.slackGroupFailureTemplate,
             slackUpdatedAt: project.slackUpdatedAt,
             parentTeamHasToken: Boolean(project.team.slackBotTokenEncrypted),
         }));
@@ -194,9 +182,6 @@ export async function PUT(
             slackFailureTemplate?: string | null;
             slackSuccessTemplate?: string | null;
             slackGroupNotifyEnabled?: boolean;
-            slackGroupNotifyOn?: ProjectSlackNotifyOn | null;
-            slackGroupSuccessTemplate?: string | null;
-            slackGroupFailureTemplate?: string | null;
         };
 
         const slackEnabled = body.slackEnabled === true;
@@ -206,37 +191,11 @@ export async function PUT(
         const slackChannelId = normalizeOptionalText(body.slackChannelId);
         const slackFailureTemplate = normalizeOptionalText(body.slackFailureTemplate);
         const slackSuccessTemplate = normalizeOptionalText(body.slackSuccessTemplate);
-        // Group-notify fields are optional in the payload; absent fields are left
-        // untouched so saving the per-case settings does not reset group settings.
-        const groupNotifyUpdate: {
-            slackGroupNotifyEnabled?: boolean;
-            slackGroupNotifyOn?: ProjectSlackNotifyOn;
-            slackGroupSuccessTemplate?: string | null;
-            slackGroupFailureTemplate?: string | null;
-        } = {};
+        // Group-notify enablement is optional in the payload; an absent field is
+        // left untouched so saving the per-case settings does not reset it.
+        const groupNotifyUpdate: { slackGroupNotifyEnabled?: boolean } = {};
         if (body.slackGroupNotifyEnabled !== undefined) {
             groupNotifyUpdate.slackGroupNotifyEnabled = body.slackGroupNotifyEnabled === true;
-        }
-        if (body.slackGroupNotifyOn !== undefined) {
-            groupNotifyUpdate.slackGroupNotifyOn = body.slackGroupNotifyOn === PROJECT_SLACK_NOTIFY_ON.BOTH_PASSED_AND_FAILED
-                ? PROJECT_SLACK_NOTIFY_ON.BOTH_PASSED_AND_FAILED
-                : PROJECT_SLACK_NOTIFY_ON.FAILED_ONLY;
-        }
-        if (body.slackGroupSuccessTemplate !== undefined) {
-            groupNotifyUpdate.slackGroupSuccessTemplate = normalizeOptionalText(body.slackGroupSuccessTemplate);
-        }
-        if (body.slackGroupFailureTemplate !== undefined) {
-            groupNotifyUpdate.slackGroupFailureTemplate = normalizeOptionalText(body.slackGroupFailureTemplate);
-        }
-        if (
-            (groupNotifyUpdate.slackGroupSuccessTemplate && groupNotifyUpdate.slackGroupSuccessTemplate.length > MAX_TEMPLATE_LENGTH)
-            || (groupNotifyUpdate.slackGroupFailureTemplate && groupNotifyUpdate.slackGroupFailureTemplate.length > MAX_TEMPLATE_LENGTH)
-        ) {
-            return NextResponse.json({
-                error: 'INVALID_TEMPLATE',
-                field: 'slackGroupTemplate',
-                detail: `Template must be ${MAX_TEMPLATE_LENGTH} characters or fewer`,
-            }, { status: 400 });
         }
 
         if (slackFailureTemplate && slackFailureTemplate.length > MAX_TEMPLATE_LENGTH) {
@@ -309,9 +268,6 @@ export async function PUT(
                 slackFailureTemplate: true,
                 slackSuccessTemplate: true,
                 slackGroupNotifyEnabled: true,
-                slackGroupNotifyOn: true,
-                slackGroupSuccessTemplate: true,
-                slackGroupFailureTemplate: true,
                 slackUpdatedAt: true,
                 team: {
                     select: {
@@ -329,9 +285,6 @@ export async function PUT(
             slackFailureTemplate: updated.slackFailureTemplate,
             slackSuccessTemplate: updated.slackSuccessTemplate,
             slackGroupNotifyEnabled: updated.slackGroupNotifyEnabled,
-            slackGroupNotifyOn: updated.slackGroupNotifyOn,
-            slackGroupSuccessTemplate: updated.slackGroupSuccessTemplate,
-            slackGroupFailureTemplate: updated.slackGroupFailureTemplate,
             slackUpdatedAt: updated.slackUpdatedAt,
             parentTeamHasToken: Boolean(updated.team.slackBotTokenEncrypted),
         }));

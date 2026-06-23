@@ -135,10 +135,7 @@ ALTER TABLE "TestGroupLoginSession" ADD CONSTRAINT "TestGroupLoginSession_loginF
 -- ===== Group notifications & schedule test-group links =====
 -- AlterTable
 ALTER TABLE "Project"
-    ADD COLUMN "slackGroupNotifyEnabled" BOOLEAN NOT NULL DEFAULT false,
-    ADD COLUMN "slackGroupNotifyOn" "SlackNotifyOn" NOT NULL DEFAULT 'FAILED_ONLY',
-    ADD COLUMN "slackGroupSuccessTemplate" TEXT,
-    ADD COLUMN "slackGroupFailureTemplate" TEXT;
+    ADD COLUMN "slackGroupNotifyEnabled" BOOLEAN NOT NULL DEFAULT false;
 
 -- CreateTable
 CREATE TABLE "ScheduleTestGroup" (

@@ -10,14 +10,12 @@ import {
     resolveSlackAppBaseUrlFromEnv,
 } from '@/lib/integrations/slack/message';
 import {
-    DEFAULT_SLACK_GROUP_FAILURE_TEMPLATE,
-    DEFAULT_SLACK_GROUP_SUCCESS_TEMPLATE,
+    DEFAULT_SLACK_GROUP_TEMPLATE,
     rawSlack,
     renderTemplate,
 } from '@/lib/integrations/slack/template';
 import { SLACK_NOTIFY_OUTCOME, type SlackNotifyOutcome } from '@/lib/integrations/slack/notifier';
-import { PROJECT_SLACK_NOTIFY_ON } from '@/types/slack';
-import { RUN_SESSION_KIND, TEST_STATUS } from '@/types';
+import { RUN_SESSION_KIND, TEST_STATUS, isRunTerminalStatus } from '@/types';
 
 const logger = createLogger('integrations:slack:group-notifier');
 const slackAppBaseUrl = resolveSlackAppBaseUrlFromEnv();
@@ -57,9 +55,6 @@ export async function notifyTestGroupTerminal(sessionId: string): Promise<SlackN
                     slackEnabled: true,
                     slackChannelId: true,
                     slackGroupNotifyEnabled: true,
-                    slackGroupNotifyOn: true,
-                    slackGroupSuccessTemplate: true,
-                    slackGroupFailureTemplate: true,
                     team: { select: { slackBotTokenEncrypted: true } },
                 },
             },
@@ -70,16 +65,15 @@ export async function notifyTestGroupTerminal(sessionId: string): Promise<SlackN
     if (!session || session.kind !== RUN_SESSION_KIND.GROUP) {
         return SLACK_NOTIFY_OUTCOME.SKIPPED;
     }
-    if (session.status !== TEST_STATUS.FAIL && session.status !== TEST_STATUS.PASS) {
+    // Notify once the group settles to any non-cancelled terminal status (pass,
+    // fail, or finished-with-skipped). Cancelled/stopped runs never notify.
+    if (!isRunTerminalStatus(session.status) || session.status === TEST_STATUS.CANCELLED) {
         return SLACK_NOTIFY_OUTCOME.SKIPPED;
     }
 
     const project = session.project;
     const tokenEncrypted = project.team.slackBotTokenEncrypted;
     if (!project.slackEnabled || !project.slackGroupNotifyEnabled || !tokenEncrypted || !project.slackChannelId) {
-        return SLACK_NOTIFY_OUTCOME.SKIPPED;
-    }
-    if (session.status === TEST_STATUS.PASS && project.slackGroupNotifyOn !== PROJECT_SLACK_NOTIFY_ON.BOTH_PASSED_AND_FAILED) {
         return SLACK_NOTIFY_OUTCOME.SKIPPED;
     }
 
@@ -98,17 +92,14 @@ export async function notifyTestGroupTerminal(sessionId: string): Promise<SlackN
     }
     const attemptsAfterClaim = session.slackNotifyAttempts + 1;
 
-    const isFailed = session.status === TEST_STATUS.FAIL;
-    const fallbackTemplate = isFailed ? DEFAULT_SLACK_GROUP_FAILURE_TEMPLATE : DEFAULT_SLACK_GROUP_SUCCESS_TEMPLATE;
-    const selectedTemplate = isFailed
-        ? (project.slackGroupFailureTemplate ?? fallbackTemplate)
-        : (project.slackGroupSuccessTemplate ?? fallbackTemplate);
-
+    const passed = session.status === TEST_STATUS.PASS;
     const passedCount = session.memberRuns.filter((member) => member.status === TEST_STATUS.PASS).length;
     const runLink = buildTestGroupUrl({ appBaseUrl: slackAppBaseUrl, projectId: session.projectId, sessionId: session.id });
     const groupName = (session.testGroup?.displayId ? `${session.testGroup.displayId} ` : '') + (session.testGroup?.name ?? '');
 
-    const rendered = renderTemplate(selectedTemplate, {
+    const rendered = renderTemplate(DEFAULT_SLACK_GROUP_TEMPLATE, {
+        statusIcon: passed ? ':white_check_mark:' : ':x:',
+        statusLabel: passed ? 'Passed' : 'Failed',
         projectName: project.name,
         groupName: groupName.trim() || '-',
         passedCount,
@@ -117,7 +108,7 @@ export async function notifyTestGroupTerminal(sessionId: string): Promise<SlackN
         triggeredBy: session.triggeredByEmail ?? 'system',
         startedAt: rawSlack(formatSlackDateToken(session.startedAt)),
         completedAt: rawSlack(formatSlackDateToken(session.completedAt)),
-    }, { fallbackTemplate });
+    }, { fallbackTemplate: DEFAULT_SLACK_GROUP_TEMPLATE });
 
     try {
         const token = decrypt(tokenEncrypted);

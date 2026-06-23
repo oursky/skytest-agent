@@ -20,9 +20,6 @@ export interface ProjectSlackSettings {
     slackFailureTemplate: string | null;
     slackSuccessTemplate: string | null;
     slackGroupNotifyEnabled: boolean;
-    slackGroupNotifyOn: ProjectSlackNotifyOn;
-    slackGroupSuccessTemplate: string | null;
-    slackGroupFailureTemplate: string | null;
     slackUpdatedAt: string | null;
     parentTeamHasToken: boolean;
 }

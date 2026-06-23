@@ -5,8 +5,6 @@ import { useAuth } from '@/app/auth-provider';
 import {
     DEFAULT_SLACK_FAILURE_TEMPLATE,
     DEFAULT_SLACK_SUCCESS_TEMPLATE,
-    DEFAULT_SLACK_GROUP_FAILURE_TEMPLATE,
-    DEFAULT_SLACK_GROUP_SUCCESS_TEMPLATE,
 } from '@/lib/integrations/slack/template';
 import { PROJECT_SLACK_NOTIFY_ON } from '@/types/slack';
 import type {
@@ -38,9 +36,6 @@ const DEFAULT_PROJECT_SLACK_SETTINGS: ProjectSlackSettings = {
     slackFailureTemplate: null,
     slackSuccessTemplate: null,
     slackGroupNotifyEnabled: false,
-    slackGroupNotifyOn: PROJECT_SLACK_NOTIFY_ON.FAILED_ONLY,
-    slackGroupSuccessTemplate: null,
-    slackGroupFailureTemplate: null,
     slackUpdatedAt: null,
     parentTeamHasToken: false,
 };
@@ -96,9 +91,6 @@ export function useProjectSlack(projectId: string) {
         slackFailureTemplate: DEFAULT_SLACK_FAILURE_TEMPLATE,
         slackSuccessTemplate: DEFAULT_SLACK_SUCCESS_TEMPLATE,
         slackGroupNotifyEnabled: false,
-        slackGroupNotifyOn: PROJECT_SLACK_NOTIFY_ON.FAILED_ONLY as ProjectSlackNotifyOn,
-        slackGroupFailureTemplate: DEFAULT_SLACK_GROUP_FAILURE_TEMPLATE,
-        slackGroupSuccessTemplate: DEFAULT_SLACK_GROUP_SUCCESS_TEMPLATE,
     });
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
@@ -134,9 +126,6 @@ export function useProjectSlack(projectId: string) {
                 slackFailureTemplate: payload.slackFailureTemplate ?? DEFAULT_SLACK_FAILURE_TEMPLATE,
                 slackSuccessTemplate: payload.slackSuccessTemplate ?? DEFAULT_SLACK_SUCCESS_TEMPLATE,
                 slackGroupNotifyEnabled: payload.slackGroupNotifyEnabled,
-                slackGroupNotifyOn: payload.slackGroupNotifyOn,
-                slackGroupFailureTemplate: payload.slackGroupFailureTemplate ?? DEFAULT_SLACK_GROUP_FAILURE_TEMPLATE,
-                slackGroupSuccessTemplate: payload.slackGroupSuccessTemplate ?? DEFAULT_SLACK_GROUP_SUCCESS_TEMPLATE,
             });
         } catch (loadError) {
             setError(createRequestError(
@@ -159,9 +148,6 @@ export function useProjectSlack(projectId: string) {
         slackFailureTemplate: string | null;
         slackSuccessTemplate: string | null;
         slackGroupNotifyEnabled: boolean;
-        slackGroupNotifyOn: ProjectSlackNotifyOn;
-        slackGroupFailureTemplate: string | null;
-        slackGroupSuccessTemplate: string | null;
     }): Promise<boolean> => {
         setIsSaving(true);
         setError(null);
@@ -194,9 +180,6 @@ export function useProjectSlack(projectId: string) {
                 slackFailureTemplate: payload.slackFailureTemplate ?? DEFAULT_SLACK_FAILURE_TEMPLATE,
                 slackSuccessTemplate: payload.slackSuccessTemplate ?? DEFAULT_SLACK_SUCCESS_TEMPLATE,
                 slackGroupNotifyEnabled: payload.slackGroupNotifyEnabled,
-                slackGroupNotifyOn: payload.slackGroupNotifyOn,
-                slackGroupFailureTemplate: payload.slackGroupFailureTemplate ?? DEFAULT_SLACK_GROUP_FAILURE_TEMPLATE,
-                slackGroupSuccessTemplate: payload.slackGroupSuccessTemplate ?? DEFAULT_SLACK_GROUP_SUCCESS_TEMPLATE,
             });
             setNotice('saved');
             return true;

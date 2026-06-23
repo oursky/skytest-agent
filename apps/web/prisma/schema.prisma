@@ -125,9 +125,6 @@ model Project {
   slackFailureTemplate      String?
   slackSuccessTemplate      String?
   slackGroupNotifyEnabled   Boolean         @default(false)
-  slackGroupNotifyOn        SlackNotifyOn   @default(FAILED_ONLY)
-  slackGroupSuccessTemplate String?
-  slackGroupFailureTemplate String?
   slackUpdatedAt            DateTime?
   teamId                    String
   team                      Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
