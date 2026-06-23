@@ -747,7 +747,8 @@ function RunPageContent() {
             await saveTestCase(data, { saveDraft: true });
 
             if (effectiveProjectId) {
-                router.push(`/projects/${effectiveProjectId}`);
+                const isLoginFlow = (data.kind ?? testCaseKind) === 'LOGIN_FLOW';
+                router.push(`/projects/${effectiveProjectId}${isLoginFlow ? '?tab=login-flows' : ''}`);
             } else {
                 router.push('/projects');
             }
@@ -757,16 +758,17 @@ function RunPageContent() {
         } finally {
             setIsSaving(false);
         }
-    }, [testCaseId, currentTestCaseId, projectId, projectIdFromTestCase, saveTestCase, t, router]);
+    }, [testCaseId, currentTestCaseId, projectId, projectIdFromTestCase, saveTestCase, testCaseKind, t, router]);
 
     const handleDiscard = useCallback(() => {
         const effectiveProjectId = projectId || projectIdFromTestCase;
         if (effectiveProjectId) {
-            router.push(`/projects/${effectiveProjectId}`);
+            const isLoginFlow = (initialData?.kind ?? testCaseKind) === 'LOGIN_FLOW';
+            router.push(`/projects/${effectiveProjectId}${isLoginFlow ? '?tab=login-flows' : ''}`);
         } else {
             router.push('/projects');
         }
-    }, [projectId, projectIdFromTestCase, router]);
+    }, [projectId, projectIdFromTestCase, initialData?.kind, testCaseKind, router]);
 
     const handleDisplayIdChange = useCallback((newDisplayId: string) => { setDisplayId(newDisplayId); setIsDirty(true); }, []);
 
