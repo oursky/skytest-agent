@@ -18,14 +18,14 @@ export const DEFAULT_SLACK_SUCCESS_TEMPLATE = [
 ].join('\n');
 
 export const DEFAULT_SLACK_GROUP_FAILURE_TEMPLATE = [
-    ':x: *Run Group Failed* {projectName} {groupName}',
+    ':x: *Test Group Failed* {projectName} {groupName}',
     '*Result:* {passedCount}/{totalCount} passed',
     '*Run Link:* {runLink}',
     '*Start Time:* {startedAt} *End Time:* {completedAt}',
 ].join('\n');
 
 export const DEFAULT_SLACK_GROUP_SUCCESS_TEMPLATE = [
-    ':white_check_mark: *Run Group Passed* {projectName} {groupName}',
+    ':white_check_mark: *Test Group Passed* {projectName} {groupName}',
     '*Result:* {passedCount}/{totalCount} passed',
     '*Run Link:* {runLink}',
     '*Start Time:* {startedAt} *End Time:* {completedAt}',

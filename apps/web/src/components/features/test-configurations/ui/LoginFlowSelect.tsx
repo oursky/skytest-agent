@@ -18,6 +18,7 @@ interface LoginFlowSelectProps {
     excludeTestCaseId?: string;
     disabled?: boolean;
     size?: 'sm' | 'md';
+    labelSeparator?: string;
     onChange: (loginFlowId: string | undefined) => void;
 }
 
@@ -27,6 +28,7 @@ export default function LoginFlowSelect({
     excludeTestCaseId,
     disabled,
     size = 'sm',
+    labelSeparator = ' ',
     onChange,
 }: LoginFlowSelectProps) {
     const { t } = useI18n();
@@ -68,10 +70,10 @@ export default function LoginFlowSelect({
             { value: '', label: t('configs.browser.loginFlow.none') },
             ...visibleOptions.map((option) => ({
                 value: option.id,
-                label: option.displayId ? `${option.displayId} ${option.name}` : option.name,
+                label: option.displayId ? `${option.displayId}${labelSeparator}${option.name}` : option.name,
             })),
         ];
-    }, [options, excludeTestCaseId, t]);
+    }, [options, excludeTestCaseId, labelSeparator, t]);
 
     useEffect(() => {
         if (!open) return;

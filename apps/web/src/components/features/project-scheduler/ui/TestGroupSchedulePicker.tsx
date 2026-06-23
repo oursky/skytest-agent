@@ -3,29 +3,29 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/app/auth-provider';
 import { fetchWithAccessToken } from '@/app/run/run-page-api';
-import type { RunGroupSummary } from '@/types';
+import type { TestGroupSummary } from '@/types';
 
-interface RunGroupSchedulePickerProps {
+interface TestGroupSchedulePickerProps {
     projectId: string;
     selectedIds: string[];
     t: (key: string, values?: Record<string, string | number>) => string;
     onChange: (nextSelectedIds: string[]) => void;
 }
 
-export default function RunGroupSchedulePicker({ projectId, selectedIds, t, onChange }: RunGroupSchedulePickerProps) {
+export default function TestGroupSchedulePicker({ projectId, selectedIds, t, onChange }: TestGroupSchedulePickerProps) {
     const { getAccessToken } = useAuth();
-    const [groups, setGroups] = useState<RunGroupSummary[]>([]);
+    const [groups, setGroups] = useState<TestGroupSummary[]>([]);
 
     useEffect(() => {
         let cancelled = false;
         void (async () => {
             try {
-                const response = await fetchWithAccessToken(getAccessToken, `/api/projects/${projectId}/run-groups`);
+                const response = await fetchWithAccessToken(getAccessToken, `/api/projects/${projectId}/test-groups`);
                 if (response.ok && !cancelled) {
-                    setGroups(await response.json() as RunGroupSummary[]);
+                    setGroups(await response.json() as TestGroupSummary[]);
                 }
             } catch {
-                // Leave empty on failure; run groups are optional for a schedule.
+                // Leave empty on failure; test groups are optional for a schedule.
             }
         })();
         return () => { cancelled = true; };
@@ -36,7 +36,7 @@ export default function RunGroupSchedulePicker({ projectId, selectedIds, t, onCh
     };
 
     if (groups.length === 0) {
-        return <p className="text-xs text-gray-500">{t('project.scheduler.runGroups.empty')}</p>;
+        return <p className="text-xs text-gray-500">{t('project.scheduler.testGroups.empty')}</p>;
     }
 
     return (

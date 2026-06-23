@@ -1,4 +1,4 @@
-export interface RunGroupItemSummary {
+export interface TestGroupItemSummary {
     testCaseId: string;
     position: number;
     displayId?: string | null;
@@ -6,26 +6,26 @@ export interface RunGroupItemSummary {
     reuseGroupSession?: boolean;
 }
 
-export interface RunGroupSummary {
+export interface TestGroupSummary {
     id: string;
     name: string;
     displayId?: string | null;
     loginFlowId?: string | null;
-    items: RunGroupItemSummary[];
+    items: TestGroupItemSummary[];
     lastSessionId?: string | null;
     lastSessionStatus?: string | null;
     lastSessionAt?: string | null;
     updatedAt: string;
 }
 
-export interface RunGroupUpsertInput {
+export interface TestGroupUpsertInput {
     name: string;
     displayId?: string | null;
     loginFlowId?: string | null;
     testCaseIds: string[];
 }
 
-export interface RunGroupSessionSummary {
+export interface TestGroupSessionSummary {
     id: string;
     status: string;
     createdAt: string;

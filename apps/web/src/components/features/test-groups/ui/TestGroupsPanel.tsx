@@ -9,15 +9,15 @@ import { fetchWithAccessToken } from '@/app/run/run-page-api';
 import { LoadingSpinner, Modal } from '@/components/shared';
 import { getStatusBadgeClass } from '@/utils/status/statusBadge';
 import { formatDateTimeCompact } from '@/utils/time/dateFormatter';
-import { isRunActiveStatus, type RunGroupSummary } from '@/types';
-import RunGroupEditor from './RunGroupEditor';
+import { isRunActiveStatus, type TestGroupSummary } from '@/types';
+import TestGroupEditor from './TestGroupEditor';
 
-interface RunGroupsPanelProps {
+interface TestGroupsPanelProps {
     projectId: string;
     canManageProject: boolean;
 }
 
-type EditorState = { mode: 'create' } | { mode: 'edit'; group: RunGroupSummary } | null;
+type EditorState = { mode: 'create' } | { mode: 'edit'; group: TestGroupSummary } | null;
 type SortColumn = 'id' | 'name' | 'status' | 'updated';
 
 function SortIcon({ column, sortColumn, sortDirection }: { column: SortColumn; sortColumn: SortColumn; sortDirection: 'asc' | 'desc' }) {
@@ -60,15 +60,15 @@ const TrashIcon = () => (
     </svg>
 );
 
-export default function RunGroupsPanel({ projectId, canManageProject }: RunGroupsPanelProps) {
+export default function TestGroupsPanel({ projectId, canManageProject }: TestGroupsPanelProps) {
     const { t } = useI18n();
     const { getAccessToken } = useAuth();
     const router = useRouter();
-    const [groups, setGroups] = useState<RunGroupSummary[]>([]);
+    const [groups, setGroups] = useState<TestGroupSummary[]>([]);
     const [editor, setEditor] = useState<EditorState>(null);
     const [runningId, setRunningId] = useState<string | null>(null);
     const [stoppingId, setStoppingId] = useState<string | null>(null);
-    const [pendingDelete, setPendingDelete] = useState<RunGroupSummary | null>(null);
+    const [pendingDelete, setPendingDelete] = useState<TestGroupSummary | null>(null);
     const [search, setSearch] = useState('');
     const [sortColumn, setSortColumn] = useState<SortColumn>('id');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -85,9 +85,9 @@ export default function RunGroupsPanel({ projectId, canManageProject }: RunGroup
 
     const refresh = useCallback(async () => {
         try {
-            const response = await fetchWithAccessToken(getAccessToken, `/api/projects/${projectId}/run-groups`);
+            const response = await fetchWithAccessToken(getAccessToken, `/api/projects/${projectId}/test-groups`);
             if (response.ok) {
-                setGroups(await response.json() as RunGroupSummary[]);
+                setGroups(await response.json() as TestGroupSummary[]);
             }
         } catch {
             // Keep the last good list on a transient failure.
@@ -103,7 +103,7 @@ export default function RunGroupsPanel({ projectId, canManageProject }: RunGroup
             : groups.filter((group) =>
                 group.name.toLowerCase().includes(query)
                 || (group.displayId ?? '').toLowerCase().includes(query));
-        const sortValue = (group: RunGroupSummary): string => {
+        const sortValue = (group: TestGroupSummary): string => {
             switch (sortColumn) {
                 case 'name': return group.name.toLowerCase();
                 case 'status': return (group.lastSessionStatus ?? 'DRAFT').toLowerCase();
@@ -119,25 +119,25 @@ export default function RunGroupsPanel({ projectId, canManageProject }: RunGroup
         });
     }, [groups, search, sortColumn, sortDirection]);
 
-    const handleRun = async (group: RunGroupSummary) => {
+    const handleRun = async (group: TestGroupSummary) => {
         setRunningId(group.id);
         setError('');
         try {
-            const response = await fetchWithAccessToken(getAccessToken, `/api/projects/${projectId}/run-groups/${group.id}/run`, { method: 'POST' });
+            const response = await fetchWithAccessToken(getAccessToken, `/api/projects/${projectId}/test-groups/${group.id}/run`, { method: 'POST' });
             const body = await response.json().catch(() => null) as { sessionId?: string; error?: string } | null;
             if (!response.ok || !body?.sessionId) {
-                setError(body?.error ?? t('runGroup.error.runFailed'));
+                setError(body?.error ?? t('testGroup.error.runFailed'));
                 return;
             }
-            router.push(`/run-groups/runs/${body.sessionId}?projectId=${projectId}`);
+            router.push(`/test-groups/runs/${body.sessionId}?projectId=${projectId}`);
         } catch {
-            setError(t('runGroup.error.runFailed'));
+            setError(t('testGroup.error.runFailed'));
         } finally {
             setRunningId(null);
         }
     };
 
-    const handleStop = async (group: RunGroupSummary) => {
+    const handleStop = async (group: TestGroupSummary) => {
         if (!group.lastSessionId) return;
         setStoppingId(group.id);
         setError('');
@@ -145,21 +145,21 @@ export default function RunGroupsPanel({ projectId, canManageProject }: RunGroup
             await fetchWithAccessToken(getAccessToken, `/api/projects/${projectId}/run-sessions/${group.lastSessionId}`, { method: 'POST' });
             await refresh();
         } catch {
-            setError(t('runGroup.error.stopFailed'));
+            setError(t('testGroup.error.stopFailed'));
         } finally {
             setStoppingId(null);
         }
     };
 
-    const handleDelete = async (group: RunGroupSummary) => {
-        await fetchWithAccessToken(getAccessToken, `/api/projects/${projectId}/run-groups/${group.id}`, { method: 'DELETE' });
+    const handleDelete = async (group: TestGroupSummary) => {
+        await fetchWithAccessToken(getAccessToken, `/api/projects/${projectId}/test-groups/${group.id}`, { method: 'DELETE' });
         setPendingDelete(null);
         await refresh();
     };
 
     if (editor) {
         return (
-            <RunGroupEditor
+            <TestGroupEditor
                 projectId={projectId}
                 group={editor.mode === 'edit' ? editor.group : null}
                 onSaved={() => { setEditor(null); void refresh(); }}
@@ -174,7 +174,7 @@ export default function RunGroupsPanel({ projectId, canManageProject }: RunGroup
                 <svg className="mt-0.5 h-5 w-5 shrink-0 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6.429 9.75 2.25 12l4.179 2.25m0-4.5 5.571 3 5.571-3m-11.142 0L2.25 7.5 12 2.25l9.75 5.25-4.179 2.25m0 0L21.75 12l-4.179 2.25m0 0 4.179 2.25L12 21.75 2.25 16.5l4.179-2.25m11.142 0-5.571 3-5.571-3" />
                 </svg>
-                <p className="text-sm text-indigo-900/80">{t('runGroup.caption')}</p>
+                <p className="text-sm text-indigo-900/80">{t('testGroup.caption')}</p>
             </div>
             <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="relative sm:w-64">
@@ -200,7 +200,7 @@ export default function RunGroupsPanel({ projectId, canManageProject }: RunGroup
                         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                         </svg>
-                        {t('runGroup.new')}
+                        {t('testGroup.new')}
                     </button>
                 )}
             </div>
@@ -230,7 +230,7 @@ export default function RunGroupsPanel({ projectId, canManageProject }: RunGroup
 
                 {visibleGroups.length === 0 ? (
                     <p className="p-16 text-center text-sm text-gray-500">
-                        {groups.length === 0 ? t('runGroup.empty') : t('runGroup.noResults')}
+                        {groups.length === 0 ? t('testGroup.empty') : t('testGroup.noResults')}
                     </p>
                 ) : (
                     <div className="divide-y divide-gray-100">
@@ -257,14 +257,14 @@ export default function RunGroupsPanel({ projectId, canManageProject }: RunGroup
                                         ) : (
                                             <span className="font-medium text-gray-900">{group.name}</span>
                                         )}
-                                        <span className="text-xs text-gray-400">{t('runGroup.caseCount', { count: group.items.length })}</span>
+                                        <span className="text-xs text-gray-400">{t('testGroup.caseCount', { count: group.items.length })}</span>
                                     </div>
                                     <div className="md:col-span-4 flex items-center">
                                         {group.lastSessionStatus && group.lastSessionId ? (
                                             <Link
-                                                href={`/run-groups/runs/${group.lastSessionId}?projectId=${projectId}`}
+                                                href={`/test-groups/runs/${group.lastSessionId}?projectId=${projectId}`}
                                                 className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${getStatusBadgeClass(group.lastSessionStatus)}`}
-                                                title={t('runGroup.tooltip.viewLast')}
+                                                title={t('testGroup.tooltip.viewLast')}
                                             >
                                                 {group.lastSessionStatus}
                                             </Link>
@@ -284,8 +284,8 @@ export default function RunGroupsPanel({ projectId, canManageProject }: RunGroup
                                                 onClick={() => { void handleStop(group); }}
                                                 disabled={isStopping || !canManageProject}
                                                 className="inline-flex items-center justify-center rounded-md p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
-                                                title={t('runGroup.tooltip.stop')}
-                                                aria-label={t('runGroup.tooltip.stop')}
+                                                title={t('testGroup.tooltip.stop')}
+                                                aria-label={t('testGroup.tooltip.stop')}
                                             >
                                                 {isStopping ? <LoadingSpinner size={18} /> : <StopIcon />}
                                             </button>
@@ -295,17 +295,17 @@ export default function RunGroupsPanel({ projectId, canManageProject }: RunGroup
                                                 onClick={() => { void handleRun(group); }}
                                                 disabled={isStarting || group.items.length === 0 || !canManageProject}
                                                 className="inline-flex items-center justify-center rounded-md p-2 text-gray-500 transition-colors hover:bg-primary/10 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
-                                                title={t('runGroup.tooltip.run')}
-                                                aria-label={t('runGroup.tooltip.run')}
+                                                title={t('testGroup.tooltip.run')}
+                                                aria-label={t('testGroup.tooltip.run')}
                                             >
                                                 {isStarting ? <LoadingSpinner size={18} /> : <PlayIcon />}
                                             </button>
                                         )}
                                         <Link
-                                            href={`/run-groups/${group.id}/history?projectId=${projectId}`}
+                                            href={`/test-groups/${group.id}/history?projectId=${projectId}`}
                                             className="inline-flex items-center justify-center rounded-md p-2 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600"
-                                            title={t('runGroup.tooltip.history')}
-                                            aria-label={t('runGroup.tooltip.history')}
+                                            title={t('testGroup.tooltip.history')}
+                                            aria-label={t('testGroup.tooltip.history')}
                                         >
                                             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -327,7 +327,7 @@ export default function RunGroupsPanel({ projectId, canManageProject }: RunGroup
                                                     onClick={() => setPendingDelete(group)}
                                                     disabled={isActive}
                                                     className="inline-flex items-center justify-center rounded-md p-2 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
-                                                    title={isActive ? t('runGroup.tooltip.cannotDeleteRunning') : t('common.delete')}
+                                                    title={isActive ? t('testGroup.tooltip.cannotDeleteRunning') : t('common.delete')}
                                                     aria-label={t('common.delete')}
                                                 >
                                                     <TrashIcon />
@@ -345,14 +345,14 @@ export default function RunGroupsPanel({ projectId, canManageProject }: RunGroup
             <Modal
                 isOpen={pendingDelete !== null}
                 onClose={() => setPendingDelete(null)}
-                title={t('runGroup.delete.confirmTitle')}
+                title={t('testGroup.delete.confirmTitle')}
                 confirmText={t('common.delete')}
                 cancelText={t('common.cancel')}
                 confirmVariant="danger"
                 onConfirm={() => { if (pendingDelete) void handleDelete(pendingDelete); }}
                 closeOnConfirm={false}
             >
-                <p className="text-sm text-gray-600">{t('runGroup.delete.confirmBody', { name: pendingDelete?.name ?? '' })}</p>
+                <p className="text-sm text-gray-600">{t('testGroup.delete.confirmBody', { name: pendingDelete?.name ?? '' })}</p>
             </Modal>
         </div>
     );

@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/core/logger';
 import { notifyRunTerminal } from '@/lib/integrations/slack/notifier';
-import { notifyRunGroupTerminal } from '@/lib/integrations/slack/group-notifier';
+import { notifyTestGroupTerminal } from '@/lib/integrations/slack/group-notifier';
 import { subscribeRunSessionTerminal, subscribeRunTerminal } from '@/lib/runners/domain-events';
 import { RUN_SESSION_KIND, TEST_STATUS } from '@/types';
 
@@ -84,7 +84,7 @@ function pumpGroupNotificationQueue(): void {
             return;
         }
         activeGroupNotifications += 1;
-        void notifyRunGroupTerminal(sessionId).catch((error) => {
+        void notifyTestGroupTerminal(sessionId).catch((error) => {
             logger.warn('Slack group notification failed in subscriber', {
                 sessionId,
                 error: error instanceof Error ? error.message : String(error),

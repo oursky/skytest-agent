@@ -6,15 +6,15 @@ import {
     TEST_CASE_KIND,
     TEST_STATUS,
     RUN_ACTIVE_STATUSES,
-    type RunGroupSummary,
-    type RunGroupSessionSummary,
-    type RunGroupUpsertInput,
+    type TestGroupSummary,
+    type TestGroupSessionSummary,
+    type TestGroupUpsertInput,
     type RunTriggerSource,
 } from '@/types';
 
-export type RunGroupResult<T> = { ok: true; data: T } | { ok: false; status: 400 | 404 | 409; error: string };
+export type TestGroupResult<T> = { ok: true; data: T } | { ok: false; status: 400 | 404 | 409; error: string };
 
-function normalizeUpsert(input: RunGroupUpsertInput): { name: string; displayId: string | null; loginFlowId: string | null; testCaseIds: string[] } {
+function normalizeUpsert(input: TestGroupUpsertInput): { name: string; displayId: string | null; loginFlowId: string | null; testCaseIds: string[] } {
     const name = typeof input.name === 'string' ? input.name.trim() : '';
     const displayId = typeof input.displayId === 'string' && input.displayId.trim() ? input.displayId.trim() : null;
     const loginFlowId = typeof input.loginFlowId === 'string' && input.loginFlowId.trim() ? input.loginFlowId.trim() : null;
@@ -30,14 +30,14 @@ async function validateGroupMembers(
     projectId: string,
     testCaseIds: string[],
     loginFlowId: string | null,
-): Promise<RunGroupResult<true>> {
+): Promise<TestGroupResult<true>> {
     if (testCaseIds.length > 0) {
         const cases = await prisma.testCase.findMany({
             where: { id: { in: testCaseIds }, projectId, kind: TEST_CASE_KIND.TEST },
             select: { id: true },
         });
         if (cases.length !== testCaseIds.length) {
-            return { ok: false, status: 400, error: 'All run group items must be test cases in this project' };
+            return { ok: false, status: 400, error: 'All test group items must be test cases in this project' };
         }
     }
     if (loginFlowId) {
@@ -52,7 +52,7 @@ async function validateGroupMembers(
     return { ok: true, data: true };
 }
 
-function serializeRunGroup(group: {
+function serializeTestGroup(group: {
     id: string;
     name: string;
     displayId: string | null;
@@ -60,7 +60,7 @@ function serializeRunGroup(group: {
     updatedAt: Date;
     items: { testCaseId: string; position: number; testCase: { displayId: string | null; name: string; browserConfig: string | null } }[];
     sessions: { id: string; status: string; createdAt: Date }[];
-}): RunGroupSummary {
+}): TestGroupSummary {
     const latest = group.sessions[0];
     return {
         id: group.id,
@@ -88,29 +88,29 @@ const groupInclude = {
     sessions: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' as const }, take: 1, select: { id: true, status: true, createdAt: true } },
 };
 
-export async function listRunGroups(projectId: string): Promise<RunGroupSummary[]> {
-    const groups = await prisma.runGroup.findMany({
+export async function listTestGroups(projectId: string): Promise<TestGroupSummary[]> {
+    const groups = await prisma.testGroup.findMany({
         where: { projectId },
         orderBy: { updatedAt: 'desc' },
         include: groupInclude,
     });
-    return groups.map(serializeRunGroup);
+    return groups.map(serializeTestGroup);
 }
 
-export async function listRunGroupSessions(
+export async function listTestGroupSessions(
     projectId: string,
     groupId: string,
     page: number,
     limit: number,
-): Promise<RunGroupResult<{ groupName: string; projectName: string; sessions: RunGroupSessionSummary[]; total: number }>> {
-    const group = await prisma.runGroup.findFirst({
+): Promise<TestGroupResult<{ groupName: string; projectName: string; sessions: TestGroupSessionSummary[]; total: number }>> {
+    const group = await prisma.testGroup.findFirst({
         where: { id: groupId, projectId },
         select: { id: true, name: true, project: { select: { name: true } } },
     });
     if (!group) {
-        return { ok: false, status: 404, error: 'Run group not found' };
+        return { ok: false, status: 404, error: 'Test group not found' };
     }
-    const where = { runGroupId: groupId, deletedAt: null };
+    const where = { testGroupId: groupId, deletedAt: null };
     const [total, sessions] = await prisma.$transaction([
         prisma.runSession.count({ where }),
         prisma.runSession.findMany({
@@ -148,15 +148,15 @@ export async function listRunGroupSessions(
     };
 }
 
-export async function getRunGroup(projectId: string, groupId: string): Promise<RunGroupSummary | null> {
-    const group = await prisma.runGroup.findFirst({
+export async function getTestGroup(projectId: string, groupId: string): Promise<TestGroupSummary | null> {
+    const group = await prisma.testGroup.findFirst({
         where: { id: groupId, projectId },
         include: groupInclude,
     });
-    return group ? serializeRunGroup(group) : null;
+    return group ? serializeTestGroup(group) : null;
 }
 
-export async function createRunGroup(projectId: string, input: RunGroupUpsertInput): Promise<RunGroupResult<RunGroupSummary>> {
+export async function createTestGroup(projectId: string, input: TestGroupUpsertInput): Promise<TestGroupResult<TestGroupSummary>> {
     const { name, displayId, loginFlowId, testCaseIds } = normalizeUpsert(input);
     if (!name) {
         return { ok: false, status: 400, error: 'Name is required' };
@@ -165,7 +165,7 @@ export async function createRunGroup(projectId: string, input: RunGroupUpsertInp
     if (!validation.ok) {
         return validation;
     }
-    const group = await prisma.runGroup.create({
+    const group = await prisma.testGroup.create({
         data: {
             projectId,
             name,
@@ -175,13 +175,13 @@ export async function createRunGroup(projectId: string, input: RunGroupUpsertInp
         },
         include: groupInclude,
     });
-    return { ok: true, data: serializeRunGroup(group) };
+    return { ok: true, data: serializeTestGroup(group) };
 }
 
-export async function updateRunGroup(projectId: string, groupId: string, input: RunGroupUpsertInput): Promise<RunGroupResult<RunGroupSummary>> {
-    const existing = await prisma.runGroup.findFirst({ where: { id: groupId, projectId }, select: { id: true } });
+export async function updateTestGroup(projectId: string, groupId: string, input: TestGroupUpsertInput): Promise<TestGroupResult<TestGroupSummary>> {
+    const existing = await prisma.testGroup.findFirst({ where: { id: groupId, projectId }, select: { id: true } });
     if (!existing) {
-        return { ok: false, status: 404, error: 'Run group not found' };
+        return { ok: false, status: 404, error: 'Test group not found' };
     }
     const { name, displayId, loginFlowId, testCaseIds } = normalizeUpsert(input);
     if (!name) {
@@ -192,8 +192,8 @@ export async function updateRunGroup(projectId: string, groupId: string, input: 
         return validation;
     }
     const group = await prisma.$transaction(async (tx) => {
-        await tx.runGroupItem.deleteMany({ where: { runGroupId: groupId } });
-        return tx.runGroup.update({
+        await tx.testGroupItem.deleteMany({ where: { testGroupId: groupId } });
+        return tx.testGroup.update({
             where: { id: groupId },
             data: {
                 name,
@@ -204,56 +204,56 @@ export async function updateRunGroup(projectId: string, groupId: string, input: 
             include: groupInclude,
         });
     });
-    return { ok: true, data: serializeRunGroup(group) };
+    return { ok: true, data: serializeTestGroup(group) };
 }
 
-export async function deleteRunGroup(projectId: string, groupId: string): Promise<RunGroupResult<true>> {
-    const existing = await prisma.runGroup.findFirst({ where: { id: groupId, projectId }, select: { id: true } });
+export async function deleteTestGroup(projectId: string, groupId: string): Promise<TestGroupResult<true>> {
+    const existing = await prisma.testGroup.findFirst({ where: { id: groupId, projectId }, select: { id: true } });
     if (!existing) {
-        return { ok: false, status: 404, error: 'Run group not found' };
+        return { ok: false, status: 404, error: 'Test group not found' };
     }
-    await prisma.runGroup.delete({ where: { id: groupId } });
+    await prisma.testGroup.delete({ where: { id: groupId } });
     return { ok: true, data: true };
 }
 
-export interface QueueRunGroupOptions {
+export interface QueueTestGroupOptions {
     triggeredByEmail?: string | null;
     triggerSource: RunTriggerSource;
 }
 
 /**
- * Materializes a run group into a GROUP run session: an optional "start with"
+ * Materializes a test group into a GROUP run session: an optional "start with"
  * login-flow member, then each case in order. Rejects if the group is empty or
  * already has an active session (a group cannot run twice concurrently).
  */
-export async function queueRunGroupRun(
+export async function queueTestGroupRun(
     projectId: string,
     groupId: string,
-    options: QueueRunGroupOptions,
-): Promise<RunGroupResult<{ sessionId: string }>> {
-    const group = await prisma.runGroup.findFirst({
+    options: QueueTestGroupOptions,
+): Promise<TestGroupResult<{ sessionId: string }>> {
+    const group = await prisma.testGroup.findFirst({
         where: { id: groupId, projectId },
         include: { items: { orderBy: { position: 'asc' }, select: { testCaseId: true } } },
     });
     if (!group) {
-        return { ok: false, status: 404, error: 'Run group not found' };
+        return { ok: false, status: 404, error: 'Test group not found' };
     }
     if (group.items.length === 0) {
-        return { ok: false, status: 400, error: 'Run group has no test cases' };
+        return { ok: false, status: 400, error: 'Test group has no test cases' };
     }
 
     const activeSession = await prisma.runSession.findFirst({
-        where: { runGroupId: groupId, deletedAt: null, status: { in: [...RUN_ACTIVE_STATUSES] } },
+        where: { testGroupId: groupId, deletedAt: null, status: { in: [...RUN_ACTIVE_STATUSES] } },
         select: { id: true },
     });
     if (activeSession) {
-        return { ok: false, status: 409, error: 'This run group already has a run in progress' };
+        return { ok: false, status: 409, error: 'This test group already has a run in progress' };
     }
 
     const runSessionId = await createRunSession({
         projectId,
         kind: RUN_SESSION_KIND.GROUP,
-        runGroupId: groupId,
+        testGroupId: groupId,
         requiredCapability: BROWSER_EXECUTION_CAPABILITY,
         triggeredByEmail: options.triggeredByEmail,
         triggerSource: options.triggerSource,

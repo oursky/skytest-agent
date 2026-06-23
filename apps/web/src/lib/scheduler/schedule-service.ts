@@ -29,9 +29,9 @@ export async function listProjectSchedules(projectId: string): Promise<ScheduleR
                     },
                 },
             },
-            runGroups: {
+            testGroups: {
                 select: {
-                    runGroup: {
+                    testGroup: {
                         select: { id: true, name: true, displayId: true },
                     },
                 },
@@ -69,9 +69,9 @@ export async function getProjectSchedule(projectId: string, scheduleId: string):
                     },
                 },
             },
-            runGroups: {
+            testGroups: {
                 select: {
-                    runGroup: {
+                    testGroup: {
                         select: { id: true, name: true, displayId: true },
                     },
                 },
@@ -110,8 +110,8 @@ export async function createProjectSchedule(input: {
             testCases: {
                 create: prepared.testCaseIds.map((testCaseId) => ({ testCaseId })),
             },
-            runGroups: {
-                create: prepared.runGroupIds.map((runGroupId) => ({ runGroupId })),
+            testGroups: {
+                create: prepared.testGroupIds.map((testGroupId) => ({ testGroupId })),
             },
         },
         include: {
@@ -132,9 +132,9 @@ export async function createProjectSchedule(input: {
                     },
                 },
             },
-            runGroups: {
+            testGroups: {
                 select: {
-                    runGroup: {
+                    testGroup: {
                         select: { id: true, name: true, displayId: true },
                     },
                 },
@@ -174,7 +174,7 @@ export async function updateProjectSchedule(input: {
         await tx.scheduleTestCase.deleteMany({
             where: { scheduleId: input.scheduleId },
         });
-        await tx.scheduleRunGroup.deleteMany({
+        await tx.scheduleTestGroup.deleteMany({
             where: { scheduleId: input.scheduleId },
         });
 
@@ -190,8 +190,8 @@ export async function updateProjectSchedule(input: {
                 testCases: {
                     create: prepared.testCaseIds.map((testCaseId) => ({ testCaseId })),
                 },
-                runGroups: {
-                    create: prepared.runGroupIds.map((runGroupId) => ({ runGroupId })),
+                testGroups: {
+                    create: prepared.testGroupIds.map((testGroupId) => ({ testGroupId })),
                 },
             },
             include: {
@@ -212,9 +212,9 @@ export async function updateProjectSchedule(input: {
                         },
                     },
                 },
-                runGroups: {
+                testGroups: {
                     select: {
-                        runGroup: {
+                        testGroup: {
                             select: { id: true, name: true, displayId: true },
                         },
                     },
@@ -252,7 +252,7 @@ async function prepareScheduleMutation(input: {
     enabled: boolean;
     nextRunAt: Date | null;
     testCaseIds: string[];
-    runGroupIds: string[];
+    testGroupIds: string[];
 }> {
     const description = input.body.description.trim();
     if (!description) {
@@ -268,14 +268,14 @@ async function prepareScheduleMutation(input: {
             .map((testCaseId) => testCaseId.trim())
             .filter(Boolean)
     )];
-    const runGroupIds = [...new Set(
-        (input.body.runGroupIds ?? [])
-            .filter((runGroupId): runGroupId is string => typeof runGroupId === 'string')
-            .map((runGroupId) => runGroupId.trim())
+    const testGroupIds = [...new Set(
+        (input.body.testGroupIds ?? [])
+            .filter((testGroupId): testGroupId is string => typeof testGroupId === 'string')
+            .map((testGroupId) => testGroupId.trim())
             .filter(Boolean)
     )];
-    if (testCaseIds.length === 0 && runGroupIds.length === 0) {
-        throw new SchedulerValidationError('At least one test case or run group is required');
+    if (testCaseIds.length === 0 && testGroupIds.length === 0) {
+        throw new SchedulerValidationError('At least one test case or test group is required');
     }
 
     const cronExpression = compileCron({
@@ -304,13 +304,13 @@ async function prepareScheduleMutation(input: {
         throw new SchedulerValidationError('One or more selected test cases do not belong to this project');
     }
 
-    if (runGroupIds.length > 0) {
-        const matchingRunGroups = await prisma.runGroup.findMany({
-            where: { projectId: input.projectId, id: { in: runGroupIds } },
+    if (testGroupIds.length > 0) {
+        const matchingTestGroups = await prisma.testGroup.findMany({
+            where: { projectId: input.projectId, id: { in: testGroupIds } },
             select: { id: true },
         });
-        if (matchingRunGroups.length !== runGroupIds.length) {
-            throw new SchedulerValidationError('One or more selected run groups do not belong to this project');
+        if (matchingTestGroups.length !== testGroupIds.length) {
+            throw new SchedulerValidationError('One or more selected test groups do not belong to this project');
         }
     }
 
@@ -322,7 +322,7 @@ async function prepareScheduleMutation(input: {
         enabled,
         nextRunAt,
         testCaseIds,
-        runGroupIds,
+        testGroupIds,
     };
 }
 
@@ -390,8 +390,8 @@ function serializeScheduleRecord(schedule: {
             status: string;
         };
     }>;
-    runGroups: Array<{
-        runGroup: {
+    testGroups: Array<{
+        testGroup: {
             id: string;
             name: string;
             displayId: string | null;
@@ -429,10 +429,10 @@ function serializeScheduleRecord(schedule: {
                 lastRunAt: latestRun?.at.toISOString() ?? null,
             };
         }),
-        runGroups: schedule.runGroups.map(({ runGroup }) => ({
-            id: runGroup.id,
-            displayId: runGroup.displayId,
-            name: runGroup.name,
+        testGroups: schedule.testGroups.map(({ testGroup }) => ({
+            id: testGroup.id,
+            displayId: testGroup.displayId,
+            name: testGroup.name,
         })),
     };
 }

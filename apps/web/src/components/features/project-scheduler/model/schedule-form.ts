@@ -15,7 +15,7 @@ export interface ProjectScheduleFormState {
     customCron: string;
     enabled: boolean;
     testCaseIds: string[];
-    runGroupIds: string[];
+    testGroupIds: string[];
 }
 
 export interface ProjectScheduleTestCaseOption {
@@ -35,7 +35,7 @@ export function createDefaultScheduleForm(): ProjectScheduleFormState {
         customCron: '',
         enabled: true,
         testCaseIds: [],
-        runGroupIds: [],
+        testGroupIds: [],
     };
 }
 
@@ -52,7 +52,7 @@ export function mapScheduleToForm(schedule: ScheduleRecord): ProjectScheduleForm
         customCron: fields.customCron ?? schedule.customCron ?? '',
         enabled: schedule.enabled,
         testCaseIds: schedule.testCases.map((testCase) => testCase.id),
-        runGroupIds: schedule.runGroups.map((runGroup) => runGroup.id),
+        testGroupIds: schedule.testGroups.map((testGroup) => testGroup.id),
     };
 }
 
@@ -79,7 +79,7 @@ export function scheduleToUpsertInput(schedule: ScheduleRecord): ScheduleUpsertI
         customCron: schedule.customCron ?? undefined,
         enabled: schedule.enabled,
         testCaseIds: schedule.testCases.map((testCase) => testCase.id),
-        runGroupIds: schedule.runGroups.map((runGroup) => runGroup.id),
+        testGroupIds: schedule.testGroups.map((testGroup) => testGroup.id),
     };
 }
 

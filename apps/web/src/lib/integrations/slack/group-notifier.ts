@@ -5,7 +5,7 @@ import { postMessage } from '@/lib/integrations/slack/client';
 import { SlackApiError } from '@/lib/integrations/slack/errors';
 import { slackNotificationPolicy } from '@/lib/integrations/slack/config';
 import {
-    buildRunGroupUrl,
+    buildTestGroupUrl,
     formatSlackDateToken,
     resolveSlackAppBaseUrlFromEnv,
 } from '@/lib/integrations/slack/message';
@@ -38,7 +38,7 @@ async function markGroupNotified(sessionId: string, error: string | null): Promi
  * suppressed per-case notifications. Uses the same claim/retry columns pattern as
  * the per-run notifier, on RunSession instead of TestRun.
  */
-export async function notifyRunGroupTerminal(sessionId: string): Promise<SlackNotifyOutcome> {
+export async function notifyTestGroupTerminal(sessionId: string): Promise<SlackNotifyOutcome> {
     const session = await prisma.runSession.findUnique({
         where: { id: sessionId },
         select: {
@@ -50,7 +50,7 @@ export async function notifyRunGroupTerminal(sessionId: string): Promise<SlackNo
             completedAt: true,
             triggeredByEmail: true,
             slackNotifyAttempts: true,
-            runGroup: { select: { name: true, displayId: true } },
+            testGroup: { select: { name: true, displayId: true } },
             project: {
                 select: {
                     name: true,
@@ -105,8 +105,8 @@ export async function notifyRunGroupTerminal(sessionId: string): Promise<SlackNo
         : (project.slackGroupSuccessTemplate ?? fallbackTemplate);
 
     const passedCount = session.memberRuns.filter((member) => member.status === TEST_STATUS.PASS).length;
-    const runLink = buildRunGroupUrl({ appBaseUrl: slackAppBaseUrl, projectId: session.projectId, sessionId: session.id });
-    const groupName = (session.runGroup?.displayId ? `${session.runGroup.displayId} ` : '') + (session.runGroup?.name ?? '');
+    const runLink = buildTestGroupUrl({ appBaseUrl: slackAppBaseUrl, projectId: session.projectId, sessionId: session.id });
+    const groupName = (session.testGroup?.displayId ? `${session.testGroup.displayId} ` : '') + (session.testGroup?.name ?? '');
 
     const rendered = renderTemplate(selectedTemplate, {
         projectName: project.name,

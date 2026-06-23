@@ -11,7 +11,7 @@ import { parsePageSize } from '@/utils/pagination/pagination';
 import { ProjectConfigs } from '@/components/features/project-configurations';
 import ProjectSettingsPanel from '@/components/features/projects/ui/ProjectSettingsPanel';
 import { ProjectSchedulesPanel } from '@/components/features/project-scheduler';
-import { RunGroupsPanel } from '@/components/features/run-groups';
+import { TestGroupsPanel } from '@/components/features/test-groups';
 import ProjectSlackSettings from '@/components/features/project-notifications/ui/ProjectSlackSettings';
 import { useCurrentTeam } from '@/hooks/team/useCurrentTeam';
 import TestCaseImportReviewDialog from '@/components/features/test-cases/ui/TestCaseImportReviewDialog';
@@ -80,7 +80,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
     useEffect(() => {
         const tab = searchParams.get('tab');
-        if (tab === 'variables' || tab === 'integration' || tab === 'scheduler' || tab === 'settings' || tab === 'test-cases' || tab === 'login-flows' || tab === 'run-groups') {
+        if (tab === 'variables' || tab === 'integration' || tab === 'scheduler' || tab === 'settings' || tab === 'test-cases' || tab === 'login-flows' || tab === 'test-groups') {
             setActiveTab(tab);
         }
     }, [searchParams]);
@@ -559,11 +559,11 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         || !project?.canManageProject;
     const projectTabs = [
         { id: 'test-cases' as const, label: t('project.tab.testCases') },
-        { id: 'login-flows' as const, label: t('project.tab.loginFlows') },
-        { id: 'run-groups' as const, label: t('project.tab.runGroups') },
         { id: 'variables' as const, label: t('project.tab.configs') },
-        { id: 'integration' as const, label: t('project.tab.integration') },
+        { id: 'login-flows' as const, label: t('project.tab.loginFlows') },
+        { id: 'test-groups' as const, label: t('project.tab.testGroups') },
         { id: 'scheduler' as const, label: t('project.tab.scheduler') },
+        { id: 'integration' as const, label: t('project.tab.integration') },
         { id: 'settings' as const, label: t('project.tab.settings') },
     ];
 
@@ -646,8 +646,8 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     <ProjectConfigs projectId={id} />
                 )}
 
-                {activeTab === 'run-groups' && project && (
-                    <RunGroupsPanel projectId={id} canManageProject={Boolean(project.canManageProject)} />
+                {activeTab === 'test-groups' && project && (
+                    <TestGroupsPanel projectId={id} canManageProject={Boolean(project.canManageProject)} />
                 )}
 
                 {activeTab === 'scheduler' && project && (

@@ -31,7 +31,7 @@ export function buildRunUrl(input: {
     return `${baseUrl.replace(/\/+$/, '')}/test-cases/${encodeURIComponent(input.testCaseId)}/history/${encodeURIComponent(input.runId)}`;
 }
 
-export function buildRunGroupUrl(input: {
+export function buildTestGroupUrl(input: {
     appBaseUrl: string | null;
     projectId: string;
     sessionId: string;
@@ -43,7 +43,7 @@ export function buildRunGroupUrl(input: {
     if (!baseUrl) {
         return null;
     }
-    return `${baseUrl.replace(/\/+$/, '')}/run-groups/runs/${encodeURIComponent(input.sessionId)}?projectId=${encodeURIComponent(input.projectId)}`;
+    return `${baseUrl.replace(/\/+$/, '')}/test-groups/runs/${encodeURIComponent(input.sessionId)}?projectId=${encodeURIComponent(input.projectId)}`;
 }
 
 export function formatSlackDateToken(date: Date | null): string {

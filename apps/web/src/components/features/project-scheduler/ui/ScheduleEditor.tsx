@@ -13,7 +13,7 @@ import {
 } from '../model/schedule-form';
 import IntervalPatternField from './IntervalPatternField';
 import TestCasePicker from './TestCasePicker';
-import RunGroupSchedulePicker from './RunGroupSchedulePicker';
+import TestGroupSchedulePicker from './TestGroupSchedulePicker';
 import TimezoneSelect from './TimezoneSelect';
 
 interface ScheduleEditorProps {
@@ -95,12 +95,12 @@ export default function ScheduleEditor({
                 </div>
 
                 <div>
-                    <label className="mb-1 block text-sm font-medium text-gray-700">{t('project.scheduler.fields.runGroups')}</label>
-                    <RunGroupSchedulePicker
+                    <label className="mb-1 block text-sm font-medium text-gray-700">{t('project.scheduler.fields.testGroups')}</label>
+                    <TestGroupSchedulePicker
                         projectId={projectId}
-                        selectedIds={form.runGroupIds}
+                        selectedIds={form.testGroupIds}
                         t={t}
-                        onChange={(nextSelectedIds) => setForm((previous) => ({ ...previous, runGroupIds: nextSelectedIds }))}
+                        onChange={(nextSelectedIds) => setForm((previous) => ({ ...previous, testGroupIds: nextSelectedIds }))}
                     />
                 </div>
 
@@ -127,7 +127,7 @@ export default function ScheduleEditor({
                                 setError(t('project.scheduler.validation.descriptionRequired'));
                                 return;
                             }
-                            if (form.testCaseIds.length === 0 && form.runGroupIds.length === 0) {
+                            if (form.testCaseIds.length === 0 && form.testGroupIds.length === 0) {
                                 setError(t('project.scheduler.validation.testCasesRequired'));
                                 return;
                             }
@@ -141,7 +141,7 @@ export default function ScheduleEditor({
                                 customCron: form.customCron,
                                 enabled: form.enabled,
                                 testCaseIds: form.testCaseIds,
-                                runGroupIds: form.runGroupIds,
+                                testGroupIds: form.testGroupIds,
                             });
                         }}
                     >

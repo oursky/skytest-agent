@@ -3,11 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
     queryRaw: vi.fn(),
     scheduleTestCaseFindMany: vi.fn(),
-    scheduleRunGroupFindMany: vi.fn(),
+    scheduleTestGroupFindMany: vi.fn(),
     scheduleUpdate: vi.fn(),
     transaction: vi.fn(),
     queueTestCaseRun: vi.fn(),
-    queueRunGroupRun: vi.fn(),
+    queueTestGroupRun: vi.fn(),
     computeNextRunAt: vi.fn(),
 }));
 
@@ -22,8 +22,8 @@ vi.mock('@/lib/mcp/run-execution', () => ({
     queueTestCaseRun: mocks.queueTestCaseRun,
 }));
 
-vi.mock('@/lib/run-groups/run-group-service', () => ({
-    queueRunGroupRun: mocks.queueRunGroupRun,
+vi.mock('@/lib/test-groups/test-group-service', () => ({
+    queueTestGroupRun: mocks.queueTestGroupRun,
 }));
 
 vi.mock('@/lib/scheduler/cron', () => ({
@@ -36,23 +36,23 @@ describe('runSchedulerTick', () => {
     beforeEach(() => {
         mocks.queryRaw.mockReset();
         mocks.scheduleTestCaseFindMany.mockReset();
-        mocks.scheduleRunGroupFindMany.mockReset();
-        mocks.scheduleRunGroupFindMany.mockResolvedValue([]);
+        mocks.scheduleTestGroupFindMany.mockReset();
+        mocks.scheduleTestGroupFindMany.mockResolvedValue([]);
         mocks.scheduleUpdate.mockReset();
         mocks.transaction.mockReset();
         mocks.queueTestCaseRun.mockReset();
-        mocks.queueRunGroupRun.mockReset();
+        mocks.queueTestGroupRun.mockReset();
         mocks.computeNextRunAt.mockReset();
 
         mocks.transaction.mockImplementation(async (callback: (tx: {
             $queryRaw: typeof mocks.queryRaw;
             scheduleTestCase: { findMany: typeof mocks.scheduleTestCaseFindMany };
-            scheduleRunGroup: { findMany: typeof mocks.scheduleRunGroupFindMany };
+            scheduleTestGroup: { findMany: typeof mocks.scheduleTestGroupFindMany };
             schedule: { update: typeof mocks.scheduleUpdate };
         }) => Promise<unknown>) => callback({
             $queryRaw: mocks.queryRaw,
             scheduleTestCase: { findMany: mocks.scheduleTestCaseFindMany },
-            scheduleRunGroup: { findMany: mocks.scheduleRunGroupFindMany },
+            scheduleTestGroup: { findMany: mocks.scheduleTestGroupFindMany },
             schedule: { update: mocks.scheduleUpdate },
         }));
         mocks.computeNextRunAt.mockReturnValue(new Date('2026-06-09T09:00:00.000Z'));

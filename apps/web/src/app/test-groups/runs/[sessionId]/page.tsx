@@ -28,13 +28,13 @@ interface SessionView {
     id: string;
     kind: string;
     status: string;
-    runGroupId: string | null;
+    testGroupId: string | null;
     projectName: string;
     groupName: string | null;
     members: SessionMemberView[];
 }
 
-export default function RunGroupRunPage({ params }: { params: Promise<{ sessionId: string }> }) {
+export default function TestGroupRunPage({ params }: { params: Promise<{ sessionId: string }> }) {
     const { sessionId } = use(params);
     const searchParams = useSearchParams();
     const projectId = searchParams.get('projectId');
@@ -102,27 +102,27 @@ export default function RunGroupRunPage({ params }: { params: Promise<{ sessionI
         <main className="min-h-screen bg-gray-50">
             <div className="mx-auto max-w-7xl px-8 py-8">
                 <Breadcrumbs items={[
-                    { label: session?.projectName ?? '', href: projectId ? `/projects/${projectId}?tab=run-groups` : undefined },
-                    ...(session?.runGroupId
-                        ? [{ label: session.groupName ?? '', href: `/run-groups/${session.runGroupId}/history?projectId=${projectId ?? ''}` }]
+                    { label: session?.projectName ?? '', href: projectId ? `/projects/${projectId}?tab=test-groups` : undefined },
+                    ...(session?.testGroupId
+                        ? [{ label: session.groupName ?? '', href: `/test-groups/${session.testGroupId}/history?projectId=${projectId ?? ''}` }]
                         : []),
-                    { label: t('runGroup.run.title') },
+                    { label: t('testGroup.run.title') },
                 ]} />
 
                 {notFound ? (
-                    <p className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">{t('runGroup.run.notFound')}</p>
+                    <p className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">{t('testGroup.run.notFound')}</p>
                 ) : !session ? (
                     <p className="text-sm text-gray-500">{t('common.loading')}</p>
                 ) : (
                     <>
                         <div className="mb-8 flex flex-wrap items-center gap-3">
-                            <h1 className="text-3xl font-bold text-gray-900">{t('runGroup.run.title')}</h1>
+                            <h1 className="text-3xl font-bold text-gray-900">{t('testGroup.run.title')}</h1>
                             <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${getStatusBadgeClass(session.status)}`}>{session.status}</span>
-                            <span className="text-sm text-gray-500">{t('runGroup.run.progress', { done: settledCount, total: totalCount })}</span>
+                            <span className="text-sm text-gray-500">{t('testGroup.run.progress', { done: settledCount, total: totalCount })}</span>
                             {sessionActive && (
                                 <div className="ml-auto">
                                     <Button type="button" variant="danger" size="sm" onClick={() => setConfirmStop(true)} disabled={stopping}>
-                                        {stopping ? t('runGroup.run.stopping') : t('runGroup.run.stop')}
+                                        {stopping ? t('testGroup.run.stopping') : t('testGroup.run.stop')}
                                     </Button>
                                 </div>
                             )}
@@ -148,7 +148,7 @@ export default function RunGroupRunPage({ params }: { params: Promise<{ sessionI
                                                     <span className="truncate text-sm font-medium text-gray-900">{member.name}</span>
                                                 </Link>
                                                 {member.kind === 'LOGIN_FLOW' && <span className="shrink-0 rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] text-indigo-600">{t('project.tab.loginFlows')}</span>}
-                                                {member.reusedSession && <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">{t('runGroup.run.reused')}</span>}
+                                                {member.reusedSession && <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">{t('testGroup.run.reused')}</span>}
                                             </div>
                                             <div className="md:col-span-2">
                                                 <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${getStatusBadgeClass(member.status)}`}>{member.status}</span>
@@ -181,14 +181,14 @@ export default function RunGroupRunPage({ params }: { params: Promise<{ sessionI
             <Modal
                 isOpen={confirmStop}
                 onClose={() => setConfirmStop(false)}
-                title={t('runGroup.run.stopConfirmTitle')}
-                confirmText={t('runGroup.run.stop')}
+                title={t('testGroup.run.stopConfirmTitle')}
+                confirmText={t('testGroup.run.stop')}
                 cancelText={t('common.cancel')}
                 confirmVariant="danger"
                 onConfirm={() => { void handleStopGroup(); }}
                 closeOnConfirm={false}
             >
-                <p className="text-sm text-gray-600">{t('runGroup.run.stopConfirmBody')}</p>
+                <p className="text-sm text-gray-600">{t('testGroup.run.stopConfirmBody')}</p>
             </Modal>
         </main>
     );

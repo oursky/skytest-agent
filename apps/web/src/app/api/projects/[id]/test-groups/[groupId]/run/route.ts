@@ -3,10 +3,10 @@ import { prisma } from '@/lib/core/prisma';
 import { guardProjectRouteRequest } from '@/lib/security/project-route-access';
 import { apiError } from '@/lib/security/api-route-standards';
 import { createLogger } from '@/lib/core/logger';
-import { queueRunGroupRun } from '@/lib/run-groups/run-group-service';
+import { queueTestGroupRun } from '@/lib/test-groups/test-group-service';
 import { RUN_TRIGGER_SOURCE } from '@/types';
 
-const logger = createLogger('api:projects:run-group:run');
+const logger = createLogger('api:projects:test-group:run');
 
 export const dynamic = 'force-dynamic';
 
@@ -17,7 +17,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
     try {
         const user = await prisma.user.findUnique({ where: { id: guard.userId }, select: { email: true } });
-        const result = await queueRunGroupRun(guard.params.id, guard.params.groupId, {
+        const result = await queueTestGroupRun(guard.params.id, guard.params.groupId, {
             triggeredByEmail: user?.email ?? null,
             triggerSource: RUN_TRIGGER_SOURCE.USER,
         });
@@ -30,7 +30,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         }
         return NextResponse.json(result.data);
     } catch (error) {
-        logger.error('Failed to start run group', error);
-        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to start run group' });
+        logger.error('Failed to start test group', error);
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to start test group' });
     }
 }

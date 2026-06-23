@@ -51,7 +51,7 @@ export default function OrderedTestCasePicker({ projectId, value, onChange }: Or
     const label = (id: string) => {
         const option = optionById.get(id);
         if (!option) return id;
-        return option.displayId ? `${option.displayId} ${option.name}` : option.name;
+        return option.displayId ? `${option.displayId} • ${option.name}` : option.name;
     };
 
     const move = (index: number, delta: number) => {
@@ -64,9 +64,9 @@ export default function OrderedTestCasePicker({ projectId, value, onChange }: Or
 
     return (
         <div className="space-y-2">
-            <label className="block text-sm font-medium text-foreground">{t('runGroup.items')}</label>
+            <label className="block text-sm font-medium text-foreground">{t('testGroup.items')}</label>
             {value.length === 0 ? (
-                <p className="text-sm text-gray-500">{t('runGroup.items.empty')}</p>
+                <p className="text-sm text-gray-500">{t('testGroup.items.empty')}</p>
             ) : (
                 <ol className="space-y-1.5">
                     {value.map((id, index) => (
@@ -78,7 +78,7 @@ export default function OrderedTestCasePicker({ projectId, value, onChange }: Or
                                 onClick={() => move(index, -1)}
                                 disabled={index === 0}
                                 className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:pointer-events-none disabled:opacity-30"
-                                aria-label={t('runGroup.items.moveUp')}
+                                aria-label={t('testGroup.items.moveUp')}
                             >
                                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
                             </button>
@@ -87,7 +87,7 @@ export default function OrderedTestCasePicker({ projectId, value, onChange }: Or
                                 onClick={() => move(index, 1)}
                                 disabled={index === value.length - 1}
                                 className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:pointer-events-none disabled:opacity-30"
-                                aria-label={t('runGroup.items.moveDown')}
+                                aria-label={t('testGroup.items.moveDown')}
                             >
                                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                             </button>
@@ -107,15 +107,15 @@ export default function OrderedTestCasePicker({ projectId, value, onChange }: Or
                 <CustomSelect
                     value=""
                     options={[
-                        { value: '', label: t('runGroup.items.add') },
+                        { value: '', label: t('testGroup.items.add') },
                         ...available.map((option) => ({
                             value: option.id,
-                            label: option.displayId ? `${option.displayId} ${option.name}` : option.name,
+                            label: option.displayId ? `${option.displayId} • ${option.name}` : option.name,
                         })),
                     ]}
                     onChange={(next) => { if (next) onChange([...value, next]); }}
                     fullWidth
-                    ariaLabel={t('runGroup.items.add')}
+                    ariaLabel={t('testGroup.items.add')}
                 />
             )}
         </div>

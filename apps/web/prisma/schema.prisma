@@ -138,7 +138,7 @@ model Project {
   configs         ProjectConfig[]
   usageRecords    UsageRecord[]
   runSessions     RunSession[]
-  runGroups       RunGroup[]
+  testGroups      TestGroup[]
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
 
@@ -162,7 +162,7 @@ model TestCase {
   sourceHash String?
   testRuns  TestRun[]
   scheduleLinks ScheduleTestCase[]
-  runGroupItems RunGroupItem[]
+  testGroupItems TestGroupItem[]
   files     TestCaseFile[]
   configs   TestCaseConfig[]
   createdAt DateTime         @default(now())
@@ -242,8 +242,8 @@ model RunSession {
   projectId            String
   project              Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   kind                 String      @default("SINGLE") // SINGLE | GROUP
-  runGroupId           String?
-  runGroup             RunGroup?   @relation(fields: [runGroupId], references: [id], onDelete: SetNull)
+  testGroupId          String?
+  testGroup            TestGroup?  @relation(fields: [testGroupId], references: [id], onDelete: SetNull)
   status               String      // QUEUED | PREPARING | RUNNING | PASS | FAIL | CANCELLED
   triggeredByEmail     String?
   triggerSource        String      @default("USER")
@@ -263,35 +263,35 @@ model RunSession {
   @@index([status, requiredCapability, createdAt(sort: Asc)])
   @@index([projectId, createdAt(sort: Desc)])
   @@index([assignedRunnerId, leaseExpiresAt])
-  @@index([runGroupId, createdAt(sort: Desc)])
+  @@index([testGroupId, createdAt(sort: Desc)])
 }
 
-model RunGroup {
+model TestGroup {
   id          String         @id @default(cuid())
   projectId   String
   project     Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name        String
   displayId   String?
   loginFlowId String?
-  items       RunGroupItem[]
+  items       TestGroupItem[]
   sessions    RunSession[]
-  scheduleLinks ScheduleRunGroup[]
+  scheduleLinks ScheduleTestGroup[]
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
   @@index([projectId, updatedAt(sort: Desc)])
 }
 
-model RunGroupItem {
-  id         String   @id @default(cuid())
-  runGroupId String
-  runGroup   RunGroup @relation(fields: [runGroupId], references: [id], onDelete: Cascade)
-  testCaseId String
-  testCase   TestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
-  position   Int
+model TestGroupItem {
+  id          String    @id @default(cuid())
+  testGroupId String
+  testGroup   TestGroup @relation(fields: [testGroupId], references: [id], onDelete: Cascade)
+  testCaseId  String
+  testCase    TestCase  @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  position    Int
 
-  @@unique([runGroupId, testCaseId])
-  @@index([runGroupId, position])
+  @@unique([testGroupId, testCaseId])
+  @@index([testGroupId, position])
 }
 
 model Schedule {
@@ -311,20 +311,20 @@ model Schedule {
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
   testCases       ScheduleTestCase[]
-  runGroups       ScheduleRunGroup[]
+  testGroups      ScheduleTestGroup[]
 
   @@index([enabled, nextRunAt])
   @@index([projectId])
 }
 
-model ScheduleRunGroup {
-  scheduleId String
-  schedule   Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
-  runGroupId String
-  runGroup   RunGroup @relation(fields: [runGroupId], references: [id], onDelete: Cascade)
+model ScheduleTestGroup {
+  scheduleId  String
+  schedule    Schedule  @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  testGroupId String
+  testGroup   TestGroup @relation(fields: [testGroupId], references: [id], onDelete: Cascade)
 
-  @@id([scheduleId, runGroupId])
-  @@index([runGroupId])
+  @@id([scheduleId, testGroupId])
+  @@index([testGroupId])
 }
 
 model ScheduleTestCase {

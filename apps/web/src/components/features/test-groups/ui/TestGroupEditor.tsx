@@ -6,17 +6,17 @@ import { useI18n } from '@/i18n';
 import { fetchWithAccessToken } from '@/app/run/run-page-api';
 import LoginFlowSelect from '@/components/features/test-configurations/ui/LoginFlowSelect';
 import { Button } from '@/components/shared';
-import type { RunGroupSummary } from '@/types';
+import type { TestGroupSummary } from '@/types';
 import OrderedTestCasePicker from './OrderedTestCasePicker';
 
-interface RunGroupEditorProps {
+interface TestGroupEditorProps {
     projectId: string;
-    group?: RunGroupSummary | null;
+    group?: TestGroupSummary | null;
     onSaved: () => void;
     onCancel: () => void;
 }
 
-export default function RunGroupEditor({ projectId, group, onSaved, onCancel }: RunGroupEditorProps) {
+export default function TestGroupEditor({ projectId, group, onSaved, onCancel }: TestGroupEditorProps) {
     const { t } = useI18n();
     const { getAccessToken } = useAuth();
     const [name, setName] = useState(group?.name ?? '');
@@ -28,15 +28,15 @@ export default function RunGroupEditor({ projectId, group, onSaved, onCancel }: 
 
     const handleSave = async () => {
         if (!name.trim()) {
-            setError(t('runGroup.error.nameRequired'));
+            setError(t('testGroup.error.nameRequired'));
             return;
         }
         setIsSaving(true);
         setError('');
         try {
             const url = group
-                ? `/api/projects/${projectId}/run-groups/${group.id}`
-                : `/api/projects/${projectId}/run-groups`;
+                ? `/api/projects/${projectId}/test-groups/${group.id}`
+                : `/api/projects/${projectId}/test-groups`;
             const response = await fetchWithAccessToken(getAccessToken, url, {
                 method: group ? 'PUT' : 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -49,12 +49,12 @@ export default function RunGroupEditor({ projectId, group, onSaved, onCancel }: 
             });
             if (!response.ok) {
                 const body = await response.json().catch(() => null) as { error?: string } | null;
-                setError(body?.error ?? t('runGroup.error.saveFailed'));
+                setError(body?.error ?? t('testGroup.error.saveFailed'));
                 return;
             }
             onSaved();
         } catch {
-            setError(t('runGroup.error.saveFailed'));
+            setError(t('testGroup.error.saveFailed'));
         } finally {
             setIsSaving(false);
         }
@@ -62,20 +62,20 @@ export default function RunGroupEditor({ projectId, group, onSaved, onCancel }: 
 
     return (
         <div className="space-y-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-gray-900">{group ? t('runGroup.edit') : t('runGroup.new')}</h2>
+            <h2 className="text-lg font-semibold text-gray-900">{group ? t('testGroup.edit') : t('testGroup.new')}</h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('runGroup.name')}</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('testGroup.name')}</label>
                     <input
                         type="text"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        placeholder={t('runGroup.name.placeholder')}
+                        placeholder={t('testGroup.name.placeholder')}
                         className="input-field"
                     />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('runGroup.displayId')}</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('testGroup.displayId')}</label>
                     <input
                         type="text"
                         value={displayId}
@@ -89,6 +89,7 @@ export default function RunGroupEditor({ projectId, group, onSaved, onCancel }: 
                 projectId={projectId}
                 value={loginFlowId}
                 size="md"
+                labelSeparator=" • "
                 onChange={setLoginFlowId}
             />
             <OrderedTestCasePicker projectId={projectId} value={testCaseIds} onChange={setTestCaseIds} />
