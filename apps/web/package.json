@@ -29,6 +29,8 @@
     "test": "vitest --run",
     "runner:maintenance": "tsx src/workers/runner-maintenance.ts",
     "browser:worker": "tsx src/workers/browser-runner.ts",
+    "dev:runner-maintenance": "tsx watch src/workers/runner-maintenance.ts",
+    "dev:browser-worker": "tsx watch src/workers/browser-runner.ts",
     "ops:audit:team-ai-keys": "tsx scripts/ops/audit-team-ai-keys.ts",
     "runtime:ai-config-doctor": "tsx scripts/runtime/ai-config-doctor.ts",
     "perf:seed:runner-claim": "tsx scripts/load-gate/seed-runner-claim.ts",

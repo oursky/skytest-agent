@@ -111,9 +111,9 @@ dev: ## Boot local services, apply committed migrations, and start the web app w
 	@set -a; \
 	[ -f .env.local ] && . ./.env.local; \
 	set +a; \
-	RUNNER_MAINTENANCE_ONCE=false SKYTEST_SCHEDULER=true $(NODE_PM) run runner:maintenance & \
+	RUNNER_MAINTENANCE_ONCE=false SKYTEST_SCHEDULER=true $(NODE_PM) run --workspace @skytest/web dev:runner-maintenance & \
 	MAINT_PID=$$!; \
-	SKYTEST_BROWSER_WORKER=true $(NODE_PM) run --workspace @skytest/web browser:worker & \
+	SKYTEST_BROWSER_WORKER=true $(NODE_PM) run --workspace @skytest/web dev:browser-worker & \
 	BROWSER_WORKER_PID=$$!; \
 	trap 'kill $$MAINT_PID $$BROWSER_WORKER_PID >/dev/null 2>&1' EXIT INT TERM; \
 	$(NODE_PM) run dev -- --hostname $(CONTROL_PLANE_HOST) --port $(CONTROL_PLANE_PORT); \
