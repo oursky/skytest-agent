@@ -121,6 +121,11 @@ export async function notifyRunTerminal(runId: string): Promise<SlackNotifyOutco
     if (!run.testCase.project.slackEnabled || !tokenEncrypted || !channelId) {
         return SLACK_NOTIFY_OUTCOME.SKIPPED;
     }
+    // Per-case notifications are opt-out: OFF mutes them entirely (e.g. test-group-only setups),
+    // FAILED_ONLY skips passes, BOTH notifies for either outcome.
+    if (run.testCase.project.slackNotifyOn === PROJECT_SLACK_NOTIFY_ON.OFF) {
+        return SLACK_NOTIFY_OUTCOME.SKIPPED;
+    }
     if (run.status === TEST_STATUS.PASS && run.testCase.project.slackNotifyOn !== PROJECT_SLACK_NOTIFY_ON.BOTH_PASSED_AND_FAILED) {
         return SLACK_NOTIFY_OUTCOME.SKIPPED;
     }

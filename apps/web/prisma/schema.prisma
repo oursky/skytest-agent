@@ -13,6 +13,7 @@ enum TeamRole {
 }
 
 enum SlackNotifyOn {
+  OFF
   FAILED_ONLY
   BOTH_PASSED_AND_FAILED
 }
@@ -125,6 +126,8 @@ model Project {
   slackFailureTemplate      String?
   slackSuccessTemplate      String?
   slackGroupNotifyEnabled   Boolean         @default(false)
+  slackGroupFailureTemplate String?
+  slackGroupSuccessTemplate String?
   slackUpdatedAt            DateTime?
   teamId                    String
   team                      Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)

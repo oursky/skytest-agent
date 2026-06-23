@@ -41,7 +41,7 @@ const { notifyRunTerminal } = await import('@/lib/integrations/slack/notifier');
 function buildFailedRun(overrides?: Partial<{
     status: 'PASS' | 'FAIL';
     slackEnabled: boolean;
-    slackNotifyOn: 'FAILED_ONLY' | 'BOTH_PASSED_AND_FAILED';
+    slackNotifyOn: 'OFF' | 'FAILED_ONLY' | 'BOTH_PASSED_AND_FAILED';
     slackChannelId: string | null;
     token: string | null;
     attempts: number;
@@ -204,6 +204,15 @@ describe('notifyRunTerminal', () => {
             status: 'PASS',
             slackNotifyOn: 'FAILED_ONLY',
         }));
+
+        await notifyRunTerminal('run-1');
+
+        expect(updateManyRun).not.toHaveBeenCalled();
+        expect(postMessageMock).not.toHaveBeenCalled();
+    });
+
+    it('skips per-case notifications entirely when notify mode is OFF', async () => {
+        findUniqueRun.mockResolvedValue(buildFailedRun({ slackNotifyOn: 'OFF' }));
 
         await notifyRunTerminal('run-1');
 

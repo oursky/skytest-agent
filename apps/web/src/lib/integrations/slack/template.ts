@@ -17,8 +17,15 @@ export const DEFAULT_SLACK_SUCCESS_TEMPLATE = [
     '*Duration:* {durationMinSec}',
 ].join('\n');
 
-export const DEFAULT_SLACK_GROUP_TEMPLATE = [
-    '{statusIcon} *Test Group {statusLabel}* {projectName} {groupName}',
+export const DEFAULT_SLACK_GROUP_FAILURE_TEMPLATE = [
+    ':x: *Test Group Failed* {projectName} {groupName}',
+    '*Result:* {passedCount}/{totalCount} passed',
+    '*Run Link:* {runLink}',
+    '*Start Time:* {startedAt} *End Time:* {completedAt}',
+].join('\n');
+
+export const DEFAULT_SLACK_GROUP_SUCCESS_TEMPLATE = [
+    ':white_check_mark: *Test Group Passed* {projectName} {groupName}',
     '*Result:* {passedCount}/{totalCount} passed',
     '*Run Link:* {runLink}',
     '*Start Time:* {startedAt} *End Time:* {completedAt}',

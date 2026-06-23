@@ -10,7 +10,8 @@ import {
     resolveSlackAppBaseUrlFromEnv,
 } from '@/lib/integrations/slack/message';
 import {
-    DEFAULT_SLACK_GROUP_TEMPLATE,
+    DEFAULT_SLACK_GROUP_FAILURE_TEMPLATE,
+    DEFAULT_SLACK_GROUP_SUCCESS_TEMPLATE,
     rawSlack,
     renderTemplate,
 } from '@/lib/integrations/slack/template';
@@ -55,6 +56,8 @@ export async function notifyTestGroupTerminal(sessionId: string): Promise<SlackN
                     slackEnabled: true,
                     slackChannelId: true,
                     slackGroupNotifyEnabled: true,
+                    slackGroupFailureTemplate: true,
+                    slackGroupSuccessTemplate: true,
                     team: { select: { slackBotTokenEncrypted: true } },
                 },
             },
@@ -97,9 +100,9 @@ export async function notifyTestGroupTerminal(sessionId: string): Promise<SlackN
     const runLink = buildTestGroupUrl({ appBaseUrl: slackAppBaseUrl, projectId: session.projectId, sessionId: session.id });
     const groupName = (session.testGroup?.displayId ? `${session.testGroup.displayId} ` : '') + (session.testGroup?.name ?? '');
 
-    const rendered = renderTemplate(DEFAULT_SLACK_GROUP_TEMPLATE, {
-        statusIcon: passed ? ':white_check_mark:' : ':x:',
-        statusLabel: passed ? 'Passed' : 'Failed',
+    const fallbackTemplate = passed ? DEFAULT_SLACK_GROUP_SUCCESS_TEMPLATE : DEFAULT_SLACK_GROUP_FAILURE_TEMPLATE;
+    const selectedTemplate = (passed ? project.slackGroupSuccessTemplate : project.slackGroupFailureTemplate) ?? fallbackTemplate;
+    const rendered = renderTemplate(selectedTemplate, {
         projectName: project.name,
         groupName: groupName.trim() || '-',
         passedCount,
@@ -108,7 +111,7 @@ export async function notifyTestGroupTerminal(sessionId: string): Promise<SlackN
         triggeredBy: session.triggeredByEmail ?? 'system',
         startedAt: rawSlack(formatSlackDateToken(session.startedAt)),
         completedAt: rawSlack(formatSlackDateToken(session.completedAt)),
-    }, { fallbackTemplate: DEFAULT_SLACK_GROUP_TEMPLATE });
+    }, { fallbackTemplate });
 
     try {
         const token = decrypt(tokenEncrypted);

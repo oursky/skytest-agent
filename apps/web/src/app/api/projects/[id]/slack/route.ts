@@ -38,6 +38,8 @@ function projectSettingsResponse(input: {
     slackFailureTemplate: string | null;
     slackSuccessTemplate: string | null;
     slackGroupNotifyEnabled: boolean;
+    slackGroupFailureTemplate: string | null;
+    slackGroupSuccessTemplate: string | null;
     slackUpdatedAt: Date | null;
     parentTeamHasToken: boolean;
 }): ProjectSlackSettings {
@@ -49,6 +51,8 @@ function projectSettingsResponse(input: {
         slackFailureTemplate: input.slackFailureTemplate,
         slackSuccessTemplate: input.slackSuccessTemplate,
         slackGroupNotifyEnabled: input.slackGroupNotifyEnabled,
+        slackGroupFailureTemplate: input.slackGroupFailureTemplate,
+        slackGroupSuccessTemplate: input.slackGroupSuccessTemplate,
         slackUpdatedAt: input.slackUpdatedAt?.toISOString() ?? null,
         parentTeamHasToken: input.parentTeamHasToken,
     };
@@ -102,6 +106,8 @@ export async function GET(
                 slackFailureTemplate: true,
                 slackSuccessTemplate: true,
                 slackGroupNotifyEnabled: true,
+                slackGroupFailureTemplate: true,
+                slackGroupSuccessTemplate: true,
                 slackUpdatedAt: true,
                 team: {
                     select: {
@@ -127,6 +133,8 @@ export async function GET(
             slackFailureTemplate: project.slackFailureTemplate,
             slackSuccessTemplate: project.slackSuccessTemplate,
             slackGroupNotifyEnabled: project.slackGroupNotifyEnabled,
+            slackGroupFailureTemplate: project.slackGroupFailureTemplate,
+            slackGroupSuccessTemplate: project.slackGroupSuccessTemplate,
             slackUpdatedAt: project.slackUpdatedAt,
             parentTeamHasToken: Boolean(project.team.slackBotTokenEncrypted),
         }));
@@ -160,6 +168,7 @@ export async function PUT(
                 slackChannelName: true,
                 slackFailureTemplate: true,
                 slackSuccessTemplate: true,
+                slackGroupNotifyEnabled: true,
                 team: {
                     select: {
                         slackBotTokenEncrypted: true,
@@ -182,34 +191,39 @@ export async function PUT(
             slackFailureTemplate?: string | null;
             slackSuccessTemplate?: string | null;
             slackGroupNotifyEnabled?: boolean;
+            slackGroupFailureTemplate?: string | null;
+            slackGroupSuccessTemplate?: string | null;
         };
 
+        // The master switch gates everything; the group flag and per-case mode refine what is sent
+        // while the integration is enabled.
         const slackEnabled = body.slackEnabled === true;
         const slackNotifyOn = body.slackNotifyOn === PROJECT_SLACK_NOTIFY_ON.BOTH_PASSED_AND_FAILED
             ? PROJECT_SLACK_NOTIFY_ON.BOTH_PASSED_AND_FAILED
-            : PROJECT_SLACK_NOTIFY_ON.FAILED_ONLY;
+            : body.slackNotifyOn === PROJECT_SLACK_NOTIFY_ON.OFF
+                ? PROJECT_SLACK_NOTIFY_ON.OFF
+                : PROJECT_SLACK_NOTIFY_ON.FAILED_ONLY;
+        const slackGroupNotifyEnabled = body.slackGroupNotifyEnabled !== undefined
+            ? body.slackGroupNotifyEnabled === true
+            : project.slackGroupNotifyEnabled;
         const slackChannelId = normalizeOptionalText(body.slackChannelId);
         const slackFailureTemplate = normalizeOptionalText(body.slackFailureTemplate);
         const slackSuccessTemplate = normalizeOptionalText(body.slackSuccessTemplate);
-        // Group-notify enablement is optional in the payload; an absent field is
-        // left untouched so saving the per-case settings does not reset it.
-        const groupNotifyUpdate: { slackGroupNotifyEnabled?: boolean } = {};
-        if (body.slackGroupNotifyEnabled !== undefined) {
-            groupNotifyUpdate.slackGroupNotifyEnabled = body.slackGroupNotifyEnabled === true;
-        }
+        const slackGroupFailureTemplate = normalizeOptionalText(body.slackGroupFailureTemplate);
+        const slackGroupSuccessTemplate = normalizeOptionalText(body.slackGroupSuccessTemplate);
 
-        if (slackFailureTemplate && slackFailureTemplate.length > MAX_TEMPLATE_LENGTH) {
+        const templateOverLimit = (
+            [
+                ['slackFailureTemplate', slackFailureTemplate],
+                ['slackSuccessTemplate', slackSuccessTemplate],
+                ['slackGroupFailureTemplate', slackGroupFailureTemplate],
+                ['slackGroupSuccessTemplate', slackGroupSuccessTemplate],
+            ] as const
+        ).find(([, value]) => value !== null && value.length > MAX_TEMPLATE_LENGTH);
+        if (templateOverLimit) {
             return NextResponse.json({
                 error: 'INVALID_TEMPLATE',
-                field: 'slackFailureTemplate',
-                detail: `Template must be ${MAX_TEMPLATE_LENGTH} characters or fewer`,
-            }, { status: 400 });
-        }
-
-        if (slackSuccessTemplate && slackSuccessTemplate.length > MAX_TEMPLATE_LENGTH) {
-            return NextResponse.json({
-                error: 'INVALID_TEMPLATE',
-                field: 'slackSuccessTemplate',
+                field: templateOverLimit[0],
                 detail: `Template must be ${MAX_TEMPLATE_LENGTH} characters or fewer`,
             }, { status: 400 });
         }
@@ -223,21 +237,19 @@ export async function PUT(
                 }, { status: 409 });
             }
 
-            if (!slackChannelId) {
-                return NextResponse.json({
-                    error: 'INVALID_CHANNEL',
-                    field: 'slackChannelId',
-                }, { status: 400 });
-            }
-
-            const token = decrypt(project.team.slackBotTokenEncrypted);
-            try {
-                channelInfo = await getConversationInfo({
-                    token,
-                    channelId: slackChannelId,
-                });
-            } catch (error) {
-                return mapSlackValidationError(error);
+            // The integration can be enabled before a channel is chosen so the toggle persists
+            // immediately; delivery just stays inert until a channel is saved (the notifier skips
+            // sends when no channel is set). When a channel IS provided, validate it for feedback.
+            if (slackChannelId) {
+                const token = decrypt(project.team.slackBotTokenEncrypted);
+                try {
+                    channelInfo = await getConversationInfo({
+                        token,
+                        channelId: slackChannelId,
+                    });
+                } catch (error) {
+                    return mapSlackValidationError(error);
+                }
             }
         }
 
@@ -257,7 +269,9 @@ export async function PUT(
                 slackChannelName,
                 slackFailureTemplate,
                 slackSuccessTemplate,
-                ...groupNotifyUpdate,
+                slackGroupNotifyEnabled,
+                slackGroupFailureTemplate,
+                slackGroupSuccessTemplate,
                 slackUpdatedAt: now,
             },
             select: {
@@ -268,6 +282,8 @@ export async function PUT(
                 slackFailureTemplate: true,
                 slackSuccessTemplate: true,
                 slackGroupNotifyEnabled: true,
+                slackGroupFailureTemplate: true,
+                slackGroupSuccessTemplate: true,
                 slackUpdatedAt: true,
                 team: {
                     select: {
@@ -285,6 +301,8 @@ export async function PUT(
             slackFailureTemplate: updated.slackFailureTemplate,
             slackSuccessTemplate: updated.slackSuccessTemplate,
             slackGroupNotifyEnabled: updated.slackGroupNotifyEnabled,
+            slackGroupFailureTemplate: updated.slackGroupFailureTemplate,
+            slackGroupSuccessTemplate: updated.slackGroupSuccessTemplate,
             slackUpdatedAt: updated.slackUpdatedAt,
             parentTeamHasToken: Boolean(updated.team.slackBotTokenEncrypted),
         }));

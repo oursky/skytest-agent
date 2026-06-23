@@ -1,17 +1,19 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Button, LoadingSpinner } from '@/components/shared';
 import { useI18n } from '@/i18n';
 import {
     DEFAULT_SLACK_FAILURE_TEMPLATE,
     DEFAULT_SLACK_SUCCESS_TEMPLATE,
+    DEFAULT_SLACK_GROUP_FAILURE_TEMPLATE,
+    DEFAULT_SLACK_GROUP_SUCCESS_TEMPLATE,
 } from '@/lib/integrations/slack/template';
-import { PROJECT_SLACK_NOTIFY_ON } from '@/types/slack';
+import { PROJECT_SLACK_NOTIFY_ON, type ProjectSlackNotifyOn } from '@/types/slack';
 import { TEST_STATUS } from '@/types';
 import ChannelPicker from '@/components/features/project-notifications/ui/ChannelPicker';
-import TemplateEditor from '@/components/features/project-notifications/ui/TemplateEditor';
+import TemplateEditor, { TEST_GROUP_TEMPLATE_VARIABLES } from '@/components/features/project-notifications/ui/TemplateEditor';
 import {
     useProjectSlack,
     type ProjectSlackRequestError,
@@ -21,6 +23,8 @@ interface ProjectSlackSettingsProps {
     projectId: string;
     teamId: string;
 }
+
+const MAX_TEMPLATE_LENGTH = 3_500;
 
 function formatProjectSlackError(t: (key: string, vars?: Record<string, string>) => string, error: ProjectSlackRequestError): string {
     switch (error.code) {
@@ -49,6 +53,21 @@ function formatProjectSlackError(t: (key: string, vars?: Record<string, string>)
     }
 }
 
+function Toggle({ checked, disabled, onChange }: { checked: boolean; disabled?: boolean; onChange: (value: boolean) => void }) {
+    return (
+        <button
+            type="button"
+            role="switch"
+            aria-checked={checked}
+            disabled={disabled}
+            onClick={() => onChange(!checked)}
+            className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${checked ? 'bg-primary' : 'bg-gray-300'}`}
+        >
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-4' : 'translate-x-0.5'}`} />
+        </button>
+    );
+}
+
 export default function ProjectSlackSettings({ projectId, teamId }: ProjectSlackSettingsProps) {
     const { t } = useI18n();
     const {
@@ -60,45 +79,76 @@ export default function ProjectSlackSettings({ projectId, teamId }: ProjectSlack
         error,
         notice,
         save,
+        resetDraft,
         sendTestMessage,
     } = useProjectSlack(projectId);
+    const [groupTemplatesOpen, setGroupTemplatesOpen] = useState(false);
+    const [caseTemplatesOpen, setCaseTemplatesOpen] = useState(false);
+    const [rememberedCaseMode, setRememberedCaseMode] = useState<ProjectSlackNotifyOn>(PROJECT_SLACK_NOTIFY_ON.FAILED_ONLY);
 
-    const failureTemplateTooLong = draft.slackFailureTemplate.length > 3_500;
-    const successTemplateTooLong = draft.slackSuccessTemplate.length > 3_500;
-    const hasTemplateTooLong = failureTemplateTooLong || successTemplateTooLong;
     const canEnable = settings.parentTeamHasToken;
-    const normalizedDraftChannelId = draft.slackChannelId.trim();
+    const masterEnabled = draft.slackEnabled;
+    const groupEnabled = draft.slackGroupNotifyEnabled;
+    const caseEnabled = draft.slackNotifyOn !== PROJECT_SLACK_NOTIFY_ON.OFF;
+    const caseMode = caseEnabled ? draft.slackNotifyOn : rememberedCaseMode;
+
+    const groupEditable = masterEnabled && groupEnabled;
+    const caseEditable = masterEnabled && caseEnabled;
+
+    const templateTooLong = draft.slackFailureTemplate.length > MAX_TEMPLATE_LENGTH
+        || draft.slackSuccessTemplate.length > MAX_TEMPLATE_LENGTH
+        || draft.slackGroupFailureTemplate.length > MAX_TEMPLATE_LENGTH
+        || draft.slackGroupSuccessTemplate.length > MAX_TEMPLATE_LENGTH;
+
     const isDirty = draft.slackEnabled !== settings.slackEnabled
         || draft.slackNotifyOn !== settings.slackNotifyOn
         || draft.slackChannelId !== (settings.slackChannelId ?? '')
+        || draft.slackGroupNotifyEnabled !== settings.slackGroupNotifyEnabled
         || draft.slackFailureTemplate !== (settings.slackFailureTemplate ?? DEFAULT_SLACK_FAILURE_TEMPLATE)
         || draft.slackSuccessTemplate !== (settings.slackSuccessTemplate ?? DEFAULT_SLACK_SUCCESS_TEMPLATE)
-        || draft.slackGroupNotifyEnabled !== settings.slackGroupNotifyEnabled;
-    const isDraftConfigReady = !draft.slackEnabled || (canEnable && normalizedDraftChannelId.length > 0);
+        || draft.slackGroupFailureTemplate !== (settings.slackGroupFailureTemplate ?? DEFAULT_SLACK_GROUP_FAILURE_TEMPLATE)
+        || draft.slackGroupSuccessTemplate !== (settings.slackGroupSuccessTemplate ?? DEFAULT_SLACK_GROUP_SUCCESS_TEMPLATE);
     const hasValidSavedConfig = settings.parentTeamHasToken
         && settings.slackEnabled
         && Boolean(settings.slackChannelId?.trim());
+    const canTestGroup = hasValidSavedConfig && settings.slackGroupNotifyEnabled && !isDirty && !isSaving;
+    const canTestCase = hasValidSavedConfig && settings.slackNotifyOn !== PROJECT_SLACK_NOTIFY_ON.OFF && !isDirty && !isSaving;
 
-    const statusText = useMemo(() => (
-        draft.slackEnabled
-            ? t('project.integration.slack.status.enabled')
-            : t('project.integration.slack.status.disabled')
-    ), [draft.slackEnabled, t]);
     const errorText = useMemo(() => (error ? formatProjectSlackError(t, error) : null), [error, t]);
 
+    type SlackDraft = typeof draft;
+    const toSavePayload = (d: SlackDraft) => ({
+        slackEnabled: d.slackEnabled,
+        slackNotifyOn: d.slackNotifyOn,
+        slackChannelId: d.slackChannelId.trim() || null,
+        slackFailureTemplate: d.slackFailureTemplate.trim() || null,
+        slackSuccessTemplate: d.slackSuccessTemplate.trim() || null,
+        slackGroupNotifyEnabled: d.slackGroupNotifyEnabled,
+        slackGroupFailureTemplate: d.slackGroupFailureTemplate.trim() || null,
+        slackGroupSuccessTemplate: d.slackGroupSuccessTemplate.trim() || null,
+    });
+
+    // Toggles persist immediately (no Save click). On failure the optimistic change is reverted.
+    const commitDraft = async (next: SlackDraft) => {
+        const prev = draft;
+        setDraft(next);
+        const ok = await save(toSavePayload(next));
+        if (!ok) {
+            setDraft(prev);
+        }
+    };
+
+    const setCaseMode = (mode: ProjectSlackNotifyOn) => {
+        setRememberedCaseMode(mode);
+        setDraft((prev) => ({ ...prev, slackNotifyOn: mode }));
+    };
+
     const handleSave = async () => {
-        await save({
-            slackEnabled: draft.slackEnabled,
-            slackNotifyOn: draft.slackNotifyOn,
-            slackChannelId: draft.slackChannelId.trim() || null,
-            slackFailureTemplate: draft.slackFailureTemplate.trim() || null,
-            slackSuccessTemplate: draft.slackSuccessTemplate.trim() || null,
-            slackGroupNotifyEnabled: draft.slackGroupNotifyEnabled,
-        });
+        await save(toSavePayload(draft));
     };
 
     return (
-        <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm space-y-4">
+        <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm space-y-5">
             <div>
                 <h2 className="text-base font-semibold text-gray-900">{t('project.integration.slack.title')}</h2>
                 <p className="mt-1 text-sm text-gray-500">{t('project.integration.slack.description')}</p>
@@ -111,106 +161,42 @@ export default function ProjectSlackSettings({ projectId, teamId }: ProjectSlack
                 </div>
             ) : (
                 <>
-                    <label className="flex items-center gap-3 rounded-md border border-gray-200 px-3 py-2">
-                        <input
-                            type="checkbox"
-                            checked={draft.slackEnabled}
-                            disabled={!canEnable}
-                            onChange={(event) => setDraft((prev) => ({ ...prev, slackEnabled: event.target.checked }))}
-                            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    <div className="space-y-2">
+                        <div className="flex items-center gap-3">
+                            <Toggle
+                                checked={masterEnabled}
+                                disabled={!canEnable || isSaving}
+                                onChange={(value) => void commitDraft(value
+                                    ? { ...draft, slackEnabled: true }
+                                    : { ...draft, slackEnabled: false, slackGroupNotifyEnabled: false, slackNotifyOn: PROJECT_SLACK_NOTIFY_ON.OFF })}
+                            />
+                            <span className="text-sm font-medium text-gray-700">{t('project.integration.slack.enable')}</span>
+                        </div>
+                        <p className="text-xs text-gray-500">{t('project.integration.slack.enableCaption')}</p>
+                        {!canEnable && (
+                            <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                                {t('project.integration.slack.parentTokenMissing')}
+                                {' '}
+                                <Link
+                                    href={`/teams?teamId=${encodeURIComponent(teamId)}&tab=integration`}
+                                    className="font-medium underline hover:text-amber-900"
+                                >
+                                    {t('project.integration.slack.openTeamIntegration')}
+                                </Link>
+                            </p>
+                        )}
+                    </div>
+
+                    <div className="space-y-2">
+                        <ChannelPicker
+                            value={draft.slackChannelId}
+                            disabled={!masterEnabled || !canEnable}
+                            onChange={(value) => setDraft((prev) => ({ ...prev, slackChannelId: value, slackChannelName: null }))}
+                            t={(key) => t(key)}
                         />
-                        <span className="text-sm font-medium text-gray-700">
-                            {t('project.integration.slack.enableFailedRun')}
-                        </span>
-                        <span className="ml-auto text-xs text-gray-500">{statusText}</span>
-                    </label>
-
-                    {!canEnable && (
-                        <p className="text-sm text-amber-800">
-                            {t('project.integration.slack.parentTokenMissing')}
-                            {' '}
-                            <Link
-                                href={`/teams?teamId=${encodeURIComponent(teamId)}&tab=integration`}
-                                className="font-medium underline hover:text-amber-900"
-                            >
-                                {t('project.integration.slack.openTeamIntegration')}
-                            </Link>
-                        </p>
-                    )}
-
-                    <div className="space-y-2 rounded-md border border-gray-200 p-3">
-                        <p className="text-sm font-medium text-gray-700">{t('project.integration.slack.notifyMode.title')}</p>
-                        <label className="flex items-center gap-2 text-sm text-gray-700">
-                            <input
-                                type="radio"
-                                name="slack-notify-mode"
-                                checked={draft.slackNotifyOn === PROJECT_SLACK_NOTIFY_ON.FAILED_ONLY}
-                                disabled={!draft.slackEnabled}
-                                onChange={() => setDraft((prev) => ({ ...prev, slackNotifyOn: PROJECT_SLACK_NOTIFY_ON.FAILED_ONLY }))}
-                            />
-                            <span>{t('project.integration.slack.notifyMode.failedOnly')}</span>
-                        </label>
-                        <label className="flex items-center gap-2 text-sm text-gray-700">
-                            <input
-                                type="radio"
-                                name="slack-notify-mode"
-                                checked={draft.slackNotifyOn === PROJECT_SLACK_NOTIFY_ON.BOTH_PASSED_AND_FAILED}
-                                disabled={!draft.slackEnabled}
-                                onChange={() => setDraft((prev) => ({ ...prev, slackNotifyOn: PROJECT_SLACK_NOTIFY_ON.BOTH_PASSED_AND_FAILED }))}
-                            />
-                            <span>{t('project.integration.slack.notifyMode.bothPassedAndFailed')}</span>
-                        </label>
-                    </div>
-
-                    <ChannelPicker
-                        value={draft.slackChannelId}
-                        disabled={!draft.slackEnabled || !canEnable}
-                        onChange={(value) => setDraft((prev) => ({ ...prev, slackChannelId: value, slackChannelName: null }))}
-                        t={(key) => t(key)}
-                    />
-
-                    <TemplateEditor
-                        title={t('project.integration.slack.template.failedTitle')}
-                        resetLabel={t('project.integration.slack.resetDefault')}
-                        value={draft.slackFailureTemplate}
-                        disabled={!draft.slackEnabled}
-                        onChange={(value) => setDraft((prev) => ({ ...prev, slackFailureTemplate: value }))}
-                        onReset={() => setDraft((prev) => ({ ...prev, slackFailureTemplate: DEFAULT_SLACK_FAILURE_TEMPLATE }))}
-                    />
-
-                    <TemplateEditor
-                        title={t('project.integration.slack.template.passedTitle')}
-                        resetLabel={t('project.integration.slack.resetDefault')}
-                        value={draft.slackSuccessTemplate}
-                        disabled={!draft.slackEnabled || draft.slackNotifyOn === PROJECT_SLACK_NOTIFY_ON.FAILED_ONLY}
-                        onChange={(value) => setDraft((prev) => ({ ...prev, slackSuccessTemplate: value }))}
-                        onReset={() => setDraft((prev) => ({ ...prev, slackSuccessTemplate: DEFAULT_SLACK_SUCCESS_TEMPLATE }))}
-                    />
-                    <p className="text-xs text-gray-500">{t('project.integration.slack.template.mentionTip')}</p>
-
-                    <div className="space-y-3 rounded-md border border-gray-200 p-3">
-                        <label className="flex items-center gap-3">
-                            <input
-                                type="checkbox"
-                                checked={draft.slackGroupNotifyEnabled}
-                                disabled={!draft.slackEnabled}
-                                onChange={(event) => setDraft((prev) => ({ ...prev, slackGroupNotifyEnabled: event.target.checked }))}
-                                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                            />
-                            <span className="text-sm font-medium text-gray-700">{t('project.integration.slack.group.enable')}</span>
-                        </label>
-                        <p className="text-xs text-gray-500">{t('project.integration.slack.group.suppressionNote')}</p>
-                    </div>
-
-                    <div className="space-y-1 text-xs">
-                        {failureTemplateTooLong && (
-                            <p className="text-amber-700">{t('project.integration.slack.templateTooLongFailed')}</p>
-                        )}
-                        {successTemplateTooLong && (
-                            <p className="text-amber-700">{t('project.integration.slack.templateTooLongPassed')}</p>
-                        )}
+                        <p className="text-xs text-gray-500">{t('project.integration.slack.channelScopeNote')}</p>
                         {draft.slackChannelName && (
-                            <p className="text-gray-500">
+                            <p className="text-xs text-gray-500">
                                 {t('project.integration.slack.channelSelected')}
                                 {' '}
                                 <span className="font-medium">#{draft.slackChannelName}</span>
@@ -218,27 +204,153 @@ export default function ProjectSlackSettings({ projectId, teamId }: ProjectSlack
                         )}
                     </div>
 
-                    <div className="flex flex-wrap gap-2">
+                    <div className="space-y-3 rounded-md border border-gray-200 p-4">
+                        <h3 className="text-sm font-semibold text-gray-900">{t('project.integration.slack.group.title')}</h3>
+                        <div className="flex items-center gap-3">
+                            <Toggle
+                                checked={groupEnabled}
+                                disabled={!masterEnabled || isSaving}
+                                onChange={(value) => void commitDraft({ ...draft, slackGroupNotifyEnabled: value })}
+                            />
+                            <span className="text-sm font-medium text-gray-700">{t('project.integration.slack.group.enable')}</span>
+                        </div>
+                        <p className="text-xs text-gray-500">{t('project.integration.slack.group.suppressionNote')}</p>
+
+                        <div className="rounded-md border border-gray-200">
+                            <button
+                                type="button"
+                                onClick={() => setGroupTemplatesOpen((open) => !open)}
+                                className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-gray-800"
+                            >
+                                <span>{t('project.integration.slack.templates.heading')}</span>
+                                <span className="text-xs font-normal text-primary">{groupTemplatesOpen ? t('common.hide') : t('common.show')}</span>
+                            </button>
+                            {groupTemplatesOpen && (
+                                <div className="space-y-5 border-t border-gray-200 p-4">
+                                    <TemplateEditor
+                                        title={t('project.integration.slack.template.groupPassedTitle')}
+                                        resetLabel={t('project.integration.slack.resetDefault')}
+                                        value={draft.slackGroupSuccessTemplate}
+                                        disabled={!groupEditable}
+                                        variables={TEST_GROUP_TEMPLATE_VARIABLES}
+                                        onChange={(value) => setDraft((prev) => ({ ...prev, slackGroupSuccessTemplate: value }))}
+                                        onReset={() => setDraft((prev) => ({ ...prev, slackGroupSuccessTemplate: DEFAULT_SLACK_GROUP_SUCCESS_TEMPLATE }))}
+                                    />
+                                    <TemplateEditor
+                                        title={t('project.integration.slack.template.groupFailedTitle')}
+                                        resetLabel={t('project.integration.slack.resetDefault')}
+                                        value={draft.slackGroupFailureTemplate}
+                                        disabled={!groupEditable}
+                                        variables={TEST_GROUP_TEMPLATE_VARIABLES}
+                                        onChange={(value) => setDraft((prev) => ({ ...prev, slackGroupFailureTemplate: value }))}
+                                        onReset={() => setDraft((prev) => ({ ...prev, slackGroupFailureTemplate: DEFAULT_SLACK_GROUP_FAILURE_TEMPLATE }))}
+                                    />
+                                    <p className="text-xs text-gray-500">{t('project.integration.slack.template.mentionTip')}</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        <Button onClick={() => void sendTestMessage(TEST_STATUS.PASS, 'group')} variant="secondary" disabled={!canTestGroup}>
+                                            {t('project.integration.slack.sendTestGroupPassed')}
+                                        </Button>
+                                        <Button onClick={() => void sendTestMessage(TEST_STATUS.FAIL, 'group')} variant="secondary" disabled={!canTestGroup}>
+                                            {t('project.integration.slack.sendTestGroupFailed')}
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="space-y-3 rounded-md border border-gray-200 p-4">
+                        <h3 className="text-sm font-semibold text-gray-900">{t('project.integration.slack.individual.title')}</h3>
+                        <div className="flex items-center gap-3">
+                            <Toggle
+                                checked={caseEnabled}
+                                disabled={!masterEnabled || isSaving}
+                                onChange={(value) => void commitDraft({
+                                    ...draft,
+                                    slackNotifyOn: value ? rememberedCaseMode : PROJECT_SLACK_NOTIFY_ON.OFF,
+                                })}
+                            />
+                            <span className="text-sm font-medium text-gray-700">{t('project.integration.slack.individual.enable')}</span>
+                        </div>
+                        <p className="text-xs text-gray-500">{t('project.integration.slack.individual.caption')}</p>
+
+                        <div className="space-y-2 pl-1">
+                            {[
+                                { mode: PROJECT_SLACK_NOTIFY_ON.FAILED_ONLY, label: t('project.integration.slack.notifyMode.failedOnly') },
+                                { mode: PROJECT_SLACK_NOTIFY_ON.BOTH_PASSED_AND_FAILED, label: t('project.integration.slack.notifyMode.bothPassedAndFailed') },
+                            ].map(({ mode, label }) => (
+                                <label key={mode} className={`flex items-center gap-2 text-sm ${caseEditable ? 'cursor-pointer text-gray-700' : 'text-gray-400'}`}>
+                                    <input
+                                        type="radio"
+                                        name="slack-case-mode"
+                                        checked={caseMode === mode}
+                                        disabled={!caseEditable}
+                                        onChange={() => setCaseMode(mode)}
+                                    />
+                                    <span>{label}</span>
+                                </label>
+                            ))}
+                        </div>
+
+                        <div className="rounded-md border border-gray-200">
+                            <button
+                                type="button"
+                                onClick={() => setCaseTemplatesOpen((open) => !open)}
+                                className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-gray-800"
+                            >
+                                <span>{t('project.integration.slack.templates.heading')}</span>
+                                <span className="text-xs font-normal text-primary">{caseTemplatesOpen ? t('common.hide') : t('common.show')}</span>
+                            </button>
+                            {caseTemplatesOpen && (
+                                <div className="space-y-5 border-t border-gray-200 p-4">
+                                    <TemplateEditor
+                                        title={t('project.integration.slack.template.passedTitle')}
+                                        resetLabel={t('project.integration.slack.resetDefault')}
+                                        value={draft.slackSuccessTemplate}
+                                        disabled={!caseEditable}
+                                        onChange={(value) => setDraft((prev) => ({ ...prev, slackSuccessTemplate: value }))}
+                                        onReset={() => setDraft((prev) => ({ ...prev, slackSuccessTemplate: DEFAULT_SLACK_SUCCESS_TEMPLATE }))}
+                                    />
+                                    <TemplateEditor
+                                        title={t('project.integration.slack.template.failedTitle')}
+                                        resetLabel={t('project.integration.slack.resetDefault')}
+                                        value={draft.slackFailureTemplate}
+                                        disabled={!caseEditable}
+                                        onChange={(value) => setDraft((prev) => ({ ...prev, slackFailureTemplate: value }))}
+                                        onReset={() => setDraft((prev) => ({ ...prev, slackFailureTemplate: DEFAULT_SLACK_FAILURE_TEMPLATE }))}
+                                    />
+                                    <p className="text-xs text-gray-500">{t('project.integration.slack.template.mentionTip')}</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        <Button onClick={() => void sendTestMessage(TEST_STATUS.PASS, 'individual')} variant="secondary" disabled={!canTestCase}>
+                                            {t('project.integration.slack.sendTestPassed')}
+                                        </Button>
+                                        <Button onClick={() => void sendTestMessage(TEST_STATUS.FAIL, 'individual')} variant="secondary" disabled={!canTestCase}>
+                                            {t('project.integration.slack.sendTestFailed')}
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {templateTooLong && (
+                        <p className="text-xs text-amber-700">{t('project.integration.slack.templates.tooLong')}</p>
+                    )}
+
+                    <div className="flex flex-wrap items-center gap-2">
                         <Button
                             onClick={() => void handleSave()}
                             variant="primary"
-                            disabled={!isDirty || isSaving || hasTemplateTooLong || !isDraftConfigReady}
+                            disabled={!isDirty || isSaving || templateTooLong}
                         >
-                            {isSaving ? t('project.integration.slack.saving') : t('common.save')}
+                            {t('common.save')}
                         </Button>
                         <Button
-                            onClick={() => void sendTestMessage(TEST_STATUS.FAIL)}
+                            onClick={() => resetDraft()}
                             variant="secondary"
-                            disabled={!hasValidSavedConfig || isDirty || isSaving}
+                            disabled={!isDirty || isSaving}
                         >
-                            {t('project.integration.slack.sendTestFailed')}
-                        </Button>
-                        <Button
-                            onClick={() => void sendTestMessage(TEST_STATUS.PASS)}
-                            variant="secondary"
-                            disabled={!hasValidSavedConfig || isDirty || isSaving}
-                        >
-                            {t('project.integration.slack.sendTestPassed')}
+                            {t('common.discard')}
                         </Button>
                     </div>
 
