@@ -14,6 +14,14 @@ export interface TestGroupLoginSessionSummary {
     flowName: string;
 }
 
+export interface TestCaseTargetSummary {
+    key: string;
+    label: string;
+    kind: 'browser' | 'android';
+    loginFlowId: string | null;
+    reuseEnabled: boolean;
+}
+
 export interface TestGroupItemSummary {
     testCaseId: string;
     position: number;

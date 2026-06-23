@@ -554,6 +554,8 @@ export const ZH_HANT_MESSAGES: Messages = {
   "testGroup.onFailure.stop": "停止並略過其餘案例",
   "testGroup.onFailure.continue": "繼續執行其餘案例",
   "testGroup.running.locked": "此測試群組正在執行中 — 請先停止執行再編輯。",
+  "testGroup.sessions": "工作階段",
+  "testGroup.sessions.notApplicable": "不適用",
   "testGroup.empty": "尚無測試群組。建立一個以依序執行多個測試案例。",
   "testGroup.noResults": "沒有符合搜尋的測試群組。",
   "testGroup.run": "執行",

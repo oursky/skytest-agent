@@ -554,6 +554,8 @@ export const EN_MESSAGES: Messages = {
   "testGroup.onFailure.stop": "Stop and skip the rest",
   "testGroup.onFailure.continue": "Continue running remaining cases",
   "testGroup.running.locked": "This test group is running — stop the run to edit.",
+  "testGroup.sessions": "Sessions",
+  "testGroup.sessions.notApplicable": "Not Applicable",
   "testGroup.empty": "No test groups yet. Create one to run several test cases in sequence.",
   "testGroup.noResults": "No test groups match your search.",
   "testGroup.run": "Run",

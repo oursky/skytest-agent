@@ -6,6 +6,7 @@ import { cleanStepsForStorage } from '@/lib/runtime/test-case-utils';
 import { TEST_CASE_KIND, TEST_STATUS, type BrowserConfig, type TargetConfig, type TestCaseKind, type TestStep } from '@/types';
 import { guardProjectRouteRequest } from '@/lib/security/project-route-access';
 import { validateLoginFlowReferences, collectLoginFlowIds } from '@/lib/test-cases/login-flow-access';
+import { parseTestCaseTargets } from '@/lib/test-config/browser-target';
 import { parseSerializedJson } from '@/lib/runtime/local-browser-runner-parsers';
 
 const logger = createLogger('api:projects:test-cases');
@@ -69,12 +70,16 @@ export async function GET(
                         displayId: true,
                         name: true,
                         kind: true,
+                        browserConfig: true,
                     },
                 }),
             ]);
 
             return NextResponse.json({
-                data: testCases,
+                data: testCases.map(({ browserConfig, ...rest }) => ({
+                    ...rest,
+                    targets: parseTestCaseTargets(browserConfig),
+                })),
                 pagination: {
                     page,
                     limit,

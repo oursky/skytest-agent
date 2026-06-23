@@ -201,7 +201,14 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
                 )}
             </div>
 
-            <OrderedTestCasePicker projectId={projectId} value={testCaseIds} onChange={setTestCaseIds} readOnly={readOnly} />
+            <OrderedTestCasePicker
+                projectId={projectId}
+                value={testCaseIds}
+                onChange={setTestCaseIds}
+                readOnly={readOnly}
+                loginSessions={loginSessions}
+                resolveLoginFlowName={flowLabel}
+            />
 
             <div className="space-y-2">
                 <label className="block text-sm font-medium text-gray-700">{t('testGroup.onFailure')}</label>

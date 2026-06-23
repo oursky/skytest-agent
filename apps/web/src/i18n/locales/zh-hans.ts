@@ -554,6 +554,8 @@ export const ZH_HANS_MESSAGES: Messages = {
   "testGroup.onFailure.stop": "停止并跳过其余用例",
   "testGroup.onFailure.continue": "继续运行其余用例",
   "testGroup.running.locked": "此测试组正在运行中 — 请先停止运行再编辑。",
+  "testGroup.sessions": "会话",
+  "testGroup.sessions.notApplicable": "不适用",
   "testGroup.empty": "暂无测试组。创建一个以按顺序运行多个测试用例。",
   "testGroup.noResults": "没有符合搜索的测试组。",
   "testGroup.run": "运行",
