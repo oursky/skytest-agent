@@ -105,7 +105,8 @@ export async function PUT(
                 configs: {
                     where: { type: 'FILE' },
                     select: { value: true }
-                }
+                },
+                _count: { select: { testGroupItems: true, testGroupLoginSessions: true } }
             }
         });
 
@@ -124,6 +125,18 @@ export async function PUT(
             ? normalizeTargetConfigMap(browserConfig as Record<string, BrowserConfig | TargetConfig>)
             : undefined;
         const resolvedKind = parseTestCaseKind(rawKind ?? existingTestCase.kind);
+
+        // A test group references a TEST as an item and a LOGIN_FLOW as a login session;
+        // flipping the kind out from under that wiring would let queueTestGroupRun enqueue
+        // the case as the wrong member type. Reject the flip while the case is still grouped.
+        if (resolvedKind !== existingTestCase.kind
+            && (existingTestCase._count.testGroupItems > 0 || existingTestCase._count.testGroupLoginSessions > 0)) {
+            return apiError({
+                status: 409,
+                code: 'CONFLICT',
+                error: 'Cannot change the kind of a test case that belongs to a test group. Remove it from its group(s) first.',
+            });
+        }
 
         if (normalizedBrowserConfig) {
             const loginFlowValidation = await validateLoginFlowReferences({

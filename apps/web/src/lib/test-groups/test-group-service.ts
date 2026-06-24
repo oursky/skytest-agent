@@ -403,6 +403,18 @@ export async function queueTestGroupRun(
         return { ok: false, status: 409, error: 'This test group already has a run in progress' };
     }
 
+    // Defense-in-depth against a grouped TEST case whose kind was flipped to LOGIN_FLOW:
+    // a group item must still be a TEST in this project or it would be enqueued as the
+    // wrong member type. (The test-case PUT route also rejects such flips at the source.)
+    const itemCaseIds = group.items.map((item) => item.testCaseId);
+    const validTestCases = await prisma.testCase.findMany({
+        where: { id: { in: itemCaseIds }, projectId, kind: TEST_CASE_KIND.TEST },
+        select: { id: true },
+    });
+    if (validTestCases.length !== group.items.length) {
+        return { ok: false, status: 409, error: 'A test case in this group is no longer a runnable test. Update the group before running it.' };
+    }
+
     const runSessionId = await createRunSession({
         projectId,
         kind: RUN_SESSION_KIND.GROUP,
