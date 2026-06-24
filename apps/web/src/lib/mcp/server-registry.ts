@@ -17,6 +17,11 @@ import {
     stopAllRunsTool,
 } from '@/lib/mcp/server-tools';
 import { registerTestCaseMutationTools } from '@/lib/mcp/test-case-mutation-tools';
+import {
+    getRunSessionTool,
+    listRunSessionsTool,
+    runTestGroupTool,
+} from '@/lib/mcp/run-session-tools';
 
 export function registerMcpTools(server: McpServer): void {
     server.registerTool('list_projects', {
@@ -55,6 +60,7 @@ export function registerMcpTools(server: McpServer): void {
         inputSchema: {
             projectId: z.string().optional().describe('Optional project ID filter'),
             testCaseId: z.string().optional().describe('Optional test case ID filter'),
+            runSessionId: z.string().optional().describe('Optional run session ID filter (all members of one run session)'),
             status: z.string().optional().describe('Optional run status filter'),
             from: z.string().optional().describe('Optional ISO datetime lower bound for createdAt'),
             to: z.string().optional().describe('Optional ISO datetime upper bound for createdAt'),
@@ -62,8 +68,8 @@ export function registerMcpTools(server: McpServer): void {
             cursor: z.string().optional().describe('Pagination cursor (previous response nextCursor)'),
             include: z.array(z.enum(['events', 'artifacts'])).optional().describe('Optional expansions'),
         },
-    }, ({ projectId, testCaseId, status, from, to, limit, cursor, include }, extra) => {
-        return listTestRunsTool({ projectId, testCaseId, status, from, to, limit, cursor, include }, extra);
+    }, ({ projectId, testCaseId, runSessionId, status, from, to, limit, cursor, include }, extra) => {
+        return listTestRunsTool({ projectId, testCaseId, runSessionId, status, from, to, limit, cursor, include }, extra);
     });
 
     server.registerTool('manage_project_configs', {
@@ -113,7 +119,29 @@ export function registerMcpTools(server: McpServer): void {
     }, ({ runId }, extra) => getTestRunTool({ runId }, extra));
 
     server.registerTool('get_project_test_summary', {
-        description: 'Get status breakdown of all test cases in a project',
+        description: 'Get status and kind breakdown of all test cases in a project',
         inputSchema: { projectId: z.string().describe('Project ID') },
     }, ({ projectId }, extra) => getProjectTestSummaryTool({ projectId }, extra));
+
+    server.registerTool('run_test_group', {
+        description: 'Queue a test group run session: each login flow runs first to establish a reusable session, then the group\'s test cases run in order.',
+        inputSchema: {
+            projectId: z.string().describe('Project ID'),
+            testGroupId: z.string().describe('Test group ID'),
+        },
+    }, ({ projectId, testGroupId }, extra) => runTestGroupTool({ projectId, testGroupId }, extra));
+
+    server.registerTool('get_run_session', {
+        description: 'Get a run session\'s rolled-up status and each member run\'s status. Use this (not get_test_run on a single member) to tell whether a whole group/login-flow run settled.',
+        inputSchema: { runSessionId: z.string().describe('Run session ID') },
+    }, ({ runSessionId }, extra) => getRunSessionTool({ runSessionId }, extra));
+
+    server.registerTool('list_run_sessions', {
+        description: 'List a project\'s run sessions (most recent first), optionally scoped to one test group.',
+        inputSchema: {
+            projectId: z.string().describe('Project ID'),
+            testGroupId: z.string().optional().describe('Optional test group ID filter'),
+            limit: z.number().optional().describe('Max results (default 20, max 50)'),
+        },
+    }, ({ projectId, testGroupId, limit }, extra) => listRunSessionsTool({ projectId, testGroupId, limit }, extra));
 }

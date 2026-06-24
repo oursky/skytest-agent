@@ -2,7 +2,7 @@ import { prisma } from '@/lib/core/prisma';
 import { parseTestCaseJson } from '@/lib/runtime/test-case-utils';
 import { compareByGroupThenName } from '@/lib/test-config/sort';
 import { cancelRunDurably } from '@/lib/mcp/run-cancellation';
-import { CANCELLATION_REASON } from '@/lib/runtime/cancellation-reasons';
+import { CANCELLATION_REASON, cancellationReasonCodeFor } from '@/lib/runtime/cancellation-reasons';
 import { deleteObjectKeysBestEffort } from '@/lib/mcp/storage-cleanup';
 import { queueTestCaseRun } from '@/lib/mcp/run-execution';
 import { listTestRuns } from '@/lib/mcp/run-query';
@@ -110,6 +110,7 @@ export async function listTestCasesTool(
                     id: true,
                     displayId: true,
                     status: true,
+                    kind: true,
                     name: true,
                     source: true,
                     updatedAt: true,
@@ -215,6 +216,7 @@ export async function listTestRunsTool(
     {
         projectId,
         testCaseId,
+        runSessionId,
         status,
         from,
         to,
@@ -224,6 +226,7 @@ export async function listTestRunsTool(
     }: {
         projectId?: string;
         testCaseId?: string;
+        runSessionId?: string;
         status?: string;
         from?: string;
         to?: string;
@@ -241,6 +244,7 @@ export async function listTestRunsTool(
             const listResult = await listTestRuns(userId, {
                 projectId,
                 testCaseId,
+                runSessionId,
                 status,
                 from,
                 to,
@@ -539,6 +543,10 @@ export async function getTestRunTool(
             startedAt: true,
             completedAt: true,
             createdAt: true,
+            kind: true,
+            runSessionId: true,
+            sessionPosition: true,
+            runSession: { select: { id: true, status: true, kind: true } },
         }
     });
 
@@ -546,13 +554,23 @@ export async function getTestRunTool(
     const hasRunAccess = await isTestRunProjectMember(userId, runId);
     if (hasRunAccess === false) return errorResult('Forbidden');
 
+    // A run is one member of a run session (a login-flow prefix or a group member).
+    // Report the rolled-up session status alongside the member's own status so an agent
+    // doesn't read a member PASS while the overall session is still running or failed.
     return textResult({
         id: run.id,
         status: run.status,
         error: run.error,
+        cancellationReasonCode: cancellationReasonCodeFor(run.status, run.error),
         startedAt: run.startedAt,
         completedAt: run.completedAt,
         createdAt: run.createdAt,
+        kind: run.kind,
+        runSessionId: run.runSessionId,
+        sessionPosition: run.sessionPosition,
+        session: run.runSession
+            ? { id: run.runSession.id, status: run.runSession.status, kind: run.runSession.kind }
+            : null,
     });
 }
 
@@ -567,13 +585,15 @@ export async function getProjectTestSummaryTool(
 
     const testCases = await prisma.testCase.findMany({
         where: { projectId },
-        select: { status: true },
+        select: { status: true, kind: true },
     });
 
     const summary: Record<string, number> = {};
+    const byKind: Record<string, number> = {};
     for (const testCase of testCases) {
         summary[testCase.status] = (summary[testCase.status] || 0) + 1;
+        byKind[testCase.kind] = (byKind[testCase.kind] || 0) + 1;
     }
 
-    return textResult({ total: testCases.length, byStatus: summary });
+    return textResult({ total: testCases.length, byStatus: summary, byKind });
 }

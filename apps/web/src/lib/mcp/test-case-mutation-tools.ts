@@ -13,6 +13,7 @@ import { errorResult, textResult, withToolTelemetry, type ToolResponse } from '@
 import { mcpConfigSchema, mcpStepSchema } from '@/lib/mcp/server-schemas';
 import {
     RUN_ACTIVE_STATUSES,
+    TEST_CASE_KIND,
     TEST_STATUS,
     type BrowserConfig,
     type ConfigType,
@@ -113,6 +114,7 @@ function buildTargetIdGenerator(existingIds: Set<string>, prefix: 'browser' | 'a
 
 const mcpCreateTestCaseSchema = z.object({
     name: z.string().optional().describe('Test case name'),
+    kind: z.enum(['TEST', 'LOGIN_FLOW']).optional().describe('Kind (default TEST). LOGIN_FLOW marks a reusable login flow; other cases reuse it by setting loginFlowId on a browser target.'),
     displayId: z.string().optional().describe('User-facing display ID'),
     testCaseId: z.string().optional().describe('Alias of displayId (import format)'),
     url: z.string().optional().describe('Base URL for browser target'),
@@ -286,6 +288,7 @@ export function registerTestCaseMutationTools(server: McpServer): void {
                         browserConfig: normalizedBrowserConfig ? JSON.stringify(normalizedBrowserConfig) : undefined,
                         projectId,
                         displayId,
+                        kind: testCase.kind ?? TEST_CASE_KIND.TEST,
                         status: TEST_STATUS.DRAFT,
                     },
                 });

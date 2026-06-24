@@ -39,3 +39,19 @@ export function localizeCancellationReason(reason: string | null | undefined, t:
     const key = CANCELLATION_REASON_I18N_KEY[reason];
     return key ? t(key) : reason;
 }
+
+const REASON_STRING_TO_CODE: Record<string, string> = Object.fromEntries(
+    Object.entries(CANCELLATION_REASON).map(([code, message]) => [message, code]),
+);
+
+/**
+ * Maps a CANCELLED run's persisted error string to its stable reason code (e.g. USER_SINGLE)
+ * so API/MCP consumers can branch on a machine-readable reason instead of parsing prose.
+ * Returns null for non-cancelled runs or unrecognized (dynamic/historical) messages.
+ */
+export function cancellationReasonCodeFor(status: string, error: string | null | undefined): string | null {
+    if (status !== 'CANCELLED' || !error) {
+        return null;
+    }
+    return REASON_STRING_TO_CODE[error] ?? null;
+}
