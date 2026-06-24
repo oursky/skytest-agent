@@ -1,4 +1,4 @@
-class Skytest < Formula
+class SkytestRunner < Formula
   desc "Runner management CLI for SkyTest"
   homepage "https://github.com/oursky/skytest-agent"
   version "__VERSION__"
@@ -27,7 +27,7 @@ class Skytest < Formula
     state_dir = var/"skytest"
     state_dir.mkpath
 
-    (bin/"skytest").write <<~EOS
+    (bin/"skytest-runner").write <<~EOS
       #!/usr/bin/env bash
       set -euo pipefail
       export SKYTEST_STATE_DIR="#{state_dir}"
@@ -35,11 +35,11 @@ class Skytest < Formula
       exec node --import "#{libexec}/node_modules/tsx/dist/loader.mjs" "#{libexec}/apps/cli/src/index.ts" "$@"
     EOS
 
-    chmod 0755, bin/"skytest"
+    chmod 0755, bin/"skytest-runner"
   end
 
   test do
-    output = shell_output("#{bin}/skytest version")
+    output = shell_output("#{bin}/skytest-runner version")
     assert_match(version.to_s, output)
   end
 end

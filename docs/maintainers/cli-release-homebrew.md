@@ -1,6 +1,6 @@
 # CLI Release And Homebrew Flow
 
-This runbook defines how to release the macOS `skytest` CLI and publish Homebrew-installable artifacts.
+This runbook defines how to release the macOS `skytest-runner` CLI and publish Homebrew-installable artifacts.
 
 ## Versioning
 
@@ -29,10 +29,10 @@ The workflow validates SemVer and normalizes to `v<version>` as the release tag.
 
 For each release, the workflow publishes:
 
-- `skytest-<version>-darwin-arm64.tar.gz`
-- `skytest-<version>-darwin-amd64.tar.gz`
+- `skytest-runner-<version>-darwin-arm64.tar.gz`
+- `skytest-runner-<version>-darwin-amd64.tar.gz`
 - `checksums.txt`
-- `skytest.rb` (rendered Homebrew formula)
+- `skytest-runner.rb` (rendered Homebrew formula)
 
 ## Homebrew Tap Auto-Update
 
@@ -43,7 +43,7 @@ Configure:
 - repository variable `HOMEBREW_TAP_REPO` (default fallback: `oursky/homebrew-skytest`)
 - repository secret `HOMEBREW_TAP_PAT` with push access to the tap repo
 
-The workflow will commit `Formula/skytest.rb` to the configured tap.
+The workflow will commit `Formula/skytest-runner.rb` to the configured tap.
 
 ## Operational Steps
 
@@ -62,8 +62,8 @@ git push origin v1.2.3
 
 ```bash
 brew tap oursky/skytest
-brew install skytest
-skytest version
+brew install skytest-runner
+skytest-runner version
 ```
 
 ## Rollback
@@ -76,5 +76,5 @@ If a release is bad:
 
 ## Notes
 
-- Formula test uses `skytest version` to assert the packaged version.
+- Formula test uses `skytest-runner version` to assert the packaged version.
 - Release assets are architecture-specific for Apple Silicon and Intel macOS.

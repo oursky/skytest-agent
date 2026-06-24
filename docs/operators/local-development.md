@@ -28,19 +28,19 @@ make dev
 SkyTest CLI also exposes local lifecycle wrappers for these workflows:
 
 ```bash
-npm run skytest -- local setup
-npm run skytest -- local up
-npm run skytest -- local up -d
-npm run skytest -- local status
-npm run skytest -- local down
+npm run skytest-runner -- local setup
+npm run skytest-runner -- local up
+npm run skytest-runner -- local up -d
+npm run skytest-runner -- local status
+npm run skytest-runner -- local down
 ```
 
-- `skytest local setup` runs bootstrap (`make bootstrap`) and then `skytest init`.
-- `skytest local up` runs `make dev` in foreground.
-- `skytest local up -d` starts `make dev` in background and waits for full readiness (health endpoint + app + maintenance worker + browser worker), then returns.
-- `skytest local status` checks compose services and key local processes.
-- `skytest local down` runs runner reset and then stops compose services.
-- `skytest local update` is the post-`git pull` refresh flow (install, services up, DB setup, Playwright ensure, seed defaults, init).
+- `skytest-runner local setup` runs bootstrap (`make bootstrap`) and then `skytest-runner init`.
+- `skytest-runner local up` runs `make dev` in foreground.
+- `skytest-runner local up -d` starts `make dev` in background and waits for full readiness (health endpoint + app + maintenance worker + browser worker), then returns.
+- `skytest-runner local status` checks compose services and key local processes.
+- `skytest-runner local down` runs runner reset and then stops compose services.
+- `skytest-runner local update` is the post-`git pull` refresh flow (install, services up, DB setup, Playwright ensure, seed defaults, init).
 
 `make dev` does all of the following:
 
@@ -109,10 +109,10 @@ SkyTest local runtime settings are checkout-scoped:
 Initialize the local runtime scaffold with:
 
 ```bash
-npm run skytest -- init
+npm run skytest-runner -- init
 ```
 
-`skytest init` is idempotent. It creates missing files and keeps existing files unchanged.
+`skytest-runner init` is idempotent. It creates missing files and keeps existing files unchanged.
 
 `skytest.yaml` is for runtime and test catalog settings only. Auth/login setup is managed by CLI auth flows, not in `skytest.yaml`.
 

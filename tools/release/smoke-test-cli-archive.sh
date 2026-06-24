@@ -14,7 +14,7 @@ if [[ ! -f "${ARCHIVE_PATH}" ]]; then
   exit 1
 fi
 
-TMP_DIR="$(mktemp -d /tmp/skytest-cli-smoke.XXXXXX)"
+TMP_DIR="$(mktemp -d /tmp/skytest-runner-cli-smoke.XXXXXX)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
 tar -xzf "${ARCHIVE_PATH}" -C "${TMP_DIR}"

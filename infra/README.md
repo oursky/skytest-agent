@@ -54,9 +54,9 @@ Shared deployments require:
 
 For operator-friendly local lifecycle orchestration through CLI wrappers, use:
 
-- `npm run skytest -- local setup`
-- `npm run skytest -- local up`
-- `npm run skytest -- local up -d`
-- `npm run skytest -- local status`
-- `npm run skytest -- local down`
-- `npm run skytest -- local update`
+- `npm run skytest-runner -- local setup`
+- `npm run skytest-runner -- local up`
+- `npm run skytest-runner -- local up -d`
+- `npm run skytest-runner -- local status`
+- `npm run skytest-runner -- local down`
+- `npm run skytest-runner -- local update`

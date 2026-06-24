@@ -115,7 +115,7 @@ function parsePairRunnerArguments(args: string[]): {
     autoStart: boolean;
 } {
     if (args.length === 0) {
-        throw new Error('Usage: skytest pair runner <pairing-token>');
+        throw new Error('Usage: skytest-runner pair runner <pairing-token>');
     }
 
     const pairingToken = args[0];
@@ -160,7 +160,7 @@ function parsePairRunnerArguments(args: string[]): {
 function parseStartRunnerArguments(args: string[]): { runnerId: string; repairPairingToken?: string } {
     const runnerId = args[0];
     if (!runnerId || isHelpFlag(runnerId)) {
-        throw new Error('Usage: skytest start runner <runner-id>');
+        throw new Error('Usage: skytest-runner start runner <runner-id>');
     }
 
     let repairPairingToken: string | undefined;
@@ -420,7 +420,7 @@ export function parseSkytestCliCommand(args: string[]): SkytestCliCommand {
     if (args[0] === 'local') {
         const action = args[1];
         if (!action || isHelpFlag(action)) {
-            throw new Error('Usage: skytest local <setup|up|down|status|update>');
+            throw new Error('Usage: skytest-runner local <setup|up|down|status|update>');
         }
 
         if (action !== 'setup' && action !== 'up' && action !== 'down' && action !== 'status' && action !== 'update') {
@@ -495,7 +495,7 @@ export function parseSkytestCliCommand(args: string[]): SkytestCliCommand {
 
     if (action === 'pair' && resource === 'runner') {
         if (remainingArgs.length === 0 || isHelpFlag(remainingArgs[0])) {
-            throw new Error('Usage: skytest pair runner <pairing-token>');
+            throw new Error('Usage: skytest-runner pair runner <pairing-token>');
         }
         const parsed = parsePairRunnerArguments(remainingArgs);
         return { kind: 'pair-runner', ...parsed };
@@ -509,7 +509,7 @@ export function parseSkytestCliCommand(args: string[]): SkytestCliCommand {
     if (action === 'stop' && resource === 'runner') {
         const runnerId = remainingArgs[0];
         if (!runnerId || isHelpFlag(runnerId)) {
-            throw new Error('Usage: skytest stop runner <runner-id>');
+            throw new Error('Usage: skytest-runner stop runner <runner-id>');
         }
         return { kind: 'stop-runner', runnerId };
     }
@@ -533,7 +533,7 @@ export function parseSkytestCliCommand(args: string[]): SkytestCliCommand {
     if (action === 'describe' && resource === 'runner') {
         const runnerId = remainingArgs[0];
         if (!runnerId || isHelpFlag(runnerId)) {
-            throw new Error('Usage: skytest describe runner <runner-id>');
+            throw new Error('Usage: skytest-runner describe runner <runner-id>');
         }
         const { format, remainingArgs: extraArgs } = resolveOutputFormat(remainingArgs.slice(1));
         if (extraArgs.length > 0) {
@@ -550,7 +550,7 @@ export function parseSkytestCliCommand(args: string[]): SkytestCliCommand {
     if (action === 'unpair' && resource === 'runner') {
         const runnerId = remainingArgs[0];
         if (!runnerId || isHelpFlag(runnerId)) {
-            throw new Error('Usage: skytest unpair runner <runner-id>');
+            throw new Error('Usage: skytest-runner unpair runner <runner-id>');
         }
         return { kind: 'unpair-runner', runnerId };
     }
@@ -558,7 +558,7 @@ export function parseSkytestCliCommand(args: string[]): SkytestCliCommand {
     if (action === 'run' && resource === 'test-case') {
         const displayId = remainingArgs[0];
         if (!displayId || isHelpFlag(displayId) || displayId.startsWith('--')) {
-            throw new Error('Usage: skytest run test-case <display-id> --project-id <project-id> [options]');
+            throw new Error('Usage: skytest-runner run test-case <display-id> --project-id <project-id> [options]');
         }
         const options = parseRunOptions(remainingArgs.slice(1));
         return {
@@ -571,7 +571,7 @@ export function parseSkytestCliCommand(args: string[]): SkytestCliCommand {
     if (action === 'run' && resource === 'project') {
         const projectId = remainingArgs[0];
         if (!projectId || isHelpFlag(projectId) || projectId.startsWith('--')) {
-            throw new Error('Usage: skytest run project <project-id> [options]');
+            throw new Error('Usage: skytest-runner run project <project-id> [options]');
         }
         const options = parseRunProjectOptions(['--project-id', projectId, ...remainingArgs.slice(1)]);
         return {

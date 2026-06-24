@@ -404,14 +404,14 @@ describe('parseSkytestCliCommand', () => {
             'test-case',
             '--project-id',
             'project-123',
-        ])).toThrow('Usage: skytest run test-case <display-id> --project-id <project-id> [options]');
+        ])).toThrow('Usage: skytest-runner run test-case <display-id> --project-id <project-id> [options]');
     });
 
     it('rejects run project without project id', () => {
         expect(() => parseSkytestCliCommand([
             'run',
             'project',
-        ])).toThrow('Usage: skytest run project <project-id> [options]');
+        ])).toThrow('Usage: skytest-runner run project <project-id> [options]');
     });
 
     it('rejects run command with unknown option', () => {

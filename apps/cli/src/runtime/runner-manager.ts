@@ -106,7 +106,7 @@ async function resolveLocalRunnerId(runnerIdentifier: string): Promise<string> {
     }
 
     if (prefixMatches.length > 1) {
-        throw new Error(`Runner identifier '${runnerIdentifier}' is ambiguous. Use \`skytest get runners\` and provide a more specific ID.`);
+        throw new Error(`Runner identifier '${runnerIdentifier}' is ambiguous. Use \`skytest-runner get runners\` and provide a more specific ID.`);
     }
 
     throw new Error(`Runner '${runnerIdentifier}' is not paired.`);
@@ -262,7 +262,7 @@ export async function startRunner(
     });
     if (!reconciled) {
         throw new Error(
-            `Runner '${runnerIdentifier}' is no longer paired on server. Local CLI state was removed. Run \`skytest pair runner "<pairing-token>" --url "${metadata.controlPlaneBaseUrl}"\` to pair again.`
+            `Runner '${runnerIdentifier}' is no longer paired on server. Local CLI state was removed. Run \`skytest-runner pair runner "<pairing-token>" --url "${metadata.controlPlaneBaseUrl}"\` to pair again.`
         );
     }
     if (reconciled.credential.runnerToken !== credential.runnerToken) {
@@ -495,7 +495,7 @@ export async function unpairRunner(runnerIdentifier: string): Promise<{ localRun
 
 export async function resetAllRunners(force: boolean): Promise<{ removedRunners: number }> {
     if (!force) {
-        throw new Error('Reset is destructive. Re-run with `skytest reset --force`.');
+        throw new Error('Reset is destructive. Re-run with `skytest-runner reset --force`.');
     }
 
     const localRunnerIds = await listLocalRunnerIds();

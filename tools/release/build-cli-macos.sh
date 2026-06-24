@@ -20,7 +20,7 @@ case "${ARCH_INPUT}" in
 esac
 
 RELEASE_DIR="${ROOT_DIR}/dist/cli-release/${VERSION}"
-PACKAGE_DIR_NAME="skytest-${VERSION}-darwin-${ARCH}"
+PACKAGE_DIR_NAME="skytest-runner-${VERSION}-darwin-${ARCH}"
 PACKAGE_DIR="${RELEASE_DIR}/${PACKAGE_DIR_NAME}"
 ARCHIVE_PATH="${RELEASE_DIR}/${PACKAGE_DIR_NAME}.tar.gz"
 
@@ -39,7 +39,7 @@ mkdir -p "${PACKAGE_DIR}/apps/macos-runner/dist"
 node "${ROOT_DIR}/tools/release/build-runner-bundle.mjs" "${PACKAGE_DIR}/apps/macos-runner/dist/runner.bundle.cjs"
 
 mkdir -p "${PACKAGE_DIR}/bin"
-cat > "${PACKAGE_DIR}/bin/skytest" <<RUNNER_SCRIPT
+cat > "${PACKAGE_DIR}/bin/skytest-runner" <<RUNNER_SCRIPT
 #!/usr/bin/env bash
 
 set -euo pipefail
@@ -51,7 +51,7 @@ export SKYTEST_CLI_VERSION="${VERSION}"
 
 exec node --import tsx "\${INSTALL_ROOT}/apps/cli/src/index.ts" "\$@"
 RUNNER_SCRIPT
-chmod +x "${PACKAGE_DIR}/bin/skytest"
+chmod +x "${PACKAGE_DIR}/bin/skytest-runner"
 
 cat > "${PACKAGE_DIR}/README-CLI-RELEASE.md" <<'README_EOF'
 This archive is for Homebrew formula packaging.
@@ -61,7 +61,7 @@ Runtime requirements:
 - node (installed by Homebrew formula dependency)
 
 Usage:
-  ./bin/skytest --help
+  ./bin/skytest-runner --help
 README_EOF
 
 mkdir -p "${RELEASE_DIR}"

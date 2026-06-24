@@ -73,8 +73,8 @@ jobs:
           CLI_VERSION: ${{ steps.version.outputs.cli_version }}
         run: |
           chmod +x tools/release/smoke-test-cli-archive.sh
-          tools/release/smoke-test-cli-archive.sh "dist/cli-release/${CLI_VERSION}/skytest-${CLI_VERSION}-darwin-arm64.tar.gz"
-          tools/release/smoke-test-cli-archive.sh "dist/cli-release/${CLI_VERSION}/skytest-${CLI_VERSION}-darwin-amd64.tar.gz"
+          tools/release/smoke-test-cli-archive.sh "dist/cli-release/${CLI_VERSION}/skytest-runner-${CLI_VERSION}-darwin-arm64.tar.gz"
+          tools/release/smoke-test-cli-archive.sh "dist/cli-release/${CLI_VERSION}/skytest-runner-${CLI_VERSION}-darwin-amd64.tar.gz"
 
       - name: Resolve archive metadata
         id: archive
@@ -82,8 +82,8 @@ jobs:
           CLI_VERSION: ${{ steps.version.outputs.cli_version }}
         run: |
           RELEASE_DIR="dist/cli-release/${CLI_VERSION}"
-          ARCHIVE_ARM64="${RELEASE_DIR}/skytest-${CLI_VERSION}-darwin-arm64.tar.gz"
-          ARCHIVE_AMD64="${RELEASE_DIR}/skytest-${CLI_VERSION}-darwin-amd64.tar.gz"
+          ARCHIVE_ARM64="${RELEASE_DIR}/skytest-runner-${CLI_VERSION}-darwin-arm64.tar.gz"
+          ARCHIVE_AMD64="${RELEASE_DIR}/skytest-runner-${CLI_VERSION}-darwin-amd64.tar.gz"
 
           for path in "${ARCHIVE_ARM64}" "${ARCHIVE_AMD64}"; do
             if [[ ! -f "${path}" ]]; then
@@ -115,8 +115,8 @@ jobs:
           CHECKSUM_AMD64: ${{ steps.archive.outputs.checksum_amd64 }}
         run: |
           URL_BASE="https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}"
-          ARCHIVE_URL_ARM64="${URL_BASE}/skytest-${CLI_VERSION}-darwin-arm64.tar.gz"
-          ARCHIVE_URL_AMD64="${URL_BASE}/skytest-${CLI_VERSION}-darwin-amd64.tar.gz"
+          ARCHIVE_URL_ARM64="${URL_BASE}/skytest-runner-${CLI_VERSION}-darwin-arm64.tar.gz"
+          ARCHIVE_URL_AMD64="${URL_BASE}/skytest-runner-${CLI_VERSION}-darwin-amd64.tar.gz"
 
           sed \
             -e "s|__VERSION__|${CLI_VERSION}|g" \
@@ -124,17 +124,17 @@ jobs:
             -e "s|__ARCHIVE_SHA256_ARM64__|${CHECKSUM_ARM64}|g" \
             -e "s|__ARCHIVE_URL_AMD64__|${ARCHIVE_URL_AMD64}|g" \
             -e "s|__ARCHIVE_SHA256_AMD64__|${CHECKSUM_AMD64}|g" \
-            tools/release/homebrew-formula-template.rb > "skytest.rb"
+            tools/release/homebrew-formula-template.rb > "skytest-runner.rb"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: skytest-cli-${{ steps.version.outputs.cli_version }}
+          name: skytest-runner-cli-${{ steps.version.outputs.cli_version }}
           path: |
             ${{ steps.archive.outputs.archive_arm64 }}
             ${{ steps.archive.outputs.archive_amd64 }}
             ${{ steps.archive.outputs.checksums_path }}
-            skytest.rb
+            skytest-runner.rb
 
       - name: Publish GitHub release assets
         env:
@@ -147,14 +147,14 @@ jobs:
               "${{ steps.archive.outputs.archive_arm64 }}" \
               "${{ steps.archive.outputs.archive_amd64 }}" \
               "${{ steps.archive.outputs.checksums_path }}" \
-              skytest.rb \
+              skytest-runner.rb \
               --clobber
           else
             gh release create "${RELEASE_TAG}" \
               "${{ steps.archive.outputs.archive_arm64 }}" \
               "${{ steps.archive.outputs.archive_amd64 }}" \
               "${{ steps.archive.outputs.checksums_path }}" \
-              skytest.rb \
+              skytest-runner.rb \
               --title "SkyTest CLI ${CLI_VERSION}" \
               --generate-notes
           fi
@@ -172,17 +172,17 @@ jobs:
 
           git clone "https://x-access-token:${HOMEBREW_TAP_PAT}@github.com/${TAP_REPO}.git" tap-repo
           mkdir -p tap-repo/Formula
-          cp skytest.rb tap-repo/Formula/skytest.rb
+          cp skytest-runner.rb tap-repo/Formula/skytest-runner.rb
 
           cd tap-repo
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          if git diff --quiet -- Formula/skytest.rb; then
+          if git diff --quiet -- Formula/skytest-runner.rb; then
             echo "No Homebrew formula changes detected."
             exit 0
           fi
 
-          git add Formula/skytest.rb
-          git commit -m "skytest ${CLI_VERSION}"
+          git add Formula/skytest-runner.rb
+          git commit -m "skytest-runner ${CLI_VERSION}"
           git push
