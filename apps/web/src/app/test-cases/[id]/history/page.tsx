@@ -9,7 +9,7 @@ import { Breadcrumbs } from "@/components/layout";
 import { formatDateTime } from "@/utils/time/dateFormatter";
 import { useI18n } from "@/i18n";
 import { getStatusBadgeClass } from '@/utils/status/statusBadge';
-import { parsePageSize } from '@/utils/pagination/pagination';
+import { extractListData, parsePageSize } from '@/utils/pagination/pagination';
 import { isRunActiveStatus, type TestStatus } from '@/types';
 import { reportLoadMetric } from "@/lib/telemetry/client-metrics";
 import { isSchedulerTriggered } from '@/lib/test-runs/trigger-label';
@@ -103,7 +103,7 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
             const response = await fetch(`/api/test-cases/${id}/history?${historyParams.toString()}`, { headers });
             if (response.ok) {
                 const result = await response.json() as HistoryResponse;
-                const runs = Array.isArray(result.data) ? result.data : [];
+                const runs = extractListData<TestRun>(result);
                 setTestRuns(runs);
                 setTotalRuns(result.pagination?.total ?? runs.length);
                 setLoadError(null);

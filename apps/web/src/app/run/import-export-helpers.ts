@@ -1,4 +1,5 @@
 import { exportToExcelArrayBuffer } from '@/utils/excel/testCaseExcel';
+import { extractListData } from '@/utils/pagination/pagination';
 import type { BrowserConfig, ConfigItem, TargetConfig, TestCaseFile, TestStep } from '@/types';
 import { buildExcelBaseName, downloadBlob, extractFileName, isSupportedVariableConfig } from './utils';
 
@@ -227,7 +228,7 @@ export async function handleExportHelper(input: {
                 if (!response.ok) {
                     return null;
                 }
-                return await response.json() as ConfigItem[];
+                return extractListData<ConfigItem>(await response.json());
             };
 
             const [latestProjectConfigs, latestTestCaseConfigs] = await Promise.all([

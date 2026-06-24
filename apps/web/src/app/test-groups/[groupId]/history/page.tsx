@@ -10,7 +10,7 @@ import { Pagination } from '@/components/shared';
 import { Breadcrumbs } from '@/components/layout';
 import { getStatusBadgeClass } from '@/utils/status/statusBadge';
 import { formatDateTime } from '@/utils/time/dateFormatter';
-import { parsePageSize } from '@/utils/pagination/pagination';
+import { extractListData, parsePageSize } from '@/utils/pagination/pagination';
 import { isRunActiveStatus, type TestGroupSessionSummary } from '@/types';
 import { isSchedulerTriggered } from '@/lib/test-runs/trigger-label';
 
@@ -46,7 +46,7 @@ export default function TestGroupHistoryPage({ params }: { params: Promise<{ gro
         const response = await fetchWithAccessToken(getAccessToken, `/api/projects/${projectId}/test-groups/${groupId}/sessions?${query.toString()}`);
         if (response.ok) {
             const result = await response.json() as SessionsResponse;
-            setSessions(Array.isArray(result.data) ? result.data : []);
+            setSessions(extractListData<TestGroupSessionSummary>(result));
             setTotal(result.pagination?.total ?? 0);
             if (typeof result.groupName === 'string') setGroupName(result.groupName);
             if (typeof result.projectName === 'string') setProjectName(result.projectName);

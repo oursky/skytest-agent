@@ -3,6 +3,7 @@
 import { useAuth } from '@/app/auth-provider';
 import { useCallback, useEffect, useState } from 'react';
 import { type ScheduleRecord, type ScheduleUpsertInput } from '@/types';
+import { extractListData } from '@/utils/pagination/pagination';
 
 interface UseProjectSchedulesResult {
     schedules: ScheduleRecord[];
@@ -32,8 +33,7 @@ export function useProjectSchedules(projectId: string): UseProjectSchedulesResul
                 setError(typeof payload.error === 'string' ? payload.error : 'Failed to load schedules');
                 return;
             }
-            const payload = await response.json() as ScheduleRecord[];
-            setSchedules(payload);
+            setSchedules(extractListData<ScheduleRecord>(await response.json()));
         } catch (fetchError) {
             console.error('Failed to fetch schedules', fetchError);
             setError('Failed to load schedules');

@@ -6,6 +6,7 @@ import { useAuth } from '@/app/auth-provider';
 import { CustomSelect, Pagination } from '@/components/shared';
 import { useI18n } from '@/i18n';
 import { formatDateTimeCompact } from '@/utils/time/dateFormatter';
+import { extractListData } from '@/utils/pagination/pagination';
 
 interface TeamUsageProps {
     teamId: string;
@@ -92,7 +93,7 @@ export default function TeamUsage({ teamId }: TeamUsageProps) {
                     return;
                 }
 
-                const data = await response.json() as ProjectOption[];
+                const data = extractListData<ProjectOption>(await response.json());
                 setProjects(data.map((project) => ({ id: project.id, name: project.name })));
             } catch (error) {
                 if (isAbortError(error)) {

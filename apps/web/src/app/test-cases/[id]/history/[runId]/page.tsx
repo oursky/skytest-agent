@@ -7,6 +7,7 @@ import { ResultViewer } from "@/components/features/run-results";
 import { TestForm } from "@/components/features/test-builder";
 import { Breadcrumbs } from "@/components/layout";
 import { PanelSkeleton } from "@/components/shared";
+import { extractListData } from "@/utils/pagination/pagination";
 import { formatDateTime } from "@/utils/time/dateFormatter";
 import { useI18n } from "@/i18n";
 import { parseStoredEvents } from "@/lib/runtime/test-events";
@@ -98,9 +99,8 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
             } else {
                 const historyResponse = await fetch(`/api/test-cases/${id}/history?limit=100&includePayload=1`, { headers });
                 if (historyResponse.ok) {
-                    const result = await historyResponse.json();
-                    const runs = result.data || result;
-                    const run = runs.find((r: TestRun) => r.id === runId);
+                    const runs = extractListData<TestRun>(await historyResponse.json());
+                    const run = runs.find((r) => r.id === runId);
                     if (run) setTestRun(run);
                 }
             }

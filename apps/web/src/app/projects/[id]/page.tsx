@@ -7,7 +7,7 @@ import { Modal, PageHeaderSkeleton, Pagination, TableRowsSkeleton, UnderlineTabs
 import { Breadcrumbs } from "@/components/layout";
 import { useI18n } from "@/i18n";
 import { isActiveRunStatus } from '@/utils/status/statusHelpers';
-import { parsePageSize } from '@/utils/pagination/pagination';
+import { extractListData, parsePageSize } from '@/utils/pagination/pagination';
 import { ProjectConfigs } from '@/components/features/project-configurations';
 import ProjectSettingsPanel from '@/components/features/projects/ui/ProjectSettingsPanel';
 import { ProjectSchedulesPanel } from '@/components/features/project-scheduler';
@@ -155,8 +155,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             throw new Error("Failed to fetch project data");
         }
 
-        const testCasesData = await testCasesRes.json();
-        setTestCases(testCasesData);
+        setTestCases(extractListData<TestCase>(await testCasesRes.json()));
     }, [resolvedParams.id, getAuthHeaders]);
 
     const fetchData = useCallback(async (silent = false) => {
