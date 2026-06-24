@@ -51,6 +51,7 @@ export interface TestGroupRunPreviewMember {
     name: string;
     status: string | null;
     startedAt: string | null;
+    lastRunId: string | null;
 }
 
 export interface TestGroupRunPreview {

@@ -286,10 +286,10 @@ export async function getTestGroupRunPreview(projectId: string, groupId: string)
             },
             orderBy: [{ testCaseId: 'asc' }, { createdAt: 'desc' }],
             distinct: ['testCaseId'],
-            select: { testCaseId: true, status: true, startedAt: true, createdAt: true },
+            select: { id: true, testCaseId: true, status: true, startedAt: true, createdAt: true },
         })
         : [];
-    const latestByCase = new Map<string, { status: string; startedAt: Date | null; createdAt: Date }>();
+    const latestByCase = new Map<string, { id: string; status: string; startedAt: Date | null; createdAt: Date }>();
     for (const run of latestRuns) {
         latestByCase.set(run.testCaseId, run);
     }
@@ -310,6 +310,7 @@ export async function getTestGroupRunPreview(projectId: string, groupId: string)
             name: member.name,
             status: latest?.status ?? null,
             startedAt: (latest?.startedAt ?? latest?.createdAt)?.toISOString() ?? null,
+            lastRunId: latest?.id ?? null,
         };
     });
 

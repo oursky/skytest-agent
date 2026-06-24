@@ -95,7 +95,6 @@ export default function TestGroupRunLauncherPage({ params }: { params: Promise<{
                     <>
                         <div className="mb-8 flex flex-wrap items-center gap-3">
                             <h1 className="text-3xl font-bold text-gray-900">{groupLabel}</h1>
-                            <span className="text-sm text-gray-500">{t('testGroup.caseCount', { count: preview.members.filter((m) => m.kind === 'TEST').length })}</span>
                             <div className="ml-auto">
                                 {activeSessionId ? (
                                     <Link
@@ -143,7 +142,18 @@ export default function TestGroupRunLauncherPage({ params }: { params: Promise<{
                                             )}
                                         </div>
                                         <div className="text-sm text-gray-500 md:col-span-2">{member.startedAt ? formatDateTime(member.startedAt) : '—'}</div>
-                                        <div className="md:col-span-2" />
+                                        <div className="flex justify-end md:col-span-2">
+                                            {member.lastRunId ? (
+                                                <Link
+                                                    href={`/test-cases/${member.testCaseId}/history/${member.lastRunId}`}
+                                                    className="text-sm font-medium text-blue-600 transition-colors hover:text-blue-700"
+                                                >
+                                                    {t('history.viewDetails')}
+                                                </Link>
+                                            ) : (
+                                                <span className="text-sm text-gray-400">—</span>
+                                            )}
+                                        </div>
                                     </div>
                                 ))}
                             </div>
