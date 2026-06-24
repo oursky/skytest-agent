@@ -23,10 +23,15 @@ interface RunProjectOptions {
     format: OutputFormat;
 }
 
+// Login flows are not standalone tests — they run only as a prefix of the tests that
+// reference them, so run-project must never dispatch them on their own.
+const LOGIN_FLOW_KIND = 'LOGIN_FLOW';
+
 interface ProjectTestCaseSummary {
     id: string;
     displayId: string;
     name: string;
+    kind: string;
 }
 
 interface RunDetailResponse {
@@ -78,16 +83,29 @@ async function listProjectTestCases(
         },
     });
 
-    return await parseJsonResponse<Array<{
+    const rows = await parseJsonResponse<Array<{
         id: string;
         displayId: string;
         name: string;
+        kind?: string;
     }>>(response, 'List project test cases');
+
+    // `kind` is absent on older control planes; default to TEST so existing projects
+    // (no login flows) keep running every case.
+    return rows.map((row) => ({
+        id: row.id,
+        displayId: row.displayId,
+        name: row.name,
+        kind: row.kind ?? 'TEST',
+    }));
 }
 
 function selectDisplayIds(allCases: ProjectTestCaseSummary[], requestedDisplayIds: string[]): string[] {
     if (requestedDisplayIds.length === 0) {
+        // Run every test in the project, but skip login flows — they execute automatically
+        // as a prefix of the tests that reference them, never on their own.
         return allCases
+            .filter((testCase) => testCase.kind !== LOGIN_FLOW_KIND)
             .map((testCase) => testCase.displayId)
             .filter((displayId): displayId is string => Boolean(displayId && displayId.trim()));
     }
@@ -96,6 +114,14 @@ function selectDisplayIds(allCases: ProjectTestCaseSummary[], requestedDisplayId
     const missing = requestedDisplayIds.filter((displayId) => !available.has(displayId));
     if (missing.length > 0) {
         throw new Error(`Requested display IDs not found in project: ${missing.join(', ')}`);
+    }
+
+    const kindByDisplayId = new Map(allCases.map((testCase) => [testCase.displayId, testCase.kind]));
+    const requestedLoginFlows = requestedDisplayIds.filter((displayId) => kindByDisplayId.get(displayId) === LOGIN_FLOW_KIND);
+    if (requestedLoginFlows.length > 0) {
+        throw new Error(
+            `These are login flows, not standalone tests, so they cannot be run directly — they run automatically before the tests that reference them: ${requestedLoginFlows.join(', ')}`,
+        );
     }
 
     return requestedDisplayIds;
