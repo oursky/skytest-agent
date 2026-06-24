@@ -97,6 +97,20 @@ export default function TestGroupsPanel({ projectId, canManageProject }: TestGro
         void (async () => { await refresh(); })();
     }, [refresh]);
 
+    // The RUNNING badge, run-vs-eye icon, and delete-disabled state all derive from
+    // lastSessionStatus, which goes stale when a session starts/completes here or elsewhere.
+    // Poll while any group is active and refresh on focus (e.g. returning from the launcher).
+    const hasActiveGroup = groups.some((group) => isRunActiveStatus(group.lastSessionStatus));
+    useEffect(() => {
+        const onFocus = () => { void refresh(); };
+        window.addEventListener('focus', onFocus);
+        const interval = hasActiveGroup ? setInterval(() => { void refresh(); }, 5000) : null;
+        return () => {
+            window.removeEventListener('focus', onFocus);
+            if (interval) clearInterval(interval);
+        };
+    }, [hasActiveGroup, refresh]);
+
     const visibleGroups = useMemo(() => {
         const query = search.trim().toLowerCase();
         const filtered = !query

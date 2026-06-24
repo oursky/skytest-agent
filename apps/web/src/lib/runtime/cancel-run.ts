@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/core/prisma';
 import { publishRunUpdate } from '@/lib/runners/event-bus';
 import { recomputeRunSessionStatus } from '@/lib/runtime/run-session-service';
+import { cancelLocalBrowserRun } from '@/lib/runtime/local-browser-runner';
 import { CANCELLATION_REASON } from '@/lib/runtime/cancellation-reasons';
 import { RUN_ACTIVE_STATUSES, RUN_SESSION_KIND, TEST_STATUS, isRunActiveStatus } from '@/types';
 
@@ -73,6 +74,10 @@ export async function cancelActiveTestRun(
 
         if (finalStatus === TEST_STATUS.CANCELLED) {
             publishRunUpdate(runId);
+            // Abort the in-process browser now instead of waiting for the run status
+            // watcher's next poll, so a stopped run halts within ~1s. No-op for runs not
+            // executing locally (remote runner / already settled).
+            cancelLocalBrowserRun(runId);
         }
     }
 
@@ -96,10 +101,7 @@ export async function cancelActiveRunSession(sessionId: string): Promise<{ cance
         where: { id: sessionId },
         select: {
             kind: true,
-            memberRuns: {
-                where: { status: { in: [...RUN_ACTIVE_STATUSES] } },
-                select: { id: true },
-            },
+            memberRuns: { select: { id: true, status: true } },
         },
     });
 
@@ -109,10 +111,21 @@ export async function cancelActiveRunSession(sessionId: string): Promise<{ cance
 
     let cancelledMembers = 0;
     for (const member of session?.memberRuns ?? []) {
+        if (!isRunActiveStatus(member.status)) {
+            continue;
+        }
         const result = await cancelActiveTestRun(member.id, reason);
         if (result?.cancelled) {
             cancelledMembers += 1;
         }
+    }
+
+    // The shared session browser's abort controller is keyed under the originally-claimed
+    // member, which may already be terminal (e.g. a login flow that passed before the test).
+    // Abort every member id so the currently-running member halts immediately rather than
+    // after its status watcher next polls the CANCELLED state.
+    for (const member of session?.memberRuns ?? []) {
+        cancelLocalBrowserRun(member.id);
     }
 
     await recomputeRunSessionStatus(sessionId);

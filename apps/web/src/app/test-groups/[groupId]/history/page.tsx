@@ -61,9 +61,13 @@ export default function TestGroupHistoryPage({ params }: { params: Promise<{ gro
 
     const hasActive = sessions.some((session) => isRunActiveStatus(session.status));
     useEffect(() => {
-        if (!hasActive) return;
-        const interval = setInterval(() => { void fetchSessions(); }, 5000);
-        return () => clearInterval(interval);
+        const onFocus = () => { void fetchSessions(); };
+        window.addEventListener('focus', onFocus);
+        const interval = hasActive ? setInterval(() => { void fetchSessions(); }, 5000) : null;
+        return () => {
+            window.removeEventListener('focus', onFocus);
+            if (interval) clearInterval(interval);
+        };
     }, [hasActive, fetchSessions]);
 
     const totalPages = Math.max(1, Math.ceil(total / pageSize));

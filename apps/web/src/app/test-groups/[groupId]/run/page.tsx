@@ -43,6 +43,21 @@ export default function TestGroupRunLauncherPage({ params }: { params: Promise<{
 
     useEffect(() => { void load(); }, [load]);
 
+    const activeSessionId = preview?.activeSessionId ?? null;
+
+    // Keep the Start / View-running toggle honest: poll while a session is active (so the
+    // button reverts to Start once it completes) and refresh on focus (so a session started
+    // elsewhere is reflected instead of a stale Start that 409s).
+    useEffect(() => {
+        const onFocus = () => { void load(); };
+        window.addEventListener('focus', onFocus);
+        const interval = activeSessionId ? setInterval(() => { void load(); }, 5000) : null;
+        return () => {
+            window.removeEventListener('focus', onFocus);
+            if (interval) clearInterval(interval);
+        };
+    }, [activeSessionId, load]);
+
     const handleRun = async () => {
         if (!projectId) return;
         setStarting(true);
@@ -63,7 +78,6 @@ export default function TestGroupRunLauncherPage({ params }: { params: Promise<{
     };
 
     const groupLabel = preview ? `${preview.displayId ? `${preview.displayId} • ` : ''}${preview.name}` : '';
-    const activeSessionId = preview?.activeSessionId ?? null;
 
     return (
         <main className="min-h-screen bg-gray-50">

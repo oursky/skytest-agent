@@ -182,17 +182,32 @@ export function useProjectSlack(projectId: string) {
             }
             const payload = await response.json() as ProjectSlackSettings;
             setSettings(payload);
-            setDraft({
+            // Sync the draft to the saved payload, but keep any template the user kept
+            // editing during the save round-trip (its current value diverges from what we
+            // submitted) so an in-flight save doesn't discard fresh keystrokes.
+            const submittedFailure = next.slackFailureTemplate ?? DEFAULT_SLACK_FAILURE_TEMPLATE;
+            const submittedSuccess = next.slackSuccessTemplate ?? DEFAULT_SLACK_SUCCESS_TEMPLATE;
+            const submittedGroupFailure = next.slackGroupFailureTemplate ?? DEFAULT_SLACK_GROUP_FAILURE_TEMPLATE;
+            const submittedGroupSuccess = next.slackGroupSuccessTemplate ?? DEFAULT_SLACK_GROUP_SUCCESS_TEMPLATE;
+            setDraft((current) => ({
                 slackEnabled: payload.slackEnabled,
                 slackNotifyOn: payload.slackNotifyOn,
                 slackChannelId: payload.slackChannelId ?? '',
                 slackChannelName: payload.slackChannelName ?? null,
-                slackFailureTemplate: payload.slackFailureTemplate ?? DEFAULT_SLACK_FAILURE_TEMPLATE,
-                slackSuccessTemplate: payload.slackSuccessTemplate ?? DEFAULT_SLACK_SUCCESS_TEMPLATE,
+                slackFailureTemplate: current.slackFailureTemplate !== submittedFailure
+                    ? current.slackFailureTemplate
+                    : (payload.slackFailureTemplate ?? DEFAULT_SLACK_FAILURE_TEMPLATE),
+                slackSuccessTemplate: current.slackSuccessTemplate !== submittedSuccess
+                    ? current.slackSuccessTemplate
+                    : (payload.slackSuccessTemplate ?? DEFAULT_SLACK_SUCCESS_TEMPLATE),
                 slackGroupNotifyEnabled: payload.slackGroupNotifyEnabled,
-                slackGroupFailureTemplate: payload.slackGroupFailureTemplate ?? DEFAULT_SLACK_GROUP_FAILURE_TEMPLATE,
-                slackGroupSuccessTemplate: payload.slackGroupSuccessTemplate ?? DEFAULT_SLACK_GROUP_SUCCESS_TEMPLATE,
-            });
+                slackGroupFailureTemplate: current.slackGroupFailureTemplate !== submittedGroupFailure
+                    ? current.slackGroupFailureTemplate
+                    : (payload.slackGroupFailureTemplate ?? DEFAULT_SLACK_GROUP_FAILURE_TEMPLATE),
+                slackGroupSuccessTemplate: current.slackGroupSuccessTemplate !== submittedGroupSuccess
+                    ? current.slackGroupSuccessTemplate
+                    : (payload.slackGroupSuccessTemplate ?? DEFAULT_SLACK_GROUP_SUCCESS_TEMPLATE),
+            }));
             setNotice('saved');
             return true;
         } catch (saveError) {
