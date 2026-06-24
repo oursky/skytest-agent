@@ -76,14 +76,28 @@ How sure you are about an element decides whether a step gets code:
 | Tool | Purpose |
 |------|---------|
 | `list_projects` / `get_project` | Projects and project-level configs |
-| `get_project_test_summary` | Status breakdown across test cases |
-| `list_test_cases` / `get_test_case` | Existing coverage; full case with steps, configs, last 5 runs |
-| `create_test_case` / `update_test_case` / `delete_test_case` | One case per call |
-| `run_test_case` | Queue one run; overrides: `url`, `prompt`, `steps`, `browserConfig`, `requestedDeviceId`, `requestedRunnerId` |
-| `list_test_runs` / `get_test_run` | Monitor runs; `include: ["events", "artifacts"]` for step detail |
+| `get_project_test_summary` | Status breakdown (`byStatus`) and kind breakdown (`byKind`: TEST vs LOGIN_FLOW) |
+| `list_test_cases` / `get_test_case` | Existing coverage; each item includes `kind`; full case with steps, configs, last 5 runs |
+| `create_test_case` / `update_test_case` / `delete_test_case` | One case per call. `create_test_case` accepts `kind` (TEST default, or LOGIN_FLOW); `update_test_case` cannot change kind |
+| `run_test_case` | Queue one run session (login-flow prefixes + the test); overrides: `url`, `prompt`, `steps`, `browserConfig`, `requestedDeviceId`, `requestedRunnerId`. Returned `runId` is the test member; watch the whole run via its `runSessionId` |
+| `run_test_group` | Queue a GROUP run session: `{ projectId, testGroupId }` → `{ sessionId }`. 409 if the group is already running |
+| `list_test_runs` / `get_test_run` | Monitor runs; each carries `kind`/`runSessionId`/`sessionPosition`/`cancellationReasonCode`. `get_test_run` also returns the rolled-up `session`. `include: ["events", "artifacts"]` for step detail |
+| `get_run_session` / `list_run_sessions` | Read a run session's rolled-up status + per-member statuses; list a project's sessions (optionally by `testGroupId`) |
 | `manage_project_configs` | Upsert/remove project-level configs in one call |
 | `list_runner_inventory` | Runner/device inventory and Android selector options |
 | `stop_all_runs` / `stop_all_queues` | Cancel runs (`projectId` required, optional `reason`) |
+
+## Login Flows, Run Sessions & Test Groups
+
+The execution model is **one run = one member of a run session**, not one standalone run. Three concepts:
+
+- **Login flow** — a test case with `kind = LOGIN_FLOW`: a reusable login sequence. Author it with `create_test_case` (`kind: "LOGIN_FLOW"`). Other cases reuse it by setting `loginFlowId` on a browser target, so the login runs as a prefix and its post-login session is restored before the test — no need to repeat login steps in every case.
+- **Run session** — `run_test_case` creates a SINGLE session: each referenced login flow runs first (`kind = LOGIN_FLOW`), then the test (`kind = TEST`). The returned `runId` is the test member.
+- **Test group** — an ordered set of cases (with its own login sessions) run as one GROUP session via `run_test_group`.
+
+**"Done" means the session settled, not one member.** A member reaching `PASS` does not mean the run finished — a later member may still be running or have failed. To judge completion, read the rolled-up status: `get_test_run` returns `session.status`, or call `get_run_session(runSessionId)` for every member's status. A member that never ran settles `CANCELLED` (with a `cancellationReasonCode` such as `LOGIN_FLOW_FAILED` or `EARLIER_CASE_FAILED`) — there is no `SKIPPED`. A `CANCELLED` member caused by an upstream failure is not a defect in that case; see skytest-fix.
+
+**A grouped case's kind is fixed** while it belongs to a test group — `update_test_case` won't change kind, and the web UI rejects flipping it. Author the case with the right kind up front.
 
 ## Workflow
 

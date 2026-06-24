@@ -35,6 +35,8 @@ Validated in practice: deterministic interactions (clicking, filling, selecting 
 
 Accepts any of: run ID / test case ID, pasted run report, screenshots, or "test X fails on step 3". If only an ID is given, fetch everything first: `get_test_run` with `include: ["events", "artifacts"]` AND `get_test_case` (steps, variables, configs, last 5 runs).
 
+**A run is one member of a run session** (a login flow runs as a prefix before the test; a test group runs many cases as one session). `get_test_run` returns `runSessionId`, `kind`, `sessionPosition`, a `cancellationReasonCode`, and the rolled-up `session`. When the run belongs to a session, call `get_run_session(runSessionId)` to see every member's status — the failure that needs fixing is often in a *different* member (the login flow) than the one the user pointed at. Classify cancellation-by-upstream-failure (F10) before anything else.
+
 ## Failure Taxonomy
 
 Classify every failure; the category drives the fix.
@@ -75,6 +77,12 @@ Fixes: outdated selector → inspect actual page, update; multiple matches → `
 **Signals:** DNS/network errors, `"browser crashed"`, `"target closed"`, `ERR_CONNECTION_REFUSED`.
 **Do not modify the test case.** Advise checking target app availability and runner status (`list_runner_inventory`), then re-run.
 
+### F10: Upstream-Cancelled Member — fix the cause, not this case
+**Signals:** the run's status is `CANCELLED` (not FAIL) with a `cancellationReasonCode` of `LOGIN_FLOW_FAILED`, `LOGIN_FLOW_CANCELLED`, or `EARLIER_CASE_FAILED`; the error text says the test "did not run because its login flow … failed/was stopped" or "an earlier test case in the group failed". The member itself never executed.
+**This case is not the defect.** Do **not** edit it — its steps never ran. Call `get_run_session(runSessionId)` to find the member that actually failed (the login flow, or the earlier group case), then diagnose **that** member with F1–F8. Fixing the upstream failure unblocks every downstream member that was cancelled.
+- `USER_SINGLE` / `USER_GROUP` cancellations are deliberate manual stops — nothing to fix.
+- There is no `SKIPPED` status; a member that never ran is `CANCELLED`. Treat `CANCELLED` as "did not run", never as a pass.
+
 ## Workflow
 
 ### 1. Gather Context
@@ -83,7 +91,7 @@ Fixes: outdated selector → inspect actual page, update; multiple matches → `
 3. Find the first `[ERROR]` step; read all preceding events and the screenshots at and before the failure.
 
 ### 2. Classify
-Decision order: infrastructure → **F9**; playwright-code error → **F8**; unresolved variable → **F7**; wrong page/modal in screenshot → **F5**; failing step is an assert → **F4**; "AI model" error → investigate per F1 before accepting it; locate attempts failed → **F2**; located but ineffective → **F3**; intermittent/"not visible" → **F6**. If ambiguous, say so and ask.
+Decision order: CANCELLED by an upstream login-flow/earlier-case failure → **F10** (diagnose the upstream member instead); infrastructure → **F9**; playwright-code error → **F8**; unresolved variable → **F7**; wrong page/modal in screenshot → **F5**; failing step is an assert → **F4**; "AI model" error → investigate per F1 before accepting it; locate attempts failed → **F2**; located but ineffective → **F3**; intermittent/"not visible" → **F6**. If ambiguous, say so and ask.
 
 ### 3. Investigate
 - Check all `{{VAR}}` references against test-case and project variables first — the most common hidden cause.
