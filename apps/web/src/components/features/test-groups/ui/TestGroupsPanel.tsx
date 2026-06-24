@@ -9,6 +9,7 @@ import { fetchWithAccessToken } from '@/app/run/run-page-api';
 import { Modal } from '@/components/shared';
 import { getStatusBadgeClass } from '@/utils/status/statusBadge';
 import { formatDateTimeCompact } from '@/utils/time/dateFormatter';
+import { extractListData } from '@/utils/pagination/pagination';
 import { isRunActiveStatus, type TestGroupSummary } from '@/types';
 import TestGroupEditor from './TestGroupEditor';
 
@@ -86,8 +87,7 @@ export default function TestGroupsPanel({ projectId, canManageProject }: TestGro
         try {
             const response = await fetchWithAccessToken(getAccessToken, `/api/projects/${projectId}/test-groups?limit=100`);
             if (response.ok) {
-                const body = await response.json() as { data?: TestGroupSummary[] };
-                setGroups(body.data ?? []);
+                setGroups(extractListData<TestGroupSummary>(await response.json()));
             }
         } catch {
             // Keep the last good list on a transient failure.

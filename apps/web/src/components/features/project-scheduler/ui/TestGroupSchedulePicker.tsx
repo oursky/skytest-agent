@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/app/auth-provider';
 import { fetchWithAccessToken } from '@/app/run/run-page-api';
+import { extractListData } from '@/utils/pagination/pagination';
 import type { TestGroupSummary } from '@/types';
 
 interface TestGroupSchedulePickerProps {
@@ -25,8 +26,7 @@ export default function TestGroupSchedulePicker({ projectId, selectedIds, disabl
             try {
                 const response = await fetchWithAccessToken(getAccessToken, `/api/projects/${projectId}/test-groups?limit=100`);
                 if (response.ok && !cancelled) {
-                    const body = await response.json() as { data?: TestGroupSummary[] };
-                    setGroups(body.data ?? []);
+                    setGroups(extractListData<TestGroupSummary>(await response.json()));
                 }
             } catch {
                 // Leave empty on failure; test groups are optional for a schedule.

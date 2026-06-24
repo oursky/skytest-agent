@@ -5,6 +5,7 @@ import { useAuth } from '@/app/auth-provider';
 import { useI18n } from '@/i18n';
 import { fetchWithAccessToken } from '@/app/run/run-page-api';
 import { CustomSelect } from '@/components/shared';
+import { extractListData } from '@/utils/pagination/pagination';
 import type { TestCaseTargetSummary } from '@/types';
 
 interface TestCaseOption {
@@ -40,9 +41,9 @@ export default function OrderedTestCasePicker({ projectId, value, onChange, read
                 if (!response.ok) {
                     return;
                 }
-                const body = await response.json() as { data?: TestCaseOption[] };
-                if (!cancelled && Array.isArray(body.data)) {
-                    setOptions(body.data);
+                const options = extractListData<TestCaseOption>(await response.json());
+                if (!cancelled) {
+                    setOptions(options);
                 }
             } catch {
                 // Leave the list empty on failure; the picker just shows nothing to add.

@@ -5,6 +5,7 @@ import { useAuth } from '@/app/auth-provider';
 import { useI18n } from '@/i18n';
 import { fetchWithAccessToken } from '@/app/run/run-page-api';
 import { Button, CustomSelect } from '@/components/shared';
+import { extractListData } from '@/utils/pagination/pagination';
 import { TEST_GROUP_FAILURE_MODE, isRunActiveStatus, type TestGroupFailureMode, type TestGroupSummary } from '@/types';
 import type { TranslationVars } from '@/i18n/types';
 import OrderedTestCasePicker from './OrderedTestCasePicker';
@@ -59,9 +60,9 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
                 if (!response.ok) {
                     return;
                 }
-                const body = await response.json() as { data?: LoginFlowOption[] };
-                if (!cancelled && Array.isArray(body.data)) {
-                    setLoginFlowOptions(body.data);
+                const options = extractListData<LoginFlowOption>(await response.json());
+                if (!cancelled) {
+                    setLoginFlowOptions(options);
                 }
             } catch {
                 // Leave empty on failure; the picker just shows nothing to add.
