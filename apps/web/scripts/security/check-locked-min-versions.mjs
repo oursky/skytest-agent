@@ -31,6 +31,8 @@ const FLOORS = {
     'vitest': '4.1.0',
     // undici Set-Cookie/header-injection + WebSocket DoS chain, patched in 6.27.0
     'undici': '6.27.0',
+    // GHSA-96hv-2xvq-fx4p (memory-exhaustion DoS from tiny fragments/chunks), patched in 8.21.0
+    'ws': '8.21.0',
     // DOMPurify IN_PLACE / hook-pollution / template-bypass chain, patched in 3.4.11
     'dompurify': '3.4.11',
     // GHSA-hmw2-7cc7-3qxx (form-data multipart CRLF injection), patched in 4.0.6
