@@ -19,6 +19,7 @@ export interface SchedulerTickResult {
     claimedSchedules: number;
     enqueuedRuns: number;
     failedRuns: number;
+    skippedRuns: number;
 }
 
 interface ClaimedSchedule {
@@ -117,6 +118,7 @@ export async function runSchedulerTick(maxDuePerTick: number): Promise<Scheduler
 
     let enqueuedRuns = 0;
     let failedRuns = 0;
+    let skippedRuns = 0;
 
     for (const schedule of claimedSchedules) {
         if (schedule.testCaseIds.length === 0 && schedule.testGroups.length === 0) {
@@ -158,6 +160,18 @@ export async function runSchedulerTick(maxDuePerTick: number): Promise<Scheduler
                 continue;
             }
 
+            // A group that already has a run in progress is an expected skip, not a
+            // failure — counting it as failedRuns would inflate the error metric every
+            // tick a long-running group overlaps its next schedule.
+            if (result.status === 409) {
+                skippedRuns += 1;
+                logger.info('Skipped scheduled test group with a run already in progress', {
+                    scheduleId: schedule.id,
+                    testGroupId: group.testGroupId,
+                });
+                continue;
+            }
+
             failedRuns += 1;
             logger.warn('Failed to enqueue scheduled test group', {
                 scheduleId: schedule.id,
@@ -171,5 +185,6 @@ export async function runSchedulerTick(maxDuePerTick: number): Promise<Scheduler
         claimedSchedules: claimedSchedules.length,
         enqueuedRuns,
         failedRuns,
+        skippedRuns,
     };
 }

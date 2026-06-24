@@ -15,8 +15,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         return guard.response;
     }
     try {
-        const groups = await listTestGroups(guard.params.id);
-        return NextResponse.json(groups);
+        const url = new URL(request.url);
+        const page = Math.max(1, parseInt(url.searchParams.get('page') || '1'));
+        const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') || '20')));
+        const result = await listTestGroups(guard.params.id, page, limit);
+        return NextResponse.json(result);
     } catch (error) {
         logger.error('Failed to list test groups', error);
         return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to list test groups' });

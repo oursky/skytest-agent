@@ -146,13 +146,27 @@ const groupInclude = {
     sessions: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' as const }, take: 1, select: { id: true, status: true, createdAt: true } },
 };
 
-export async function listTestGroups(projectId: string): Promise<TestGroupSummary[]> {
-    const groups = await prisma.testGroup.findMany({
-        where: { projectId },
-        orderBy: { updatedAt: 'desc' },
-        include: groupInclude,
-    });
-    return groups.map(serializeTestGroup);
+export interface TestGroupListResult {
+    data: TestGroupSummary[];
+    pagination: { page: number; limit: number; total: number; totalPages: number };
+}
+
+export async function listTestGroups(projectId: string, page = 1, limit = 20): Promise<TestGroupListResult> {
+    const skip = (page - 1) * limit;
+    const [groups, total] = await prisma.$transaction([
+        prisma.testGroup.findMany({
+            where: { projectId },
+            orderBy: { updatedAt: 'desc' },
+            include: groupInclude,
+            skip,
+            take: limit,
+        }),
+        prisma.testGroup.count({ where: { projectId } }),
+    ]);
+    return {
+        data: groups.map(serializeTestGroup),
+        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
 }
 
 export async function listTestGroupSessions(
@@ -257,19 +271,26 @@ export async function getTestGroupRunPreview(projectId: string, groupId: string)
             })),
     ];
 
+    // One latest run per case, scoped to THIS group's sessions only. Scoping by
+    // testGroupId (rather than the case's latest run anywhere) keeps a case shared
+    // across groups — or run standalone — from showing another context's status, and
+    // distinct + ordered avoids loading the case's full run history.
     const caseIds = orderedMembers.map((member) => member.testCaseId);
     const latestRuns = caseIds.length > 0
         ? await prisma.testRun.findMany({
-            where: { testCaseId: { in: caseIds }, deletedAt: null },
-            orderBy: { createdAt: 'desc' },
+            where: {
+                testCaseId: { in: caseIds },
+                deletedAt: null,
+                runSession: { testGroupId: groupId, deletedAt: null },
+            },
+            orderBy: [{ testCaseId: 'asc' }, { createdAt: 'desc' }],
+            distinct: ['testCaseId'],
             select: { testCaseId: true, status: true, startedAt: true, createdAt: true },
         })
         : [];
     const latestByCase = new Map<string, { status: string; startedAt: Date | null; createdAt: Date }>();
     for (const run of latestRuns) {
-        if (!latestByCase.has(run.testCaseId)) {
-            latestByCase.set(run.testCaseId, run);
-        }
+        latestByCase.set(run.testCaseId, run);
     }
 
     const activeSession = await prisma.runSession.findFirst({

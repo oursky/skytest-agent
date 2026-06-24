@@ -83,9 +83,10 @@ export default function TestGroupsPanel({ projectId, canManageProject }: TestGro
 
     const refresh = useCallback(async () => {
         try {
-            const response = await fetchWithAccessToken(getAccessToken, `/api/projects/${projectId}/test-groups`);
+            const response = await fetchWithAccessToken(getAccessToken, `/api/projects/${projectId}/test-groups?limit=100`);
             if (response.ok) {
-                setGroups(await response.json() as TestGroupSummary[]);
+                const body = await response.json() as { data?: TestGroupSummary[] };
+                setGroups(body.data ?? []);
             }
         } catch {
             // Keep the last good list on a transient failure.

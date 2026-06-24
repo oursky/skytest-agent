@@ -78,11 +78,40 @@ const STARTED_STATUSES = new Set<string>([
     TEST_STATUS.CANCELLED,
 ]);
 
+// Each member status change recomputes the parent session (a full session + members
+// reload). During the parallel login phase those fire O(members) times nearly at once,
+// all reading the same rows. Coalesce concurrent recomputes per session into one in-flight
+// pass plus a single trailing pass, so the work collapses to at most two reloads while the
+// final (terminal) state is still always computed.
+const runningRecompute = new Map<string, Promise<void>>();
+const rerunRequested = new Set<string>();
+
 /**
  * Recomputes a run session's aggregate status from its members and persists it.
  * Emits a session-terminal event when the session settles for the first time.
+ * Concurrent calls for the same session coalesce (see runningRecompute above).
  */
-export async function recomputeRunSessionStatus(sessionId: string): Promise<void> {
+export function recomputeRunSessionStatus(sessionId: string): Promise<void> {
+    const existing = runningRecompute.get(sessionId);
+    if (existing) {
+        rerunRequested.add(sessionId);
+        return existing;
+    }
+    const run = (async () => {
+        try {
+            do {
+                rerunRequested.delete(sessionId);
+                await performRunSessionRecompute(sessionId);
+            } while (rerunRequested.has(sessionId));
+        } finally {
+            runningRecompute.delete(sessionId);
+        }
+    })();
+    runningRecompute.set(sessionId, run);
+    return run;
+}
+
+async function performRunSessionRecompute(sessionId: string): Promise<void> {
     const session = await prisma.runSession.findUnique({
         where: { id: sessionId },
         select: { id: true, kind: true, status: true, startedAt: true, projectId: true },

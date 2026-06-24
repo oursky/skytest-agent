@@ -82,6 +82,7 @@ describe('runSchedulerTick', () => {
             claimedSchedules: 1,
             enqueuedRuns: 2,
             failedRuns: 0,
+            skippedRuns: 0,
         });
         expect(mocks.scheduleUpdate).toHaveBeenCalledTimes(1);
         expect(mocks.queueTestCaseRun).toHaveBeenCalledTimes(2);
@@ -114,6 +115,7 @@ describe('runSchedulerTick', () => {
             claimedSchedules: 1,
             enqueuedRuns: 1,
             failedRuns: 1,
+            skippedRuns: 0,
         });
     });
 
@@ -151,6 +153,7 @@ describe('runSchedulerTick', () => {
             claimedSchedules: 1,
             enqueuedRuns: 1,
             failedRuns: 0,
+            skippedRuns: 0,
         });
         expect(mocks.scheduleUpdate).toHaveBeenCalledWith({
             where: { id: 'schedule-poison' },
