@@ -23,9 +23,10 @@ export default function TestGroupSchedulePicker({ projectId, selectedIds, disabl
         let cancelled = false;
         void (async () => {
             try {
-                const response = await fetchWithAccessToken(getAccessToken, `/api/projects/${projectId}/test-groups`);
+                const response = await fetchWithAccessToken(getAccessToken, `/api/projects/${projectId}/test-groups?limit=100`);
                 if (response.ok && !cancelled) {
-                    setGroups(await response.json() as TestGroupSummary[]);
+                    const body = await response.json() as { data?: TestGroupSummary[] };
+                    setGroups(body.data ?? []);
                 }
             } catch {
                 // Leave empty on failure; test groups are optional for a schedule.
