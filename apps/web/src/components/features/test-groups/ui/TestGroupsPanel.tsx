@@ -66,6 +66,7 @@ export default function TestGroupsPanel({ projectId, canManageProject }: TestGro
     const { getAccessToken } = useAuth();
     const router = useRouter();
     const [groups, setGroups] = useState<TestGroupSummary[]>([]);
+    const [loaded, setLoaded] = useState(false);
     const [editor, setEditor] = useState<EditorState>(null);
     const [pendingDelete, setPendingDelete] = useState<TestGroupSummary | null>(null);
     const [search, setSearch] = useState('');
@@ -90,6 +91,8 @@ export default function TestGroupsPanel({ projectId, canManageProject }: TestGro
             }
         } catch {
             // Keep the last good list on a transient failure.
+        } finally {
+            setLoaded(true);
         }
     }, [projectId, getAccessToken]);
 
@@ -215,7 +218,19 @@ export default function TestGroupsPanel({ projectId, canManageProject }: TestGro
                     <div className="col-span-4 text-right">{t('project.table.actions')}</div>
                 </div>
 
-                {visibleGroups.length === 0 ? (
+                {!loaded ? (
+                    <div className="divide-y divide-gray-100">
+                        {Array.from({ length: 6 }, (_, index) => (
+                            <div key={`test-group-skeleton-${index}`} className="grid grid-cols-1 gap-4 p-4 md:grid-cols-24 md:items-center">
+                                <div className="md:col-span-4"><div className="skeleton-block h-4 w-16" /></div>
+                                <div className="md:col-span-8"><div className="skeleton-block h-4 w-40" /></div>
+                                <div className="md:col-span-4"><div className="skeleton-block h-6 w-20 rounded-full" /></div>
+                                <div className="md:col-span-4"><div className="skeleton-block h-4 w-24" /></div>
+                                <div className="flex justify-end md:col-span-4"><div className="skeleton-block h-8 w-16" /></div>
+                            </div>
+                        ))}
+                    </div>
+                ) : visibleGroups.length === 0 ? (
                     <p className="p-16 text-center text-sm text-gray-500">
                         {groups.length === 0 ? t('testGroup.empty') : t('testGroup.noResults')}
                     </p>

@@ -3,7 +3,7 @@ import { useState, useEffect, use, useCallback, useRef } from "react";
 import { useAuth } from "../../auth-provider";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { CenteredLoading, Modal, Pagination, UnderlineTabs } from "@/components/shared";
+import { Modal, PageHeaderSkeleton, Pagination, TableRowsSkeleton, UnderlineTabs } from "@/components/shared";
 import { Breadcrumbs } from "@/components/layout";
 import { useI18n } from "@/i18n";
 import { isActiveRunStatus } from '@/utils/status/statusHelpers';
@@ -533,7 +533,19 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     };
 
     if (isAuthLoading || isLoading) {
-        return <CenteredLoading className="min-h-screen" />;
+        return (
+            <main className="min-h-screen bg-gray-50">
+                <div className="max-w-7xl mx-auto px-8 py-8">
+                    <PageHeaderSkeleton />
+                    <div className="mb-6 flex gap-6 border-b border-gray-200">
+                        {Array.from({ length: 5 }, (_, index) => (
+                            <div key={`project-tab-skeleton-${index}`} className="skeleton-block mb-3 h-4 w-20" />
+                        ))}
+                    </div>
+                    <TableRowsSkeleton rows={8} columns={5} />
+                </div>
+            </main>
+        );
     }
 
     const handleStartProjectSettingsEdit = () => {

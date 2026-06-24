@@ -8,7 +8,7 @@ import { useI18n } from '@/i18n';
 import { fetchWithAccessToken } from '@/app/run/run-page-api';
 import { getStatusBadgeClass } from '@/utils/status/statusBadge';
 import { formatDateTime } from '@/utils/time/dateFormatter';
-import { Button, Modal } from '@/components/shared';
+import { Button, Modal, TableRowsSkeleton } from '@/components/shared';
 import { Breadcrumbs } from '@/components/layout';
 import { isRunActiveStatus, isRunTerminalStatus, TEST_STATUS } from '@/types';
 
@@ -112,7 +112,12 @@ export default function TestGroupRunPage({ params }: { params: Promise<{ session
                 {notFound ? (
                     <p className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">{t('testGroup.run.notFound')}</p>
                 ) : !session ? (
-                    <p className="text-sm text-gray-500">{t('common.loading')}</p>
+                    <>
+                        <div className="mb-8 flex items-center gap-3">
+                            <div className="skeleton-block h-8 w-64" />
+                        </div>
+                        <TableRowsSkeleton rows={4} columns={4} />
+                    </>
                 ) : (
                     <>
                         <div className="mb-8 flex flex-wrap items-center gap-3">

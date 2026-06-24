@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { ResultViewer } from "@/components/features/run-results";
 import { TestForm } from "@/components/features/test-builder";
 import { Breadcrumbs } from "@/components/layout";
-import { CenteredLoading } from "@/components/shared";
+import { PanelSkeleton } from "@/components/shared";
 import { formatDateTime } from "@/utils/time/dateFormatter";
 import { useI18n } from "@/i18n";
 import { parseStoredEvents } from "@/lib/runtime/test-events";
@@ -128,7 +128,20 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
     }, [fetchRunDetails, fetchTestCase, runId, id, isLoggedIn, isAuthLoading]);
 
     if (isAuthLoading || isLoading) {
-        return <CenteredLoading className="min-h-screen" />;
+        return (
+            <main className="min-h-screen bg-gray-50 p-8">
+                <div className="max-w-7xl mx-auto">
+                    <div className="skeleton-block mb-4 h-4 w-72" />
+                    <div className="mb-8 grid grid-cols-1 lg:grid-cols-2 gap-8 items-end">
+                        <div className="skeleton-block h-8 w-48" />
+                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                        <PanelSkeleton lines={6} />
+                        <PanelSkeleton lines={8} />
+                    </div>
+                </div>
+            </main>
+        );
     }
 
     if (!testRun) {

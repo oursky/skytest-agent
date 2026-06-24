@@ -97,7 +97,18 @@ export default function TestGroupHistoryPage({ params }: { params: Promise<{ gro
                         <div className="col-span-3 flex justify-end">{t('history.table.actions')}</div>
                     </div>
 
-                    {loaded && sessions.length === 0 ? (
+                    {!loaded ? (
+                        <div className="divide-y divide-gray-100">
+                            {Array.from({ length: 6 }, (_, index) => (
+                                <div key={`session-skeleton-${index}`} className="grid grid-cols-1 items-center gap-4 p-4 md:grid-cols-12">
+                                    <div className="md:col-span-2"><div className="skeleton-block h-6 w-20 rounded-full" /></div>
+                                    <div className="md:col-span-4"><div className="skeleton-block h-4 w-40" /></div>
+                                    <div className="md:col-span-3"><div className="skeleton-block h-4 w-32" /></div>
+                                    <div className="flex justify-end md:col-span-3"><div className="skeleton-block h-4 w-16" /></div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : sessions.length === 0 ? (
                         <div className="p-16 text-center">
                             <h3 className="mb-2 text-lg font-semibold text-gray-900">{t('testGroup.history.empty.title')}</h3>
                             <p className="text-gray-500">{t('testGroup.history.empty.subtitle')}</p>
