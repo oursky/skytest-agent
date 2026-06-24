@@ -5,13 +5,17 @@ const {
     updateManyRuns,
     updateManyTestCases,
     deleteManyLocks,
+    findManySessions,
     emitRunTerminal,
+    failActiveSessionMembers,
 } = vi.hoisted(() => ({
     findMany: vi.fn(),
     updateManyRuns: vi.fn(),
     updateManyTestCases: vi.fn(),
     deleteManyLocks: vi.fn(),
+    findManySessions: vi.fn(),
     emitRunTerminal: vi.fn(),
+    failActiveSessionMembers: vi.fn(),
 }));
 
 vi.mock('@/lib/core/prisma', () => ({
@@ -26,6 +30,9 @@ vi.mock('@/lib/core/prisma', () => ({
         androidResourceLock: {
             deleteMany: deleteManyLocks,
         },
+        runSession: {
+            findMany: findManySessions,
+        },
     },
 }));
 
@@ -33,7 +40,11 @@ vi.mock('@/lib/runners/domain-events', () => ({
     emitRunTerminal,
 }));
 
-const { reapExpiredRunnerLeases, reapStaleLocalBrowserRuns } = await import('@/lib/runners/lease-reaper');
+vi.mock('@/lib/runtime/run-session-service', () => ({
+    failActiveSessionMembers,
+}));
+
+const { reapExpiredRunnerLeases, reapStaleLocalBrowserRuns, reapStrandedRunSessions } = await import('@/lib/runners/lease-reaper');
 
 describe('reapExpiredRunnerLeases', () => {
     beforeEach(() => {
@@ -242,5 +253,61 @@ describe('reapStaleLocalBrowserRuns', () => {
             failedRuns: 0,
             staleBefore: result.staleBefore,
         });
+    });
+});
+
+describe('reapStrandedRunSessions', () => {
+    beforeEach(() => {
+        findManySessions.mockReset();
+        failActiveSessionMembers.mockReset();
+        failActiveSessionMembers.mockResolvedValue(0);
+    });
+
+    it('settles sessions whose members have all gone stale (driver crashed)', async () => {
+        const now = new Date('2026-03-07T05:00:00.000Z');
+        const stale = new Date(0);
+        findManySessions.mockResolvedValueOnce([
+            {
+                id: 'session-stranded',
+                memberRuns: [
+                    { lastEventAt: stale, startedAt: stale },
+                    { lastEventAt: null, startedAt: stale },
+                ],
+            },
+        ]);
+        failActiveSessionMembers.mockResolvedValueOnce(2);
+
+        const result = await reapStrandedRunSessions(now);
+
+        expect(failActiveSessionMembers).toHaveBeenCalledWith('session-stranded');
+        expect(result).toEqual({ strandedSessions: 1, settledMembers: 2, staleBefore: result.staleBefore });
+    });
+
+    it('leaves sessions with recent activity alone (healthy driver)', async () => {
+        const now = new Date('2026-03-07T05:00:00.000Z');
+        findManySessions.mockResolvedValueOnce([
+            {
+                id: 'session-live',
+                memberRuns: [
+                    { lastEventAt: new Date(0), startedAt: new Date(0) },
+                    { lastEventAt: now, startedAt: new Date(0) },
+                ],
+            },
+        ]);
+
+        const result = await reapStrandedRunSessions(now);
+
+        expect(failActiveSessionMembers).not.toHaveBeenCalled();
+        expect(result).toEqual({ strandedSessions: 0, settledMembers: 0, staleBefore: result.staleBefore });
+    });
+
+    it('does nothing when no candidate sessions exist', async () => {
+        const now = new Date('2026-03-07T05:00:00.000Z');
+        findManySessions.mockResolvedValueOnce([]);
+
+        const result = await reapStrandedRunSessions(now);
+
+        expect(failActiveSessionMembers).not.toHaveBeenCalled();
+        expect(result).toEqual({ strandedSessions: 0, settledMembers: 0, staleBefore: result.staleBefore });
     });
 });

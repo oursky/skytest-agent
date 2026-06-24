@@ -4,9 +4,11 @@ import {
     emitRunSessionTerminal,
     subscribeRunTerminal,
 } from '@/lib/runners/domain-events';
+import { publishRunUpdate } from '@/lib/runners/event-bus';
 import { rollupRunSessionStatus } from '@/lib/runtime/run-session-status';
 import { collectLoginFlowIds } from '@/lib/test-cases/login-flow-access';
 import {
+    RUN_ACTIVE_STATUSES,
     RUN_SESSION_KIND,
     RUN_TERMINAL_STATUSES,
     TEST_CASE_KIND,
@@ -177,6 +179,45 @@ export async function recomputeRunSessionForMember(runId: string): Promise<void>
         return;
     }
     await recomputeRunSessionStatus(run.runSessionId);
+}
+
+export const STRANDED_SESSION_REASON = 'Run session ended unexpectedly';
+
+/**
+ * Settles every still-active member of a session as FAILED. Used whenever a session's
+ * in-process driver is gone — an orchestrator throw (reconcileStrandedSessionMembers) or a
+ * crashed/restarted server (reapStrandedRunSessions). A session's later members never get
+ * dispatched on their own (the dispatcher only claims the first member) and the per-run
+ * reapers only touch PREPARING/RUNNING, so without this they would sit QUEUED forever.
+ * Failing (rather than cancelling) makes the session roll up to FAIL, matching the outcome
+ * of the fault that stranded it. Returns the number of members settled.
+ */
+export async function failActiveSessionMembers(
+    sessionId: string,
+    reason: string = STRANDED_SESSION_REASON,
+): Promise<number> {
+    const result = JSON.stringify({ status: TEST_STATUS.FAIL, error: reason, errorCode: 'SESSION_ABORTED', errorCategory: 'FAILED' });
+    const active = await prisma.testRun.findMany({
+        where: { runSessionId: sessionId, status: { in: [...RUN_ACTIVE_STATUSES] } },
+        select: { id: true, testCaseId: true },
+    });
+    const now = new Date();
+    let settled = 0;
+    for (const member of active) {
+        const updated = await prisma.testRun.updateMany({
+            where: { id: member.id, status: { in: [...RUN_ACTIVE_STATUSES] } },
+            data: { status: TEST_STATUS.FAIL, error: reason, result, completedAt: now, assignedRunnerId: null, leaseExpiresAt: null },
+        });
+        if (updated.count > 0) {
+            await prisma.testCase.update({ where: { id: member.testCaseId }, data: { status: TEST_STATUS.FAIL } }).catch(() => {});
+            publishRunUpdate(member.id);
+            settled += 1;
+        }
+    }
+    if (settled > 0) {
+        await recomputeRunSessionStatus(sessionId);
+    }
+    return settled;
 }
 
 let rollupSubscriberRegistered = false;

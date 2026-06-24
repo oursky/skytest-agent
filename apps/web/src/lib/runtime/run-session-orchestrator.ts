@@ -28,9 +28,8 @@ import {
     withLoginFlowBrowserSlot,
     type LocalBrowserRunOptions,
 } from '@/lib/runtime/local-browser-runner-lifecycle';
-import { recomputeRunSessionForMember } from '@/lib/runtime/run-session-service';
+import { failActiveSessionMembers, recomputeRunSessionForMember } from '@/lib/runtime/run-session-service';
 import {
-    RUN_ACTIVE_STATUSES,
     TEST_CASE_KIND,
     TEST_STATUS,
     TEST_GROUP_FAILURE_MODE,
@@ -533,24 +532,7 @@ export async function reconcileStrandedSessionMembers(runId: string): Promise<vo
     if (!run?.runSessionId) {
         return;
     }
-    const reason = 'Run session ended unexpectedly';
-    const result = JSON.stringify({ status: TEST_STATUS.FAIL, error: reason, errorCode: 'SESSION_ABORTED', errorCategory: 'FAILED' });
-    const stranded = await prisma.testRun.findMany({
-        where: { runSessionId: run.runSessionId, status: { in: [...RUN_ACTIVE_STATUSES] } },
-        select: { id: true, testCaseId: true },
-    });
-    const now = new Date();
-    for (const member of stranded) {
-        const updated = await prisma.testRun.updateMany({
-            where: { id: member.id, status: { in: [...RUN_ACTIVE_STATUSES] } },
-            data: { status: TEST_STATUS.FAIL, error: reason, result, completedAt: now, assignedRunnerId: null, leaseExpiresAt: null },
-        });
-        if (updated.count > 0) {
-            await prisma.testCase.update({ where: { id: member.testCaseId }, data: { status: TEST_STATUS.FAIL } }).catch(() => {});
-            publishRunUpdate(member.id);
-        }
-    }
-    await recomputeRunSessionForMember(runId);
+    await failActiveSessionMembers(run.runSessionId);
 }
 
 /** Parallelism for a session's independent login flows: the project's max-concurrent setting. */
