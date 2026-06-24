@@ -225,9 +225,7 @@ export default function HistoryPage({ params }: { params: Promise<{ id: string }
         return (
             <main className="min-h-screen bg-gray-50">
                 <div className="max-w-7xl mx-auto px-8 py-8">
-                    <div className="mb-4 space-y-2">
-                        <div className="skeleton-block h-4 w-56" />
-                    </div>
+                    <Breadcrumbs items={[{ label: '' }, { label: '' }]} />
                     <div className="mb-8 flex items-center justify-between">
                         <div className="skeleton-block h-8 w-64" />
                         <div className="skeleton-block h-7 w-28" />

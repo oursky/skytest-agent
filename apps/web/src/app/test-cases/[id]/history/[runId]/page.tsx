@@ -131,7 +131,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
         return (
             <main className="min-h-screen bg-gray-50 p-8">
                 <div className="max-w-7xl mx-auto">
-                    <div className="skeleton-block mb-4 h-4 w-72" />
+                    <Breadcrumbs items={[{ label: '' }, { label: '' }, { label: '' }]} />
                     <div className="mb-8 grid grid-cols-1 lg:grid-cols-2 gap-8 items-end">
                         <div className="skeleton-block h-8 w-48" />
                     </div>

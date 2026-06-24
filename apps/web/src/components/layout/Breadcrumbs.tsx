@@ -31,6 +31,10 @@ export default function Breadcrumbs({ items }: BreadcrumbsProps) {
 
             {items.map((item, index) => {
                 const isLast = index === items.length - 1;
+                // A crumb label is never legitimately empty, so an empty label means the
+                // page's data for that segment is still loading: show a skeleton placeholder
+                // instead of a blank span, keeping breadcrumb loading consistent everywhere.
+                const isLoading = item.label.trim().length === 0;
 
                 return (
                     <div key={index} className="flex items-center space-x-2">
@@ -38,7 +42,9 @@ export default function Breadcrumbs({ items }: BreadcrumbsProps) {
                             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                         </svg>
 
-                        {isLast || !item.href ? (
+                        {isLoading ? (
+                            <span className="skeleton-block h-4 w-24" aria-hidden="true" />
+                        ) : isLast || !item.href ? (
                             <span className="text-gray-900 font-medium">
                                 {item.label}
                             </span>

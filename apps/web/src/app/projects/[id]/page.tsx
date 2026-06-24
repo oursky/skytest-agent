@@ -535,6 +535,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         return (
             <main className="min-h-screen bg-gray-50">
                 <div className="max-w-7xl mx-auto px-8 py-8">
+                    <Breadcrumbs items={[{ label: '' }]} />
                     <PageHeaderSkeleton />
                     <div className="mb-6 flex gap-6 border-b border-gray-200">
                         {Array.from({ length: 5 }, (_, index) => (
