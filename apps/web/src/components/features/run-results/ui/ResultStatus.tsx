@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { TEST_STATUS, type TestStatus, type TestFailureCode, type TestFailureCategory } from '@/types';
+import { localizeCancellationReason } from '@/lib/runtime/cancellation-reasons';
 import { useI18n } from '@/i18n';
 
 interface ResultStatusProps {
@@ -69,7 +70,7 @@ export default function ResultStatus({
                     <div className="flex-1 space-y-2">
                         <h3 className="text-lg font-semibold text-gray-900">{t('results.cancelled.title')}</h3>
                         {error ? (
-                            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{error}</p>
+                            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{localizeCancellationReason(error, t)}</p>
                         ) : (
                             <p className="text-sm text-gray-700 leading-relaxed">
                                 {eventCount > 0

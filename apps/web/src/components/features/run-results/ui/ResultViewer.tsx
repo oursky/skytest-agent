@@ -21,7 +21,7 @@ import { fetchWithAccessToken } from '@/app/run/run-page-api';
 import { isAndroidTargetConfig, normalizeAndroidTargetConfig } from '@/lib/android/target-config';
 import { formatAndroidDeviceSelectorDisplay } from '@/lib/android/device-selector-display';
 import { normalizeBrowserConfig } from '@/lib/test-config/browser-target';
-import { browserTargetLabel } from '@/utils/runtime/browserTargetLabel';
+import { browserTargetLabel } from '@/lib/runtime/browser-target-label';
 
 interface ResultViewerMeta {
     runId?: string | null;

@@ -6,6 +6,7 @@ import { useI18n } from '@/i18n';
 import { fetchWithAccessToken } from '@/app/run/run-page-api';
 import { Button, CustomSelect } from '@/components/shared';
 import { TEST_GROUP_FAILURE_MODE, isRunActiveStatus, type TestGroupFailureMode, type TestGroupSummary } from '@/types';
+import type { TranslationVars } from '@/i18n/types';
 import OrderedTestCasePicker from './OrderedTestCasePicker';
 
 interface TestGroupEditorProps {
@@ -26,9 +27,9 @@ interface LoginSessionDraft {
     name: string;
 }
 
-function defaultLoginSessionName(index: number): string {
-    const letter = index < 26 ? String.fromCharCode(65 + index) : String(index + 1);
-    return `Login Session ${letter}`;
+function defaultLoginSessionName(index: number, t: (key: string, vars?: TranslationVars) => string): string {
+    const label = index < 26 ? String.fromCharCode(65 + index) : String(index + 1);
+    return t('testGroup.loginSessions.defaultName', { label });
 }
 
 export default function TestGroupEditor({ projectId, group, onSaved, onCancel }: TestGroupEditorProps) {
@@ -81,7 +82,7 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
         if (!loginFlowId || loginSessions.some((session) => session.loginFlowId === loginFlowId)) {
             return;
         }
-        setLoginSessions((prev) => [...prev, { loginFlowId, name: defaultLoginSessionName(prev.length) }]);
+        setLoginSessions((prev) => [...prev, { loginFlowId, name: defaultLoginSessionName(prev.length, t) }]);
     };
     const renameLoginSession = (index: number, value: string) => {
         setLoginSessions((prev) => prev.map((session, i) => (i === index ? { ...session, name: value } : session)));

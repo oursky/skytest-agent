@@ -32,8 +32,11 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         return guard.response;
     }
     try {
-        const body = (await request.json()) as TestGroupUpsertInput;
-        const result = await updateTestGroup(guard.params.id, guard.params.groupId, body);
+        const raw = await request.json().catch(() => null);
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Request body must be a JSON object' });
+        }
+        const result = await updateTestGroup(guard.params.id, guard.params.groupId, raw as TestGroupUpsertInput);
         if (!result.ok) {
             const code = result.status === 404 ? 'NOT_FOUND' : result.status === 409 ? 'CONFLICT' : 'VALIDATION_ERROR';
             return apiError({ status: result.status, code, error: result.error });
