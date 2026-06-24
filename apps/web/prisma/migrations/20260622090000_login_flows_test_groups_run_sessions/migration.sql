@@ -66,6 +66,9 @@ CREATE TABLE "TestGroup" (
     "onFailure" TEXT NOT NULL DEFAULT 'STOP',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    -- Soft-delete so completed GROUP run sessions keep their group linkage
+    -- (RunSession.testGroupId stays set instead of being nulled on a hard delete).
+    "deletedAt" TIMESTAMP(3),
 
     CONSTRAINT "TestGroup_pkey" PRIMARY KEY ("id")
 );
@@ -131,9 +134,15 @@ ALTER TABLE "TestGroupLoginSession" ADD CONSTRAINT "TestGroupLoginSession_testGr
 ALTER TABLE "TestGroupLoginSession" ADD CONSTRAINT "TestGroupLoginSession_loginFlowId_fkey" FOREIGN KEY ("loginFlowId") REFERENCES "TestCase"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- ===== Group notifications & schedule test-group links =====
+-- Allow per-case Slack notifications to be turned off independently of group notifications.
+ALTER TYPE "SlackNotifyOn" ADD VALUE IF NOT EXISTS 'OFF' BEFORE 'FAILED_ONLY';
+
 -- AlterTable
 ALTER TABLE "Project"
-    ADD COLUMN "slackGroupNotifyEnabled" BOOLEAN NOT NULL DEFAULT false;
+    ADD COLUMN "slackGroupNotifyEnabled" BOOLEAN NOT NULL DEFAULT false,
+    -- Dedicated message templates for test group notifications (separate from per-case templates).
+    ADD COLUMN "slackGroupFailureTemplate" TEXT,
+    ADD COLUMN "slackGroupSuccessTemplate" TEXT;
 
 -- CreateTable
 CREATE TABLE "ScheduleTestGroup" (
