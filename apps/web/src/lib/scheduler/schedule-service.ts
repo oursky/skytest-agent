@@ -306,7 +306,7 @@ async function prepareScheduleMutation(input: {
 
     if (testGroupIds.length > 0) {
         const matchingTestGroups = await prisma.testGroup.findMany({
-            where: { projectId: input.projectId, id: { in: testGroupIds } },
+            where: { projectId: input.projectId, id: { in: testGroupIds }, deletedAt: null },
             select: { id: true },
         });
         if (matchingTestGroups.length !== testGroupIds.length) {

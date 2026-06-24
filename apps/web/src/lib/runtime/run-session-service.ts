@@ -54,8 +54,11 @@ export async function resolveLoginFlowIds(
     return ids.filter((id) => valid.has(id));
 }
 
-export async function createRunSession(input: CreateRunSessionInput): Promise<string> {
-    const session = await prisma.runSession.create({
+export async function createRunSession(
+    input: CreateRunSessionInput,
+    client: Pick<typeof prisma, 'runSession'> = prisma,
+): Promise<string> {
+    const session = await client.runSession.create({
         data: {
             projectId: input.projectId,
             kind: input.kind ?? RUN_SESSION_KIND.SINGLE,

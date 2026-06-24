@@ -153,15 +153,16 @@ export interface TestGroupListResult {
 
 export async function listTestGroups(projectId: string, page = 1, limit = 20): Promise<TestGroupListResult> {
     const skip = (page - 1) * limit;
+    const where = { projectId, deletedAt: null };
     const [groups, total] = await prisma.$transaction([
         prisma.testGroup.findMany({
-            where: { projectId },
+            where,
             orderBy: { updatedAt: 'desc' },
             include: groupInclude,
             skip,
             take: limit,
         }),
-        prisma.testGroup.count({ where: { projectId } }),
+        prisma.testGroup.count({ where }),
     ]);
     return {
         data: groups.map(serializeTestGroup),
@@ -222,7 +223,7 @@ export async function listTestGroupSessions(
 
 export async function getTestGroup(projectId: string, groupId: string): Promise<TestGroupSummary | null> {
     const group = await prisma.testGroup.findFirst({
-        where: { id: groupId, projectId },
+        where: { id: groupId, projectId, deletedAt: null },
         include: groupInclude,
     });
     return group ? serializeTestGroup(group) : null;
@@ -235,7 +236,7 @@ export async function getTestGroup(projectId: string, groupId: string): Promise<
  */
 export async function getTestGroupRunPreview(projectId: string, groupId: string): Promise<TestGroupRunPreview | null> {
     const group = await prisma.testGroup.findFirst({
-        where: { id: groupId, projectId },
+        where: { id: groupId, projectId, deletedAt: null },
         select: {
             id: true,
             name: true,
@@ -346,7 +347,7 @@ export async function createTestGroup(projectId: string, input: TestGroupUpsertI
 }
 
 export async function updateTestGroup(projectId: string, groupId: string, input: TestGroupUpsertInput): Promise<TestGroupResult<TestGroupSummary>> {
-    const existing = await prisma.testGroup.findFirst({ where: { id: groupId, projectId }, select: { id: true } });
+    const existing = await prisma.testGroup.findFirst({ where: { id: groupId, projectId, deletedAt: null }, select: { id: true } });
     if (!existing) {
         return { ok: false, status: 404, error: 'Test group not found' };
     }
@@ -380,14 +381,21 @@ export async function updateTestGroup(projectId: string, groupId: string, input:
 }
 
 export async function deleteTestGroup(projectId: string, groupId: string): Promise<TestGroupResult<true>> {
-    const existing = await prisma.testGroup.findFirst({ where: { id: groupId, projectId }, select: { id: true } });
+    const existing = await prisma.testGroup.findFirst({ where: { id: groupId, projectId, deletedAt: null }, select: { id: true } });
     if (!existing) {
         return { ok: false, status: 404, error: 'Test group not found' };
     }
     if (await hasActiveSession(groupId)) {
         return { ok: false, status: 409, error: 'This test group is running and cannot be deleted' };
     }
-    await prisma.testGroup.delete({ where: { id: groupId } });
+    // Soft delete: a hard delete would null testGroupId on completed GROUP run sessions
+    // (onDelete: SetNull), severing their history linkage. Hide the group instead and keep
+    // its sessions joinable for the run-session history views. Schedule links are removed
+    // so the scheduler doesn't keep trying to enqueue a group the user has deleted.
+    await prisma.$transaction([
+        prisma.scheduleTestGroup.deleteMany({ where: { testGroupId: groupId } }),
+        prisma.testGroup.update({ where: { id: groupId }, data: { deletedAt: new Date() } }),
+    ]);
     return { ok: true, data: true };
 }
 
@@ -407,7 +415,7 @@ export async function queueTestGroupRun(
     options: QueueTestGroupOptions,
 ): Promise<TestGroupResult<{ sessionId: string }>> {
     const group = await prisma.testGroup.findFirst({
-        where: { id: groupId, projectId },
+        where: { id: groupId, projectId, deletedAt: null },
         include: {
             items: { orderBy: { position: 'asc' }, select: { testCaseId: true } },
             loginSessions: { orderBy: { position: 'asc' }, select: { loginFlowId: true } },
@@ -436,15 +444,6 @@ export async function queueTestGroupRun(
         return { ok: false, status: 409, error: 'A test case in this group is no longer a runnable test. Update the group before running it.' };
     }
 
-    const runSessionId = await createRunSession({
-        projectId,
-        kind: RUN_SESSION_KIND.GROUP,
-        testGroupId: groupId,
-        requiredCapability: BROWSER_EXECUTION_CAPABILITY,
-        triggeredByEmail: options.triggeredByEmail,
-        triggerSource: options.triggerSource,
-    });
-
     let position = 0;
     const memberData: { testCaseId: string; sessionPosition: number; kind: string }[] = [];
     // One login-flow member per login session establishes a reusable baseline; the
@@ -469,18 +468,38 @@ export async function queueTestGroupRun(
         position += 1;
     }
 
-    await prisma.testRun.createMany({
-        data: memberData.map((member) => ({
-            testCaseId: member.testCaseId,
-            runSessionId,
-            sessionPosition: member.sessionPosition,
-            kind: member.kind,
-            status: TEST_STATUS.QUEUED,
+    // Lock the group row so two concurrent launches serialize; re-check for an active
+    // session under the lock (the check above is a fast-path that still races), then create
+    // the session and its members atomically so a session never persists without members.
+    return prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "TestGroup" WHERE id = ${groupId} FOR UPDATE`;
+        const active = await tx.runSession.findFirst({
+            where: { testGroupId: groupId, deletedAt: null, status: { in: [...RUN_ACTIVE_STATUSES] } },
+            select: { id: true },
+        });
+        if (active) {
+            return { ok: false, status: 409, error: 'This test group already has a run in progress' };
+        }
+        const runSessionId = await createRunSession({
+            projectId,
+            kind: RUN_SESSION_KIND.GROUP,
+            testGroupId: groupId,
             requiredCapability: BROWSER_EXECUTION_CAPABILITY,
-            triggeredByEmail: options.triggeredByEmail ?? null,
+            triggeredByEmail: options.triggeredByEmail,
             triggerSource: options.triggerSource,
-        })),
+        }, tx);
+        await tx.testRun.createMany({
+            data: memberData.map((member) => ({
+                testCaseId: member.testCaseId,
+                runSessionId,
+                sessionPosition: member.sessionPosition,
+                kind: member.kind,
+                status: TEST_STATUS.QUEUED,
+                requiredCapability: BROWSER_EXECUTION_CAPABILITY,
+                triggeredByEmail: options.triggeredByEmail ?? null,
+                triggerSource: options.triggerSource,
+            })),
+        });
+        return { ok: true, data: { sessionId: runSessionId } };
     });
-
-    return { ok: true, data: { sessionId: runSessionId } };
 }

@@ -42,9 +42,10 @@ describe('getTestGroupRunPreview', () => {
                 { testCaseId: 'tc-1', position: 0, testCase: { displayId: 'TC-01', name: 'Case One' } },
             ],
         });
+        // The query uses distinct: ['testCaseId'] scoped to this group's sessions, so the
+        // DB returns at most one (latest) run per case.
         mocks.testRunFindMany.mockResolvedValue([
             { testCaseId: 'tc-1', status: 'PASS', startedAt: new Date('2026-06-23T10:00:00Z'), createdAt: new Date('2026-06-23T10:00:00Z') },
-            { testCaseId: 'tc-1', status: 'FAIL', startedAt: new Date('2026-06-20T10:00:00Z'), createdAt: new Date('2026-06-20T10:00:00Z') },
             { testCaseId: 'lf-a', status: 'PASS', startedAt: null, createdAt: new Date('2026-06-22T09:00:00Z') },
         ]);
         mocks.runSessionFindFirst.mockResolvedValue({ id: 'sess-9', status: 'RUNNING' });
@@ -55,7 +56,7 @@ describe('getTestGroupRunPreview', () => {
         expect(preview!.members.map((m) => m.testCaseId)).toEqual(['lf-a', 'lf-b', 'tc-1', 'tc-2']);
         expect(preview!.members.map((m) => m.kind)).toEqual(['LOGIN_FLOW', 'LOGIN_FLOW', 'TEST', 'TEST']);
         expect(preview!.members.map((m) => m.position)).toEqual([0, 1, 2, 3]);
-        // Latest run wins for tc-1; falls back to createdAt when startedAt is null (lf-a).
+        // Latest run maps to tc-1; falls back to createdAt when startedAt is null (lf-a).
         expect(preview!.members.find((m) => m.testCaseId === 'tc-1')).toMatchObject({ status: 'PASS', startedAt: '2026-06-23T10:00:00.000Z' });
         expect(preview!.members.find((m) => m.testCaseId === 'lf-a')).toMatchObject({ status: 'PASS', startedAt: '2026-06-22T09:00:00.000Z' });
         // Never-run cases report no status/start.
