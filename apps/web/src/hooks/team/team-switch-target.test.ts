@@ -10,6 +10,9 @@ describe('resolveTeamSwitchHref', () => {
         expect(resolveTeamSwitchHref('/projects/abc123', 'team-b')).toBe('/projects?teamId=team-b');
         expect(resolveTeamSwitchHref('/test-cases/tc-1/history', 'team-b')).toBe('/projects?teamId=team-b');
         expect(resolveTeamSwitchHref('/test-cases/tc-1/history/run-9', 'team-b')).toBe('/projects?teamId=team-b');
+        expect(resolveTeamSwitchHref('/test-groups/grp-1/run', 'team-b')).toBe('/projects?teamId=team-b');
+        expect(resolveTeamSwitchHref('/test-groups/grp-1/history', 'team-b')).toBe('/projects?teamId=team-b');
+        expect(resolveTeamSwitchHref('/test-groups/runs/sess-1', 'team-b')).toBe('/projects?teamId=team-b');
         expect(resolveTeamSwitchHref('/run', 'team-b')).toBe('/projects?teamId=team-b');
     });
 
