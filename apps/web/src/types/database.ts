@@ -62,6 +62,14 @@ export interface TestCase {
     testRuns?: TestRun[];
 }
 
+export interface LoginFlowPrefixInfo {
+    runId: string;
+    testCaseId: string;
+    displayId: string | null;
+    name: string;
+    status: string;
+}
+
 export interface TestRun {
     id: string;
     testCaseId: string;

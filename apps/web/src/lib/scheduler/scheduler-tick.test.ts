@@ -3,9 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
     queryRaw: vi.fn(),
     scheduleTestCaseFindMany: vi.fn(),
+    scheduleTestGroupFindMany: vi.fn(),
     scheduleUpdate: vi.fn(),
     transaction: vi.fn(),
     queueTestCaseRun: vi.fn(),
+    queueTestGroupRun: vi.fn(),
     computeNextRunAt: vi.fn(),
 }));
 
@@ -20,6 +22,10 @@ vi.mock('@/lib/mcp/run-execution', () => ({
     queueTestCaseRun: mocks.queueTestCaseRun,
 }));
 
+vi.mock('@/lib/test-groups/test-group-service', () => ({
+    queueTestGroupRun: mocks.queueTestGroupRun,
+}));
+
 vi.mock('@/lib/scheduler/cron', () => ({
     computeNextRunAt: mocks.computeNextRunAt,
 }));
@@ -30,18 +36,23 @@ describe('runSchedulerTick', () => {
     beforeEach(() => {
         mocks.queryRaw.mockReset();
         mocks.scheduleTestCaseFindMany.mockReset();
+        mocks.scheduleTestGroupFindMany.mockReset();
+        mocks.scheduleTestGroupFindMany.mockResolvedValue([]);
         mocks.scheduleUpdate.mockReset();
         mocks.transaction.mockReset();
         mocks.queueTestCaseRun.mockReset();
+        mocks.queueTestGroupRun.mockReset();
         mocks.computeNextRunAt.mockReset();
 
         mocks.transaction.mockImplementation(async (callback: (tx: {
             $queryRaw: typeof mocks.queryRaw;
             scheduleTestCase: { findMany: typeof mocks.scheduleTestCaseFindMany };
+            scheduleTestGroup: { findMany: typeof mocks.scheduleTestGroupFindMany };
             schedule: { update: typeof mocks.scheduleUpdate };
         }) => Promise<unknown>) => callback({
             $queryRaw: mocks.queryRaw,
             scheduleTestCase: { findMany: mocks.scheduleTestCaseFindMany },
+            scheduleTestGroup: { findMany: mocks.scheduleTestGroupFindMany },
             schedule: { update: mocks.scheduleUpdate },
         }));
         mocks.computeNextRunAt.mockReturnValue(new Date('2026-06-09T09:00:00.000Z'));
@@ -71,6 +82,7 @@ describe('runSchedulerTick', () => {
             claimedSchedules: 1,
             enqueuedRuns: 2,
             failedRuns: 0,
+            skippedRuns: 0,
         });
         expect(mocks.scheduleUpdate).toHaveBeenCalledTimes(1);
         expect(mocks.queueTestCaseRun).toHaveBeenCalledTimes(2);
@@ -103,6 +115,7 @@ describe('runSchedulerTick', () => {
             claimedSchedules: 1,
             enqueuedRuns: 1,
             failedRuns: 1,
+            skippedRuns: 0,
         });
     });
 
@@ -140,6 +153,7 @@ describe('runSchedulerTick', () => {
             claimedSchedules: 1,
             enqueuedRuns: 1,
             failedRuns: 0,
+            skippedRuns: 0,
         });
         expect(mocks.scheduleUpdate).toHaveBeenCalledWith({
             where: { id: 'schedule-poison' },

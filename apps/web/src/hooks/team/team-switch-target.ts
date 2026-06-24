@@ -7,11 +7,13 @@ const TEAM_SCOPED_EXACT_PATHS = new Set(['/projects', '/run']);
 
 /**
  * Route prefixes for project-scoped pages addressed by a resource id
- * (e.g. `/projects/<id>`, `/test-cases/<id>/history/<runId>`). The resource
+ * (e.g. `/projects/<id>`, `/test-cases/<id>/history/<runId>`,
+ * `/test-groups/<groupId>/run`, `/test-groups/runs/<sessionId>`). The resource
  * belongs to the previously selected team, so switching teams must return to
- * the project list instead of showing another team's resource.
+ * the project list instead of stranding the user on another team's resource
+ * (which would 404 once the old project is no longer in the active team).
  */
-const PROJECT_SCOPED_RESOURCE_PREFIXES = ['/projects/', '/test-cases/'];
+const PROJECT_SCOPED_RESOURCE_PREFIXES = ['/projects/', '/test-cases/', '/test-groups/'];
 
 export function isTeamScopedPath(pathname: string): boolean {
     if (TEAM_SCOPED_EXACT_PATHS.has(pathname)) {

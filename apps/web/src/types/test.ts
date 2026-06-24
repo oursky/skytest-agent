@@ -1,13 +1,27 @@
+import type { BrowserContext } from 'playwright';
 import type { TestEvent } from './events';
 import type { RunTerminalStatus } from './status';
 import type { BuildMidsceneModelConfigOptions } from '@/lib/runtime/midscene-env';
+
+/** A Playwright storage-state snapshot (cookies + origins) used to seed an authenticated context. */
+export type BrowserStorageState = Awaited<ReturnType<BrowserContext['storageState']>>;
 
 export interface BrowserConfig {
     name?: string;
     url: string;
     width: number;
     height: number;
+    loginFlowId?: string;        // TestCase id (kind=LOGIN_FLOW) to run as a login prefix
+    reuseGroupSession?: boolean;  // continue a test group's live session instead of re-logging in
+    webauthnVirtualAuthenticator?: boolean; // install a virtual WebAuthn authenticator so passkey ceremonies work headlessly
 }
+
+export const TEST_CASE_KIND = {
+    TEST: 'TEST',
+    LOGIN_FLOW: 'LOGIN_FLOW',
+} as const;
+
+export type TestCaseKind = typeof TEST_CASE_KIND[keyof typeof TEST_CASE_KIND];
 
 export type TargetType = 'browser' | 'android';
 
@@ -72,6 +86,7 @@ export interface TestData {
     url?: string;
     prompt?: string;
     name?: string;
+    kind?: TestCaseKind;
     steps?: TestStep[];
     browserConfig?: Record<string, BrowserConfig | TargetConfig>;
     files?: TestCaseFile[];
@@ -95,6 +110,7 @@ export interface RunTestOptions {
         resolvedVariables?: Record<string, string>;
         resolvedFiles?: Record<string, string>;
     };
+    targetStorageStates?: Record<string, BrowserStorageState>;
     onEvent: (event: TestEvent) => void;
     signal?: AbortSignal;
     onCleanup?: (cleanup: () => Promise<void>) => void;

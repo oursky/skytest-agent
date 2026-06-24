@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/core/prisma';
 import { objectStore } from '@/lib/storage/object-store';
+import { cancellationReasonCodeFor } from '@/lib/runtime/cancellation-reasons';
 import { isProjectMember, isTestCaseProjectMember } from '@/lib/security/permissions';
 
 export type RunListInclude = 'events' | 'artifacts';
@@ -9,6 +10,7 @@ const RUN_EVENT_ROW_LIMIT = 100;
 export interface ListTestRunsInput {
     projectId?: string;
     testCaseId?: string;
+    runSessionId?: string;
     status?: string;
     from?: string;
     to?: string;
@@ -41,6 +43,10 @@ interface RunListItem {
     testCaseId: string;
     status: string;
     error: string | null;
+    cancellationReasonCode: string | null;
+    kind: string;
+    runSessionId: string | null;
+    sessionPosition: number | null;
     requiredCapability: string | null;
     requestedDeviceId: string | null;
     requestedRunnerId: string | null;
@@ -218,6 +224,7 @@ export async function listTestRuns(
     const runRows = await prisma.testRun.findMany({
         where: {
             deletedAt: null,
+            ...(input.runSessionId ? { runSessionId: input.runSessionId } : {}),
             ...(input.status ? { status: input.status } : {}),
             ...((fromDate || toDate)
                 ? {
@@ -253,6 +260,9 @@ export async function listTestRuns(
             testCaseId: true,
             status: true,
             error: true,
+            kind: true,
+            runSessionId: true,
+            sessionPosition: true,
             requiredCapability: true,
             requestedDeviceId: true,
             requestedRunnerId: true,
@@ -384,6 +394,10 @@ export async function listTestRuns(
         testCaseId: run.testCaseId,
         status: run.status,
         error: run.error,
+        cancellationReasonCode: cancellationReasonCodeFor(run.status, run.error),
+        kind: run.kind,
+        runSessionId: run.runSessionId,
+        sessionPosition: run.sessionPosition,
         requiredCapability: run.requiredCapability,
         requestedDeviceId: run.requestedDeviceId,
         requestedRunnerId: run.requestedRunnerId,

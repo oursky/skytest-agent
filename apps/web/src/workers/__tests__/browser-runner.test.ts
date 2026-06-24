@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
     registerSlackSubscriber: vi.fn(),
+    registerSlackGroupSubscriber: vi.fn(),
     loggerInfo: vi.fn(),
     loggerWarn: vi.fn(),
     loggerError: vi.fn(),
@@ -31,6 +32,7 @@ vi.mock('@/config/app', () => ({
 
 vi.mock('@/lib/integrations/slack/subscriber', () => ({
     registerSlackSubscriber: mocks.registerSlackSubscriber,
+    registerSlackGroupSubscriber: mocks.registerSlackGroupSubscriber,
 }));
 
 vi.mock('@/lib/core/logger', () => ({

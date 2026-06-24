@@ -52,6 +52,12 @@ npm run skytest -- local down
 - starts the runner maintenance loop (which also runs the scheduler tick)
 - starts the browser worker loop
 
+In `make dev` the maintenance and browser-worker loops run under `tsx watch`, so
+editing worker/runtime code (e.g. the run-session orchestrator) restarts them
+automatically — no need to restart `make dev` to pick up changes. The Next.js app
+hot-reloads on its own. (The non-watch `browser:worker` / `runner:maintenance` scripts
+remain for production.)
+
 Browser test runs execute inside the control-plane process. Android test runs execute on external macOS runners paired to the same control plane.
 
 ## Useful Targets

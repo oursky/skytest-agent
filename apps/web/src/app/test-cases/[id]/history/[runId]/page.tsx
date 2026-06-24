@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import { ResultViewer } from "@/components/features/run-results";
 import { TestForm } from "@/components/features/test-builder";
 import { Breadcrumbs } from "@/components/layout";
-import { CenteredLoading } from "@/components/shared";
+import { PanelSkeleton } from "@/components/shared";
+import { extractListData } from "@/utils/pagination/pagination";
 import { formatDateTime } from "@/utils/time/dateFormatter";
 import { useI18n } from "@/i18n";
 import { parseStoredEvents } from "@/lib/runtime/test-events";
@@ -38,6 +39,7 @@ interface TestCase {
     id: string;
     displayId?: string;
     name: string;
+    kind?: string;
     url: string;
     prompt: string;
     steps?: TestStep[];
@@ -97,9 +99,8 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
             } else {
                 const historyResponse = await fetch(`/api/test-cases/${id}/history?limit=100&includePayload=1`, { headers });
                 if (historyResponse.ok) {
-                    const result = await historyResponse.json();
-                    const runs = result.data || result;
-                    const run = runs.find((r: TestRun) => r.id === runId);
+                    const runs = extractListData<TestRun>(await historyResponse.json());
+                    const run = runs.find((r) => r.id === runId);
                     if (run) setTestRun(run);
                 }
             }
@@ -127,7 +128,20 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
     }, [fetchRunDetails, fetchTestCase, runId, id, isLoggedIn, isAuthLoading]);
 
     if (isAuthLoading || isLoading) {
-        return <CenteredLoading className="min-h-screen" />;
+        return (
+            <main className="min-h-screen bg-gray-50 p-8">
+                <div className="max-w-7xl mx-auto">
+                    <Breadcrumbs items={[{ label: '' }, { label: '' }, { label: '' }]} />
+                    <div className="mb-8 grid grid-cols-1 lg:grid-cols-2 gap-8 items-end">
+                        <div className="skeleton-block h-8 w-48" />
+                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                        <PanelSkeleton lines={6} />
+                        <PanelSkeleton lines={8} />
+                    </div>
+                </div>
+            </main>
+        );
     }
 
     if (!testRun) {
@@ -262,7 +276,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
         <main className="min-h-screen bg-gray-50 p-8">
             <div className="max-w-7xl mx-auto">
                 <Breadcrumbs items={[
-                    { label: projectName, href: projectId ? `/projects/${projectId}` : undefined },
+                    { label: projectName, href: projectId ? `/projects/${projectId}${testCase?.kind === 'LOGIN_FLOW' ? '?tab=login-flows' : ''}` : undefined },
                     { label: testData?.name || testCase?.name || t('runDetail.breadcrumb.testCaseFallback'), href: runPageHref },
                     { label: t('runDetail.breadcrumb.runPrefix', { time: formatDateTime(testRun.createdAt) }) }
                 ]} />

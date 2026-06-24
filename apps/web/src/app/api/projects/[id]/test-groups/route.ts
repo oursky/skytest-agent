@@ -1,0 +1,48 @@
+import { NextResponse } from 'next/server';
+import { guardProjectRouteRequest } from '@/lib/security/project-route-access';
+import { apiError } from '@/lib/security/api-route-standards';
+import { createLogger } from '@/lib/core/logger';
+import { createTestGroup, listTestGroups } from '@/lib/test-groups/test-group-service';
+import type { TestGroupUpsertInput } from '@/types';
+
+const logger = createLogger('api:projects:test-groups');
+
+export const dynamic = 'force-dynamic';
+
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+    const guard = await guardProjectRouteRequest({ request, params });
+    if (!guard.ok) {
+        return guard.response;
+    }
+    try {
+        const url = new URL(request.url);
+        const page = Math.max(1, parseInt(url.searchParams.get('page') || '1'));
+        const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') || '20')));
+        const result = await listTestGroups(guard.params.id, page, limit);
+        return NextResponse.json(result);
+    } catch (error) {
+        logger.error('Failed to list test groups', error);
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to list test groups' });
+    }
+}
+
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+    const guard = await guardProjectRouteRequest({ request, params });
+    if (!guard.ok) {
+        return guard.response;
+    }
+    try {
+        const raw = await request.json().catch(() => null);
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+            return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Request body must be a JSON object' });
+        }
+        const result = await createTestGroup(guard.params.id, raw as TestGroupUpsertInput);
+        if (!result.ok) {
+            return apiError({ status: result.status, code: 'VALIDATION_ERROR', error: result.error });
+        }
+        return NextResponse.json(result.data, { status: 201 });
+    } catch (error) {
+        logger.error('Failed to create test group', error);
+        return apiError({ status: 500, code: 'INTERNAL_ERROR', error: 'Failed to create test group' });
+    }
+}

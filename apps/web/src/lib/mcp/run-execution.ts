@@ -17,7 +17,8 @@ import {
     hasAndroidTargets,
     isEmulatorProfileInventoryDevice,
 } from '@/lib/android/target-requests';
-import { RUN_TRIGGER_SOURCE, TEST_STATUS, type BrowserConfig, type ResolvedConfig, type RunTriggerSource, type TargetConfig, type TestStep } from '@/types';
+import { RUN_TRIGGER_SOURCE, TEST_CASE_KIND, TEST_STATUS, type BrowserConfig, type ResolvedConfig, type RunTriggerSource, type TargetConfig, type TestStep } from '@/types';
+import { createRunSession, resolveLoginFlowIds } from '@/lib/runtime/run-session-service';
 
 function validateAndroidTargets(
     browserConfig: Record<string, BrowserConfig | TargetConfig> | undefined
@@ -294,14 +295,45 @@ export async function queueTestCaseRun(
         resolvedConfigurations,
     }));
 
+    const requiredCapability = requestHasAndroidTargets
+        ? ANDROID_EXECUTION_CAPABILITY
+        : BROWSER_EXECUTION_CAPABILITY;
+    const runSessionId = await createRunSession({
+        projectId: testCase.projectId,
+        requiredCapability,
+        triggeredByEmail,
+        triggerSource: trigger.source,
+    });
+
+    const loginFlowIds = requestHasAndroidTargets
+        ? []
+        : await resolveLoginFlowIds(testCase.projectId, normalizedBrowserConfig);
+    let testSessionPosition = 0;
+    for (const loginFlowId of loginFlowIds) {
+        await prisma.testRun.create({
+            data: {
+                testCaseId: loginFlowId,
+                runSessionId,
+                sessionPosition: testSessionPosition,
+                kind: TEST_CASE_KIND.LOGIN_FLOW,
+                status: TEST_STATUS.QUEUED,
+                requiredCapability: BROWSER_EXECUTION_CAPABILITY,
+                triggeredByEmail,
+                triggerSource: trigger.source,
+            },
+        });
+        testSessionPosition += 1;
+    }
+
     const testRun = await prisma.testRun.create({
         data: {
             testCaseId,
+            runSessionId,
+            sessionPosition: testSessionPosition,
+            kind: testCase.kind,
             status: TEST_STATUS.QUEUED,
             configurationSnapshot,
-            requiredCapability: requestHasAndroidTargets
-                ? ANDROID_EXECUTION_CAPABILITY
-                : BROWSER_EXECUTION_CAPABILITY,
+            requiredCapability,
             requiredRunnerKind: requestHasAndroidTargets
                 ? ANDROID_EXECUTION_RUNNER_KIND
                 : null,

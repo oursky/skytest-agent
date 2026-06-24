@@ -1,9 +1,10 @@
 import { config as appConfig } from '@/config/app';
 import { createLogger } from '@/lib/core/logger';
 import { prisma } from '@/lib/core/prisma';
-import { registerSlackSubscriber } from '@/lib/integrations/slack/subscriber';
+import { registerSlackSubscriber, registerSlackGroupSubscriber } from '@/lib/integrations/slack/subscriber';
+import { registerRunSessionRollupSubscriber } from '@/lib/runtime/run-session-service';
 import { pruneOldRunEvents } from '@/lib/runners/event-retention-service';
-import { reapExpiredRunnerLeases, reapStaleLocalBrowserRuns } from '@/lib/runners/lease-reaper';
+import { reapExpiredRunnerLeases, reapStaleLocalBrowserRuns, reapStrandedRunSessions } from '@/lib/runners/lease-reaper';
 import { failInvalidQueuedAndroidRuns } from '@/lib/runners/queue-sanitizer';
 import { enforceRunArtifactRetention } from '@/lib/runners/run-retention-service';
 import { runSchedulerTick } from '@/lib/scheduler/scheduler-tick';
@@ -19,11 +20,14 @@ const shutdown = createWorkerShutdownController({
 const MAX_MAINTENANCE_RETRY_INTERVAL_MS = 60_000;
 
 registerSlackSubscriber();
+registerSlackGroupSubscriber();
+registerRunSessionRollupSubscriber();
 
 async function runMaintenanceCycle() {
-    const [leaseResult, staleLocalBrowserRunResult, retentionResult, queueSanitizerResult] = await Promise.all([
+    const [leaseResult, staleLocalBrowserRunResult, strandedSessionResult, retentionResult, queueSanitizerResult] = await Promise.all([
         reapExpiredRunnerLeases(),
         reapStaleLocalBrowserRuns(),
+        reapStrandedRunSessions(),
         pruneOldRunEvents(),
         failInvalidQueuedAndroidRuns(),
     ]);
@@ -32,6 +36,7 @@ async function runMaintenanceCycle() {
     if (
         leaseResult.recoveredRuns > 0
         || staleLocalBrowserRunResult.recoveredRuns > 0
+        || strandedSessionResult.strandedSessions > 0
         || retentionResult.deletedEvents > 0
         || queueSanitizerResult.failedRuns > 0
         || runRetentionResult.purgedRuns > 0
@@ -45,6 +50,8 @@ async function runMaintenanceCycle() {
             staleLocalBrowserRequeuedRuns: staleLocalBrowserRunResult.requeuedRuns,
             staleLocalBrowserFailedRuns: staleLocalBrowserRunResult.failedRuns,
             staleLocalBrowserCutoff: staleLocalBrowserRunResult.staleBefore.toISOString(),
+            strandedSessions: strandedSessionResult.strandedSessions,
+            strandedSessionMembers: strandedSessionResult.settledMembers,
             deletedEvents: retentionResult.deletedEvents,
             retentionCutoff: retentionResult.cutoff.toISOString(),
             failedInvalidQueuedRuns: queueSanitizerResult.failedRuns,

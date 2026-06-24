@@ -3,14 +3,15 @@ import { useState, useEffect, use, useCallback, useRef } from "react";
 import { useAuth } from "../../auth-provider";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { CenteredLoading, Modal, Pagination, UnderlineTabs } from "@/components/shared";
+import { Modal, PageHeaderSkeleton, Pagination, TableRowsSkeleton, UnderlineTabs } from "@/components/shared";
 import { Breadcrumbs } from "@/components/layout";
 import { useI18n } from "@/i18n";
 import { isActiveRunStatus } from '@/utils/status/statusHelpers';
-import { parsePageSize } from '@/utils/pagination/pagination';
+import { extractListData, parsePageSize } from '@/utils/pagination/pagination';
 import { ProjectConfigs } from '@/components/features/project-configurations';
 import ProjectSettingsPanel from '@/components/features/projects/ui/ProjectSettingsPanel';
 import { ProjectSchedulesPanel } from '@/components/features/project-scheduler';
+import { TestGroupsPanel } from '@/components/features/test-groups';
 import ProjectSlackSettings from '@/components/features/project-notifications/ui/ProjectSlackSettings';
 import { useCurrentTeam } from '@/hooks/team/useCurrentTeam';
 import TestCaseImportReviewDialog from '@/components/features/test-cases/ui/TestCaseImportReviewDialog';
@@ -79,7 +80,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
     useEffect(() => {
         const tab = searchParams.get('tab');
-        if (tab === 'variables' || tab === 'integration' || tab === 'scheduler' || tab === 'settings' || tab === 'test-cases') {
+        if (tab === 'variables' || tab === 'integration' || tab === 'scheduler' || tab === 'settings' || tab === 'test-cases' || tab === 'login-flows' || tab === 'test-groups') {
             setActiveTab(tab);
         }
     }, [searchParams]);
@@ -92,7 +93,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     }, [editingDisplayIdTestCaseId]);
 
     useEffect(() => {
-        const validIds = new Set(testCases.map((item) => item.id));
+        const validIds = new Set(testCases.filter((item) => item.kind === 'TEST').map((item) => item.id));
         setSelectedTestCaseIds((prev) => {
             const next = new Set<string>();
             prev.forEach((idValue) => {
@@ -154,8 +155,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             throw new Error("Failed to fetch project data");
         }
 
-        const testCasesData = await testCasesRes.json();
-        setTestCases(testCasesData);
+        setTestCases(extractListData<TestCase>(await testCasesRes.json()));
     }, [resolvedParams.id, getAuthHeaders]);
 
     const fetchData = useCallback(async (silent = false) => {
@@ -418,7 +418,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         if (e.key === 'Enter') handleSearch();
     };
 
-    const filteredTestCases = filterProjectTestCases(testCases, searchQuery);
+    const visibleTestCaseKind = activeTab === 'login-flows' ? 'LOGIN_FLOW' : 'TEST';
+    const visibleTestCases = testCases.filter((testCase) => testCase.kind === visibleTestCaseKind);
+    const schedulerTestCases = testCases.filter((testCase) => testCase.kind === 'TEST');
+    const filteredTestCases = filterProjectTestCases(visibleTestCases, searchQuery);
     const sortedTestCases = sortProjectTestCases(filteredTestCases, sortColumn, sortDirection);
 
     const totalPages = Math.ceil(sortedTestCases.length / pageSize);
@@ -529,7 +532,20 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     };
 
     if (isAuthLoading || isLoading) {
-        return <CenteredLoading className="min-h-screen" />;
+        return (
+            <main className="min-h-screen bg-gray-50">
+                <div className="max-w-7xl mx-auto px-8 py-8">
+                    <Breadcrumbs items={[{ label: '' }]} />
+                    <PageHeaderSkeleton />
+                    <div className="mb-6 flex gap-6 border-b border-gray-200">
+                        {Array.from({ length: 5 }, (_, index) => (
+                            <div key={`project-tab-skeleton-${index}`} className="skeleton-block mb-3 h-4 w-20" />
+                        ))}
+                    </div>
+                    <TableRowsSkeleton rows={8} columns={5} />
+                </div>
+            </main>
+        );
     }
 
     const handleStartProjectSettingsEdit = () => {
@@ -556,8 +572,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     const projectTabs = [
         { id: 'test-cases' as const, label: t('project.tab.testCases') },
         { id: 'variables' as const, label: t('project.tab.configs') },
-        { id: 'integration' as const, label: t('project.tab.integration') },
+        { id: 'login-flows' as const, label: t('project.tab.loginFlows') },
+        { id: 'test-groups' as const, label: t('project.tab.testGroups') },
         { id: 'scheduler' as const, label: t('project.tab.scheduler') },
+        { id: 'integration' as const, label: t('project.tab.integration') },
         { id: 'settings' as const, label: t('project.tab.settings') },
     ];
 
@@ -604,7 +622,16 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     />
                 </div>
 
-                {activeTab === 'test-cases' && (
+                {activeTab === 'login-flows' && (
+                    <div className="mb-4 flex items-start gap-3 rounded-lg border border-indigo-100 bg-indigo-50/60 p-4">
+                        <svg className="mt-0.5 h-5 w-5 shrink-0 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                        </svg>
+                        <p className="text-sm text-indigo-900/80">{t('project.loginFlows.caption')}</p>
+                    </div>
+                )}
+
+                {(activeTab === 'test-cases' || activeTab === 'login-flows') && (
                     <ProjectTestCasesToolbar
                         projectId={id}
                         searchInput={searchInput}
@@ -616,6 +643,13 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                         isBatchImportProcessing={isBatchImportProcessing}
                         isExportingSelected={isExportingSelected}
                         selectedCount={selectedCount}
+                        createHref={activeTab === 'login-flows'
+                            ? `/run?projectId=${id}&kind=LOGIN_FLOW`
+                            : `/run?projectId=${id}`}
+                        createLabel={activeTab === 'login-flows'
+                            ? t('project.startNewLoginFlow')
+                            : t('project.startNewRun')}
+                        showImportExport={activeTab === 'test-cases'}
                         t={t}
                     />
                 )}
@@ -624,11 +658,15 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     <ProjectConfigs projectId={id} />
                 )}
 
+                {activeTab === 'test-groups' && project && (
+                    <TestGroupsPanel projectId={id} canManageProject={Boolean(project.canManageProject)} />
+                )}
+
                 {activeTab === 'scheduler' && project && (
                     <ProjectSchedulesPanel
                         projectId={id}
                         canManageProject={Boolean(project.canManageProject)}
-                        availableTestCases={testCases.map((testCase) => ({
+                        availableTestCases={schedulerTestCases.map((testCase) => ({
                             id: testCase.id,
                             displayId: testCase.displayId,
                             name: testCase.name,
@@ -666,20 +704,22 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     <ProjectSlackSettings projectId={id} teamId={currentTeam.id} />
                 )}
 
-                <div className={`bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden ${activeTab !== 'test-cases' ? 'hidden' : ''}`}>
+                <div className={`bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden ${activeTab !== 'test-cases' && activeTab !== 'login-flows' ? 'hidden' : ''}`}>
                     <div className="hidden md:grid grid-cols-24 gap-4 p-4 border-b border-gray-200 bg-gray-50 text-sm font-medium text-gray-500">
-                        <div className="col-span-1 flex items-center">
-                            <input
-                                type="checkbox"
-                                checked={allFilteredSelected}
-                                onChange={handleToggleSelectAllFiltered}
-                                aria-label={t('project.table.selectAll')}
-                                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                            />
-                        </div>
+                        {activeTab === 'test-cases' && (
+                            <div className="col-span-1 flex items-center">
+                                <input
+                                    type="checkbox"
+                                    checked={allFilteredSelected}
+                                    onChange={handleToggleSelectAllFiltered}
+                                    aria-label={t('project.table.selectAll')}
+                                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary disabled:opacity-30"
+                                />
+                            </div>
+                        )}
                         <button
                             onClick={() => handleSort('id')}
-                            className="col-span-3 flex items-center gap-1 hover:text-gray-700 transition-colors text-left"
+                            className={`${activeTab === 'test-cases' ? 'col-span-3' : 'col-span-4'} flex items-center gap-1 hover:text-gray-700 transition-colors text-left`}
                         >
                             {t('project.table.id')}
                             <SortIcon column="id" sortColumn={sortColumn} sortDirection={sortDirection} />
@@ -695,7 +735,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                             onClick={() => handleSort('status')}
                             className="col-span-3 flex items-center gap-1 hover:text-gray-700 transition-colors text-left"
                         >
-                            {t('project.table.status')}
+                            {activeTab === 'login-flows' ? t('project.table.verification') : t('project.table.status')}
                             <SortIcon column="status" sortColumn={sortColumn} sortDirection={sortDirection} />
                         </button>
                         <button
@@ -708,23 +748,27 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                         <div className="col-span-5 text-right">{t('project.table.actions')}</div>
                     </div>
 
-                    {testCases.length === 0 ? (
+                    {visibleTestCases.length === 0 ? (
                         <div className="p-16 text-center">
                             <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
                                 <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                 </svg>
                             </div>
-                            <h3 className="text-lg font-semibold text-gray-900 mb-2">{t('project.noTestCases.title')}</h3>
-                            <p className="text-gray-500 mb-6">{t('project.noTestCases.subtitle')}</p>
+                            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                                {activeTab === 'login-flows' ? t('project.noLoginFlows.title') : t('project.noTestCases.title')}
+                            </h3>
+                            <p className="text-gray-500 mb-6">
+                                {activeTab === 'login-flows' ? t('project.noLoginFlows.subtitle') : t('project.noTestCases.subtitle')}
+                            </p>
                             <Link
-                                href={`/run?projectId=${id}`}
+                                href={activeTab === 'login-flows' ? `/run?projectId=${id}&kind=LOGIN_FLOW` : `/run?projectId=${id}`}
                                 className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors inline-flex items-center gap-2"
                             >
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                                 </svg>
-                                {t('project.startNewRun')}
+                                {activeTab === 'login-flows' ? t('project.startNewLoginFlow') : t('project.startNewRun')}
                             </Link>
                         </div>
                     ) : (
@@ -736,6 +780,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                                     testCase={testCase}
                                     projectId={id}
                                     isSelected={selectedTestCaseIds.has(testCase.id)}
+                                    canSelect={activeTab === 'test-cases'}
                                     onToggleSelect={handleToggleSelectTestCase}
                                     isEditingDisplayId={editingDisplayIdTestCaseId === testCase.id}
                                     isSavingDisplayId={savingDisplayIdTestCaseId === testCase.id}

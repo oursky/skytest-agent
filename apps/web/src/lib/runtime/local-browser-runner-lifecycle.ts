@@ -2,10 +2,13 @@ import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
 import { publishRunUpdate } from '@/lib/runners/event-bus';
 import { emitRunTerminal } from '@/lib/runners/domain-events';
+import { recomputeRunSessionForMember } from '@/lib/runtime/run-session-service';
 import { config as appConfig } from '@/config/app';
 import { UsageService } from '@/lib/runtime/usage';
+import { CANCELLATION_REASON } from '@/lib/runtime/cancellation-reasons';
 import {
     RUN_IN_PROGRESS_STATUSES,
+    RUN_SESSION_KIND,
     TEST_STATUS,
     type RunInProgressStatus,
 } from '@/types';
@@ -21,6 +24,25 @@ export interface RunUsageContext {
 }
 
 const logger = createLogger('runtime:local-browser-runner-lifecycle');
+
+// Login-flow prefixes fan out into their own browsers alongside the one claimed
+// session member, so they must be counted against the local browser slot cap or a
+// single session can silently exceed it. The orchestrator brackets each prefix
+// browser with withLoginFlowBrowserSlot; getActiveLocalBrowserRunCount folds this in.
+let inFlightLoginFlowBrowsers = 0;
+
+export function getInFlightLoginFlowBrowserCount(): number {
+    return inFlightLoginFlowBrowsers;
+}
+
+export async function withLoginFlowBrowserSlot<T>(work: () => Promise<T>): Promise<T> {
+    inFlightLoginFlowBrowsers += 1;
+    try {
+        return await work();
+    } finally {
+        inFlightLoginFlowBrowsers -= 1;
+    }
+}
 
 function triggerQueuedBrowserDispatch(reason: string, runId: string): void {
     void import('@/lib/runtime/browser-run-dispatcher')
@@ -97,6 +119,7 @@ export async function updateRunStatusWithOwnership(
 
     if (result.count > 0) {
         publishRunUpdate(runId);
+        await recomputeRunSessionForMember(runId);
     }
 }
 
@@ -231,11 +254,18 @@ export async function cancelRun(
     options?: LocalBrowserRunOptions
 ): Promise<void> {
     const now = new Date();
+    const owningRun = await prisma.testRun.findUnique({
+        where: { id: runId },
+        select: { runSession: { select: { kind: true } } },
+    });
+    const reason = owningRun?.runSession?.kind === RUN_SESSION_KIND.GROUP
+        ? CANCELLATION_REASON.USER_GROUP
+        : CANCELLATION_REASON.USER_SINGLE;
     const updated = await prisma.testRun.updateMany({
         where: buildRunOwnershipWhere(runId, options),
         data: {
             status: TEST_STATUS.CANCELLED,
-            error: 'Cancelled by user',
+            error: reason,
             completedAt: now,
             assignedRunnerId: null,
             leaseExpiresAt: null,

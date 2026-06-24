@@ -1,7 +1,9 @@
 export { default as Modal } from './Modal';
 export { default as Pagination } from './Pagination';
 export { default as CustomSelect } from './CustomSelect';
+export { default as InfoHint } from './InfoHint';
 export { default as Button } from './Button';
+export { default as Toggle } from './Toggle';
 export { default as DangerTextButton } from './DangerTextButton';
 export { default as LoadingSpinner } from './LoadingSpinner';
 export { default as CenteredLoading } from './CenteredLoading';

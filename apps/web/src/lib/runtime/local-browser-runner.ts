@@ -1,80 +1,29 @@
-import type { Prisma } from '@prisma/client';
 import { runTest } from '@/lib/runtime/test-runner';
-import type { BuildMidsceneModelConfigOptions } from '@/lib/runtime/midscene-env';
-import { buildTeamAiProviderConfig, resolveTeamMidsceneConfig } from '@/lib/runtime/team-ai-config';
 import { prisma } from '@/lib/core/prisma';
-import { resolveConfigs } from '@/lib/test-config/resolver';
-import { decrypt } from '@/lib/security/crypto';
 import { createLogger } from '@/lib/core/logger';
-import { publishRunUpdate } from '@/lib/runners/event-bus';
 import { config as appConfig } from '@/config/app';
-import { createStoredName, validateAndSanitizeFile, buildRunArtifactObjectKey } from '@/lib/security/file-security';
-import { putObjectBuffer } from '@/lib/storage/object-store-utils';
 import { InvalidAiApiKeyError } from '@/lib/core/errors';
+import { loadRunConfig } from '@/lib/runtime/run-config-loader';
+import { createRunEventSink, createRunStatusWatcher, touchRunActivity } from '@/lib/runtime/run-event-sink';
+import { finalizeMemberRunError, finalizeMemberRunResult } from '@/lib/runtime/run-member-finalize';
+import { executeGroupSession, executeLocalBrowserSession } from '@/lib/runtime/run-session-orchestrator';
 import {
-    buildResolvedConfigMapsFromSnapshot,
-    parseConfigurationSnapshot,
-    parseImageDataUrl,
-    parseSerializedJson,
-    toSafeScreenshotFilename,
-} from '@/lib/runtime/local-browser-runner-parsers';
-import {
-    cancelRun,
-    completeRun,
-    createLeaseExpiry,
-    failRun,
     failRunWithoutTestCase,
-    runStillActive,
+    getInFlightLoginFlowBrowserCount,
     updateRunStatusWithOwnership,
     type LocalBrowserRunOptions,
 } from '@/lib/runtime/local-browser-runner-lifecycle';
+import { reconcileStrandedSessionMembers } from '@/lib/runtime/run-session-orchestrator';
 import {
-    RUN_IN_PROGRESS_STATUSES,
+    RUN_SESSION_KIND,
     TEST_STATUS,
     isRunInProgressStatus,
-    isScreenshotData,
-    isRunTerminalStatus,
-    type BrowserConfig,
-    type TargetConfig,
-    type TestCaseFile,
-    type TestEvent,
-    type TestStep,
 } from '@/types';
-interface LoadedRunConfig {
-    runId: string;
-    testCaseId: string;
-    projectId: string;
-    usage: {
-        actorUserId: string;
-        description: string;
-    };
-        config: {
-            url?: string;
-            prompt?: string;
-            steps?: TestStep[];
-            browserConfig?: Record<string, BrowserConfig | TargetConfig>;
-            openRouterApiKey: string;
-            teamId: string;
-            aiProvider: string;
-            midsceneModelOptions?: BuildMidsceneModelConfigOptions;
-            files: TestCaseFile[];
-            resolvedVariables: Record<string, string>;
-            resolvedFiles: Record<string, string>;
-    };
-}
-interface RunEventInput {
-    kind: string;
-    message?: string;
-    payload?: unknown;
-    artifactKey?: string;
-}
 const logger = createLogger('runtime:local-browser-runner');
 const activeAbortControllers = new Map<string, AbortController>();
 const activeExecutions = new Map<string, Promise<void>>();
-const RUN_STATUS_WATCH_INTERVAL_MS = appConfig.runner.runStatusPollIntervalMs;
-const RUN_STATUS_MAX_CANCELLATION_POLL_INTERVAL_MS = appConfig.runner.runStatusMaxCancellationPollIntervalMs;
 export function getActiveLocalBrowserRunCount(): number {
-    return activeExecutions.size;
+    return activeExecutions.size + getInFlightLoginFlowBrowserCount();
 }
 export function getMaxLocalBrowserRunCount(): number {
     return appConfig.runner.maxLocalBrowserRuns;
@@ -102,6 +51,7 @@ export async function abortInactiveLocalBrowserRuns(options?: LocalBrowserRunOpt
             status: true,
             assignedRunnerId: true,
             leaseExpiresAt: true,
+            runSession: { select: { status: true } },
         },
     });
     const runById = new Map(runs.map((run) => [run.id, run]));
@@ -110,8 +60,11 @@ export async function abortInactiveLocalBrowserRuns(options?: LocalBrowserRunOpt
     for (const runId of activeRunIds) {
         const run = runById.get(runId);
         const leaseValid = run?.leaseExpiresAt ? run.leaseExpiresAt.getTime() > nowMs : false;
-        const stillActive = run
-            && isRunInProgressStatus(run.status)
+        // A multi-member session stays active while its session is in progress even
+        // after the claimed first member settles (later members run in the shared browser).
+        const executionInProgress = !!run
+            && (isRunInProgressStatus(run.status) || isRunInProgressStatus(run.runSession?.status));
+        const stillActive = executionInProgress
             && (
                 options?.runnerId
                     ? run.assignedRunnerId === options.runnerId
@@ -130,285 +83,6 @@ export async function abortInactiveLocalBrowserRuns(options?: LocalBrowserRunOpt
     return abortedCount;
 }
 
-async function loadRunConfig(runId: string, options?: LocalBrowserRunOptions): Promise<LoadedRunConfig | null> {
-    const nowMs = Date.now();
-    const run = await prisma.testRun.findUnique({
-        where: { id: runId },
-        select: {
-            id: true,
-            testCaseId: true,
-            status: true,
-            assignedRunnerId: true,
-            leaseExpiresAt: true,
-            configurationSnapshot: true,
-            files: {
-                select: {
-                    id: true,
-                    filename: true,
-                    storedName: true,
-                    mimeType: true,
-                    size: true,
-                },
-            },
-            testCase: {
-                select: {
-                    id: true,
-                    name: true,
-                    url: true,
-                    prompt: true,
-                    steps: true,
-                    browserConfig: true,
-                    projectId: true,
-                    project: {
-                        select: {
-                            name: true,
-                            teamId: true,
-                            createdByUserId: true,
-                            team: {
-                                select: {
-                                    openRouterKeyEncrypted: true,
-                                    aiProvider: true,
-                                    aiBaseUrl: true,
-                                    aiMainModel: true,
-                                    aiMainModelFamily: true,
-                                    aiPlanningModel: true,
-                                    aiPlanningModelFamily: true,
-                                    aiInsightModel: true,
-                                    aiInsightModelFamily: true,
-                                    aiTemperature: true,
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-    });
-
-    if (!run || !isRunInProgressStatus(run.status)) {
-        return null;
-    }
-
-    if (options?.runnerId) {
-        if (run.assignedRunnerId !== options.runnerId) {
-            return null;
-        }
-        if (!run.leaseExpiresAt || run.leaseExpiresAt.getTime() <= nowMs) {
-            return null;
-        }
-    }
-
-    if (!options?.runnerId && run.assignedRunnerId) {
-        return null;
-    }
-
-    const encryptedKey = run.testCase.project.team.openRouterKeyEncrypted;
-    if (!encryptedKey) {
-        logger.warn('Run skipped: team AI key not configured', { runId: run.id });
-        return null;
-    }
-
-    const snapshot = parseConfigurationSnapshot(run.configurationSnapshot);
-    const resolvedFromSnapshot = buildResolvedConfigMapsFromSnapshot(snapshot);
-    let resolvedVariables: Record<string, string>;
-    let resolvedFiles: Record<string, string>;
-
-    if (resolvedFromSnapshot) {
-        resolvedVariables = resolvedFromSnapshot.resolvedVariables;
-        resolvedFiles = resolvedFromSnapshot.resolvedFiles;
-    } else {
-        const resolved = await resolveConfigs(run.testCase.projectId, run.testCaseId);
-        resolvedVariables = resolved.variables;
-        resolvedFiles = resolved.files;
-    }
-    const fallbackSteps = parseSerializedJson<TestStep[]>(run.testCase.steps);
-    const fallbackBrowserConfig = parseSerializedJson<Record<string, BrowserConfig | TargetConfig>>(run.testCase.browserConfig);
-    const providerConfig = buildTeamAiProviderConfig(run.testCase.project.team);
-    const midsceneModelOptions = resolveTeamMidsceneConfig(run.testCase.project.team);
-
-    return {
-        runId: run.id,
-        testCaseId: run.testCase.id,
-        projectId: run.testCase.projectId,
-        usage: {
-            actorUserId: run.testCase.project.createdByUserId,
-            description: `${run.testCase.project.name} - ${run.testCase.name}`,
-        },
-        config: {
-            url: snapshot.url ?? run.testCase.url,
-            prompt: snapshot.prompt ?? run.testCase.prompt ?? undefined,
-            steps: snapshot.steps ?? fallbackSteps,
-            browserConfig: snapshot.browserConfig ?? fallbackBrowserConfig,
-            openRouterApiKey: decrypt(encryptedKey),
-            teamId: run.testCase.project.teamId,
-            aiProvider: providerConfig.provider,
-            midsceneModelOptions,
-            files: run.files,
-            resolvedVariables,
-            resolvedFiles,
-        },
-    };
-}
-
-async function appendRunEvents(runId: string, events: RunEventInput[], options?: LocalBrowserRunOptions): Promise<void> {
-    if (events.length === 0) {
-        return;
-    }
-
-    const now = new Date();
-    const appended = await prisma.$transaction(async (tx) => {
-        const run = await tx.testRun.findUnique({
-            where: { id: runId },
-            select: {
-                id: true,
-                status: true,
-                assignedRunnerId: true,
-                leaseExpiresAt: true,
-                nextEventSequence: true,
-            },
-        });
-
-        if (!run || isRunTerminalStatus(run.status)) {
-            return false;
-        }
-        if (options?.runnerId) {
-            if (run.assignedRunnerId !== options.runnerId) {
-                return false;
-            }
-            if (!run.leaseExpiresAt || run.leaseExpiresAt.getTime() <= now.getTime()) {
-                return false;
-            }
-        }
-        if (!options?.runnerId && run.assignedRunnerId) {
-            return false;
-        }
-
-        const startSequence = run.nextEventSequence;
-        const updateResult = await tx.testRun.updateMany({
-            where: {
-                id: runId,
-                nextEventSequence: startSequence,
-                ...(options?.runnerId
-                    ? {
-                        assignedRunnerId: options.runnerId,
-                        leaseExpiresAt: { gt: now },
-                    }
-                    : {
-                        assignedRunnerId: null,
-                    }),
-            },
-            data: {
-                nextEventSequence: startSequence + events.length,
-                lastEventAt: now,
-                ...(options?.runnerId
-                    ? {
-                        leaseExpiresAt: createLeaseExpiry(now),
-                    }
-                    : {}),
-            },
-        });
-        if (updateResult.count !== 1) {
-            return false;
-        }
-
-        await tx.testRunEvent.createMany({
-            data: events.map((event, index) => ({
-                runId,
-                sequence: startSequence + index,
-                kind: event.kind,
-                message: event.message ?? null,
-                payload: event.payload as Prisma.InputJsonValue | undefined,
-                artifactKey: event.artifactKey ?? null,
-                createdAt: now,
-            })),
-        });
-
-        return true;
-    });
-
-    if (appended) {
-        publishRunUpdate(runId);
-    }
-}
-
-async function touchRunActivity(runId: string, options?: LocalBrowserRunOptions): Promise<void> {
-    const now = new Date();
-    await prisma.testRun.updateMany({
-        where: {
-            id: runId,
-            status: { in: [...RUN_IN_PROGRESS_STATUSES] },
-            ...(options?.runnerId
-                ? {
-                    assignedRunnerId: options.runnerId,
-                    leaseExpiresAt: { gt: now },
-                }
-                : {
-                    assignedRunnerId: null,
-                }),
-        },
-        data: {
-            lastEventAt: now,
-            ...(options?.runnerId
-                ? {
-                    leaseExpiresAt: createLeaseExpiry(now),
-                }
-                : {}),
-        },
-    });
-}
-
-async function uploadRunArtifact(runId: string, input: {
-    filename: string;
-    mimeType: string;
-    contentBase64: string;
-}, options?: LocalBrowserRunOptions): Promise<string | null> {
-    if (options?.runnerId) {
-        const ownedRun = await prisma.testRun.findFirst({
-            where: {
-                id: runId,
-                assignedRunnerId: options.runnerId,
-                leaseExpiresAt: { gt: new Date() },
-                status: { in: [...RUN_IN_PROGRESS_STATUSES] },
-            },
-            select: { id: true },
-        });
-        if (!ownedRun) {
-            return null;
-        }
-    }
-
-    const body = Buffer.from(input.contentBase64, 'base64');
-    if (body.length === 0 || body.length > appConfig.files.maxFileSize) {
-        return null;
-    }
-
-    const validation = validateAndSanitizeFile(input.filename, input.mimeType, body.length);
-    if (!validation.valid) {
-        return null;
-    }
-
-    const storedName = validation.storedName ?? createStoredName(input.filename);
-    const artifactKey = buildRunArtifactObjectKey(runId, storedName);
-
-    await putObjectBuffer({
-        key: artifactKey,
-        body,
-        contentType: input.mimeType,
-    });
-
-    await prisma.testRunFile.create({
-        data: {
-            runId,
-            filename: validation.sanitizedFilename ?? input.filename,
-            storedName: artifactKey,
-            mimeType: input.mimeType,
-            size: body.length,
-        },
-    });
-
-    return artifactKey;
-}
-
 async function executeLocalBrowserRun(
     runId: string,
     controller: AbortController,
@@ -420,140 +94,19 @@ async function executeLocalBrowserRun(
         return;
     }
 
-    const queuedEvents: RunEventInput[] = [];
-    const pendingArtifactUploads = new Set<Promise<void>>();
-    let flushingEvents = false;
-
-    const flushEvents = async () => {
-        if (flushingEvents || queuedEvents.length === 0) {
-            return;
-        }
-
-        flushingEvents = true;
-        try {
-            while (queuedEvents.length > 0) {
-                const batch = queuedEvents.splice(0, 50);
-                await appendRunEvents(runId, batch, options);
-            }
-        } finally {
-            flushingEvents = false;
-        }
-    };
-
-    const queueEvent = (event: RunEventInput) => {
-        queuedEvents.push(event);
-        void flushEvents();
-    };
-
-    const handleTestEvent = (event: TestEvent) => {
-        const screenshotData = event.type === 'screenshot' && isScreenshotData(event.data)
-            ? event.data
-            : null;
-
-        if (screenshotData) {
-            const uploadTask = (async () => {
-                const parsed = parseImageDataUrl(screenshotData.src);
-                if (!parsed) {
-                    queueEvent({
-                        kind: 'SCREENSHOT',
-                        message: screenshotData.label,
-                        payload: event,
-                    });
-                    return;
-                }
-
-                try {
-                    const artifactKey = await uploadRunArtifact(runId, {
-                        filename: toSafeScreenshotFilename(screenshotData.label, parsed.extension),
-                        mimeType: parsed.mimeType,
-                        contentBase64: parsed.contentBase64,
-                    }, options);
-
-                    queueEvent({
-                        kind: 'SCREENSHOT',
-                        message: screenshotData.label,
-                        artifactKey: artifactKey ?? undefined,
-                        payload: artifactKey
-                            ? {
-                                ...event,
-                                data: {
-                                    ...screenshotData,
-                                    src: `artifact:${artifactKey}`,
-                                },
-                            }
-                            : event,
-                    });
-                } catch (error) {
-                    logger.warn('Failed to upload screenshot artifact', error);
-                    queueEvent({
-                        kind: 'SCREENSHOT',
-                        message: screenshotData.label,
-                        payload: event,
-                    });
-                }
-            })();
-
-            pendingArtifactUploads.add(uploadTask);
-            uploadTask.finally(() => {
-                pendingArtifactUploads.delete(uploadTask);
-            }).catch(() => {});
-            return;
-        }
-
-        queueEvent({
-            kind: event.type.toUpperCase(),
-            message: event.type === 'log' && 'message' in event.data ? event.data.message : undefined,
-            payload: event,
-        });
-    };
-
-    let statusWatchTimer: ReturnType<typeof setTimeout> | null = null;
-    let statusPollIntervalMs = RUN_STATUS_WATCH_INTERVAL_MS;
-    const maxStatusPollIntervalMs = Math.min(
-        appConfig.runner.runStatusMaxPollIntervalMs,
-        RUN_STATUS_MAX_CANCELLATION_POLL_INTERVAL_MS
+    const sink = createRunEventSink(runId, options);
+    const statusWatcher = createRunStatusWatcher(
+        runId,
+        controller.signal,
+        () => { cancelLocalBrowserRun(runId); },
+        options,
     );
-    const scheduleStatusPoll = () => {
-        if (controller.signal.aborted) {
-            return;
-        }
-        if (statusWatchTimer) {
-            clearTimeout(statusWatchTimer);
-        }
-        statusWatchTimer = setTimeout(() => {
-            void pollRunStatus();
-        }, statusPollIntervalMs);
+    const usage = {
+        actorUserId: details.usage.actorUserId,
+        projectId: details.projectId,
+        description: details.usage.description,
     };
-    const pollRunStatus = async () => {
-        if (controller.signal.aborted) {
-            return;
-        }
-
-        try {
-            const active = await runStillActive(runId, options);
-            if (!active) {
-                cancelLocalBrowserRun(runId);
-                return;
-            }
-
-            statusPollIntervalMs = Math.min(
-                maxStatusPollIntervalMs,
-                Math.floor(statusPollIntervalMs * 1.5)
-            );
-        } catch (error) {
-            logger.warn('Failed to poll local run status', {
-                runId,
-                error: error instanceof Error ? error.message : String(error),
-            });
-            statusPollIntervalMs = Math.min(
-                maxStatusPollIntervalMs,
-                Math.floor(statusPollIntervalMs * 2)
-            );
-        }
-
-        scheduleStatusPoll();
-    };
-    scheduleStatusPoll();
+    statusWatcher.start();
 
     try {
         const result = await runTest({
@@ -575,76 +128,27 @@ async function executeLocalBrowserRun(
             },
             signal: controller.signal,
             onEvent(event) {
-                handleTestEvent(event);
+                sink.handleTestEvent(event);
             },
             async onPreparing() {
                 await updateRunStatusWithOwnership(runId, TEST_STATUS.PREPARING, options);
-                queueEvent({
-                    kind: 'STATUS',
-                    message: 'Preparing run execution',
-                });
+                sink.queueEvent({ kind: 'STATUS', message: 'Preparing run execution' });
             },
             async onRunning() {
                 await updateRunStatusWithOwnership(runId, TEST_STATUS.RUNNING, options);
-                queueEvent({
-                    kind: 'STATUS',
-                    message: 'Running test steps',
-                });
+                sink.queueEvent({ kind: 'STATUS', message: 'Running test steps' });
             },
             async onStepHeartbeat() {
                 await touchRunActivity(runId, options);
             },
         });
 
-        await Promise.allSettled(Array.from(pendingArtifactUploads));
-        await flushEvents();
-
-        const resultSummary = JSON.stringify(result);
-        if (result.status === TEST_STATUS.PASS) {
-            await completeRun(
-                runId,
-                details.testCaseId,
-                {
-                    actorUserId: details.usage.actorUserId,
-                    projectId: details.projectId,
-                    description: details.usage.description,
-                },
-                resultSummary,
-                options
-            );
-            return;
-        }
-        if (result.status === TEST_STATUS.CANCELLED) {
-            await cancelRun(
-                runId,
-                details.testCaseId,
-                {
-                    actorUserId: details.usage.actorUserId,
-                    projectId: details.projectId,
-                    description: details.usage.description,
-                },
-                resultSummary,
-                options
-            );
-            return;
-        }
-
-        await failRun(
-            runId,
-            details.testCaseId,
-            {
-                actorUserId: details.usage.actorUserId,
-                projectId: details.projectId,
-                description: details.usage.description,
-            },
-            result.error ?? 'Run failed',
-            resultSummary,
-            options
-        );
+        await sink.settleUploads();
+        await sink.flush();
+        await finalizeMemberRunResult(runId, details.testCaseId, usage, result, options);
     } catch (error) {
-        await Promise.allSettled(Array.from(pendingArtifactUploads));
-        await flushEvents();
-        const isInvalidAiKey = error instanceof InvalidAiApiKeyError;
+        await sink.settleUploads();
+        await sink.flush();
         if (error instanceof InvalidAiApiKeyError) {
             logger.error('Invalid team AI key format detected while dispatching local browser run', {
                 runId: details.runId,
@@ -654,29 +158,9 @@ async function executeLocalBrowserRun(
                 reason: error.reason,
             });
         }
-        // UI localizes via errorCode (see ResultStatus.tsx). This fallback string
-        // is written to DB and surfaces only where errorCode branching is absent.
-        const errorMessage = isInvalidAiKey
-            ? 'Team AI key format invalid. Re-save key in Team Settings.'
-            : error instanceof Error
-                ? error.message
-                : String(error);
-        await failRun(
-            runId,
-            details.testCaseId,
-            {
-                actorUserId: details.usage.actorUserId,
-                projectId: details.projectId,
-                description: details.usage.description,
-            },
-            errorMessage,
-            undefined,
-            options
-        );
+        await finalizeMemberRunError(runId, details.testCaseId, usage, error, options);
     } finally {
-        if (statusWatchTimer) {
-            clearTimeout(statusWatchTimer);
-        }
+        statusWatcher.stop();
     }
 }
 
@@ -689,9 +173,15 @@ export function startLocalBrowserRun(runId: string, options?: LocalBrowserRunOpt
     const controller = new AbortController();
     activeAbortControllers.set(runId, controller);
 
-    const execution = executeLocalBrowserRun(runId, controller, options)
-        .catch((error) => {
+    const execution = runClaimedBrowserWork(runId, controller, options)
+        .catch(async (error) => {
             logger.error('Local browser run execution failed', error);
+            // A throw escaping the orchestrator would otherwise strand un-settled session
+            // members in QUEUED/PREPARING/RUNNING, keeping the session active forever and
+            // blocking future runs. Settle them so the session reaches a terminal state.
+            await reconcileStrandedSessionMembers(runId).catch((reconcileError) => {
+                logger.error('Failed to reconcile stranded session members', reconcileError);
+            });
         })
         .finally(() => {
             activeAbortControllers.delete(runId);
@@ -700,6 +190,36 @@ export function startLocalBrowserRun(runId: string, options?: LocalBrowserRunOpt
 
     activeExecutions.set(runId, execution);
     return execution;
+}
+
+/**
+ * The dispatcher claims the first member of a run session. A single-member session
+ * runs the proven single-run path; a multi-member session (e.g. a login-flow prefix
+ * followed by a test) runs all members in one shared browser via the orchestrator.
+ */
+async function runClaimedBrowserWork(
+    runId: string,
+    controller: AbortController,
+    options?: LocalBrowserRunOptions,
+): Promise<void> {
+    const run = await prisma.testRun.findUnique({
+        where: { id: runId },
+        select: {
+            runSessionId: true,
+            runSession: { select: { kind: true, _count: { select: { memberRuns: true } } } },
+        },
+    });
+    const sessionId = run?.runSessionId ?? null;
+    const memberCount = run?.runSession?._count.memberRuns ?? 1;
+    if (sessionId && run?.runSession?.kind === RUN_SESSION_KIND.GROUP) {
+        await executeGroupSession(sessionId, controller, options);
+        return;
+    }
+    if (sessionId && memberCount > 1) {
+        await executeLocalBrowserSession(sessionId, controller, options);
+        return;
+    }
+    await executeLocalBrowserRun(runId, controller, options);
 }
 
 export function cancelLocalBrowserRun(runId: string): boolean {

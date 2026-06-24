@@ -13,6 +13,7 @@ enum TeamRole {
 }
 
 enum SlackNotifyOn {
+  OFF
   FAILED_ONLY
   BOTH_PASSED_AND_FAILED
 }
@@ -35,17 +36,17 @@ model RateLimitWindow {
 }
 
 model User {
-  id                String          @id @default(cuid())
-  authId            String          @unique
-  email             String?
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  createdProjects   Project[]       @relation("ProjectCreator")
-  actorUsageRecords UsageRecord[]   @relation("UsageRecordActor")
-  apiKeys           ApiKey[]
-  teamMemberships   TeamMembership[]
-  createdRunnerTokens RunnerToken[] @relation("RunnerTokenCreator")
-  createdSchedules  Schedule[]      @relation("ScheduleCreator")
+  id                  String           @id @default(cuid())
+  authId              String           @unique
+  email               String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  createdProjects     Project[]        @relation("ProjectCreator")
+  actorUsageRecords   UsageRecord[]    @relation("UsageRecordActor")
+  apiKeys             ApiKey[]
+  teamMemberships     TeamMembership[]
+  createdRunnerTokens RunnerToken[]    @relation("RunnerTokenCreator")
+  createdSchedules    Schedule[]       @relation("ScheduleCreator")
 }
 
 model UsageRecord {
@@ -54,9 +55,9 @@ model UsageRecord {
   actorUser   User     @relation("UsageRecordActor", fields: [actorUserId], references: [id], onDelete: Cascade)
   projectId   String
   project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  type        String   // "TEST_RUN"
-  description String?  // e.g., "Project Name - Test Case Name"
-  aiActions   Int      // Exact number of AI actions executed
+  type        String // "TEST_RUN"
+  description String? // e.g., "Project Name - Test Case Name"
+  aiActions   Int // Exact number of AI actions executed
   testRunId   String?  @unique // Reference to test run for linking
   testRun     TestRun? @relation(fields: [testRunId], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now())
@@ -67,7 +68,7 @@ model UsageRecord {
 }
 
 model Team {
-  id                     String                   @id @default(cuid())
+  id                     String           @id @default(cuid())
   name                   String
   openRouterKeyEncrypted String?
   openRouterKeyUpdatedAt DateTime?
@@ -76,7 +77,7 @@ model Team {
   slackTeamName          String?
   slackBotUserId         String?
   slackConfigUpdatedAt   DateTime?
-  aiProvider             String?                  @default("OPENROUTER")
+  aiProvider             String?          @default("OPENROUTER")
   aiBaseUrl              String?
   aiMainModel            String?
   aiMainModelFamily      String?
@@ -86,8 +87,8 @@ model Team {
   aiInsightModelFamily   String?
   aiTemperature          Float?
   aiConfigUpdatedAt      DateTime?
-  createdAt              DateTime                 @default(now())
-  updatedAt              DateTime                 @updatedAt
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
   memberships            TeamMembership[]
   projects               Project[]
   runners                Runner[]
@@ -97,15 +98,15 @@ model Team {
 }
 
 model TeamMembership {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   teamId    String
-  team      Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   userId    String?
-  user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   email     String?
   role      TeamRole
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([teamId, userId])
   @@index([userId, teamId])
@@ -115,103 +116,116 @@ model TeamMembership {
 }
 
 model Project {
-  id              String              @id @default(cuid())
-  name            String
-  maxConcurrentRuns Int               @default(1)
-  slackEnabled    Boolean             @default(false)
-  slackNotifyOn   SlackNotifyOn       @default(FAILED_ONLY)
-  slackChannelId  String?
-  slackChannelName String?
-  slackFailureTemplate String?
-  slackSuccessTemplate String?
-  slackUpdatedAt  DateTime?
-  teamId  String
-  team    Team        @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  createdByUserId String
-  createdByUser   User                @relation("ProjectCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
-  testCases       TestCase[]
-  schedules       Schedule[]
-  configs         ProjectConfig[]
-  usageRecords    UsageRecord[]
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  id                        String          @id @default(cuid())
+  name                      String
+  maxConcurrentRuns         Int             @default(1)
+  slackEnabled              Boolean         @default(false)
+  slackNotifyOn             SlackNotifyOn   @default(FAILED_ONLY)
+  slackChannelId            String?
+  slackChannelName          String?
+  slackFailureTemplate      String?
+  slackSuccessTemplate      String?
+  slackGroupNotifyEnabled   Boolean         @default(false)
+  slackGroupFailureTemplate String?
+  slackGroupSuccessTemplate String?
+  slackUpdatedAt            DateTime?
+  teamId                    String
+  team                      Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdByUserId           String
+  createdByUser             User            @relation("ProjectCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  testCases                 TestCase[]
+  schedules                 Schedule[]
+  configs                   ProjectConfig[]
+  usageRecords              UsageRecord[]
+  runSessions               RunSession[]
+  testGroups                TestGroup[]
+  createdAt                 DateTime        @default(now())
+  updatedAt                 DateTime        @updatedAt
 
   @@index([teamId, updatedAt(sort: Desc)])
   @@index([createdByUserId, updatedAt(sort: Desc)])
 }
 
 model TestCase {
-  id        String           @id @default(cuid())
-  displayId String?          // User-editable display ID (optional)
-  status    String           @default("DRAFT") // DRAFT | PASS | FAIL | CANCELLED | RUNNING | QUEUED
-  name      String
-  projectId String
-  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  url       String
-  prompt    String?
-  steps     String?
-  browserConfig String?
-  source    String?
-  sourceHash String?
-  testRuns  TestRun[]
-  scheduleLinks ScheduleTestCase[]
-  files     TestCaseFile[]
-  configs   TestCaseConfig[]
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  id                     String                  @id @default(cuid())
+  displayId              String? // User-editable display ID (optional)
+  kind                   String                  @default("TEST") // TEST | LOGIN_FLOW
+  status                 String                  @default("DRAFT") // DRAFT | PASS | FAIL | CANCELLED | RUNNING | QUEUED
+  name                   String
+  projectId              String
+  project                Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  url                    String
+  prompt                 String?
+  steps                  String?
+  browserConfig          String?
+  source                 String?
+  sourceHash             String?
+  testRuns               TestRun[]
+  scheduleLinks          ScheduleTestCase[]
+  testGroupItems         TestGroupItem[]
+  testGroupLoginSessions TestGroupLoginSession[] @relation("TestGroupLoginSessionFlow")
+  files                  TestCaseFile[]
+  configs                TestCaseConfig[]
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
 
-  @@index([projectId, updatedAt(sort: Desc)])
+  @@index([projectId, kind, updatedAt(sort: Desc)])
 }
 
 model TestCaseFile {
-  id          String   @id @default(cuid())
-  testCaseId  String
-  testCase    TestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
-  filename    String
-  storedName  String
-  mimeType    String
-  size        Int
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  testCaseId String
+  testCase   TestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  filename   String
+  storedName String
+  mimeType   String
+  size       Int
+  createdAt  DateTime @default(now())
 
   @@unique([testCaseId, filename])
   @@index([testCaseId])
 }
 
 model TestRun {
-  id                      String   @id @default(cuid())
-  testCaseId              String
-  testCase                TestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
-  triggeredByEmail        String?
-  triggerSource           String   @default("USER")
-  requiredCapability      String?
-  requiredRunnerKind      String?
-  requestedDeviceId       String?
-  requestedRunnerId       String?
-  assignedRunnerId        String?
-  assignedRunner          Runner?  @relation("AssignedRunnerRuns", fields: [assignedRunnerId], references: [id], onDelete: SetNull)
-  leaseExpiresAt          DateTime?
-  lastEventAt             DateTime?
-  nextEventSequence       Int      @default(1)
-  status                  String
-  result                  String?
-  logs                    String?
-  error                   String?
-  configurationSnapshot   String?
-  instanceId              String?
-  instanceType            String?
-  instanceName            String?
-  startedAt               DateTime?
-  completedAt             DateTime?
-  slackNotifiedAt         DateTime?
-  slackNotifyClaimedAt    DateTime?
-  slackNotifyAttempts     Int      @default(0)
-  slackNotifyError        String?
-  deletedAt               DateTime?
-  createdAt               DateTime @default(now())
-  usageRecords            UsageRecord[]
-  files                   TestRunFile[]
-  events                  TestRunEvent[]
-  androidResourceLock     AndroidResourceLock?
+  id                    String               @id @default(cuid())
+  testCaseId            String
+  testCase              TestCase             @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  runSessionId          String?
+  runSession            RunSession?          @relation(fields: [runSessionId], references: [id], onDelete: Cascade)
+  sessionPosition       Int?
+  kind                  String               @default("TEST") // TEST | LOGIN_FLOW (denormalized from TestCase.kind)
+  reusedSession         Boolean              @default(false)
+  triggeredByEmail      String?
+  triggerSource         String               @default("USER")
+  requiredCapability    String?
+  requiredRunnerKind    String?
+  requestedDeviceId     String?
+  requestedRunnerId     String?
+  assignedRunnerId      String?
+  assignedRunner        Runner?              @relation("AssignedRunnerRuns", fields: [assignedRunnerId], references: [id], onDelete: SetNull)
+  leaseExpiresAt        DateTime?
+  lastEventAt           DateTime?
+  nextEventSequence     Int                  @default(1)
+  status                String
+  result                String?
+  logs                  String?
+  error                 String?
+  configurationSnapshot String?
+  instanceId            String?
+  instanceType          String?
+  instanceName          String?
+  startedAt             DateTime?
+  completedAt           DateTime?
+  slackNotifiedAt       DateTime?
+  slackNotifyClaimedAt  DateTime?
+  slackNotifyAttempts   Int                  @default(0)
+  slackNotifyError      String?
+  deletedAt             DateTime?
+  createdAt             DateTime             @default(now())
+  usageRecords          UsageRecord[]
+  files                 TestRunFile[]
+  events                TestRunEvent[]
+  androidResourceLock   AndroidResourceLock?
 
   @@index([testCaseId, createdAt(sort: Desc)])
   @@index([status])
@@ -221,6 +235,80 @@ model TestRun {
   @@index([requestedRunnerId])
   @@index([instanceType, instanceName, createdAt(sort: Desc)])
   @@index([deletedAt, completedAt(sort: Asc)])
+  @@index([runSessionId, sessionPosition])
+}
+
+model RunSession {
+  id                   String     @id @default(cuid())
+  projectId            String
+  project              Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  kind                 String     @default("SINGLE") // SINGLE | GROUP
+  testGroupId          String?
+  testGroup            TestGroup? @relation(fields: [testGroupId], references: [id], onDelete: SetNull)
+  status               String // QUEUED | PREPARING | RUNNING | PASS | FAIL | CANCELLED
+  triggeredByEmail     String?
+  triggerSource        String     @default("USER")
+  requiredCapability   String?
+  assignedRunnerId     String?
+  leaseExpiresAt       DateTime?
+  startedAt            DateTime?
+  completedAt          DateTime?
+  slackNotifiedAt      DateTime?
+  slackNotifyClaimedAt DateTime?
+  slackNotifyAttempts  Int        @default(0)
+  slackNotifyError     String?
+  deletedAt            DateTime?
+  createdAt            DateTime   @default(now())
+  memberRuns           TestRun[]
+
+  @@index([status, requiredCapability, createdAt(sort: Asc)])
+  @@index([projectId, createdAt(sort: Desc)])
+  @@index([assignedRunnerId, leaseExpiresAt])
+  @@index([testGroupId, createdAt(sort: Desc)])
+}
+
+model TestGroup {
+  id            String                  @id @default(cuid())
+  projectId     String
+  project       Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name          String
+  displayId     String?
+  onFailure     String                  @default("STOP") // STOP | CONTINUE
+  loginSessions TestGroupLoginSession[]
+  items         TestGroupItem[]
+  sessions      RunSession[]
+  scheduleLinks ScheduleTestGroup[]
+  deletedAt     DateTime?
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+
+  @@index([projectId, updatedAt(sort: Desc)])
+}
+
+model TestGroupLoginSession {
+  id          String    @id @default(cuid())
+  testGroupId String
+  testGroup   TestGroup @relation(fields: [testGroupId], references: [id], onDelete: Cascade)
+  loginFlowId String
+  loginFlow   TestCase  @relation("TestGroupLoginSessionFlow", fields: [loginFlowId], references: [id], onDelete: Cascade)
+  name        String
+  position    Int
+
+  @@unique([testGroupId, loginFlowId])
+  @@index([testGroupId, position])
+  @@index([loginFlowId])
+}
+
+model TestGroupItem {
+  id          String    @id @default(cuid())
+  testGroupId String
+  testGroup   TestGroup @relation(fields: [testGroupId], references: [id], onDelete: Cascade)
+  testCaseId  String
+  testCase    TestCase  @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  position    Int
+
+  @@unique([testGroupId, testCaseId])
+  @@index([testGroupId, position])
 }
 
 model Schedule {
@@ -240,9 +328,20 @@ model Schedule {
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
   testCases       ScheduleTestCase[]
+  testGroups      ScheduleTestGroup[]
 
   @@index([enabled, nextRunAt])
   @@index([projectId])
+}
+
+model ScheduleTestGroup {
+  scheduleId  String
+  schedule    Schedule  @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  testGroupId String
+  testGroup   TestGroup @relation(fields: [testGroupId], references: [id], onDelete: Cascade)
+
+  @@id([scheduleId, testGroupId])
+  @@index([testGroupId])
 }
 
 model ScheduleTestCase {
@@ -273,7 +372,7 @@ model ProjectConfig {
   projectId String
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name      String
-  type      String   // URL | APP_ID | VARIABLE | RANDOM_STRING | FILE
+  type      String // URL | APP_ID | VARIABLE | RANDOM_STRING | FILE
   value     String
   masked    Boolean  @default(false)
   group     String?
@@ -305,7 +404,7 @@ model TestCaseConfig {
   testCaseId String
   testCase   TestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
   name       String
-  type       String   // URL | APP_ID | VARIABLE | RANDOM_STRING | FILE
+  type       String // URL | APP_ID | VARIABLE | RANDOM_STRING | FILE
   value      String
   masked     Boolean  @default(false)
   group      String?
@@ -320,23 +419,23 @@ model TestCaseConfig {
 }
 
 model Runner {
-  id              String       @id @default(cuid())
-  displayId       String
-  hostFingerprint String
-  teamId          String
-  team            Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  label           String
-  kind            String
-  capabilities    String[]     @default([])
-  protocolVersion String
-  runnerVersion   String
-  status          String       @default("ONLINE")
-  lastSeenAt      DateTime
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  tokens          RunnerToken[]
-  devices         RunnerDevice[]
-  assignedRuns    TestRun[]    @relation("AssignedRunnerRuns")
+  id                   String                @id @default(cuid())
+  displayId            String
+  hostFingerprint      String
+  teamId               String
+  team                 Team                  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  label                String
+  kind                 String
+  capabilities         String[]              @default([])
+  protocolVersion      String
+  runnerVersion        String
+  status               String                @default("ONLINE")
+  lastSeenAt           DateTime
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  tokens               RunnerToken[]
+  devices              RunnerDevice[]
+  assignedRuns         TestRun[]             @relation("AssignedRunnerRuns")
   androidResourceLocks AndroidResourceLock[]
 
   @@index([teamId, kind])

@@ -7,10 +7,12 @@ export interface TestRun {
 export interface TestCase {
     id: string;
     displayId?: string;
+    kind: 'TEST' | 'LOGIN_FLOW';
     status?: string;
     name: string;
     updatedAt: string;
     testRuns: TestRun[];
+    usedByCount?: number;
 }
 
 export interface ProjectPageProps {
@@ -26,5 +28,5 @@ export interface Project {
     canManageProject?: boolean;
 }
 
-export type ProjectTab = 'test-cases' | 'variables' | 'integration' | 'scheduler' | 'settings';
+export type ProjectTab = 'test-cases' | 'login-flows' | 'test-groups' | 'variables' | 'integration' | 'scheduler' | 'settings';
 export type SortColumn = 'id' | 'name' | 'status' | 'updated';

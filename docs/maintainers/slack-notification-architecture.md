@@ -2,10 +2,24 @@
 
 ## Scope
 
-SkyTest can post Slack messages when a project run reaches terminal status based on project configuration:
+SkyTest posts Slack messages when a project run reaches terminal status. Individual per-case
+notifications and test group notifications are controlled independently; both post to the single
+project channel (`slackChannelId`).
 
+Per-case notifications (`slackNotifyOn`):
+
+- `OFF`: never notify for individual runs (e.g. a test-group-only setup)
 - `FAILED_ONLY`: notify only on `FAIL`
 - `BOTH_PASSED_AND_FAILED`: notify on both `PASS` and `FAIL`
+
+Test group notifications (`slackGroupNotifyEnabled`): when enabled, a GROUP run posts one summary
+message on any non-cancelled terminal status and the per-case messages of its members are
+suppressed. Cancelled/stopped runs never notify.
+
+`slackEnabled` is the derived master flag (`slackNotifyOn !== OFF || slackGroupNotifyEnabled`); it
+is computed on save, not a separate UI control. Each scope has its own message template:
+`slackFailureTemplate` / `slackSuccessTemplate` (per-case) and `slackGroupFailureTemplate` /
+`slackGroupSuccessTemplate` (group).
 
 ## Trigger Paths
 
@@ -45,8 +59,11 @@ There are no Slack-specific environment variables in runtime configuration.
 3. Render template safely (`&`, `<`, `>` escaped in runtime values).
 4. Post via Slack API.
 5. Respect project notify mode:
+   - skip entirely when mode is `OFF`
    - skip `PASS` when mode is `FAILED_ONLY`
    - notify both `PASS`/`FAIL` when mode is `BOTH_PASSED_AND_FAILED`
+   - skip the per-case message for a GROUP member when `slackGroupNotifyEnabled` (the group
+     summary in `lib/integrations/slack/group-notifier.ts` covers it instead)
 6. Persist outcome:
    - success -> `slackNotifiedAt` set
    - retryable error -> claim cleared

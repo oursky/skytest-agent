@@ -17,6 +17,8 @@ import { formatSlackDateToken } from '@/lib/integrations/slack/message';
 import {
     DEFAULT_SLACK_FAILURE_TEMPLATE,
     DEFAULT_SLACK_SUCCESS_TEMPLATE,
+    DEFAULT_SLACK_GROUP_FAILURE_TEMPLATE,
+    DEFAULT_SLACK_GROUP_SUCCESS_TEMPLATE,
     rawSlack,
     renderTemplate,
 } from '@/lib/integrations/slack/template';
@@ -121,6 +123,8 @@ export async function POST(
                 slackChannelId: true,
                 slackFailureTemplate: true,
                 slackSuccessTemplate: true,
+                slackGroupFailureTemplate: true,
+                slackGroupSuccessTemplate: true,
                 team: {
                     select: {
                         slackBotTokenEncrypted: true,
@@ -151,35 +155,52 @@ export async function POST(
 
         const body = await request.json().catch(() => ({})) as {
             status?: string;
+            scope?: string;
         };
         const status = resolveStatus(body.status);
+        const passed = status === TEST_STATUS.PASS;
+        const isGroup = body.scope === 'group';
 
         const now = new Date();
         const startedAt = now;
         const completedAt = new Date(startedAt.getTime() + 42_000);
         const durationSeconds = Math.max(0, Math.floor((completedAt.getTime() - startedAt.getTime()) / 1000));
-        const testRunLink = `${new URL(request.url).origin}/test-cases/case-test-001/history/run_test_message`;
+        const origin = new URL(request.url).origin;
 
-        const fallbackTemplate = status === TEST_STATUS.PASS
-            ? DEFAULT_SLACK_SUCCESS_TEMPLATE
-            : DEFAULT_SLACK_FAILURE_TEMPLATE;
-        const selectedTemplate = status === TEST_STATUS.PASS
-            ? (project.slackSuccessTemplate ?? fallbackTemplate)
-            : (project.slackFailureTemplate ?? fallbackTemplate);
+        let selectedTemplate: string;
+        let fallbackTemplate: string;
+        let context: Parameters<typeof renderTemplate>[1];
 
-        const rendered = renderTemplate(selectedTemplate, {
-            projectName: project.name,
-            testCaseID: 'CASE-TEST-001',
-            testCaseName: 'Checkout flow',
-            testRunLink,
-            triggeredBy: 'test@example.com',
-            startedAt: rawSlack(formatSlackDateToken(startedAt)),
-            completedAt: rawSlack(formatSlackDateToken(completedAt)),
-            durationMinSec: formatDurationMinutesSeconds(durationSeconds),
-            errorSummary: 'Element not found',
-        }, {
-            fallbackTemplate,
-        });
+        if (isGroup) {
+            fallbackTemplate = passed ? DEFAULT_SLACK_GROUP_SUCCESS_TEMPLATE : DEFAULT_SLACK_GROUP_FAILURE_TEMPLATE;
+            selectedTemplate = (passed ? project.slackGroupSuccessTemplate : project.slackGroupFailureTemplate) ?? fallbackTemplate;
+            context = {
+                projectName: project.name,
+                groupName: 'GRP-TEST-001 Checkout suite',
+                passedCount: passed ? 3 : 2,
+                totalCount: 3,
+                runLink: `${origin}/test-groups/runs/run_test_message?projectId=project-test`,
+                triggeredBy: 'test@example.com',
+                startedAt: rawSlack(formatSlackDateToken(startedAt)),
+                completedAt: rawSlack(formatSlackDateToken(completedAt)),
+            };
+        } else {
+            fallbackTemplate = passed ? DEFAULT_SLACK_SUCCESS_TEMPLATE : DEFAULT_SLACK_FAILURE_TEMPLATE;
+            selectedTemplate = (passed ? project.slackSuccessTemplate : project.slackFailureTemplate) ?? fallbackTemplate;
+            context = {
+                projectName: project.name,
+                testCaseID: 'CASE-TEST-001',
+                testCaseName: 'Checkout flow',
+                testRunLink: `${origin}/test-cases/case-test-001/history/run_test_message`,
+                triggeredBy: 'test@example.com',
+                startedAt: rawSlack(formatSlackDateToken(startedAt)),
+                completedAt: rawSlack(formatSlackDateToken(completedAt)),
+                durationMinSec: formatDurationMinutesSeconds(durationSeconds),
+                errorSummary: 'Element not found',
+            };
+        }
+
+        const rendered = renderTemplate(selectedTemplate, context, { fallbackTemplate });
 
         const token = decrypt(project.team.slackBotTokenEncrypted);
         await sendTestMessageWithJoinFallback({

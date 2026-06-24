@@ -29,6 +29,13 @@ export async function listProjectSchedules(projectId: string): Promise<ScheduleR
                     },
                 },
             },
+            testGroups: {
+                select: {
+                    testGroup: {
+                        select: { id: true, name: true, displayId: true },
+                    },
+                },
+            },
         },
     });
 
@@ -59,6 +66,13 @@ export async function getProjectSchedule(projectId: string, scheduleId: string):
                             name: true,
                             status: true,
                         },
+                    },
+                },
+            },
+            testGroups: {
+                select: {
+                    testGroup: {
+                        select: { id: true, name: true, displayId: true },
                     },
                 },
             },
@@ -96,6 +110,9 @@ export async function createProjectSchedule(input: {
             testCases: {
                 create: prepared.testCaseIds.map((testCaseId) => ({ testCaseId })),
             },
+            testGroups: {
+                create: prepared.testGroupIds.map((testGroupId) => ({ testGroupId })),
+            },
         },
         include: {
             testCases: {
@@ -112,6 +129,13 @@ export async function createProjectSchedule(input: {
                             name: true,
                             status: true,
                         },
+                    },
+                },
+            },
+            testGroups: {
+                select: {
+                    testGroup: {
+                        select: { id: true, name: true, displayId: true },
                     },
                 },
             },
@@ -150,6 +174,9 @@ export async function updateProjectSchedule(input: {
         await tx.scheduleTestCase.deleteMany({
             where: { scheduleId: input.scheduleId },
         });
+        await tx.scheduleTestGroup.deleteMany({
+            where: { scheduleId: input.scheduleId },
+        });
 
         return tx.schedule.update({
             where: { id: input.scheduleId },
@@ -162,6 +189,9 @@ export async function updateProjectSchedule(input: {
                 nextRunAt: prepared.nextRunAt,
                 testCases: {
                     create: prepared.testCaseIds.map((testCaseId) => ({ testCaseId })),
+                },
+                testGroups: {
+                    create: prepared.testGroupIds.map((testGroupId) => ({ testGroupId })),
                 },
             },
             include: {
@@ -179,6 +209,13 @@ export async function updateProjectSchedule(input: {
                                 name: true,
                                 status: true,
                             },
+                        },
+                    },
+                },
+                testGroups: {
+                    select: {
+                        testGroup: {
+                            select: { id: true, name: true, displayId: true },
                         },
                     },
                 },
@@ -215,6 +252,7 @@ async function prepareScheduleMutation(input: {
     enabled: boolean;
     nextRunAt: Date | null;
     testCaseIds: string[];
+    testGroupIds: string[];
 }> {
     const description = input.body.description.trim();
     if (!description) {
@@ -230,8 +268,14 @@ async function prepareScheduleMutation(input: {
             .map((testCaseId) => testCaseId.trim())
             .filter(Boolean)
     )];
-    if (testCaseIds.length === 0) {
-        throw new SchedulerValidationError('At least one test case is required');
+    const testGroupIds = [...new Set(
+        (input.body.testGroupIds ?? [])
+            .filter((testGroupId): testGroupId is string => typeof testGroupId === 'string')
+            .map((testGroupId) => testGroupId.trim())
+            .filter(Boolean)
+    )];
+    if (testCaseIds.length === 0 && testGroupIds.length === 0) {
+        throw new SchedulerValidationError('At least one test case or test group is required');
     }
 
     const cronExpression = compileCron({
@@ -260,6 +304,16 @@ async function prepareScheduleMutation(input: {
         throw new SchedulerValidationError('One or more selected test cases do not belong to this project');
     }
 
+    if (testGroupIds.length > 0) {
+        const matchingTestGroups = await prisma.testGroup.findMany({
+            where: { projectId: input.projectId, id: { in: testGroupIds }, deletedAt: null },
+            select: { id: true },
+        });
+        if (matchingTestGroups.length !== testGroupIds.length) {
+            throw new SchedulerValidationError('One or more selected test groups do not belong to this project');
+        }
+    }
+
     return {
         description,
         timezone,
@@ -268,6 +322,7 @@ async function prepareScheduleMutation(input: {
         enabled,
         nextRunAt,
         testCaseIds,
+        testGroupIds,
     };
 }
 
@@ -335,6 +390,13 @@ function serializeScheduleRecord(schedule: {
             status: string;
         };
     }>;
+    testGroups: Array<{
+        testGroup: {
+            id: string;
+            name: string;
+            displayId: string | null;
+        };
+    }>;
 }, latestRuns: Map<string, LatestRunSummary>): ScheduleRecord {
     const fields = resolveSchedulePatternFields(schedule.patternType, schedule.cronExpression);
 
@@ -367,5 +429,10 @@ function serializeScheduleRecord(schedule: {
                 lastRunAt: latestRun?.at.toISOString() ?? null,
             };
         }),
+        testGroups: schedule.testGroups.map(({ testGroup }) => ({
+            id: testGroup.id,
+            displayId: testGroup.displayId,
+            name: testGroup.name,
+        })),
     };
 }

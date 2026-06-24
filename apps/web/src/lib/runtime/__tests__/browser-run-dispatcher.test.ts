@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BROWSER_EXECUTION_CAPABILITY } from '@/lib/runners/constants';
-import { RUN_IN_PROGRESS_STATUSES, TEST_STATUS } from '@/types';
+import { RUN_IN_PROGRESS_STATUSES, RUN_TERMINAL_STATUSES, TEST_STATUS } from '@/types';
 
 const { queryRaw, startLocalBrowserRun, hasLocalBrowserRunCapacity, getActiveLocalBrowserRunCount, getMaxLocalBrowserRunCount } = vi.hoisted(() => ({
     queryRaw: vi.fn(),
@@ -91,6 +91,19 @@ describe('browser-run-dispatcher', () => {
         expect(query.values).toEqual(expect.arrayContaining([...RUN_IN_PROGRESS_STATUSES]));
         const queuedValueCount = query.values.filter((value: unknown) => value === TEST_STATUS.QUEUED).length;
         expect(queuedValueCount).toBe(1);
+    });
+
+    it('excludes session members whose session already has a terminal member so a partial session cannot restart', async () => {
+        queryRaw.mockResolvedValueOnce([{ id: 'run-browser-4' }]);
+
+        const dispatched = await dispatchNextQueuedBrowserRun();
+
+        expect(dispatched).toBe(true);
+        const [query] = queryRaw.mock.calls[0];
+        const sql = query.strings.join('');
+        expect(sql).toContain('NOT EXISTS');
+        expect(sql).toContain('settledMember."runSessionId" = tr."runSessionId"');
+        expect(query.values).toEqual(expect.arrayContaining([...RUN_TERMINAL_STATUSES]));
     });
 
     it('skips dispatch when local pod capacity is full', async () => {

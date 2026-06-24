@@ -46,6 +46,7 @@ exports[`mcp manifest compatibility > keeps tool registration names and input sc
       "include",
       "limit",
       "projectId",
+      "runSessionId",
       "status",
       "testCaseId",
       "to",
@@ -125,11 +126,35 @@ exports[`mcp manifest compatibility > keeps tool registration names and input sc
     "name": "get_test_run",
   },
   {
-    "description": "Get status breakdown of all test cases in a project",
+    "description": "Get status and kind breakdown of all test cases in a project",
     "inputKeys": [
       "projectId",
     ],
     "name": "get_project_test_summary",
+  },
+  {
+    "description": "Queue a test group run session: each login flow runs first to establish a reusable session, then the group's test cases run in order.",
+    "inputKeys": [
+      "projectId",
+      "testGroupId",
+    ],
+    "name": "run_test_group",
+  },
+  {
+    "description": "Get a run session's rolled-up status and each member run's status. Use this (not get_test_run on a single member) to tell whether a whole group/login-flow run settled.",
+    "inputKeys": [
+      "runSessionId",
+    ],
+    "name": "get_run_session",
+  },
+  {
+    "description": "List a project's run sessions (most recent first), optionally scoped to one test group.",
+    "inputKeys": [
+      "limit",
+      "projectId",
+      "testGroupId",
+    ],
+    "name": "list_run_sessions",
   },
 ]
 `;

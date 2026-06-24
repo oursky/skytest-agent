@@ -15,6 +15,9 @@ interface ProjectTestCasesToolbarProps {
     isBatchImportProcessing: boolean;
     isExportingSelected: boolean;
     selectedCount: number;
+    createHref?: string;
+    createLabel?: string;
+    showImportExport?: boolean;
     t: (key: string) => string;
 }
 
@@ -52,8 +55,13 @@ export default function ProjectTestCasesToolbar({
     isBatchImportProcessing,
     isExportingSelected,
     selectedCount,
+    createHref = `/run?projectId=${projectId}`,
+    createLabel,
+    showImportExport = true,
     t,
 }: ProjectTestCasesToolbarProps) {
+    const effectiveCreateLabel = createLabel ?? t('project.startNewRun');
+
     return (
         <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="hidden items-center gap-2 sm:relative sm:flex">
@@ -73,39 +81,43 @@ export default function ProjectTestCasesToolbar({
             </div>
 
             <div className="hidden items-center gap-2 sm:flex">
-                <Button
-                    type="button"
-                    onClick={onOpenBatchImport}
-                    disabled={isBatchImportProcessing}
-                    variant="secondary"
-                    size="sm"
-                    className="gap-2"
-                    title={t('project.batchImport.button')}
-                >
-                    <ActionIcon path="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                    <span className="hidden md:inline">{t('project.batchImport.button')}</span>
-                </Button>
+                {showImportExport && (
+                    <>
+                        <Button
+                            type="button"
+                            onClick={onOpenBatchImport}
+                            disabled={isBatchImportProcessing}
+                            variant="secondary"
+                            size="sm"
+                            className="gap-2"
+                            title={t('project.batchImport.button')}
+                        >
+                            <ActionIcon path="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                            <span className="hidden md:inline">{t('project.batchImport.button')}</span>
+                        </Button>
 
-                <Button
-                    type="button"
-                    onClick={onExportSelected}
-                    disabled={selectedCount === 0 || isExportingSelected}
-                    variant="secondary"
-                    size="sm"
-                    className="gap-2"
-                    title={t('project.exportSelected')}
-                >
-                    <ActionIcon path="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    <span className="hidden md:inline">{t('project.exportSelected')}</span>
-                </Button>
+                        <Button
+                            type="button"
+                            onClick={onExportSelected}
+                            disabled={selectedCount === 0 || isExportingSelected}
+                            variant="secondary"
+                            size="sm"
+                            className="gap-2"
+                            title={t('project.exportSelected')}
+                        >
+                            <ActionIcon path="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            <span className="hidden md:inline">{t('project.exportSelected')}</span>
+                        </Button>
+                    </>
+                )}
 
                 <Link
-                    href={`/run?projectId=${projectId}`}
+                    href={createHref}
                     className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-white transition-colors hover:bg-primary/90"
-                    title={t('project.startNewRun')}
+                    title={effectiveCreateLabel}
                 >
                     <ActionIcon path="M12 4v16m8-8H4" />
-                    <span className="hidden md:inline">{t('project.startNewRun')}</span>
+                    <span className="hidden md:inline">{effectiveCreateLabel}</span>
                 </Link>
             </div>
 
@@ -127,34 +139,38 @@ export default function ProjectTestCasesToolbar({
                 </div>
 
                 <div className="flex gap-2">
-                    <Button
-                        type="button"
-                        onClick={onOpenBatchImport}
-                        disabled={isBatchImportProcessing}
-                        variant="secondary"
-                        size="sm"
-                        className="flex-1 justify-center gap-2"
-                    >
-                        <ActionIcon path="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                        {t('project.batchImport.button')}
-                    </Button>
-                    <Button
-                        type="button"
-                        onClick={onExportSelected}
-                        disabled={selectedCount === 0 || isExportingSelected}
-                        variant="secondary"
-                        size="sm"
-                        className="flex-1 justify-center gap-2"
-                    >
-                        <ActionIcon path="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        {t('project.exportSelected')}
-                    </Button>
+                    {showImportExport && (
+                        <>
+                            <Button
+                                type="button"
+                                onClick={onOpenBatchImport}
+                                disabled={isBatchImportProcessing}
+                                variant="secondary"
+                                size="sm"
+                                className="flex-1 justify-center gap-2"
+                            >
+                                <ActionIcon path="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                {t('project.batchImport.button')}
+                            </Button>
+                            <Button
+                                type="button"
+                                onClick={onExportSelected}
+                                disabled={selectedCount === 0 || isExportingSelected}
+                                variant="secondary"
+                                size="sm"
+                                className="flex-1 justify-center gap-2"
+                            >
+                                <ActionIcon path="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                {t('project.exportSelected')}
+                            </Button>
+                        </>
+                    )}
                     <Link
-                        href={`/run?projectId=${projectId}`}
+                        href={createHref}
                         className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-white transition-colors hover:bg-primary/90"
                     >
                         <ActionIcon path="M12 4v16m8-8H4" />
-                        {t('project.startNewRun')}
+                        {effectiveCreateLabel}
                     </Link>
                 </div>
             </div>

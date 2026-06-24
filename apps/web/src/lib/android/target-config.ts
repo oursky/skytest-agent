@@ -31,7 +31,7 @@ export function normalizeAndroidDeviceSelector(selector: AndroidDeviceSelector):
 }
 
 export function isAndroidTargetConfig(config: BrowserConfig | TargetConfig): config is AndroidTargetConfig {
-    return 'type' in config && config.type === 'android';
+    return typeof config === 'object' && config !== null && 'type' in config && config.type === 'android';
 }
 
 export function getAndroidDeviceSelectorResourceKey(selector: AndroidDeviceSelector): string {

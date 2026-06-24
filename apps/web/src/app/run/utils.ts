@@ -7,8 +7,10 @@ import {
     type TestEvent,
     type TestFailureCategory,
     type TestFailureCode,
+    type LoginFlowPrefixInfo,
     type TestStep,
     type TargetConfig,
+    type TestCaseKind,
 } from '@/types';
 
 export type RunViewerStatus = RunActiveStatus | RunTerminalStatus;
@@ -19,6 +21,7 @@ export interface RunViewerResult {
     error?: string;
     errorCode?: TestFailureCode;
     errorCategory?: TestFailureCategory;
+    loginFlowPrefixes?: LoginFlowPrefixInfo[];
 }
 
 export interface RunDetailSnapshot {
@@ -27,6 +30,7 @@ export interface RunDetailSnapshot {
     error?: string | null;
     errorCode?: TestFailureCode | null;
     errorCategory?: TestFailureCategory | null;
+    loginFlowPrefixes?: LoginFlowPrefixInfo[] | null;
 }
 
 export interface RunStreamStatusUpdate {
@@ -58,6 +62,37 @@ function firstDefined<T>(...values: Array<T | undefined>): T | undefined {
         }
     }
     return undefined;
+}
+
+export interface RunPageView {
+    kind: TestCaseKind;
+    isLoginFlow: boolean;
+    breadcrumbLabel: string;
+    headerTitle: string;
+    headerSubtitle?: string;
+}
+
+export function buildRunPageView(
+    kind: TestCaseKind,
+    hasTestCase: boolean,
+    t: (key: string) => string,
+): RunPageView {
+    const isLoginFlow = kind === 'LOGIN_FLOW';
+    if (isLoginFlow) {
+        return {
+            kind,
+            isLoginFlow,
+            breadcrumbLabel: hasTestCase ? t('run.breadcrumb.editLoginFlow') : t('run.breadcrumb.newLoginFlow'),
+            headerTitle: hasTestCase ? t('run.title.editLoginFlow') : t('run.title.newLoginFlow'),
+            headerSubtitle: t('run.subtitle.loginFlow'),
+        };
+    }
+    return {
+        kind,
+        isLoginFlow,
+        breadcrumbLabel: hasTestCase ? t('run.breadcrumb.runTest') : t('run.breadcrumb.newRun'),
+        headerTitle: hasTestCase ? t('run.title.runTest') : t('run.title.startNewRun'),
+    };
 }
 
 export function mergeRunFormData(input: {
@@ -113,6 +148,7 @@ export function runDetailSnapshotToResult(snapshot: RunDetailSnapshot): RunViewe
         error: snapshot.error ?? undefined,
         errorCode: snapshot.errorCode ?? undefined,
         errorCategory: snapshot.errorCategory ?? undefined,
+        loginFlowPrefixes: snapshot.loginFlowPrefixes ?? undefined,
     };
 }
 

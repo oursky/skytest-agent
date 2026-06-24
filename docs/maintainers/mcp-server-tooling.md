@@ -19,6 +19,20 @@ This document defines SkyTest MCP tool behavior for maintainers.
   - `Authorization: Bearer <AGENT_API_KEY>`
   - `X-SkyTest-Api-Key: <AGENT_API_KEY>`
 
+## Run Session Model
+
+A run is one **member** of a **run session**, not a standalone unit:
+
+- A test case can declare login-flow prefixes (browser targets with a `loginFlowId`). `run_test_case` creates a SINGLE run session whose members are each login-flow prefix (`kind = LOGIN_FLOW`) followed by the test itself (`kind = TEST`). The returned `runId` is the test member.
+- A test group runs as a GROUP session: one member per configured login flow, then each group test case in order.
+- A member that never runs (an earlier member failed, a login flow failed, the run was stopped) settles `CANCELLED` with a reason — there is no `SKIPPED` status.
+
+So a single member reaching `PASS` does **not** mean the whole session finished. Read the rolled-up session status via `get_run_session` (or the `session` field on `get_test_run`) to know whether everything settled.
+
+### Test case kind
+
+`TestCase.kind` is `TEST` or `LOGIN_FLOW`. A `LOGIN_FLOW` case is a reusable login flow; other cases reuse it by setting `loginFlowId` on a browser target. A grouped case's kind cannot be flipped while it is referenced by a test group (the test-case update route rejects it).
+
 ## Tool Contracts
 
 ### list_projects
@@ -36,7 +50,7 @@ This document defines SkyTest MCP tool behavior for maintainers.
 
 - Input: `{ projectId, status?, limit? }`
 - Returns test cases matching the filter (default limit 50, max 100).
-- Fields returned: `id`, `displayId`, `status`, `name`, `source`, `updatedAt`.
+- Fields returned: `id`, `displayId`, `status`, `kind`, `name`, `source`, `updatedAt`.
 
 ### get_test_case
 
@@ -47,6 +61,8 @@ This document defines SkyTest MCP tool behavior for maintainers.
 
 - Input: `{ projectId, testCase }`
 - Creates exactly one test case per call.
+- Optional `testCase.kind` (`TEST` | `LOGIN_FLOW`, default `TEST`). Use `LOGIN_FLOW` to author a reusable login flow; other cases reference it by setting `loginFlowId` on a browser target in `browserConfig`/`browserTargets`.
+- `update_test_case` does not change `kind` (kind is fixed at creation; this also prevents flipping a grouped case's kind out from under its group wiring).
 - Accepted config types: `URL`, `VARIABLE`, `RANDOM_STRING`, `APP_ID`.
 - `RANDOM_STRING` configs require one of: `TIMESTAMP_DATETIME`, `TIMESTAMP_UNIX`, `UUID`. Invalid values are skipped with a warning.
 - `FILE` variables are rejected with a warning (MCP cannot upload file content).
@@ -95,12 +111,14 @@ This document defines SkyTest MCP tool behavior for maintainers.
 ### get_test_run
 
 - Input: `{ runId }`
-- Returns: `id`, `status`, `error`, `startedAt`, `completedAt`, `createdAt`.
+- Returns: `id`, `status`, `error`, `cancellationReasonCode`, `startedAt`, `completedAt`, `createdAt`, `kind`, `runSessionId`, `sessionPosition`, and `session` (`{ id, status, kind }` — the rolled-up run session, or `null` for a run with no session).
+- `cancellationReasonCode` is a stable code (e.g. `USER_SINGLE`, `LOGIN_FLOW_FAILED`) for `CANCELLED` runs, else `null`.
+- Prefer the `session.status` (or `get_run_session`) to decide whether the whole run finished; the member `status` only reflects this one member.
 
 ### get_project_test_summary
 
 - Input: `{ projectId }`
-- Returns: `total` test case count and `byStatus` breakdown.
+- Returns: `total` test case count, `byStatus` breakdown, and `byKind` breakdown (`TEST` vs `LOGIN_FLOW`).
 
 ### run_test_case
 
@@ -115,12 +133,33 @@ This document defines SkyTest MCP tool behavior for maintainers.
   - `requestedRunnerId` must match Android target runner scopes when runner scopes are present.
   - When Android targets contain multiple runner scope IDs and no `requestedRunnerId` override is provided, run queuing is rejected as ambiguous.
   - Auto-inference of `requestedDeviceId`/`requestedRunnerId` is applied only when the resolved target value is unique across Android targets.
+- Creates a SINGLE run session and queues its members (login-flow prefixes + the test). The returned `runId` is the test member; use `get_run_session` on its `runSessionId` to watch the whole session.
 - Uses durable queue path and returns: `runId`, `status`, `requiredCapability`, `requestedDeviceId`, `requestedRunnerId`.
+
+### run_test_group
+
+- Input: `{ projectId, testGroupId }`
+- Queues a GROUP run session: each configured login flow runs first (establishing a reusable baseline), then the group's test cases run in order.
+- Rejected with `409` if the group already has a run in progress, `404` if the group is missing/soft-deleted, `400` if it has no test cases.
+- Returns: `{ sessionId }`. Watch it with `get_run_session`.
+
+### get_run_session
+
+- Input: `{ runSessionId }`
+- Returns the session's rolled-up `status` and `kind`, `testGroupId`, timestamps, and a `members` array (each member's `id`, `testCaseId`, `kind`, `sessionPosition`, `status`, `error`, `cancellationReasonCode`).
+- Use this (not `get_test_run` on a single member) to tell whether a whole group/login-flow run settled.
+
+### list_run_sessions
+
+- Input: `{ projectId, testGroupId?, limit? }` (default limit 20, max 50)
+- Returns a project's run sessions, most recent first, optionally scoped to one test group. Each entry: `id`, `kind`, `status`, `testGroupId`, `memberCount`, timestamps.
 
 ### list_test_runs
 
-- Input: `{ projectId?, testCaseId?, status?, from?, to?, limit?, cursor?, include? }`
+- Input: `{ projectId?, testCaseId?, runSessionId?, status?, from?, to?, limit?, cursor?, include? }`
 - Returns paginated runs visible to the authenticated user (`deletedAt IS NULL`).
+- Each run includes `kind`, `runSessionId`, `sessionPosition`, and `cancellationReasonCode` (stable code for `CANCELLED` runs, else `null`) alongside the existing fields. Login-flow prefix members appear as their own runs labeled by `kind`/`runSessionId`.
+- `runSessionId` filters to all members of one run session.
 - `include` supports:
   - `events`: per-run event list (up to 100 events per run).
   - `artifacts`: run file snapshots and event artifact keys with signed URLs when available.

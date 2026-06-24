@@ -8,7 +8,8 @@ const repoRoot = path.resolve(workspaceRoot, '../..');
 const lockfilePath = path.resolve(repoRoot, 'package-lock.json');
 
 const FLOORS = {
-    'js-yaml': '4.1.1',
+    // GHSA-h67p-54hq-rp68 (merge-key quadratic DoS, patched in 4.2.0)
+    'js-yaml': '4.2.0',
     '@modelcontextprotocol/sdk': '1.26.0',
     // GHSA-v6h2-p8h4-qcjw
     'brace-expansion': '5.0.6',
@@ -19,14 +20,27 @@ const FLOORS = {
     '@xmldom/xmldom': '0.8.13',
     // GHSA-w5hq-g745-h8pq
     'uuid': '14.0.0',
-    // GHSA-xrhx-7g5j-rcj5, GHSA-3hrh-pfw6-9m5x, GHSA-f577-qrjj-4474, GHSA-2gcr-mfcq-wcc3
-    'hono': '4.12.21',
+    // GHSA-xrhx-7g5j-rcj5, GHSA-3hrh-pfw6-9m5x, GHSA-f577-qrjj-4474, GHSA-2gcr-mfcq-wcc3,
+    // plus CORS wildcard-credentials (GHSA-88fw-hqm2-52qc) patched in 4.12.25
+    'hono': '4.12.25',
     // GHSA-q8mj-m7cp-5q26
     'qs': '6.15.2',
     // GHSA-ph9p-34f9-6g65
     'tmp': '0.2.6',
     // GHSA-5xrq-8626-4rwp
     'vitest': '4.1.0',
+    // undici Set-Cookie/header-injection + WebSocket DoS chain, patched in 6.27.0
+    'undici': '6.27.0',
+    // GHSA-96hv-2xvq-fx4p (memory-exhaustion DoS from tiny fragments/chunks), patched in 8.21.0
+    'ws': '8.21.0',
+    // DOMPurify IN_PLACE / hook-pollution / template-bypass chain, patched in 3.4.11
+    'dompurify': '3.4.11',
+    // GHSA-hmw2-7cc7-3qxx (form-data multipart CRLF injection), patched in 4.0.6
+    'form-data': '4.0.6',
+    // GHSA-fx2h-pf6j-xcff (server.fs.deny bypass) + launch-editor UNC disclosure, patched in 7.3.5
+    'vite': '7.3.5',
+    // GHSA-g7r4-m6w7-qqqr (dev-server arbitrary file read on Windows), patched in 0.28.1
+    'esbuild': '0.28.1',
 };
 
 function parseSemver(version) {

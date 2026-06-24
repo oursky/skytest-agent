@@ -119,6 +119,17 @@ export default function ProjectSchedulesPanel({
                                     setIsSaving(false);
                                 }
                             }}
+                            onToggleEnabled={async (enabled) => {
+                                setIsSaving(true);
+                                try {
+                                    await updateSchedule(schedule.id, {
+                                        ...scheduleToUpsertInput(schedule),
+                                        enabled,
+                                    });
+                                } finally {
+                                    setIsSaving(false);
+                                }
+                            }}
                         />
                     ) : (
                         <ScheduleReadRow

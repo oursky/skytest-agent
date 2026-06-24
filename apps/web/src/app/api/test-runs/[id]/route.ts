@@ -3,12 +3,13 @@ import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
 import { isTestEvent } from '@/lib/runtime/test-events';
 import { objectStore } from '@/lib/storage/object-store';
-import { isRunActiveStatus, isScreenshotData, type TestEvent, type LogLevel } from '@/types';
+import { isRunActiveStatus, isScreenshotData, TEST_CASE_KIND, type TestEvent, type LogLevel, type BrowserConfig, type TargetConfig, type TestStep, type LoginFlowPrefixInfo } from '@/types';
 import { parseTestResultMetadata } from '@/lib/runtime/test-result-metadata';
 import { loadMaskedVariableValuesForTestCase } from '@/lib/runtime/masked-variables';
 import { createExactValueMasker, maskEventForViewer, maskNullableText } from '@/lib/runtime/log-masking';
 import { guardTestRunRouteRequest } from '@/lib/security/test-run-route-access';
 import { apiError } from '@/lib/security/api-route-standards';
+import { parseSerializedJson } from '@/lib/runtime/local-browser-runner-parsers';
 
 const logger = createLogger('api:test-runs:id');
 
@@ -160,9 +161,32 @@ export async function GET(
         );
         const resultMetadata = parseTestResultMetadata(testRun.result);
 
+        // Login-flow prefixes that run before this test in the same session. Surfaced so
+        // a QUEUED test reads as "waiting for its login flow(s)" rather than just queued.
+        let loginFlowPrefixes: LoginFlowPrefixInfo[] = [];
+        if (testRun.runSessionId && testRun.sessionPosition != null) {
+            const prefixRuns = await prisma.testRun.findMany({
+                where: {
+                    runSessionId: testRun.runSessionId,
+                    kind: TEST_CASE_KIND.LOGIN_FLOW,
+                    sessionPosition: { lt: testRun.sessionPosition },
+                },
+                orderBy: { sessionPosition: 'asc' },
+                select: { id: true, status: true, testCaseId: true, testCase: { select: { displayId: true, name: true } } },
+            });
+            loginFlowPrefixes = prefixRuns.map((prefix) => ({
+                runId: prefix.id,
+                testCaseId: prefix.testCaseId,
+                displayId: prefix.testCase.displayId,
+                name: prefix.testCase.name,
+                status: prefix.status,
+            }));
+        }
+
         return NextResponse.json({
             id: testRun.id,
             status: testRun.status,
+            loginFlowPrefixes,
             result: maskNullableText(testRun.result, maskText),
             logs: maskNullableText(testRun.logs, maskText),
             error: maskNullableText(testRun.error, maskText),
@@ -178,8 +202,8 @@ export async function GET(
             testCaseName: testRun.testCase.name,
             testCaseUrl: testRun.testCase.url,
             testCasePrompt: testRun.testCase.prompt,
-            testCaseSteps: testRun.testCase.steps,
-            testCaseBrowserConfig: testRun.testCase.browserConfig,
+            testCaseSteps: parseSerializedJson<TestStep[]>(testRun.testCase.steps),
+            testCaseBrowserConfig: parseSerializedJson<Record<string, BrowserConfig | TargetConfig>>(testRun.testCase.browserConfig),
             projectId: testRun.testCase.projectId,
             projectName: testRun.testCase.project.name,
             projectTeamId: testRun.testCase.project.teamId,

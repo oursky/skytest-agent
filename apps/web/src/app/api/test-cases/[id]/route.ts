@@ -6,14 +6,19 @@ import { apiError } from '@/lib/security/api-route-standards';
 import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
 import { parseTestCaseJson, cleanStepsForStorage, normalizeTargetConfigMap } from '@/lib/runtime/test-case-utils';
-import { BrowserConfig, TargetConfig, TEST_STATUS } from '@/types';
+import { BrowserConfig, TargetConfig, TEST_CASE_KIND, TEST_STATUS, type TestCaseKind } from '@/types';
 import { deleteObjectIfExists } from '@/lib/storage/object-store-utils';
 import { guardTestCaseRouteRequest } from '@/lib/security/test-case-route-access';
 import { loadTestCatalog } from '@/lib/test-cases/catalog-loader';
+import { validateLoginFlowReferences } from '@/lib/test-cases/login-flow-access';
 import { writeCatalogCaseFile } from '@/lib/test-cases/catalog-writeback';
 import { resolveRuntimeRootFromSourcePath } from '@/lib/test-cases/source-path-utils';
 
 const logger = createLogger('api:test-cases:id');
+
+function parseTestCaseKind(value: string | null | undefined): TestCaseKind {
+    return value === TEST_CASE_KIND.LOGIN_FLOW ? TEST_CASE_KIND.LOGIN_FLOW : TEST_CASE_KIND.TEST;
+}
 
 function hashSourceDocument(content: string): string {
     return createHash('sha256').update(content).digest('hex');
@@ -80,13 +85,14 @@ export async function PUT(
     try {
         const { testCaseId: id } = guard;
         const body = await request.json();
-        const { name, url, prompt, steps, browserConfig, displayId, preserveStatus, expectedHash } = body as {
+        const { name, url, prompt, steps, browserConfig, displayId, kind: rawKind, preserveStatus, expectedHash } = body as {
             name?: string;
             url?: string;
             prompt?: string;
             steps?: unknown;
             browserConfig?: unknown;
             displayId?: string;
+            kind?: string;
             preserveStatus?: boolean;
             expectedHash?: string;
         };
@@ -99,7 +105,8 @@ export async function PUT(
                 configs: {
                     where: { type: 'FILE' },
                     select: { value: true }
-                }
+                },
+                _count: { select: { testGroupItems: true, testGroupLoginSessions: true } }
             }
         });
 
@@ -117,6 +124,31 @@ export async function PUT(
         const normalizedBrowserConfig = hasBrowserConfig
             ? normalizeTargetConfigMap(browserConfig as Record<string, BrowserConfig | TargetConfig>)
             : undefined;
+        const resolvedKind = parseTestCaseKind(rawKind ?? existingTestCase.kind);
+
+        // A test group references a TEST as an item and a LOGIN_FLOW as a login session;
+        // flipping the kind out from under that wiring would let queueTestGroupRun enqueue
+        // the case as the wrong member type. Reject the flip while the case is still grouped.
+        if (resolvedKind !== existingTestCase.kind
+            && (existingTestCase._count.testGroupItems > 0 || existingTestCase._count.testGroupLoginSessions > 0)) {
+            return apiError({
+                status: 409,
+                code: 'CONFLICT',
+                error: 'Cannot change the kind of a test case that belongs to a test group. Remove it from its group(s) first.',
+            });
+        }
+
+        if (normalizedBrowserConfig) {
+            const loginFlowValidation = await validateLoginFlowReferences({
+                projectId: existingTestCase.projectId,
+                hostKind: resolvedKind,
+                testCaseId: id,
+                browserConfig: normalizedBrowserConfig,
+            });
+            if (!loginFlowValidation.ok) {
+                return apiError({ status: 400, code: 'VALIDATION_ERROR', error: loginFlowValidation.error });
+            }
+        }
 
         const updateData: Record<string, unknown> = {
             name,
@@ -125,6 +157,7 @@ export async function PUT(
             steps: cleanedSteps ? JSON.stringify(cleanedSteps) : undefined,
             browserConfig: normalizedBrowserConfig ? JSON.stringify(normalizedBrowserConfig) : undefined,
             displayId: normalizedDisplayId,
+            kind: resolvedKind,
         };
 
         if (preserveStatus !== true) {

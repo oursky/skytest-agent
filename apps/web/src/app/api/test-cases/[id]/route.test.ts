@@ -78,10 +78,12 @@ describe('PUT /api/test-cases/[id]', () => {
 
         mocks.prisma.testCase.findUnique.mockResolvedValue({
             id: testCaseId,
+            kind: 'TEST',
             source: sourcePath,
             sourceHash: 'db-hash',
             files: [],
             configs: [],
+            _count: { testGroupItems: 0, testGroupLoginSessions: 0 },
         });
 
         mocks.loadTestCatalog.mockResolvedValue({
@@ -176,10 +178,12 @@ describe('PUT /api/test-cases/[id]', () => {
     it('updates non-catalog source rows as DB-only and clears stale source metadata', async () => {
         mocks.prisma.testCase.findUnique.mockResolvedValueOnce({
             id: testCaseId,
+            kind: 'TEST',
             source: 'agent',
             sourceHash: 'bad-hash',
             files: [],
             configs: [],
+            _count: { testGroupItems: 0, testGroupLoginSessions: 0 },
         });
         mocks.prisma.testCase.update.mockResolvedValueOnce({
             id: testCaseId,

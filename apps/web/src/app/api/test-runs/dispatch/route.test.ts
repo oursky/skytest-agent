@@ -12,8 +12,15 @@ const mocks = vi.hoisted(() => ({
     projectConfigUpsert: vi.fn(),
     testCaseFileFindMany: vi.fn(),
     testRunCreate: vi.fn(),
+    createRunSession: vi.fn(),
+    resolveLoginFlowIds: vi.fn(),
     ensureRuntimeInstanceIdentity: vi.fn(),
     loadRuntimeConfigForCwd: vi.fn(),
+}));
+
+vi.mock('@/lib/runtime/run-session-service', () => ({
+    createRunSession: mocks.createRunSession,
+    resolveLoginFlowIds: mocks.resolveLoginFlowIds,
 }));
 
 vi.mock('@/lib/security/auth', () => ({
@@ -83,6 +90,10 @@ describe('POST /api/test-runs/dispatch', () => {
         mocks.projectConfigUpsert.mockReset();
         mocks.testCaseFileFindMany.mockReset();
         mocks.testRunCreate.mockReset();
+        mocks.createRunSession.mockReset();
+        mocks.createRunSession.mockResolvedValue('session-1');
+        mocks.resolveLoginFlowIds.mockReset();
+        mocks.resolveLoginFlowIds.mockResolvedValue([]);
         mocks.ensureRuntimeInstanceIdentity.mockReset();
         mocks.loadRuntimeConfigForCwd.mockReset();
 
@@ -162,9 +173,7 @@ describe('POST /api/test-runs/dispatch', () => {
     it('queues browser runs for worker pickup', async () => {
         const request = new Request('http://localhost/api/test-runs/dispatch', {
             method: 'POST',
-            headers: {
-                'content-type': 'application/json',
-            },
+            headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
                 testCaseId: 'tc-1',
                 url: 'https://example.com',
@@ -223,9 +232,7 @@ describe('POST /api/test-runs/dispatch', () => {
         });
         const request = new Request('http://localhost/api/test-runs/dispatch', {
             method: 'POST',
-            headers: {
-                'content-type': 'application/json',
-            },
+            headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
                 testCaseId: 'tc-1',
                 url: 'https://example.com',
@@ -319,9 +326,7 @@ describe('POST /api/test-runs/dispatch', () => {
 
         const request = new Request('http://localhost/api/test-runs/dispatch', {
             method: 'POST',
-            headers: {
-                'content-type': 'application/json',
-            },
+            headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
                 testCaseId: 'tc-1',
                 url: 'https://example.com',
@@ -374,9 +379,7 @@ describe('POST /api/test-runs/dispatch', () => {
 
         const request = new Request('http://localhost/api/test-runs/dispatch', {
             method: 'POST',
-            headers: {
-                'content-type': 'application/json',
-            },
+            headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
                 testCaseId: 'tc-1',
                 url: 'https://example.com',
@@ -401,9 +404,7 @@ describe('POST /api/test-runs/dispatch', () => {
 
         const request = new Request('http://localhost/api/test-runs/dispatch', {
             method: 'POST',
-            headers: {
-                'content-type': 'application/json',
-            },
+            headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
                 testCaseId: 'tc-1',
                 url: 'https://example.com',
@@ -459,9 +460,7 @@ describe('POST /api/test-runs/dispatch', () => {
 
         const request = new Request('http://localhost/api/test-runs/dispatch', {
             method: 'POST',
-            headers: {
-                'content-type': 'application/json',
-            },
+            headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
                 testCaseId: 'tc-1',
                 url: 'https://example.com',
@@ -478,9 +477,7 @@ describe('POST /api/test-runs/dispatch', () => {
     it('stores runtime instance metadata on queued runs', async () => {
         const request = new Request('http://localhost/api/test-runs/dispatch', {
             method: 'POST',
-            headers: {
-                'content-type': 'application/json',
-            },
+            headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
                 testCaseId: 'tc-1',
                 url: 'https://example.com',
@@ -504,9 +501,7 @@ describe('POST /api/test-runs/dispatch', () => {
     it('resolves URL placeholders before validating and queueing', async () => {
         const request = new Request('http://localhost/api/test-runs/dispatch', {
             method: 'POST',
-            headers: {
-                'content-type': 'application/json',
-            },
+            headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
                 testCaseId: 'tc-1',
                 url: '{{CMS}}',
@@ -538,9 +533,7 @@ describe('POST /api/test-runs/dispatch', () => {
     it('queues emulator-profile Android runs with deterministic requested device id', async () => {
         const request = new Request('http://localhost/api/test-runs/dispatch', {
             method: 'POST',
-            headers: {
-                'content-type': 'application/json',
-            },
+            headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
                 testCaseId: 'tc-1',
                 steps: [{ id: 'step-1', target: 'android_a', action: 'Open app', type: 'ai-action' }],
@@ -584,9 +577,7 @@ describe('POST /api/test-runs/dispatch', () => {
     it('infers requestedRunnerId from Android target runnerScope when override is omitted', async () => {
         const request = new Request('http://localhost/api/test-runs/dispatch', {
             method: 'POST',
-            headers: {
-                'content-type': 'application/json',
-            },
+            headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
                 testCaseId: 'tc-1',
                 steps: [{ id: 'step-1', target: 'android_a', action: 'Open app', type: 'ai-action' }],
@@ -627,9 +618,7 @@ describe('POST /api/test-runs/dispatch', () => {
     it('rejects Android runs when multiple selectors prevent requestedDeviceId resolution', async () => {
         const request = new Request('http://localhost/api/test-runs/dispatch', {
             method: 'POST',
-            headers: {
-                'content-type': 'application/json',
-            },
+            headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
                 testCaseId: 'tc-1',
                 steps: [{ id: 'step-1', target: 'android_a', action: 'Open app', type: 'ai-action' }],
@@ -680,9 +669,7 @@ describe('POST /api/test-runs/dispatch', () => {
     it('rejects Android targets with ambiguous runner scope inference', async () => {
         const request = new Request('http://localhost/api/test-runs/dispatch', {
             method: 'POST',
-            headers: {
-                'content-type': 'application/json',
-            },
+            headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
                 testCaseId: 'tc-1',
                 steps: [{ id: 'step-1', target: 'android_a', action: 'Open app', type: 'ai-action' }],
@@ -732,9 +719,7 @@ describe('POST /api/test-runs/dispatch', () => {
     it('rejects requestedDeviceId that does not match Android target selectors', async () => {
         const request = new Request('http://localhost/api/test-runs/dispatch', {
             method: 'POST',
-            headers: {
-                'content-type': 'application/json',
-            },
+            headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
                 testCaseId: 'tc-1',
                 steps: [{ id: 'step-1', target: 'android_a', action: 'Open app', type: 'ai-action' }],
@@ -768,9 +753,7 @@ describe('POST /api/test-runs/dispatch', () => {
     it('rejects requestedRunnerId when runner-device pair is not available', async () => {
         const request = new Request('http://localhost/api/test-runs/dispatch', {
             method: 'POST',
-            headers: {
-                'content-type': 'application/json',
-            },
+            headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
                 testCaseId: 'tc-1',
                 steps: [{ id: 'step-1', target: 'android_a', action: 'Open app', type: 'ai-action' }],
@@ -805,9 +788,7 @@ describe('POST /api/test-runs/dispatch', () => {
     it('rejects requestedRunnerId override that conflicts with Android target runnerScope', async () => {
         const request = new Request('http://localhost/api/test-runs/dispatch', {
             method: 'POST',
-            headers: {
-                'content-type': 'application/json',
-            },
+            headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
                 testCaseId: 'tc-1',
                 steps: [{ id: 'step-1', target: 'android_a', action: 'Open app', type: 'ai-action' }],
@@ -878,9 +859,7 @@ describe('POST /api/test-runs/dispatch', () => {
 
         const request = new Request('http://localhost/api/test-runs/dispatch', {
             method: 'POST',
-            headers: {
-                'content-type': 'application/json',
-            },
+            headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
                 testCaseId: 'tc-1',
                 url: 'https://example.com',

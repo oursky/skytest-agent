@@ -31,6 +31,7 @@ interface ConfigurationsSectionProps {
     onTestCaseConfigsChange: (testCaseId?: string) => void;
     onEnsureTestCaseId?: () => Promise<string | null>;
     readOnly?: boolean;
+    isLoginFlow?: boolean;
     browsers: BrowserEntry[];
     setBrowsers: (browsers: BrowserEntry[]) => void;
 }
@@ -60,6 +61,7 @@ export default function ConfigurationsSection({
     onTestCaseConfigsChange,
     onEnsureTestCaseId,
     readOnly,
+    isLoginFlow,
     browsers,
     setBrowsers,
 }: ConfigurationsSectionProps) {
@@ -439,7 +441,9 @@ export default function ConfigurationsSection({
 
         <TargetConfigurationsPanel
             readOnly={readOnly}
+            isLoginFlow={isLoginFlow}
             projectId={projectId}
+            currentTestCaseId={testCaseId}
             browsers={browsers}
             androidDeviceOptions={androidDeviceOptions}
             urlConfigs={urlConfigs}

@@ -9,10 +9,14 @@ import {
     isSameAndroidDeviceSelector,
 } from '../model/device-utils';
 import type { BrowserEntry } from '../model/types';
+import LoginFlowSelect from './LoginFlowSelect';
+import { InfoHint } from '@/components/shared';
 
 interface TargetConfigurationsPanelProps {
     readOnly?: boolean;
+    isLoginFlow?: boolean;
     projectId?: string;
+    currentTestCaseId?: string;
     browsers: BrowserEntry[];
     androidDeviceOptions: AndroidDeviceOption[];
     urlConfigs: ConfigItem[];
@@ -58,7 +62,9 @@ function isSameRunnerScopedAndroidOption(option: AndroidDeviceOption, config: An
 
 export default function TargetConfigurationsPanel({
     readOnly,
+    isLoginFlow,
     projectId,
+    currentTestCaseId,
     browsers,
     androidDeviceOptions,
     urlConfigs,
@@ -422,12 +428,67 @@ export default function TargetConfigurationsPanel({
                                                 />
                                             </div>
                                         </div>
+                                        {isLoginFlow ? (
+                                            <label className="flex items-start gap-2 text-xs text-gray-600">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={cfg.webauthnVirtualAuthenticator ?? false}
+                                                    onChange={(e) => onUpdateTarget(index, { webauthnVirtualAuthenticator: e.target.checked })}
+                                                    disabled={readOnly}
+                                                    className="mt-0.5 h-3.5 w-3.5 rounded border-gray-300 text-primary focus:ring-primary disabled:opacity-50"
+                                                />
+                                                <span className="flex items-center gap-1">
+                                                    {t('configs.browser.webauthn')}
+                                                    <InfoHint text={t('configs.browser.webauthn.hint')} />
+                                                </span>
+                                            </label>
+                                        ) : (
+                                            <div className="rounded-md border border-gray-200 bg-gray-50/60 p-2.5 space-y-2.5">
+                                                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">{t('configs.browser.auth')}</p>
+                                                <LoginFlowSelect
+                                                    projectId={projectId}
+                                                    value={cfg.loginFlowId}
+                                                    excludeTestCaseId={currentTestCaseId}
+                                                    disabled={readOnly}
+                                                    onChange={(loginFlowId) => onUpdateTarget(index, { loginFlowId, ...(loginFlowId ? {} : { reuseGroupSession: false }) })}
+                                                />
+                                                <label className={`flex items-start gap-2 text-xs ${cfg.loginFlowId ? 'text-gray-600' : 'text-gray-400'}`}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={cfg.reuseGroupSession ?? false}
+                                                        onChange={(e) => onUpdateTarget(index, { reuseGroupSession: e.target.checked })}
+                                                        disabled={readOnly || !cfg.loginFlowId}
+                                                        className="mt-0.5 h-3.5 w-3.5 rounded border-gray-300 text-primary focus:ring-primary disabled:opacity-50"
+                                                    />
+                                                    <span className="flex items-center gap-1">
+                                                        {t('configs.browser.reuseSession')}
+                                                        <InfoHint text={t('configs.browser.reuseSession.hint')} />
+                                                        {!cfg.loginFlowId && (
+                                                            <span className="text-gray-400">— {t('configs.browser.reuseSession.disabled')}</span>
+                                                        )}
+                                                    </span>
+                                                </label>
+                                                <label className="flex items-start gap-2 text-xs text-gray-600">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={cfg.webauthnVirtualAuthenticator ?? false}
+                                                        onChange={(e) => onUpdateTarget(index, { webauthnVirtualAuthenticator: e.target.checked })}
+                                                        disabled={readOnly}
+                                                        className="mt-0.5 h-3.5 w-3.5 rounded border-gray-300 text-primary focus:ring-primary disabled:opacity-50"
+                                                    />
+                                                    <span className="flex items-center gap-1">
+                                                        {t('configs.browser.webauthn')}
+                                                        <InfoHint text={t('configs.browser.webauthn.hint')} />
+                                                    </span>
+                                                </label>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             );
                         })}
 
-                        {!readOnly && (
+                        {!readOnly && !isLoginFlow && (
                             <div className="flex gap-2">
                                 <button
                                     type="button"

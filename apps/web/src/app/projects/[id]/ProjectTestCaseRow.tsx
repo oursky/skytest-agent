@@ -11,6 +11,7 @@ interface ProjectTestCaseRowProps {
     testCase: TestCase;
     projectId: string;
     isSelected: boolean;
+    canSelect?: boolean;
     onToggleSelect: (testCaseId: string) => void;
     isEditingDisplayId: boolean;
     isSavingDisplayId: boolean;
@@ -30,6 +31,7 @@ export default function ProjectTestCaseRow({
     testCase,
     projectId,
     isSelected,
+    canSelect = true,
     onToggleSelect,
     isEditingDisplayId,
     isSavingDisplayId,
@@ -51,16 +53,18 @@ export default function ProjectTestCaseRow({
 
     return (
         <div className="flex flex-col md:grid md:grid-cols-24 gap-4 p-4 hover:bg-gray-50 transition-colors group">
-            <div className="md:col-span-1 flex items-center">
-                <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={() => onToggleSelect(testCase.id)}
-                    aria-label={t('project.table.selectOne', { name: testCase.name })}
-                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                />
-            </div>
-            <div className="md:col-span-3 flex items-center">
+            {canSelect && (
+                <div className="md:col-span-1 flex items-center">
+                    <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => onToggleSelect(testCase.id)}
+                        aria-label={t('project.table.selectOne', { name: testCase.name })}
+                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary disabled:opacity-30"
+                    />
+                </div>
+            )}
+            <div className={`${canSelect ? 'md:col-span-3' : 'md:col-span-4'} flex items-center`}>
                 {isEditingDisplayId ? (
                     <input
                         ref={displayIdInputRef}
@@ -109,13 +113,20 @@ export default function ProjectTestCaseRow({
                     </button>
                 )}
             </div>
-            <div className="md:col-span-8 flex items-center">
+            <div className="md:col-span-8 flex flex-col justify-center gap-0.5">
                 <Link
                     href={`/run?testCaseId=${testCase.id}&projectId=${projectId}`}
                     className="font-medium text-gray-900 hover:text-primary transition-colors"
                 >
                     {testCase.name}
                 </Link>
+                {testCase.kind === 'LOGIN_FLOW' && (
+                    <span className="text-xs text-gray-400">
+                        {testCase.usedByCount
+                            ? t('project.loginFlow.usedBy', { count: testCase.usedByCount })
+                            : t('project.loginFlow.unused')}
+                    </span>
+                )}
             </div>
             <div className="flex items-center gap-4 md:contents">
                 <div className="md:col-span-3 flex items-center">

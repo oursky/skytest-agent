@@ -9,7 +9,7 @@ import {
     startLocalBrowserRun,
 } from '@/lib/runtime/local-browser-runner';
 import { BROWSER_EXECUTION_CAPABILITY } from '@/lib/runners/constants';
-import { RUN_IN_PROGRESS_STATUSES, TEST_STATUS } from '@/types';
+import { RUN_IN_PROGRESS_STATUSES, RUN_TERMINAL_STATUSES, TEST_STATUS } from '@/types';
 
 const logger = createLogger('runtime:browser-run-dispatcher');
 let dispatchLock: Promise<unknown> = Promise.resolve();
@@ -56,6 +56,13 @@ async function claimBrowserRunWithFilter(filterSql: Prisma.Sql): Promise<string 
               AND tr."assignedRunnerId" IS NULL
               AND tr."requiredCapability" = ${BROWSER_EXECUTION_CAPABILITY}
               AND tr."requiredRunnerKind" IS NULL
+              AND (tr."sessionPosition" IS NULL OR tr."sessionPosition" = 0)
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM "TestRun" settledMember
+                  WHERE settledMember."runSessionId" = tr."runSessionId"
+                    AND settledMember.status IN (${Prisma.join(RUN_TERMINAL_STATUSES)})
+              )
               AND (
                   SELECT COUNT(*)
                   FROM "TestRun" activeTr

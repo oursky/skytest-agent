@@ -1,21 +1,29 @@
 import { Suspense, type ChangeEvent, type ReactNode, type RefObject } from "react";
 import { PageHeaderSkeleton, PanelSkeleton } from "@/components/shared";
+import { Breadcrumbs, type BreadcrumbItem } from "@/components/layout";
 import TestCaseImportReviewDialog, { type TestCaseImportReviewData } from "@/components/features/test-cases/ui/TestCaseImportReviewDialog";
 
 interface RunPageHeaderProps {
     title: string;
+    subtitle?: string;
+    breadcrumbItems?: BreadcrumbItem[];
     showStopButton: boolean;
     stopLabel: string;
     onStop: () => void;
 }
 
-export function RunPageHeader({ title, showStopButton, stopLabel, onStop }: RunPageHeaderProps) {
+export function RunPageHeader({ title, subtitle, breadcrumbItems, showStopButton, stopLabel, onStop }: RunPageHeaderProps) {
     return (
-        <div className="flex items-center justify-between mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">
-                {title}
-            </h1>
-            <div className="flex items-center gap-2">
+        <>
+        {breadcrumbItems && breadcrumbItems.length > 0 && <Breadcrumbs items={breadcrumbItems} />}
+        <div className="flex items-start justify-between mb-8 gap-4">
+            <div>
+                <h1 className="text-3xl font-bold text-gray-900">
+                    {title}
+                </h1>
+                {subtitle && <p className="mt-1 text-sm text-gray-500">{subtitle}</p>}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
                 {showStopButton && (
                     <button
                         onClick={onStop}
@@ -30,6 +38,7 @@ export function RunPageHeader({ title, showStopButton, stopLabel, onStop }: RunP
                 )}
             </div>
         </div>
+        </>
     );
 }
 

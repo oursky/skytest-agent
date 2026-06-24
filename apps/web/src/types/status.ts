@@ -35,6 +35,15 @@ export const RUN_TERMINAL_STATUSES = [
     TEST_STATUS.CANCELLED,
 ] as const;
 
+// A run is "settled" once it will never execute further. Session members that
+// never run (an earlier member failed, a login flow failed, or the user stopped
+// the run) are CANCELLED with a reason, so the settled set matches the terminal set.
+export const RUN_SETTLED_STATUSES = [
+    TEST_STATUS.PASS,
+    TEST_STATUS.FAIL,
+    TEST_STATUS.CANCELLED,
+] as const;
+
 export const RUN_IN_PROGRESS_STATUSES = [
     TEST_STATUS.PREPARING,
     TEST_STATUS.RUNNING,
@@ -47,11 +56,16 @@ export const RUN_ACTIVE_STATUSES = [
 ] as const;
 
 const runTerminalStatusSet = new Set<string>(RUN_TERMINAL_STATUSES);
+const runSettledStatusSet = new Set<string>(RUN_SETTLED_STATUSES);
 const runInProgressStatusSet = new Set<string>(RUN_IN_PROGRESS_STATUSES);
 const runActiveStatusSet = new Set<string>(RUN_ACTIVE_STATUSES);
 
 export function isRunTerminalStatus(status: string | null | undefined): status is RunTerminalStatus {
     return typeof status === 'string' && runTerminalStatusSet.has(status);
+}
+
+export function isRunSettledStatus(status: string | null | undefined): boolean {
+    return typeof status === 'string' && runSettledStatusSet.has(status);
 }
 
 export function isRunInProgressStatus(status: string | null | undefined): status is RunInProgressStatus {

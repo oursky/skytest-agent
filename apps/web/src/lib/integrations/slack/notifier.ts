@@ -16,7 +16,7 @@ import {
     renderTemplate,
 } from '@/lib/integrations/slack/template';
 import { PROJECT_SLACK_NOTIFY_ON } from '@/types/slack';
-import { TEST_STATUS } from '@/types';
+import { RUN_SESSION_KIND, TEST_STATUS } from '@/types';
 import { isSchedulerTriggered } from '@/lib/test-runs/trigger-label';
 
 const logger = createLogger('integrations:slack:notifier');
@@ -79,6 +79,7 @@ export async function notifyRunTerminal(runId: string): Promise<SlackNotifyOutco
             completedAt: true,
             error: true,
             slackNotifyAttempts: true,
+            runSession: { select: { kind: true } },
             testCase: {
                 select: {
                     id: true,
@@ -90,6 +91,7 @@ export async function notifyRunTerminal(runId: string): Promise<SlackNotifyOutco
                             slackEnabled: true,
                             slackNotifyOn: true,
                             slackChannelId: true,
+                            slackGroupNotifyEnabled: true,
                             slackFailureTemplate: true,
                             slackSuccessTemplate: true,
                             team: {
@@ -108,9 +110,20 @@ export async function notifyRunTerminal(runId: string): Promise<SlackNotifyOutco
         return SLACK_NOTIFY_OUTCOME.SKIPPED;
     }
 
+    // When a member belongs to a GROUP session and group notifications are enabled,
+    // the per-case notification is suppressed in favour of one group-level message.
+    if (run.runSession?.kind === RUN_SESSION_KIND.GROUP && run.testCase.project.slackGroupNotifyEnabled) {
+        return SLACK_NOTIFY_OUTCOME.SKIPPED;
+    }
+
     const tokenEncrypted = run.testCase.project.team.slackBotTokenEncrypted;
     const channelId = run.testCase.project.slackChannelId;
     if (!run.testCase.project.slackEnabled || !tokenEncrypted || !channelId) {
+        return SLACK_NOTIFY_OUTCOME.SKIPPED;
+    }
+    // Per-case notifications are opt-out: OFF mutes them entirely (e.g. test-group-only setups),
+    // FAILED_ONLY skips passes, BOTH notifies for either outcome.
+    if (run.testCase.project.slackNotifyOn === PROJECT_SLACK_NOTIFY_ON.OFF) {
         return SLACK_NOTIFY_OUTCOME.SKIPPED;
     }
     if (run.status === TEST_STATUS.PASS && run.testCase.project.slackNotifyOn !== PROJECT_SLACK_NOTIFY_ON.BOTH_PASSED_AND_FAILED) {

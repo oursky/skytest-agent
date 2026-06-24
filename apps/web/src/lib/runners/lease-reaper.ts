@@ -2,7 +2,8 @@ import { config as appConfig } from '@/config/app';
 import { prisma } from '@/lib/core/prisma';
 import { BROWSER_EXECUTION_CAPABILITY } from '@/lib/runners/constants';
 import { emitRunTerminal } from '@/lib/runners/domain-events';
-import { RUN_IN_PROGRESS_STATUSES, TEST_STATUS } from '@/types';
+import { failActiveSessionMembers } from '@/lib/runtime/run-session-service';
+import { RUN_ACTIVE_STATUSES, RUN_IN_PROGRESS_STATUSES, RUN_TERMINAL_STATUSES, TEST_STATUS } from '@/types';
 
 export async function reapExpiredRunnerLeases(now = new Date()) {
     await prisma.androidResourceLock.deleteMany({
@@ -202,4 +203,51 @@ export async function reapStaleLocalBrowserRuns(now = new Date()) {
         failedRuns: runningRuns.length,
         staleBefore,
     };
+}
+
+/**
+ * Recovers run sessions whose in-process driver vanished (server crash/restart). A
+ * multi-member session only advances via its orchestrator: the dispatcher claims just the
+ * first member, and the per-run reapers above only touch PREPARING/RUNNING — so a later
+ * member left QUEUED has nothing to settle it and would stay queued forever.
+ *
+ * A session is considered stranded when it has started, is not yet terminal, still has
+ * active members, and none of its members has produced activity within the stale window
+ * (lastEventAt, the local-browser liveness signal heartbeats keep fresh). Pristine sessions
+ * still waiting for their first dispatch are excluded by the started-but-idle guard, and the
+ * stale window leaves healthy sessions (including the brief gap between sequential members)
+ * untouched. Stranded members are failed so the session rolls up to FAIL.
+ */
+export async function reapStrandedRunSessions(now = new Date()) {
+    const staleBefore = new Date(now.getTime() - appConfig.runner.localBrowserStaleTimeoutMs);
+    const candidates = await prisma.runSession.findMany({
+        where: {
+            status: { notIn: [...RUN_TERMINAL_STATUSES] },
+            startedAt: { not: null },
+            memberRuns: { some: { status: { in: [...RUN_ACTIVE_STATUSES] } } },
+        },
+        select: {
+            id: true,
+            memberRuns: { select: { lastEventAt: true, startedAt: true } },
+        },
+    });
+
+    let strandedSessions = 0;
+    let settledMembers = 0;
+    for (const session of candidates) {
+        const hasRecentActivity = session.memberRuns.some((member) => {
+            const activity = member.lastEventAt ?? member.startedAt;
+            return activity !== null && activity >= staleBefore;
+        });
+        if (hasRecentActivity) {
+            continue;
+        }
+        const settled = await failActiveSessionMembers(session.id);
+        if (settled > 0) {
+            strandedSessions += 1;
+            settledMembers += settled;
+        }
+    }
+
+    return { strandedSessions, settledMembers, staleBefore };
 }

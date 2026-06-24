@@ -9,9 +9,10 @@ interface TemplateEditorProps {
     disabled: boolean;
     onChange: (value: string) => void;
     onReset: () => void;
+    variables?: string[];
 }
 
-const TEMPLATE_VARIABLES = [
+const TEST_CASE_TEMPLATE_VARIABLES = [
     'projectName',
     'testCaseID',
     'testCaseName',
@@ -23,6 +24,17 @@ const TEMPLATE_VARIABLES = [
     'errorSummary',
 ];
 
+export const TEST_GROUP_TEMPLATE_VARIABLES = [
+    'projectName',
+    'groupName',
+    'passedCount',
+    'totalCount',
+    'runLink',
+    'triggeredBy',
+    'startedAt',
+    'completedAt',
+];
+
 export default function TemplateEditor({
     title,
     resetLabel,
@@ -30,6 +42,7 @@ export default function TemplateEditor({
     disabled,
     onChange,
     onReset,
+    variables = TEST_CASE_TEMPLATE_VARIABLES,
 }: TemplateEditorProps) {
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -78,7 +91,7 @@ export default function TemplateEditor({
             />
 
             <div className="flex flex-wrap gap-2">
-                {TEMPLATE_VARIABLES.map((variable) => (
+                {variables.map((variable) => (
                     <button
                         key={variable}
                         type="button"

@@ -52,6 +52,9 @@ function buildProject(overrides?: Partial<{
         slackChannelName: overrides?.channelName ?? null,
         slackFailureTemplate: overrides?.failureTemplate ?? null,
         slackSuccessTemplate: overrides?.successTemplate ?? null,
+        slackGroupNotifyEnabled: false,
+        slackGroupFailureTemplate: null,
+        slackGroupSuccessTemplate: null,
         slackUpdatedAt: new Date('2026-04-29T00:00:00.000Z'),
         team: {
             slackBotTokenEncrypted: overrides && 'token' in overrides ? overrides.token ?? null : 'enc-token',
@@ -80,6 +83,9 @@ describe('/api/projects/[id]/slack', () => {
             slackChannelName: input.data.slackChannelName,
             slackFailureTemplate: input.data.slackFailureTemplate,
             slackSuccessTemplate: input.data.slackSuccessTemplate,
+            slackGroupNotifyEnabled: input.data.slackGroupNotifyEnabled,
+            slackGroupFailureTemplate: input.data.slackGroupFailureTemplate,
+            slackGroupSuccessTemplate: input.data.slackGroupSuccessTemplate,
             slackUpdatedAt: new Date('2026-04-29T01:00:00.000Z'),
             team: {
                 slackBotTokenEncrypted: 'enc-token',
@@ -193,6 +199,31 @@ describe('/api/projects/[id]/slack', () => {
                 slackChannelName: 'alerts',
                 slackFailureTemplate: 'Failed run {testRunLink}',
                 slackSuccessTemplate: 'Passed run {durationMinSec}',
+            }),
+            select: expect.any(Object),
+        });
+    });
+
+    it('allows enabling without a channel and skips channel validation', async () => {
+        const response = await PUT(new Request('http://localhost/api/projects/project-1/slack', {
+            method: 'PUT',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                slackEnabled: true,
+                slackGroupNotifyEnabled: true,
+            }),
+        }), {
+            params: Promise.resolve({ id: 'project-1' }),
+        });
+
+        expect(response.status).toBe(200);
+        expect(mocks.getConversationInfo).not.toHaveBeenCalled();
+        expect(mocks.prisma.project.update).toHaveBeenCalledWith({
+            where: { id: 'project-1' },
+            data: expect.objectContaining({
+                slackEnabled: true,
+                slackChannelId: null,
+                slackChannelName: null,
             }),
             select: expect.any(Object),
         });

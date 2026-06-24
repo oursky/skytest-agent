@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import type { Project } from '@/types';
 import { useTeamScopedBootstrap } from '@/hooks/team/useTeamScopedBootstrap';
+import { extractListData } from '@/utils/pagination/pagination';
 
 const EMPTY_PROJECTS: Project[] = [];
 
@@ -15,7 +16,7 @@ export function useProjectsBootstrap(
         if (!response.ok) {
             throw new Error('Failed to fetch projects');
         }
-        return await response.json() as Project[];
+        return extractListData<Project>(await response.json());
     }, []);
 
     const {

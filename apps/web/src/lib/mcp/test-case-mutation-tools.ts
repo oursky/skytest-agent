@@ -7,11 +7,13 @@ import { normalizeBrowserConfig } from '@/lib/test-config/browser-target';
 import { validateConfigName, normalizeConfigName, validateConfigType, validateConfigValue } from '@/lib/test-config/validation';
 import { resolveAndroidDeviceSelector, type AndroidDeviceSelectorInventory } from '@/lib/mcp/android-selector';
 import { cancelRunDurably } from '@/lib/mcp/run-cancellation';
+import { CANCELLATION_REASON } from '@/lib/runtime/cancellation-reasons';
 import { getUserId, type McpHandlerExtra, verifyProjectAccess } from '@/lib/mcp/server-auth';
 import { errorResult, textResult, withToolTelemetry, type ToolResponse } from '@/lib/mcp/server-response';
 import { mcpConfigSchema, mcpStepSchema } from '@/lib/mcp/server-schemas';
 import {
     RUN_ACTIVE_STATUSES,
+    TEST_CASE_KIND,
     TEST_STATUS,
     type BrowserConfig,
     type ConfigType,
@@ -112,6 +114,7 @@ function buildTargetIdGenerator(existingIds: Set<string>, prefix: 'browser' | 'a
 
 const mcpCreateTestCaseSchema = z.object({
     name: z.string().optional().describe('Test case name'),
+    kind: z.enum(['TEST', 'LOGIN_FLOW']).optional().describe('Kind (default TEST). LOGIN_FLOW marks a reusable login flow; other cases reuse it by setting loginFlowId on a browser target.'),
     displayId: z.string().optional().describe('User-facing display ID'),
     testCaseId: z.string().optional().describe('Alias of displayId (import format)'),
     url: z.string().optional().describe('Base URL for browser target'),
@@ -285,6 +288,7 @@ export function registerTestCaseMutationTools(server: McpServer): void {
                         browserConfig: normalizedBrowserConfig ? JSON.stringify(normalizedBrowserConfig) : undefined,
                         projectId,
                         displayId,
+                        kind: testCase.kind ?? TEST_CASE_KIND.TEST,
                         status: TEST_STATUS.DRAFT,
                     },
                 });
@@ -483,7 +487,7 @@ export function registerTestCaseMutationTools(server: McpServer): void {
 
             for (const run of activeRuns) {
                 try {
-                    const cancelled = await cancelRunDurably(run.id, 'Cancelled to allow MCP test case update');
+                    const cancelled = await cancelRunDurably(run.id, CANCELLATION_REASON.MCP_FOR_UPDATE);
                     if (cancelled) {
                         cancelledRunIds.push(run.id);
                     } else {

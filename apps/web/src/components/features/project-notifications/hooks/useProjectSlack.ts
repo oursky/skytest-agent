@@ -5,6 +5,8 @@ import { useAuth } from '@/app/auth-provider';
 import {
     DEFAULT_SLACK_FAILURE_TEMPLATE,
     DEFAULT_SLACK_SUCCESS_TEMPLATE,
+    DEFAULT_SLACK_GROUP_FAILURE_TEMPLATE,
+    DEFAULT_SLACK_GROUP_SUCCESS_TEMPLATE,
 } from '@/lib/integrations/slack/template';
 import { PROJECT_SLACK_NOTIFY_ON } from '@/types/slack';
 import type {
@@ -35,6 +37,9 @@ const DEFAULT_PROJECT_SLACK_SETTINGS: ProjectSlackSettings = {
     slackChannelName: null,
     slackFailureTemplate: null,
     slackSuccessTemplate: null,
+    slackGroupNotifyEnabled: false,
+    slackGroupFailureTemplate: null,
+    slackGroupSuccessTemplate: null,
     slackUpdatedAt: null,
     parentTeamHasToken: false,
 };
@@ -89,6 +94,9 @@ export function useProjectSlack(projectId: string) {
         slackChannelName: null as string | null,
         slackFailureTemplate: DEFAULT_SLACK_FAILURE_TEMPLATE,
         slackSuccessTemplate: DEFAULT_SLACK_SUCCESS_TEMPLATE,
+        slackGroupNotifyEnabled: false,
+        slackGroupFailureTemplate: DEFAULT_SLACK_GROUP_FAILURE_TEMPLATE,
+        slackGroupSuccessTemplate: DEFAULT_SLACK_GROUP_SUCCESS_TEMPLATE,
     });
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
@@ -123,6 +131,9 @@ export function useProjectSlack(projectId: string) {
                 slackChannelName: payload.slackChannelName ?? null,
                 slackFailureTemplate: payload.slackFailureTemplate ?? DEFAULT_SLACK_FAILURE_TEMPLATE,
                 slackSuccessTemplate: payload.slackSuccessTemplate ?? DEFAULT_SLACK_SUCCESS_TEMPLATE,
+                slackGroupNotifyEnabled: payload.slackGroupNotifyEnabled,
+                slackGroupFailureTemplate: payload.slackGroupFailureTemplate ?? DEFAULT_SLACK_GROUP_FAILURE_TEMPLATE,
+                slackGroupSuccessTemplate: payload.slackGroupSuccessTemplate ?? DEFAULT_SLACK_GROUP_SUCCESS_TEMPLATE,
             });
         } catch (loadError) {
             setError(createRequestError(
@@ -144,6 +155,9 @@ export function useProjectSlack(projectId: string) {
         slackChannelId: string | null;
         slackFailureTemplate: string | null;
         slackSuccessTemplate: string | null;
+        slackGroupNotifyEnabled: boolean;
+        slackGroupFailureTemplate: string | null;
+        slackGroupSuccessTemplate: string | null;
     }): Promise<boolean> => {
         setIsSaving(true);
         setError(null);
@@ -168,14 +182,32 @@ export function useProjectSlack(projectId: string) {
             }
             const payload = await response.json() as ProjectSlackSettings;
             setSettings(payload);
-            setDraft({
+            // Sync the draft to the saved payload, but keep any template the user kept
+            // editing during the save round-trip (its current value diverges from what we
+            // submitted) so an in-flight save doesn't discard fresh keystrokes.
+            const submittedFailure = next.slackFailureTemplate ?? DEFAULT_SLACK_FAILURE_TEMPLATE;
+            const submittedSuccess = next.slackSuccessTemplate ?? DEFAULT_SLACK_SUCCESS_TEMPLATE;
+            const submittedGroupFailure = next.slackGroupFailureTemplate ?? DEFAULT_SLACK_GROUP_FAILURE_TEMPLATE;
+            const submittedGroupSuccess = next.slackGroupSuccessTemplate ?? DEFAULT_SLACK_GROUP_SUCCESS_TEMPLATE;
+            setDraft((current) => ({
                 slackEnabled: payload.slackEnabled,
                 slackNotifyOn: payload.slackNotifyOn,
                 slackChannelId: payload.slackChannelId ?? '',
                 slackChannelName: payload.slackChannelName ?? null,
-                slackFailureTemplate: payload.slackFailureTemplate ?? DEFAULT_SLACK_FAILURE_TEMPLATE,
-                slackSuccessTemplate: payload.slackSuccessTemplate ?? DEFAULT_SLACK_SUCCESS_TEMPLATE,
-            });
+                slackFailureTemplate: current.slackFailureTemplate !== submittedFailure
+                    ? current.slackFailureTemplate
+                    : (payload.slackFailureTemplate ?? DEFAULT_SLACK_FAILURE_TEMPLATE),
+                slackSuccessTemplate: current.slackSuccessTemplate !== submittedSuccess
+                    ? current.slackSuccessTemplate
+                    : (payload.slackSuccessTemplate ?? DEFAULT_SLACK_SUCCESS_TEMPLATE),
+                slackGroupNotifyEnabled: payload.slackGroupNotifyEnabled,
+                slackGroupFailureTemplate: current.slackGroupFailureTemplate !== submittedGroupFailure
+                    ? current.slackGroupFailureTemplate
+                    : (payload.slackGroupFailureTemplate ?? DEFAULT_SLACK_GROUP_FAILURE_TEMPLATE),
+                slackGroupSuccessTemplate: current.slackGroupSuccessTemplate !== submittedGroupSuccess
+                    ? current.slackGroupSuccessTemplate
+                    : (payload.slackGroupSuccessTemplate ?? DEFAULT_SLACK_GROUP_SUCCESS_TEMPLATE),
+            }));
             setNotice('saved');
             return true;
         } catch (saveError) {
@@ -189,8 +221,25 @@ export function useProjectSlack(projectId: string) {
         }
     }, [getHeaders, projectId]);
 
+    const resetDraft = useCallback(() => {
+        setError(null);
+        setNotice(null);
+        setDraft({
+            slackEnabled: settings.slackEnabled,
+            slackNotifyOn: settings.slackNotifyOn,
+            slackChannelId: settings.slackChannelId ?? '',
+            slackChannelName: settings.slackChannelName ?? null,
+            slackFailureTemplate: settings.slackFailureTemplate ?? DEFAULT_SLACK_FAILURE_TEMPLATE,
+            slackSuccessTemplate: settings.slackSuccessTemplate ?? DEFAULT_SLACK_SUCCESS_TEMPLATE,
+            slackGroupNotifyEnabled: settings.slackGroupNotifyEnabled,
+            slackGroupFailureTemplate: settings.slackGroupFailureTemplate ?? DEFAULT_SLACK_GROUP_FAILURE_TEMPLATE,
+            slackGroupSuccessTemplate: settings.slackGroupSuccessTemplate ?? DEFAULT_SLACK_GROUP_SUCCESS_TEMPLATE,
+        });
+    }, [settings]);
+
     const sendTestMessage = useCallback(async (
-        status: typeof TEST_STATUS.FAIL | typeof TEST_STATUS.PASS
+        status: typeof TEST_STATUS.FAIL | typeof TEST_STATUS.PASS,
+        scope: 'individual' | 'group' = 'individual'
     ): Promise<boolean> => {
         setError(null);
         setNotice(null);
@@ -202,7 +251,7 @@ export function useProjectSlack(projectId: string) {
                     'Content-Type': 'application/json',
                     ...headers,
                 },
-                body: JSON.stringify({ status }),
+                body: JSON.stringify({ status, scope }),
             });
             if (!response.ok) {
                 setError(await parseRequestError(
@@ -234,6 +283,7 @@ export function useProjectSlack(projectId: string) {
         setNotice,
         load,
         save,
+        resetDraft,
         sendTestMessage,
     };
 }
