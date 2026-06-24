@@ -15,7 +15,16 @@ function readAllowedDevOriginsFromEnv(): string[] {
 const nextConfig: NextConfig = {
   // Next.js only applies this in `next dev` for HMR/internal dev resources.
   allowedDevOrigins: readAllowedDevOriginsFromEnv(),
-  serverExternalPackages: ['@silvia-odwyer/photon-node'],
+  // @midscene/* are server-only and must not be bundled: @midscene/core does an
+  // optional debug-only `import('langsmith/wrappers')` that Turbopack otherwise tries
+  // to statically resolve, breaking the build because langsmith is not installed.
+  serverExternalPackages: [
+    '@silvia-odwyer/photon-node',
+    '@midscene/web',
+    '@midscene/core',
+    '@midscene/android',
+    '@midscene/shared',
+  ],
 };
 
 export default nextConfig;
