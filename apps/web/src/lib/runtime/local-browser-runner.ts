@@ -9,9 +9,11 @@ import { finalizeMemberRunError, finalizeMemberRunResult } from '@/lib/runtime/r
 import { executeGroupSession, executeLocalBrowserSession } from '@/lib/runtime/run-session-orchestrator';
 import {
     failRunWithoutTestCase,
+    getInFlightLoginFlowBrowserCount,
     updateRunStatusWithOwnership,
     type LocalBrowserRunOptions,
 } from '@/lib/runtime/local-browser-runner-lifecycle';
+import { reconcileStrandedSessionMembers } from '@/lib/runtime/run-session-orchestrator';
 import {
     RUN_SESSION_KIND,
     TEST_STATUS,
@@ -21,7 +23,7 @@ const logger = createLogger('runtime:local-browser-runner');
 const activeAbortControllers = new Map<string, AbortController>();
 const activeExecutions = new Map<string, Promise<void>>();
 export function getActiveLocalBrowserRunCount(): number {
-    return activeExecutions.size;
+    return activeExecutions.size + getInFlightLoginFlowBrowserCount();
 }
 export function getMaxLocalBrowserRunCount(): number {
     return appConfig.runner.maxLocalBrowserRuns;
@@ -172,8 +174,14 @@ export function startLocalBrowserRun(runId: string, options?: LocalBrowserRunOpt
     activeAbortControllers.set(runId, controller);
 
     const execution = runClaimedBrowserWork(runId, controller, options)
-        .catch((error) => {
+        .catch(async (error) => {
             logger.error('Local browser run execution failed', error);
+            // A throw escaping the orchestrator would otherwise strand un-settled session
+            // members in QUEUED/PREPARING/RUNNING, keeping the session active forever and
+            // blocking future runs. Settle them so the session reaches a terminal state.
+            await reconcileStrandedSessionMembers(runId).catch((reconcileError) => {
+                logger.error('Failed to reconcile stranded session members', reconcileError);
+            });
         })
         .finally(() => {
             activeAbortControllers.delete(runId);

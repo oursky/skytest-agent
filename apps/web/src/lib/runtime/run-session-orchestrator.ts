@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/core/prisma';
 import { config as appConfig } from '@/config/app';
+import { createLogger } from '@/lib/core/logger';
 import { getErrorMessage } from '@/lib/core/errors';
 import { publishRunUpdate } from '@/lib/runners/event-bus';
 import { emitRunTerminal } from '@/lib/runners/domain-events';
@@ -24,10 +25,12 @@ import {
     failRunWithoutTestCase,
     updateRunStatusWithOwnership,
     createLeaseExpiry,
+    withLoginFlowBrowserSlot,
     type LocalBrowserRunOptions,
 } from '@/lib/runtime/local-browser-runner-lifecycle';
 import { recomputeRunSessionForMember } from '@/lib/runtime/run-session-service';
 import {
+    RUN_ACTIVE_STATUSES,
     TEST_CASE_KIND,
     TEST_STATUS,
     TEST_GROUP_FAILURE_MODE,
@@ -41,6 +44,8 @@ import {
     type RunTerminalStatus,
     type BrowserStorageState,
 } from '@/types';
+
+const logger = createLogger('runtime:run-session-orchestrator');
 
 interface SessionMember {
     id: string;
@@ -304,22 +309,24 @@ async function runLoginPrefix(
         // Settled externally before we could run it (e.g. the session was cancelled).
         return { status: TEST_STATUS.CANCELLED, projectId: '' };
     }
-    const details = await loadRunConfig(login.id, options, { allowNonRunning: true });
-    if (!details) {
-        await failRunWithoutTestCase(login.id, 'Run is not executable', options).catch(() => {});
-        return { status: TEST_STATUS.FAIL, projectId: '' };
-    }
-    const prepared = await prepareMemberUnit(details);
-    const targetId = 'session_main';
-    const midsceneModelConfig = buildMidsceneModelConfig(details.config.openRouterApiKey, details.config.midsceneModelOptions);
-    const actionCounter: ActionCounter = { count: 0 };
-    let currentOnEvent: (event: TestEvent) => void = () => {};
-    const routedOnEvent = (event: TestEvent) => currentOnEvent(event);
-    const setCurrentOnEvent = (handler: (event: TestEvent) => void) => { currentOnEvent = handler; };
-
-    let targets: ExecutionTargets;
+    let prepared: PreparedUnit | null = null;
+    let projectId = '';
     try {
-        targets = await setupExecutionTargets(
+        const details = await loadRunConfig(login.id, options, { allowNonRunning: true });
+        if (!details) {
+            await failRunWithoutTestCase(login.id, 'Run is not executable', options).catch(() => {});
+            return { status: TEST_STATUS.FAIL, projectId: '' };
+        }
+        projectId = details.projectId;
+        prepared = await prepareMemberUnit(details);
+        const targetId = 'session_main';
+        const midsceneModelConfig = buildMidsceneModelConfig(details.config.openRouterApiKey, details.config.midsceneModelOptions);
+        const actionCounter: ActionCounter = { count: 0 };
+        let currentOnEvent: (event: TestEvent) => void = () => {};
+        const routedOnEvent = (event: TestEvent) => currentOnEvent(event);
+        const setCurrentOnEvent = (handler: (event: TestEvent) => void) => { currentOnEvent = handler; };
+
+        const targets = await setupExecutionTargets(
             { [targetId]: { width: prepared.viewport.width, height: prepared.viewport.height, url: '', webauthnVirtualAuthenticator: prepared.webauthnVirtualAuthenticator } },
             routedOnEvent,
             login.id,
@@ -328,30 +335,35 @@ async function runLoginPrefix(
             controller.signal,
             actionCounter,
         );
-    } catch (error) {
-        await failRunWithoutTestCase(login.id, getErrorMessage(error), options).catch(() => {});
-        await prepared.materializedExecutionFiles.cleanup();
-        return { status: TEST_STATUS.FAIL, projectId: details.projectId };
-    }
 
-    const ctx: MemberRunContext = { targets, targetId, actionCounter, controller, setCurrentOnEvent, options };
-    try {
-        const result = await runSessionMember(login, details, prepared, ctx);
-        let storageState: BrowserStorageState | undefined;
-        if (result.status === TEST_STATUS.PASS) {
-            const context = targets.contexts.get(targetId);
-            if (context) {
-                try {
-                    storageState = await context.storageState();
-                } catch {
-                    // No baseline captured — the dependent target will run unauthenticated.
+        const ctx: MemberRunContext = { targets, targetId, actionCounter, controller, setCurrentOnEvent, options };
+        try {
+            const result = await runSessionMember(login, details, prepared, ctx);
+            let storageState: BrowserStorageState | undefined;
+            if (result.status === TEST_STATUS.PASS) {
+                const context = targets.contexts.get(targetId);
+                if (context) {
+                    try {
+                        storageState = await context.storageState();
+                    } catch {
+                        // No baseline captured — the dependent target will run unauthenticated.
+                    }
                 }
             }
+            return { status: result.status, storageState, projectId: details.projectId };
+        } finally {
+            await cleanupTargets(targets);
         }
-        return { status: result.status, storageState, projectId: details.projectId };
+    } catch (error) {
+        // Any throw on the prefix path (config load, file materialization, browser
+        // setup, member execution) must settle this member instead of rejecting the
+        // session's Promise.all and stranding its siblings + the test member.
+        await failRunWithoutTestCase(login.id, getErrorMessage(error), options).catch(() => {});
+        return { status: TEST_STATUS.FAIL, projectId };
     } finally {
-        await prepared.materializedExecutionFiles.cleanup();
-        await cleanupTargets(targets);
+        if (prepared) {
+            await prepared.materializedExecutionFiles.cleanup().catch(() => {});
+        }
     }
 }
 
@@ -461,8 +473,18 @@ async function runTestMemberWithBaselines(
  * sessions. A login flow that fails/cancels propagates its outcome to the test with a
  * reason + link (and the test does not run).
  */
-/** Runs tasks over items with at most `limit` in flight; results stay in item order. */
-async function runWithConcurrency<T, R>(items: T[], limit: number, task: (item: T) => Promise<R>): Promise<R[]> {
+/**
+ * Runs tasks over items with at most `limit` in flight; results stay in item order.
+ * A rejected task is mapped to a fallback via `onTaskError` rather than rejecting the
+ * whole batch, so one item's failure can't skip reconciliation of its siblings — and the
+ * result array is always fully populated (no holes for callers to trip over).
+ */
+async function runWithConcurrency<T, R>(
+    items: T[],
+    limit: number,
+    task: (item: T) => Promise<R>,
+    onTaskError: (item: T, error: unknown) => Promise<R>,
+): Promise<R[]> {
     const results: R[] = new Array(items.length);
     let cursor = 0;
     const workerCount = Math.max(1, Math.min(limit, items.length));
@@ -473,11 +495,62 @@ async function runWithConcurrency<T, R>(items: T[], limit: number, task: (item: 
             if (index >= items.length) {
                 break;
             }
-            results[index] = await task(items[index]);
+            try {
+                results[index] = await task(items[index]);
+            } catch (error) {
+                results[index] = await onTaskError(items[index], error);
+            }
         }
     });
     await Promise.all(workers);
     return results;
+}
+
+/**
+ * Defense-in-depth fallback for a login prefix that rejects despite runLoginPrefix's own
+ * isolation: settle the member and report a FAIL outcome so the session still reconciles.
+ */
+async function settleRejectedLoginPrefix(
+    login: SessionMember,
+    error: unknown,
+    options?: LocalBrowserRunOptions,
+): Promise<{ status: string; storageState?: BrowserStorageState; projectId: string }> {
+    logger.error('Login prefix rejected unexpectedly', { runId: login.id, error: getErrorMessage(error) });
+    await failRunWithoutTestCase(login.id, getErrorMessage(error), options).catch(() => {});
+    return { status: TEST_STATUS.FAIL, projectId: '' };
+}
+
+/**
+ * Settles any session members left non-terminal after the orchestrator throws unexpectedly,
+ * so a stranded member can't keep the session active forever (which blocks future runs).
+ * No-op for a run that has no session or whose members are all already terminal.
+ */
+export async function reconcileStrandedSessionMembers(runId: string): Promise<void> {
+    const run = await prisma.testRun.findUnique({
+        where: { id: runId },
+        select: { runSessionId: true },
+    });
+    if (!run?.runSessionId) {
+        return;
+    }
+    const reason = 'Run session ended unexpectedly';
+    const result = JSON.stringify({ status: TEST_STATUS.FAIL, error: reason, errorCode: 'SESSION_ABORTED', errorCategory: 'FAILED' });
+    const stranded = await prisma.testRun.findMany({
+        where: { runSessionId: run.runSessionId, status: { in: [...RUN_ACTIVE_STATUSES] } },
+        select: { id: true, testCaseId: true },
+    });
+    const now = new Date();
+    for (const member of stranded) {
+        const updated = await prisma.testRun.updateMany({
+            where: { id: member.id, status: { in: [...RUN_ACTIVE_STATUSES] } },
+            data: { status: TEST_STATUS.FAIL, error: reason, result, completedAt: now, assignedRunnerId: null, leaseExpiresAt: null },
+        });
+        if (updated.count > 0) {
+            await prisma.testCase.update({ where: { id: member.testCaseId }, data: { status: TEST_STATUS.FAIL } }).catch(() => {});
+            publishRunUpdate(member.id);
+        }
+    }
+    await recomputeRunSessionForMember(runId);
 }
 
 /** Parallelism for a session's independent login flows: the project's max-concurrent setting. */
@@ -512,7 +585,12 @@ export async function executeLocalBrowserSession(
         // baseline), so run them in parallel up to the project's max-concurrent setting
         // instead of serially.
         const concurrency = await loadSessionLoginConcurrency(sessionId);
-        const outcomes = await runWithConcurrency(loginMembers, concurrency, (login) => runLoginPrefix(login, controller, options));
+        const outcomes = await runWithConcurrency(
+            loginMembers,
+            concurrency,
+            (login) => withLoginFlowBrowserSlot(() => runLoginPrefix(login, controller, options)),
+            (login, error) => settleRejectedLoginPrefix(login, error, options),
+        );
 
         const failureIndex = outcomes.findIndex((outcome) => outcome.status !== TEST_STATUS.PASS || !outcome.storageState);
         if (failureIndex >= 0) {
@@ -574,7 +652,12 @@ export async function executeGroupSession(
             return;
         }
         const concurrency = await loadSessionLoginConcurrency(sessionId);
-        const outcomes = await runWithConcurrency(loginMembers, concurrency, (login) => runLoginPrefix(login, controller, options));
+        const outcomes = await runWithConcurrency(
+            loginMembers,
+            concurrency,
+            (login) => withLoginFlowBrowserSlot(() => runLoginPrefix(login, controller, options)),
+            (login, error) => settleRejectedLoginPrefix(login, error, options),
+        );
         outcomes.forEach((outcome, index) => {
             if (outcome.status === TEST_STATUS.PASS && outcome.storageState) {
                 baselines.set(loginMembers[index].testCaseId, outcome.storageState);

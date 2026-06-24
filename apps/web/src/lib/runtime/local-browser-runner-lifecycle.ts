@@ -25,6 +25,25 @@ export interface RunUsageContext {
 
 const logger = createLogger('runtime:local-browser-runner-lifecycle');
 
+// Login-flow prefixes fan out into their own browsers alongside the one claimed
+// session member, so they must be counted against the local browser slot cap or a
+// single session can silently exceed it. The orchestrator brackets each prefix
+// browser with withLoginFlowBrowserSlot; getActiveLocalBrowserRunCount folds this in.
+let inFlightLoginFlowBrowsers = 0;
+
+export function getInFlightLoginFlowBrowserCount(): number {
+    return inFlightLoginFlowBrowsers;
+}
+
+export async function withLoginFlowBrowserSlot<T>(work: () => Promise<T>): Promise<T> {
+    inFlightLoginFlowBrowsers += 1;
+    try {
+        return await work();
+    } finally {
+        inFlightLoginFlowBrowsers -= 1;
+    }
+}
+
 function triggerQueuedBrowserDispatch(reason: string, runId: string): void {
     void import('@/lib/runtime/browser-run-dispatcher')
         .then(({ dispatchNextQueuedBrowserRun }) => dispatchNextQueuedBrowserRun())

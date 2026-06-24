@@ -8,6 +8,7 @@ import { rollupRunSessionStatus } from '@/lib/runtime/run-session-status';
 import { collectLoginFlowIds } from '@/lib/test-cases/login-flow-access';
 import {
     RUN_SESSION_KIND,
+    RUN_TERMINAL_STATUSES,
     TEST_CASE_KIND,
     TEST_STATUS,
     isRunTerminalStatus,
@@ -100,24 +101,39 @@ export async function recomputeRunSessionStatus(sessionId: string): Promise<void
     }
 
     const now = new Date();
-    const becameTerminal = isRunTerminalStatus(nextStatus);
+
+    if (isRunTerminalStatus(nextStatus)) {
+        // Atomic terminal transition: only the first caller to flip a non-terminal
+        // session to terminal performs the write and emits, so concurrent member
+        // finalizes can't both observe a non-terminal session and double-emit the
+        // session-terminal event.
+        const updated = await prisma.runSession.updateMany({
+            where: { id: sessionId, status: { notIn: [...RUN_TERMINAL_STATUSES] } },
+            data: {
+                status: nextStatus,
+                ...(session.startedAt ? {} : { startedAt: now }),
+                completedAt: now,
+            },
+        });
+        if (updated.count === 1) {
+            emitRunSessionTerminal({
+                sessionId,
+                status: nextStatus as RunTerminalStatus,
+                kind: session.kind,
+                projectId: session.projectId,
+            });
+        }
+        return;
+    }
+
     await prisma.runSession.update({
         where: { id: sessionId },
         data: {
             status: nextStatus,
             ...(session.startedAt || !STARTED_STATUSES.has(nextStatus) ? {} : { startedAt: now }),
-            completedAt: becameTerminal ? now : null,
+            completedAt: null,
         },
     });
-
-    if (becameTerminal) {
-        emitRunSessionTerminal({
-            sessionId,
-            status: nextStatus as RunTerminalStatus,
-            kind: session.kind,
-            projectId: session.projectId,
-        });
-    }
 }
 
 export async function recomputeRunSessionForMember(runId: string): Promise<void> {
