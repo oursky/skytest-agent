@@ -73,8 +73,10 @@ plans/
 # Local CLI runner state
 .skytest-dev/
 
-# Local runtime identity lockfile
-.skytest/instance.lock.yaml
+# Local SkyTest workspace state (runtime identity lock, detached "up" process state)
+**/.skytest/instance.lock.yaml
+**/.skytest/local-up.pid
+**/.skytest/local-up.log
 # CocoIndex Code (ccc)
 /.cocoindex_code/
 

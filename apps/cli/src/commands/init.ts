@@ -20,6 +20,10 @@ catalog:
 const SKYTEST_GITIGNORE_TEMPLATE = `# Local instance lock
 instance.lock.yaml
 
+# Local "up" process state
+local-up.pid
+local-up.log
+
 # Local run artifacts and generated reports
 artifacts/
 results/
