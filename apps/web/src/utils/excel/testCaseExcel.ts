@@ -45,6 +45,7 @@ export interface TestCaseExcelExportData {
     projectVariables?: ExcelProjectVariable[];
     testCaseVariables?: ExcelProjectVariable[];
     files?: ExcelFileEntry[];
+    kind?: string;
     // Maps a referenced login flow's test case id to its displayId so the export
     // carries a stable, human-readable reference that survives cross-project import.
     loginFlowDisplayIdById?: Record<string, string>;
@@ -55,6 +56,7 @@ export interface ParsedTestCaseExcel {
     testData: {
         name?: string;
         displayId?: string;
+        kind?: string;
         url: string;
         prompt: string;
         steps?: TestStep[];
@@ -180,6 +182,7 @@ export async function parseTestCaseExcel(content: ArrayBuffer): Promise<ParseRes
             testData: {
                 name: parsedTestCase.name,
                 displayId: parsedTestCase.testCaseId,
+                kind: parsedTestCase.kind,
                 url: (firstBrowserEntry?.config as BrowserConfig | undefined)?.url || parsedTestCase.primaryUrl || '',
                 prompt: '',
                 steps: steps.length > 0 ? steps : undefined,
@@ -256,6 +259,7 @@ function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
     const configurationsRows: Array<Record<string, string | number>> = [
         { Section: 'Basic Info', Type: 'Test Case Name', Name: data.name || '', Value: '' },
         { Section: 'Basic Info', Type: 'Test Case ID', Name: data.testCaseId || '', Value: '' },
+        { Section: 'Basic Info', Type: 'Kind', Name: data.kind || 'TEST', Value: '' },
         ...projectVariableRows,
         ...testCaseVariableRows,
         ...testFileRows,
@@ -350,7 +354,7 @@ function parseConfigurationsRows(
     warnings: string[],
     issues: TestCaseExcelIssue[]
 ): {
-    testCase: { name?: string; testCaseId?: string; primaryUrl?: string };
+    testCase: { name?: string; testCaseId?: string; primaryUrl?: string; kind?: string };
     projectVariables: ExcelProjectVariable[];
     testCaseVariables: ExcelProjectVariable[];
     files: ExcelFileEntry[];
@@ -369,7 +373,7 @@ function parseConfigurationsRows(
 
         if (section === 'basicinfo' || section === 'testcase') {
             const type = normalizeHeader(getRowValue(row, ['type']) || '');
-            if (type === 'testcasename' || type === 'testcaseid' || type === 'primaryurl') {
+            if (type === 'testcasename' || type === 'testcaseid' || type === 'primaryurl' || type === 'kind') {
                 const value = getRowValue(row, ['name']) || '';
                 if (type && value) fieldMap.set(type, value);
                 return;
@@ -500,6 +504,7 @@ function parseConfigurationsRows(
             name: fieldMap.get('testcasename') || fieldMap.get('name'),
             testCaseId: fieldMap.get('testcaseid'),
             primaryUrl: fieldMap.get('primaryurl'),
+            kind: fieldMap.get('kind'),
         },
         projectVariables,
         testCaseVariables,
@@ -524,6 +529,7 @@ function parseBrowserTargetRows(
         const name = getRowValue(row, ['name', 'key']) || '';
         const width = parseDimensionValue(getRowValue(row, ['width']));
         const height = parseDimensionValue(getRowValue(row, ['height']));
+        const loginFlowRef = getRowValue(row, ['login flow', 'loginflow']) || '';
         const rawTarget = getRowValue(row, ['target']);
         if (!url) {
             addParseIssue(warnings, issues, {
@@ -540,7 +546,15 @@ function parseBrowserTargetRows(
         const id = `browser_${String.fromCharCode('a'.charCodeAt(0) + targetIndex)}`;
         targetEntries.push({
             id,
-            config: normalizeBrowserConfig({ name: name || undefined, url, width, height })
+            // loginFlowId here carries the referenced login flow's displayId from the
+            // sheet; the import service resolves it to a real test case id (or drops it).
+            config: normalizeBrowserConfig({
+                name: name || undefined,
+                url,
+                width,
+                height,
+                ...(loginFlowRef ? { loginFlowId: loginFlowRef } : {}),
+            })
         });
 
         addTargetAlias(targetAliases, formatTargetLabel(targetIndex, 'browser'), id);

@@ -1,24 +1,53 @@
 import { Prisma } from '@prisma/client';
+import path from 'path';
 import { prisma } from '@/lib/core/prisma';
+import { createLogger } from '@/lib/core/logger';
 import { getTeamDevicesAvailability } from '@/lib/runners/availability-service';
 import { cleanStepsForStorage, normalizeTargetConfigMap } from '@/lib/runtime/test-case-utils';
 import { isAndroidTargetConfig, normalizeAndroidTargetConfig } from '@/lib/android/target-config';
 import { buildEmulatorProfileRequestedDeviceId } from '@/lib/android/target-requests';
 import { normalizeConfigName } from '@/lib/test-config/validation';
+import { validateAndSanitizeFile, buildTestCaseFileObjectKey } from '@/lib/security/file-security';
+import { putObjectBuffer } from '@/lib/storage/object-store-utils';
 import { parseTestCaseExcel, type TestCaseExcelIssue } from '@/utils/excel/testCaseExcel';
 import {
     TEST_STATUS,
+    TEST_CASE_KIND,
     type ConfigType,
     type BrowserConfig,
     type TargetConfig,
     type AndroidTargetConfig,
 } from '@/types';
 
+const logger = createLogger('lib:test-cases:batch-import');
+
 type SupportedImportConfigType = Extract<ConfigType, 'URL' | 'APP_ID' | 'VARIABLE' | 'RANDOM_STRING'>;
 
-export type BatchImportMode = 'validate' | 'import-valid';
-export type BatchImportIssueSeverity = 'warning' | 'error';
-export type BatchImportFileStatus = 'valid' | 'invalid' | 'imported' | 'skipped';
+export type BatchImportMode = 'validate' | 'import-valid' | 'import-all-draft';
+export type BatchImportIssueSeverity = 'info' | 'warning' | 'error';
+export type BatchImportFileStatus = 'complete' | 'incomplete' | 'invalid' | 'imported' | 'skipped';
+
+// Issues that make a test case impossible to create even as an incomplete draft.
+// Everything else is a warning the user can resolve later (or pick at run time),
+// except the purely informational overwrite notice.
+const ERROR_ISSUE_CODES = new Set<string>([
+    'INVALID_EXCEL',
+    'MISSING_TEST_CASE_NAME',
+    'AMBIGUOUS_TEST_CASE_MATCH',
+]);
+const INFO_ISSUE_CODES = new Set<string>([
+    'MATCHED_EXISTING_TEST_CASE',
+]);
+
+function classifyIssueSeverity(code: string): BatchImportIssueSeverity {
+    if (ERROR_ISSUE_CODES.has(code)) {
+        return 'error';
+    }
+    if (INFO_ISSUE_CODES.has(code)) {
+        return 'info';
+    }
+    return 'warning';
+}
 
 export interface BatchImportIssue {
     code: string;
@@ -41,9 +70,9 @@ export interface BatchImportFileReport {
 
 export interface BatchImportSummary {
     totalFiles: number;
-    validFiles: number;
+    completeFiles: number;
+    incompleteFiles: number;
     invalidFiles: number;
-    warningFiles: number;
     importedFiles: number;
     skippedFiles: number;
 }
@@ -54,19 +83,28 @@ export interface BatchImportResult {
     files: BatchImportFileReport[];
 }
 
+export interface BatchImportAttachment {
+    filename: string;
+    content: Buffer;
+}
+
 export interface BatchImportSourceFile {
     filename: string;
     content: ArrayBuffer;
+    attachments?: BatchImportAttachment[];
 }
 
 interface ParsedImportCandidate {
     filename: string;
     testCaseName?: string;
     testCaseDisplayId?: string;
+    kind: string;
     existingTestCaseId?: string;
     issues: BatchImportIssue[];
     parseData: Awaited<ReturnType<typeof parseTestCaseExcel>>['data'];
+    attachments: BatchImportAttachment[];
     hasErrors: boolean;
+    isComplete: boolean;
 }
 
 interface AndroidImportValidationContext {
@@ -164,6 +202,12 @@ async function upsertTestCaseConfigs(
     }
 }
 
+function normalizeKind(rawKind?: string): string {
+    return (rawKind || '').trim().toUpperCase() === TEST_CASE_KIND.LOGIN_FLOW
+        ? TEST_CASE_KIND.LOGIN_FLOW
+        : TEST_CASE_KIND.TEST;
+}
+
 async function parseImportCandidate(
     projectId: string,
     file: BatchImportSourceFile,
@@ -171,12 +215,23 @@ async function parseImportCandidate(
 ): Promise<ParsedImportCandidate> {
     const issues: BatchImportIssue[] = [];
     const parseResult = await parseTestCaseExcel(file.content);
+    const attachments = file.attachments ?? [];
+    const providedAttachmentNames = new Set(attachments.map((attachment) => attachment.filename.toLowerCase()));
+
     parseResult.issues.forEach((issue) => {
+        // The zip carries attachment content, so the "upload manually" warning no
+        // longer applies to files that are present in the archive.
+        if (issue.code === 'FILE_ATTACHMENT_MANUAL_UPLOAD_REQUIRED'
+            && issue.filename
+            && providedAttachmentNames.has(issue.filename.toLowerCase())) {
+            return;
+        }
         issues.push(mapParseIssue(file.filename, issue));
     });
 
     const testCaseName = (parseResult.data.testData.name || '').trim();
     const testCaseDisplayId = (parseResult.data.testData.displayId || parseResult.data.testCaseId || '').trim();
+    const kind = normalizeKind(parseResult.data.testData.kind);
 
     if (!testCaseName) {
         issues.push({
@@ -191,8 +246,8 @@ async function parseImportCandidate(
     if (!testCaseDisplayId) {
         issues.push({
             code: 'MISSING_TEST_CASE_ID',
-            severity: 'error',
-            reason: 'Test case ID is required',
+            severity: 'warning',
+            reason: 'Test case ID is missing; it can be set after import.',
             filename: file.filename,
             sheet: 'Configurations',
         });
@@ -232,7 +287,7 @@ async function parseImportCandidate(
             existingTestCaseId = matched[0].id;
             issues.push({
                 code: 'MATCHED_EXISTING_TEST_CASE',
-                severity: 'warning',
+                severity: 'info',
                 reason: `Found existing test case with ID "${testCaseDisplayId}" and name "${testCaseName}". Import will overwrite that test case if you continue.`,
                 filename: file.filename,
                 sheet: 'Configurations',
@@ -240,16 +295,48 @@ async function parseImportCandidate(
         }
     }
 
-    const hasErrors = issues.some((issue) => issue.severity === 'error');
     return {
         filename: file.filename,
         testCaseName: testCaseName || undefined,
         testCaseDisplayId: testCaseDisplayId || undefined,
+        kind,
         existingTestCaseId,
         issues,
         parseData: parseResult.data,
-        hasErrors,
+        attachments,
+        hasErrors: false,
+        isComplete: false,
     };
+}
+
+// Adds warnings for login flow references that cannot be matched to a known test
+// case (in the import batch or already in the project), then normalizes severities
+// and computes the completeness flags used to drive each import mode.
+function finalizeCandidate(candidate: ParsedImportCandidate, knownDisplayIds: Set<string>): void {
+    const browserConfig = candidate.parseData.testData.browserConfig ?? {};
+    for (const [targetId, targetConfig] of Object.entries(browserConfig)) {
+        if (isAndroidTargetConfig(targetConfig)) {
+            continue;
+        }
+        const loginFlowRef = (targetConfig as BrowserConfig).loginFlowId?.trim();
+        if (loginFlowRef && !knownDisplayIds.has(loginFlowRef)) {
+            const targetLabel = (targetConfig as BrowserConfig).name?.trim() || targetId;
+            candidate.issues.push({
+                code: 'LOGIN_FLOW_NOT_FOUND',
+                severity: 'warning',
+                reason: `Login flow "${loginFlowRef}" referenced by target "${targetLabel}" was not found. It will be cleared; select a login flow at run time.`,
+                filename: candidate.filename,
+                sheet: 'Browser Targets',
+            });
+        }
+    }
+
+    candidate.issues.forEach((issue) => {
+        issue.severity = classifyIssueSeverity(issue.code);
+    });
+    candidate.hasErrors = candidate.issues.some((issue) => issue.severity === 'error');
+    candidate.isComplete = !candidate.hasErrors
+        && !candidate.issues.some((issue) => issue.severity === 'warning');
 }
 
 function buildRequestedDeviceId(selector: AndroidTargetConfig['deviceSelector']): string {
@@ -296,8 +383,8 @@ function validateAndroidTargetBindings(
         if (!requestedRunnerRaw) {
             issues.push({
                 code: 'ANDROID_RUNNER_REQUIRED',
-                severity: 'error',
-                reason: `Android target "${targetLabel}" requires Runner ID.`,
+                severity: 'warning',
+                reason: `Android target "${targetLabel}" has no Runner ID; select a device/runner at run time.`,
                 filename,
                 sheet: 'Android Targets',
             });
@@ -308,8 +395,8 @@ function validateAndroidTargetBindings(
         if (!resolvedRunnerId) {
             issues.push({
                 code: 'ANDROID_RUNNER_NOT_FOUND',
-                severity: 'error',
-                reason: `Android target "${targetLabel}" uses Runner ID "${requestedRunnerRaw}" that is not paired to this team.`,
+                severity: 'warning',
+                reason: `Android target "${targetLabel}" uses Runner ID "${requestedRunnerRaw}" that is not paired to this team; select a device/runner at run time.`,
                 filename,
                 sheet: 'Android Targets',
             });
@@ -321,8 +408,8 @@ function validateAndroidTargetBindings(
         if (!hasRunnerDeviceMatch) {
             issues.push({
                 code: 'ANDROID_RUNNER_DEVICE_MISMATCH',
-                severity: 'error',
-                reason: `Android target "${targetLabel}" requested device "${requestedDeviceId}" is not currently available on Runner ID "${requestedRunnerRaw}".`,
+                severity: 'warning',
+                reason: `Android target "${targetLabel}" requested device "${requestedDeviceId}" is not currently available on Runner ID "${requestedRunnerRaw}"; select a device at run time.`,
                 filename,
                 sheet: 'Android Targets',
             });
@@ -338,9 +425,9 @@ function summarize(
 ): BatchImportResult {
     const summary: BatchImportSummary = {
         totalFiles: files.length,
-        validFiles: files.filter((item) => item.status === 'valid').length,
+        completeFiles: files.filter((item) => item.status === 'complete').length,
+        incompleteFiles: files.filter((item) => item.status === 'incomplete').length,
         invalidFiles: files.filter((item) => item.status === 'invalid').length,
-        warningFiles: files.filter((item) => item.issues.some((issue) => issue.severity === 'warning')).length,
         importedFiles: files.filter((item) => item.status === 'imported').length,
         skippedFiles: files.filter((item) => item.status === 'skipped').length,
     };
@@ -352,28 +439,115 @@ function summarize(
     };
 }
 
-async function importCandidate(
-    projectId: string,
-    candidate: ParsedImportCandidate
-): Promise<BatchImportFileReport> {
-    if (candidate.hasErrors) {
-        return {
-            filename: candidate.filename,
-            status: 'invalid',
-            testCaseName: candidate.testCaseName,
-            testCaseDisplayId: candidate.testCaseDisplayId,
-            existingTestCaseId: candidate.existingTestCaseId,
-            issues: candidate.issues,
-        };
+function resolveLoginFlowReferences(
+    browserConfig: Record<string, BrowserConfig | TargetConfig>,
+    displayIdToId: Map<string, string>,
+    candidate: ParsedImportCandidate,
+    resultIssues: BatchImportIssue[]
+): void {
+    for (const targetConfig of Object.values(browserConfig)) {
+        if (isAndroidTargetConfig(targetConfig)) {
+            continue;
+        }
+        const browser = targetConfig as BrowserConfig;
+        const loginFlowRef = browser.loginFlowId?.trim();
+        if (!loginFlowRef) {
+            continue;
+        }
+        const resolvedId = displayIdToId.get(loginFlowRef);
+        if (resolvedId) {
+            browser.loginFlowId = resolvedId;
+        } else {
+            delete browser.loginFlowId;
+            if (!resultIssues.some((issue) => issue.code === 'LOGIN_FLOW_NOT_FOUND')) {
+                resultIssues.push({
+                    code: 'LOGIN_FLOW_NOT_FOUND',
+                    severity: 'warning',
+                    reason: `Login flow "${loginFlowRef}" was not found and was cleared; select a login flow at run time.`,
+                    filename: candidate.filename,
+                    sheet: 'Browser Targets',
+                });
+            }
+        }
+    }
+}
+
+async function restoreAttachments(
+    testCaseId: string,
+    candidate: ParsedImportCandidate,
+    resultIssues: BatchImportIssue[]
+): Promise<void> {
+    if (candidate.attachments.length === 0) {
+        return;
     }
 
+    const metaByName = new Map(
+        candidate.parseData.files.map((file) => [file.filename.toLowerCase(), file])
+    );
+    const existing = await prisma.testCaseFile.findMany({
+        where: { testCaseId },
+        select: { filename: true },
+    });
+    const existingNames = new Set(existing.map((file) => file.filename));
+
+    for (const attachment of candidate.attachments) {
+        if (existingNames.has(attachment.filename)) {
+            continue;
+        }
+        const meta = metaByName.get(attachment.filename.toLowerCase());
+        const mimeType = meta?.mimeType || 'application/octet-stream';
+        const validation = validateAndSanitizeFile(attachment.filename, mimeType, attachment.content.length);
+        if (!validation.valid) {
+            resultIssues.push({
+                code: 'ATTACHMENT_RESTORE_SKIPPED',
+                severity: 'warning',
+                reason: `Attachment "${attachment.filename}" was not restored: ${validation.error ?? 'invalid file'}. Upload it manually.`,
+                filename: candidate.filename,
+            });
+            continue;
+        }
+
+        try {
+            const objectKey = buildTestCaseFileObjectKey(testCaseId, validation.storedName!);
+            await putObjectBuffer({ key: objectKey, body: attachment.content, contentType: mimeType });
+            await prisma.testCaseFile.create({
+                data: {
+                    testCaseId,
+                    filename: validation.sanitizedFilename ?? path.basename(attachment.filename),
+                    storedName: objectKey,
+                    mimeType,
+                    size: attachment.content.length,
+                },
+            });
+            existingNames.add(attachment.filename);
+        } catch (error) {
+            logger.warn('Failed to restore attachment during import', { filename: attachment.filename, error });
+            resultIssues.push({
+                code: 'ATTACHMENT_RESTORE_FAILED',
+                severity: 'warning',
+                reason: `Attachment "${attachment.filename}" could not be restored; upload it manually.`,
+                filename: candidate.filename,
+            });
+        }
+    }
+}
+
+async function importCandidate(
+    projectId: string,
+    candidate: ParsedImportCandidate,
+    displayIdToId: Map<string, string>
+): Promise<BatchImportFileReport> {
     const testData = candidate.parseData.testData;
     const targetName = candidate.testCaseName || '';
     const targetDisplayId = candidate.testCaseDisplayId || '';
+    const resultIssues: BatchImportIssue[] = [...candidate.issues];
     const cleanedSteps = testData.steps ? cleanStepsForStorage(testData.steps) : undefined;
     const normalizedTargetConfig = testData.browserConfig
         ? normalizeTargetConfigMap(testData.browserConfig)
         : undefined;
+    if (normalizedTargetConfig) {
+        resolveLoginFlowReferences(normalizedTargetConfig, displayIdToId, candidate, resultIssues);
+    }
     const projectVariables: UpsertConfigInput[] = candidate.parseData.projectVariables
         .filter((variable): variable is typeof variable & { type: SupportedImportConfigType } => isSupportedImportConfigType(variable.type))
         .map((variable) => ({
@@ -398,7 +572,8 @@ async function importCandidate(
                 where: { id: testCaseId },
                 data: {
                     name: targetName,
-                    displayId: targetDisplayId,
+                    displayId: targetDisplayId || null,
+                    kind: candidate.kind,
                     url: testData.url || 'about:blank',
                     prompt: testData.prompt || '',
                     steps: cleanedSteps ? JSON.stringify(cleanedSteps) : null,
@@ -411,7 +586,8 @@ async function importCandidate(
                 data: {
                     projectId,
                     name: targetName,
-                    displayId: targetDisplayId,
+                    displayId: targetDisplayId || null,
+                    kind: candidate.kind,
                     url: testData.url || 'about:blank',
                     prompt: testData.prompt || '',
                     steps: cleanedSteps ? JSON.stringify(cleanedSteps) : null,
@@ -433,6 +609,12 @@ async function importCandidate(
         return testCaseId;
     });
 
+    await restoreAttachments(importedTestCaseId, candidate, resultIssues);
+
+    if (targetDisplayId) {
+        displayIdToId.set(targetDisplayId, importedTestCaseId);
+    }
+
     return {
         filename: candidate.filename,
         status: 'imported',
@@ -440,7 +622,7 @@ async function importCandidate(
         testCaseDisplayId: candidate.testCaseDisplayId,
         existingTestCaseId: candidate.existingTestCaseId,
         importedTestCaseId,
-        issues: candidate.issues,
+        issues: resultIssues,
     };
 }
 
@@ -457,14 +639,15 @@ export async function processProjectBatchImport(input: {
         throw new Error('Project not found');
     }
 
-    const [teamDevicesAvailability, teamRunners] = await Promise.all([
+    const [teamDevicesAvailability, teamRunners, projectTestCases] = await Promise.all([
         getTeamDevicesAvailability(project.teamId),
         prisma.runner.findMany({
             where: { teamId: project.teamId },
-            select: {
-                id: true,
-                displayId: true,
-            },
+            select: { id: true, displayId: true },
+        }),
+        prisma.testCase.findMany({
+            where: { projectId: input.projectId, displayId: { not: null } },
+            select: { id: true, displayId: true },
         }),
     ]);
 
@@ -492,10 +675,24 @@ export async function processProjectBatchImport(input: {
         input.files.map((file) => parseImportCandidate(input.projectId, file, androidValidationContext))
     );
 
+    const displayIdToId = new Map<string, string>();
+    for (const testCase of projectTestCases) {
+        if (testCase.displayId) {
+            displayIdToId.set(testCase.displayId, testCase.id);
+        }
+    }
+    const knownDisplayIds = new Set<string>(displayIdToId.keys());
+    for (const candidate of parsedCandidates) {
+        if (candidate.testCaseDisplayId) {
+            knownDisplayIds.add(candidate.testCaseDisplayId);
+        }
+    }
+    parsedCandidates.forEach((candidate) => finalizeCandidate(candidate, knownDisplayIds));
+
     if (input.mode === 'validate') {
         const reports: BatchImportFileReport[] = parsedCandidates.map((candidate) => ({
             filename: candidate.filename,
-            status: candidate.hasErrors ? 'invalid' : 'valid',
+            status: candidate.hasErrors ? 'invalid' : (candidate.isComplete ? 'complete' : 'incomplete'),
             testCaseName: candidate.testCaseName,
             testCaseDisplayId: candidate.testCaseDisplayId,
             existingTestCaseId: candidate.existingTestCaseId,
@@ -504,9 +701,24 @@ export async function processProjectBatchImport(input: {
         return summarize(input.mode, reports);
     }
 
-    const reports: BatchImportFileReport[] = [];
-    for (const candidate of parsedCandidates) {
+    const shouldImport = (candidate: ParsedImportCandidate): boolean => {
         if (candidate.hasErrors) {
+            return false;
+        }
+        return input.mode === 'import-all-draft' ? true : candidate.isComplete;
+    };
+
+    // Import login flows first so test cases that reference them in the same batch
+    // can resolve their links against freshly created ids.
+    const ordered = [...parsedCandidates].sort((a, b) => {
+        const aLogin = a.kind === TEST_CASE_KIND.LOGIN_FLOW ? 0 : 1;
+        const bLogin = b.kind === TEST_CASE_KIND.LOGIN_FLOW ? 0 : 1;
+        return aLogin - bLogin;
+    });
+
+    const reports: BatchImportFileReport[] = [];
+    for (const candidate of ordered) {
+        if (!shouldImport(candidate)) {
             reports.push({
                 filename: candidate.filename,
                 status: 'skipped',
@@ -518,7 +730,7 @@ export async function processProjectBatchImport(input: {
             continue;
         }
 
-        reports.push(await importCandidate(input.projectId, candidate));
+        reports.push(await importCandidate(input.projectId, candidate, displayIdToId));
     }
 
     return summarize(input.mode, reports);

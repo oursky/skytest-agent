@@ -168,6 +168,7 @@ export async function POST(
             const excelBuffer = await exportToExcelBuffer({
                 name: parsedTestCase.name,
                 testCaseId: parsedTestCase.displayId || undefined,
+                kind: testCase.kind,
                 steps: parsedTestCase.steps,
                 browserConfig: parsedTestCase.browserConfig,
                 loginFlowDisplayIdById,
