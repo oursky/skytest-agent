@@ -77,37 +77,35 @@ export default function ConfigInlineEditorForm({
         return (
             <div className="rounded bg-blue-50/50 p-2">
                 {type === 'VARIABLE' ? (
-                    <>
+                    <div className="flex items-center gap-2">
                         <input
                             type="text"
                             value={editState.name}
                             onChange={(event) => onChange({ ...editState, name: event.target.value })}
                             onKeyDown={onKeyDown}
                             placeholder={t('configs.name.placeholder.enter')}
-                            className="h-8 w-full rounded border border-gray-300 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                            className="h-8 min-w-0 flex-1 rounded border border-gray-300 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
                             autoFocus={autoFocus}
                         />
-                        <div className="mt-2 flex flex-wrap items-center gap-2">
-                            <input
-                                type={editState.masked ? 'password' : 'text'}
-                                value={editState.value}
-                                onChange={(event) => onChange({ ...editState, value: event.target.value })}
-                                onKeyDown={onKeyDown}
-                                placeholder={t('configs.value.placeholder')}
-                                className="h-8 min-w-[220px] flex-1 rounded border border-gray-300 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                            />
-                            <button
-                                type="button"
-                                onClick={() => onChange({ ...editState, masked: !editState.masked })}
-                                className={`inline-flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs ${editState.masked ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-gray-200 bg-white text-gray-600'}`}
-                                title={t('configs.masked')}
-                                aria-label={t('configs.masked')}
-                            >
-                                <MaskedIcon masked={editState.masked} />
-                            </button>
-                            {renderActionButtons(variant, onSave, onCancel, t)}
-                        </div>
-                    </>
+                        <input
+                            type={editState.masked ? 'password' : 'text'}
+                            value={editState.value}
+                            onChange={(event) => onChange({ ...editState, value: event.target.value })}
+                            onKeyDown={onKeyDown}
+                            placeholder={t('configs.value.placeholder')}
+                            className="h-8 min-w-0 flex-[2] rounded border border-gray-300 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                        <button
+                            type="button"
+                            onClick={() => onChange({ ...editState, masked: !editState.masked })}
+                            className={`inline-flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs ${editState.masked ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-gray-200 bg-white text-gray-600'}`}
+                            title={t('configs.masked')}
+                            aria-label={t('configs.masked')}
+                        >
+                            <MaskedIcon masked={editState.masked} />
+                        </button>
+                        {renderActionButtons(variant, onSave, onCancel, t)}
+                    </div>
                 ) : (
                     <div className={`flex gap-2 ${autoFocus ? 'items-center' : 'items-start'}`}>
                         <input
