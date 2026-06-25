@@ -21,8 +21,6 @@ interface TestFormProps {
     initialData?: TestData;
     showNameInput?: boolean;
     readOnly?: boolean;
-    onExport?: (data: TestData) => void;
-    onImport?: () => void;
     testCaseId?: string;
     onSaveDraft?: (data: TestData) => Promise<void>;
     onDiscard?: () => void;
@@ -55,7 +53,7 @@ const SAMPLE_CONFIGS_TO_ENSURE = [
     { name: SAMPLE_PASSWORD_CONFIG_NAME, type: 'VARIABLE', value: SAMPLE_PASSWORD_CONFIG_VALUE, masked: true },
 ] as const;
 
-export default function TestForm({ onSubmit, isLoading, submitOnEnter = true, initialData, showNameInput, readOnly, onExport, onImport, testCaseId, onSaveDraft, onDiscard, isSaving, displayId, onDisplayIdChange, projectId, teamId, projectConfigs, testCaseConfigs, testCaseFiles, onTestCaseConfigsChange, onEnsureTestCase }: TestFormProps) {
+export default function TestForm({ onSubmit, isLoading, submitOnEnter = true, initialData, showNameInput, readOnly, testCaseId, onSaveDraft, onDiscard, isSaving, displayId, onDisplayIdChange, projectId, teamId, projectConfigs, testCaseConfigs, testCaseFiles, onTestCaseConfigsChange, onEnsureTestCase }: TestFormProps) {
     const { getAccessToken } = useAuth();
     const { t } = useI18n();
     const isLoginFlow = initialData?.kind === TEST_CASE_KIND.LOGIN_FLOW;
@@ -223,36 +221,6 @@ export default function TestForm({ onSubmit, isLoading, submitOnEnter = true, in
             <div className="p-6 pb-0 border-b border-gray-200">
                 <div className="flex items-center justify-between">
                     <h2 className="text-xl font-semibold text-foreground">{isLoginFlow ? t('testForm.title.loginFlow') : t('testForm.title')}</h2>
-                    {!isLoginFlow && (onExport || onImport) && (
-                        <div className="flex items-center gap-2">
-                            {onImport && (
-                                <button
-                                    type="button"
-                                    onClick={onImport}
-                                    className="cursor-pointer px-3 py-1.5 bg-white text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-1.5 text-sm"
-                                    title={t('testForm.importTitle')}
-                                >
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                                    </svg>
-                                    {t('testForm.import')}
-                                </button>
-                            )}
-                            {onExport && (
-                                <button
-                                    type="button"
-                                    onClick={() => onExport(getCurrentData())}
-                                    className="cursor-pointer px-3 py-1.5 bg-white text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-1.5 text-sm"
-                                    title={t('testForm.exportTitle')}
-                                >
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                    </svg>
-                                    {t('testForm.export')}
-                                </button>
-                            )}
-                        </div>
-                    )}
                 </div>
 
                 <div className="mt-4">

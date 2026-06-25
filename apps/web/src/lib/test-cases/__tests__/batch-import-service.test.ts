@@ -77,6 +77,8 @@ function buildParseResult(targetConfig: Record<string, TargetConfig>): ParseResu
 }
 
 describe('processProjectBatchImport Android runner/device validation', () => {
+    // Android runner/device gaps are recoverable at run time, so they surface as
+    // warnings (incomplete) rather than hard errors that block import entirely.
     beforeEach(() => {
         mocks.projectFindUnique.mockReset();
         mocks.runnerFindMany.mockReset();
@@ -108,12 +110,12 @@ describe('processProjectBatchImport Android runner/device validation', () => {
             files: [{ filename: 'case.xlsx', content: new Uint8Array([1]).buffer }],
         });
 
-        expect(result.summary.invalidFiles).toBe(1);
+        expect(result.summary.incompleteFiles).toBe(1);
         expect(result.files[0].issues).toEqual(
             expect.arrayContaining([
                 expect.objectContaining({
                     code: 'ANDROID_RUNNER_REQUIRED',
-                    severity: 'error',
+                    severity: 'warning',
                 }),
             ])
         );
@@ -138,12 +140,12 @@ describe('processProjectBatchImport Android runner/device validation', () => {
             files: [{ filename: 'case.xlsx', content: new Uint8Array([1]).buffer }],
         });
 
-        expect(result.summary.invalidFiles).toBe(1);
+        expect(result.summary.incompleteFiles).toBe(1);
         expect(result.files[0].issues).toEqual(
             expect.arrayContaining([
                 expect.objectContaining({
                     code: 'ANDROID_RUNNER_REQUIRED',
-                    severity: 'error',
+                    severity: 'warning',
                 }),
             ])
         );
@@ -168,12 +170,12 @@ describe('processProjectBatchImport Android runner/device validation', () => {
             files: [{ filename: 'case.xlsx', content: new Uint8Array([1]).buffer }],
         });
 
-        expect(result.summary.invalidFiles).toBe(1);
+        expect(result.summary.incompleteFiles).toBe(1);
         expect(result.files[0].issues).toEqual(
             expect.arrayContaining([
                 expect.objectContaining({
                     code: 'ANDROID_RUNNER_NOT_FOUND',
-                    severity: 'error',
+                    severity: 'warning',
                 }),
             ])
         );
@@ -198,7 +200,7 @@ describe('processProjectBatchImport Android runner/device validation', () => {
             files: [{ filename: 'case.xlsx', content: new Uint8Array([1]).buffer }],
         });
 
-        expect(result.summary.validFiles).toBe(1);
+        expect(result.summary.completeFiles).toBe(1);
         expect(result.files[0].issues).toEqual([]);
     });
 
@@ -221,12 +223,12 @@ describe('processProjectBatchImport Android runner/device validation', () => {
             files: [{ filename: 'case.xlsx', content: new Uint8Array([1]).buffer }],
         });
 
-        expect(result.summary.invalidFiles).toBe(1);
+        expect(result.summary.incompleteFiles).toBe(1);
         expect(result.files[0].issues).toEqual(
             expect.arrayContaining([
                 expect.objectContaining({
                     code: 'ANDROID_RUNNER_DEVICE_MISMATCH',
-                    severity: 'error',
+                    severity: 'warning',
                 }),
             ])
         );

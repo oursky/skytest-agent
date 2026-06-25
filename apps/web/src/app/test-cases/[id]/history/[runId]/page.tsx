@@ -176,44 +176,6 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
         ? testRun.events
         : parseStoredEvents(testRun.result || testRun.logs);
 
-    const buildExcelBaseName = (testCaseIdentifier?: string, testCaseName?: string): string => {
-        const sanitize = (value: string) => value.replace(/[^a-zA-Z0-9._-]/g, '_');
-        const safeId = sanitize((testCaseIdentifier || '').trim());
-        const safeName = sanitize((testCaseName || '').trim());
-        if (safeId && safeName) return `${safeId}_${safeName}`;
-        if (safeName) return safeName;
-        if (safeId) return safeId;
-        return 'test_case';
-    };
-
-    const handleExport = async () => {
-        try {
-            const token = await getAccessToken();
-            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const response = await fetch(`/api/test-cases/${id}/export?xlsxOnly=true`, { headers });
-            if (!response.ok) {
-                throw new Error('Export request failed');
-            }
-
-            const blob = await response.blob();
-            const contentDisposition = response.headers.get('Content-Disposition') || '';
-            const filenameMatch = contentDisposition.match(/filename=\"?([^\";]+)\"?/i);
-            const fallbackName = `${buildExcelBaseName(testData?.displayId || testCase?.displayId, testData?.name || testCase?.name)}.xlsx`;
-            const filename = filenameMatch?.[1] || fallbackName;
-
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        } catch (error) {
-            console.error('Failed to export test case', error);
-        }
-    };
-
     const { testData, snapshotProjectConfigs, snapshotTestCaseConfigs } = (() => {
         const baseConfig = testCase ? {
             displayId: testCase.displayId,
@@ -319,7 +281,6 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                                 testCaseId={id}
                                 displayId={testData.displayId}
                                 projectId={projectId}
-                                onExport={testData ? handleExport : undefined}
                                 projectConfigs={snapshotProjectConfigs}
                                 testCaseConfigs={snapshotTestCaseConfigs}
                             />

@@ -32,6 +32,49 @@ describe('testCaseExcel import/export contract', () => {
         expect(parsed.issues.some((issue) => issue.code === 'FILE_ATTACHMENT_MANUAL_UPLOAD_REQUIRED')).toBe(true);
     });
 
+    it('round-trips login flow reference and kind through export and import', async () => {
+        const workbook = await exportToExcelArrayBuffer({
+            name: 'Dashboard',
+            testCaseId: 'TC-200',
+            kind: 'TEST',
+            steps: [{ id: '1', target: 'browser_a', type: 'ai-action', action: 'Open' }],
+            browserConfig: {
+                browser_a: { url: 'https://example.com', width: 1280, height: 720, loginFlowId: 'lf-cuid-1' },
+            },
+            loginFlowDisplayIdById: { 'lf-cuid-1': 'LF-1' },
+        });
+
+        const parsed = await parseTestCaseExcel(workbook);
+        expect(parsed.data.testData.kind).toBe('TEST');
+        const target = parsed.data.testData.browserConfig?.browser_a as { loginFlowId?: string };
+        expect(target?.loginFlowId).toBe('LF-1');
+    });
+
+    it('round-trips FILE variable metadata (filename, mime, size) through export and import', async () => {
+        const workbook = await exportToExcelArrayBuffer({
+            name: 'Upload Case',
+            testCaseId: 'TC-300',
+            steps: [{ id: '1', target: 'browser_a', type: 'ai-action', action: 'Open' }],
+            browserConfig: {
+                browser_a: { url: 'https://example.com', width: 1280, height: 720 },
+            },
+            testCaseVariables: [{
+                name: 'DATA_FILE',
+                type: 'FILE',
+                value: 'data.csv',
+                filename: 'data.csv',
+                mimeType: 'text/csv',
+                size: 2048,
+            }],
+        });
+
+        const parsed = await parseTestCaseExcel(workbook);
+        const fileVar = parsed.data.testCaseVariables.find((variable) => variable.type === 'FILE');
+        expect(fileVar?.filename).toBe('data.csv');
+        expect(fileVar?.mimeType).toBe('text/csv');
+        expect(fileVar?.size).toBe(2048);
+    });
+
     it('reports row-level error when a test step action is missing', async () => {
         const workbook = await exportToExcelArrayBuffer({
             name: 'Missing Action Case',
