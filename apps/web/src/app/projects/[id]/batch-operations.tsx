@@ -2,8 +2,10 @@ import type React from 'react';
 import type { TestCaseImportReviewData } from '@/components/features/test-cases/ui/TestCaseImportReviewDialog';
 import type { SortColumn } from './project-page.types';
 
+export type BatchImportMode = 'validate' | 'import-valid' | 'import-all-draft';
+
 export interface BatchImportResponse extends TestCaseImportReviewData {
-    mode: 'validate' | 'import-valid';
+    mode: BatchImportMode;
 }
 
 export function extractFilenameFromContentDisposition(headerValue: string | null, fallbackName: string): string {
@@ -61,15 +63,15 @@ export function SortIcon(input: {
 export async function runBatchImportRequestHelper(input: {
     getAccessToken: () => Promise<string | undefined | null>;
     projectId: string;
-    files: File[];
-    mode: 'validate' | 'import-valid';
+    file: File;
+    mode: BatchImportMode;
 }): Promise<BatchImportResponse> {
-    const { getAccessToken, projectId, files, mode } = input;
+    const { getAccessToken, projectId, file, mode } = input;
     const token = await getAccessToken();
     const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
     const formData = new FormData();
     formData.append('mode', mode);
-    files.forEach((file) => formData.append('files', file));
+    formData.append('file', file);
 
     const response = await fetch(`/api/projects/${projectId}/test-cases/batch-import`, {
         method: 'POST',
@@ -115,43 +117,40 @@ export async function handleExportSelectedHelper(input: {
     downloadBlob(blob, filename);
 }
 
-export async function handleBatchImportSelectedFilesHelper(input: {
-    files: File[];
-    runBatchImportRequest: (files: File[], mode: 'validate' | 'import-valid') => Promise<BatchImportResponse>;
+export async function handleBatchImportZipHelper(input: {
+    file: File;
+    runBatchImportRequest: (file: File, mode: BatchImportMode) => Promise<BatchImportResponse>;
     fetchTestCases: () => Promise<void>;
     setBatchImportReviewData: React.Dispatch<React.SetStateAction<BatchImportResponse | null>>;
-    setPendingBatchImportFiles: React.Dispatch<React.SetStateAction<File[]>>;
+    setPendingBatchImportFile: React.Dispatch<React.SetStateAction<File | null>>;
     setIsBatchImportProcessing: React.Dispatch<React.SetStateAction<boolean>>;
 }): Promise<void> {
     const {
-        files,
+        file,
         runBatchImportRequest,
         fetchTestCases,
         setBatchImportReviewData,
-        setPendingBatchImportFiles,
+        setPendingBatchImportFile,
         setIsBatchImportProcessing,
     } = input;
 
-    if (files.length === 0) {
-        return;
-    }
-
     setIsBatchImportProcessing(true);
     try {
-        const validationResult = await runBatchImportRequest(files, 'validate');
-        const hasErrors = validationResult.files.some((file) => file.issues.some((issue) => issue.severity === 'error'));
-        const hasWarnings = validationResult.files.some((file) => file.issues.some((issue) => issue.severity === 'warning'));
+        const validationResult = await runBatchImportRequest(file, 'validate');
+        const hasIncomplete = validationResult.summary.incompleteFiles > 0;
+        const hasInvalid = validationResult.summary.invalidFiles > 0;
 
-        if (!hasErrors && !hasWarnings) {
-            await runBatchImportRequest(files, 'import-valid');
+        // Everything is complete — import straight away without prompting.
+        if (!hasIncomplete && !hasInvalid) {
+            await runBatchImportRequest(file, 'import-valid');
             await fetchTestCases();
             setBatchImportReviewData(null);
-            setPendingBatchImportFiles([]);
+            setPendingBatchImportFile(null);
             return;
         }
 
         setBatchImportReviewData(validationResult);
-        setPendingBatchImportFiles(files);
+        setPendingBatchImportFile(file);
     } catch (error) {
         console.error('Failed to validate batch import', error);
     } finally {
@@ -159,36 +158,38 @@ export async function handleBatchImportSelectedFilesHelper(input: {
     }
 }
 
-export async function handleProceedBatchImportHelper(input: {
-    pendingBatchImportFiles: File[];
-    runBatchImportRequest: (files: File[], mode: 'validate' | 'import-valid') => Promise<BatchImportResponse>;
+export async function runPendingBatchImportHelper(input: {
+    pendingBatchImportFile: File | null;
+    mode: 'import-valid' | 'import-all-draft';
+    runBatchImportRequest: (file: File, mode: BatchImportMode) => Promise<BatchImportResponse>;
     fetchTestCases: () => Promise<void>;
     setBatchImportReviewData: React.Dispatch<React.SetStateAction<BatchImportResponse | null>>;
-    setPendingBatchImportFiles: React.Dispatch<React.SetStateAction<File[]>>;
+    setPendingBatchImportFile: React.Dispatch<React.SetStateAction<File | null>>;
     setIsBatchImportProcessing: React.Dispatch<React.SetStateAction<boolean>>;
 }): Promise<void> {
     const {
-        pendingBatchImportFiles,
+        pendingBatchImportFile,
+        mode,
         runBatchImportRequest,
         fetchTestCases,
         setBatchImportReviewData,
-        setPendingBatchImportFiles,
+        setPendingBatchImportFile,
         setIsBatchImportProcessing,
     } = input;
 
-    if (pendingBatchImportFiles.length === 0) {
+    if (!pendingBatchImportFile) {
         setBatchImportReviewData(null);
         return;
     }
 
     setIsBatchImportProcessing(true);
     try {
-        await runBatchImportRequest(pendingBatchImportFiles, 'import-valid');
+        await runBatchImportRequest(pendingBatchImportFile, mode);
         await fetchTestCases();
         setBatchImportReviewData(null);
-        setPendingBatchImportFiles([]);
+        setPendingBatchImportFile(null);
     } catch (error) {
-        console.error('Failed to import valid batch records', error);
+        console.error('Failed to import batch records', error);
     } finally {
         setIsBatchImportProcessing(false);
     }
@@ -196,8 +197,8 @@ export async function handleProceedBatchImportHelper(input: {
 
 export function handleDiscardBatchImportHelper(input: {
     setBatchImportReviewData: React.Dispatch<React.SetStateAction<BatchImportResponse | null>>;
-    setPendingBatchImportFiles: React.Dispatch<React.SetStateAction<File[]>>;
+    setPendingBatchImportFile: React.Dispatch<React.SetStateAction<File | null>>;
 }): void {
     input.setBatchImportReviewData(null);
-    input.setPendingBatchImportFiles([]);
+    input.setPendingBatchImportFile(null);
 }

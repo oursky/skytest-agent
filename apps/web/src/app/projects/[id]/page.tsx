@@ -19,11 +19,12 @@ import ProjectTestCasesToolbar from '@/components/features/test-cases/ui/Project
 import {
     BatchImportResponse,
     SortIcon,
-    handleBatchImportSelectedFilesHelper,
+    handleBatchImportZipHelper,
     handleDiscardBatchImportHelper,
     handleExportSelectedHelper,
-    handleProceedBatchImportHelper,
+    runPendingBatchImportHelper,
     runBatchImportRequestHelper,
+    type BatchImportMode,
 } from './batch-operations';
 import { filterProjectTestCases, sortProjectTestCases, toggleSelectAllFilteredTestCases, toggleSelectedTestCase } from './project-page-table';
 import ProjectTestCaseRow from './ProjectTestCaseRow';
@@ -61,7 +62,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     const [isExportingSelected, setIsExportingSelected] = useState(false);
     const [isBatchImportProcessing, setIsBatchImportProcessing] = useState(false);
     const [batchImportReviewData, setBatchImportReviewData] = useState<BatchImportResponse | null>(null);
-    const [pendingBatchImportFiles, setPendingBatchImportFiles] = useState<File[]>([]);
+    const [pendingBatchImportFile, setPendingBatchImportFile] = useState<File | null>(null);
     const displayIdInputRef = useRef<HTMLInputElement | null>(null);
     const batchImportInputRef = useRef<HTMLInputElement | null>(null);
     const skipBlurSaveRef = useRef(false);
@@ -107,6 +108,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
     const handleTabChange = useCallback((tab: ProjectTab) => {
         setActiveTab(tab);
+        setSelectedTestCaseIds(new Set());
         const params = new URLSearchParams(searchParams.toString());
         params.set('tab', tab);
         const query = params.toString();
@@ -441,6 +443,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     };
 
     const selectedCount = selectedTestCaseIds.size;
+    const supportsSelection = activeTab === 'test-cases' || activeTab === 'login-flows';
     const allFilteredSelected = sortedTestCases.length > 0
         && sortedTestCases.every((testCase) => selectedTestCaseIds.has(testCase.id));
 
@@ -453,53 +456,41 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     };
 
     const runBatchImportRequest = useCallback(async (
-        files: File[],
-        mode: 'validate' | 'import-valid'
-    ): Promise<BatchImportResponse | null> => {
+        file: File,
+        mode: BatchImportMode
+    ): Promise<BatchImportResponse> => {
         return await runBatchImportRequestHelper({
             getAccessToken,
             projectId: id,
-            files,
+            file,
             mode,
         });
     }, [getAccessToken, id]);
 
-    const handleBatchImportSelectedFiles = useCallback(async (files: File[]) => {
-        await handleBatchImportSelectedFilesHelper({
-            files,
-            runBatchImportRequest: async (requestFiles, mode) => {
-                const response = await runBatchImportRequest(requestFiles, mode);
-                if (!response) {
-                    throw new Error('Batch import request returned no response');
-                }
-                return response;
-            },
+    const handleBatchImportInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file || !file.name.toLowerCase().endsWith('.zip')) {
+            return;
+        }
+        await handleBatchImportZipHelper({
+            file,
+            runBatchImportRequest,
             fetchTestCases,
             setBatchImportReviewData,
-            setPendingBatchImportFiles,
+            setPendingBatchImportFile,
             setIsBatchImportProcessing,
         });
-    }, [fetchTestCases, runBatchImportRequest]);
-
-    const handleBatchImportInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        const files = Array.from(event.target.files || []).filter((file) => file.name.toLowerCase().endsWith('.xlsx'));
-        await handleBatchImportSelectedFiles(files);
-        event.target.value = '';
     };
 
-    const handleProceedBatchImport = async () => {
-        await handleProceedBatchImportHelper({
-            pendingBatchImportFiles,
-            runBatchImportRequest: async (requestFiles, mode) => {
-                const response = await runBatchImportRequest(requestFiles, mode);
-                if (!response) {
-                    throw new Error('Batch import request returned no response');
-                }
-                return response;
-            },
+    const runPendingBatchImport = async (mode: 'import-valid' | 'import-all-draft') => {
+        await runPendingBatchImportHelper({
+            pendingBatchImportFile,
+            mode,
+            runBatchImportRequest,
             fetchTestCases,
             setBatchImportReviewData,
-            setPendingBatchImportFiles,
+            setPendingBatchImportFile,
             setIsBatchImportProcessing,
         });
     };
@@ -507,7 +498,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     const handleDiscardBatchImport = () => {
         handleDiscardBatchImportHelper({
             setBatchImportReviewData,
-            setPendingBatchImportFiles,
+            setPendingBatchImportFile,
         });
     };
 
@@ -597,14 +588,14 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 isOpen={batchImportReviewData !== null}
                 data={batchImportReviewData}
                 isProcessing={isBatchImportProcessing}
-                onProceed={handleProceedBatchImport}
+                onImportComplete={() => runPendingBatchImport('import-valid')}
+                onImportAllDraft={() => runPendingBatchImport('import-all-draft')}
                 onDiscard={handleDiscardBatchImport}
             />
             <input
                 ref={batchImportInputRef}
                 type="file"
-                multiple
-                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                accept=".zip,application/zip"
                 className="hidden"
                 onChange={handleBatchImportInputChange}
             />
@@ -649,7 +640,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                         createLabel={activeTab === 'login-flows'
                             ? t('project.startNewLoginFlow')
                             : t('project.startNewRun')}
-                        showImportExport={activeTab === 'test-cases'}
+                        showImportExport={activeTab === 'test-cases' || activeTab === 'login-flows'}
                         t={t}
                     />
                 )}
@@ -706,7 +697,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
                 <div className={`bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden ${activeTab !== 'test-cases' && activeTab !== 'login-flows' ? 'hidden' : ''}`}>
                     <div className="hidden md:grid grid-cols-24 gap-4 p-4 border-b border-gray-200 bg-gray-50 text-sm font-medium text-gray-500">
-                        {activeTab === 'test-cases' && (
+                        {supportsSelection && (
                             <div className="col-span-1 flex items-center">
                                 <input
                                     type="checkbox"
@@ -719,7 +710,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                         )}
                         <button
                             onClick={() => handleSort('id')}
-                            className={`${activeTab === 'test-cases' ? 'col-span-3' : 'col-span-4'} flex items-center gap-1 hover:text-gray-700 transition-colors text-left`}
+                            className={`${supportsSelection ? 'col-span-3' : 'col-span-4'} flex items-center gap-1 hover:text-gray-700 transition-colors text-left`}
                         >
                             {t('project.table.id')}
                             <SortIcon column="id" sortColumn={sortColumn} sortDirection={sortDirection} />
@@ -780,7 +771,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                                     testCase={testCase}
                                     projectId={id}
                                     isSelected={selectedTestCaseIds.has(testCase.id)}
-                                    canSelect={activeTab === 'test-cases'}
+                                    canSelect={supportsSelection}
                                     onToggleSelect={handleToggleSelectTestCase}
                                     isEditingDisplayId={editingDisplayIdTestCaseId === testCase.id}
                                     isSavingDisplayId={savingDisplayIdTestCaseId === testCase.id}

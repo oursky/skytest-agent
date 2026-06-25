@@ -1,11 +1,12 @@
 'use client';
 
 import Modal from '@/components/shared/Modal';
+import Button from '@/components/shared/Button';
 import { useI18n } from '@/i18n';
 
 export interface TestCaseImportIssue {
     code: string;
-    severity: 'warning' | 'error';
+    severity: 'info' | 'warning' | 'error';
     reason: string;
     sheet?: string;
     row?: number;
@@ -14,16 +15,16 @@ export interface TestCaseImportIssue {
 
 export interface TestCaseImportFileReport {
     filename: string;
-    status: 'valid' | 'invalid' | 'imported' | 'skipped';
+    status: 'complete' | 'incomplete' | 'invalid' | 'imported' | 'skipped';
     issues: TestCaseImportIssue[];
 }
 
 export interface TestCaseImportReviewData {
     summary: {
         totalFiles: number;
-        validFiles: number;
+        completeFiles: number;
+        incompleteFiles: number;
         invalidFiles: number;
-        warningFiles: number;
         importedFiles: number;
         skippedFiles: number;
     };
@@ -34,8 +35,9 @@ interface TestCaseImportReviewDialogProps {
     isOpen: boolean;
     data: TestCaseImportReviewData | null;
     isProcessing: boolean;
-    onProceed: () => void;
     onDiscard: () => void;
+    onImportComplete: () => void;
+    onImportAllDraft: () => void;
 }
 
 function formatIssueLabel(issue: TestCaseImportIssue): string {
@@ -45,43 +47,45 @@ function formatIssueLabel(issue: TestCaseImportIssue): string {
     return `${prefix}${issue.reason}`;
 }
 
+function issueColorClass(severity: TestCaseImportIssue['severity']): string {
+    if (severity === 'error') return 'text-red-700';
+    if (severity === 'warning') return 'text-amber-700';
+    return 'text-gray-500';
+}
+
 export default function TestCaseImportReviewDialog({
     isOpen,
     data,
     isProcessing,
-    onProceed,
     onDiscard,
+    onImportComplete,
+    onImportAllDraft,
 }: TestCaseImportReviewDialogProps) {
     const { t } = useI18n();
     const filesWithIssues = (data?.files || []).filter((file) => file.issues.length > 0);
-    const hasErrorIssues = filesWithIssues.some((file) => file.issues.some((issue) => issue.severity === 'error'));
-    const hasOverwriteWarning = filesWithIssues.some((file) => file.issues.some((issue) => issue.code === 'MATCHED_EXISTING_TEST_CASE'));
-    const confirmText = hasOverwriteWarning
-        ? (hasErrorIssues ? t('project.batchImport.dialog.overwriteValidRecords') : t('project.batchImport.dialog.overwriteAndImport'))
-        : (hasErrorIssues ? t('project.batchImport.dialog.importValidOnly') : t('project.batchImport.dialog.continueImport'));
-    const title = hasOverwriteWarning
-        ? t('project.batchImport.dialog.titleOverwrite')
-        : (hasErrorIssues ? t('project.batchImport.dialog.titleError') : t('project.batchImport.dialog.titleWarning'));
+    const completeCount = data?.summary.completeFiles ?? 0;
+    const incompleteCount = data?.summary.incompleteFiles ?? 0;
+    const invalidCount = data?.summary.invalidFiles ?? 0;
+
+    const title = invalidCount > 0
+        ? t('project.batchImport.dialog.titleError')
+        : t('project.batchImport.dialog.titleWarning');
 
     return (
         <Modal
             isOpen={isOpen}
             onClose={onDiscard}
             title={title}
-            onConfirm={onProceed}
-            confirmText={confirmText}
-            cancelText={t('project.batchImport.dialog.discard')}
-            confirmDisabled={isProcessing}
-            closeOnConfirm={false}
+            showFooter={false}
         >
             <div className="space-y-4 text-sm text-gray-700">
                 {data && (
                     <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
                         {t('project.batchImport.dialog.summary', {
                             total: data.summary.totalFiles,
-                            valid: data.summary.validFiles,
-                            invalid: data.summary.invalidFiles,
-                            warnings: data.summary.warningFiles,
+                            complete: completeCount,
+                            incomplete: incompleteCount,
+                            invalid: invalidCount,
                         })}
                     </div>
                 )}
@@ -94,7 +98,7 @@ export default function TestCaseImportReviewDialog({
                                 {file.issues.map((issue, index) => (
                                     <li
                                         key={`${file.filename}-${issue.code}-${index}`}
-                                        className={issue.severity === 'error' ? 'text-red-700' : 'text-amber-700'}
+                                        className={issueColorClass(issue.severity)}
                                     >
                                         {formatIssueLabel(issue)}
                                     </li>
@@ -102,6 +106,22 @@ export default function TestCaseImportReviewDialog({
                             </ul>
                         </div>
                     ))}
+                </div>
+
+                <div className="flex flex-wrap justify-end gap-3 border-t border-gray-200 pt-4">
+                    <Button onClick={onDiscard} variant="secondary" size="sm" disabled={isProcessing}>
+                        {t('project.batchImport.dialog.discard')}
+                    </Button>
+                    {incompleteCount > 0 && (
+                        <Button onClick={onImportAllDraft} variant="secondary" size="sm" disabled={isProcessing}>
+                            {t('project.batchImport.dialog.importAllDraft')}
+                        </Button>
+                    )}
+                    {completeCount > 0 && (
+                        <Button onClick={onImportComplete} variant="primary" size="sm" disabled={isProcessing}>
+                            {t('project.batchImport.dialog.importCompleteOnly')}
+                        </Button>
+                    )}
                 </div>
             </div>
         </Modal>
