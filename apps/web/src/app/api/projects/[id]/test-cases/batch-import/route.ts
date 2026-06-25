@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { apiError } from '@/lib/security/api-route-standards';
 import { createLogger } from '@/lib/core/logger';
 import { processProjectBatchImport, type BatchImportMode, type BatchImportSourceFile } from '@/lib/test-cases/batch-import-service';
-import { readZipEntries, extractTestCaseEntries } from '@/lib/test-cases/import-zip';
+import { readZipEntries, extractTestCaseEntries, extractProjectConfigFiles } from '@/lib/test-cases/import-zip';
 import { guardProjectRouteRequest } from '@/lib/security/project-route-access';
 
 const logger = createLogger('api:projects:test-cases:batch-import');
@@ -59,12 +59,14 @@ export async function POST(
                 entry.xlsx.byteOffset + entry.xlsx.byteLength
             ) as ArrayBuffer,
             attachments: entry.attachments,
+            configFiles: entry.configFiles,
         }));
 
         const result = await processProjectBatchImport({
             projectId: id,
             mode,
             files: importFiles,
+            projectConfigFiles: extractProjectConfigFiles(entries),
         });
 
         return NextResponse.json(result);

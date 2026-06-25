@@ -49,7 +49,9 @@ Row-based table with sections such as `Basic Info` / `Test Case`,
 
 Basic Info rows include `Test Case Name`, `Test Case ID`, and `Kind` (`TEST` or
 `LOGIN_FLOW`, carried in the `Name` column). Variable rows use `Section`, `Type`,
-`Name`, `Value`, and `Masked` (`Y` when a `Variable` is masked).
+`Name`, `Value`, and `Masked` (`Y` when a `Variable` is masked). FILE rows also
+carry `Mime Type` and `Size`, and their `Value` is the original filename used to
+match the bundled content under `config-files/` or `project-config-files/`.
 
 ## Browser Targets Sheet
 
@@ -82,6 +84,10 @@ Import (`POST /api/projects/[id]/test-cases/batch-import`, single `.zip`) does:
 - import targets (browser + Android), test steps, and supported variables
   (`Masked` flag and browser `Width`/`Height` preserved)
 - restore uploaded attachments from `test-cases/{base}/files/` into object storage
+- restore FILE-type variable content from `test-cases/{base}/config-files/`
+  (test-case scope) and `project-config-files/` (project scope), matched to the
+  workbook's FILE rows by filename; project FILE configs are restored once per
+  import run
 - resolve `Login Flow` references by displayId — matched within the imported
   batch first (login flows import before the cases that reference them), then
   against existing project test cases; unresolved references are cleared
@@ -103,8 +109,8 @@ Import modes:
 - `import-all-draft` — import every non-error case, saving incomplete ones as
   drafts.
 
-Not yet imported: FILE-type variable content (exported under `config-files/` and
-`project-config-files/` for forward compatibility, but restore is not wired up).
+A FILE row whose content is missing from the archive (or fails validation)
+stays a warning and must be uploaded manually.
 
 ## Export Behavior
 

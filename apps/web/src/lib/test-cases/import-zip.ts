@@ -3,10 +3,16 @@ import path from 'path';
 
 const MAX_TOTAL_UNCOMPRESSED_BYTES = 500 * 1024 * 1024;
 
+export interface ZipFileEntry {
+    filename: string;
+    content: Buffer;
+}
+
 export interface ZipTestCaseEntry {
     base: string;
     xlsx: Buffer;
-    attachments: Array<{ filename: string; content: Buffer }>;
+    attachments: ZipFileEntry[];
+    configFiles: ZipFileEntry[];
 }
 
 export async function readZipEntries(buffer: Buffer): Promise<Map<string, Buffer>> {
@@ -64,7 +70,7 @@ export function extractTestCaseEntries(entries: Map<string, Buffer>): ZipTestCas
     const ensure = (base: string): ZipTestCaseEntry => {
         let entry = byBase.get(base);
         if (!entry) {
-            entry = { base, xlsx: Buffer.alloc(0), attachments: [] };
+            entry = { base, xlsx: Buffer.alloc(0), attachments: [], configFiles: [] };
             byBase.set(base, entry);
         }
         return entry;
@@ -90,8 +96,30 @@ export function extractTestCaseEntries(entries: Map<string, Buffer>): ZipTestCas
                 filename: path.basename(attachmentMatch[2]),
                 content,
             });
+            continue;
+        }
+
+        const configFileMatch = rest.match(/^(.+)\/config-files\/(.+)$/);
+        if (configFileMatch) {
+            ensure(configFileMatch[1]).configFiles.push({
+                filename: path.basename(configFileMatch[2]),
+                content,
+            });
         }
     }
 
     return [...byBase.values()].filter((entry) => entry.xlsx.length > 0);
+}
+
+// Project-scoped FILE-variable content lives once at the top level rather than
+// inside any single test case folder.
+export function extractProjectConfigFiles(entries: Map<string, Buffer>): ZipFileEntry[] {
+    const files: ZipFileEntry[] = [];
+    for (const [rawPath, content] of entries) {
+        const match = rawPath.match(/(?:^|\/)project-config-files\/(.+)$/);
+        if (match) {
+            files.push({ filename: path.basename(match[1]), content });
+        }
+    }
+    return files;
 }

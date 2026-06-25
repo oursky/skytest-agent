@@ -24,6 +24,9 @@ interface ExcelProjectVariable {
     type: SupportedVariableType;
     value: string;
     masked?: boolean;
+    filename?: string;
+    mimeType?: string;
+    size?: number;
 }
 
 interface ExcelFileEntry {
@@ -227,6 +230,8 @@ function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
             Name: item.name,
             Value: item.type === 'RANDOM_STRING' ? formatRandomStringValueForSheet(item.value) : item.value,
             Masked: item.masked ? 'Y' : '',
+            'Mime Type': item.type === 'FILE' ? (item.mimeType || '') : '',
+            Size: item.type === 'FILE' && item.size != null ? String(item.size) : '',
         }));
 
     const testCaseVariableRows = sortVariablesForExport(data.testCaseVariables || [])
@@ -237,6 +242,8 @@ function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
             Name: item.name,
             Value: item.type === 'RANDOM_STRING' ? formatRandomStringValueForSheet(item.value) : item.value,
             Masked: item.masked ? 'Y' : '',
+            'Mime Type': item.type === 'FILE' ? (item.mimeType || '') : '',
+            Size: item.type === 'FILE' && item.size != null ? String(item.size) : '',
         }));
 
     const testFileRows = (data.files || []).map((file) => ({
@@ -414,13 +421,26 @@ function parseConfigurationsRows(
             }
             if (type === 'FILE') {
                 const normalizedName = rawName.trim().toUpperCase();
+                const fileLabel = value || getRowValue(row, ['filename', 'file name']) || '';
+                const sizeRaw = getRowValue(row, ['size']);
+                const sizeNum = sizeRaw ? Number(sizeRaw) : undefined;
+                const isProject = section === 'projectvariable' || section === 'projectvariables';
+                const destination = isProject ? projectVariables : testCaseVariables;
+                destination.push({
+                    name: normalizedName,
+                    type,
+                    value: fileLabel,
+                    filename: fileLabel || undefined,
+                    mimeType: getRowValue(row, ['mimetype', 'mime type']) || undefined,
+                    size: Number.isFinite(sizeNum) ? sizeNum : undefined,
+                });
                 addParseIssue(warnings, issues, {
                     code: 'FILE_VARIABLE_NOT_IMPORTABLE',
                     severity: 'warning',
                     sheet: 'Configurations',
                     row: rowNumber,
-                    filename: normalizedName,
-                    reason: `File variable "${normalizedName}" in Configurations row ${rowNumber} cannot be imported. Upload files manually after import.`,
+                    filename: fileLabel || normalizedName,
+                    reason: `File variable "${normalizedName}" in Configurations row ${rowNumber} has no bundled content. Upload the file manually after import.`,
                 });
                 return;
             }

@@ -180,6 +180,7 @@ export async function POST(
                         type,
                         value: type === 'FILE' ? (config.filename || config.value) : config.value,
                         masked: config.masked,
+                        ...(type === 'FILE' ? { filename: config.filename || undefined, mimeType: config.mimeType || undefined, size: config.size ?? undefined } : {}),
                     }];
                 }),
                 testCaseVariables: testCaseVariables.flatMap((config) => {
@@ -190,6 +191,7 @@ export async function POST(
                         type,
                         value: type === 'FILE' ? (config.filename || config.value) : config.value,
                         masked: config.masked,
+                        ...(type === 'FILE' ? { filename: config.filename || undefined, mimeType: config.mimeType || undefined, size: config.size ?? undefined } : {}),
                     }];
                 }),
                 files: testCase.files.map((file) => ({

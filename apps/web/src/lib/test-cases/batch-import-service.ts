@@ -7,7 +7,12 @@ import { cleanStepsForStorage, normalizeTargetConfigMap } from '@/lib/runtime/te
 import { isAndroidTargetConfig, normalizeAndroidTargetConfig } from '@/lib/android/target-config';
 import { buildEmulatorProfileRequestedDeviceId } from '@/lib/android/target-requests';
 import { normalizeConfigName } from '@/lib/test-config/validation';
-import { validateAndSanitizeFile, buildTestCaseFileObjectKey } from '@/lib/security/file-security';
+import {
+    validateAndSanitizeFile,
+    buildTestCaseFileObjectKey,
+    buildProjectConfigObjectKey,
+    buildTestCaseConfigObjectKey,
+} from '@/lib/security/file-security';
 import { putObjectBuffer } from '@/lib/storage/object-store-utils';
 import { parseTestCaseExcel, type TestCaseExcelIssue } from '@/utils/excel/testCaseExcel';
 import {
@@ -92,6 +97,7 @@ export interface BatchImportSourceFile {
     filename: string;
     content: ArrayBuffer;
     attachments?: BatchImportAttachment[];
+    configFiles?: BatchImportAttachment[];
 }
 
 interface ParsedImportCandidate {
@@ -103,6 +109,7 @@ interface ParsedImportCandidate {
     issues: BatchImportIssue[];
     parseData: Awaited<ReturnType<typeof parseTestCaseExcel>>['data'];
     attachments: BatchImportAttachment[];
+    configFiles: BatchImportAttachment[];
     hasErrors: boolean;
     isComplete: boolean;
 }
@@ -211,19 +218,30 @@ function normalizeKind(rawKind?: string): string {
 async function parseImportCandidate(
     projectId: string,
     file: BatchImportSourceFile,
-    androidValidation: AndroidImportValidationContext
+    androidValidation: AndroidImportValidationContext,
+    providedProjectConfigNames: Set<string>
 ): Promise<ParsedImportCandidate> {
     const issues: BatchImportIssue[] = [];
     const parseResult = await parseTestCaseExcel(file.content);
     const attachments = file.attachments ?? [];
+    const configFiles = file.configFiles ?? [];
     const providedAttachmentNames = new Set(attachments.map((attachment) => attachment.filename.toLowerCase()));
+    const providedConfigFileNames = new Set([
+        ...configFiles.map((configFile) => configFile.filename.toLowerCase()),
+        ...providedProjectConfigNames,
+    ]);
 
     parseResult.issues.forEach((issue) => {
-        // The zip carries attachment content, so the "upload manually" warning no
-        // longer applies to files that are present in the archive.
+        // The zip carries file content, so the "upload manually" warnings no longer
+        // apply to attachments or FILE variables that are present in the archive.
         if (issue.code === 'FILE_ATTACHMENT_MANUAL_UPLOAD_REQUIRED'
             && issue.filename
             && providedAttachmentNames.has(issue.filename.toLowerCase())) {
+            return;
+        }
+        if (issue.code === 'FILE_VARIABLE_NOT_IMPORTABLE'
+            && issue.filename
+            && providedConfigFileNames.has(issue.filename.toLowerCase())) {
             return;
         }
         issues.push(mapParseIssue(file.filename, issue));
@@ -304,6 +322,7 @@ async function parseImportCandidate(
         issues,
         parseData: parseResult.data,
         attachments,
+        configFiles,
         hasErrors: false,
         isComplete: false,
     };
@@ -532,10 +551,107 @@ async function restoreAttachments(
     }
 }
 
+async function restoreFileConfigs(input: {
+    projectId: string;
+    testCaseId: string;
+    candidate: ParsedImportCandidate;
+    projectConfigContentByName: Map<string, Buffer>;
+    restoredProjectConfigNames: Set<string>;
+    resultIssues: BatchImportIssue[];
+}): Promise<void> {
+    const { projectId, testCaseId, candidate, projectConfigContentByName, restoredProjectConfigNames, resultIssues } = input;
+
+    const caseConfigContentByName = new Map(
+        candidate.configFiles.map((file) => [file.filename.toLowerCase(), file.content])
+    );
+
+    const restore = async (
+        scope: 'project' | 'testCase',
+        variable: { name: string; value: string; filename?: string; mimeType?: string },
+        content: Buffer
+    ): Promise<void> => {
+        const displayName = variable.filename || variable.value || variable.name;
+        const mimeType = variable.mimeType || 'application/octet-stream';
+        const validation = validateAndSanitizeFile(displayName, mimeType, content.length);
+        if (!validation.valid) {
+            resultIssues.push({
+                code: 'CONFIG_FILE_RESTORE_SKIPPED',
+                severity: 'warning',
+                reason: `File variable "${variable.name}" was not restored: ${validation.error ?? 'invalid file'}. Upload it manually.`,
+                filename: candidate.filename,
+            });
+            return;
+        }
+        try {
+            const objectKey = scope === 'project'
+                ? buildProjectConfigObjectKey(projectId, validation.storedName!)
+                : buildTestCaseConfigObjectKey(testCaseId, validation.storedName!);
+            await putObjectBuffer({ key: objectKey, body: content, contentType: mimeType });
+            const data = {
+                type: 'FILE' as const,
+                value: objectKey,
+                masked: false,
+                filename: validation.sanitizedFilename ?? displayName,
+                mimeType,
+                size: content.length,
+            };
+            const name = normalizeConfigName(variable.name);
+            if (scope === 'project') {
+                await prisma.projectConfig.upsert({
+                    where: { projectId_name: { projectId, name } },
+                    update: data,
+                    create: { projectId, name, ...data },
+                });
+            } else {
+                await prisma.testCaseConfig.upsert({
+                    where: { testCaseId_name: { testCaseId, name } },
+                    update: data,
+                    create: { testCaseId, name, ...data },
+                });
+            }
+        } catch (error) {
+            logger.warn('Failed to restore file variable during import', { name: variable.name, error });
+            resultIssues.push({
+                code: 'CONFIG_FILE_RESTORE_FAILED',
+                severity: 'warning',
+                reason: `File variable "${variable.name}" could not be restored; upload it manually.`,
+                filename: candidate.filename,
+            });
+        }
+    };
+
+    for (const variable of candidate.parseData.testCaseVariables) {
+        if (variable.type !== 'FILE') {
+            continue;
+        }
+        const content = caseConfigContentByName.get((variable.filename || variable.value || '').toLowerCase());
+        if (content) {
+            await restore('testCase', variable, content);
+        }
+    }
+
+    for (const variable of candidate.parseData.projectVariables) {
+        if (variable.type !== 'FILE') {
+            continue;
+        }
+        const name = normalizeConfigName(variable.name);
+        if (restoredProjectConfigNames.has(name)) {
+            continue;
+        }
+        const content = projectConfigContentByName.get((variable.filename || variable.value || '').toLowerCase());
+        if (content) {
+            restoredProjectConfigNames.add(name);
+            await restore('project', variable, content);
+        }
+    }
+}
+
 async function importCandidate(
     projectId: string,
     candidate: ParsedImportCandidate,
-    displayIdToId: Map<string, string>
+    displayIdToId: Map<string, string>,
+    projectConfigContentByName: Map<string, Buffer>,
+    restoredProjectConfigNames: Set<string>
 ): Promise<BatchImportFileReport> {
     const testData = candidate.parseData.testData;
     const targetName = candidate.testCaseName || '';
@@ -610,6 +726,14 @@ async function importCandidate(
     });
 
     await restoreAttachments(importedTestCaseId, candidate, resultIssues);
+    await restoreFileConfigs({
+        projectId,
+        testCaseId: importedTestCaseId,
+        candidate,
+        projectConfigContentByName,
+        restoredProjectConfigNames,
+        resultIssues,
+    });
 
     if (targetDisplayId) {
         displayIdToId.set(targetDisplayId, importedTestCaseId);
@@ -630,6 +754,7 @@ export async function processProjectBatchImport(input: {
     projectId: string;
     mode: BatchImportMode;
     files: BatchImportSourceFile[];
+    projectConfigFiles?: BatchImportAttachment[];
 }): Promise<BatchImportResult> {
     const project = await prisma.project.findUnique({
         where: { id: input.projectId },
@@ -671,8 +796,14 @@ export async function processProjectBatchImport(input: {
         })),
     };
 
+    const projectConfigFiles = input.projectConfigFiles ?? [];
+    const projectConfigContentByName = new Map(
+        projectConfigFiles.map((file) => [file.filename.toLowerCase(), file.content])
+    );
+    const providedProjectConfigNames = new Set(projectConfigContentByName.keys());
+
     const parsedCandidates = await Promise.all(
-        input.files.map((file) => parseImportCandidate(input.projectId, file, androidValidationContext))
+        input.files.map((file) => parseImportCandidate(input.projectId, file, androidValidationContext, providedProjectConfigNames))
     );
 
     const displayIdToId = new Map<string, string>();
@@ -716,6 +847,7 @@ export async function processProjectBatchImport(input: {
         return aLogin - bLogin;
     });
 
+    const restoredProjectConfigNames = new Set<string>();
     const reports: BatchImportFileReport[] = [];
     for (const candidate of ordered) {
         if (!shouldImport(candidate)) {
@@ -730,7 +862,13 @@ export async function processProjectBatchImport(input: {
             continue;
         }
 
-        reports.push(await importCandidate(input.projectId, candidate, displayIdToId));
+        reports.push(await importCandidate(
+            input.projectId,
+            candidate,
+            displayIdToId,
+            projectConfigContentByName,
+            restoredProjectConfigNames
+        ));
     }
 
     return summarize(input.mode, reports);
