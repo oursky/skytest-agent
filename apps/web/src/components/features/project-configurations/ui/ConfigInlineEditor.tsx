@@ -7,14 +7,12 @@ import type { ProjectConfigEditState } from '../model/types';
 interface ConfigInlineEditorProps {
     type: ConfigType;
     editState: ProjectConfigEditState;
-    groupOptions: string[];
     error: string | null;
     autoFocus?: boolean;
     rowAlign?: 'items-start' | 'items-center';
     onKeyDown: (event: KeyboardEvent<HTMLInputElement | HTMLSelectElement>) => void;
     onSave: () => void;
     onCancel: () => void;
-    onRemoveGroup: (group: string) => void;
     onChange: (next: ProjectConfigEditState) => void;
     renderRandomStringControl?: (value: string) => ReactNode;
 }
@@ -22,14 +20,12 @@ interface ConfigInlineEditorProps {
 export default function ConfigInlineEditor({
     type,
     editState,
-    groupOptions,
     error,
     autoFocus,
     rowAlign = 'items-start',
     onKeyDown,
     onSave,
     onCancel,
-    onRemoveGroup,
     onChange,
     renderRandomStringControl,
 }: ConfigInlineEditorProps) {
@@ -41,13 +37,11 @@ export default function ConfigInlineEditor({
             editState={editState}
             error={error}
             autoFocus={autoFocus}
-            groupOptions={groupOptions}
             variant="regular"
             rowAlign={rowAlign}
             onChange={onChange}
             onSave={onSave}
             onCancel={onCancel}
-            onRemoveGroup={onRemoveGroup}
             onKeyDown={onKeyDown}
             renderRandomStringControl={renderRandomStringControl}
             t={t}

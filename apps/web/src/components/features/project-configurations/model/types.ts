@@ -6,11 +6,9 @@ export interface ProjectConfigEditState {
     value: string;
     type: ConfigType;
     masked: boolean;
-    group: string;
 }
 
 export interface ProjectConfigFileUploadDraft {
     name: string;
-    group: string;
     file: File | null;
 }

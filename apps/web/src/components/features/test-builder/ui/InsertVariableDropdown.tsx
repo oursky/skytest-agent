@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useI18n } from '@/i18n';
 import type { ConfigItem, ConfigType, TestCaseFile } from '@/types';
-import { compareByGroupThenName, normalizeConfigGroup } from '@/lib/test-config/sort';
+import { compareConfigsByName } from '@/lib/test-config/sort';
 
 interface InsertVariableDropdownProps {
     projectConfigs: ConfigItem[];
@@ -45,30 +45,11 @@ function getPreviewValue(config: ConfigItem): string {
 }
 
 function groupConfigs(configs: DropdownConfigItem[]): ConfigGroup[] {
-    const sorted = [...configs].sort(compareByGroupThenName);
-    const grouped = new Map<string, DropdownConfigItem[]>();
-
-    for (const config of sorted) {
-        const normalizedGroup = normalizeConfigGroup(config.group);
-        const key = normalizedGroup || '__ungrouped__';
-        const current = grouped.get(key) || [];
-        current.push(config);
-        grouped.set(key, current);
+    if (configs.length === 0) {
+        return [];
     }
-
-    const ungrouped = grouped.get('__ungrouped__') || [];
-    const groupedKeys = [...grouped.keys()]
-        .filter((key) => key !== '__ungrouped__')
-        .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
-
-    const result: ConfigGroup[] = [];
-    if (ungrouped.length > 0) {
-        result.push({ key: '__ungrouped__', label: '', configs: ungrouped });
-    }
-    for (const key of groupedKeys) {
-        result.push({ key, label: key, configs: grouped.get(key) || [] });
-    }
-    return result;
+    const sorted = [...configs].sort(compareConfigsByName);
+    return [{ key: '__ungrouped__', label: '', configs: sorted }];
 }
 
 export default function InsertVariableDropdown({

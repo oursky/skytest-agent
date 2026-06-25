@@ -53,7 +53,7 @@ export async function GET(
         type ExportableType = 'URL' | 'APP_ID' | 'VARIABLE' | 'RANDOM_STRING' | 'FILE';
         const validTypes = new Set<string>(['URL', 'APP_ID', 'VARIABLE', 'RANDOM_STRING', 'FILE']);
 
-        const typedProjectVariables: Array<{ name: string; type: ExportableType; value: string; masked: boolean; group: string | null }> = projectVariables.flatMap((variable) => {
+        const typedProjectVariables: Array<{ name: string; type: ExportableType; value: string; masked: boolean }> = projectVariables.flatMap((variable) => {
             if (!validTypes.has(variable.type)) {
                 return [];
             }
@@ -62,11 +62,10 @@ export async function GET(
                 type: variable.type as ExportableType,
                 value: variable.type === 'FILE' ? (variable.filename || variable.value) : variable.value,
                 masked: variable.masked,
-                group: variable.group,
             }];
         });
 
-        const typedTestCaseVariables: Array<{ name: string; type: ExportableType; value: string; masked: boolean; group: string | null }> = testCaseVariables.flatMap((variable) => {
+        const typedTestCaseVariables: Array<{ name: string; type: ExportableType; value: string; masked: boolean }> = testCaseVariables.flatMap((variable) => {
             if (!validTypes.has(variable.type)) {
                 return [];
             }
@@ -75,7 +74,6 @@ export async function GET(
                 type: variable.type as ExportableType,
                 value: variable.type === 'FILE' ? (variable.filename || variable.value) : variable.value,
                 masked: variable.masked,
-                group: variable.group,
             }];
         });
 

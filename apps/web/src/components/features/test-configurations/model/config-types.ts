@@ -6,11 +6,9 @@ export interface EditState {
     value: string;
     type: ConfigType;
     masked: boolean;
-    group: string;
 }
 
 export interface FileUploadDraft {
     name: string;
-    group: string;
     file: File | null;
 }

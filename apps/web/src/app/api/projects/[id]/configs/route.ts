@@ -3,7 +3,7 @@ import { apiError } from '@/lib/security/api-route-standards';
 import { prisma } from '@/lib/core/prisma';
 import { validateConfigName, validateConfigType, normalizeConfigName } from '@/lib/test-config/validation';
 import { createLogger } from '@/lib/core/logger';
-import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } from '@/lib/test-config/sort';
+import { compareConfigsByName } from '@/lib/test-config/sort';
 import { guardProjectRouteRequest } from '@/lib/security/project-route-access';
 
 const logger = createLogger('api:projects:configs');
@@ -30,7 +30,7 @@ export async function GET(
             orderBy: { createdAt: 'asc' }
         });
 
-        const sorted = [...configs].sort(compareByGroupThenName);
+        const sorted = [...configs].sort(compareConfigsByName);
         return NextResponse.json(sorted);
     } catch (error) {
         logger.error('Failed to fetch project configs', error);
@@ -55,11 +55,10 @@ export async function POST(
             type?: string;
             value?: string;
             masked?: boolean;
-            group?: string | null;
         };
         const rawName = body.name ?? '';
         const type = body.type ?? '';
-        const { value, masked, group } = body;
+        const { value, masked } = body;
 
         const nameError = validateConfigName(rawName);
         if (nameError) {
@@ -76,7 +75,6 @@ export async function POST(
             return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'Value is required' });
         }
 
-        const normalizedGroup = normalizeConfigGroup(group);
         const normalizedMasked = type === 'VARIABLE' ? masked === true : false;
         const normalizedValue = typeof value === 'string' ? value : (value === undefined || value === null ? '' : String(value));
 
@@ -87,7 +85,6 @@ export async function POST(
                 type,
                 value: normalizedValue,
                 masked: normalizedMasked,
-                group: isGroupableConfigType(type) ? (normalizedGroup || null) : null,
             }
         });
 

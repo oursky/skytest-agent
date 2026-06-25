@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/core/prisma';
 import { parseTestCaseJson } from '@/lib/runtime/test-case-utils';
-import { compareByGroupThenName } from '@/lib/test-config/sort';
+import { compareConfigsByName } from '@/lib/test-config/sort';
 import { cancelRunDurably } from '@/lib/mcp/run-cancellation';
 import { CANCELLATION_REASON, cancellationReasonCodeFor } from '@/lib/runtime/cancellation-reasons';
 import { deleteObjectKeysBestEffort } from '@/lib/mcp/storage-cleanup';
@@ -66,7 +66,7 @@ export async function getProjectTool(
         return errorResult(accessError.message);
     }
 
-    const configs = project.configs.sort(compareByGroupThenName).map((config) => ({
+    const configs = project.configs.sort(compareConfigsByName).map((config) => ({
         ...config,
         value: config.masked ? '' : config.value
     }));
@@ -168,7 +168,7 @@ export async function getTestCaseTool(
 
     const { configs, testRuns, ...testCaseData } = testCase;
     const parsedTestCase = parseTestCaseJson(testCaseData);
-    const sortedConfigs = configs.sort(compareByGroupThenName).map((config) => ({
+    const sortedConfigs = configs.sort(compareConfigsByName).map((config) => ({
         ...config,
         value: config.masked ? '' : config.value
     }));
@@ -271,7 +271,6 @@ type ManageProjectConfigsInput = {
         type: string;
         value?: string;
         masked?: boolean;
-        group?: string | null;
     }>;
     remove?: string[];
 };

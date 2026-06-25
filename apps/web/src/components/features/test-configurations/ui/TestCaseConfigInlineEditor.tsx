@@ -9,11 +9,9 @@ interface TestCaseConfigInlineEditorProps {
     editState: EditState;
     error: string | null;
     autoFocus?: boolean;
-    groupOptions: string[];
     onChange: (next: EditState) => void;
     onSave: () => void;
     onCancel: () => void;
-    onRemoveGroup: (group: string) => void;
     onKeyDown: (event: KeyboardEvent<HTMLInputElement | HTMLSelectElement>) => void;
     renderRandomStringControl: (value: string) => ReactNode;
 }
@@ -23,11 +21,9 @@ export default function TestCaseConfigInlineEditor({
     editState,
     error,
     autoFocus,
-    groupOptions,
     onChange,
     onSave,
     onCancel,
-    onRemoveGroup,
     onKeyDown,
     renderRandomStringControl,
 }: TestCaseConfigInlineEditorProps) {
@@ -39,12 +35,10 @@ export default function TestCaseConfigInlineEditor({
             editState={editState}
             error={error}
             autoFocus={autoFocus}
-            groupOptions={groupOptions}
             variant="compact"
             onChange={onChange}
             onSave={onSave}
             onCancel={onCancel}
-            onRemoveGroup={onRemoveGroup}
             onKeyDown={onKeyDown}
             renderRandomStringControl={renderRandomStringControl}
             t={t}

@@ -23,10 +23,8 @@ interface ConfigurationVariablesPanelProps {
     randomStringDropdownOpen: string | null;
     setRandomStringDropdownOpen: (value: string | null) => void;
     randomStringDropdownRefs: MutableRefObject<Map<string, HTMLDivElement>>;
-    testCaseGroupOptions: string[];
     onSave: () => void;
     onDelete: (configId: string) => void;
-    onRemoveGroup: (group: string) => void;
     onDownload: (config: ConfigItem) => void;
     onEdit: (config: ConfigItem) => void;
     onFileUploadSave: (draft?: FileUploadDraft | null) => void;
@@ -52,10 +50,8 @@ export default function ConfigurationVariablesPanel({
     randomStringDropdownOpen,
     setRandomStringDropdownOpen,
     randomStringDropdownRefs,
-    testCaseGroupOptions,
     onSave,
     onDelete,
-    onRemoveGroup,
     onDownload,
     onEdit,
     onFileUploadSave,
@@ -87,10 +83,8 @@ export default function ConfigurationVariablesPanel({
                 randomStringDropdownOpen={randomStringDropdownOpen}
                 setRandomStringDropdownOpen={setRandomStringDropdownOpen}
                 randomStringDropdownRefs={randomStringDropdownRefs}
-                testCaseGroupOptions={testCaseGroupOptions}
                 onSave={onSave}
                 onDelete={onDelete}
-                onRemoveGroup={onRemoveGroup}
                 onDownload={onDownload}
                 onEdit={onEdit}
                 onFileUploadSave={onFileUploadSave}

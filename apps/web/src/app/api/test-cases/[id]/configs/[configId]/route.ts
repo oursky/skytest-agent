@@ -3,7 +3,6 @@ import { apiError } from '@/lib/security/api-route-standards';
 import { prisma } from '@/lib/core/prisma';
 import { validateConfigName, validateConfigType, normalizeConfigName } from '@/lib/test-config/validation';
 import { createLogger } from '@/lib/core/logger';
-import { isGroupableConfigType, normalizeConfigGroup } from '@/lib/test-config/sort';
 import type { ConfigType } from '@/types';
 import { deleteObjectIfExists } from '@/lib/storage/object-store-utils';
 import { guardTestCaseRouteRequest } from '@/lib/security/test-case-route-access';
@@ -35,9 +34,8 @@ export async function PUT(
             type?: string;
             value?: string;
             masked?: boolean;
-            group?: string | null;
         };
-        const { name: rawName, type, value, masked, group } = body;
+        const { name: rawName, type, value, masked } = body;
 
         if (rawName !== undefined) {
             const nameError = validateConfigName(rawName);
@@ -55,9 +53,6 @@ export async function PUT(
         const nextMasked = nextType === 'VARIABLE'
             ? (masked !== undefined ? masked : existing.masked)
             : false;
-        const rawNextGroup = group !== undefined ? group : existing.group;
-        const normalizedGroup = normalizeConfigGroup(rawNextGroup);
-        const nextGroup = isGroupableConfigType(nextType) ? (normalizedGroup || null) : null;
         const normalizedValue = value !== undefined
             ? (typeof value === 'string' ? value : String(value))
             : undefined;
@@ -69,7 +64,6 @@ export async function PUT(
                 ...(type !== undefined && { type }),
                 ...(normalizedValue !== undefined && { value: normalizedValue }),
                 masked: nextMasked,
-                group: nextGroup,
             }
         });
 

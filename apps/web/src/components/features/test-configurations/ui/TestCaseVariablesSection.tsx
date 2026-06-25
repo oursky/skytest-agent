@@ -1,9 +1,8 @@
 import type { KeyboardEvent, MutableRefObject } from 'react';
 import { useI18n } from '@/i18n';
 import type { ConfigItem, ConfigType } from '@/types';
-import { compareByGroupThenName } from '@/lib/test-config/sort';
+import { compareConfigsByName } from '@/lib/test-config/sort';
 import { getConfigTypeTitleKey } from '@/components/features/test-configurations/model/config-utils';
-import GroupSelectInput from '@/components/features/test-configurations/ui/GroupSelectInput';
 import { ADDABLE_TEST_CASE_CONFIG_TYPES, TYPE_ORDER, randomStringGenerationLabel } from '../model/config-helpers';
 import type { EditState, FileUploadDraft } from '../model/config-types';
 import RandomStringGenerationDropdown from './RandomStringGenerationDropdown';
@@ -27,10 +26,8 @@ interface TestCaseVariablesSectionProps {
     randomStringDropdownOpen: string | null;
     setRandomStringDropdownOpen: (value: string | null) => void;
     randomStringDropdownRefs: MutableRefObject<Map<string, HTMLDivElement>>;
-    testCaseGroupOptions: string[];
     onSave: () => void;
     onDelete: (configId: string) => void;
-    onRemoveGroup: (group: string) => void;
     onDownload: (config: ConfigItem) => void;
     onEdit: (config: ConfigItem) => void;
     onFileUploadSave: (draft?: FileUploadDraft | null) => void;
@@ -63,10 +60,8 @@ export default function TestCaseVariablesSection({
     randomStringDropdownOpen,
     setRandomStringDropdownOpen,
     randomStringDropdownRefs,
-    testCaseGroupOptions,
     onSave,
     onDelete,
-    onRemoveGroup,
     onDownload,
     onEdit,
     onFileUploadSave,
@@ -78,7 +73,7 @@ export default function TestCaseVariablesSection({
             type,
             items: testCaseConfigs
                 .filter((config) => config.type === type)
-                .sort(compareByGroupThenName),
+                .sort(compareConfigsByName),
         }))
         .filter((group) => group.items.length > 0);
 
@@ -125,7 +120,7 @@ export default function TestCaseVariablesSection({
                                         onClick={() => {
                                             if (type === 'FILE') {
                                                 setEditState(null);
-                                                setFileUploadDraft({ name: '', group: '', file: null });
+                                                setFileUploadDraft({ name: '', file: null });
                                                 setError(null);
                                                 setRandomStringDropdownOpen(null);
                                             } else {
@@ -135,7 +130,6 @@ export default function TestCaseVariablesSection({
                                                     value: type === 'RANDOM_STRING' ? 'TIMESTAMP_DATETIME' : '',
                                                     type,
                                                     masked: false,
-                                                    group: '',
                                                 });
                                                 setError(null);
                                             }
@@ -168,7 +162,6 @@ export default function TestCaseVariablesSection({
                                         type={config.type}
                                         editState={editState}
                                         error={error}
-                                        groupOptions={testCaseGroupOptions}
                                         onChange={setEditState}
                                         onSave={onSave}
                                         onCancel={() => {
@@ -176,7 +169,6 @@ export default function TestCaseVariablesSection({
                                             setError(null);
                                             setRandomStringDropdownOpen(null);
                                         }}
-                                        onRemoveGroup={onRemoveGroup}
                                         onKeyDown={onConfigEditorKeyDown}
                                         renderRandomStringControl={(value) => renderRandomStringDropdown(randomDropdownKey, value)}
                                     />
@@ -186,9 +178,6 @@ export default function TestCaseVariablesSection({
                             if (config.type === 'FILE') {
                                 return (
                                     <div key={config.id} className="group flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-50">
-                                        {config.group && (
-                                            <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase text-gray-600">{config.group}</span>
-                                        )}
                                         <code className="font-mono text-xs text-gray-800">{config.name}</code>
                                         <span className="truncate text-xs text-gray-400">{config.filename || config.value}</span>
                                         {!readOnly && (
@@ -220,9 +209,6 @@ export default function TestCaseVariablesSection({
 
                             return (
                                 <div key={config.id} className="group flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-50">
-                                    {config.group && (
-                                        <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase text-gray-600">{config.group}</span>
-                                    )}
                                     <code className="font-mono text-xs text-gray-800">{config.name}</code>
                                     <span className="truncate text-xs text-gray-400">
                                         {config.masked ? '••••••' : config.type === 'RANDOM_STRING' ? randomStringGenerationLabel(config.value, t) : config.value}
@@ -264,7 +250,6 @@ export default function TestCaseVariablesSection({
                         editState={editState}
                         error={error}
                         autoFocus
-                        groupOptions={testCaseGroupOptions}
                         onChange={setEditState}
                         onSave={onSave}
                         onCancel={() => {
@@ -272,7 +257,6 @@ export default function TestCaseVariablesSection({
                             setError(null);
                             setRandomStringDropdownOpen(null);
                         }}
-                        onRemoveGroup={onRemoveGroup}
                         onKeyDown={onConfigEditorKeyDown}
                         renderRandomStringControl={(value) => renderRandomStringDropdown('new-random-string', value)}
                     />
@@ -280,25 +264,14 @@ export default function TestCaseVariablesSection({
 
                 {fileUploadDraft && (
                     <div className="p-2 bg-blue-50/50 rounded">
-                        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                            <GroupSelectInput
-                                value={fileUploadDraft.group}
-                                onChange={(group) => setFileUploadDraft({ ...fileUploadDraft, group })}
-                                options={testCaseGroupOptions}
-                                onRemoveOption={onRemoveGroup}
-                                placeholder={t('configs.group.select')}
-                                containerClassName="relative w-full"
-                                inputClassName="h-8"
-                            />
-                            <input
-                                type="text"
-                                value={fileUploadDraft.name}
-                                onChange={(e) => setFileUploadDraft({ ...fileUploadDraft, name: e.target.value })}
-                                placeholder={t('configs.name.placeholder.enter')}
-                                className="h-8 w-full rounded border border-gray-300 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                                autoFocus
-                            />
-                        </div>
+                        <input
+                            type="text"
+                            value={fileUploadDraft.name}
+                            onChange={(e) => setFileUploadDraft({ ...fileUploadDraft, name: e.target.value })}
+                            placeholder={t('configs.name.placeholder.enter')}
+                            className="h-8 w-full rounded border border-gray-300 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                            autoFocus
+                        />
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                             <div className="min-w-[220px] flex-1">
                                 <input

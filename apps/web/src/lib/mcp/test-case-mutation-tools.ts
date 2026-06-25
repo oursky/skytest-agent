@@ -2,7 +2,6 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { prisma } from '@/lib/core/prisma';
 import { cleanStepsForStorage, normalizeTargetConfigMap } from '@/lib/runtime/test-case-utils';
-import { isGroupableConfigType, normalizeConfigGroup } from '@/lib/test-config/sort';
 import { normalizeBrowserConfig } from '@/lib/test-config/browser-target';
 import { validateConfigName, normalizeConfigName, validateConfigType, validateConfigValue } from '@/lib/test-config/validation';
 import { resolveAndroidDeviceSelector, type AndroidDeviceSelectorInventory } from '@/lib/mcp/android-selector';
@@ -338,7 +337,6 @@ export function registerTestCaseMutationTools(server: McpServer): void {
                             continue;
                         }
 
-                        const groupable = isGroupableConfigType(configType);
                         try {
                             await tx.testCaseConfig.create({
                                 data: {
@@ -347,7 +345,6 @@ export function registerTestCaseMutationTools(server: McpServer): void {
                                     type: configType,
                                     value: configValue,
                                     masked: configType === 'VARIABLE' ? (configInput.masked ?? false) : false,
-                                    group: groupable ? (normalizeConfigGroup(configInput.group) || null) : null,
                                 }
                             });
                             createdTestCaseVariableCount += 1;
@@ -590,13 +587,11 @@ export function registerTestCaseMutationTools(server: McpServer): void {
                         continue;
                     }
 
-                    const groupable = isGroupableConfigType(configType);
                     const configData = {
                         name: normalizedName,
                         type: configType,
                         value: configValue,
                         masked: configType === 'VARIABLE' ? (configInput.masked ?? false) : false,
-                        group: groupable ? (normalizeConfigGroup(configInput.group) || null) : null,
                     };
 
                     const existingConfig = existingByName.get(normalizedName);

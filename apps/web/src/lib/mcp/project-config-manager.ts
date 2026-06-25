@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/core/prisma';
-import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } from '@/lib/test-config/sort';
+import { compareConfigsByName } from '@/lib/test-config/sort';
 import { validateConfigName, normalizeConfigName, validateConfigType } from '@/lib/test-config/validation';
 import { deleteObjectKeysBestEffort } from '@/lib/mcp/storage-cleanup';
 import type { ConfigType } from '@/types';
@@ -9,7 +9,6 @@ export interface ProjectConfigUpsertInput {
     type: string;
     value?: string;
     masked?: boolean;
-    group?: string | null;
 }
 
 export interface ManageProjectConfigsInput {
@@ -33,7 +32,6 @@ export interface ManageProjectConfigsResult {
         type: string;
         value: string;
         masked: boolean;
-        group: string | null;
         filename: string | null;
         mimeType: string | null;
         size: number | null;
@@ -108,13 +106,11 @@ export async function manageProjectConfigs(input: ManageProjectConfigsInput): Pr
                 continue;
             }
 
-            const groupable = isGroupableConfigType(configType);
             const data = {
                 name: normalizedName,
                 type: configType,
                 value: configInput.value ?? '',
                 masked: configType === 'VARIABLE' ? (configInput.masked ?? false) : false,
-                group: groupable ? (normalizeConfigGroup(configInput.group) || null) : null,
             };
 
             const existingConfig = existingByName.get(normalizedName);
@@ -157,14 +153,13 @@ export async function manageProjectConfigs(input: ManageProjectConfigsInput): Pr
     const cleanup = await deleteObjectKeysBestEffort(objectKeysForCleanup);
 
     const sortedConfigs = [...result.latestConfigs]
-        .sort(compareByGroupThenName)
+        .sort(compareConfigsByName)
         .map((config) => ({
             id: config.id,
             name: config.name,
             type: config.type,
             value: config.masked ? '' : config.value,
             masked: config.masked,
-            group: config.group,
             filename: config.filename,
             mimeType: config.mimeType,
             size: config.size,
