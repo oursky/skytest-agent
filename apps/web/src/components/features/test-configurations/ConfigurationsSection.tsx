@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAuth } from '@/app/auth-provider';
 import { useI18n } from '@/i18n';
 import type { ConfigItem, BrowserConfig, TargetConfig, AndroidTargetConfig } from '@/types';
-import { isGroupableConfigType, normalizeConfigGroup } from '@/lib/test-config/sort';
 import { normalizeBrowserConfig, normalizeBrowserViewportDimensions } from '@/lib/test-config/browser-target';
 import { normalizeConfigName } from '@/lib/test-config/validation';
 import TargetConfigurationsPanel from './ui/TargetConfigurationsPanel';
@@ -15,11 +14,9 @@ import type { EditState, FileUploadDraft } from './model/config-types';
 import {
     buildAuthHeaders,
     buildConfigDownloadEndpoint,
-    buildConfigGroupEndpoint,
     buildConfigItemEndpoint,
     buildConfigsEndpoint,
     buildConfigUploadEndpoint,
-    collectConfigGroupOptions,
 } from './model/config-utils';
 
 interface ConfigurationsSectionProps {
@@ -80,10 +77,6 @@ export default function ConfigurationsSection({
     const randomStringDropdownRefs = useRef<Map<string, HTMLDivElement>>(new Map());
     const avdDropdownRefs = useRef<Map<string, HTMLDivElement>>(new Map());
     const appDropdownRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-
-    const testCaseGroupOptions = useMemo(() => {
-        return collectConfigGroupOptions(testCaseConfigs);
-    }, [testCaseConfigs]);
 
     const androidDeviceOptions = useAndroidDeviceOptions({
         teamId,
@@ -151,7 +144,6 @@ export default function ConfigurationsSection({
             return;
         }
 
-        const normalizedGroup = isGroupableConfigType(editState.type) ? normalizeConfigGroup(editState.group) : '';
         const normalizedMasked = editState.type === 'VARIABLE' ? editState.masked : false;
 
         try {
@@ -171,7 +163,6 @@ export default function ConfigurationsSection({
                         type: editState.type,
                         value: editState.value,
                         masked: normalizedMasked,
-                        group: normalizedGroup || null,
                     }),
                 });
                 if (!res.ok) {
@@ -188,7 +179,6 @@ export default function ConfigurationsSection({
                         type: editState.type,
                         value: editState.value,
                         masked: normalizedMasked,
-                        group: normalizedGroup || null,
                     }),
                 });
                 if (!res.ok) {
@@ -222,42 +212,6 @@ export default function ConfigurationsSection({
         }
     }, [resolveTestCaseId, getAccessToken, onTestCaseConfigsChange]);
 
-    const handleRemoveGroup = useCallback(async (group: string) => {
-        const normalizedGroup = normalizeConfigGroup(group);
-        if (!normalizedGroup) return;
-
-        try {
-            const targetTestCaseId = await resolveTestCaseId();
-            if (!targetTestCaseId) return;
-            const token = await getAccessToken();
-            const response = await fetch(buildConfigGroupEndpoint({ kind: 'test-case', id: targetTestCaseId }), {
-                method: 'DELETE',
-                headers: buildAuthHeaders(token, true),
-                body: JSON.stringify({ group: normalizedGroup }),
-            });
-            if (!response.ok) {
-                throw new Error('Failed to remove group');
-            }
-
-            setEditState((prev) => {
-                if (!prev) return prev;
-                return normalizeConfigGroup(prev.group) === normalizedGroup
-                    ? { ...prev, group: '' }
-                    : prev;
-            });
-            setFileUploadDraft((prev) => {
-                if (!prev) return prev;
-                return normalizeConfigGroup(prev.group) === normalizedGroup
-                    ? { ...prev, group: '' }
-                    : prev;
-            });
-            onTestCaseConfigsChange(targetTestCaseId);
-        } catch (removeError) {
-            console.error('Failed to remove group', removeError);
-            setError(t('configs.error.removeGroupFailed'));
-        }
-    }, [resolveTestCaseId, getAccessToken, onTestCaseConfigsChange, t]);
-
     const handleFileUploadSave = useCallback(async (draft: FileUploadDraft | null = fileUploadDraft) => {
         if (!draft) return;
         setError(null);
@@ -281,7 +235,6 @@ export default function ConfigurationsSection({
         const formData = new FormData();
         formData.append('file', draft.file);
         formData.append('name', normalizedName);
-        formData.append('group', normalizeConfigGroup(draft.group));
 
         try {
             const targetTestCaseId = await resolveTestCaseId();
@@ -342,7 +295,6 @@ export default function ConfigurationsSection({
             value: config.value,
             type: config.type,
             masked: config.masked === true,
-            group: config.group || '',
         });
         setError(null);
     }, [testCaseId]);
@@ -429,10 +381,8 @@ export default function ConfigurationsSection({
             randomStringDropdownOpen={randomStringDropdownOpen}
             setRandomStringDropdownOpen={setRandomStringDropdownOpen}
             randomStringDropdownRefs={randomStringDropdownRefs}
-            testCaseGroupOptions={testCaseGroupOptions}
             onSave={() => { void handleSave(); }}
             onDelete={(configId) => { void handleDelete(configId); }}
-            onRemoveGroup={(group) => { void handleRemoveGroup(group); }}
             onDownload={(config) => { void handleDownload(config); }}
             onEdit={handleEdit}
             onFileUploadSave={(draft) => { void handleFileUploadSave(draft); }}

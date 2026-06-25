@@ -1,8 +1,6 @@
 import type { KeyboardEvent, ReactNode } from 'react';
 import type { ConfigType } from '@/types';
-import { isGroupableConfigType } from '@/lib/test-config/sort';
 import { Button } from '@/components/shared';
-import GroupSelectInput from './GroupSelectInput';
 import MaskedIcon from './MaskedIcon';
 
 interface ConfigInlineEditorState {
@@ -10,7 +8,6 @@ interface ConfigInlineEditorState {
     name: string;
     value: string;
     masked: boolean;
-    group: string;
 }
 
 type ConfigInlineEditorVariant = 'regular' | 'compact';
@@ -21,13 +18,11 @@ interface ConfigInlineEditorFormProps {
     editState: ConfigInlineEditorState;
     error: string | null;
     autoFocus?: boolean;
-    groupOptions: string[];
     variant: ConfigInlineEditorVariant;
     rowAlign?: ConfigInlineEditorRowAlign;
     onChange: (next: ConfigInlineEditorState) => void;
     onSave: () => void;
     onCancel: () => void;
-    onRemoveGroup: (group: string) => void;
     onKeyDown: (event: KeyboardEvent<HTMLInputElement | HTMLSelectElement>) => void;
     renderRandomStringControl?: (value: string) => ReactNode;
     t: (key: string) => string;
@@ -69,13 +64,11 @@ export default function ConfigInlineEditorForm({
     editState,
     error,
     autoFocus,
-    groupOptions,
     variant,
     rowAlign = 'items-start',
     onChange,
     onSave,
     onCancel,
-    onRemoveGroup,
     onKeyDown,
     renderRandomStringControl,
     t,
@@ -85,25 +78,15 @@ export default function ConfigInlineEditorForm({
             <div className="rounded bg-blue-50/50 p-2">
                 {type === 'VARIABLE' ? (
                     <>
-                        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                            <GroupSelectInput
-                                value={editState.group}
-                                onChange={(group) => onChange({ ...editState, group })}
-                                options={groupOptions}
-                                onRemoveOption={onRemoveGroup}
-                                placeholder={t('configs.group.select')}
-                                inputClassName="h-8"
-                            />
-                            <input
-                                type="text"
-                                value={editState.name}
-                                onChange={(event) => onChange({ ...editState, name: event.target.value })}
-                                onKeyDown={onKeyDown}
-                                placeholder={t('configs.name.placeholder.enter')}
-                                className="h-8 w-full rounded border border-gray-300 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                                autoFocus={autoFocus}
-                            />
-                        </div>
+                        <input
+                            type="text"
+                            value={editState.name}
+                            onChange={(event) => onChange({ ...editState, name: event.target.value })}
+                            onKeyDown={onKeyDown}
+                            placeholder={t('configs.name.placeholder.enter')}
+                            className="h-8 w-full rounded border border-gray-300 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                            autoFocus={autoFocus}
+                        />
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                             <input
                                 type={editState.masked ? 'password' : 'text'}
@@ -126,58 +109,20 @@ export default function ConfigInlineEditorForm({
                         </div>
                     </>
                 ) : (
-                    <>
-                        {isGroupableConfigType(type) ? (
-                            <>
-                                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                                    <GroupSelectInput
-                                        value={editState.group}
-                                        onChange={(group) => onChange({ ...editState, group })}
-                                        options={groupOptions}
-                                        onRemoveOption={onRemoveGroup}
-                                        placeholder={t('configs.group.select')}
-                                        inputClassName="h-8"
-                                    />
-                                    <input
-                                        type="text"
-                                        value={editState.name}
-                                        onChange={(event) => onChange({ ...editState, name: event.target.value })}
-                                        onKeyDown={onKeyDown}
-                                        placeholder={t('configs.name.placeholder.enter')}
-                                        className="h-8 w-full rounded border border-gray-300 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                                        autoFocus={autoFocus}
-                                    />
-                                </div>
-                                <div className="mt-2 flex flex-wrap items-center gap-2">
-                                    <div className="relative min-w-[220px] flex-1">
-                                        {type === 'RANDOM_STRING' && renderRandomStringControl
-                                            ? renderRandomStringControl(editState.value)
-                                            : (
-                                                <input
-                                                    type="text"
-                                                    value={editState.value}
-                                                    onChange={(event) => onChange({ ...editState, value: event.target.value })}
-                                                    onKeyDown={onKeyDown}
-                                                    placeholder={type === 'URL' ? t('configs.url.placeholder') : t('configs.value.placeholder')}
-                                                    className="w-full rounded border border-gray-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                                                />
-                                            )}
-                                    </div>
-                                    {renderActionButtons(variant, onSave, onCancel, t)}
-                                </div>
-                            </>
-                        ) : (
-                            <div className={`flex gap-2 ${autoFocus ? 'items-center' : 'items-start'}`}>
-                                <input
-                                    type="text"
-                                    value={editState.name}
-                                    onChange={(event) => onChange({ ...editState, name: event.target.value })}
-                                    onKeyDown={onKeyDown}
-                                    placeholder={t('configs.name.placeholder.enter')}
-                                    className="flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                                    autoFocus={autoFocus}
-                                />
-                                <div className="relative flex-[2]">
+                    <div className={`flex gap-2 ${autoFocus ? 'items-center' : 'items-start'}`}>
+                        <input
+                            type="text"
+                            value={editState.name}
+                            onChange={(event) => onChange({ ...editState, name: event.target.value })}
+                            onKeyDown={onKeyDown}
+                            placeholder={t('configs.name.placeholder.enter')}
+                            className="flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                            autoFocus={autoFocus}
+                        />
+                        <div className="relative flex-[2]">
+                            {type === 'RANDOM_STRING' && renderRandomStringControl
+                                ? renderRandomStringControl(editState.value)
+                                : (
                                     <input
                                         type="text"
                                         value={editState.value}
@@ -186,11 +131,10 @@ export default function ConfigInlineEditorForm({
                                         placeholder={type === 'URL' ? t('configs.url.placeholder') : t('configs.value.placeholder')}
                                         className="w-full rounded border border-gray-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
                                     />
-                                </div>
-                                {renderActionButtons(variant, onSave, onCancel, t)}
-                            </div>
-                        )}
-                    </>
+                                )}
+                        </div>
+                        {renderActionButtons(variant, onSave, onCancel, t)}
+                    </div>
                 )}
                 {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
             </div>
@@ -201,15 +145,6 @@ export default function ConfigInlineEditorForm({
         <div className="space-y-2 bg-white p-4">
             {type === 'VARIABLE' ? (
                 <div className="flex flex-wrap items-center gap-2 md:flex-nowrap">
-                    <GroupSelectInput
-                        value={editState.group}
-                        onChange={(group) => onChange({ ...editState, group })}
-                        options={groupOptions}
-                        onRemoveOption={onRemoveGroup}
-                        placeholder={t('configs.group.select')}
-                        containerClassName="relative w-full md:w-56"
-                        inputClassName="h-9 text-sm"
-                    />
                     <input
                         type="text"
                         value={editState.name}
@@ -240,24 +175,13 @@ export default function ConfigInlineEditorForm({
                 </div>
             ) : (
                 <div className={`flex flex-wrap gap-3 md:flex-nowrap ${rowAlign}`}>
-                    {isGroupableConfigType(type) && (
-                        <GroupSelectInput
-                            value={editState.group}
-                            onChange={(group) => onChange({ ...editState, group })}
-                            options={groupOptions}
-                            onRemoveOption={onRemoveGroup}
-                            placeholder={t('configs.group.select')}
-                            containerClassName="relative w-full md:w-56"
-                            inputClassName="h-9 text-sm"
-                        />
-                    )}
                     <input
                         type="text"
                         value={editState.name}
                         onChange={(event) => onChange({ ...editState, name: event.target.value })}
                         onKeyDown={onKeyDown}
                         placeholder={t('configs.name.placeholder.enter')}
-                        className={`${isGroupableConfigType(type) ? 'h-9 w-full md:w-56' : 'h-9 flex-1'} rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary`}
+                        className="h-9 flex-1 rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary"
                         autoFocus={autoFocus}
                     />
                     {type === 'RANDOM_STRING' && renderRandomStringControl ? (
@@ -271,7 +195,7 @@ export default function ConfigInlineEditorForm({
                             onChange={(event) => onChange({ ...editState, value: event.target.value })}
                             onKeyDown={onKeyDown}
                             placeholder={type === 'URL' ? t('configs.url.placeholder') : t('configs.value.placeholder')}
-                            className={`${isGroupableConfigType(type) ? 'h-9 min-w-[220px] flex-1' : 'h-9 flex-[2]'} rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary`}
+                            className="h-9 flex-[2] rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary"
                         />
                     )}
                     {renderActionButtons(variant, onSave, onCancel, t)}

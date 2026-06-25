@@ -240,7 +240,6 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                         type: config.type as ConfigItem['type'],
                         value: config.value,
                         masked: Boolean((config as { masked?: boolean }).masked),
-                        group: (config as { group?: string | null }).group || null,
                         ...(config.filename ? { filename: config.filename } : {}),
                     };
 

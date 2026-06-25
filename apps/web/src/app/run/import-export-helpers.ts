@@ -263,7 +263,6 @@ export async function handleExportHelper(input: {
                 type: config.type,
                 value: config.type === 'FILE' ? (config.filename || config.value) : config.value,
                 masked: config.masked === true,
-                group: config.group || null,
             })),
         testCaseVariables: exportTestCaseConfigs
             .filter(isSupportedVariableConfig)
@@ -272,7 +271,6 @@ export async function handleExportHelper(input: {
                 type: config.type,
                 value: config.type === 'FILE' ? (config.filename || config.value) : config.value,
                 masked: config.masked === true,
-                group: config.group || null,
             })),
         files: testCaseFiles.map((file) => ({
             filename: file.filename,

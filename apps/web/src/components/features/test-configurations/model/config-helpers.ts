@@ -1,5 +1,5 @@
 import type { ConfigItem, ConfigType } from '@/types';
-import { compareByGroupThenName } from '@/lib/test-config/sort';
+import { compareConfigsByName } from '@/lib/test-config/sort';
 
 export const TYPE_ORDER: ConfigType[] = ['URL', 'APP_ID', 'VARIABLE', 'FILE', 'RANDOM_STRING'];
 export const ADDABLE_TEST_CASE_CONFIG_TYPES: ConfigType[] = ['URL', 'APP_ID', 'VARIABLE', 'RANDOM_STRING', 'FILE'];
@@ -7,9 +7,9 @@ export const RANDOM_STRING_GENERATION_TYPES = ['TIMESTAMP_DATETIME', 'TIMESTAMP_
 
 export function sortConfigs(configs: ConfigItem[]): ConfigItem[] {
     return [...configs].sort((a, b) => {
-        const byGroup = compareByGroupThenName(a, b);
-        if (byGroup !== 0) {
-            return byGroup;
+        const byName = compareConfigsByName(a, b);
+        if (byName !== 0) {
+            return byName;
         }
         const typeA = TYPE_ORDER.indexOf(a.type);
         const typeB = TYPE_ORDER.indexOf(b.type);

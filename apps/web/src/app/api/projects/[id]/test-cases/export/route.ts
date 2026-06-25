@@ -152,7 +152,6 @@ export async function POST(
                         type,
                         value: type === 'FILE' ? (config.filename || config.value) : config.value,
                         masked: config.masked,
-                        group: config.group,
                     }];
                 }),
                 testCaseVariables: testCaseVariables.flatMap((config) => {
@@ -163,7 +162,6 @@ export async function POST(
                         type,
                         value: type === 'FILE' ? (config.filename || config.value) : config.value,
                         masked: config.masked,
-                        group: config.group,
                     }];
                 }),
                 files: testCase.files.map((file) => ({

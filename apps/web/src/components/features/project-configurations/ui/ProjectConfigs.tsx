@@ -1,11 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { compareByGroupThenName } from '@/lib/test-config/sort';
+import { compareConfigsByName } from '@/lib/test-config/sort';
 import { useI18n } from '@/i18n';
 import type { ConfigItem, ConfigType } from '@/types';
 import { CenteredLoading } from '@/components/shared';
-import GroupSelectInput from '@/components/features/test-configurations/ui/GroupSelectInput';
 import ConfigHints from '@/components/features/test-configurations/ui/ConfigHints';
 import RandomStringGenerationDropdown from '@/components/features/test-configurations/ui/RandomStringGenerationDropdown';
 import ConfigInlineEditor from './ConfigInlineEditor';
@@ -23,7 +22,7 @@ interface ProjectConfigsProps {
 const TYPE_SECTIONS: ConfigType[] = ['URL', 'APP_ID', 'VARIABLE', 'RANDOM_STRING', 'FILE'];
 
 function normalizeConfigTypeItems(items: ConfigItem[]): ConfigItem[] {
-    return [...items].sort(compareByGroupThenName);
+    return [...items].sort(compareConfigsByName);
 }
 
 export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
@@ -39,8 +38,6 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
         setError,
         fileUploadDraft,
         setFileUploadDraft,
-        groupOptions,
-        handleRemoveGroup,
         handleSave,
         handleDelete,
         handleDownload,
@@ -121,7 +118,6 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                             key={item.id}
                                             type={type}
                                             editState={editState}
-                                            groupOptions={groupOptions}
                                             error={error}
                                             rowAlign="items-start"
                                             onKeyDown={handleConfigEditorKeyDown}
@@ -131,7 +127,6 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                                 setError(null);
                                                 setRandomStringDropdownOpen(null);
                                             }}
-                                            onRemoveGroup={handleRemoveGroup}
                                             onChange={setEditState}
                                             renderRandomStringControl={(value) => renderRandomStringDropdown(`existing-${item.id}`, value)}
                                         />
@@ -141,9 +136,6 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                 return (
                                     <div key={item.id} className="flex items-center justify-between px-4 py-3 hover:bg-gray-50">
                                         <div className="flex items-center gap-3 min-w-0 flex-1">
-                                            {item.group && (
-                                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 uppercase">{item.group}</span>
-                                            )}
                                             <code className="text-sm font-mono text-gray-800 font-medium">{item.name}</code>
                                             <span className="text-sm text-gray-500 truncate">
                                                 {item.type === 'RANDOM_STRING'
@@ -192,7 +184,6 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                 <ConfigInlineEditor
                                     type={type}
                                     editState={editState}
-                                    groupOptions={groupOptions}
                                     error={error}
                                     autoFocus
                                     rowAlign="items-center"
@@ -203,7 +194,6 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                         setError(null);
                                         setRandomStringDropdownOpen(null);
                                     }}
-                                    onRemoveGroup={handleRemoveGroup}
                                     onChange={setEditState}
                                     renderRandomStringControl={(value) => renderRandomStringDropdown('new-random-string', value)}
                                 />
@@ -212,15 +202,6 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                             {isAddingFileForType && fileUploadDraft && (
                                 <div className="p-4 bg-white">
                                     <div className="flex flex-wrap items-center gap-3 md:flex-nowrap">
-                                        <GroupSelectInput
-                                            value={fileUploadDraft.group}
-                                            onChange={(group) => setFileUploadDraft({ ...fileUploadDraft, group })}
-                                            options={groupOptions}
-                                            onRemoveOption={handleRemoveGroup}
-                                            placeholder={t('configs.group.select')}
-                                            containerClassName="relative w-full md:w-56"
-                                            inputClassName="h-9 text-sm"
-                                        />
                                         <input
                                             type="text"
                                             value={fileUploadDraft.name}

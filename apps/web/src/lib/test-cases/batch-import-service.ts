@@ -5,7 +5,6 @@ import { cleanStepsForStorage, normalizeTargetConfigMap } from '@/lib/runtime/te
 import { isAndroidTargetConfig, normalizeAndroidTargetConfig } from '@/lib/android/target-config';
 import { buildEmulatorProfileRequestedDeviceId } from '@/lib/android/target-requests';
 import { normalizeConfigName } from '@/lib/test-config/validation';
-import { isGroupableConfigType, normalizeConfigGroup } from '@/lib/test-config/sort';
 import { parseTestCaseExcel, type TestCaseExcelIssue } from '@/utils/excel/testCaseExcel';
 import {
     TEST_STATUS,
@@ -84,7 +83,6 @@ interface UpsertConfigInput {
     type: SupportedImportConfigType;
     value: string;
     masked?: boolean;
-    group?: string | null;
 }
 
 function mapParseIssue(fileName: string, issue: TestCaseExcelIssue): BatchImportIssue {
@@ -110,7 +108,6 @@ async function upsertProjectConfigs(
     for (const config of configs) {
         const name = normalizeConfigName(config.name);
         const type = config.type;
-        const group = isGroupableConfigType(type) ? (normalizeConfigGroup(config.group) || null) : null;
         const masked = type === 'VARIABLE' ? config.masked === true : false;
         await tx.projectConfig.upsert({
             where: {
@@ -123,7 +120,6 @@ async function upsertProjectConfigs(
                 type,
                 value: config.value,
                 masked,
-                group,
             },
             create: {
                 projectId,
@@ -131,7 +127,6 @@ async function upsertProjectConfigs(
                 type,
                 value: config.value,
                 masked,
-                group,
             },
         });
     }
@@ -145,7 +140,6 @@ async function upsertTestCaseConfigs(
     for (const config of configs) {
         const name = normalizeConfigName(config.name);
         const type = config.type;
-        const group = isGroupableConfigType(type) ? (normalizeConfigGroup(config.group) || null) : null;
         const masked = type === 'VARIABLE' ? config.masked === true : false;
         await tx.testCaseConfig.upsert({
             where: {
@@ -158,7 +152,6 @@ async function upsertTestCaseConfigs(
                 type,
                 value: config.value,
                 masked,
-                group,
             },
             create: {
                 testCaseId,
@@ -166,7 +159,6 @@ async function upsertTestCaseConfigs(
                 type,
                 value: config.value,
                 masked,
-                group,
             },
         });
     }
@@ -389,7 +381,6 @@ async function importCandidate(
             type: variable.type,
             value: variable.value,
             masked: variable.masked,
-            group: variable.group || null,
         }));
     const testCaseVariables: UpsertConfigInput[] = candidate.parseData.testCaseVariables
         .filter((variable): variable is typeof variable & { type: SupportedImportConfigType } => isSupportedImportConfigType(variable.type))
@@ -398,7 +389,6 @@ async function importCandidate(
             type: variable.type,
             value: variable.value,
             masked: variable.masked,
-            group: variable.group || null,
         }));
 
     const importedTestCaseId = await prisma.$transaction(async (tx) => {

@@ -1,26 +1,19 @@
-import { useState, useEffect, useCallback, useMemo, type Dispatch, type KeyboardEvent, type SetStateAction } from 'react';
+import { useState, useEffect, useCallback, type Dispatch, type KeyboardEvent, type SetStateAction } from 'react';
 import { useAuth } from '@/app/auth-provider';
 import { useI18n } from '@/i18n';
 import type { ConfigItem, ConfigType } from '@/types';
-import { isGroupableConfigType, normalizeConfigGroup } from '@/lib/test-config/sort';
 import { normalizeConfigName } from '@/lib/test-config/validation';
 import type { ProjectConfigEditState, ProjectConfigFileUploadDraft } from '../model/types';
 import {
     buildAuthHeaders,
     buildConfigDownloadEndpoint,
-    buildConfigGroupEndpoint,
     buildConfigItemEndpoint,
     buildConfigsEndpoint,
     buildConfigUploadEndpoint,
-    collectConfigGroupOptions,
 } from '@/components/features/test-configurations/model/config-utils';
 
 function isMaskableConfig(type: ConfigType): boolean {
     return type === 'VARIABLE';
-}
-
-function isGroupInputEnabled(type: ConfigType): boolean {
-    return isGroupableConfigType(type);
 }
 
 interface UseProjectConfigsResult {
@@ -32,8 +25,6 @@ interface UseProjectConfigsResult {
     setError: Dispatch<SetStateAction<string | null>>;
     fileUploadDraft: ProjectConfigFileUploadDraft | null;
     setFileUploadDraft: Dispatch<SetStateAction<ProjectConfigFileUploadDraft | null>>;
-    groupOptions: string[];
-    handleRemoveGroup: (group: string) => Promise<void>;
     handleSave: () => Promise<void>;
     handleDelete: (configId: string) => Promise<void>;
     handleDownload: (config: ConfigItem) => Promise<void>;
@@ -73,45 +64,6 @@ export function useProjectConfigs(projectId: string): UseProjectConfigsResult {
         void fetchConfigs();
     }, [fetchConfigs]);
 
-    const groupOptions = useMemo(() => collectConfigGroupOptions(configs), [configs]);
-
-    const handleRemoveGroup = useCallback(async (group: string) => {
-        const normalizedGroup = normalizeConfigGroup(group);
-        if (!normalizedGroup) {
-            return;
-        }
-
-        try {
-            const token = await getAccessToken();
-            const response = await fetch(buildConfigGroupEndpoint({ kind: 'project', id: projectId }), {
-                method: 'DELETE',
-                headers: buildAuthHeaders(token, true),
-                body: JSON.stringify({ group: normalizedGroup }),
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to remove group');
-            }
-
-            setEditState((previous) => {
-                if (!previous) return previous;
-                return normalizeConfigGroup(previous.group) === normalizedGroup
-                    ? { ...previous, group: '' }
-                    : previous;
-            });
-            setFileUploadDraft((previous) => {
-                if (!previous) return previous;
-                return normalizeConfigGroup(previous.group) === normalizedGroup
-                    ? { ...previous, group: '' }
-                    : previous;
-            });
-            await fetchConfigs();
-        } catch (removeError) {
-            console.error('Failed to remove group', removeError);
-            setError(t('configs.error.removeGroupFailed'));
-        }
-    }, [fetchConfigs, getAccessToken, projectId, t]);
-
     const handleSave = useCallback(async () => {
         if (!editState) {
             return;
@@ -141,7 +93,6 @@ export function useProjectConfigs(projectId: string): UseProjectConfigsResult {
             type: editState.type,
             value: editState.value,
             masked: isMaskableConfig(editState.type) ? editState.masked : false,
-            group: isGroupInputEnabled(editState.type) ? normalizeConfigGroup(editState.group) : null,
         };
 
         try {
@@ -234,7 +185,6 @@ export function useProjectConfigs(projectId: string): UseProjectConfigsResult {
         const formData = new FormData();
         formData.append('file', draft.file);
         formData.append('name', normalizedName);
-        formData.append('group', normalizeConfigGroup(draft.group));
 
         try {
             const token = await getAccessToken();
@@ -269,7 +219,7 @@ export function useProjectConfigs(projectId: string): UseProjectConfigsResult {
     const startAdd = useCallback((type: ConfigType) => {
         if (type === 'FILE') {
             setEditState(null);
-            setFileUploadDraft({ name: '', group: '', file: null });
+            setFileUploadDraft({ name: '', file: null });
             setError(null);
             return;
         }
@@ -280,7 +230,6 @@ export function useProjectConfigs(projectId: string): UseProjectConfigsResult {
             value: type === 'RANDOM_STRING' ? 'TIMESTAMP_DATETIME' : '',
             type,
             masked: false,
-            group: '',
         });
         setError(null);
     }, []);
@@ -293,7 +242,6 @@ export function useProjectConfigs(projectId: string): UseProjectConfigsResult {
             value: config.value,
             type: config.type,
             masked: config.masked === true,
-            group: config.group || '',
         });
         setError(null);
     }, []);
@@ -307,8 +255,6 @@ export function useProjectConfigs(projectId: string): UseProjectConfigsResult {
         setError,
         fileUploadDraft,
         setFileUploadDraft,
-        groupOptions,
-        handleRemoveGroup,
         handleSave,
         handleDelete,
         handleDownload,

@@ -4,7 +4,6 @@ import { prisma } from '@/lib/core/prisma';
 import { buildProjectConfigObjectKey, validateAndSanitizeFile } from '@/lib/security/file-security';
 import { validateConfigName, normalizeConfigName } from '@/lib/test-config/validation';
 import { createLogger } from '@/lib/core/logger';
-import { normalizeConfigGroup } from '@/lib/test-config/sort';
 import { putObjectBuffer } from '@/lib/storage/object-store-utils';
 import { guardProjectRouteRequest } from '@/lib/security/project-route-access';
 
@@ -25,7 +24,6 @@ export async function POST(
         const formData = await request.formData();
         const file = formData.get('file') as File | null;
         const name = formData.get('name') as string | null;
-        const group = formData.get('group') as string | null;
 
         if (!file) {
             return apiError({ status: 400, code: 'VALIDATION_ERROR', error: 'No file provided' });
@@ -41,7 +39,6 @@ export async function POST(
         }
 
         const normalizedName = normalizeConfigName(name);
-        const normalizedGroup = normalizeConfigGroup(group);
 
         const validation = validateAndSanitizeFile(file.name, file.type, file.size);
         if (!validation.valid) {
@@ -64,7 +61,6 @@ export async function POST(
                 type: 'FILE',
                 value: objectKey,
                 masked: false,
-                group: normalizedGroup || null,
                 filename: validation.sanitizedFilename!,
                 mimeType: file.type,
                 size: file.size,

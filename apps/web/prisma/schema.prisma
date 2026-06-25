@@ -375,7 +375,6 @@ model ProjectConfig {
   type      String // URL | APP_ID | VARIABLE | RANDOM_STRING | FILE
   value     String
   masked    Boolean  @default(false)
-  group     String?
   filename  String?
   mimeType  String?
   size      Int?
@@ -407,7 +406,6 @@ model TestCaseConfig {
   type       String // URL | APP_ID | VARIABLE | RANDOM_STRING | FILE
   value      String
   masked     Boolean  @default(false)
-  group      String?
   filename   String?
   mimeType   String?
   size       Int?

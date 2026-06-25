@@ -156,7 +156,6 @@ export interface ConfigItem {
     type: ConfigType;
     value: string;
     masked?: boolean;
-    group?: string | null;
     filename?: string;
     mimeType?: string;
     size?: number;
@@ -167,7 +166,6 @@ export interface ResolvedConfig {
     type: ConfigType;
     value: string;
     masked?: boolean;
-    group?: string | null;
     filename?: string;
     source: 'project' | 'test-case';
 }

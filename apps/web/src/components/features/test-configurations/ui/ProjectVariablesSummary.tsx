@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { useI18n } from '@/i18n';
 import type { ConfigItem, ConfigType } from '@/types';
-import { compareByGroupThenName } from '@/lib/test-config/sort';
+import { compareConfigsByName } from '@/lib/test-config/sort';
 import { getConfigTypeTitleKey } from '@/components/features/test-configurations/model/config-utils';
 import { randomStringGenerationLabel, TYPE_ORDER } from '../model/config-helpers';
 
@@ -33,7 +33,7 @@ export default function ProjectVariablesSummary({
             type,
             items: projectConfigs
                 .filter((config) => config.type === type)
-                .sort(compareByGroupThenName),
+                .sort(compareConfigsByName),
         }))
         .filter((group) => group.items.length > 0);
 
@@ -60,9 +60,6 @@ export default function ProjectVariablesSummary({
                                     key={config.id}
                                     className={`flex items-center gap-2 rounded px-2 py-1.5 text-sm ${overriddenNames.has(config.name) ? 'opacity-50 line-through' : ''}`}
                                 >
-                                    {config.group && (
-                                        <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase text-gray-600">{config.group}</span>
-                                    )}
                                     <code className="font-mono text-xs text-gray-800">{config.name}</code>
                                     <span className="truncate text-xs text-gray-400">
                                         {config.masked

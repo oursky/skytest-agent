@@ -58,7 +58,6 @@ export async function resolveConfigs(projectId: string, testCaseId?: string): Pr
             type: pc.type as ConfigType,
             value: pc.value,
             masked: pc.masked,
-            group: pc.group,
             filename: pc.filename ?? undefined,
             source: 'project',
         });
@@ -70,7 +69,6 @@ export async function resolveConfigs(projectId: string, testCaseId?: string): Pr
             type: tc.type as ConfigType,
             value: tc.value,
             masked: tc.masked,
-            group: tc.group,
             filename: tc.filename ?? undefined,
             source: 'test-case',
         });

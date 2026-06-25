@@ -2,7 +2,7 @@ import ExcelJS, { CellValue, Worksheet } from 'exceljs';
 import type { BrowserConfig, TargetConfig, ConfigType, TestStep } from '@/types';
 import { normalizeAndroidTargetConfig } from '@/lib/android/target-config';
 import { formatAndroidDeviceSelectorDisplay } from '@/lib/android/device-selector-display';
-import { compareByGroupThenName, isGroupableConfigType, normalizeConfigGroup } from '@/lib/test-config/sort';
+import { compareConfigsByName } from '@/lib/test-config/sort';
 import { normalizeBrowserConfig } from '@/lib/test-config/browser-target';
 import {
     formatTargetLabel,
@@ -24,7 +24,6 @@ interface ExcelProjectVariable {
     type: SupportedVariableType;
     value: string;
     masked?: boolean;
-    group?: string | null;
 }
 
 interface ExcelFileEntry {
@@ -221,7 +220,6 @@ function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
             Type: formatConfigTypeForSheet(item.type),
             Name: item.name,
             Value: item.type === 'RANDOM_STRING' ? formatRandomStringValueForSheet(item.value) : item.value,
-            Group: isGroupableConfigType(item.type) ? normalizeConfigGroup(item.group) : '',
             Masked: item.masked ? 'Y' : '',
         }));
 
@@ -232,7 +230,6 @@ function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
             Type: formatConfigTypeForSheet(item.type),
             Name: item.name,
             Value: item.type === 'RANDOM_STRING' ? formatRandomStringValueForSheet(item.value) : item.value,
-            Group: isGroupableConfigType(item.type) ? normalizeConfigGroup(item.group) : '',
             Masked: item.masked ? 'Y' : '',
         }));
 
@@ -241,7 +238,6 @@ function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
         Type: 'Test File',
         Name: file.filename,
         Value: '',
-        Group: '',
         Masked: '',
         'Mime Type': file.mimeType || '',
         Size: file.size || '',
@@ -296,7 +292,7 @@ function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
         workbook,
         'Configurations',
         configurationsRows,
-        ['Section', 'Type', 'Name', 'Value', 'Group', 'Masked', 'Mime Type', 'Size']
+        ['Section', 'Type', 'Name', 'Value', 'Masked', 'Mime Type', 'Size']
     );
     if (browserTargetRows.length > 0) {
         appendRowsAsWorksheet(workbook, 'Browser Targets', browserTargetRows, ['Target', 'Name', 'URL', 'Width', 'Height']);
@@ -383,7 +379,6 @@ function parseConfigurationsRows(
             const rawName = getRowValue(row, ['name', 'key']);
             const value = getRowValue(row, ['value']);
             const type = normalizeConfigType(getRowValue(row, ['type', 'config type']));
-            const rawGroup = getRowValue(row, ['group']);
             const masked = parseMaskedCell(getRowValue(row, ['masked']));
             if (!rawName) {
                 addParseIssue(warnings, issues, {
@@ -436,7 +431,6 @@ function parseConfigurationsRows(
                     name,
                     type,
                     value: normalizedGenType,
-                    group: isGroupableConfigType(type) ? (normalizeConfigGroup(rawGroup) || null) : null,
                     masked: false,
                 });
                 return;
@@ -458,7 +452,6 @@ function parseConfigurationsRows(
                 name,
                 type,
                 value,
-                group: isGroupableConfigType(type) ? (normalizeConfigGroup(rawGroup) || null) : null,
                 masked: type === 'VARIABLE' ? masked : false,
             });
             return;
@@ -794,5 +787,5 @@ function formatConfigTypeForSheet(value: SupportedVariableType): string {
 }
 
 function sortVariablesForExport(items: ExcelProjectVariable[]): ExcelProjectVariable[] {
-    return [...items].sort(compareByGroupThenName);
+    return [...items].sort(compareConfigsByName);
 }

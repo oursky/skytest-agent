@@ -36,7 +36,6 @@ Variable rows use these columns:
 - `Type`
 - `Name`
 - `Value`
-- `Group` (for `Variable`, `Random String`, `File`)
 - `Masked` (`Y` when a `Variable` is masked)
 
 ## Browser Targets Sheet
@@ -77,7 +76,6 @@ Import does:
 - import project variables (supported non-file types)
 - import test case variables (supported non-file types)
   - `Masked` flag on `Variable` rows
-  - `Group` values for groupable variable types
   - browser `Width` / `Height` values
 
 Import does not:
