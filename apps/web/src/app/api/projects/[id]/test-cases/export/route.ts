@@ -6,8 +6,11 @@ import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
 import { parseTestCaseJson } from '@/lib/runtime/test-case-utils';
 import { buildContentDisposition } from '@/lib/security/http-headers';
+import { readObjectBuffer } from '@/lib/storage/object-store-utils';
 import { exportToExcelBuffer } from '@/utils/excel/testCaseExcel';
 import { guardProjectRouteRequest } from '@/lib/security/project-route-access';
+import type { BrowserConfig } from '@/types';
+import path from 'path';
 
 const logger = createLogger('api:projects:test-cases:export-selected');
 
@@ -97,6 +100,29 @@ export async function POST(
             return rankA - rankB;
         });
 
+        const loginFlowIdSet = new Set<string>();
+        for (const testCase of sortedTestCases) {
+            const targets = parseTestCaseJson(testCase).browserConfig ?? {};
+            for (const targetConfig of Object.values(targets)) {
+                const loginFlowId = (targetConfig as BrowserConfig)?.loginFlowId;
+                if (typeof loginFlowId === 'string' && loginFlowId.trim()) {
+                    loginFlowIdSet.add(loginFlowId.trim());
+                }
+            }
+        }
+        const loginFlowDisplayIdById: Record<string, string> = {};
+        if (loginFlowIdSet.size > 0) {
+            const loginFlowCases = await prisma.testCase.findMany({
+                where: { projectId: id, id: { in: [...loginFlowIdSet] } },
+                select: { id: true, displayId: true },
+            });
+            for (const loginFlowCase of loginFlowCases) {
+                if (loginFlowCase.displayId) {
+                    loginFlowDisplayIdById[loginFlowCase.id] = loginFlowCase.displayId;
+                }
+            }
+        }
+
         const projectVariables = await prisma.projectConfig.findMany({
             where: {
                 projectId: id,
@@ -144,6 +170,7 @@ export async function POST(
                 testCaseId: parsedTestCase.displayId || undefined,
                 steps: parsedTestCase.steps,
                 browserConfig: parsedTestCase.browserConfig,
+                loginFlowDisplayIdById,
                 projectVariables: projectVariables.flatMap((config) => {
                     const type = coerceExportType(config.type);
                     if (!type) return [];
@@ -174,6 +201,66 @@ export async function POST(
             const workbookBaseName = `${sanitizeSegment(parsedTestCase.displayId || 'NO_ID')}_${sanitizeSegment(testCase.name || 'test_case')}`;
             const workbookName = normalizeFilename(workbookBaseName, usedWorkbookNames);
             archive.append(excelBuffer, { name: `${exportFolderName}/test-cases/${workbookName}` });
+
+            const caseFolder = `${exportFolderName}/test-cases/${workbookName.replace(/\.xlsx$/i, '')}`;
+            const usedAssetNames = new Set<string>();
+            const uniqueAssetName = (subdir: string, originalFilename: string): string => {
+                const parsed = path.parse(path.basename(originalFilename || 'file'));
+                const baseName = parsed.name || 'file';
+                const ext = parsed.ext || '';
+                let nextName = `${baseName}${ext}`;
+                let suffix = 1;
+                while (usedAssetNames.has(`${subdir}/${nextName.toLowerCase()}`)) {
+                    nextName = `${baseName}(${suffix})${ext}`;
+                    suffix += 1;
+                }
+                usedAssetNames.add(`${subdir}/${nextName.toLowerCase()}`);
+                return `${caseFolder}/${subdir}/${nextName}`;
+            };
+
+            for (const file of testCase.files) {
+                const object = await readObjectBuffer(file.storedName);
+                if (!object) {
+                    logger.warn('Attachment not found in object storage', { objectKey: file.storedName });
+                    continue;
+                }
+                archive.append(object.body, { name: uniqueAssetName('files', file.filename) });
+            }
+
+            for (const config of testCaseVariables) {
+                if (config.type !== 'FILE' || !config.value) {
+                    continue;
+                }
+                const object = await readObjectBuffer(config.value);
+                if (!object) {
+                    logger.warn('Test case config file not found in object storage', { objectKey: config.value });
+                    continue;
+                }
+                archive.append(object.body, { name: uniqueAssetName('config-files', config.filename || config.value) });
+            }
+        }
+
+        const usedProjectFileNames = new Set<string>();
+        for (const config of projectVariables) {
+            if (config.type !== 'FILE' || !config.value) {
+                continue;
+            }
+            const object = await readObjectBuffer(config.value);
+            if (!object) {
+                logger.warn('Project config file not found in object storage', { objectKey: config.value });
+                continue;
+            }
+            const parsed = path.parse(path.basename(config.filename || config.value || 'file'));
+            const baseName = parsed.name || 'file';
+            const ext = parsed.ext || '';
+            let nextName = `${baseName}${ext}`;
+            let suffix = 1;
+            while (usedProjectFileNames.has(nextName.toLowerCase())) {
+                nextName = `${baseName}(${suffix})${ext}`;
+                suffix += 1;
+            }
+            usedProjectFileNames.add(nextName.toLowerCase());
+            archive.append(object.body, { name: `${exportFolderName}/project-config-files/${nextName}` });
         }
 
         await archive.finalize();

@@ -45,6 +45,9 @@ export interface TestCaseExcelExportData {
     projectVariables?: ExcelProjectVariable[];
     testCaseVariables?: ExcelProjectVariable[];
     files?: ExcelFileEntry[];
+    // Maps a referenced login flow's test case id to its displayId so the export
+    // carries a stable, human-readable reference that survives cross-project import.
+    loginFlowDisplayIdById?: Record<string, string>;
 }
 
 export interface ParsedTestCaseExcel {
@@ -262,12 +265,17 @@ function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
             return [];
         }
         const normalizedBrowserConfig = normalizeBrowserConfig(entry.config as BrowserConfig);
+        const loginFlowRefId = normalizedBrowserConfig.loginFlowId;
+        const loginFlowReference = loginFlowRefId
+            ? (data.loginFlowDisplayIdById?.[loginFlowRefId] || loginFlowRefId)
+            : '';
         return [{
             Target: targetLabelById.get(entry.id) || entry.id,
             Name: normalizedBrowserConfig.name || '',
             URL: normalizedBrowserConfig.url || '',
             Width: String(normalizedBrowserConfig.width),
             Height: String(normalizedBrowserConfig.height),
+            'Login Flow': loginFlowReference,
         }];
     });
     const androidTargetRows: Array<Record<string, string>> = targetEntries.flatMap((entry) => {
@@ -295,7 +303,7 @@ function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
         ['Section', 'Type', 'Name', 'Value', 'Masked', 'Mime Type', 'Size']
     );
     if (browserTargetRows.length > 0) {
-        appendRowsAsWorksheet(workbook, 'Browser Targets', browserTargetRows, ['Target', 'Name', 'URL', 'Width', 'Height']);
+        appendRowsAsWorksheet(workbook, 'Browser Targets', browserTargetRows, ['Target', 'Name', 'URL', 'Width', 'Height', 'Login Flow']);
     }
     if (androidTargetRows.length > 0) {
         appendRowsAsWorksheet(
