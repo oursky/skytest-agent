@@ -1,4 +1,13 @@
-import type { RunPageTestData } from './import-export-helpers';
+import type { BrowserConfig, TargetConfig, TestStep } from '@/types';
+
+export interface RunPageTestData {
+    url: string;
+    prompt: string;
+    name?: string;
+    displayId?: string;
+    steps?: TestStep[];
+    browserConfig?: Record<string, BrowserConfig | TargetConfig>;
+}
 
 export async function ensureTestCaseFromDataHelper(input: {
     data: RunPageTestData;

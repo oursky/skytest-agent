@@ -5,7 +5,6 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth } from "../auth-provider";
 import { TestForm } from "@/components/features/test-builder";
 import { ResultViewer } from "@/components/features/run-results";
-import type { TestCaseImportReviewData } from "@/components/features/test-cases/ui/TestCaseImportReviewDialog";
 import {
     TEST_STATUS,
     isRunActiveStatus,
@@ -19,34 +18,21 @@ import {
     type TestStatus,
     type TestCaseKind,
 } from "@/types";
-import { parseTestCaseExcel, type ParsedTestCaseExcel } from "@/utils/excel/testCaseExcel";
 import { useI18n } from "@/i18n";
 import { useUnsavedChanges } from "@/hooks/run/useUnsavedChanges";
 import {
     appendRunStreamEvent,
     applyRunStreamStatusUpdate,
     buildEventKey,
-    isExcelFilename,
     buildRunPageView,
     mergeRunFormData,
     runDetailSnapshotToResult,
     RunViewerResult,
     type RunDetailSnapshot,
 } from "./utils";
-import {
-    filterSupportedVariableConfigs,
-    handleExportHelper,
-    importVariablesToProjectHelper,
-    importVariablesToTestCaseHelper,
-} from "./import-export-helpers";
-import {
-    buildImportReviewData,
-    discardImportReviewHelper,
-    handleProceedImportReviewHelper,
-} from "./run-page-import-review";
 import { ensureTestCaseFromDataHelper } from "./run-page-test-case-helper";
 import { fetchWithAccessToken, issueRunStreamToken } from "./run-page-api";
-import { ActiveRunPanel, RunPageHeader, RunPageImportControls, RunPageLayout, RunPageSkeleton } from "./run-page-panels";
+import { ActiveRunPanel, RunPageHeader, RunPageLayout, RunPageSkeleton } from "./run-page-panels";
 
 interface TestData {
     url: string;
@@ -86,7 +72,6 @@ function RunPageContent() {
     const [initialData, setInitialData] = useState<TestData | undefined>(undefined);
 
     const [activeRunId, setActiveRunId] = useState<string | null>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
     const [testCaseFiles, setTestCaseFiles] = useState<TestCaseFile[]>([]);
     const [isDirty, setIsDirty] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -94,99 +79,8 @@ function RunPageContent() {
     const [testCaseStatus, setTestCaseStatus] = useState<TestStatus | null>(null);
     const [projectConfigs, setProjectConfigs] = useState<ConfigItem[]>([]);
     const [testCaseConfigs, setTestCaseConfigs] = useState<ConfigItem[]>([]);
-    const [pendingImportData, setPendingImportData] = useState<ParsedTestCaseExcel | null>(null);
-    const [importReviewData, setImportReviewData] = useState<TestCaseImportReviewData | null>(null);
-    const [isImportReviewProcessing, setIsImportReviewProcessing] = useState(false);
     const refreshFilesRef = useRef<string | null>(null);
     useUnsavedChanges(isDirty);
-
-    const importVariablesToTestCase = async (
-        variables: Array<{ name: string; type: 'URL' | 'APP_ID' | 'VARIABLE' | 'RANDOM_STRING'; value: string; masked?: boolean; group?: string | null }>,
-        sourceData: TestData
-    ): Promise<string | null> => {
-        return importVariablesToTestCaseHelper({
-            variables,
-            sourceData,
-            testCaseId,
-            currentTestCaseId,
-            refreshFilesTestCaseId: refreshFilesRef.current,
-            ensureTestCaseFromData,
-            getAccessToken,
-            fetchTestCaseConfigs,
-        });
-    };
-
-    const importVariablesToProject = async (
-        variables: Array<{ name: string; type: 'URL' | 'APP_ID' | 'VARIABLE' | 'RANDOM_STRING'; value: string; masked?: boolean; group?: string | null }>
-    ): Promise<void> => {
-        await importVariablesToProjectHelper({
-            variables,
-            projectId,
-            projectIdFromTestCase,
-            getAccessToken,
-            fetchProjectConfigs,
-        });
-    };
-
-    const handleExport = async (data: TestData) => {
-        await handleExportHelper({
-            data,
-            testCaseId,
-            currentTestCaseId,
-            refreshFilesTestCaseId: refreshFilesRef.current,
-            isDirty,
-            testCaseFiles,
-            projectConfigs,
-            testCaseConfigs,
-            projectId,
-            projectIdFromTestCase,
-            getAccessToken,
-        });
-    };
-
-    const applyImportedExcelData = async (data: ParsedTestCaseExcel) => {
-        setInitialData(data.testData);
-        if (data.testCaseId) {
-            setDisplayId(data.testCaseId);
-        }
-        setIsDirty(true);
-        const supportedProjectVariables = filterSupportedVariableConfigs(data.projectVariables);
-        const supportedTestCaseVariables = filterSupportedVariableConfigs(data.testCaseVariables);
-        await importVariablesToProject(supportedProjectVariables);
-        await importVariablesToTestCase(supportedTestCaseVariables, data.testData);
-    };
-
-    const handleProceedImportReview = async () => {
-        await handleProceedImportReviewHelper({
-            pendingImportData,
-            setImportReviewData,
-            setPendingImportData,
-            setIsImportReviewProcessing,
-            applyImportedExcelData,
-        });
-    };
-
-    const handleDiscardImportReview = () => discardImportReviewHelper({ setImportReviewData, setPendingImportData });
-
-    const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (!file) return;
-        try {
-            if (!isExcelFilename(file.name)) return;
-
-            const fileBuffer = await file.arrayBuffer();
-            const parsed = await parseTestCaseExcel(fileBuffer);
-            if (parsed.issues.length > 0) {
-                setPendingImportData(parsed.data);
-                setImportReviewData(buildImportReviewData(file.name, parsed.issues));
-            } else {
-                await applyImportedExcelData(parsed.data);
-            }
-        } catch (error) {
-            console.error('Failed to import test case', error);
-        }
-        event.target.value = '';
-    };
 
     useEffect(() => {
         if (!isAuthLoading && !isLoggedIn) {
@@ -813,15 +707,6 @@ function RunPageContent() {
 
     return (
         <>
-            <RunPageImportControls
-                importReviewData={importReviewData}
-                isProcessing={isImportReviewProcessing}
-                fileInputRef={fileInputRef}
-                onProceed={handleProceedImportReview}
-                onDiscard={handleDiscardImportReview}
-                onImport={handleImport}
-            />
-
             <RunPageHeader
                 title={runView.headerTitle}
                 subtitle={runView.headerSubtitle}
@@ -851,8 +736,6 @@ function RunPageContent() {
                             initialData={initialData}
                             showNameInput={true}
                             readOnly={isRunInProgress}
-                            onExport={handleExport}
-                            onImport={isRunInProgress ? undefined : () => fileInputRef.current?.click()}
                             testCaseId={testCaseId || currentTestCaseId || refreshFilesRef.current || undefined}
                             onSaveDraft={handleSaveDraft}
                             onDiscard={handleDiscard}

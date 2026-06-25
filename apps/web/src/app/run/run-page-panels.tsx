@@ -1,7 +1,6 @@
-import { Suspense, type ChangeEvent, type ReactNode, type RefObject } from "react";
+import { Suspense, type ReactNode } from "react";
 import { PageHeaderSkeleton, PanelSkeleton } from "@/components/shared";
 import { Breadcrumbs, type BreadcrumbItem } from "@/components/layout";
-import TestCaseImportReviewDialog, { type TestCaseImportReviewData } from "@/components/features/test-cases/ui/TestCaseImportReviewDialog";
 
 interface RunPageHeaderProps {
     title: string;
@@ -61,44 +60,6 @@ export function ActiveRunPanel({ title, subtitle, viewLabel, onView }: ActiveRun
                 {viewLabel}
             </button>
         </div>
-    );
-}
-
-interface RunPageImportControlsProps {
-    importReviewData: TestCaseImportReviewData | null;
-    isProcessing: boolean;
-    fileInputRef: RefObject<HTMLInputElement | null>;
-    onProceed: () => void;
-    onDiscard: () => void;
-    onImport: (event: ChangeEvent<HTMLInputElement>) => void;
-}
-
-export function RunPageImportControls({
-    importReviewData,
-    isProcessing,
-    fileInputRef,
-    onProceed,
-    onDiscard,
-    onImport,
-}: RunPageImportControlsProps) {
-    return (
-        <>
-            <TestCaseImportReviewDialog
-                isOpen={importReviewData !== null}
-                data={importReviewData}
-                isProcessing={isProcessing}
-                onProceed={onProceed}
-                onDiscard={onDiscard}
-            />
-
-            <input
-                type="file"
-                ref={fileInputRef}
-                onChange={onImport}
-                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                className="hidden"
-            />
-        </>
     );
 }
 
