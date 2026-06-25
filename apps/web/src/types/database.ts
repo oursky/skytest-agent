@@ -70,6 +70,25 @@ export interface LoginFlowPrefixInfo {
     status: string;
 }
 
+export interface RunSessionMemberInfo {
+    runId: string;
+    testCaseId: string;
+    displayId: string | null;
+    name: string;
+    kind: string;
+    status: string;
+    sessionPosition: number;
+    reusedSession?: boolean;
+}
+
+export interface RunSessionInfo {
+    id: string;
+    kind: string;
+    groupName: string | null;
+    onFailure: string | null;
+    members: RunSessionMemberInfo[];
+}
+
 export interface TestRun {
     id: string;
     testCaseId: string;

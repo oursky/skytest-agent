@@ -21,6 +21,7 @@ export interface RunViewerResult {
     error?: string;
     errorCode?: TestFailureCode;
     errorCategory?: TestFailureCategory;
+    slackNotifyError?: string;
     loginFlowPrefixes?: LoginFlowPrefixInfo[];
 }
 
@@ -30,6 +31,7 @@ export interface RunDetailSnapshot {
     error?: string | null;
     errorCode?: TestFailureCode | null;
     errorCategory?: TestFailureCategory | null;
+    slackNotifyError?: string | null;
     loginFlowPrefixes?: LoginFlowPrefixInfo[] | null;
 }
 
@@ -148,6 +150,7 @@ export function runDetailSnapshotToResult(snapshot: RunDetailSnapshot): RunViewe
         error: snapshot.error ?? undefined,
         errorCode: snapshot.errorCode ?? undefined,
         errorCategory: snapshot.errorCategory ?? undefined,
+        slackNotifyError: snapshot.slackNotifyError ?? undefined,
         loginFlowPrefixes: snapshot.loginFlowPrefixes ?? undefined,
     };
 }

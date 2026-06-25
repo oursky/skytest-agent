@@ -14,7 +14,7 @@ import { parseStoredEvents } from "@/lib/runtime/test-events";
 import { resolveSnapshotTestCaseIdentity } from "./snapshot-utils";
 import { isSchedulerTriggered } from '@/lib/test-runs/trigger-label';
 
-import { type TestStep, type BrowserConfig, type TargetConfig, type ConfigItem, type TestEvent, type TestStatus } from "@/types";
+import { type TestStep, type BrowserConfig, type TargetConfig, type ConfigItem, type TestEvent, type TestStatus, type TestFailureCode, type TestFailureCategory, type LoginFlowPrefixInfo, type RunSessionInfo } from "@/types";
 
 interface TestRun {
     id: string;
@@ -26,11 +26,20 @@ interface TestRun {
     configurationSnapshot: string | null;
     testCaseDisplayId?: string | null;
     testCaseName?: string | null;
+    errorCode?: TestFailureCode | null;
+    errorCategory?: TestFailureCategory | null;
+    actionCount?: number | null;
+    slackNotifyError?: string | null;
+    loginFlowPrefixes?: LoginFlowPrefixInfo[];
+    startedAt?: string | null;
+    completedAt?: string | null;
     triggeredByEmail?: string | null;
     triggerSource?: string | null;
     instanceId?: string | null;
     instanceType?: string | null;
     instanceName?: string | null;
+    runSessionId?: string | null;
+    projectId?: string | null;
     events?: TestEvent[];
     files?: Array<{ id: string; filename: string; storedName: string; mimeType: string; size: number; createdAt: string }>;
 }
@@ -53,6 +62,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
     const { t } = useI18n();
 
     const [testRun, setTestRun] = useState<TestRun | null>(null);
+    const [session, setSession] = useState<RunSessionInfo | null>(null);
     const [testCase, setTestCase] = useState<TestCase | null>(null);
     const [projectId, setProjectId] = useState<string>("");
     const [projectName, setProjectName] = useState<string>("");
@@ -96,6 +106,16 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
             if (response.ok) {
                 const run = await response.json();
                 setTestRun(run);
+                if (run.runSessionId && run.projectId) {
+                    try {
+                        const sessionResponse = await fetch(`/api/projects/${run.projectId}/run-sessions/${run.runSessionId}`, { headers });
+                        if (sessionResponse.ok) {
+                            setSession(await sessionResponse.json() as RunSessionInfo);
+                        }
+                    } catch (sessionError) {
+                        console.error("Failed to fetch run session", sessionError);
+                    }
+                }
             } else {
                 const historyResponse = await fetch(`/api/test-cases/${id}/history?limit=100&includePayload=1`, { headers });
                 if (historyResponse.ok) {
@@ -308,7 +328,15 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 
                     <div className="h-full min-h-[500px]">
                         <ResultViewer
-                            result={{ status: testRun.status, events, error: testRun.error || undefined }}
+                            result={{
+                                status: testRun.status,
+                                events,
+                                error: testRun.error || undefined,
+                                errorCode: testRun.errorCode ?? undefined,
+                                errorCategory: testRun.errorCategory ?? undefined,
+                                slackNotifyError: testRun.slackNotifyError ?? undefined,
+                                loginFlowPrefixes: testRun.loginFlowPrefixes ?? undefined,
+                            }}
                             meta={{
                                 runId,
                                 testCaseId: id,
@@ -316,6 +344,16 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                                 projectName,
                                 testCaseName: testData?.name || testCase?.name || null,
                                 config: testData,
+                                files: testRun.files,
+                                actionCount: testRun.actionCount ?? undefined,
+                                triggeredByEmail: testRun.triggeredByEmail,
+                                triggerSource: testRun.triggerSource,
+                                instanceName: testRun.instanceName,
+                                instanceType: testRun.instanceType,
+                                instanceId: testRun.instanceId,
+                                startedAt: testRun.startedAt,
+                                completedAt: testRun.completedAt,
+                                session,
                             }}
                         />
                     </div>

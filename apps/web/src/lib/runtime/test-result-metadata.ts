@@ -3,6 +3,7 @@ import type { TestFailureCategory, TestFailureCode } from '@/types';
 interface ParsedResultShape {
     errorCode?: unknown;
     errorCategory?: unknown;
+    actionCount?: unknown;
 }
 
 const FAILURE_CODES: ReadonlySet<TestFailureCode> = new Set([
@@ -29,6 +30,7 @@ const FAILURE_CATEGORIES: ReadonlySet<TestFailureCategory> = new Set([
 export interface TestResultMetadata {
     errorCode?: TestFailureCode;
     errorCategory?: TestFailureCategory;
+    actionCount?: number;
 }
 
 export function parseTestResultMetadata(rawResult: string | null | undefined): TestResultMetadata {
@@ -46,6 +48,10 @@ export function parseTestResultMetadata(rawResult: string | null | undefined): T
 
         if (typeof parsed.errorCategory === 'string' && FAILURE_CATEGORIES.has(parsed.errorCategory as TestFailureCategory)) {
             metadata.errorCategory = parsed.errorCategory as TestFailureCategory;
+        }
+
+        if (typeof parsed.actionCount === 'number' && Number.isFinite(parsed.actionCount)) {
+            metadata.actionCount = parsed.actionCount;
         }
 
         return metadata;

@@ -5,12 +5,14 @@ import { getStatusBadgeClass } from '@/utils/status/statusBadge';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
     TEST_STATUS,
+    isRunTerminalStatus,
     type TestRun,
     type TestEvent,
     type TestCaseFile,
     type TestData,
     type BrowserConfig,
     type LoginFlowPrefixInfo,
+    type RunSessionInfo,
 } from '@/types';
 import { formatTime } from '@/utils/time/dateFormatter';
 import TimelineEvent from './TimelineEvent';
@@ -31,11 +33,53 @@ interface ResultViewerMeta {
     testCaseName?: string | null;
     config?: TestData;
     files?: TestCaseFile[];
+    triggeredByEmail?: string | null;
+    triggerSource?: string | null;
+    instanceName?: string | null;
+    instanceType?: string | null;
+    instanceId?: string | null;
+    startedAt?: string | null;
+    completedAt?: string | null;
+    actionCount?: number | null;
+    session?: RunSessionInfo | null;
 }
 
 interface ResultViewerProps {
     result: Omit<TestRun, 'id' | 'testCaseId' | 'createdAt' | 'status'> & { status: TestRun['status'] | null; events: TestEvent[]; loginFlowPrefixes?: LoginFlowPrefixInfo[] };
     meta?: ResultViewerMeta;
+}
+
+interface LiveRunReport {
+    triggeredByEmail?: string | null;
+    triggerSource?: string | null;
+    instanceName?: string | null;
+    instanceType?: string | null;
+    instanceId?: string | null;
+    startedAt?: string | null;
+    completedAt?: string | null;
+    lastEventAt?: string | null;
+    leaseExpiresAt?: string | null;
+    assignedRunnerId?: string | null;
+    requiredCapability?: string | null;
+    requiredRunnerKind?: string | null;
+    requestedDeviceId?: string | null;
+    requestedRunnerId?: string | null;
+    actionCount?: number | null;
+    loginFlowPrefixes?: LoginFlowPrefixInfo[];
+    session?: RunSessionInfo | null;
+}
+
+function formatRelativeAge(timestamp: string): string {
+    const elapsedMs = Date.now() - new Date(timestamp).getTime();
+    if (!Number.isFinite(elapsedMs) || elapsedMs < 0) {
+        return '';
+    }
+    const seconds = Math.floor(elapsedMs / 1000);
+    if (seconds < 60) return `${seconds}s ago`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ${seconds % 60}s ago`;
+    const hours = Math.floor(minutes / 60);
+    return `${hours}h ${minutes % 60}m ago`;
 }
 
 function resolveSlackDeliveryFailureReason(slackNotifyError: string, t: (key: string, vars?: Record<string, string | number>) => string): string {
@@ -102,6 +146,15 @@ function buildConfigSummaryLines(config?: TestData): string[] {
                 lines.push(`  URL: ${browserConfig.url}`);
             }
             lines.push(`  Viewport: ${browserConfig.width} x ${browserConfig.height}`);
+            if (browserConfig.loginFlowId) {
+                lines.push(`  Login Flow: ${browserConfig.loginFlowId}`);
+            }
+            if (browserConfig.reuseGroupSession) {
+                lines.push(`  Reuse Group Session: yes`);
+            }
+            if (browserConfig.webauthnVirtualAuthenticator) {
+                lines.push(`  Passkey (Virtual WebAuthn): enabled`);
+            }
         }
     } else if (config.url) {
         lines.push('### Targets');
@@ -200,7 +253,19 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
         }
     };
 
-    const buildLogsText = (): string => {
+    const buildLogsText = (live?: LiveRunReport): string => {
+        const ctxTriggeredByEmail = live?.triggeredByEmail ?? meta?.triggeredByEmail;
+        const ctxTriggerSource = live?.triggerSource ?? meta?.triggerSource;
+        const ctxInstanceName = live?.instanceName ?? meta?.instanceName;
+        const ctxInstanceType = live?.instanceType ?? meta?.instanceType;
+        const ctxInstanceId = live?.instanceId ?? meta?.instanceId;
+        const ctxStartedAt = live?.startedAt ?? meta?.startedAt;
+        const ctxCompletedAt = live?.completedAt ?? meta?.completedAt;
+        const ctxActionCount = live?.actionCount ?? meta?.actionCount;
+        const ctxSession = live?.session ?? meta?.session;
+        const ctxPrefixes = live?.loginFlowPrefixes ?? loginFlowPrefixes;
+        const isLive = result.status != null && !isRunTerminalStatus(result.status);
+
         const lines: string[] = [];
         lines.push(`# SkyTest Agent Run Report`);
         lines.push(`Generated: ${new Date().toISOString()}`);
@@ -213,14 +278,57 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
         if (meta?.runId) lines.push(`Run ID: ${meta.runId}`);
         if (meta?.testCaseId) lines.push(`Test Case ID: ${meta.testCaseId}`);
         if (meta?.testCaseName) lines.push(`Test Case Name: ${meta.testCaseName}`);
+        if (meta?.config?.kind) lines.push(`Kind: ${meta.config.kind}`);
         if (meta?.projectId) lines.push(`Project ID: ${meta.projectId}`);
         if (meta?.projectName) lines.push(`Project Name: ${meta.projectName}`);
-        lines.push(`Status: ${result.status}`);
+        lines.push(`Status: ${result.status}${isLive ? ' (still running at copy time)' : ''}`);
         if (result.error) lines.push(`Error: ${result.error}`);
         if (result.errorCode) lines.push(`Error Code: ${result.errorCode}`);
         if (result.errorCategory) lines.push(`Error Category: ${result.errorCategory}`);
+        if (typeof ctxActionCount === 'number') lines.push(`AI Action Count: ${ctxActionCount}`);
+        if (ctxTriggeredByEmail || ctxTriggerSource) {
+            const source = ctxTriggerSource ? ` (${ctxTriggerSource})` : '';
+            lines.push(`Triggered By: ${ctxTriggeredByEmail ?? 'unknown'}${source}`);
+        }
+        const runnerParts = [
+            ctxInstanceName,
+            ctxInstanceType,
+            ctxInstanceId ? `id: ${ctxInstanceId}` : undefined,
+        ].filter(Boolean);
+        if (runnerParts.length > 0) lines.push(`Runner: ${runnerParts.join(' / ')}`);
+        if (ctxStartedAt) lines.push(`Started At: ${ctxStartedAt}`);
+        if (ctxCompletedAt) lines.push(`Completed At: ${ctxCompletedAt}`);
+        if (ctxStartedAt && ctxCompletedAt) {
+            const durationMs = new Date(ctxCompletedAt).getTime() - new Date(ctxStartedAt).getTime();
+            if (Number.isFinite(durationMs) && durationMs >= 0) {
+                lines.push(`Duration: ${(durationMs / 1000).toFixed(1)}s`);
+            }
+        }
         lines.push(`Events: ${result.events.length}`);
         lines.push('');
+
+        const diagnostics: string[] = [];
+        if (live?.lastEventAt) {
+            const age = formatRelativeAge(live.lastEventAt);
+            diagnostics.push(`Last Activity: ${live.lastEventAt}${age ? ` (${age})` : ''}`);
+        }
+        const assignedRunner = live?.assignedRunnerId ?? null;
+        if (isLive || assignedRunner) {
+            diagnostics.push(`Assigned Runner: ${assignedRunner ?? '(none — not yet claimed)'}`);
+        }
+        if (live?.leaseExpiresAt) {
+            const age = formatRelativeAge(live.leaseExpiresAt);
+            diagnostics.push(`Lease Expires: ${live.leaseExpiresAt}${age ? ` (${age})` : ''}`);
+        }
+        if (live?.requiredCapability) diagnostics.push(`Required Capability: ${live.requiredCapability}`);
+        if (live?.requiredRunnerKind) diagnostics.push(`Required Runner Kind: ${live.requiredRunnerKind}`);
+        if (live?.requestedDeviceId) diagnostics.push(`Requested Device: ${live.requestedDeviceId}`);
+        if (live?.requestedRunnerId) diagnostics.push(`Requested Runner: ${live.requestedRunnerId}`);
+        if (diagnostics.length > 0) {
+            lines.push('## Run Diagnostics');
+            lines.push(...diagnostics);
+            lines.push('');
+        }
         if (meta?.config) {
             lines.push('## Configuration');
             const configSummaryLines = buildConfigSummaryLines(meta.config);
@@ -242,11 +350,54 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
             }
             lines.push('');
         }
+        const steps = meta?.config?.steps;
+        if (steps && steps.length > 0) {
+            lines.push('## Steps');
+            steps.forEach((step, index) => {
+                const stepType = step.type ?? 'ai-action';
+                const actionText = (step.action || step.aiAction || step.codeAction || '').trim();
+                lines.push(`${index + 1}. [${step.target}] (${stepType})`);
+                if (actionText) {
+                    for (const actionLine of actionText.split('\n')) {
+                        lines.push(`   ${actionLine}`);
+                    }
+                }
+            });
+            lines.push('');
+        }
         if (meta?.files && meta.files.length > 0) {
             lines.push('## Files');
             for (const f of meta.files) {
                 lines.push(`- ${f.filename} (id: ${f.id}, stored: ${f.storedName}, type: ${f.mimeType}, size: ${f.size})`);
             }
+            lines.push('');
+        }
+        if (ctxSession && ctxSession.members.length > 0) {
+            lines.push(ctxSession.kind === 'GROUP' ? '## Test Group' : '## Run Session');
+            lines.push(`Session ID: ${ctxSession.id}`);
+            lines.push(`Session Kind: ${ctxSession.kind}`);
+            if (ctxSession.groupName) lines.push(`Group: ${ctxSession.groupName}`);
+            if (ctxSession.onFailure) lines.push(`On Failure: ${ctxSession.onFailure}`);
+            lines.push('Members (in execution order):');
+            for (const member of ctxSession.members) {
+                const label = member.displayId ? `${member.displayId} ${member.name}` : member.name;
+                const reuse = member.reusedSession ? ' (reused session)' : '';
+                const current = member.runId === meta?.runId ? ' <- this run' : '';
+                lines.push(`  ${member.sessionPosition + 1}. [${member.status}] (${member.kind}) ${label}${reuse} (runId: ${member.runId})${current}`);
+            }
+            lines.push('');
+        } else if (ctxPrefixes.length > 0) {
+            lines.push('## Login Flows');
+            for (const flow of ctxPrefixes) {
+                const label = flow.displayId ? `${flow.displayId} ${flow.name}` : flow.name;
+                lines.push(`- [${flow.status}] ${label} (runId: ${flow.runId}, testCaseId: ${flow.testCaseId})`);
+            }
+            lines.push('');
+        }
+        if (result.slackNotifyError) {
+            lines.push('## Notifications');
+            lines.push(`Slack Delivery Failed: ${resolveSlackDeliveryFailureReason(result.slackNotifyError, t)}`);
+            lines.push(`Slack Error Detail: ${result.slackNotifyError}`);
             lines.push('');
         }
         lines.push('## Events');
@@ -264,13 +415,53 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
         return lines.join('\n');
     };
 
+    const fetchLiveRunReport = async (): Promise<LiveRunReport | undefined> => {
+        const id = meta?.runId;
+        if (!id) {
+            return undefined;
+        }
+        try {
+            const response = await fetchWithAccessToken(getAccessToken, `/api/test-runs/${id}`);
+            if (!response.ok) {
+                return undefined;
+            }
+            const data = await response.json() as LiveRunReport & { runSessionId?: string | null };
+            let session = data.session ?? undefined;
+            if (data.runSessionId && meta?.projectId) {
+                try {
+                    const sessionResponse = await fetchWithAccessToken(getAccessToken, `/api/projects/${meta.projectId}/run-sessions/${data.runSessionId}`);
+                    if (sessionResponse.ok) {
+                        session = await sessionResponse.json() as RunSessionInfo;
+                    }
+                } catch {
+                    // best-effort; fall back to whatever session info we already have
+                }
+            }
+            return { ...data, session };
+        } catch {
+            return undefined;
+        }
+    };
+
     const handleCopyLogs = async () => {
+        // Copy immediately within the user gesture so the action works in every browser.
         try {
             await navigator.clipboard.writeText(buildLogsText());
             setCopied(true);
             window.setTimeout(() => setCopied(false), 1200);
         } catch {
             // ignore
+        }
+        // Enrich with freshly fetched run context (runner assignment, last activity, queue
+        // requirements, session) so a still-running or stuck run copies a complete report.
+        const live = await fetchLiveRunReport();
+        if (!live) {
+            return;
+        }
+        try {
+            await navigator.clipboard.writeText(buildLogsText(live));
+        } catch {
+            // Keep the gesture-time copy if the browser blocks the post-await write.
         }
     };
 
