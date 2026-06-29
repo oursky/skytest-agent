@@ -15,11 +15,11 @@ export const MIDSCENE_MODEL_DEFAULTS: {
     temperature: number;
 } = {
     baseUrl: 'https://openrouter.ai/api/v1',
-    mainModel: 'qwen/qwen3.5-27b',
-    mainModelFamily: 'qwen3.5',
-    planningModel: 'qwen/qwen3.5-27b',
-    planningModelFamily: 'qwen3.5',
-    insightModel: 'qwen/qwen3.5-27b',
-    insightModelFamily: 'qwen3.5',
+    mainModel: 'qwen/qwen3.6-35b-a3b',
+    mainModelFamily: 'qwen3.6',
+    planningModel: 'qwen/qwen3.6-35b-a3b',
+    planningModelFamily: 'qwen3.6',
+    insightModel: 'qwen/qwen3.6-35b-a3b',
+    insightModelFamily: 'qwen3.6',
     temperature: 0.2,
 };
