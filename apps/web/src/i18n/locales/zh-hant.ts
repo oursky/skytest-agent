@@ -456,6 +456,7 @@ export const ZH_HANT_MESSAGES: Messages = {
   "step.label.code": "Playwright 程式碼",
   "step.ai.placeholder": "描述要執行的動作…",
   "step.editor.loading": "正在載入編輯器…",
+  "step.editor.unsafeToken": "Playwright 程式碼中不允許使用不安全的標記 \"{token}\"",
   "file.copyPath": "複製參照",
   "file.download": "下載",
   "file.delete": "刪除",

@@ -1,7 +1,7 @@
 import type { Page } from 'playwright';
 import path from 'node:path';
-import { config } from '@/config/app';
 import { PlaywrightCodeError } from '@/lib/core/errors';
+import { findBlockedPlaywrightToken } from '@/lib/test-config/playwright-blocked-tokens';
 
 type FilePayloadWithPath = Record<string, unknown> & { path: string };
 
@@ -15,20 +15,14 @@ export interface SetInputFilesPolicy {
     allowedTestCaseDir?: string;
 }
 
-function escapeRegExp(value: string): string {
-    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
 export function validatePlaywrightCode(code: string, stepIndex: number): void {
-    for (const token of config.test.security.playwrightCodeBlockedTokens) {
-        const regex = new RegExp(`\\b${escapeRegExp(token)}\\b`, 'i');
-        if (regex.test(code)) {
-            throw new PlaywrightCodeError(
-                `Unsafe token "${token}" is not allowed in Playwright code`,
-                stepIndex,
-                code
-            );
-        }
+    const blockedToken = findBlockedPlaywrightToken(code);
+    if (blockedToken) {
+        throw new PlaywrightCodeError(
+            `Unsafe token "${blockedToken}" is not allowed in Playwright code`,
+            stepIndex,
+            code
+        );
     }
 }
 

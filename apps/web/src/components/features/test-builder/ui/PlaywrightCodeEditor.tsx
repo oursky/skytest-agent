@@ -4,6 +4,7 @@ import Editor, { OnMount, loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
 import { useCallback, useEffect, useRef } from 'react';
 import { useI18n } from '@/i18n';
+import { findBlockedPlaywrightToken } from '@/lib/test-config/playwright-blocked-tokens';
 
 loader.config({ monaco });
 
@@ -150,13 +151,21 @@ export default function PlaywrightCodeEditor({
             try {
                 const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
                 new AsyncFunction('page', code);
-                onValidationChange(true, []);
             } catch (e) {
                 const error = e instanceof Error ? e.message : 'Syntax error';
                 onValidationChange(false, [error]);
+                return;
             }
+
+            const blockedToken = findBlockedPlaywrightToken(code);
+            if (blockedToken) {
+                onValidationChange(false, [t('step.editor.unsafeToken', { token: blockedToken })]);
+                return;
+            }
+
+            onValidationChange(true, []);
         }
-    }, [onChange, onValidationChange]);
+    }, [onChange, onValidationChange, t]);
 
     useEffect(() => {
         if (!insertRequest) {

@@ -456,6 +456,7 @@ export const EN_MESSAGES: Messages = {
   "step.label.code": "Playwright Code",
   "step.ai.placeholder": "Describe the action to perform...",
   "step.editor.loading": "Loading editor...",
+  "step.editor.unsafeToken": "Unsafe token \"{token}\" is not allowed in Playwright code",
   "file.copyPath": "Copy reference",
   "file.download": "Download",
   "file.delete": "Delete",

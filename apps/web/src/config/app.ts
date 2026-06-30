@@ -1,4 +1,5 @@
 import { parseBoundedIntEnv } from '@/lib/core/env';
+import { PLAYWRIGHT_CODE_BLOCKED_TOKENS } from '@/lib/test-config/playwright-blocked-tokens';
 import { TEST_STATUS } from '@/types';
 
 function parseBooleanEnv(name: string, fallback: boolean): boolean {
@@ -277,28 +278,7 @@ export const config = {
             dnsLookupRetryDelayMs: 200,
             dnsCacheTtlMs: 5 * 60 * 1000,
             blockedRequestLogDedupMs: 10000,
-            playwrightCodeBlockedTokens: [
-                'require',
-                'import',
-                'export',
-                'process',
-                'global',
-                'globalThis',
-                'window',
-                'document',
-                'Function',
-                'eval',
-                'child_process',
-                'fs',
-                'net',
-                'http',
-                'https',
-                'dgram',
-                'tls',
-                'fetch',
-                'XMLHttpRequest',
-                'Buffer',
-            ],
+            playwrightCodeBlockedTokens: [...PLAYWRIGHT_CODE_BLOCKED_TOKENS],
         },
         playwrightCode: {
             statementTimeoutMs: 30000,
