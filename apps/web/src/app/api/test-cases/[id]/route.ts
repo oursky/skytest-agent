@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { dump as dumpYaml, load as parseYaml } from 'js-yaml';
 import { readFile } from 'node:fs/promises';
 import { apiError } from '@/lib/security/api-route-standards';
+import { config } from '@/config/app';
 import { prisma } from '@/lib/core/prisma';
 import { createLogger } from '@/lib/core/logger';
 import { parseTestCaseJson, cleanStepsForStorage, normalizeTargetConfigMap } from '@/lib/runtime/test-case-utils';
@@ -173,7 +174,7 @@ export async function PUT(
                 }
                 let sourcePath = sourcePathFromDb;
                 try {
-                    const { catalog } = await loadTestCatalog(process.cwd());
+                    const { catalog } = await loadTestCatalog(config.runtime.rootDir);
                     const catalogEntry = catalog.get(normalizedDisplayId);
                     if (!catalogEntry || catalogEntry.sourcePath !== sourcePathFromDb) {
                         return apiError({

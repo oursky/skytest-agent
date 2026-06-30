@@ -106,6 +106,12 @@ SkyTest local runtime settings are checkout-scoped:
 - runtime config file: `.skytest/skytest.yaml` (tracked in git)
 - local identity lockfile: `.skytest/instance.lock.yaml` (ignored by git)
 
+The `.skytest` directory is resolved relative to the runtime root, which defaults
+to the process working directory. Set `SKYTEST_RUNTIME_ROOT` to an absolute,
+writable path to relocate it — required in container/hosted deployments where the
+working directory is the read-only application code tree (see the Dockerfile, which
+defaults it to `/app/runtime`).
+
 Initialize the local runtime scaffold with:
 
 ```bash

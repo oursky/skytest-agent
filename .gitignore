@@ -77,6 +77,8 @@ plans/
 **/.skytest/instance.lock.yaml
 **/.skytest/local-up.pid
 **/.skytest/local-up.log
+# Leftover atomic-write temp files from an interrupted identity-lock write
+**/.skytest/*.tmp
 # CocoIndex Code (ccc)
 /.cocoindex_code/
 

@@ -48,6 +48,12 @@ COPY --from=builder --chown=pwuser:pwuser /app/node_modules /app/node_modules
 COPY --from=builder --chown=pwuser:pwuser /app/apps/web /app/apps/web
 COPY --from=builder --chown=pwuser:pwuser /app/packages/runner-protocol /app/packages/runner-protocol
 
+# Keep mutable runtime state out of the (root-owned) application code directory.
+# SkyTest writes its instance-identity lockfile under <SKYTEST_RUNTIME_ROOT>/.skytest,
+# so point that at a dedicated directory owned by the unprivileged runtime user.
+ENV SKYTEST_RUNTIME_ROOT=/app/runtime
+RUN mkdir -p /app/runtime && chown -R pwuser:pwuser /app/runtime
+
 USER pwuser
 
 EXPOSE 3000

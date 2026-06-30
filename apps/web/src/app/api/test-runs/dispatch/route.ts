@@ -309,9 +309,9 @@ export async function POST(request: Request) {
             select: { id: true, filename: true, storedName: true, mimeType: true, size: true }
         });
 
-        const currentWorkingDirectory = process.cwd();
+        const runtimeRoot = appConfig.runtime.rootDir;
         const sourceRuntimeRoot = resolveRuntimeRootFromSourcePath(testCase.source);
-        const runtimeRootForIdentity = sourceRuntimeRoot ?? currentWorkingDirectory;
+        const runtimeRootForIdentity = sourceRuntimeRoot ?? runtimeRoot;
         const runtimeIdentityDirectory = path.join(runtimeRootForIdentity, '.skytest');
         let instanceIdentity: Awaited<ReturnType<typeof ensureRuntimeInstanceIdentity>>;
         try {
@@ -332,7 +332,7 @@ export async function POST(request: Request) {
         let runtimeConfigError: unknown;
 
         try {
-            runtimeConfig = await loadRuntimeConfigForCwd(currentWorkingDirectory);
+            runtimeConfig = await loadRuntimeConfigForCwd(runtimeRoot);
         } catch (cwdConfigError) {
             runtimeConfigError = cwdConfigError;
         }

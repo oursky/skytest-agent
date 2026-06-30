@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { parseBoundedIntEnv } from '@/lib/core/env';
 import { TEST_STATUS } from '@/types';
 
@@ -15,6 +16,16 @@ function parseBooleanEnv(name: string, fallback: boolean): boolean {
     }
 
     throw new Error(`${name} must be "true" or "false" when set`);
+}
+
+// Base directory that holds SkyTest's mutable runtime state (the `.skytest`
+// directory with the instance-identity lockfile and any file-source catalog).
+// Defaults to the process working directory, which is correct for local and
+// CLI use; hosted deployments point it at a writable data directory via
+// SKYTEST_RUNTIME_ROOT so runtime state never lands in the read-only code tree.
+function resolveRuntimeRootDir(): string {
+    const configured = process.env.SKYTEST_RUNTIME_ROOT?.trim();
+    return configured ? path.resolve(configured) : process.cwd();
 }
 
 const storageSignedUrlTtlSeconds = parseBoundedIntEnv({
@@ -159,6 +170,7 @@ const midsceneGenerateReport = process.env.SKYTEST_MIDSCENE_GENERATE_REPORT === 
 const midsceneAutoPrintReportMsg = process.env.SKYTEST_MIDSCENE_AUTO_PRINT_REPORT_MSG === 'true';
 const s3ForcePathStyle = parseBooleanEnv('S3_FORCE_PATH_STYLE', false);
 const allowLocalhostTestTargets = parseBooleanEnv('ALLOW_LOCALHOST_TEST_TARGETS', false);
+const runtimeRootDir = resolveRuntimeRootDir();
 
 export const config = {
     app: {
@@ -223,6 +235,10 @@ export const config = {
             min: 1,
             max: 1_000,
         }),
+    },
+
+    runtime: {
+        rootDir: runtimeRootDir,
     },
 
     test: {
