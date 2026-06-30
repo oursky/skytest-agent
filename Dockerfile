@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/playwright:v1.57.0-jammy AS base
+FROM mcr.microsoft.com/playwright:v1.61.0-jammy AS base
 
 WORKDIR /app
 
@@ -42,6 +42,7 @@ RUN apt-get update \
     gpgconf \
     gpgsm \
     gpgv \
+  && apt-get upgrade -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder --chown=pwuser:pwuser /app/node_modules /app/node_modules
