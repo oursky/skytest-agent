@@ -8,6 +8,7 @@ import { isAndroidTargetConfig, normalizeAndroidTargetConfig } from '@/lib/andro
 import { resolveConfigs } from '@/lib/test-config/resolver';
 import { ensureRuntimeInstanceIdentity } from '@/lib/runtime/instance-identity';
 import { loadRuntimeConfigForCwd } from '@/lib/runtime/runtime-config-loader';
+import { getRuntimeRootDir } from '@/lib/runtime/runtime-root';
 import { resolveRuntimeRootFromSourcePath } from '@/lib/test-cases/source-path-utils';
 import {
     collectSyncableEnvEntries,
@@ -309,7 +310,7 @@ export async function POST(request: Request) {
             select: { id: true, filename: true, storedName: true, mimeType: true, size: true }
         });
 
-        const runtimeRoot = appConfig.runtime.rootDir;
+        const runtimeRoot = getRuntimeRootDir();
         const sourceRuntimeRoot = resolveRuntimeRootFromSourcePath(testCase.source);
         const runtimeRootForIdentity = sourceRuntimeRoot ?? runtimeRoot;
         const runtimeIdentityDirectory = path.join(runtimeRootForIdentity, '.skytest');
