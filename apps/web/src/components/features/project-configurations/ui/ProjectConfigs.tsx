@@ -28,6 +28,7 @@ function normalizeConfigTypeItems(items: ConfigItem[]): ConfigItem[] {
 export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
     const { t } = useI18n();
     const [randomStringDropdownOpen, setRandomStringDropdownOpen] = useState<string | null>(null);
+    const [copiedId, setCopiedId] = useState<string | null>(null);
     const randomStringDropdownRefs = useRef<Map<string, HTMLDivElement>>(new Map());
     const {
         configs,
@@ -60,6 +61,18 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [randomStringDropdownOpen]);
+
+    const handleCopyValue = async (item: ConfigItem) => {
+        try {
+            await navigator.clipboard.writeText(item.value);
+            setCopiedId(item.id);
+            window.setTimeout(() => {
+                setCopiedId((current) => (current === item.id ? null : current));
+            }, 1200);
+        } catch (copyError) {
+            console.error('Failed to copy config value', copyError);
+        }
+    };
 
     const renderRandomStringDropdown = (dropdownKey: string, value: string) => (
         <RandomStringGenerationDropdown
@@ -144,6 +157,25 @@ export default function ProjectConfigs({ projectId }: ProjectConfigsProps) {
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-1">
+                                            {(type === 'URL' || type === 'VARIABLE') && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void handleCopyValue(item)}
+                                                    className="p-1.5 text-gray-400 hover:text-gray-600 rounded"
+                                                    title={copiedId === item.id ? t('common.copied') : t('common.copy')}
+                                                    aria-label={copiedId === item.id ? t('common.copied') : t('common.copy')}
+                                                >
+                                                    {copiedId === item.id ? (
+                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                        </svg>
+                                                    ) : (
+                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                                        </svg>
+                                                    )}
+                                                </button>
+                                            )}
                                             {type === 'FILE' ? (
                                                 <button
                                                     type="button"
