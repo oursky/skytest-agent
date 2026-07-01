@@ -285,7 +285,6 @@ export const ZH_HANT_MESSAGES: Messages = {
   "project.table.name": "項目名稱",
   "project.table.latestStatus": "最新狀態",
   "project.table.status": "狀態",
-  "project.table.verification": "驗證狀態",
   "project.table.lastRun": "最近結果",
   "project.table.updated": "更新時間",
   "project.table.actions": "操作",

@@ -285,7 +285,6 @@ export const ZH_HANS_MESSAGES: Messages = {
   "project.table.name": "项目名称",
   "project.table.latestStatus": "最新状态",
   "project.table.status": "状态",
-  "project.table.verification": "验证状态",
   "project.table.lastRun": "最近结果",
   "project.table.updated": "更新时间",
   "project.table.actions": "操作",

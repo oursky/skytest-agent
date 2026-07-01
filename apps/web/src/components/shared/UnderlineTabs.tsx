@@ -18,8 +18,8 @@ export default function UnderlineTabs<T extends string>({
     onChange,
 }: UnderlineTabsProps<T>) {
     return (
-        <div className="border-b border-gray-200">
-            <nav className="-mb-px flex gap-6">
+        <div className="border-b border-gray-200 overflow-x-auto overflow-y-hidden">
+            <nav className="-mb-px flex gap-6 whitespace-nowrap">
                 {tabs.filter((tab) => !tab.hidden).map((tab) => (
                     <button
                         key={tab.id}

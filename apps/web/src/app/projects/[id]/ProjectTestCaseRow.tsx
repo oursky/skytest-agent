@@ -98,7 +98,7 @@ export default function ProjectTestCaseRow({
                         type="button"
                         onClick={() => onStartDisplayIdEdit(testCase)}
                         disabled={isSavingDisplayId}
-                        className="text-xs text-gray-500 font-mono hover:text-primary transition-colors disabled:opacity-60"
+                        className="text-left text-xs text-gray-500 font-mono whitespace-nowrap hover:text-primary transition-colors disabled:opacity-60"
                     >
                         {testCase.displayId}
                     </button>
@@ -107,13 +107,13 @@ export default function ProjectTestCaseRow({
                         type="button"
                         onClick={() => onStartDisplayIdEdit(testCase)}
                         disabled={isSavingDisplayId}
-                        className="text-gray-400 text-sm hover:text-primary transition-colors disabled:opacity-60"
+                        className="text-left text-gray-400 text-sm hover:text-primary transition-colors disabled:opacity-60"
                     >
                         -
                     </button>
                 )}
             </div>
-            <div className="md:col-span-8 flex flex-col justify-center gap-0.5">
+            <div className="md:col-span-8 xl:col-span-10 flex flex-col justify-center gap-0.5">
                 <Link
                     href={`/run?testCaseId=${testCase.id}&projectId=${projectId}`}
                     className="font-medium text-gray-900 hover:text-primary transition-colors"
@@ -129,7 +129,7 @@ export default function ProjectTestCaseRow({
                 )}
             </div>
             <div className="flex items-center gap-4 md:contents">
-                <div className="md:col-span-3 flex items-center">
+                <div className="md:col-span-3 xl:col-span-2 flex items-center">
                     {currentStatus ? (
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadgeClass(currentStatus)}`}>
                             {currentStatus}
@@ -141,7 +141,7 @@ export default function ProjectTestCaseRow({
                 <div className="md:col-span-4 text-sm text-gray-500 flex items-center">
                     {formatDateTimeCompact(testCase.updatedAt)}
                 </div>
-                <div className="md:col-span-5 flex justify-end gap-2">
+                <div className="md:col-span-5 xl:col-span-4 flex justify-end gap-2">
                     {(!testCase.testRuns[0] || !isActiveRunStatus(testCase.testRuns[0].status)) && (
                         <Link
                             href={`/run?testCaseId=${testCase.id}&name=${encodeURIComponent(testCase.name)}`}

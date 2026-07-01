@@ -717,16 +717,16 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                         </button>
                         <button
                             onClick={() => handleSort('name')}
-                            className="col-span-8 flex items-center gap-1 hover:text-gray-700 transition-colors text-left"
+                            className="col-span-8 xl:col-span-10 flex items-center gap-1 hover:text-gray-700 transition-colors text-left"
                         >
                             {t('project.table.name')}
                             <SortIcon column="name" sortColumn={sortColumn} sortDirection={sortDirection} />
                         </button>
                         <button
                             onClick={() => handleSort('status')}
-                            className="col-span-3 flex items-center gap-1 hover:text-gray-700 transition-colors text-left"
+                            className="col-span-3 xl:col-span-2 flex items-center gap-1 hover:text-gray-700 transition-colors text-left"
                         >
-                            {activeTab === 'login-flows' ? t('project.table.verification') : t('project.table.status')}
+                            {t('project.table.status')}
                             <SortIcon column="status" sortColumn={sortColumn} sortDirection={sortDirection} />
                         </button>
                         <button
@@ -736,7 +736,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                             {t('project.table.updated')}
                             <SortIcon column="updated" sortColumn={sortColumn} sortDirection={sortDirection} />
                         </button>
-                        <div className="col-span-5 text-right">{t('project.table.actions')}</div>
+                        <div className="col-span-5 xl:col-span-4 text-right">{t('project.table.actions')}</div>
                     </div>
 
                     {visibleTestCases.length === 0 ? (

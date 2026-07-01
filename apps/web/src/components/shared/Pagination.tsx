@@ -31,15 +31,15 @@ export default function Pagination({
     const to = Math.min(page * limit, total);
 
     return (
-        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
-            <div className="flex items-center gap-4">
-                <p className="text-sm text-gray-500">
+        <div className="flex flex-col gap-3 px-4 py-3 border-t border-gray-200 bg-gray-50 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+                <p className="text-sm text-gray-500 whitespace-nowrap">
                     {total > 0
                         ? t('pagination.showing', { from, to, total })
                         : t('pagination.noRecords')}
                 </p>
                 <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-500">{t('pagination.rowsPerPage')}</span>
+                    <span className="text-sm text-gray-500 whitespace-nowrap">{t('pagination.rowsPerPage')}</span>
                     <CustomSelect
                         value={limit}
                         options={pageSizeOptions}
@@ -50,21 +50,21 @@ export default function Pagination({
                     />
                 </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between gap-2 sm:justify-end">
                 <button
                     onClick={() => onPageChange(page - 1)}
                     disabled={page <= 1}
-                    className="px-3 py-1.5 text-sm text-gray-600 border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+                    className="px-3 py-1.5 text-sm text-gray-600 border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors whitespace-nowrap"
                 >
                     {t('pagination.previous')}
                 </button>
-                <span className="text-sm text-gray-600">
+                <span className="text-sm text-gray-600 whitespace-nowrap">
                     {t('pagination.pageOf', { page, totalPages: totalPages || 1 })}
                 </span>
                 <button
                     onClick={() => onPageChange(page + 1)}
                     disabled={page >= totalPages}
-                    className="px-3 py-1.5 text-sm text-gray-600 border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+                    className="px-3 py-1.5 text-sm text-gray-600 border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors whitespace-nowrap"
                 >
                     {t('pagination.next')}
                 </button>

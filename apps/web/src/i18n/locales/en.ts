@@ -285,7 +285,6 @@ export const EN_MESSAGES: Messages = {
   "project.table.name": "Name",
   "project.table.latestStatus": "Latest Status",
   "project.table.status": "Status",
-  "project.table.verification": "Verification",
   "project.table.lastRun": "Last Run",
   "project.table.updated": "Updated",
   "project.table.actions": "Actions",
