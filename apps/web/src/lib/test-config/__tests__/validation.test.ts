@@ -1,5 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { validateConfigValue } from '@/lib/test-config/validation';
+import { normalizeConfigName, validateConfigValue } from '@/lib/test-config/validation';
+
+describe('normalizeConfigName', () => {
+    it('preserves a digit directly followed by an uppercase letter', () => {
+        expect(normalizeConfigName('SAMPLE_VAR_2A')).toBe('SAMPLE_VAR_2A');
+    });
+
+    it('splits camelCase words into snake_case', () => {
+        expect(normalizeConfigName('sampleVarName')).toBe('SAMPLE_VAR_NAME');
+    });
+
+    it('is idempotent for an already-normalized name', () => {
+        expect(normalizeConfigName('SAMPLE_VAR_2A')).toBe(
+            normalizeConfigName(normalizeConfigName('SAMPLE_VAR_2A'))
+        );
+    });
+});
 
 describe('validateConfigValue', () => {
     it.each(['TIMESTAMP_DATETIME', 'TIMESTAMP_UNIX', 'UUID'])(

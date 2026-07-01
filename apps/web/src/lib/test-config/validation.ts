@@ -10,7 +10,7 @@ export function normalizeConfigName(name: string): string {
     }
 
     const withSeparatedWords = trimmed
-        .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+        .replace(/([a-z])([A-Z])/g, '$1_$2')
         .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2');
     const snakeCaseName = withSeparatedWords
         .replace(/[^a-zA-Z0-9]+/g, '_')
