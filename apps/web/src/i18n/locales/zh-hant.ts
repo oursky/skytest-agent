@@ -419,6 +419,8 @@ export const ZH_HANT_MESSAGES: Messages = {
   "testForm.testCaseId": "測試案例 ID",
   "testForm.testCaseId.placeholder": "例如：TC-001",
   "testForm.title.loginFlow": "登入流程指示",
+  "testForm.copyInstructions": "複製",
+  "testForm.copied": "已複製！",
   "testForm.loginFlowName": "登入流程名稱",
   "testForm.loginFlowName.placeholder": "例如：標準使用者登入",
   "testForm.loginFlowId": "登入流程 ID",

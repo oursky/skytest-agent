@@ -419,6 +419,8 @@ export const ZH_HANS_MESSAGES: Messages = {
   "testForm.testCaseId": "测试用例 ID",
   "testForm.testCaseId.placeholder": "例如：TC-001",
   "testForm.title.loginFlow": "登录流程指令",
+  "testForm.copyInstructions": "复制",
+  "testForm.copied": "已复制！",
   "testForm.loginFlowName": "登录流程名称",
   "testForm.loginFlowName.placeholder": "例如：标准用户登录",
   "testForm.loginFlowId": "登录流程 ID",

@@ -419,6 +419,8 @@ export const EN_MESSAGES: Messages = {
   "testForm.testCaseId": "Test Case ID",
   "testForm.testCaseId.placeholder": "e.g. TC-001",
   "testForm.title.loginFlow": "Login Flow Instructions",
+  "testForm.copyInstructions": "Copy",
+  "testForm.copied": "Copied!",
   "testForm.loginFlowName": "Login Flow Name",
   "testForm.loginFlowName.placeholder": "e.g. Standard user sign-in",
   "testForm.loginFlowId": "Login Flow ID",

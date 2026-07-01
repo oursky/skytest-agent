@@ -10,6 +10,8 @@ import type { BrowserEntry } from '@/components/features/test-configurations/mod
 import type { TestData } from '../model/types';
 import { useTestFormState } from '../hooks/useTestFormState';
 import { buildCurrentData as buildTestData, createStepId, hasMissingRequiredTestingTargetFields } from '../model/state-utils';
+import { buildTestInstructionsMarkdown } from '../model/instructions-markdown';
+import { loginFlowOptionLabel, useLoginFlowOptions } from '@/components/features/test-configurations/hooks/useLoginFlowOptions';
 import { useI18n } from '@/i18n';
 import { useAuth } from '@/app/auth-provider';
 import { normalizeBrowserConfig } from '@/lib/test-config/browser-target';
@@ -58,6 +60,8 @@ export default function TestForm({ onSubmit, isLoading, submitOnEnter = true, in
     const { t } = useI18n();
     const isLoginFlow = initialData?.kind === TEST_CASE_KIND.LOGIN_FLOW;
     const [activeTab, setActiveTab] = useState<TestFormTab>('configurations');
+    const [copied, setCopied] = useState(false);
+    const loginFlowOptions = useLoginFlowOptions(isLoginFlow ? undefined : projectId);
     const {
         name,
         setName,
@@ -192,6 +196,30 @@ export default function TestForm({ onSubmit, isLoading, submitOnEnter = true, in
         kind: initialData?.kind,
     });
 
+    const handleCopyInstructions = async () => {
+        const markdown = buildTestInstructionsMarkdown({
+            isLoginFlow,
+            name,
+            displayId,
+            browsers,
+            steps,
+            projectConfigs: projectConfigs || [],
+            testCaseConfigs: testCaseConfigs || [],
+            testCaseFiles,
+            resolveLoginFlowLabel: (loginFlowId) => {
+                const option = loginFlowOptions.find((flow) => flow.id === loginFlowId);
+                return option ? loginFlowOptionLabel(option) : loginFlowId;
+            },
+        });
+        try {
+            await navigator.clipboard.writeText(markdown);
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1200);
+        } catch {
+            // ignore
+        }
+    };
+
     const hasMissingRequiredTestCaseId = showNameInput && !readOnly && !displayId?.trim();
 
     const submitRun = () => {
@@ -221,6 +249,17 @@ export default function TestForm({ onSubmit, isLoading, submitOnEnter = true, in
             <div className="p-6 pb-0 border-b border-gray-200">
                 <div className="flex items-center justify-between">
                     <h2 className="text-xl font-semibold text-foreground">{isLoginFlow ? t('testForm.title.loginFlow') : t('testForm.title')}</h2>
+                    <button
+                        onClick={handleCopyInstructions}
+                        type="button"
+                        className="cursor-pointer h-8 px-3.5 py-0 bg-gray-100 border border-gray-200 rounded-md text-xs font-medium text-muted-foreground relative inline-flex items-center justify-center hover:bg-gray-200/70 transition-colors"
+                        title={t('testForm.copyInstructions')}
+                    >
+                        <span className="invisible inline-block leading-none">{t('testForm.copied')}</span>
+                        <span className="absolute inset-0 flex items-center justify-center leading-none">
+                            {copied ? t('testForm.copied') : t('testForm.copyInstructions')}
+                        </span>
+                    </button>
                 </div>
 
                 <div className="mt-4">

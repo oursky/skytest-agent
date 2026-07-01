@@ -1,17 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useAuth } from '@/app/auth-provider';
 import { useI18n } from '@/i18n';
-import { fetchWithAccessToken } from '@/app/run/run-page-api';
 import { CustomSelect } from '@/components/shared';
-import { extractListData } from '@/utils/pagination/pagination';
-
-interface LoginFlowOption {
-    id: string;
-    displayId?: string | null;
-    name: string;
-}
+import { loginFlowOptionLabel, useLoginFlowOptions } from '../hooks/useLoginFlowOptions';
 
 interface LoginFlowSelectProps {
     projectId?: string;
@@ -33,37 +25,9 @@ export default function LoginFlowSelect({
     onChange,
 }: LoginFlowSelectProps) {
     const { t } = useI18n();
-    const { getAccessToken } = useAuth();
-    const [options, setOptions] = useState<LoginFlowOption[]>([]);
+    const options = useLoginFlowOptions(projectId);
     const [open, setOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        if (!projectId) {
-            return;
-        }
-        let cancelled = false;
-        void (async () => {
-            try {
-                const response = await fetchWithAccessToken(
-                    getAccessToken,
-                    `/api/projects/${projectId}/test-cases?summary=1&kind=LOGIN_FLOW&limit=100`,
-                );
-                if (!response.ok) {
-                    return;
-                }
-                const options = extractListData<LoginFlowOption>(await response.json());
-                if (!cancelled) {
-                    setOptions(options);
-                }
-            } catch {
-                // A failed lookup just leaves the picker empty; the field stays optional.
-            }
-        })();
-        return () => {
-            cancelled = true;
-        };
-    }, [projectId, getAccessToken]);
 
     const selectOptions = useMemo(() => {
         const visibleOptions = options.filter((option) => option.id !== excludeTestCaseId);
@@ -71,7 +35,7 @@ export default function LoginFlowSelect({
             { value: '', label: t('configs.browser.loginFlow.none') },
             ...visibleOptions.map((option) => ({
                 value: option.id,
-                label: option.displayId ? `${option.displayId}${labelSeparator}${option.name}` : option.name,
+                label: loginFlowOptionLabel(option, labelSeparator),
             })),
         ];
     }, [options, excludeTestCaseId, labelSeparator, t]);
