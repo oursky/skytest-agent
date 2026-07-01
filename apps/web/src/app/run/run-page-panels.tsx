@@ -66,6 +66,7 @@ export function ActiveRunPanel({ title, subtitle, viewLabel, onView }: ActiveRun
 export function RunPageSkeleton() {
     return (
         <div className="max-w-7xl mx-auto">
+            <Breadcrumbs items={[{ label: '' }, { label: '' }]} />
             <PageHeaderSkeleton withAction={false} />
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 items-start">
                 <PanelSkeleton className="min-h-[30rem] lg:min-h-[40rem]" lines={8} />

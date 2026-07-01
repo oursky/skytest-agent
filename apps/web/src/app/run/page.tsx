@@ -70,6 +70,7 @@ function RunPageContent() {
     const testCaseName = searchParams.get("name");
     const testCaseKind: TestCaseKind = searchParams.get("kind") === "LOGIN_FLOW" ? "LOGIN_FLOW" : "TEST";
     const [initialData, setInitialData] = useState<TestData | undefined>(undefined);
+    const [isInitialDataLoading, setIsInitialDataLoading] = useState<boolean>(Boolean(testCaseId || runId));
 
     const [activeRunId, setActiveRunId] = useState<string | null>(null);
     const [testCaseFiles, setTestCaseFiles] = useState<TestCaseFile[]>([]);
@@ -470,7 +471,13 @@ function RunPageContent() {
 
     useEffect(() => {
         if (!runId || isAuthLoading || !isLoggedIn) return;
-        fetchTestRun(runId);
+        void (async () => {
+            try {
+                await fetchTestRun(runId);
+            } finally {
+                setIsInitialDataLoading(false);
+            }
+        })();
         connectToRun(runId);
     }, [runId, isAuthLoading, isLoggedIn, fetchTestRun, connectToRun]);
 
@@ -494,7 +501,13 @@ function RunPageContent() {
         if (!isLoggedIn) return;
 
         if (testCaseId) {
-            fetchTestCase(testCaseId);
+            void (async () => {
+                try {
+                    await fetchTestCase(testCaseId);
+                } finally {
+                    setIsInitialDataLoading(false);
+                }
+            })();
             refreshFiles(testCaseId);
         } else if (testCaseName) {
             setInitialData({ name: testCaseName, url: '', prompt: '', kind: testCaseKind });
@@ -695,7 +708,7 @@ function RunPageContent() {
         || !!activeRunId
         || testCaseHasActiveRun;
 
-    if (isAuthLoading) {
+    if (isAuthLoading || isInitialDataLoading) {
         return <RunPageSkeleton />;
     }
 
