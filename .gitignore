@@ -22,6 +22,7 @@ verify-test.js
 
 # Playwright / Midscene artifacts
 midscene_run/
+.playwright-mcp/
 # Ignore generated screenshots, but keep app assets
 *.png
 !public/**/*.png
