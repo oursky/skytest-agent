@@ -548,6 +548,7 @@ export const EN_MESSAGES: Messages = {
   "testGroup.loginSessions.add": "Add login session...",
   "testGroup.loginSessions.namePlaceholder": "Session name",
   "testGroup.loginSessions.defaultName": "Login Session {label}",
+  "testGroup.loginSessions.empty": "No login flows in this project yet. Create a login flow first to add login sessions.",
   "testGroup.onFailure": "When a case fails",
   "testGroup.onFailure.stop": "Stop and skip the rest",
   "testGroup.onFailure.continue": "Continue running remaining cases",

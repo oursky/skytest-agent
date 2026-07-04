@@ -44,6 +44,7 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
     );
     const [testCaseIds, setTestCaseIds] = useState<string[]>(group?.items.map((item) => item.testCaseId) ?? []);
     const [loginFlowOptions, setLoginFlowOptions] = useState<LoginFlowOption[]>([]);
+    const [loginFlowOptionsLoaded, setLoginFlowOptionsLoaded] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState('');
 
@@ -66,6 +67,10 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
                 }
             } catch {
                 // Leave empty on failure; the picker just shows nothing to add.
+            } finally {
+                if (!cancelled) {
+                    setLoginFlowOptionsLoaded(true);
+                }
             }
         })();
         return () => { cancelled = true; };
@@ -185,6 +190,9 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
                             </li>
                         ))}
                     </ul>
+                )}
+                {loginFlowOptionsLoaded && loginFlowOptions.length === 0 && loginSessions.length === 0 && (
+                    <p className="text-sm text-gray-500">{t('testGroup.loginSessions.empty')}</p>
                 )}
                 {!readOnly && availableFlows.length > 0 && (
                     <CustomSelect

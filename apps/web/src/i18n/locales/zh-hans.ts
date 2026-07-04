@@ -548,6 +548,7 @@ export const ZH_HANS_MESSAGES: Messages = {
   "testGroup.loginSessions.add": "添加登录会话...",
   "testGroup.loginSessions.namePlaceholder": "会话名称",
   "testGroup.loginSessions.defaultName": "登录会话 {label}",
+  "testGroup.loginSessions.empty": "此项目尚无登录流程。请先创建登录流程，才能添加登录会话。",
   "testGroup.onFailure": "当用例失败时",
   "testGroup.onFailure.stop": "停止并跳过其余用例",
   "testGroup.onFailure.continue": "继续运行其余用例",

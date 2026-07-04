@@ -548,6 +548,7 @@ export const ZH_HANT_MESSAGES: Messages = {
   "testGroup.loginSessions.add": "新增登入工作階段...",
   "testGroup.loginSessions.namePlaceholder": "工作階段名稱",
   "testGroup.loginSessions.defaultName": "登入工作階段 {label}",
+  "testGroup.loginSessions.empty": "此專案尚無登入流程。請先建立登入流程，才能新增登入工作階段。",
   "testGroup.onFailure": "當案例失敗時",
   "testGroup.onFailure.stop": "停止並略過其餘案例",
   "testGroup.onFailure.continue": "繼續執行其餘案例",
