@@ -1,14 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { useAuth } from '@/app/auth-provider';
+import { useMemo, useState } from 'react';
 import { useI18n } from '@/i18n';
-import { fetchWithAccessToken } from '@/app/run/run-page-api';
 import { CustomSelect } from '@/components/shared';
-import { extractListData } from '@/utils/pagination/pagination';
 import type { TestCaseTargetSummary } from '@/types';
 
-interface TestCaseOption {
+export interface TestCaseOption {
     id: string;
     displayId?: string | null;
     name: string;
@@ -16,7 +13,7 @@ interface TestCaseOption {
 }
 
 interface OrderedTestCasePickerProps {
-    projectId: string;
+    options: TestCaseOption[];
     value: string[];
     onChange: (testCaseIds: string[]) => void;
     readOnly?: boolean;
@@ -24,33 +21,9 @@ interface OrderedTestCasePickerProps {
     resolveLoginFlowName: (loginFlowId: string) => string;
 }
 
-export default function OrderedTestCasePicker({ projectId, value, onChange, readOnly = false, loginSessions, resolveLoginFlowName }: OrderedTestCasePickerProps) {
+export default function OrderedTestCasePicker({ options, value, onChange, readOnly = false, loginSessions, resolveLoginFlowName }: OrderedTestCasePickerProps) {
     const { t } = useI18n();
-    const { getAccessToken } = useAuth();
-    const [options, setOptions] = useState<TestCaseOption[]>([]);
     const [expandedId, setExpandedId] = useState<string | null>(null);
-
-    useEffect(() => {
-        let cancelled = false;
-        void (async () => {
-            try {
-                const response = await fetchWithAccessToken(
-                    getAccessToken,
-                    `/api/projects/${projectId}/test-cases?summary=1&kind=TEST&limit=100`,
-                );
-                if (!response.ok) {
-                    return;
-                }
-                const options = extractListData<TestCaseOption>(await response.json());
-                if (!cancelled) {
-                    setOptions(options);
-                }
-            } catch {
-                // Leave the list empty on failure; the picker just shows nothing to add.
-            }
-        })();
-        return () => { cancelled = true; };
-    }, [projectId, getAccessToken]);
 
     const optionById = useMemo(() => new Map(options.map((option) => [option.id, option])), [options]);
     const available = options.filter((option) => !value.includes(option.id));

@@ -8,7 +8,7 @@ import { Button, CustomSelect } from '@/components/shared';
 import { extractListData } from '@/utils/pagination/pagination';
 import { TEST_GROUP_FAILURE_MODE, isRunActiveStatus, type TestGroupFailureMode, type TestGroupSummary } from '@/types';
 import type { TranslationVars } from '@/i18n/types';
-import OrderedTestCasePicker from './OrderedTestCasePicker';
+import OrderedTestCasePicker, { type TestCaseOption } from './OrderedTestCasePicker';
 
 interface TestGroupEditorProps {
     projectId: string;
@@ -44,32 +44,42 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
     );
     const [testCaseIds, setTestCaseIds] = useState<string[]>(group?.items.map((item) => item.testCaseId) ?? []);
     const [loginFlowOptions, setLoginFlowOptions] = useState<LoginFlowOption[]>([]);
-    const [loginFlowOptionsLoaded, setLoginFlowOptionsLoaded] = useState(false);
+    const [testCaseOptions, setTestCaseOptions] = useState<TestCaseOption[]>([]);
+    const [optionsLoaded, setOptionsLoaded] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState('');
 
     const readOnly = isRunActiveStatus(group?.lastSessionStatus ?? null);
+    // Existing groups reference test cases and login flows by id; the friendly labels come from
+    // these lists, so hold the form behind a skeleton until they arrive to avoid a raw-id flash.
+    // Create mode has nothing to resolve, so it renders immediately.
+    const isInitializing = Boolean(group) && !optionsLoaded;
 
     useEffect(() => {
         let cancelled = false;
         void (async () => {
             try {
-                const response = await fetchWithAccessToken(
-                    getAccessToken,
-                    `/api/projects/${projectId}/test-cases?summary=1&kind=LOGIN_FLOW&limit=100`,
-                );
-                if (!response.ok) {
-                    return;
+                const [loginResponse, testResponse] = await Promise.all([
+                    fetchWithAccessToken(getAccessToken, `/api/projects/${projectId}/test-cases?summary=1&kind=LOGIN_FLOW&limit=100`),
+                    fetchWithAccessToken(getAccessToken, `/api/projects/${projectId}/test-cases?summary=1&kind=TEST&limit=100`),
+                ]);
+                if (loginResponse.ok) {
+                    const options = extractListData<LoginFlowOption>(await loginResponse.json());
+                    if (!cancelled) {
+                        setLoginFlowOptions(options);
+                    }
                 }
-                const options = extractListData<LoginFlowOption>(await response.json());
-                if (!cancelled) {
-                    setLoginFlowOptions(options);
+                if (testResponse.ok) {
+                    const options = extractListData<TestCaseOption>(await testResponse.json());
+                    if (!cancelled) {
+                        setTestCaseOptions(options);
+                    }
                 }
             } catch {
-                // Leave empty on failure; the picker just shows nothing to add.
+                // Leave empty on failure; the pickers just show nothing to add.
             } finally {
                 if (!cancelled) {
-                    setLoginFlowOptionsLoaded(true);
+                    setOptionsLoaded(true);
                 }
             }
         })();
@@ -132,6 +142,38 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
         }
     };
 
+    if (isInitializing) {
+        return (
+            <div className="space-y-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+                <div className="skeleton-block h-6 w-40" />
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                        <div className="skeleton-block h-4 w-20" />
+                        <div className="skeleton-block h-9 w-full" />
+                    </div>
+                    <div className="space-y-2">
+                        <div className="skeleton-block h-4 w-20" />
+                        <div className="skeleton-block h-9 w-full" />
+                    </div>
+                </div>
+                <div className="space-y-2">
+                    <div className="skeleton-block h-4 w-28" />
+                    <div className="skeleton-block h-9 w-full" />
+                </div>
+                <div className="space-y-2">
+                    <div className="skeleton-block h-4 w-32" />
+                    {Array.from({ length: 4 }, (_, index) => (
+                        <div key={`test-group-editor-skeleton-${index}`} className="skeleton-block h-10 w-full" />
+                    ))}
+                </div>
+                <div className="flex justify-end gap-2">
+                    <div className="skeleton-block h-9 w-20" />
+                    <div className="skeleton-block h-9 w-20" />
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
             <h2 className="text-lg font-semibold text-gray-900">{group ? t('testGroup.edit') : t('testGroup.new')}</h2>
@@ -191,7 +233,7 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
                         ))}
                     </ul>
                 )}
-                {loginFlowOptionsLoaded && loginFlowOptions.length === 0 && loginSessions.length === 0 && (
+                {optionsLoaded && loginFlowOptions.length === 0 && loginSessions.length === 0 && (
                     <p className="text-sm text-gray-500">{t('testGroup.loginSessions.empty')}</p>
                 )}
                 {!readOnly && availableFlows.length > 0 && (
@@ -212,7 +254,7 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
             </div>
 
             <OrderedTestCasePicker
-                projectId={projectId}
+                options={testCaseOptions}
                 value={testCaseIds}
                 onChange={setTestCaseIds}
                 readOnly={readOnly}
