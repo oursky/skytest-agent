@@ -94,6 +94,8 @@ function resolveStatus(value: unknown): typeof TEST_STATUS.FAIL | typeof TEST_ST
     return value === TEST_STATUS.PASS ? TEST_STATUS.PASS : TEST_STATUS.FAIL;
 }
 
+const SAMPLE_LINK_BASE_URL = 'https://skytest.example.com';
+
 function formatDurationMinutesSeconds(durationSeconds: number): string {
     if (durationSeconds < 60) {
         return `${durationSeconds}s`;
@@ -165,7 +167,7 @@ export async function POST(
         const startedAt = now;
         const completedAt = new Date(startedAt.getTime() + 42_000);
         const durationSeconds = Math.max(0, Math.floor((completedAt.getTime() - startedAt.getTime()) / 1000));
-        const origin = new URL(request.url).origin;
+        const origin = SAMPLE_LINK_BASE_URL;
 
         let selectedTemplate: string;
         let fallbackTemplate: string;
