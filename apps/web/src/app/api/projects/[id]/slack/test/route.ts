@@ -94,6 +94,14 @@ function resolveStatus(value: unknown): typeof TEST_STATUS.FAIL | typeof TEST_ST
     return value === TEST_STATUS.PASS ? TEST_STATUS.PASS : TEST_STATUS.FAIL;
 }
 
+function normalizeOptionalText(value: unknown): string | null {
+    if (typeof value !== 'string') {
+        return null;
+    }
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+}
+
 const SAMPLE_LINK_BASE_URL = 'https://skytest.example.com';
 
 function formatDurationMinutesSeconds(durationSeconds: number): string {
@@ -121,7 +129,6 @@ export async function POST(
             select: {
                 id: true,
                 name: true,
-                slackEnabled: true,
                 slackChannelId: true,
                 slackFailureTemplate: true,
                 slackSuccessTemplate: true,
@@ -142,7 +149,20 @@ export async function POST(
             });
         }
 
-        if (!project.slackEnabled || !project.slackChannelId) {
+        const body = await request.json().catch(() => ({})) as {
+            status?: string;
+            scope?: string;
+            channelId?: string | null;
+            template?: string | null;
+        };
+        const status = resolveStatus(body.status);
+        const passed = status === TEST_STATUS.PASS;
+        const isGroup = body.scope === 'group';
+
+        // Test the currently edited draft: the channel/template from the request take
+        // precedence over saved values, so unsaved edits can be previewed.
+        const channelId = normalizeOptionalText(body.channelId) ?? project.slackChannelId;
+        if (!channelId) {
             return NextResponse.json({
                 error: 'PROJECT_SLACK_NOT_CONFIGURED',
             }, { status: 409 });
@@ -155,13 +175,7 @@ export async function POST(
             }, { status: 409 });
         }
 
-        const body = await request.json().catch(() => ({})) as {
-            status?: string;
-            scope?: string;
-        };
-        const status = resolveStatus(body.status);
-        const passed = status === TEST_STATUS.PASS;
-        const isGroup = body.scope === 'group';
+        const draftTemplate = typeof body.template === 'string' ? body.template : null;
 
         const now = new Date();
         const startedAt = now;
@@ -175,7 +189,7 @@ export async function POST(
 
         if (isGroup) {
             fallbackTemplate = passed ? DEFAULT_SLACK_GROUP_SUCCESS_TEMPLATE : DEFAULT_SLACK_GROUP_FAILURE_TEMPLATE;
-            selectedTemplate = (passed ? project.slackGroupSuccessTemplate : project.slackGroupFailureTemplate) ?? fallbackTemplate;
+            selectedTemplate = draftTemplate ?? (passed ? project.slackGroupSuccessTemplate : project.slackGroupFailureTemplate) ?? fallbackTemplate;
             context = {
                 projectName: project.name,
                 groupName: 'GRP-TEST-001 Checkout suite',
@@ -188,7 +202,7 @@ export async function POST(
             };
         } else {
             fallbackTemplate = passed ? DEFAULT_SLACK_SUCCESS_TEMPLATE : DEFAULT_SLACK_FAILURE_TEMPLATE;
-            selectedTemplate = (passed ? project.slackSuccessTemplate : project.slackFailureTemplate) ?? fallbackTemplate;
+            selectedTemplate = draftTemplate ?? (passed ? project.slackSuccessTemplate : project.slackFailureTemplate) ?? fallbackTemplate;
             context = {
                 projectName: project.name,
                 testCaseID: 'CASE-TEST-001',
@@ -207,7 +221,7 @@ export async function POST(
         const token = decrypt(project.team.slackBotTokenEncrypted);
         await sendTestMessageWithJoinFallback({
             token,
-            channelId: project.slackChannelId,
+            channelId,
             text: rendered.text,
         });
 

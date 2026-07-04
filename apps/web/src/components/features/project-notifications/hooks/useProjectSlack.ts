@@ -239,7 +239,10 @@ export function useProjectSlack(projectId: string) {
 
     const sendTestMessage = useCallback(async (
         status: typeof TEST_STATUS.FAIL | typeof TEST_STATUS.PASS,
-        scope: 'individual' | 'group' = 'individual'
+        scope: 'individual' | 'group' = 'individual',
+        // Tests the currently edited (possibly unsaved) channel and template so the
+        // preview reflects what the user is editing, not the last saved config.
+        draftPreview?: { channelId?: string | null; template?: string | null }
     ): Promise<boolean> => {
         setError(null);
         setNotice(null);
@@ -251,7 +254,12 @@ export function useProjectSlack(projectId: string) {
                     'Content-Type': 'application/json',
                     ...headers,
                 },
-                body: JSON.stringify({ status, scope }),
+                body: JSON.stringify({
+                    status,
+                    scope,
+                    channelId: draftPreview?.channelId ?? null,
+                    template: draftPreview?.template ?? null,
+                }),
             });
             if (!response.ok) {
                 setError(await parseRequestError(

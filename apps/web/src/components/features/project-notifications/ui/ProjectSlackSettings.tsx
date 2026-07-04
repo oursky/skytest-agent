@@ -70,6 +70,7 @@ export default function ProjectSlackSettings({ projectId, teamId }: ProjectSlack
     const [groupTemplatesOpen, setGroupTemplatesOpen] = useState(false);
     const [caseTemplatesOpen, setCaseTemplatesOpen] = useState(false);
     const [rememberedCaseMode, setRememberedCaseMode] = useState<ProjectSlackNotifyOn>(PROJECT_SLACK_NOTIFY_ON.FAILED_ONLY);
+    const [isTesting, setIsTesting] = useState(false);
 
     const canEnable = settings.parentTeamHasToken;
     const masterEnabled = draft.slackEnabled;
@@ -96,11 +97,12 @@ export default function ProjectSlackSettings({ projectId, teamId }: ProjectSlack
         || draft.slackSuccessTemplate !== (settings.slackSuccessTemplate ?? DEFAULT_SLACK_SUCCESS_TEMPLATE)
         || draft.slackGroupFailureTemplate !== (settings.slackGroupFailureTemplate ?? DEFAULT_SLACK_GROUP_FAILURE_TEMPLATE)
         || draft.slackGroupSuccessTemplate !== (settings.slackGroupSuccessTemplate ?? DEFAULT_SLACK_GROUP_SUCCESS_TEMPLATE);
-    const hasValidSavedConfig = settings.parentTeamHasToken
-        && settings.slackEnabled
-        && Boolean(settings.slackChannelId?.trim());
-    const canTestGroup = hasValidSavedConfig && settings.slackGroupNotifyEnabled && !isDirty && !isSaving;
-    const canTestCase = hasValidSavedConfig && settings.slackNotifyOn !== PROJECT_SLACK_NOTIFY_ON.OFF && !isDirty && !isSaving;
+    // Test messages exercise the current (possibly unsaved) editor state, so they are gated on
+    // the live draft toggles rather than the saved config. Saving first is not required, but a
+    // channel must be chosen since there is otherwise nowhere to send the message.
+    const hasChannel = Boolean(draft.slackChannelId.trim());
+    const canTestGroup = groupEnabled && hasChannel && !isSaving && !isTesting;
+    const canTestCase = caseEnabled && hasChannel && !isSaving && !isTesting;
 
     const errorText = useMemo(() => (error ? formatProjectSlackError(t, error) : null), [error, t]);
 
@@ -133,6 +135,24 @@ export default function ProjectSlackSettings({ projectId, teamId }: ProjectSlack
 
     const handleSave = async () => {
         await save(toSavePayload(draft));
+    };
+
+    const handleSendTest = async (
+        status: typeof TEST_STATUS.PASS | typeof TEST_STATUS.FAIL,
+        scope: 'individual' | 'group',
+    ) => {
+        const template = scope === 'group'
+            ? (status === TEST_STATUS.PASS ? draft.slackGroupSuccessTemplate : draft.slackGroupFailureTemplate)
+            : (status === TEST_STATUS.PASS ? draft.slackSuccessTemplate : draft.slackFailureTemplate);
+        setIsTesting(true);
+        try {
+            await sendTestMessage(status, scope, {
+                channelId: draft.slackChannelId.trim() || null,
+                template,
+            });
+        } finally {
+            setIsTesting(false);
+        }
     };
 
     return (
@@ -233,10 +253,10 @@ export default function ProjectSlackSettings({ projectId, teamId }: ProjectSlack
                                     />
                                     <p className="text-xs text-gray-500">{t('project.integration.slack.template.mentionTip')}</p>
                                     <div className="flex flex-wrap gap-2">
-                                        <Button onClick={() => void sendTestMessage(TEST_STATUS.PASS, 'group')} variant="secondary" disabled={!canTestGroup}>
+                                        <Button onClick={() => void handleSendTest(TEST_STATUS.PASS, 'group')} variant="secondary" disabled={!canTestGroup}>
                                             {t('project.integration.slack.sendTestGroupPassed')}
                                         </Button>
-                                        <Button onClick={() => void sendTestMessage(TEST_STATUS.FAIL, 'group')} variant="secondary" disabled={!canTestGroup}>
+                                        <Button onClick={() => void handleSendTest(TEST_STATUS.FAIL, 'group')} variant="secondary" disabled={!canTestGroup}>
                                             {t('project.integration.slack.sendTestGroupFailed')}
                                         </Button>
                                     </div>
@@ -312,10 +332,10 @@ export default function ProjectSlackSettings({ projectId, teamId }: ProjectSlack
                                     />
                                     <p className="text-xs text-gray-500">{t('project.integration.slack.template.mentionTip')}</p>
                                     <div className="flex flex-wrap gap-2">
-                                        <Button onClick={() => void sendTestMessage(TEST_STATUS.PASS, 'individual')} variant="secondary" disabled={!canTestCase}>
+                                        <Button onClick={() => void handleSendTest(TEST_STATUS.PASS, 'individual')} variant="secondary" disabled={!canTestCase}>
                                             {t('project.integration.slack.sendTestPassed')}
                                         </Button>
-                                        <Button onClick={() => void sendTestMessage(TEST_STATUS.FAIL, 'individual')} variant="secondary" disabled={!canTestCase}>
+                                        <Button onClick={() => void handleSendTest(TEST_STATUS.FAIL, 'individual')} variant="secondary" disabled={!canTestCase}>
                                             {t('project.integration.slack.sendTestFailed')}
                                         </Button>
                                     </div>
