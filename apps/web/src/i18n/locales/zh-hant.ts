@@ -595,6 +595,7 @@ export const ZH_HANT_MESSAGES: Messages = {
   "project.scheduler.fields.testGroups": "測試群組",
   "project.scheduler.testGroups.empty": "此專案尚無測試群組。",
   "project.scheduler.testGroups.search": "搜尋測試群組",
+  "project.scheduler.testGroups.selectedCountLabel": "已選取測試群組數量：{count}",
   "project.scheduler.fields.enabled": "啟用",
   "project.scheduler.fields.enabledCaption": "開啟後，所選測試會依照下方排程自動執行。",
   "project.scheduler.fields.selectDays": "選擇日期",

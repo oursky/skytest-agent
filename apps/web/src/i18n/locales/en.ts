@@ -595,6 +595,7 @@ export const EN_MESSAGES: Messages = {
   "project.scheduler.fields.testGroups": "Test groups",
   "project.scheduler.testGroups.empty": "No test groups in this project yet.",
   "project.scheduler.testGroups.search": "Search test groups",
+  "project.scheduler.testGroups.selectedCountLabel": "No. of test groups selected: {count}",
   "project.scheduler.fields.enabled": "Enabled",
   "project.scheduler.fields.enabledCaption": "When on, the selected tests run automatically on the schedule below.",
   "project.scheduler.fields.selectDays": "Select days",

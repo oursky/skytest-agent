@@ -595,6 +595,7 @@ export const ZH_HANS_MESSAGES: Messages = {
   "project.scheduler.fields.testGroups": "测试组",
   "project.scheduler.testGroups.empty": "此项目尚无测试组。",
   "project.scheduler.testGroups.search": "搜索测试组",
+  "project.scheduler.testGroups.selectedCountLabel": "已选择测试组数量：{count}",
   "project.scheduler.fields.enabled": "启用",
   "project.scheduler.fields.enabledCaption": "开启后，所选测试会按照下方排程自动运行。",
   "project.scheduler.fields.selectDays": "选择日期",
