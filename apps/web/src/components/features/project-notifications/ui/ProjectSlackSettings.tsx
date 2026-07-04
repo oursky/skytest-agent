@@ -73,12 +73,15 @@ export default function ProjectSlackSettings({ projectId, teamId }: ProjectSlack
 
     const canEnable = settings.parentTeamHasToken;
     const masterEnabled = draft.slackEnabled;
-    const groupEnabled = draft.slackGroupNotifyEnabled;
-    const caseEnabled = draft.slackNotifyOn !== PROJECT_SLACK_NOTIFY_ON.OFF;
-    const caseMode = caseEnabled ? draft.slackNotifyOn : rememberedCaseMode;
+    const caseSelected = draft.slackNotifyOn !== PROJECT_SLACK_NOTIFY_ON.OFF;
+    // Sub-toggles display as off while the master switch is off, even though the underlying
+    // preference is preserved so re-enabling the master restores it.
+    const groupEnabled = masterEnabled && draft.slackGroupNotifyEnabled;
+    const caseEnabled = masterEnabled && caseSelected;
+    const caseMode = caseSelected ? draft.slackNotifyOn : rememberedCaseMode;
 
-    const groupEditable = masterEnabled && groupEnabled;
-    const caseEditable = masterEnabled && caseEnabled;
+    const groupEditable = groupEnabled;
+    const caseEditable = caseEnabled;
 
     const templateTooLong = draft.slackFailureTemplate.length > MAX_TEMPLATE_LENGTH
         || draft.slackSuccessTemplate.length > MAX_TEMPLATE_LENGTH
@@ -151,9 +154,7 @@ export default function ProjectSlackSettings({ projectId, teamId }: ProjectSlack
                             <Toggle
                                 checked={masterEnabled}
                                 disabled={!canEnable || isSaving}
-                                onChange={(value) => void commitDraft(value
-                                    ? { ...draft, slackEnabled: true }
-                                    : { ...draft, slackEnabled: false, slackGroupNotifyEnabled: false, slackNotifyOn: PROJECT_SLACK_NOTIFY_ON.OFF })}
+                                onChange={(value) => void commitDraft({ ...draft, slackEnabled: value })}
                             />
                             <span className="text-sm font-medium text-gray-700">{t('project.integration.slack.enable')}</span>
                         </div>
@@ -250,10 +251,15 @@ export default function ProjectSlackSettings({ projectId, teamId }: ProjectSlack
                             <Toggle
                                 checked={caseEnabled}
                                 disabled={!masterEnabled || isSaving}
-                                onChange={(value) => void commitDraft({
-                                    ...draft,
-                                    slackNotifyOn: value ? rememberedCaseMode : PROJECT_SLACK_NOTIFY_ON.OFF,
-                                })}
+                                onChange={(value) => {
+                                    if (!value && caseSelected) {
+                                        setRememberedCaseMode(draft.slackNotifyOn);
+                                    }
+                                    void commitDraft({
+                                        ...draft,
+                                        slackNotifyOn: value ? rememberedCaseMode : PROJECT_SLACK_NOTIFY_ON.OFF,
+                                    });
+                                }}
                             />
                             <span className="text-sm font-medium text-gray-700">{t('project.integration.slack.individual.enable')}</span>
                         </div>
