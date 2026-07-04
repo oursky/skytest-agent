@@ -41,7 +41,7 @@ function buildProject(overrides?: Partial<{
         id: 'project-1',
         name: 'Storefront',
         slackEnabled: overrides?.enabled ?? true,
-        slackChannelId: overrides?.channelId ?? 'C123',
+        slackChannelId: overrides && 'channelId' in overrides ? overrides.channelId ?? null : 'C123',
         slackFailureTemplate: null,
         slackSuccessTemplate: null,
         team: {
@@ -97,7 +97,7 @@ describe('/api/projects/[id]/slack/test', () => {
         expect(mocks.postMessage).toHaveBeenCalledWith({
             token: 'xoxb-token',
             channel: 'C123',
-            text: expect.stringContaining('*Test Run Link:* http://localhost:3000/test-cases/case-test-001/history/run_test_message'),
+            text: expect.stringContaining('*Test Run Link:* https://skytest.example.com/test-cases/case-test-001/history/run_test_message'),
         });
     });
 
