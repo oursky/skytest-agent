@@ -20,6 +20,7 @@ import {
     type ActionCounter,
 } from '@/lib/runtime/test-runner';
 import { shouldStopAfterFailure } from '@/lib/runtime/test-group-session-plan';
+import { createMemberAbortController } from '@/lib/runtime/member-abort-controller';
 import { CANCELLATION_REASON } from '@/lib/runtime/cancellation-reasons';
 import {
     failRunWithoutTestCase,
@@ -179,16 +180,10 @@ async function runSessionMember(
         description: details.usage.description,
     };
     const sink = createRunEventSink(member.id, ctx.options);
-    const watcher = createRunStatusWatcher(member.id, ctx.controller.signal, () => ctx.controller.abort(), ctx.options);
+    const { controller: memberController, dispose: disposeMemberAbort } = createMemberAbortController(ctx.controller.signal);
+    const watcher = createRunStatusWatcher(member.id, memberController.signal, () => memberController.abort(), ctx.options);
     watcher.start();
 
-    const memberController = new AbortController();
-    const onSessionAbort = () => memberController.abort();
-    if (ctx.controller.signal.aborted) {
-        memberController.abort();
-    } else {
-        ctx.controller.signal.addEventListener('abort', onSessionAbort, { once: true });
-    }
     let timedOut = false;
     const timeoutHandle = setTimeout(() => {
         timedOut = true;
@@ -223,7 +218,7 @@ async function runSessionMember(
     } finally {
         ctx.setCurrentOnEvent(() => {});
         clearTimeout(timeoutHandle);
-        ctx.controller.signal.removeEventListener('abort', onSessionAbort);
+        disposeMemberAbort();
         watcher.stop();
     }
 
@@ -409,8 +404,9 @@ async function runTestMemberWithBaselines(
         }
     }
 
+    const { controller: memberController, dispose: disposeMemberAbort } = createMemberAbortController(controller.signal);
     const sink = createRunEventSink(testMember.id, options);
-    const statusWatcher = createRunStatusWatcher(testMember.id, controller.signal, () => controller.abort(), options);
+    const statusWatcher = createRunStatusWatcher(testMember.id, memberController.signal, () => memberController.abort(), options);
     const usage = {
         actorUserId: details.usage.actorUserId,
         projectId: details.projectId,
@@ -436,7 +432,7 @@ async function runTestMemberWithBaselines(
                 resolvedFiles: details.config.resolvedFiles,
             },
             targetStorageStates,
-            signal: controller.signal,
+            signal: memberController.signal,
             onEvent: (event) => sink.handleTestEvent(event),
             async onPreparing() {
                 await updateRunStatusWithOwnership(testMember.id, TEST_STATUS.PREPARING, options);
@@ -460,6 +456,7 @@ async function runTestMemberWithBaselines(
         await finalizeMemberRunError(testMember.id, details.testCaseId, usage, error, options);
         return { status: TEST_STATUS.FAIL, error: error instanceof Error ? error.message : String(error) };
     } finally {
+        disposeMemberAbort();
         statusWatcher.stop();
     }
 }

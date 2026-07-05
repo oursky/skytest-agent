@@ -55,6 +55,37 @@ Additional logs were added at key transitions:
 - run completion/failure by runner (`apps/web/src/lib/runners/event-service.ts`)
 - run cancellation (`POST /api/test-runs/:id/cancel`)
 
+## Diagnosing unexpected CANCELLED runs
+
+When a run settles `CANCELLED` unexpectedly — most often a member of a run session or Test
+Group that should have run (or should have been attributed to a different cause) — **read the
+persisted cancellation reason before reading orchestration code.** Each cancel path writes a
+distinct reason string, so the reason alone tells you which branch fired.
+
+- Canonical reasons: `CANCELLATION_REASON` in `apps/web/src/lib/runtime/cancellation-reasons.ts`
+  (`USER_SINGLE`, `USER_GROUP`, `MCP`, `MCP_FOR_UPDATE`, `LOGIN_FLOW_FAILED`, `EARLIER_CASE_FAILED`).
+- The run's `error` holds the reason string; `cancellationReasonCodeFor(status, error)` maps it
+  back to the machine-readable code. Read it via `mcp__skytest__get_run_session` /
+  `get_test_run`, the diagnostics endpoint, or a direct `TestRun` lookup.
+
+Playbook for any "wrong terminal state" bug:
+
+1. Fetch the actual record (session rollup + each member's `status` and `error`) — do not
+   theorize from code first.
+2. Grep the reason string to its single emission site — it jumps straight to the guilty branch.
+   All group cancel sites live in `executeGroupSession` (`run-session-orchestrator.ts`).
+3. Ask what made that branch's condition true and trace backward. Example: `USER_GROUP` on a
+   run nobody stopped means `controller.signal.aborted` was true — i.e. a session-wide abort,
+   not a per-case failure. (`EARLIER_CASE_FAILED` would instead mean the STOP failure-mode
+   branch fired.)
+
+Reason-to-cause quick map:
+- `EARLIER_CASE_FAILED` — Test Group in STOP mode skipped the rest after a case failed.
+- `LOGIN_FLOW_FAILED` — a group login prefix failed and STOP halted its dependents.
+- `USER_GROUP` / `USER_SINGLE` — the shared session `AbortController` was aborted (genuine user
+  stop, or a bug propagating a per-member abort to the session — session members are isolated
+  via `createMemberAbortController` precisely to prevent the latter).
+
 ## AI Provider Config Propagation
 
 For paired runners, AI provider/model settings are resolved from team configuration when job details are loaded (`POST /api/runners/v1/jobs/:id/details`), not from runner-local defaults.
