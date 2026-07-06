@@ -26,7 +26,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
                 completedAt: true,
                 createdAt: true,
                 project: { select: { name: true } },
-                testGroup: { select: { name: true, onFailure: true } },
+                testGroup: { select: { name: true, onFailure: true, executionMode: true } },
                 memberRuns: {
                     orderBy: { sessionPosition: 'asc' },
                     select: {
@@ -54,6 +54,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
             projectName: session.project.name,
             groupName: session.testGroup?.name ?? null,
             onFailure: session.testGroup?.onFailure ?? null,
+            executionMode: session.testGroup?.executionMode ?? null,
             startedAt: session.startedAt?.toISOString() ?? null,
             completedAt: session.completedAt?.toISOString() ?? null,
             createdAt: session.createdAt.toISOString(),

@@ -377,6 +377,7 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
             lines.push(`Session ID: ${ctxSession.id}`);
             lines.push(`Session Kind: ${ctxSession.kind}`);
             if (ctxSession.groupName) lines.push(`Group: ${ctxSession.groupName}`);
+            if (ctxSession.executionMode) lines.push(`Execution: ${ctxSession.executionMode}`);
             if (ctxSession.onFailure) lines.push(`On Failure: ${ctxSession.onFailure}`);
             lines.push('Members (in execution order):');
             for (const member of ctxSession.members) {
