@@ -57,6 +57,7 @@ vi.mock('@/lib/runtime/local-browser-runner-lifecycle', () => ({
     updateRunStatusWithOwnership: mocks.updateRunStatusWithOwnership,
     createLeaseExpiry: vi.fn(() => new Date()),
     withLoginFlowBrowserSlot: (fn: () => unknown) => fn(),
+    withSessionMemberBrowserSlot: (fn: () => unknown) => fn(),
     failRunWithoutTestCase: mocks.failRunWithoutTestCase,
 }));
 vi.mock('@/lib/runtime/run-event-sink', () => ({
@@ -70,10 +71,16 @@ import { CANCELLATION_REASON } from '@/lib/runtime/cancellation-reasons';
 
 type MemberOutcome = 'PASS' | 'FAIL';
 
-/** Runs a 3-case group session with the given failure mode and per-case runTest outcomes. */
-async function runGroup(mode: 'STOP' | 'CONTINUE', outcomes: Record<string, MemberOutcome>) {
-    mocks.runSessionFindUnique.mockResolvedValue({ testGroupId: 'group-1' });
-    mocks.testGroupFindUnique.mockResolvedValue({ onFailure: mode });
+/** Runs a 3-case group session with the given failure mode, execution mode, and per-case
+ * runTest outcomes. The project's max-concurrent setting is high enough that parallel width
+ * is governed by the global per-project cap, so parallel runs really overlap. */
+async function runGroup(
+    mode: 'STOP' | 'CONTINUE',
+    outcomes: Record<string, MemberOutcome>,
+    executionMode: 'SEQUENTIAL' | 'PARALLEL' = 'SEQUENTIAL',
+) {
+    mocks.runSessionFindUnique.mockResolvedValue({ testGroupId: 'group-1', project: { maxConcurrentRuns: 5 } });
+    mocks.testGroupFindUnique.mockResolvedValue({ onFailure: mode, executionMode });
     mocks.testRunFindMany.mockResolvedValue(
         Object.keys(outcomes).map((id, index) => ({
             id,
@@ -156,6 +163,31 @@ describe('executeGroupSession failure mode', () => {
         await runGroup('CONTINUE', { m1: 'FAIL', m2: 'FAIL', m3: 'FAIL' });
 
         expect(ranMembers()).toEqual(['m1', 'm2', 'm3']);
+        expect(cancelledMembers()).toEqual([]);
+    });
+
+    it('PARALLEL + CONTINUE: runs every case and cancels none', async () => {
+        await runGroup('CONTINUE', { m1: 'PASS', m2: 'FAIL', m3: 'PASS' }, 'PARALLEL');
+
+        expect(ranMembers().sort()).toEqual(['m1', 'm2', 'm3']);
+        expect(cancelledMembers()).toEqual([]);
+    });
+
+    it('PARALLEL + STOP: lets in-flight cases finish and cancels not-yet-started ones', async () => {
+        // Width is 2 (project cap 5 clamped by the global per-project cap). m1 and m2 start
+        // together; m1 fails, so no worker claims m3, which is cancelled while m2 still settles.
+        await runGroup('STOP', { m1: 'FAIL', m2: 'PASS', m3: 'PASS' }, 'PARALLEL');
+
+        expect(ranMembers().sort()).toEqual(['m1', 'm2']);
+        expect(cancelledMembers()).toEqual([
+            { id: 'm3', reason: CANCELLATION_REASON.EARLIER_CASE_FAILED },
+        ]);
+    });
+
+    it('PARALLEL + STOP: runs all cases and cancels none when every case passes', async () => {
+        await runGroup('STOP', { m1: 'PASS', m2: 'PASS', m3: 'PASS' }, 'PARALLEL');
+
+        expect(ranMembers().sort()).toEqual(['m1', 'm2', 'm3']);
         expect(cancelledMembers()).toEqual([]);
     });
 });
