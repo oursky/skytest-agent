@@ -543,13 +543,28 @@ export async function reconcileStrandedSessionMembers(runId: string): Promise<vo
     await failActiveSessionMembers(run.runSessionId);
 }
 
-/** Parallelism for a session's independent login flows: the project's max-concurrent setting. */
+/**
+ * Bounds a session's in-process parallel width (login prefixes or parallel group members) by the
+ * project's max-concurrent setting, the global per-project cap, and the local browser-slot cap.
+ * This is the only throttle on in-process fan-out — the dispatcher's caps gate leader claims, not
+ * a running session's own concurrency — so without the local clamp one session could open more
+ * browsers than the host is provisioned for.
+ */
+function boundSessionConcurrency(projectMaxConcurrentRuns: number | null | undefined): number {
+    return Math.max(1, Math.min(
+        projectMaxConcurrentRuns ?? 1,
+        appConfig.runner.maxProjectConcurrentRuns,
+        appConfig.runner.maxLocalBrowserRuns,
+    ));
+}
+
+/** Parallelism for a SINGLE session's independent login flows. */
 async function loadSessionLoginConcurrency(sessionId: string): Promise<number> {
     const session = await prisma.runSession.findUnique({
         where: { id: sessionId },
         select: { project: { select: { maxConcurrentRuns: true } } },
     });
-    return Math.max(1, session?.project?.maxConcurrentRuns ?? 1);
+    return boundSessionConcurrency(session?.project?.maxConcurrentRuns);
 }
 
 export async function executeLocalBrowserSession(
@@ -600,43 +615,16 @@ export async function executeLocalBrowserSession(
     await runTestMemberWithBaselines(testMember, baselines, controller, options);
 }
 
-async function loadGroupFailureMode(testGroupId: string | null): Promise<TestGroupFailureMode> {
-    if (!testGroupId) {
-        return TEST_GROUP_FAILURE_MODE.STOP;
-    }
-    const group = await prisma.testGroup.findUnique({ where: { id: testGroupId }, select: { onFailure: true } });
-    return group?.onFailure === TEST_GROUP_FAILURE_MODE.CONTINUE
+function coerceGroupFailureMode(onFailure: string | null | undefined): TestGroupFailureMode {
+    return onFailure === TEST_GROUP_FAILURE_MODE.CONTINUE
         ? TEST_GROUP_FAILURE_MODE.CONTINUE
         : TEST_GROUP_FAILURE_MODE.STOP;
 }
 
-async function loadGroupExecutionMode(testGroupId: string | null): Promise<TestGroupExecutionMode> {
-    if (!testGroupId) {
-        return TEST_GROUP_EXECUTION_MODE.SEQUENTIAL;
-    }
-    const group = await prisma.testGroup.findUnique({ where: { id: testGroupId }, select: { executionMode: true } });
-    return group?.executionMode === TEST_GROUP_EXECUTION_MODE.PARALLEL
+function coerceGroupExecutionMode(executionMode: string | null | undefined): TestGroupExecutionMode {
+    return executionMode === TEST_GROUP_EXECUTION_MODE.PARALLEL
         ? TEST_GROUP_EXECUTION_MODE.PARALLEL
         : TEST_GROUP_EXECUTION_MODE.SEQUENTIAL;
-}
-
-/**
- * Width for a parallel group's test members: the project's max-concurrent setting, clamped by
- * both the global per-project cap and the local browser-slot cap. This is the sole throttle on
- * a single group's in-process fan-out — the dispatcher's caps only gate leader claims, so
- * without the local clamp one group could open more browsers than the host is provisioned for.
- */
-async function loadGroupMemberConcurrency(sessionId: string): Promise<number> {
-    const session = await prisma.runSession.findUnique({
-        where: { id: sessionId },
-        select: { project: { select: { maxConcurrentRuns: true } } },
-    });
-    const projectLimit = session?.project?.maxConcurrentRuns ?? 1;
-    return Math.max(1, Math.min(
-        projectLimit,
-        appConfig.runner.maxProjectConcurrentRuns,
-        appConfig.runner.maxLocalBrowserRuns,
-    ));
 }
 
 /**
@@ -654,8 +642,18 @@ export async function executeGroupSession(
     controller: AbortController,
     options?: LocalBrowserRunOptions,
 ): Promise<void> {
-    const session = await prisma.runSession.findUnique({ where: { id: sessionId }, select: { testGroupId: true } });
-    const mode = await loadGroupFailureMode(session?.testGroupId ?? null);
+    // One lookup covers every group-level decision: failure mode, execution mode, and the
+    // parallel width, avoiding repeated point queries for the same session.
+    const session = await prisma.runSession.findUnique({
+        where: { id: sessionId },
+        select: {
+            project: { select: { maxConcurrentRuns: true } },
+            testGroup: { select: { onFailure: true, executionMode: true } },
+        },
+    });
+    const mode = coerceGroupFailureMode(session?.testGroup?.onFailure);
+    const executionMode = coerceGroupExecutionMode(session?.testGroup?.executionMode);
+    const concurrency = boundSessionConcurrency(session?.project?.maxConcurrentRuns);
     const members = await loadOrderedMembers(sessionId);
     if (members.length === 0) {
         return;
@@ -671,7 +669,6 @@ export async function executeGroupSession(
             await cancelRemainingMembers(members, CANCEL_REASON.USER_GROUP);
             return;
         }
-        const concurrency = await loadSessionLoginConcurrency(sessionId);
         const outcomes = await runWithConcurrency(
             loginMembers,
             concurrency,
@@ -691,9 +688,7 @@ export async function executeGroupSession(
         }
     }
 
-    const executionMode = await loadGroupExecutionMode(session?.testGroupId ?? null);
     if (executionMode === TEST_GROUP_EXECUTION_MODE.PARALLEL) {
-        const concurrency = await loadGroupMemberConcurrency(sessionId);
         await runGroupTestMembersInParallel(testMembers, baselines, mode, concurrency, controller, options);
         return;
     }

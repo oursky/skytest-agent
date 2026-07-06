@@ -79,8 +79,10 @@ async function runGroup(
     outcomes: Record<string, MemberOutcome>,
     executionMode: 'SEQUENTIAL' | 'PARALLEL' = 'SEQUENTIAL',
 ) {
-    mocks.runSessionFindUnique.mockResolvedValue({ testGroupId: 'group-1', project: { maxConcurrentRuns: 5 } });
-    mocks.testGroupFindUnique.mockResolvedValue({ onFailure: mode, executionMode });
+    mocks.runSessionFindUnique.mockResolvedValue({
+        project: { maxConcurrentRuns: 5 },
+        testGroup: { onFailure: mode, executionMode },
+    });
     mocks.testRunFindMany.mockResolvedValue(
         Object.keys(outcomes).map((id, index) => ({
             id,
