@@ -274,6 +274,7 @@ model TestGroup {
   name          String
   displayId     String?
   onFailure     String                  @default("STOP") // STOP | CONTINUE
+  executionMode String                  @default("SEQUENTIAL") // SEQUENTIAL | PARALLEL
   loginSessions TestGroupLoginSession[]
   items         TestGroupItem[]
   sessions      RunSession[]
