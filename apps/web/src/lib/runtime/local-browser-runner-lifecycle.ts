@@ -48,6 +48,9 @@ export async function withLoginFlowBrowserSlot<T>(work: () => Promise<T>): Promi
 // claimed leader, so — like login prefixes — they must be counted against the local browser
 // slot cap or a single parallel group can silently exceed it. getActiveLocalBrowserRunCount
 // folds this in so the dispatcher stops claiming new leaders once real load reaches the cap.
+// The leader's own member is counted both here and in the claimed-execution tally, so the count
+// runs one high while a parallel group executes — deliberately conservative: it can only make
+// the host claim slightly fewer runs, never exceed the cap.
 let inFlightSessionMemberBrowsers = 0;
 
 export function getInFlightSessionMemberBrowserCount(): number {
