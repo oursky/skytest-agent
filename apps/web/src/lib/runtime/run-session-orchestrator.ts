@@ -622,8 +622,9 @@ async function loadGroupExecutionMode(testGroupId: string | null): Promise<TestG
 
 /**
  * Width for a parallel group's test members: the project's max-concurrent setting, clamped by
- * the global per-project cap. This is the sole enforcer of the per-project ceiling inside one
- * session — the dispatcher's per-project cap only gates leader claims, not in-process fan-out.
+ * both the global per-project cap and the local browser-slot cap. This is the sole throttle on
+ * a single group's in-process fan-out — the dispatcher's caps only gate leader claims, so
+ * without the local clamp one group could open more browsers than the host is provisioned for.
  */
 async function loadGroupMemberConcurrency(sessionId: string): Promise<number> {
     const session = await prisma.runSession.findUnique({
@@ -631,7 +632,11 @@ async function loadGroupMemberConcurrency(sessionId: string): Promise<number> {
         select: { project: { select: { maxConcurrentRuns: true } } },
     });
     const projectLimit = session?.project?.maxConcurrentRuns ?? 1;
-    return Math.max(1, Math.min(projectLimit, appConfig.runner.maxProjectConcurrentRuns));
+    return Math.max(1, Math.min(
+        projectLimit,
+        appConfig.runner.maxProjectConcurrentRuns,
+        appConfig.runner.maxLocalBrowserRuns,
+    ));
 }
 
 /**

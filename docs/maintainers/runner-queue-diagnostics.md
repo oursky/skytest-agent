@@ -118,7 +118,7 @@ A GROUP run session is claimed as a single leader (`sessionPosition = 0`); `exec
 then runs the whole group in-process. `TestGroup.executionMode` selects how its test cases run:
 
 - `SEQUENTIAL` (default) — one case at a time, in order.
-- `PARALLEL` — cases run concurrently up to `LEAST(Project.maxConcurrentRuns, floor(RUNNER_MAX_CONCURRENT_RUNS / 2))`.
+- `PARALLEL` — cases run concurrently up to `LEAST(Project.maxConcurrentRuns, floor(RUNNER_MAX_CONCURRENT_RUNS / 2), RUNNER_MAX_LOCAL_BROWSER_RUNS)`. The local clamp matters: a group's in-process fan-out is not throttled by the dispatcher, so without it one group could exceed the host browser budget.
 
 Because parallel cases fan out in-process below the dispatcher, they do not each pass through the
 dispatch claim. Two things keep them bounded:
@@ -130,5 +130,5 @@ dispatch claim. Two things keep them bounded:
   ceiling (login-flow prefixes are counted the same way via `withLoginFlowBrowserSlot`).
 
 If a single parallel group appears to exceed the host browser budget, confirm both counters are
-folded into `getActiveLocalBrowserRunCount()` and that the group's width helper still clamps to the
-per-project cap.
+folded into `getActiveLocalBrowserRunCount()` and that `loadGroupMemberConcurrency` still clamps
+width to `RUNNER_MAX_LOCAL_BROWSER_RUNS` (the group's own fan-out is not dispatcher-gated).
