@@ -5,6 +5,13 @@ export const TEST_GROUP_FAILURE_MODE = {
 
 export type TestGroupFailureMode = typeof TEST_GROUP_FAILURE_MODE[keyof typeof TEST_GROUP_FAILURE_MODE];
 
+export const TEST_GROUP_EXECUTION_MODE = {
+    SEQUENTIAL: 'SEQUENTIAL',
+    PARALLEL: 'PARALLEL',
+} as const;
+
+export type TestGroupExecutionMode = typeof TEST_GROUP_EXECUTION_MODE[keyof typeof TEST_GROUP_EXECUTION_MODE];
+
 export interface TestGroupLoginSessionSummary {
     id: string;
     loginFlowId: string;
@@ -35,6 +42,7 @@ export interface TestGroupSummary {
     name: string;
     displayId?: string | null;
     onFailure: TestGroupFailureMode;
+    executionMode: TestGroupExecutionMode;
     loginSessions: TestGroupLoginSessionSummary[];
     items: TestGroupItemSummary[];
     lastSessionId?: string | null;
@@ -72,6 +80,7 @@ export interface TestGroupUpsertInput {
     name: string;
     displayId?: string | null;
     onFailure?: TestGroupFailureMode;
+    executionMode?: TestGroupExecutionMode;
     loginSessions?: TestGroupLoginSessionInput[];
     testCaseIds: string[];
 }
