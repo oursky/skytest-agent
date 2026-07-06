@@ -27,6 +27,7 @@ import {
     updateRunStatusWithOwnership,
     createLeaseExpiry,
     withLoginFlowBrowserSlot,
+    withSessionMemberBrowserSlot,
     type LocalBrowserRunOptions,
 } from '@/lib/runtime/local-browser-runner-lifecycle';
 import { failActiveSessionMembers, recomputeRunSessionForMember } from '@/lib/runtime/run-session-service';
@@ -34,6 +35,7 @@ import {
     TEST_CASE_KIND,
     TEST_STATUS,
     TEST_GROUP_FAILURE_MODE,
+    TEST_GROUP_EXECUTION_MODE,
     isRunInProgressStatus,
     type BrowserConfig,
     type TargetConfig,
@@ -41,6 +43,7 @@ import {
     type TestResult,
     type TestStep,
     type TestGroupFailureMode,
+    type TestGroupExecutionMode,
     type RunTerminalStatus,
     type BrowserStorageState,
 } from '@/types';
@@ -472,20 +475,28 @@ async function runTestMemberWithBaselines(
 /**
  * Runs tasks over items with at most `limit` in flight; results stay in item order.
  * A rejected task is mapped to a fallback via `onTaskError` rather than rejecting the
- * whole batch, so one item's failure can't skip reconciliation of its siblings — and the
- * result array is always fully populated (no holes for callers to trip over).
+ * whole batch, so one item's failure can't skip reconciliation of its siblings.
+ *
+ * When `shouldStop` is supplied and returns true, workers stop claiming further items;
+ * in-flight tasks still settle, but never-started items are left `undefined` so the caller
+ * can reconcile them (e.g. cancel them). Without `shouldStop` the result array is always
+ * fully populated, preserving the contract existing callers rely on.
  */
 async function runWithConcurrency<T, R>(
     items: T[],
     limit: number,
     task: (item: T) => Promise<R>,
     onTaskError: (item: T, error: unknown) => Promise<R>,
+    shouldStop?: () => boolean,
 ): Promise<R[]> {
     const results: R[] = new Array(items.length);
     let cursor = 0;
     const workerCount = Math.max(1, Math.min(limit, items.length));
     const workers = Array.from({ length: workerCount }, async () => {
         for (;;) {
+            if (shouldStop?.()) {
+                break;
+            }
             const index = cursor;
             cursor += 1;
             if (index >= items.length) {
@@ -599,6 +610,30 @@ async function loadGroupFailureMode(testGroupId: string | null): Promise<TestGro
         : TEST_GROUP_FAILURE_MODE.STOP;
 }
 
+async function loadGroupExecutionMode(testGroupId: string | null): Promise<TestGroupExecutionMode> {
+    if (!testGroupId) {
+        return TEST_GROUP_EXECUTION_MODE.SEQUENTIAL;
+    }
+    const group = await prisma.testGroup.findUnique({ where: { id: testGroupId }, select: { executionMode: true } });
+    return group?.executionMode === TEST_GROUP_EXECUTION_MODE.PARALLEL
+        ? TEST_GROUP_EXECUTION_MODE.PARALLEL
+        : TEST_GROUP_EXECUTION_MODE.SEQUENTIAL;
+}
+
+/**
+ * Width for a parallel group's test members: the project's max-concurrent setting, clamped by
+ * the global per-project cap. This is the sole enforcer of the per-project ceiling inside one
+ * session — the dispatcher's per-project cap only gates leader claims, not in-process fan-out.
+ */
+async function loadGroupMemberConcurrency(sessionId: string): Promise<number> {
+    const session = await prisma.runSession.findUnique({
+        where: { id: sessionId },
+        select: { project: { select: { maxConcurrentRuns: true } } },
+    });
+    const projectLimit = session?.project?.maxConcurrentRuns ?? 1;
+    return Math.max(1, Math.min(projectLimit, appConfig.runner.maxProjectConcurrentRuns));
+}
+
 /**
  * Executes a GROUP run session with multiple login sessions (Option A: baseline restore).
  * Each login-flow member runs once and its post-login storageState is captured, keyed by
@@ -606,7 +641,8 @@ async function loadGroupFailureMode(testGroupId: string | null): Promise<TestGro
  * reuses a session is seeded with that session's captured baseline, so a logout in one case
  * cannot affect later cases. Failure handling follows the group's onFailure mode (STOP skips
  * the remaining cases; CONTINUE runs them — cases depending on a failed login session simply
- * start unauthenticated).
+ * start unauthenticated). Test cases run sequentially or in parallel per the group's
+ * executionMode.
  */
 export async function executeGroupSession(
     sessionId: string,
@@ -650,7 +686,24 @@ export async function executeGroupSession(
         }
     }
 
-    // Test cases run in sequence; each reuses a group login session only when opted in.
+    const executionMode = await loadGroupExecutionMode(session?.testGroupId ?? null);
+    if (executionMode === TEST_GROUP_EXECUTION_MODE.PARALLEL) {
+        const concurrency = await loadGroupMemberConcurrency(sessionId);
+        await runGroupTestMembersInParallel(testMembers, baselines, mode, concurrency, controller, options);
+        return;
+    }
+    await runGroupTestMembersInSequence(testMembers, baselines, mode, controller, options);
+}
+
+/** Runs a group's test cases one at a time, in order; each reuses a group login session only
+ * when opted in. STOP cancels the remaining cases after the first non-pass. */
+async function runGroupTestMembersInSequence(
+    testMembers: SessionMember[],
+    baselines: Map<string, BrowserStorageState>,
+    mode: TestGroupFailureMode,
+    controller: AbortController,
+    options?: LocalBrowserRunOptions,
+): Promise<void> {
     for (let index = 0; index < testMembers.length; index += 1) {
         if (controller.signal.aborted) {
             await cancelRemainingMembers(testMembers.slice(index), CANCEL_REASON.USER_GROUP);
@@ -661,5 +714,43 @@ export async function executeGroupSession(
             await cancelRemainingMembers(testMembers.slice(index + 1), CANCEL_REASON.EARLIER_CASE_FAILED);
             return;
         }
+    }
+}
+
+/**
+ * Runs a group's test cases concurrently, up to `concurrency` in flight, each bracketed by a
+ * local browser slot so the host's cap stays honest. In STOP mode a non-pass (or a session
+ * cancel) halts launching further cases; members already in flight settle, and members that
+ * never started are cancelled — the closest parallel analog to sequential STOP.
+ */
+async function runGroupTestMembersInParallel(
+    testMembers: SessionMember[],
+    baselines: Map<string, BrowserStorageState>,
+    mode: TestGroupFailureMode,
+    concurrency: number,
+    controller: AbortController,
+    options?: LocalBrowserRunOptions,
+): Promise<void> {
+    let stopRequested = false;
+    const outcomes = await runWithConcurrency(
+        testMembers,
+        concurrency,
+        async (member) => {
+            const result = await withSessionMemberBrowserSlot(
+                () => runTestMemberWithBaselines(member, baselines, controller, options, true),
+            );
+            if (result.status !== TEST_STATUS.PASS && shouldStopAfterFailure(mode)) {
+                stopRequested = true;
+            }
+            return result;
+        },
+        async () => ({ status: TEST_STATUS.FAIL } as TestResult),
+        () => stopRequested || controller.signal.aborted,
+    );
+
+    const notStarted = testMembers.filter((_, index) => outcomes[index] === undefined);
+    if (notStarted.length > 0) {
+        const reason = controller.signal.aborted ? CANCEL_REASON.USER_GROUP : CANCEL_REASON.EARLIER_CASE_FAILED;
+        await cancelRemainingMembers(notStarted, reason);
     }
 }
