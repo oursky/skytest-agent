@@ -44,6 +44,25 @@ export async function withLoginFlowBrowserSlot<T>(work: () => Promise<T>): Promi
     }
 }
 
+// A parallel group session fans its test members into their own browsers alongside the one
+// claimed leader, so — like login prefixes — they must be counted against the local browser
+// slot cap or a single parallel group can silently exceed it. getActiveLocalBrowserRunCount
+// folds this in so the dispatcher stops claiming new leaders once real load reaches the cap.
+let inFlightSessionMemberBrowsers = 0;
+
+export function getInFlightSessionMemberBrowserCount(): number {
+    return inFlightSessionMemberBrowsers;
+}
+
+export async function withSessionMemberBrowserSlot<T>(work: () => Promise<T>): Promise<T> {
+    inFlightSessionMemberBrowsers += 1;
+    try {
+        return await work();
+    } finally {
+        inFlightSessionMemberBrowsers -= 1;
+    }
+}
+
 function triggerQueuedBrowserDispatch(reason: string, runId: string): void {
     void import('@/lib/runtime/browser-run-dispatcher')
         .then(({ dispatchNextQueuedBrowserRun }) => dispatchNextQueuedBrowserRun())
