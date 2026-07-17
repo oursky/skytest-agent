@@ -7,7 +7,9 @@ import {
     TEST_STATUS,
     RUN_ACTIVE_STATUSES,
     TEST_GROUP_FAILURE_MODE,
+    TEST_GROUP_EXECUTION_MODE,
     type TestGroupFailureMode,
+    type TestGroupExecutionMode,
     type TestGroupSummary,
     type TestGroupSessionSummary,
     type TestGroupRunPreview,
@@ -22,6 +24,7 @@ interface NormalizedUpsert {
     name: string;
     displayId: string | null;
     onFailure: TestGroupFailureMode;
+    executionMode: TestGroupExecutionMode;
     loginSessions: { loginFlowId: string; name: string }[];
     testCaseIds: string[];
 }
@@ -38,6 +41,9 @@ function normalizeUpsert(input: TestGroupUpsertInput): NormalizedUpsert {
     const onFailure: TestGroupFailureMode = input.onFailure === TEST_GROUP_FAILURE_MODE.CONTINUE
         ? TEST_GROUP_FAILURE_MODE.CONTINUE
         : TEST_GROUP_FAILURE_MODE.STOP;
+    const executionMode: TestGroupExecutionMode = input.executionMode === TEST_GROUP_EXECUTION_MODE.PARALLEL
+        ? TEST_GROUP_EXECUTION_MODE.PARALLEL
+        : TEST_GROUP_EXECUTION_MODE.SEQUENTIAL;
 
     const seenFlows = new Set<string>();
     const loginSessions = Array.isArray(input.loginSessions)
@@ -54,7 +60,7 @@ function normalizeUpsert(input: TestGroupUpsertInput): NormalizedUpsert {
     const testCaseIds = Array.isArray(input.testCaseIds)
         ? input.testCaseIds.filter((id) => typeof id === 'string' && id && !seenCases.has(id) && (seenCases.add(id), true))
         : [];
-    return { name, displayId, onFailure, loginSessions, testCaseIds };
+    return { name, displayId, onFailure, executionMode, loginSessions, testCaseIds };
 }
 
 /** Validates that a group's case ids and login-session flow ids belong to the project and are the right kind. */
@@ -98,6 +104,7 @@ interface SerializableTestGroup {
     name: string;
     displayId: string | null;
     onFailure: string;
+    executionMode: string;
     updatedAt: Date;
     loginSessions: { id: string; loginFlowId: string; name: string; position: number; loginFlow: { displayId: string | null; name: string } }[];
     items: { testCaseId: string; position: number; testCase: { displayId: string | null; name: string } }[];
@@ -113,6 +120,9 @@ function serializeTestGroup(group: SerializableTestGroup): TestGroupSummary {
         onFailure: group.onFailure === TEST_GROUP_FAILURE_MODE.CONTINUE
             ? TEST_GROUP_FAILURE_MODE.CONTINUE
             : TEST_GROUP_FAILURE_MODE.STOP,
+        executionMode: group.executionMode === TEST_GROUP_EXECUTION_MODE.PARALLEL
+            ? TEST_GROUP_EXECUTION_MODE.PARALLEL
+            : TEST_GROUP_EXECUTION_MODE.SEQUENTIAL,
         loginSessions: group.loginSessions
             .slice()
             .sort((a, b) => a.position - b.position)
@@ -325,7 +335,7 @@ export async function getTestGroupRunPreview(projectId: string, groupId: string)
 }
 
 export async function createTestGroup(projectId: string, input: TestGroupUpsertInput): Promise<TestGroupResult<TestGroupSummary>> {
-    const { name, displayId, onFailure, loginSessions, testCaseIds } = normalizeUpsert(input);
+    const { name, displayId, onFailure, executionMode, loginSessions, testCaseIds } = normalizeUpsert(input);
     if (!name) {
         return { ok: false, status: 400, error: 'Name is required' };
     }
@@ -339,6 +349,7 @@ export async function createTestGroup(projectId: string, input: TestGroupUpsertI
             name,
             displayId,
             onFailure,
+            executionMode,
             loginSessions: { create: loginSessions.map((session, position) => ({ loginFlowId: session.loginFlowId, name: session.name, position })) },
             items: { create: testCaseIds.map((testCaseId, position) => ({ testCaseId, position })) },
         },
@@ -355,7 +366,7 @@ export async function updateTestGroup(projectId: string, groupId: string, input:
     if (await hasActiveSession(groupId)) {
         return { ok: false, status: 409, error: 'This test group is running and cannot be edited' };
     }
-    const { name, displayId, onFailure, loginSessions, testCaseIds } = normalizeUpsert(input);
+    const { name, displayId, onFailure, executionMode, loginSessions, testCaseIds } = normalizeUpsert(input);
     if (!name) {
         return { ok: false, status: 400, error: 'Name is required' };
     }
@@ -372,6 +383,7 @@ export async function updateTestGroup(projectId: string, groupId: string, input:
                 name,
                 displayId,
                 onFailure,
+                executionMode,
                 loginSessions: { create: loginSessions.map((session, position) => ({ loginFlowId: session.loginFlowId, name: session.name, position })) },
                 items: { create: testCaseIds.map((testCaseId, position) => ({ testCaseId, position })) },
             },

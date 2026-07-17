@@ -86,6 +86,7 @@ export interface RunSessionInfo {
     kind: string;
     groupName: string | null;
     onFailure: string | null;
+    executionMode: string | null;
     members: RunSessionMemberInfo[];
 }
 

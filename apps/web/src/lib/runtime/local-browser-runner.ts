@@ -10,6 +10,7 @@ import { executeGroupSession, executeLocalBrowserSession } from '@/lib/runtime/r
 import {
     failRunWithoutTestCase,
     getInFlightLoginFlowBrowserCount,
+    getInFlightSessionMemberBrowserCount,
     updateRunStatusWithOwnership,
     type LocalBrowserRunOptions,
 } from '@/lib/runtime/local-browser-runner-lifecycle';
@@ -23,7 +24,7 @@ const logger = createLogger('runtime:local-browser-runner');
 const activeAbortControllers = new Map<string, AbortController>();
 const activeExecutions = new Map<string, Promise<void>>();
 export function getActiveLocalBrowserRunCount(): number {
-    return activeExecutions.size + getInFlightLoginFlowBrowserCount();
+    return activeExecutions.size + getInFlightLoginFlowBrowserCount() + getInFlightSessionMemberBrowserCount();
 }
 export function getMaxLocalBrowserRunCount(): number {
     return appConfig.runner.maxLocalBrowserRuns;

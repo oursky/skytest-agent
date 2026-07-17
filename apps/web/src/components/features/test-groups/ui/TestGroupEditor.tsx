@@ -6,7 +6,7 @@ import { useI18n } from '@/i18n';
 import { fetchWithAccessToken } from '@/app/run/run-page-api';
 import { Button, CustomSelect } from '@/components/shared';
 import { extractListData } from '@/utils/pagination/pagination';
-import { TEST_GROUP_FAILURE_MODE, isRunActiveStatus, type TestGroupFailureMode, type TestGroupSummary } from '@/types';
+import { TEST_GROUP_FAILURE_MODE, TEST_GROUP_EXECUTION_MODE, isRunActiveStatus, type TestGroupFailureMode, type TestGroupExecutionMode, type TestGroupSummary } from '@/types';
 import type { TranslationVars } from '@/i18n/types';
 import OrderedTestCasePicker, { type TestCaseOption } from './OrderedTestCasePicker';
 
@@ -39,6 +39,7 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
     const [name, setName] = useState(group?.name ?? '');
     const [displayId, setDisplayId] = useState(group?.displayId ?? '');
     const [onFailure, setOnFailure] = useState<TestGroupFailureMode>(group?.onFailure ?? TEST_GROUP_FAILURE_MODE.STOP);
+    const [executionMode, setExecutionMode] = useState<TestGroupExecutionMode>(group?.executionMode ?? TEST_GROUP_EXECUTION_MODE.SEQUENTIAL);
     const [loginSessions, setLoginSessions] = useState<LoginSessionDraft[]>(
         group?.loginSessions.map((session) => ({ loginFlowId: session.loginFlowId, name: session.name })) ?? [],
     );
@@ -125,6 +126,7 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
                     name: name.trim(),
                     displayId: displayId.trim() || null,
                     onFailure,
+                    executionMode,
                     loginSessions: loginSessions.map((session) => ({ loginFlowId: session.loginFlowId, name: session.name.trim() || undefined })),
                     testCaseIds,
                 }),
@@ -261,6 +263,27 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
                 loginSessions={loginSessions}
                 resolveLoginFlowName={flowLabel}
             />
+
+            <div className="space-y-2">
+                <span className="block text-sm font-medium text-gray-700">{t('testGroup.executionMode')}</span>
+                <div className="space-y-2">
+                    {[TEST_GROUP_EXECUTION_MODE.SEQUENTIAL, TEST_GROUP_EXECUTION_MODE.PARALLEL].map((execMode) => (
+                        <label key={execMode} className={`flex items-center gap-2 text-sm ${readOnly ? 'text-gray-400' : 'cursor-pointer text-gray-700'}`}>
+                            <input
+                                type="radio"
+                                name="testGroupExecutionMode"
+                                value={execMode}
+                                checked={executionMode === execMode}
+                                onChange={() => setExecutionMode(execMode)}
+                                disabled={readOnly}
+                                className="h-4 w-4 text-primary focus:ring-primary disabled:opacity-50"
+                            />
+                            {execMode === TEST_GROUP_EXECUTION_MODE.SEQUENTIAL ? t('testGroup.executionMode.sequential') : t('testGroup.executionMode.parallel')}
+                        </label>
+                    ))}
+                </div>
+                <p className="text-xs text-gray-500">{t('testGroup.executionMode.hint')}</p>
+            </div>
 
             <div className="space-y-2">
                 <span className="block text-sm font-medium text-gray-700">{t('testGroup.onFailure')}</span>

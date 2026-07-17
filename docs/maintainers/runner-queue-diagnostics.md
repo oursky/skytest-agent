@@ -80,7 +80,9 @@ Playbook for any "wrong terminal state" bug:
    branch fired.)
 
 Reason-to-cause quick map:
-- `EARLIER_CASE_FAILED` — Test Group in STOP mode skipped the rest after a case failed.
+- `EARLIER_CASE_FAILED` — Test Group in STOP mode skipped the rest after a case failed. In
+  SEQUENTIAL mode these are the cases after the failure; in PARALLEL mode they are the cases that
+  had not started when a failure was observed (in-flight cases are allowed to finish).
 - `LOGIN_FLOW_FAILED` — a group login prefix failed and STOP halted its dependents.
 - `USER_GROUP` / `USER_SINGLE` — the shared session `AbortController` was aborted (genuine user
   stop, or a bug propagating a per-member abort to the session — session members are isolated
@@ -109,3 +111,24 @@ If `RUNNER_MAX_LOCAL_BROWSER_RUNS` is unset, it falls back to `RUNNER_MAX_CONCUR
 Android runner claim is additionally gated by:
 
 - per-runner Android cap: `RUNNER_MAX_CONCURRENT_RUNS_PER_ANDROID_RUNNER` (default `2`)
+
+### Test Group execution mode and parallel fan-out
+
+A GROUP run session is claimed as a single leader (`sessionPosition = 0`); `executeGroupSession`
+then runs the whole group in-process. `TestGroup.executionMode` selects how its test cases run:
+
+- `SEQUENTIAL` (default) — one case at a time, in order.
+- `PARALLEL` — cases run concurrently up to `LEAST(Project.maxConcurrentRuns, floor(RUNNER_MAX_CONCURRENT_RUNS / 2), RUNNER_MAX_LOCAL_BROWSER_RUNS)`. The local clamp matters: a group's in-process fan-out is not throttled by the dispatcher, so without it one group could exceed the host browser budget.
+
+Because parallel cases fan out in-process below the dispatcher, they do not each pass through the
+dispatch claim. Two things keep them bounded:
+
+- In-flight members carry `PREPARING`/`RUNNING` status, so the global and per-project caps already
+  count them when deciding whether to claim more session leaders.
+- Each parallel member browser is bracketed by `withSessionMemberBrowserSlot`, folded into
+  `getActiveLocalBrowserRunCount()`, so `RUNNER_MAX_LOCAL_BROWSER_RUNS` stays a real per-host
+  ceiling (login-flow prefixes are counted the same way via `withLoginFlowBrowserSlot`).
+
+If a single parallel group appears to exceed the host browser budget, confirm both counters are
+folded into `getActiveLocalBrowserRunCount()` and that `loadGroupMemberConcurrency` still clamps
+width to `RUNNER_MAX_LOCAL_BROWSER_RUNS` (the group's own fan-out is not dispatcher-gated).
