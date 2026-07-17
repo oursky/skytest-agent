@@ -95,7 +95,9 @@ export default function TestGroupRunPage({ params }: { params: Promise<{ session
     };
 
     const sessionActive = isRunActiveStatus(session?.status);
-    const settledCount = session?.members.filter((m) => isRunTerminalStatus(m.status)).length ?? 0;
+    // "Done" means the case ran to a result; cancelled members never ran (or were stopped),
+    // so a group that skips cases must not report them as done.
+    const doneCount = session?.members.filter((m) => m.status === TEST_STATUS.PASS || m.status === TEST_STATUS.FAIL).length ?? 0;
     const totalCount = session?.members.length ?? 0;
 
     return (
@@ -123,7 +125,7 @@ export default function TestGroupRunPage({ params }: { params: Promise<{ session
                         <div className="mb-8 flex flex-wrap items-center gap-3">
                             <h1 className="text-3xl font-bold text-gray-900">{t('testGroup.run.title')}</h1>
                             <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${getStatusBadgeClass(session.status)}`}>{session.status}</span>
-                            <span className="text-sm text-gray-500">{t('testGroup.run.progress', { done: settledCount, total: totalCount })}</span>
+                            <span className="text-sm text-gray-500">{t('testGroup.run.progress', { done: doneCount, total: totalCount })}</span>
                             {sessionActive && (
                                 <div className="ml-auto">
                                     <Button type="button" variant="danger" size="sm" onClick={() => setConfirmStop(true)} disabled={stopping}>

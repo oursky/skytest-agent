@@ -11,8 +11,15 @@ describe('rollupRunSessionStatus', () => {
         expect(rollupRunSessionStatus([TEST_STATUS.QUEUED, TEST_STATUS.QUEUED])).toBe(TEST_STATUS.QUEUED);
     });
 
-    it('is FAIL when any member failed, regardless of other states', () => {
+    it('is FAIL when all members settled and any failed', () => {
         expect(rollupRunSessionStatus([TEST_STATUS.PASS, TEST_STATUS.FAIL, TEST_STATUS.CANCELLED])).toBe(TEST_STATUS.FAIL);
+    });
+
+    it('stays RUNNING after a failure while members are still queued or executing (CONTINUE mode)', () => {
+        expect(rollupRunSessionStatus([TEST_STATUS.PASS, TEST_STATUS.FAIL, TEST_STATUS.QUEUED])).toBe(TEST_STATUS.RUNNING);
+        expect(rollupRunSessionStatus([TEST_STATUS.FAIL, TEST_STATUS.RUNNING])).toBe(TEST_STATUS.RUNNING);
+        expect(rollupRunSessionStatus([TEST_STATUS.FAIL, TEST_STATUS.PREPARING])).toBe(TEST_STATUS.RUNNING);
+        expect(rollupRunSessionStatus([TEST_STATUS.CANCELLED, TEST_STATUS.QUEUED])).toBe(TEST_STATUS.RUNNING);
     });
 
     it('prefers FAIL over CANCELLED', () => {
