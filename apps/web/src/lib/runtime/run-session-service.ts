@@ -150,6 +150,13 @@ async function performRunSessionRecompute(sessionId: string): Promise<void> {
             },
         });
         if (updated.count === 1) {
+            // A terminal session status tells the rest of the system execution is over
+            // (inactive-run sweep, stop button, Slack notify), so record what settled it.
+            const memberStatusCounts: Record<string, number> = {};
+            for (const member of members) {
+                memberStatusCounts[member.status] = (memberStatusCounts[member.status] ?? 0) + 1;
+            }
+            logger.info('Run session settled', { sessionId, status: nextStatus, memberStatusCounts });
             emitRunSessionTerminal({
                 sessionId,
                 status: nextStatus as RunTerminalStatus,

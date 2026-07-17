@@ -84,9 +84,23 @@ Reason-to-cause quick map:
   SEQUENTIAL mode these are the cases after the failure; in PARALLEL mode they are the cases that
   had not started when a failure was observed (in-flight cases are allowed to finish).
 - `LOGIN_FLOW_FAILED` — a group login prefix failed and STOP halted its dependents.
-- `USER_GROUP` / `USER_SINGLE` — the shared session `AbortController` was aborted (genuine user
-  stop, or a bug propagating a per-member abort to the session — session members are isolated
-  via `createMemberAbortController` precisely to prevent the latter).
+- `USER_GROUP` / `USER_SINGLE` — the shared session `AbortController` was aborted. Three known
+  causes: a genuine user stop; a bug propagating a per-member abort to the session (members are
+  isolated via `createMemberAbortController` precisely to prevent this); or the inactive-run
+  sweep (`abortInactiveLocalBrowserRuns`) judging the execution dead — it warns
+  `Aborting local browser run judged inactive` with the run/session statuses it saw, so its
+  absence in worker logs rules it out. The sweep reads session liveness, so a session status
+  that settles before every member does (see the `rollupRunSessionStatus` invariant) reproduces
+  exactly this: mid-group cases cancelled as "stopped" in a group nobody stopped.
+
+Session-lifecycle log breadcrumbs (all structured, grep-able by `runId`/`sessionId`):
+- `Run session settled` (`run-session-service.ts`) — the terminal rollup transition, with a
+  member-status breakdown. A settle logged while later members were still due to run is the
+  premature-rollup signature.
+- `Cancelled remaining session members` (`run-session-orchestrator.ts`) — which members the
+  orchestrator skipped and the persisted reason.
+- `Aborting local browser run judged inactive` (`local-browser-runner.ts`) — why the sweep
+  killed an in-process execution.
 
 ## AI Provider Config Propagation
 

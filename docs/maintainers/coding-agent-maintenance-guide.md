@@ -173,6 +173,12 @@ When changing runner runtime behavior, update docs in the same PR/commit series:
 
 ## Common Footguns
 
+- Settling `RunSession.status` while members are still queued or executing. The rollup
+  (`apps/web/src/lib/runtime/run-session-status.ts`) must stay `RUNNING` until every member
+  settles: a terminal session status means "execution is over" to the inactive-run sweep
+  (`abortInactiveLocalBrowserRuns`), the group Stop button, the "already has a run in
+  progress" trigger guard, and Slack group notify. A rollup that settles on the first failure
+  makes the sweep abort a live CONTINUE-mode group mid-run.
 - Changing Excel import parser compatibility paths without updating [test-case-excel-format.md](./test-case-excel-format.md)
 - Breaking runner protocol request/response shapes without updating `packages/runner-protocol`
 - Bypassing lease ownership checks on runner write-back endpoints

@@ -140,7 +140,7 @@ async function cancelRemainingMembers(members: SessionMember[], reason: string):
     }
     const now = new Date();
     const result = JSON.stringify({ status: TEST_STATUS.CANCELLED, error: reason, errorCode: 'SESSION_CANCELLED', errorCategory: 'CANCELLED' });
-    let firstCancelledId: string | null = null;
+    const cancelledIds: string[] = [];
     for (const member of members) {
         const updated = await prisma.testRun.updateMany({
             where: { id: member.id, status: { in: [TEST_STATUS.QUEUED, TEST_STATUS.PREPARING] } },
@@ -149,11 +149,12 @@ async function cancelRemainingMembers(members: SessionMember[], reason: string):
         if (updated.count > 0) {
             await prisma.testCase.update({ where: { id: member.testCaseId }, data: { status: TEST_STATUS.CANCELLED } }).catch(() => {});
             publishRunUpdate(member.id);
-            firstCancelledId = firstCancelledId ?? member.id;
+            cancelledIds.push(member.id);
         }
     }
-    if (firstCancelledId) {
-        await recomputeRunSessionForMember(firstCancelledId);
+    if (cancelledIds.length > 0) {
+        logger.info('Cancelled remaining session members', { runIds: cancelledIds, reason });
+        await recomputeRunSessionForMember(cancelledIds[0]);
     }
 }
 

@@ -250,4 +250,90 @@ describe('local-browser-runner cancellation SLA integration', () => {
         await runPromise;
         expect(signalAborted).toBe(false);
     });
+
+    // Incident regression: a CONTINUE-mode group's execution is keyed under its settled
+    // leader run. Even if the session's rolled-up status were to settle early again, the
+    // sweep must not abort while any session member is still queued or executing.
+    it('does not abort a session execution while any member is still active, even with a terminal session status', async () => {
+        vi.resetModules();
+        const { startLocalBrowserRun, abortInactiveLocalBrowserRuns } = await import('@/lib/runtime/local-browser-runner');
+
+        mocks.testRunFindMany.mockResolvedValue([{
+            id: 'run-1',
+            status: 'PASS',
+            assignedRunnerId: null,
+            leaseExpiresAt: null,
+            runSession: {
+                status: 'FAIL',
+                memberRuns: [{ status: 'PASS' }, { status: 'FAIL' }, { status: 'QUEUED' }],
+            },
+        }]);
+
+        let signalAborted = false;
+        mocks.runTest.mockImplementation(async (input: {
+            signal: AbortSignal;
+            onPreparing?: () => Promise<void>;
+            onRunning?: () => Promise<void>;
+        }) => {
+            await input.onPreparing?.();
+            await input.onRunning?.();
+            await new Promise((resolve) => setTimeout(resolve, 200));
+            signalAborted = input.signal.aborted;
+            return {
+                status: 'PASS',
+            };
+        });
+
+        const runPromise = startLocalBrowserRun('run-1');
+        await vi.advanceTimersByTimeAsync(1);
+        const abortedRuns = await abortInactiveLocalBrowserRuns();
+        expect(abortedRuns).toBe(0);
+
+        await vi.advanceTimersByTimeAsync(250);
+        await runPromise;
+        expect(signalAborted).toBe(false);
+    });
+
+    it('aborts a session execution once every member has settled and the session is terminal', async () => {
+        vi.resetModules();
+        const { startLocalBrowserRun, abortInactiveLocalBrowserRuns } = await import('@/lib/runtime/local-browser-runner');
+
+        mocks.testRunFindMany.mockResolvedValue([{
+            id: 'run-1',
+            status: 'PASS',
+            assignedRunnerId: null,
+            leaseExpiresAt: null,
+            runSession: {
+                status: 'FAIL',
+                memberRuns: [{ status: 'PASS' }, { status: 'FAIL' }, { status: 'CANCELLED' }],
+            },
+        }]);
+
+        mocks.runTest.mockImplementation(async (input: {
+            signal: AbortSignal;
+            onPreparing?: () => Promise<void>;
+            onRunning?: () => Promise<void>;
+        }) => {
+            await input.onPreparing?.();
+            await input.onRunning?.();
+            await new Promise<void>((resolve) => {
+                if (input.signal.aborted) {
+                    resolve();
+                    return;
+                }
+                input.signal.addEventListener('abort', () => resolve(), { once: true });
+            });
+            return {
+                status: 'CANCELLED',
+            };
+        });
+
+        const runPromise = startLocalBrowserRun('run-1');
+        await vi.advanceTimersByTimeAsync(1);
+        const abortedRuns = await abortInactiveLocalBrowserRuns();
+        expect(abortedRuns).toBe(1);
+
+        await vi.advanceTimersByTimeAsync(50);
+        await runPromise;
+    });
 });

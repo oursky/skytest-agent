@@ -18,6 +18,7 @@ import { reconcileStrandedSessionMembers } from '@/lib/runtime/run-session-orche
 import {
     RUN_SESSION_KIND,
     TEST_STATUS,
+    isRunActiveStatus,
     isRunInProgressStatus,
 } from '@/types';
 const logger = createLogger('runtime:local-browser-runner');
@@ -52,7 +53,7 @@ export async function abortInactiveLocalBrowserRuns(options?: LocalBrowserRunOpt
             status: true,
             assignedRunnerId: true,
             leaseExpiresAt: true,
-            runSession: { select: { status: true } },
+            runSession: { select: { status: true, memberRuns: { select: { status: true } } } },
         },
     });
     const runById = new Map(runs.map((run) => [run.id, run]));
@@ -63,8 +64,13 @@ export async function abortInactiveLocalBrowserRuns(options?: LocalBrowserRunOpt
         const leaseValid = run?.leaseExpiresAt ? run.leaseExpiresAt.getTime() > nowMs : false;
         // A multi-member session stays active while its session is in progress even
         // after the claimed first member settles (later members run in the shared browser).
+        // The member-level check is deliberate defense in depth: this sweep aborts live
+        // executions, so it must never judge a session dead while any member could still
+        // run, even if the session's rolled-up status were to settle early again.
+        const activeMemberCount = run?.runSession?.memberRuns
+            .filter((member) => isRunActiveStatus(member.status)).length ?? 0;
         const executionInProgress = !!run
-            && (isRunInProgressStatus(run.status) || isRunInProgressStatus(run.runSession?.status));
+            && (isRunInProgressStatus(run.status) || isRunInProgressStatus(run.runSession?.status) || activeMemberCount > 0);
         const stillActive = executionInProgress
             && (
                 options?.runnerId
@@ -77,6 +83,15 @@ export async function abortInactiveLocalBrowserRuns(options?: LocalBrowserRunOpt
         }
 
         if (cancelLocalBrowserRun(runId)) {
+            logger.warn('Aborting local browser run judged inactive', {
+                runId,
+                runStatus: run?.status ?? 'missing',
+                sessionStatus: run?.runSession?.status ?? null,
+                activeSessionMembers: activeMemberCount,
+                assignedRunnerId: run?.assignedRunnerId ?? null,
+                requestingRunnerId: options?.runnerId ?? null,
+                leaseValid,
+            });
             abortedCount += 1;
         }
     }
