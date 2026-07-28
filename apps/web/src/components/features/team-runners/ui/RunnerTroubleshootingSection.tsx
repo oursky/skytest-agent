@@ -1,6 +1,7 @@
 'use client';
 
 import { CopyableCodeBlock } from '@/components/shared';
+import { RUNNER_CLI_COMMANDS } from '../model/runner-cli-commands';
 import type { TeamRunnerItem, TeamRunnersResponse } from '../model/types';
 
 interface RunnerTroubleshootingSectionProps {
@@ -37,13 +38,13 @@ export default function RunnerTroubleshootingSection({
 
             <div className="mt-4 space-y-4">
                 {[
-                    { key: 'get-runners', label: t('team.runners.troubleshooting.listRunners'), command: 'skytest get runners' },
-                    { key: 'sync-runners', label: t('team.runners.troubleshooting.syncRunners'), command: 'skytest sync runners' },
+                    { key: 'get-runners', label: t('team.runners.troubleshooting.listRunners'), command: RUNNER_CLI_COMMANDS.getRunners },
+                    { key: 'sync-runners', label: t('team.runners.troubleshooting.syncRunners'), command: RUNNER_CLI_COMMANDS.syncRunners },
                     { key: 'pair-runner', label: t('team.runners.troubleshooting.pairRunner'), command: buildPairCommand(null) },
-                    { key: 'start-runner', label: t('team.runners.troubleshooting.start'), command: "skytest start runner '<runner-id>'" },
-                    { key: 'stop-runner', label: t('team.runners.troubleshooting.stop'), command: "skytest stop runner '<runner-id>'" },
-                    { key: 'logs-runner', label: t('team.runners.troubleshooting.logs'), command: "skytest logs runner '<runner-id>' --tail 200" },
-                    { key: 'unpair-runner', label: t('team.runners.troubleshooting.unpairRunner'), command: "skytest unpair runner '<runner-id>'" },
+                    { key: 'start-runner', label: t('team.runners.troubleshooting.start'), command: RUNNER_CLI_COMMANDS.startRunner },
+                    { key: 'stop-runner', label: t('team.runners.troubleshooting.stop'), command: RUNNER_CLI_COMMANDS.stopRunner },
+                    { key: 'logs-runner', label: t('team.runners.troubleshooting.logs'), command: RUNNER_CLI_COMMANDS.logsRunner },
+                    { key: 'unpair-runner', label: t('team.runners.troubleshooting.unpairRunner'), command: RUNNER_CLI_COMMANDS.unpairRunner },
                 ].map(({ key, label, command }) => (
                     <div key={key}>
                         <p className="mb-1.5 text-xs font-medium text-gray-700">{label}</p>

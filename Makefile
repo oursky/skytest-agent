@@ -12,6 +12,9 @@ COMPOSE_ARGS := -f $(COMPOSE_FILE) $(if $(COMPOSE_EXTRA_FILE),-f $(COMPOSE_EXTRA
 .PHONY: \
 	help \
 	install \
+	clean \
+	clean-data \
+	clean-deps \
 	services-up \
 	services-down \
 	services-logs \
@@ -38,6 +41,17 @@ help: ## Show available targets
 
 install: ## Install npm dependencies
 	$(NODE_PM) install
+
+clean: ## Remove regenerable build, test, and TypeScript artifacts
+	rm -rf apps/web/.next apps/web/midscene_run apps/web/coverage coverage
+	rm -f apps/web/tsconfig.tsbuildinfo
+
+clean-data: ## Delete ignored local database and uploaded test data
+	rm -rf uploads apps/web/uploads
+	rm -f dev.db
+
+clean-deps: ## Remove workspace dependencies (run npm install to restore)
+	rm -rf node_modules apps/web/node_modules apps/cli/node_modules apps/macos-runner/node_modules packages/runner-protocol/node_modules
 
 services-up: ## Start local Postgres and MinIO services
 	@set -a; \
@@ -88,7 +102,7 @@ playwright-ensure: ## Install Playwright Chromium when it is missing locally
 		|| $(NODE_PM) run playwright:install
 
 runner-reset: ## Stop all local runner processes and remove local runner state
-	$(NODE_PM) run skytest -- reset --force
+	$(NODE_PM) run skytest-runner -- reset --force
 
 seed-local-defaults: ## Seed local default Authgear user + owner team/project for local bootstrap
 	@set -a; \

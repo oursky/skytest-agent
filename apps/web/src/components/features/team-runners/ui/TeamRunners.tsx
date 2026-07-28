@@ -9,6 +9,10 @@ import type {
     TeamRunnerInventoryResponse,
     TeamRunnerItem,
 } from '../model/types';
+import {
+    buildPairCommand as buildRunnerPairCommand,
+    buildStartRunnerCommand,
+} from '../model/runner-cli-commands';
 import RunnerInventoryTables from './RunnerInventoryTables';
 import RunnerTroubleshootingSection from './RunnerTroubleshootingSection';
 
@@ -101,14 +105,8 @@ function resolveRunnerDisplayId(runner: Pick<TeamRunnerItem, 'id' | 'displayId'>
 }
 
 function buildPairCommand(token: string | null): string {
-    const tokenPart = token ?? '<pairing-token>';
     const serverUrl = typeof window !== 'undefined' ? window.location.origin : '<server-url>';
-    return `skytest pair runner "${tokenPart}" --url "${serverUrl}"`;
-}
-
-function buildStartRunnerCommand(runnerDisplayId: string): string {
-    const escaped = runnerDisplayId.replace(/'/g, '\'\\\'\'');
-    return `skytest start runner '${escaped}'`;
+    return buildRunnerPairCommand(token, serverUrl);
 }
 
 export default function TeamRunners({ teamId }: TeamRunnersProps) {

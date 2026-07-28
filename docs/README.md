@@ -13,6 +13,7 @@ This repository keeps durable documentation in two tracks:
 - [Android runtime deployment checklist](./operators/android-runtime-deployment-checklist.md)
 - [macOS Android runner guide](./operators/macos-android-runner-guide.md)
 - [macOS runner environment](./operators/macos-runner-environment.md)
+- [Slack app setup](./operators/slack-app-setup.md) and [importable app manifest](./operators/slack-app-manifest.yml)
 
 ## Maintainer References
 
@@ -26,6 +27,11 @@ This repository keeps durable documentation in two tracks:
 - [CLI release and Homebrew flow](./maintainers/cli-release-homebrew.md)
 - [Test case Excel import/export format](./maintainers/test-case-excel-format.md)
 - [Dependency lifecycle policy](./maintainers/dependency-lifecycle-policy.md)
+- [Dependency upgrade protocol](./maintainers/dependency-upgrade-protocol.md)
+- [Agent session rules](./maintainers/agent-session-rules.md)
+- [Repository hygiene](./maintainers/repository-hygiene.md)
+- [Scheduler worker](./maintainers/scheduler-worker.md)
+- [Slack notification architecture](./maintainers/slack-notification-architecture.md)
 
 ## Maintenance Rules
 

@@ -1,76 +1,28 @@
 # SkyTest Agent - AI Coding Guidelines
 
 ## Project Map
+
+Keep this map at the domain level. Package manifests and the source tree are the
+source of truth for individual files and dependency versions.
+
 ```
-apps/web/src/
-├── lib/                           # Backend domain modules + singletons
-│   ├── runtime/                   # Run lifecycle and execution
-│   │   ├── test-runner.ts         # Shared execution engine
-│   │   ├── android-runtime-helpers.ts  # Android device/ADB helpers
-│   │   ├── assertion-verifier.ts       # Quoted string verification
-│   │   ├── assertion-shortcuts.ts      # Assertion pattern detection
-│   │   ├── execution-files.ts          # Temp file materialization
-│   │   ├── playwright-code-execution.ts # Playwright code step runner
-│   │   ├── network-guard-summary.ts    # Network guard log emission
-│   │   ├── local-browser-runner.ts     # Browser runtime dispatch target
-│   │   ├── local-browser-runner-lifecycle.ts # Run state transitions (complete/fail/cancel)
-│   │   ├── local-browser-runner-parsers.ts # Snapshot/config parsers
-│   │   └── usage.ts               # API usage tracking
-│   ├── runners/                   # Runner orchestration + queueing services
-│   ├── android/                   # Android devices/emulators runtime
-│   ├── core/                      # Shared core modules (prisma/logger/errors)
-│   ├── security/                  # Authentication + security helpers
-│   │   ├── auth.ts
-│   │   ├── api-route-standards.ts      # Typed API error/success helpers
-│   │   ├── project-route-access.ts     # Project route guard
-│   │   ├── team-route-access.ts        # Team route guard
-│   │   └── test-case-route-access.ts   # Test case route guard
-│   ├── storage/                   # Object storage adapters + helpers
-│   ├── test-cases/                # Test case domain logic
-│   ├── test-config/               # Test config parsing/validation/sorting
-│   └── mcp/                       # MCP server/tooling
-│
-├── app/                           # Next.js App Router
-│   ├── api/                       # REST API endpoints
-│   │   ├── projects/              # Project CRUD + project configs
-│   │   ├── teams/                 # Team settings, members, runners, usage
-│   │   ├── runners/v1/            # Runner protocol endpoints
-│   │   ├── test-cases/            # Test case CRUD + files + history + export
-│   │   ├── test-runs/             # Run status, cancel, SSE events, dispatch
-│   │   ├── user/                  # User settings & API keys
-│   │   ├── mcp/                   # MCP transport endpoint
-│   │   └── health/                # Live/ready/dependencies probes
-│   ├── projects/                  # Project list & detail pages
-│   ├── teams/                     # Team settings pages
-│   ├── test-cases/[id]/           # Test case history views
-│   └── run/                       # Main test runner page
-│
-├── components/                    # React components (feature-first)
-│   ├── features/
-│   │   ├── test-builder/          # Test builder + step editing
-│   │   ├── test-configurations/   # Test-level config composition
-│   │   ├── project-configurations/# Project-level config management
-│   │   ├── test-files/            # File upload/list widgets
-│   │   ├── run-results/           # Run timeline + status + artifacts
-│   │   ├── test-cases/            # Test case list/detail UI
-│   │   ├── projects/              # Project list/detail UI
-│   │   ├── team-runners/          # Runner inventory + troubleshooting UI
-│   │   ├── team-members/          # Team membership UI
-│   │   ├── team-usage/            # Team usage UI
-│   │   └── team-ai/               # Team AI key/settings UI
-│   ├── shared/                    # Cross-feature reusable UI
-│   └── layout/                    # Page-level layout primitives
-│
-├── workers/                       # Long-running maintenance/dispatch loops
-│   ├── runner-maintenance.ts
-│   ├── browser-runner.ts
-│   └── loop-utils.ts              # Shared wake/signal/shutdown utilities
-│
-├── types/                         # TypeScript interfaces
-│   └── index.ts                   # All type exports
-│
-├── config/app.ts                  # App configuration
-└── i18n/messages.ts               # i18n keys (en/zh-Hant/zh-Hans)
+apps/
+├── web/                       # Next.js control plane, workers, and web-owned scripts
+│   └── src/
+│       ├── app/               # Pages and API routes
+│       ├── components/        # Feature-first and shared React UI
+│       ├── lib/               # Backend domain modules and shared services
+│       ├── workers/           # Maintenance and browser dispatch loops
+│       ├── config/            # Environment-backed application config
+│       ├── i18n/              # Locale definitions and message loading
+│       └── types/             # Shared TypeScript contracts
+├── cli/                       # skytest-runner CLI
+└── macos-runner/              # Android execution runtime
+packages/runner-protocol/      # Shared runner protocol contract
+infra/                         # Local services and bootstrap tooling
+docs/                          # Operator and maintainer documentation
+skills/                        # Installable agent workflows
+tools/                         # Development and release tooling
 ```
 
 ## Task Routing
@@ -85,7 +37,7 @@ apps/web/src/
 | Fix test case CRUD | `apps/web/src/app/api/test-cases/` | `apps/web/src/types/test.ts`, `apps/web/src/lib/test-cases/` |
 | Fix project CRUD/configs | `apps/web/src/app/api/projects/` | `apps/web/src/lib/core/prisma.ts` |
 | Fix team runners/members/usage | `apps/web/src/app/api/teams/` | `apps/web/src/components/features/team-runners/`, `apps/web/src/components/features/team-members/`, `apps/web/src/components/features/team-usage/` |
-| Fix Slack notification | `apps/web/src/lib/integrations/slack/notifier.ts` | `apps/web/src/lib/integrations/slack/subscriber.ts`, `apps/web/src/lib/integrations/slack/sweep.ts`, `apps/web/src/lib/runners/domain-events.ts` |
+| Fix Slack notification | `apps/web/src/lib/integrations/slack/notifier.ts` | `apps/web/src/lib/integrations/slack/subscriber.ts`, `apps/web/src/lib/integrations/slack/group-notifier.ts`, `apps/web/src/lib/runners/domain-events.ts` |
 | Fix authentication | `apps/web/src/lib/security/auth.ts` | `apps/web/src/app/api/`, `apps/web/src/lib/runners/auth.ts` |
 | Fix API route auth/access guards | `apps/web/src/lib/security/team-route-access.ts` | `apps/web/src/lib/security/project-route-access.ts`, `apps/web/src/lib/security/test-case-route-access.ts`, `apps/web/src/lib/security/api-route-standards.ts` |
 | Fix MCP tooling | `apps/web/src/lib/mcp/server-registry.ts` | `apps/web/src/lib/mcp/server-tools.ts`, `apps/web/src/lib/mcp/server-schemas.ts`, `apps/web/src/lib/mcp/server-auth.ts`, `apps/web/src/lib/mcp/server-response.ts`, `apps/web/src/lib/mcp/test-case-mutation-tools.ts`, `apps/web/src/app/api/mcp/route.ts` |
@@ -94,9 +46,13 @@ apps/web/src/
 | Attribute a verify failure | `apps/web/scripts/quality/explain-verify-failure.mjs` | `docs/maintainers/agent-session-rules.md` |
 
 ## Tech Stack
-- Next.js 16 (App Router), React 19, TailwindCSS 4
+
+Dependency versions are pinned in `package.json`, workspace manifests, and the
+`Dockerfile`; do not duplicate them here.
+
+- Next.js App Router, React, TailwindCSS
 - Prisma + PostgreSQL, Server-Sent Events
-- Playwright 1.57, Midscene.js
+- Playwright, Midscene.js
 
 ## Docs To Read First
 - `docs/maintainers/agent-session-rules.md` - Session rules for Claude and Codex (verify attribution, hotspot awareness, override workflow, force-push protocol)
@@ -153,6 +109,9 @@ If changing operator-facing runtime behavior, also read:
 
 ## Commands
 - `make bootstrap` - Install dependencies, start local services, and apply schema
+- `make clean` - Remove regenerable build, test, and TypeScript artifacts
+- `make clean-data` - Delete ignored local database and uploaded test data
+- `make clean-deps` - Remove workspace dependencies
 - `make dev` - Start local control plane with maintenance and browser worker loops
 - `make verify` - Run repository verification checks
 - `npm run dev` - Start dev server directly
@@ -257,11 +216,11 @@ return NextResponse.json({
 | Types | `apps/web/src/types/<category>.ts` + re-export in `index.ts` |
 | Worker | `apps/web/src/workers/<worker>.ts` |
 | Config | `apps/web/src/config/app.ts` |
-| i18n messages | `apps/web/src/i18n/messages.ts` (all three locales: en, zh-Hant, zh-Hans) |
+| i18n messages | `apps/web/src/i18n/locales/` (all three locales: en, zh-Hant, zh-Hans) |
 
 ## i18n Guidelines
 - All user-facing text must use i18n keys via `t('key.path')`
-- Add keys to all three locales in `apps/web/src/i18n/messages.ts`
+- Add keys to all three files in `apps/web/src/i18n/locales/`
 - Keep translations concise; avoid duplicate keys for minor variations
 - Use interpolation for dynamic values: `t('key', { name: value })`
 

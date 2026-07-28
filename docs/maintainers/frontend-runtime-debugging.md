@@ -104,7 +104,7 @@ When run dispatch fails before execution, validate local runtime config first:
 
 Quick validation flow:
 
-1. Run `npm run skytest -- init` in the checkout root to scaffold runtime config when file-backed runtime env is needed.
+1. Run `npm run skytest-runner -- init` in the checkout root to scaffold runtime config when file-backed runtime env is needed.
 2. Confirm run dispatch response includes validation details when runtime config is invalid.
 3. Confirm run dispatch still queues when runtime config is missing.
 4. Confirm run records include `instanceType`/`instanceName` for root vs worktree visibility.

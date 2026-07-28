@@ -6,7 +6,7 @@ Architecture summary:
 
 - the control plane runs locally or on Fly
 - browser runs execute in the control-plane process
-- Android runs execute on external macOS runners managed by `skytest`
+- Android runs execute on external macOS runners managed by `skytest-runner`
 - app installation on devices is manual
 
 Related docs:
@@ -36,7 +36,7 @@ Keep that process running in one terminal and use another terminal for runner se
 Install these prerequisites on the macOS host:
 
 - Xcode Command Line Tools
-- Node.js and npm, or the Homebrew `skytest` package
+- Node.js and npm, or the Homebrew `skytest-runner` package
 - JDK 17 or newer
 - Android Studio or Android SDK command-line tools
 
@@ -44,7 +44,7 @@ Install Homebrew CLI if you prefer package install:
 
 ```bash
 brew tap oursky/skytest
-brew install skytest
+brew install skytest-runner
 ```
 
 Install the Xcode tools if needed:
@@ -91,7 +91,7 @@ emulator -list-avds
 From source:
 
 ```bash
-npm run skytest -- pair runner "<pairing-token>" \
+npm run skytest-runner -- pair runner "<pairing-token>" \
   --url "<control-plane-url>" \
   --label "macOS Android Runner"
 ```
@@ -101,17 +101,17 @@ The pair command creates the local runner definition and starts the process imme
 Lifecycle commands:
 
 ```bash
-npm run skytest -- get runners
-npm run skytest -- start runner <runner-id>
-npm run skytest -- start runner <runner-id> --repair-token "<pairing-token>"
-npm run skytest -- stop runner <runner-id>
-npm run skytest -- logs runner <runner-id> --tail 200
-npm run skytest -- unpair runner <runner-id>
+npm run skytest-runner -- get runners
+npm run skytest-runner -- start runner <runner-id>
+npm run skytest-runner -- start runner <runner-id> --repair-token "<pairing-token>"
+npm run skytest-runner -- stop runner <runner-id>
+npm run skytest-runner -- logs runner <runner-id> --tail 200
+npm run skytest-runner -- unpair runner <runner-id>
 ```
 
 `<runner-id>` can be the local 6-character runner ID, the full runner ID shown in `Team Settings -> Runners`, or a unique prefix of either.
 
-For Homebrew installs, run the same commands directly with `skytest ...`.
+For Homebrew installs, run the same commands directly with `skytest-runner ...`.
 
 ## 5. Prepare Devices
 
@@ -137,26 +137,26 @@ emulator -list-avds
 
 ### `401` unauthorized on runner startup
 
-- If a runner was unpaired in web, the local CLI entry is now pruned automatically during `skytest get runners`, `skytest describe runner`, or `skytest start runner`.
+- If a runner was unpaired in web, the local CLI entry is pruned automatically during `skytest-runner get runners`, `skytest-runner describe runner`, or `skytest-runner start runner`.
 - Use a fresh pairing token to pair again:
 
 ```bash
-skytest pair runner "<pairing-token>" --url "<control-plane-url>"
+skytest-runner pair runner "<pairing-token>" --url "<control-plane-url>"
 ```
 
 - You can also recover in one step with:
 
 ```bash
-skytest start runner <runner-id> --repair-token "<pairing-token>"
+skytest-runner start runner <runner-id> --repair-token "<pairing-token>"
 ```
 
 ### `409` host fingerprint mismatch on runner startup
 
-- `skytest start runner` now auto-repairs host binding and continues startup.
+- `skytest-runner start runner` auto-repairs host binding and continues startup.
 - If startup still fails, inspect the runner log:
 
 ```bash
-skytest logs runner <runner-id> --tail 200
+skytest-runner logs runner <runner-id> --tail 200
 ```
 
 ### Runner connected but no devices shown
@@ -180,13 +180,13 @@ skytest logs runner <runner-id> --tail 200
 From source:
 
 ```bash
-npm run skytest -- reset --force
+npm run skytest-runner -- reset --force
 ```
 
 From Homebrew:
 
 ```bash
-skytest reset --force
-brew uninstall skytest
+skytest-runner reset --force
+brew uninstall skytest-runner
 rm -rf "$(brew --prefix)/var/skytest"
 ```

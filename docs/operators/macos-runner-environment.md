@@ -1,6 +1,6 @@
 # macOS Runner Environment
 
-This guide describes how `skytest start runner` resolves runner environment values for source and Homebrew installs.
+This guide describes how `skytest-runner start runner` resolves runner environment values for source and Homebrew installs.
 
 ## What The CLI Injects
 
@@ -41,7 +41,7 @@ The runner does not require `DATABASE_URL`.
 
 ## Resolution Order
 
-When `skytest start runner <runner-id>` launches the process, values are resolved in this order:
+When `skytest-runner start runner <runner-id>` launches the process, values are resolved in this order:
 
 1. built-in Midscene defaults
 2. env files, if present, in this order:
@@ -55,7 +55,7 @@ When `skytest start runner <runner-id>` launches the process, values are resolve
 
 ## Startup Repair Behavior
 
-`skytest start runner <runner-id>` now supports automatic recovery paths:
+`skytest-runner start runner <runner-id>` supports automatic recovery paths:
 
 - `409 host fingerprint mismatch`: runner host binding is repaired automatically.
 - `401 unauthorized`:
@@ -66,7 +66,7 @@ When `skytest start runner <runner-id>` launches the process, values are resolve
 Example with explicit repair token:
 
 ```bash
-skytest start runner <runner-id> --repair-token "<pairing-token>"
+skytest-runner start runner <runner-id> --repair-token "<pairing-token>"
 ```
 
 ## Source Install
@@ -98,7 +98,7 @@ SKYTEST_MIDSCENE_MODEL_TEMPERATURE=0.2
 Use a different file path only when you need it explicitly:
 
 ```bash
-SKYTEST_RUNNER_ENV_FILE=/path/to/runner.env skytest start runner <runner-id>
+SKYTEST_RUNNER_ENV_FILE=/path/to/runner.env skytest-runner start runner <runner-id>
 ```
 
 ## Reset
@@ -106,15 +106,15 @@ SKYTEST_RUNNER_ENV_FILE=/path/to/runner.env skytest start runner <runner-id>
 Source install:
 
 ```bash
-npm run skytest -- unpair runner <runner-id>
-npm run skytest -- reset --force
+npm run skytest-runner -- unpair runner <runner-id>
+npm run skytest-runner -- reset --force
 ```
 
 Homebrew install:
 
 ```bash
-skytest unpair runner <runner-id>
-skytest reset --force
+skytest-runner unpair runner <runner-id>
+skytest-runner reset --force
 ```
 
 `<runner-id>` can be the local 6-character runner ID, the full runner ID shown in `Team Settings -> Runners`, or a unique prefix of either.

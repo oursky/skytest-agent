@@ -74,11 +74,17 @@ make services-up
 make services-down
 make services-logs
 make runner-reset
+make clean
 make verify
 npm run --workspace @skytest/web smoke:storage
 ```
 
 Use `make app` and `make maintenance` in separate terminals when you want to run the control plane and workers independently. `make maintenance` also runs the scheduler tick.
+
+`make clean` removes only regenerable build and test artifacts. Use `make clean-data`
+or `make clean-deps` explicitly when you intend to delete the local database/uploads
+or installed workspace dependencies. Maintainers should keep these boundaries aligned
+with the [repository hygiene policy](../maintainers/repository-hygiene.md).
 
 ## Environment
 
@@ -103,7 +109,7 @@ Optional Slack notification local setup:
 
 SkyTest local runtime settings are checkout-scoped:
 
-- runtime config file: `.skytest/skytest.yaml` (tracked in git)
+- runtime config file: `.skytest/skytest.yaml` (generated locally; commit it only when the checkout should share a test catalog)
 - local identity lockfile: `.skytest/instance.lock.yaml` (ignored by git)
 
 The `.skytest` directory is resolved relative to the runtime root, which defaults
@@ -120,7 +126,7 @@ npm run skytest-runner -- init
 
 `skytest-runner init` is idempotent. It creates missing files and keeps existing files unchanged.
 
-`skytest.yaml` is for runtime and test catalog settings only. Auth/login setup is managed by CLI auth flows, not in `skytest.yaml`.
+`skytest.yaml` is not committed by default. It is for runtime and test catalog settings only; auth/login setup is managed by CLI auth flows.
 
 ## Local Default Seed Ownership
 

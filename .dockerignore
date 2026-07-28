@@ -1,11 +1,42 @@
+# Version control and local tooling
 .git
 .github
-.next
+.claude
+.idea
+.playwright-mcp
+.vscode
+plans
+
+# Dependencies and generated build output
 node_modules
-apps/web/.next
+**/node_modules
+.next
+**/.next
+coverage
+**/coverage
+dist
+**/dist
+out
+**/out
+*.tsbuildinfo
+**/next-env.d.ts
+
+# Test and runtime artifacts
+**/midscene_run
+**/uploads
+**/*.png
+!apps/web/public/**/*.png
+**/.skytest/instance.lock.yaml
+**/.skytest/local-up.pid
+**/.skytest/local-up.log
+**/.skytest/*.tmp
+.skytest-dev
+
+# Local data, environment, and OS files
 dev.db
+**/dev.db
 .env
 .env.*
 *.log
-coverage
-dist
+.DS_Store
+Thumbs.db

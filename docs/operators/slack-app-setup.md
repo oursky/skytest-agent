@@ -10,6 +10,8 @@ No Slack-specific environment variables are required. Notifications are active w
 
 ## 1) Create Slack App And Get Bot Token
 
+Create the app from the [SkyTest Slack app manifest](./slack-app-manifest.yml), or configure it manually:
+
 1. Open <https://api.slack.com/apps>.
 2. Go to **Features** -> **OAuth & Permissions**.
 3. Add **Bot Token Scopes**: `chat:write`, `channels:read`, `groups:read`, and `users:read`.
