@@ -26,18 +26,20 @@ is deliberately not overridable — the entrypoint hard-sets it per role.
 
 ## Platform-injected credentials
 
-`scripts/runtime/platform-env.sh` is sourced by both entrypoints. Where the orchestrator provisions
-Postgres and object storage itself and injects `SKYROCKET_*` variables, it maps them onto SkyTest's
-env contract so no credential has to be copied into a secret store by hand:
+`scripts/runtime/platform-env.sh` is sourced by both entrypoints. Some hosting platforms provision
+Postgres and object storage themselves and inject the connection details under their own environment
+prefix. Set `PLATFORM_CREDENTIAL_PREFIX` to that prefix (trailing underscore included) and the script
+maps them onto the names the application expects, so no credential is copied by hand into a secret
+store:
 
 | Injected | Becomes |
 |---|---|
-| `SKYROCKET_POSTGRES_URL` | `DATABASE_URL` + `connection_limit` / `pool_timeout` |
-| `SKYROCKET_S3_ENDPOINT_URL`, `…_REGION`, `…_PRIVATE_BUCKET_NAME`, `…_ACCESS_KEY`, `…_SECRET_KEY` | `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_FORCE_PATH_STYLE=true` |
+| `<PREFIX>POSTGRES_URL` | `DATABASE_URL` + `connection_limit` / `pool_timeout` |
+| `<PREFIX>S3_ENDPOINT_URL`, `…S3_REGION`, `…S3_PRIVATE_BUCKET_NAME`, `…S3_ACCESS_KEY`, `…S3_SECRET_KEY` | `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_FORCE_PATH_STYLE=true` |
 
 Explicit values always win — setting `DATABASE_URL` or `S3_ENDPOINT` yourself disables the mapping for
-that resource. With no `SKYROCKET_*` variables present the script is a no-op, so it changes nothing
-on platforms where you supply credentials directly.
+that resource. With no prefix configured the script is a no-op, so it changes nothing where you supply
+credentials directly.
 
 `SKYTEST_DB_CONNECTION_LIMIT` (default `2`) caps Prisma's pool **per process**. Every role opens its
 own pool, and a rolling update runs old and new containers concurrently, so peak connections are

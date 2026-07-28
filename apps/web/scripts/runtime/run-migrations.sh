@@ -15,7 +15,7 @@ if [[ ! -x "$BIN_DIR/prisma" ]]; then
 fi
 
 if [[ -z "${DATABASE_URL:-}" ]]; then
-    echo "[migrate] DATABASE_URL is unset and no SKYROCKET_POSTGRES_URL was injected" >&2
+    echo "[migrate] DATABASE_URL is unset and no platform credentials were mapped" >&2
     exit 78
 fi
 
