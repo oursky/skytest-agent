@@ -21,6 +21,13 @@ ENV NEXT_PUBLIC_SKYTEST_VERSION=$SKYTEST_VERSION
 
 RUN npm exec --workspace @skytest/web -- prisma generate
 RUN npm run build
+
+# Drop build-only artifacts before the runner stage copies apps/web. `.next/cache` alone is ~1.1 GB
+# of incremental-build state that `next start` never reads; Next recreates what it needs at runtime.
+# This has to happen here, not in the runner stage — deleting after COPY leaves the bytes in the
+# parent layer, so the image and every pull stay the same size.
+RUN rm -rf apps/web/.next/cache apps/web/.next/trace apps/web/tsconfig.tsbuildinfo
+
 RUN npm prune --omit=dev --workspaces --include-workspace-root
 
 FROM base AS runner
