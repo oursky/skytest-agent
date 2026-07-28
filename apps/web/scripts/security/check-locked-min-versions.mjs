@@ -8,11 +8,19 @@ const repoRoot = path.resolve(workspaceRoot, '../..');
 const lockfilePath = path.resolve(repoRoot, 'package-lock.json');
 
 const FLOORS = {
-    // GHSA-h67p-54hq-rp68 (merge-key quadratic DoS, patched in 4.2.0)
-    'js-yaml': '4.2.0',
-    '@modelcontextprotocol/sdk': '1.26.0',
-    // GHSA-v6h2-p8h4-qcjw
-    'brace-expansion': '5.0.6',
+    // GHSA-52cp-r559-cp3m (merge-key chain quadratic DoS, patched in 4.3.0)
+    'js-yaml': '4.3.0',
+    // GHSA-frvp-7c67-39w9 (encoded-backslash path traversal in the Hono Node adapter)
+    '@modelcontextprotocol/sdk': '1.30.0',
+    '@hono/node-server': '2.0.5',
+    // GHSA-3jxr-9vmj-r5cp, GHSA-mh99-v99m-4gvg
+    'brace-expansion': '5.0.8',
+    // Axios recursion, prototype-pollution, proxy, and streamed-upload advisory chain
+    'axios': '1.18.0',
+    // GHSA-v422-hmwv-36x6
+    'body-parser': '1.20.6',
+    // GHSA-v2hh-gcrm-f6hx, GHSA-4c8g-83qw-93j6
+    'fast-uri': '3.1.4',
     // GHSA-gh4j-gqv2-49f6
     '@aws-sdk/xml-builder': '3.972.19',
     'fast-xml-parser': '5.7.0',
@@ -33,14 +41,22 @@ const FLOORS = {
     'undici': '6.27.0',
     // GHSA-96hv-2xvq-fx4p (memory-exhaustion DoS from tiny fragments/chunks), patched in 8.21.0
     'ws': '8.21.0',
-    // DOMPurify IN_PLACE / hook-pollution / template-bypass chain, patched in 3.4.11
-    'dompurify': '3.4.11',
+    // DOMPurify hook/custom-element bypass chain, patched in 3.4.12
+    'dompurify': '3.4.12',
     // GHSA-hmw2-7cc7-3qxx (form-data multipart CRLF injection), patched in 4.0.6
     'form-data': '4.0.6',
     // GHSA-fx2h-pf6j-xcff (server.fs.deny bypass) + launch-editor UNC disclosure, patched in 7.3.5
     'vite': '7.3.5',
     // GHSA-g7r4-m6w7-qqqr (dev-server arbitrary file read on Windows), patched in 0.28.1
     'esbuild': '0.28.1',
+    // Next.js App Router security advisory chain, patched in 16.2.11
+    'next': '16.2.11',
+    // GHSA-r28c-9q8g-f849
+    'postcss': '8.5.18',
+    // GHSA-f88m-g3jw-g9cj
+    'sharp': '0.35.0',
+    // GHSA-395f-4hp3-45gv
+    'shell-quote': '1.9.0',
 };
 
 function parseSemver(version) {
