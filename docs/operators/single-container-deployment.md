@@ -76,8 +76,12 @@ pg_restore --no-owner --no-acl --dbname "$TARGET_DATABASE_URL" skytest-<timestam
 
 Two constraints worth knowing. The dump is buffered in memory for upload, which is why
 `SKYTEST_DB_BACKUP_MAX_BYTES` exists — past that the job refuses rather than risking an OOM, and the
-fix is a streaming upload rather than a bigger limit. And `pg_dump` must be at least the server's
-major version; the image ships client 17.
+fix is a streaming upload rather than a bigger limit. And `pg_dump` refuses to dump a server whose
+major version is newer than its own, so the image tracks the newest server we target — currently
+client 18. A newer client reads older servers fine; the reverse fails.
+
+Where the database is only reachable from inside the cluster, the restore has to run there too — as
+a one-off job using this same image, not from a workstation.
 
 **Drill the restore before you rely on it.** An untested backup is a guess.
 
