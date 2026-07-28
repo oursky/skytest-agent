@@ -142,6 +142,24 @@ const runnerArtifactRetentionBatchSize = parseBoundedIntEnv({
     min: 1,
     max: 2_000,
 });
+const databaseBackupIntervalHours = parseBoundedIntEnv({
+    name: 'SKYTEST_DB_BACKUP_INTERVAL_HOURS',
+    fallback: 24,
+    min: 1,
+    max: 24 * 30,
+});
+const databaseBackupRetentionDays = parseBoundedIntEnv({
+    name: 'SKYTEST_DB_BACKUP_RETENTION_DAYS',
+    fallback: 30,
+    min: 1,
+    max: 3_650,
+});
+const databaseBackupMaxBytes = parseBoundedIntEnv({
+    name: 'SKYTEST_DB_BACKUP_MAX_BYTES',
+    fallback: 512 * 1024 * 1024,
+    min: 1024 * 1024,
+    max: 8 * 1024 * 1024 * 1024,
+});
 const uiDeviceStatusPollIntervalMs = parseBoundedIntEnv({
     name: 'UI_DEVICE_STATUS_POLL_INTERVAL_MS',
     fallback: 10_000,
@@ -156,6 +174,7 @@ const playwrightCodeExpectTimeoutMs = parseBoundedIntEnv({
 });
 const browserWorkerEnabled = process.env.SKYTEST_BROWSER_WORKER === 'true';
 const schedulerWorkerEnabled = process.env.SKYTEST_SCHEDULER === 'true';
+const databaseBackupEnabled = parseBooleanEnv('SKYTEST_DB_BACKUP_ENABLED', false);
 const midsceneGenerateReport = process.env.SKYTEST_MIDSCENE_GENERATE_REPORT === 'true';
 const midsceneAutoPrintReportMsg = process.env.SKYTEST_MIDSCENE_AUTO_PRINT_REPORT_MSG === 'true';
 const s3ForcePathStyle = parseBooleanEnv('S3_FORCE_PATH_STYLE', false);
@@ -207,6 +226,15 @@ export const config = {
         eventRetentionDays: runnerEventRetentionDays,
         artifactRetentionDays: runnerArtifactRetentionDays,
         artifactRetentionBatchSize: runnerArtifactRetentionBatchSize,
+    },
+
+    databaseBackup: {
+        // Off by default: only enable where the platform does not back the database up itself.
+        enabled: databaseBackupEnabled,
+        intervalHours: databaseBackupIntervalHours,
+        retentionDays: databaseBackupRetentionDays,
+        maxBytes: databaseBackupMaxBytes,
+        objectPrefix: 'backups/',
     },
 
     browserWorker: {

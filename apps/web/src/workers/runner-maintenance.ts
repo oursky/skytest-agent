@@ -1,4 +1,5 @@
 import { config as appConfig } from '@/config/app';
+import { runDatabaseBackupIfDue } from '@/lib/backup/database-backup';
 import { createLogger } from '@/lib/core/logger';
 import { prisma } from '@/lib/core/prisma';
 import { registerSlackSubscriber, registerSlackGroupSubscriber } from '@/lib/integrations/slack/subscriber';
@@ -63,6 +64,23 @@ async function runMaintenanceCycle() {
     }
 }
 
+async function runDatabaseBackupSafely() {
+    try {
+        const result = await runDatabaseBackupIfDue();
+        if (result.performed) {
+            logger.info('Database backup completed', {
+                key: result.key,
+                bytes: result.bytes,
+                prunedBackups: result.prunedKeys.length,
+            });
+        }
+    } catch (error) {
+        logger.warn('Database backup failed', {
+            error: error instanceof Error ? error.message : String(error),
+        });
+    }
+}
+
 async function runSchedulerTickSafely() {
     if (!appConfig.scheduler.enabled) {
         return;
@@ -88,12 +106,15 @@ async function main() {
         artifactRetentionBatchSize: appConfig.runner.artifactRetentionBatchSize,
         schedulerEnabled: appConfig.scheduler.enabled,
         schedulerMaxDuePerTick: appConfig.scheduler.maxDuePerTick,
+        databaseBackupEnabled: appConfig.databaseBackup.enabled,
+        databaseBackupIntervalHours: appConfig.databaseBackup.intervalHours,
     });
 
     const runOnce = process.env.RUNNER_MAINTENANCE_ONCE === 'true';
     if (runOnce) {
         await runMaintenanceCycle();
         await runSchedulerTickSafely();
+        await runDatabaseBackupSafely();
         return;
     }
 
@@ -111,6 +132,7 @@ async function main() {
         }
 
         await runSchedulerTickSafely();
+        await runDatabaseBackupSafely();
 
         if (!shutdown.isShutdownRequested()) {
             await sleeper.sleepOrWake(nextIntervalMs);

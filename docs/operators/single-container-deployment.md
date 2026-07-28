@@ -50,6 +50,37 @@ job so a failed migration stops the rollout and the app never starts against a s
 built for. It resolves credentials through the same `platform-env.sh` mapping, and exits `78` if no
 database URL or Prisma CLI is available.
 
+## Database backups
+
+The `maintenance` role can take a periodic `pg_dump` and upload it to object storage. It is **off by
+default** — enable it only where the platform does not back the database up for you.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `SKYTEST_DB_BACKUP_ENABLED` | `false` | Master switch |
+| `SKYTEST_DB_BACKUP_INTERVAL_HOURS` | `24` | Minimum gap between dumps |
+| `SKYTEST_DB_BACKUP_RETENTION_DAYS` | `30` | Age at which dumps are deleted |
+| `SKYTEST_DB_BACKUP_MAX_BYTES` | `512 MiB` | Refuses to upload beyond this |
+
+Dumps land under `backups/` in the same bucket, alongside a `backups/manifest.json` that records what
+exists and when. The manifest is what makes the schedule survive restarts — there is no extra table
+and no separate cron container. Credentials reach `pg_dump` through `PG*` environment variables, so
+the password never appears in the process list.
+
+Restore with `pg_restore` against an empty database:
+
+```bash
+aws s3 cp s3://<bucket>/backups/skytest-<timestamp>.dump . --endpoint-url "$S3_ENDPOINT"
+pg_restore --no-owner --no-acl --dbname "$TARGET_DATABASE_URL" skytest-<timestamp>.dump
+```
+
+Two constraints worth knowing. The dump is buffered in memory for upload, which is why
+`SKYTEST_DB_BACKUP_MAX_BYTES` exists — past that the job refuses rather than risking an OOM, and the
+fix is a streaming upload rather than a bigger limit. And `pg_dump` must be at least the server's
+major version; the image ships client 17.
+
+**Drill the restore before you rely on it.** An untested backup is a guess.
+
 ## Invariants the supervisor enforces
 
 **At most one `worker` across the whole deployment.** Browser runs execute in-process and their

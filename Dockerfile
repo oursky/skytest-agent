@@ -36,8 +36,17 @@ WORKDIR /app/apps/web
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# pg_dump must be at least the server's major version, and jammy only ships client 14, so pull the
+# client from the PostgreSQL project's own repository. Used by the maintenance loop's backup job.
+RUN install -d /usr/share/postgresql-common/pgdg \
+  && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+       -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+  && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] http://apt.postgresql.org/pub/repos/apt jammy-pgdg main" \
+       > /etc/apt/sources.list.d/pgdg.list
+
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
+    postgresql-client-17 \
     dirmngr \
     gnupg \
     gnupg-l10n \
