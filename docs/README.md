@@ -9,6 +9,7 @@ This repository keeps durable documentation in two tracks:
 
 - [Local development](./operators/local-development.md)
 - [Infrastructure and local services](../infra/README.md)
+- [Single-container deployment](./operators/single-container-deployment.md)
 - [Android runtime deployment checklist](./operators/android-runtime-deployment-checklist.md)
 - [macOS Android runner guide](./operators/macos-android-runner-guide.md)
 - [macOS runner environment](./operators/macos-runner-environment.md)
