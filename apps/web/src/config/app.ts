@@ -245,6 +245,9 @@ export const config = {
                 '--disable-default-apps',
                 '--password-store=basic',
                 '--use-mock-keychain',
+                // Containers default to a 64 MiB /dev/shm, which Chromium exhausts and then crashes
+                // tabs on. VMs size it generously, which is why this only bites under Kubernetes.
+                '--disable-dev-shm-usage',
             ] as string[],
         },
         screenshot: {

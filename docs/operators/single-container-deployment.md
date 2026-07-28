@@ -24,6 +24,32 @@ Set `SKYTEST_SCHEDULER=false` to pause automated schedules while keeping lease r
 the `maintenance` role defaults it to `true` but honours an explicit value. `SKYTEST_BROWSER_WORKER`
 is deliberately not overridable — the entrypoint hard-sets it per role.
 
+## Platform-injected credentials
+
+`scripts/runtime/platform-env.sh` is sourced by both entrypoints. Where the orchestrator provisions
+Postgres and object storage itself and injects `SKYROCKET_*` variables, it maps them onto SkyTest's
+env contract so no credential has to be copied into a secret store by hand:
+
+| Injected | Becomes |
+|---|---|
+| `SKYROCKET_POSTGRES_URL` | `DATABASE_URL` + `connection_limit` / `pool_timeout` |
+| `SKYROCKET_S3_ENDPOINT_URL`, `…_REGION`, `…_PRIVATE_BUCKET_NAME`, `…_ACCESS_KEY`, `…_SECRET_KEY` | `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_FORCE_PATH_STYLE=true` |
+
+Explicit values always win — setting `DATABASE_URL` or `S3_ENDPOINT` yourself disables the mapping for
+that resource. With no `SKYROCKET_*` variables present the script is a no-op, so it changes nothing
+on platforms where you supply credentials directly.
+
+`SKYTEST_DB_CONNECTION_LIMIT` (default `2`) caps Prisma's pool **per process**. Every role opens its
+own pool, and a rolling update runs old and new containers concurrently, so peak connections are
+roughly `roles × limit × 2`. Size it against the database's connection budget.
+
+## Applying migrations
+
+`scripts/runtime/run-migrations.sh` runs `prisma migrate deploy` and exits. Run it as a pre-deploy
+job so a failed migration stops the rollout and the app never starts against a schema it was not
+built for. It resolves credentials through the same `platform-env.sh` mapping, and exits `78` if no
+database URL or Prisma CLI is available.
+
 ## Invariants the supervisor enforces
 
 **At most one `worker` across the whole deployment.** Browser runs execute in-process and their

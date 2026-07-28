@@ -22,6 +22,9 @@ set -uo pipefail
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)" || exit 1
 cd "$APP_DIR" || exit 1
 
+# shellcheck source=./platform-env.sh
+source "$APP_DIR/scripts/runtime/platform-env.sh"
+
 BIN_DIR="$(cd "$APP_DIR/../.." && pwd)/node_modules/.bin"
 if [[ ! -x "$BIN_DIR/next" ]]; then
     BIN_DIR="$APP_DIR/node_modules/.bin"
