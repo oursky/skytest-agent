@@ -126,6 +126,9 @@ const mcpCreateTestCaseSchema = z.object({
         url: z.string().describe('Target URL'),
         width: z.number().optional().describe('Viewport width'),
         height: z.number().optional().describe('Viewport height'),
+        loginFlowId: z.string().optional().describe('Test case ID of the login flow that authenticates this target'),
+        reuseGroupSession: z.boolean().optional().describe('Inside a Test Group, reuse the session already established by the login flow instead of logging in again'),
+        webauthnVirtualAuthenticator: z.boolean().optional().describe('Install a virtual WebAuthn authenticator so passkey login/registration works in headless runs'),
     })).optional().describe('Import-style browser targets'),
     androidTargets: z.array(z.object({
         id: z.string().optional().describe('Optional target ID'),
@@ -207,6 +210,13 @@ export function registerTestCaseMutationTools(server: McpServer): void {
                         url: target.url,
                         width: target.width,
                         height: target.height,
+                        ...(target.loginFlowId ? { loginFlowId: target.loginFlowId } : {}),
+                        ...(typeof target.reuseGroupSession === 'boolean'
+                            ? { reuseGroupSession: target.reuseGroupSession }
+                            : {}),
+                        ...(typeof target.webauthnVirtualAuthenticator === 'boolean'
+                            ? { webauthnVirtualAuthenticator: target.webauthnVirtualAuthenticator }
+                            : {}),
                     });
                 }
             }

@@ -69,6 +69,7 @@ So a single member reaching `PASS` does **not** mean the whole session finished.
 - If a test-case variable matches an existing project-level config (same type and value), it is skipped with a warning naming the matching project variable.
 - Android device names are resolved against runner-synced team inventory. If no match is found, the test case is still created but the response includes a warning so the caller can confirm with the user.
 - Android targets may include optional `runnerId` for runner-scoped device targeting.
+- Browser targets may include optional `loginFlowId`, `reuseGroupSession`, and `webauthnVirtualAuthenticator`. `webauthnVirtualAuthenticator` installs a virtual WebAuthn authenticator; passkey (WebAuthn) steps cannot complete in headless runs without it. `reuseGroupSession` only takes effect on a target that also has a `loginFlowId`.
 
 ### update_test_case
 
