@@ -47,19 +47,31 @@ reads it back, tolerating the leading export-folder prefix):
 Row-based table with sections such as `Basic Info` / `Test Case`,
 `Project Variable`, `Test Case Variable`, and `File`.
 
-Basic Info rows include `Test Case Name`, `Test Case ID`, and `Kind` (`TEST` or
-`LOGIN_FLOW`, carried in the `Name` column). Variable rows use `Section`, `Type`,
+Basic Info rows include `Test Case Name`, `Test Case ID`, `Kind` (`TEST` or
+`LOGIN_FLOW`), `Primary URL`, and `Prompt` — all carried in the `Name` column.
+`Prompt` preserves line breaks and is the whole test definition for prompt-mode
+cases. An absent `Prompt` row (workbooks exported before it existed) means
+"unknown": re-importing over an existing case leaves that case's prompt intact
+rather than clearing it. Variable rows use `Section`, `Type`,
 `Name`, `Value`, and `Masked` (`Y` when a `Variable` is masked). FILE rows also
 carry `Mime Type` and `Size`, and their `Value` is the original filename used to
 match the bundled content under `config-files/` or `project-config-files/`.
 
 ## Browser Targets Sheet
 
-- Columns: `Target`, `Name`, `URL`, `Width`, `Height`, `Login Flow`
+- Columns: `Target`, `Name`, `URL`, `Width`, `Height`, `Login Flow`,
+  `Reuse Session`, `Passkey`
 - `Target` labels are generated (for example `Browser A`, `Browser B`)
 - `Login Flow` stores the **displayId** of the referenced login flow test case,
   so the link survives import into a different project. Import resolves it back to
   a real test case id (see Import Behavior).
+- `Reuse Session` (`Yes`/`No`) carries the test-group session reuse flag. It only
+  takes effect on a target that also has a `Login Flow`.
+- `Passkey` (`Yes`/`No`) carries the virtual WebAuthn authenticator flag, without
+  which passkey steps cannot complete in headless runs.
+- Both flag columns are optional on import: an empty or missing column (workbooks
+  exported before the column existed) leaves the flag unset rather than forcing
+  `No`.
 
 ## Android Targets Sheet
 
@@ -80,7 +92,7 @@ match the bundled content under `config-files/` or `project-config-files/`.
 
 Import (`POST /api/projects/[id]/test-cases/batch-import`, single `.zip`) does:
 
-- import test case metadata (name, test case ID, kind)
+- import test case metadata (name, test case ID, kind, primary URL, prompt)
 - import targets (browser + Android), test steps, and supported variables
   (`Masked` flag and browser `Width`/`Height` preserved)
 - restore uploaded attachments from `test-cases/{base}/files/` into object storage
@@ -117,7 +129,8 @@ stays a warning and must be uploaded manually.
 Export (`POST /api/projects/[id]/test-cases/export`, batch) produces the zip
 above:
 
-- per-case `Configurations`, `Browser Targets` (incl. `Login Flow`),
+- per-case `Configurations`, `Browser Targets` (incl. `Login Flow`,
+  `Reuse Session`, and `Passkey`),
   `Android Targets`, and `Test Steps`
 - actual attachment content and FILE-variable content bundled alongside each
   workbook

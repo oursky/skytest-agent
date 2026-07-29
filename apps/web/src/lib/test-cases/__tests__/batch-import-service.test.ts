@@ -8,6 +8,9 @@ const mocks = vi.hoisted(() => ({
     testCaseFindMany: vi.fn(),
     getTeamDevicesAvailability: vi.fn(),
     parseTestCaseExcel: vi.fn(),
+    testCaseUpdate: vi.fn(),
+    testCaseCreate: vi.fn(),
+    transaction: vi.fn(),
 }));
 
 vi.mock('@/lib/core/prisma', () => ({
@@ -21,7 +24,7 @@ vi.mock('@/lib/core/prisma', () => ({
         testCase: {
             findMany: mocks.testCaseFindMany,
         },
-        $transaction: vi.fn(),
+        $transaction: mocks.transaction,
     },
 }));
 
@@ -232,5 +235,68 @@ describe('processProjectBatchImport Android runner/device validation', () => {
                 }),
             ])
         );
+    });
+});
+
+describe('processProjectBatchImport prompt handling on re-import', () => {
+    beforeEach(() => {
+        mocks.projectFindUnique.mockReset();
+        mocks.runnerFindMany.mockReset();
+        mocks.testCaseFindMany.mockReset();
+        mocks.getTeamDevicesAvailability.mockReset();
+        mocks.parseTestCaseExcel.mockReset();
+        mocks.testCaseUpdate.mockReset();
+        mocks.testCaseCreate.mockReset();
+        mocks.transaction.mockReset();
+
+        mocks.projectFindUnique.mockResolvedValue({ teamId: 'team-1' });
+        mocks.runnerFindMany.mockResolvedValue([]);
+        mocks.getTeamDevicesAvailability.mockResolvedValue({ devices: [] });
+        mocks.testCaseFindMany.mockResolvedValue([{ id: 'tc-1', displayId: 'TC-1' }]);
+        mocks.testCaseCreate.mockResolvedValue({ id: 'tc-1' });
+        mocks.transaction.mockImplementation(async (run: (tx: unknown) => Promise<string>) => run({
+            testCase: { update: mocks.testCaseUpdate, create: mocks.testCaseCreate },
+        }));
+    });
+
+    async function importBrowserCase(prompt: string | undefined) {
+        mocks.parseTestCaseExcel.mockResolvedValue({
+            data: {
+                testCaseId: 'TC-1',
+                testData: {
+                    name: 'Prompt Case',
+                    displayId: 'TC-1',
+                    url: 'https://example.com',
+                    ...(prompt !== undefined ? { prompt } : {}),
+                    steps: [{ id: 'step_1', target: 'browser_a', action: 'Open' }] as TestStep[],
+                    browserConfig: { browser_a: { url: 'https://example.com', width: 1280, height: 720 } },
+                },
+                projectVariables: [],
+                testCaseVariables: [],
+                files: [],
+            },
+            warnings: [],
+            issues: [],
+        } as ParseResult);
+
+        return processProjectBatchImport({
+            projectId: 'project-1',
+            mode: 'import-valid',
+            files: [{ filename: 'case.xlsx', content: new Uint8Array([1]).buffer }],
+        });
+    }
+
+    it('keeps the existing prompt when the workbook carries no Prompt row', async () => {
+        await importBrowserCase(undefined);
+
+        expect(mocks.testCaseUpdate).toHaveBeenCalledTimes(1);
+        expect(mocks.testCaseUpdate.mock.calls[0][0].data).not.toHaveProperty('prompt');
+    });
+
+    it('writes the prompt when the workbook carries one', async () => {
+        await importBrowserCase('Log in and check the dashboard');
+
+        expect(mocks.testCaseUpdate).toHaveBeenCalledTimes(1);
+        expect(mocks.testCaseUpdate.mock.calls[0][0].data.prompt).toBe('Log in and check the dashboard');
     });
 });

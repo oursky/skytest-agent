@@ -43,6 +43,8 @@ interface ExcelTargetEntry {
 export interface TestCaseExcelExportData {
     name?: string;
     testCaseId?: string;
+    url?: string;
+    prompt?: string;
     steps?: TestStep[];
     browserConfig?: Record<string, BrowserConfig | TargetConfig>;
     projectVariables?: ExcelProjectVariable[];
@@ -61,7 +63,9 @@ export interface ParsedTestCaseExcel {
         displayId?: string;
         kind?: string;
         url: string;
-        prompt: string;
+        // Undefined when the workbook carries no Prompt row at all (exports predating
+        // the column). Import treats that as "unknown", not as "clear the prompt".
+        prompt?: string;
         steps?: TestStep[];
         browserConfig?: Record<string, BrowserConfig | TargetConfig>;
     };
@@ -131,7 +135,6 @@ export async function parseTestCaseExcel(content: ArrayBuffer): Promise<ParseRes
     const emptyData: ParsedTestCaseExcel = {
         testData: {
             url: '',
-            prompt: '',
         },
         projectVariables: [],
         testCaseVariables: [],
@@ -187,7 +190,7 @@ export async function parseTestCaseExcel(content: ArrayBuffer): Promise<ParseRes
                 displayId: parsedTestCase.testCaseId,
                 kind: parsedTestCase.kind,
                 url: (firstBrowserEntry?.config as BrowserConfig | undefined)?.url || parsedTestCase.primaryUrl || '',
-                prompt: '',
+                prompt: parsedTestCase.prompt,
                 steps: steps.length > 0 ? steps : undefined,
                 browserConfig: Object.keys(targetConfig).length > 0 ? targetConfig : undefined,
             },
@@ -267,6 +270,8 @@ function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
         { Section: 'Basic Info', Type: 'Test Case Name', Name: data.name || '', Value: '' },
         { Section: 'Basic Info', Type: 'Test Case ID', Name: data.testCaseId || '', Value: '' },
         { Section: 'Basic Info', Type: 'Kind', Name: data.kind || 'TEST', Value: '' },
+        { Section: 'Basic Info', Type: 'Primary URL', Name: data.url || '', Value: '' },
+        { Section: 'Basic Info', Type: 'Prompt', Name: normalizeLineBreaks(data.prompt || ''), Value: '' },
         ...projectVariableRows,
         ...testCaseVariableRows,
         ...testFileRows,
@@ -287,6 +292,8 @@ function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
             Width: String(normalizedBrowserConfig.width),
             Height: String(normalizedBrowserConfig.height),
             'Login Flow': loginFlowReference,
+            'Reuse Session': normalizedBrowserConfig.reuseGroupSession ? 'Yes' : 'No',
+            Passkey: normalizedBrowserConfig.webauthnVirtualAuthenticator ? 'Yes' : 'No',
         }];
     });
     const androidTargetRows: Array<Record<string, string>> = targetEntries.flatMap((entry) => {
@@ -314,7 +321,7 @@ function buildWorkbook(data: TestCaseExcelExportData): ExcelJS.Workbook {
         ['Section', 'Type', 'Name', 'Value', 'Masked', 'Mime Type', 'Size']
     );
     if (browserTargetRows.length > 0) {
-        appendRowsAsWorksheet(workbook, 'Browser Targets', browserTargetRows, ['Target', 'Name', 'URL', 'Width', 'Height', 'Login Flow']);
+        appendRowsAsWorksheet(workbook, 'Browser Targets', browserTargetRows, ['Target', 'Name', 'URL', 'Width', 'Height', 'Login Flow', 'Reuse Session', 'Passkey']);
     }
     if (androidTargetRows.length > 0) {
         appendRowsAsWorksheet(
@@ -361,7 +368,7 @@ function parseConfigurationsRows(
     warnings: string[],
     issues: TestCaseExcelIssue[]
 ): {
-    testCase: { name?: string; testCaseId?: string; primaryUrl?: string; kind?: string };
+    testCase: { name?: string; testCaseId?: string; primaryUrl?: string; prompt?: string; kind?: string };
     projectVariables: ExcelProjectVariable[];
     testCaseVariables: ExcelProjectVariable[];
     files: ExcelFileEntry[];
@@ -380,6 +387,11 @@ function parseConfigurationsRows(
 
         if (section === 'basicinfo' || section === 'testcase') {
             const type = normalizeHeader(getRowValue(row, ['type']) || '');
+            if (type === 'prompt') {
+                const value = getRowMultilineValue(row, ['name']) || '';
+                if (value.trim()) fieldMap.set(type, value);
+                return;
+            }
             if (type === 'testcasename' || type === 'testcaseid' || type === 'primaryurl' || type === 'kind') {
                 const value = getRowValue(row, ['name']) || '';
                 if (type && value) fieldMap.set(type, value);
@@ -524,6 +536,7 @@ function parseConfigurationsRows(
             name: fieldMap.get('testcasename') || fieldMap.get('name'),
             testCaseId: fieldMap.get('testcaseid'),
             primaryUrl: fieldMap.get('primaryurl'),
+            prompt: fieldMap.get('prompt'),
             kind: fieldMap.get('kind'),
         },
         projectVariables,
@@ -550,6 +563,8 @@ function parseBrowserTargetRows(
         const width = parseDimensionValue(getRowValue(row, ['width']));
         const height = parseDimensionValue(getRowValue(row, ['height']));
         const loginFlowRef = getRowValue(row, ['login flow', 'loginflow']) || '';
+        const reuseSessionCell = getRowValue(row, ['reuse session', 'reusesession', 'reusegroupsession', 'reusetestgrouploginsession']);
+        const passkeyCell = getRowValue(row, ['passkey', 'testpasskeylogin', 'virtualwebauthn', 'webauthn']);
         const rawTarget = getRowValue(row, ['target']);
         if (!url) {
             addParseIssue(warnings, issues, {
@@ -574,6 +589,8 @@ function parseBrowserTargetRows(
                 width,
                 height,
                 ...(loginFlowRef ? { loginFlowId: loginFlowRef } : {}),
+                ...(reuseSessionCell ? { reuseGroupSession: parseBooleanCell(reuseSessionCell, false) } : {}),
+                ...(passkeyCell ? { webauthnVirtualAuthenticator: parseBooleanCell(passkeyCell, false) } : {}),
             })
         });
 

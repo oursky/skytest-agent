@@ -169,6 +169,8 @@ export async function POST(
                 name: parsedTestCase.name,
                 testCaseId: parsedTestCase.displayId || undefined,
                 kind: testCase.kind,
+                url: parsedTestCase.url || undefined,
+                prompt: parsedTestCase.prompt || undefined,
                 steps: parsedTestCase.steps,
                 browserConfig: parsedTestCase.browserConfig,
                 loginFlowDisplayIdById,

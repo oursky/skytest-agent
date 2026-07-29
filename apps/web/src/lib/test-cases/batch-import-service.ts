@@ -691,7 +691,7 @@ async function importCandidate(
                     displayId: targetDisplayId || null,
                     kind: candidate.kind,
                     url: testData.url || 'about:blank',
-                    prompt: testData.prompt || '',
+                    ...(testData.prompt !== undefined ? { prompt: testData.prompt } : {}),
                     steps: cleanedSteps ? JSON.stringify(cleanedSteps) : null,
                     browserConfig: normalizedTargetConfig ? JSON.stringify(normalizedTargetConfig) : null,
                     status: TEST_STATUS.DRAFT,
