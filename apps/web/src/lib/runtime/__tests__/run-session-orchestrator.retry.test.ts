@@ -10,6 +10,7 @@ import { TEST_CASE_KIND, TEST_GROUP_RETRY_POLICY, TEST_STATUS } from '@/types';
  */
 interface Row {
     id: string;
+    runSessionId: string;
     testCaseId: string;
     kind: string;
     sessionPosition: number;
@@ -19,6 +20,8 @@ interface Row {
     triggeredByEmail: string | null;
     triggerSource: string;
 }
+
+const SESSION_ID = 'session-1';
 
 const mocks = vi.hoisted(() => ({
     runSessionFindUnique: vi.fn(),
@@ -127,9 +130,28 @@ function seedRows(setup: GroupSetup): void {
         ...(setup.loginFlows ?? []).map((id) => ({ id, kind: TEST_CASE_KIND.LOGIN_FLOW })),
         ...setup.cases.map((id) => ({ id, kind: TEST_CASE_KIND.TEST })),
     ];
+    // A decoy attempt of the same case in a different session, with a far higher attempt number.
+    // Every query is session-scoped, so nothing may ever see it; a query that drops the scope
+    // numbers its next attempt from 9 and fails loudly instead of coincidentally being right.
+    const [firstMember] = members;
+    if (firstMember) {
+        rows.push({
+            id: 'decoy-other-session',
+            runSessionId: 'other-session',
+            testCaseId: firstMember.id,
+            kind: firstMember.kind,
+            sessionPosition: 0,
+            attempt: 9,
+            status: TEST_STATUS.FAIL,
+            requiredCapability: 'ANDROID',
+            triggeredByEmail: null,
+            triggerSource: 'SCHEDULE',
+        });
+    }
     members.forEach((member, index) => {
         rows.push({
             id: `${member.id}#1`,
+            runSessionId: SESSION_ID,
             testCaseId: member.id,
             kind: member.kind,
             sessionPosition: index,
@@ -161,7 +183,37 @@ function matchesWhere(row: Row, where: Record<string, unknown> | undefined): boo
     if (caseFilter?.in && !caseFilter.in.includes(row.testCaseId)) {
         return false;
     }
+    // Honoured rather than assumed: a query that forgets to scope by session then reads the
+    // other session's rows seeded below, instead of quietly getting the right answer anyway.
+    if (typeof where.runSessionId === 'string' && row.runSessionId !== where.runSessionId) {
+        return false;
+    }
     return true;
+}
+
+/**
+ * Applies the caller's own orderBy instead of hardcoding the order each query happens to want, so
+ * flipping a production sort direction shows up here as a wrong result rather than being masked.
+ */
+function orderRows(
+    matched: Row[],
+    orderBy: { attempt?: 'asc' | 'desc' } | { sessionPosition?: 'asc' | 'desc' }[] | undefined,
+): Row[] {
+    const clauses = (Array.isArray(orderBy) ? orderBy : [orderBy]).filter(Boolean) as Record<string, 'asc' | 'desc'>[];
+    if (clauses.length === 0) {
+        return matched;
+    }
+    return [...matched].sort((left, right) => {
+        for (const clause of clauses) {
+            for (const [field, direction] of Object.entries(clause)) {
+                const delta = Number(left[field as keyof Row]) - Number(right[field as keyof Row]);
+                if (delta !== 0) {
+                    return direction === 'desc' ? -delta : delta;
+                }
+            }
+        }
+        return 0;
+    });
 }
 
 function installPrismaFake(setup: GroupSetup): void {
@@ -181,20 +233,19 @@ function installPrismaFake(setup: GroupSetup): void {
 
     mocks.testRunFindMany.mockImplementation(async (args: {
         where?: Record<string, unknown>;
+        orderBy?: { attempt?: 'asc' | 'desc' } | { sessionPosition?: 'asc' | 'desc' }[];
         select?: Record<string, boolean>;
     }) => {
-        const matched = rows.filter((row) => matchesWhere(row, args.where));
+        const matched = orderRows(rows.filter((row) => matchesWhere(row, args.where)), args.orderBy);
         const select = args.select ?? {};
         if (select.requiredCapability) {
-            return [...matched]
-                .sort((a, b) => b.attempt - a.attempt)
-                .map((row) => ({
-                    testCaseId: row.testCaseId,
-                    attempt: row.attempt,
-                    requiredCapability: row.requiredCapability,
-                    triggeredByEmail: row.triggeredByEmail,
-                    triggerSource: row.triggerSource,
-                }));
+            return matched.map((row) => ({
+                testCaseId: row.testCaseId,
+                attempt: row.attempt,
+                requiredCapability: row.requiredCapability,
+                triggeredByEmail: row.triggeredByEmail,
+                triggerSource: row.triggerSource,
+            }));
         }
         if (select.attempt) {
             return matched.map((row) => ({
@@ -205,15 +256,13 @@ function installPrismaFake(setup: GroupSetup): void {
                 status: row.status,
             }));
         }
-        return [...matched]
-            .sort((a, b) => a.sessionPosition - b.sessionPosition || a.attempt - b.attempt)
-            .map((row) => ({
-                id: row.id,
-                sessionPosition: row.sessionPosition,
-                testCaseId: row.testCaseId,
-                kind: row.kind,
-                reusedSession: false,
-            }));
+        return matched.map((row) => ({
+            id: row.id,
+            sessionPosition: row.sessionPosition,
+            testCaseId: row.testCaseId,
+            kind: row.kind,
+            reusedSession: false,
+        }));
     });
 
     mocks.testRunUpdateMany.mockImplementation(async (args: {
@@ -231,14 +280,18 @@ function installPrismaFake(setup: GroupSetup): void {
 
     mocks.testRunFindUnique.mockImplementation(async (args: { where: { id: string } }) => {
         const row = rows.find((candidate) => candidate.id === args.where.id);
-        return row ? { status: row.status, runSessionId: 'session-1' } : null;
+        return row ? { status: row.status, runSessionId: SESSION_ID } : null;
     });
 
     mocks.testRunCreate.mockImplementation(async (args: {
-        data: { testCaseId: string; sessionPosition: number; attempt: number; kind: string; status: string };
+        data: {
+            runSessionId: string; testCaseId: string; sessionPosition: number;
+            attempt: number; kind: string; status: string;
+        };
     }) => {
         const row: Row = {
             id: `${args.data.testCaseId}#${args.data.attempt}`,
+            runSessionId: args.data.runSessionId,
             testCaseId: args.data.testCaseId,
             kind: args.data.kind,
             sessionPosition: args.data.sessionPosition,
@@ -261,11 +314,18 @@ function installPrismaFake(setup: GroupSetup): void {
         config: { url: 'https://example.com', browserConfig: {} },
     }));
 
-    // Stands in for finalizeMemberRunResult writing the member's terminal status.
+    // Stands in for finalizeMemberRunResult writing the member's terminal status. A case with no
+    // scripted outcome just passes, but running *past* a script that was written for it means the
+    // loop did more rounds than the test describes — silently passing that would hide over-running,
+    // so it is an error rather than a default.
     const settle = (runId: string): string => {
         const row = rows.find((candidate) => candidate.id === runId);
         const caseId = row?.testCaseId ?? '';
-        const status = remaining[caseId]?.shift() ?? TEST_STATUS.PASS;
+        const script = remaining[caseId];
+        if (script && script.length === 0) {
+            throw new Error(`${caseId} executed more times than its outcome script describes (${runId})`);
+        }
+        const status = script?.shift() ?? TEST_STATUS.PASS;
         if (row) {
             row.status = status;
         }
@@ -299,7 +359,7 @@ function installPrismaFake(setup: GroupSetup): void {
 async function runGroup(setup: GroupSetup, controller = new AbortController()): Promise<void> {
     seedRows(setup);
     installPrismaFake(setup);
-    await executeGroupSession('session-1', controller);
+    await executeGroupSession(SESSION_ID, controller);
 }
 
 /** Run ids executed, in order — `case#attempt`. */
@@ -310,7 +370,7 @@ function executions(): string[] {
 /** Final status per case, keyed by test case id. */
 function finalStatuses(): Record<string, string> {
     const final: Record<string, { attempt: number; status: string }> = {};
-    for (const row of rows) {
+    for (const row of rows.filter((candidate) => candidate.runSessionId === SESSION_ID)) {
         if (!final[row.testCaseId] || row.attempt > final[row.testCaseId].attempt) {
             final[row.testCaseId] = { attempt: row.attempt, status: row.status };
         }
@@ -412,16 +472,17 @@ describe('executeGroupSession retries — sequential CONTINUE', () => {
         await runGroup({
             cases: ['a', 'b'],
             outcomes: {
-                a: [TEST_STATUS.FAIL, TEST_STATUS.FAIL],
+                a: [TEST_STATUS.FAIL, TEST_STATUS.FAIL, TEST_STATUS.FAIL],
                 b: [TEST_STATUS.FAIL, TEST_STATUS.FAIL, TEST_STATUS.PASS],
             },
             retryPolicy: FAILED_TWICE,
             failureMode: 'CONTINUE',
         });
 
-        // a exhausts after attempt 3; b keeps its own budget and recovers.
+        // a spends all three of its executions and stays failed; b keeps its own budget and
+        // recovers on its last one. Neither case's budget is charged to the other.
         expect(executions()).toEqual(['a#1', 'b#1', 'a#2', 'b#2', 'a#3', 'b#3']);
-        expect(finalStatuses()).toEqual({ a: 'PASS', b: 'PASS' });
+        expect(finalStatuses()).toEqual({ a: 'FAIL', b: 'PASS' });
     });
 });
 
@@ -535,7 +596,7 @@ describe('executeGroupSession retries — guards', () => {
             return { status: TEST_STATUS.FAIL };
         });
 
-        await executeGroupSession('session-1', controller);
+        await executeGroupSession(SESSION_ID, controller);
 
         expect(executions()).toEqual(['a#1']);
         expect(mocks.testRunCreate).not.toHaveBeenCalled();
