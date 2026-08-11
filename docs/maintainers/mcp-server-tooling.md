@@ -39,7 +39,14 @@ A test group can be configured to retry failed cases (`TestGroup.retryPolicy`: `
 - Retries only start if something did not pass. A fully green group never retries, whatever its policy; `WHOLE_GROUP_ONCE` then re-runs every case, passing ones included.
 - The retry budget is per case and counts only attempts that reached `PASS`/`FAIL`; a `CANCELLED` attempt never ran and spends nothing.
 - **A case you stop is not retried.** `stop_all_runs`, `stop_all_queues` and the cancel that `update_test_case` performs all record a user-initiated cancellation reason, and retry planning treats those as resolved. A case the group itself skipped behind a failure (`EARLIER_CASE_FAILED`, `LOGIN_FLOW_FAILED`) still gets its retries.
-- `stop_all_runs` stops a session as a unit: cancelling members one by one would settle the rows while the session's driver kept running, and a retry policy would then replace them.
+
+### Stopping is always session-wide
+
+Every stop path — the UI stop button, the single-run HTTP cancel, `stop_all_runs`, `stop_all_queues`, and `update_test_case` with `cancel_and_save` — stops the **whole run session** a run belongs to, never just that row.
+
+A session cannot be partially stopped. Its driver decides what runs next, and cancelling one row neither aborts that driver nor releases the retry hold, so a group would carry on and a retry policy would re-create exactly what was cancelled. Standalone runs (no `runSessionId`) are still cancelled individually.
+
+The consequence to expect: stopping one queued member of a group also stops that group's running member. The stop tools report those extra members in `sessionMembersAlsoCancelled` so the count is never silently larger than what you asked for.
 
 ### Test case kind
 
@@ -90,7 +97,7 @@ A test group can be configured to retry failed cases (`TestGroup.retryPolicy`: `
 - `RANDOM_STRING` config upserts require one of: `TIMESTAMP_DATETIME`, `TIMESTAMP_UNIX`, `UUID`. Invalid values are skipped with a warning.
 - One or more mutable fields may be provided in each call.
 - If active runs exist (`QUEUED`, `PREPARING`, `RUNNING`), caller must choose:
-  - `cancel_and_save`
+  - `cancel_and_save` — stops the run sessions those runs belong to, so a grouped case does not keep being run (or retried) against the edit being saved. Extra members stopped are reported in `sessionMembersAlsoCancelled`.
   - `do_not_save`
 
 ### delete_test_case
@@ -103,7 +110,7 @@ A test group can be configured to retry failed cases (`TestGroup.retryPolicy`: `
 
 - Cancels all active test runs (`QUEUED`, `PREPARING`, `RUNNING`) for the authenticated user via durable DB state update.
 - `projectId` is required and limits cancellation to one owned project.
-- A run that belongs to a run session is stopped through the session, so its driver stops too and every member settles together. Stopped cases are not retried — see [Retry attempts](#retry-attempts).
+- A run that belongs to a run session is stopped through the session, so its driver stops too and every member settles together. Stopped cases are not retried — see [Retry attempts](#retry-attempts) and [Stopping is always session-wide](#stopping-is-always-session-wide).
 - Returns:
   - requested active run count
   - successful cancellation count
@@ -113,7 +120,7 @@ A test group can be configured to retry failed cases (`TestGroup.retryPolicy`: `
 
 ### stop_all_queues
 
-- Cancels only queued test runs (`QUEUED`) for the authenticated user via durable DB state update.
+- Selects only queued test runs (`QUEUED`) for the authenticated user, then stops each one's run session as a unit — so a queued group member also stops its group, including any member currently running. See [Stopping is always session-wide](#stopping-is-always-session-wide).
 - `projectId` is required and limits cancellation to one owned project.
 - Returns:
   - requested queued run count

@@ -5,7 +5,7 @@ import { cleanStepsForStorage, normalizeTargetConfigMap } from '@/lib/runtime/te
 import { normalizeBrowserConfig } from '@/lib/test-config/browser-target';
 import { validateConfigName, normalizeConfigName, validateConfigType, validateConfigValue } from '@/lib/test-config/validation';
 import { resolveAndroidDeviceSelector, type AndroidDeviceSelectorInventory } from '@/lib/mcp/android-selector';
-import { cancelRunDurably } from '@/lib/mcp/run-cancellation';
+import { cancelRunsForStop } from '@/lib/mcp/run-cancellation';
 import { CANCELLATION_REASON } from '@/lib/runtime/cancellation-reasons';
 import { getUserId, type McpHandlerExtra, verifyProjectAccess } from '@/lib/mcp/server-auth';
 import { errorResult, textResult, withToolTelemetry, type ToolResponse } from '@/lib/mcp/server-response';
@@ -463,10 +463,11 @@ export function registerTestCaseMutationTools(server: McpServer): void {
                 status: { in: [...RUN_ACTIVE_STATUSES] }
             },
             orderBy: { createdAt: 'asc' },
-            select: { id: true, status: true, createdAt: true }
+            select: { id: true, status: true, createdAt: true, runSessionId: true }
         });
         const cancelledRunIds: string[] = [];
         const failedCancellations: Array<{ runId: string; error: string }> = [];
+        let sessionMembersAlsoCancelled = 0;
 
         if (activeRuns.length > 0) {
             if (!activeRunResolution) {
@@ -492,24 +493,16 @@ export function registerTestCaseMutationTools(server: McpServer): void {
                 });
             }
 
-            for (const run of activeRuns) {
-                try {
-                    const cancelled = await cancelRunDurably(run.id, CANCELLATION_REASON.MCP_FOR_UPDATE);
-                    if (cancelled) {
-                        cancelledRunIds.push(run.id);
-                    } else {
-                        failedCancellations.push({
-                            runId: run.id,
-                            error: 'Run is no longer active',
-                        });
-                    }
-                } catch (error) {
-                    failedCancellations.push({
-                        runId: run.id,
-                        error: error instanceof Error ? error.message : 'Unknown error'
-                    });
-                }
-            }
+            // Stopping just this case's run would leave its group session running, and the group
+            // would carry on — including retrying this very case — against the edit being applied
+            // here. Stop the session it belongs to, like every other stop path.
+            const stopOutcome = await cancelRunsForStop(activeRuns, CANCELLATION_REASON.MCP_FOR_UPDATE);
+            cancelledRunIds.push(...stopOutcome.cancelledRunIds);
+            sessionMembersAlsoCancelled = stopOutcome.sessionMembersAlsoCancelled;
+            failedCancellations.push(
+                ...stopOutcome.failures,
+                ...stopOutcome.skipped.map((entry) => ({ runId: entry.runId, error: entry.reason })),
+            );
         }
 
         const updateData: Record<string, unknown> = {};
@@ -645,6 +638,7 @@ export function registerTestCaseMutationTools(server: McpServer): void {
             status: updateResult.updated.status,
             changedFields,
             cancelledRuns: cancelledRunIds,
+            sessionMembersAlsoCancelled,
             failedCancellations,
             configChanges: updateResult.configChanges,
             warnings,

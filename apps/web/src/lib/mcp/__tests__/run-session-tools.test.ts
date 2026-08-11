@@ -44,7 +44,7 @@ vi.mock('@/lib/core/prisma', () => ({
 }));
 
 const { getRunSessionTool } = await import('@/lib/mcp/run-session-tools');
-const { stopAllRunsTool, getTestRunTool } = await import('@/lib/mcp/server-tools');
+const { stopAllRunsTool, stopAllQueuesTool, getTestRunTool } = await import('@/lib/mcp/server-tools');
 
 const extra = {} as never;
 
@@ -178,6 +178,36 @@ describe('stop_all_runs', () => {
         mocks.testRunFindMany.mockResolvedValue([]);
 
         await stopAllRunsTool({ projectId: 'project-1' }, extra);
+
+        expect(mocks.testRunFindMany).toHaveBeenCalledWith(expect.objectContaining({
+            select: expect.objectContaining({ runSessionId: true }),
+        }));
+    });
+});
+
+describe('stop_all_queues', () => {
+    it('stops the session a queued member belongs to, not just the row', async () => {
+        const queuedRuns = [{ id: 'r2', status: 'QUEUED', runSessionId: 'session-1' }];
+        mocks.testRunFindMany.mockResolvedValue(queuedRuns);
+        mocks.cancelRunsForStop.mockResolvedValue({
+            cancelledRunIds: ['r2'],
+            skipped: [],
+            failures: [],
+            sessionMembersAlsoCancelled: 1,
+        });
+
+        const { payload } = await stopAllQueuesTool({ projectId: 'project-1' }, extra) as unknown as Payload;
+
+        expect(mocks.cancelRunsForStop).toHaveBeenCalledWith(queuedRuns, CANCELLATION_REASON.MCP);
+        expect(mocks.cancelRunDurably).not.toHaveBeenCalled();
+        // The running sibling that went with it is reported rather than hidden.
+        expect(payload).toMatchObject({ cancelledRuns: 1, sessionMembersAlsoCancelled: 1 });
+    });
+
+    it('selects the session id so members can be routed', async () => {
+        mocks.testRunFindMany.mockResolvedValue([]);
+
+        await stopAllQueuesTool({ projectId: 'project-1' }, extra);
 
         expect(mocks.testRunFindMany).toHaveBeenCalledWith(expect.objectContaining({
             select: expect.objectContaining({ runSessionId: true }),

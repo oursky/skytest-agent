@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/core/prisma';
 import { parseTestCaseJson } from '@/lib/runtime/test-case-utils';
 import { compareConfigsByName } from '@/lib/test-config/sort';
-import { cancelRunDurably, cancelRunsForStop } from '@/lib/mcp/run-cancellation';
+import { cancelRunsForStop } from '@/lib/mcp/run-cancellation';
 import { CANCELLATION_REASON, cancellationReasonCodeFor } from '@/lib/runtime/cancellation-reasons';
 import { deleteObjectKeysBestEffort } from '@/lib/mcp/storage-cleanup';
 import { queueTestCaseRun } from '@/lib/mcp/run-execution';
@@ -376,15 +376,18 @@ export async function stopAllRunsTool(
     const cancellationReason = reason?.trim() || CANCELLATION_REASON.MCP;
     // Stopping a session member has to go through the session canceller, or the session's driver
     // keeps running and a retry policy simply re-creates what was just cancelled.
-    const { cancelledRunIds, skipped: skippedCancellations, failures } = await cancelRunsForStop(
-        activeRuns,
-        cancellationReason,
-    );
+    const {
+        cancelledRunIds,
+        skipped: skippedCancellations,
+        failures,
+        sessionMembersAlsoCancelled,
+    } = await cancelRunsForStop(activeRuns, cancellationReason);
 
     return textResult({
         projectId,
         requestedActiveRuns: activeRuns.length,
         cancelledRuns: cancelledRunIds.length,
+        sessionMembersAlsoCancelled,
         failedCancellations: failures.length,
         skippedCancellations: skippedCancellations.length,
         cancelledRunIds,
@@ -415,6 +418,7 @@ export async function stopAllQueuesTool(
         select: {
             id: true,
             status: true,
+            runSessionId: true,
         }
     });
 
@@ -433,34 +437,22 @@ export async function stopAllQueuesTool(
         });
     }
 
-    const cancelledRunIds: string[] = [];
-    const failures: Array<{ runId: string; error: string }> = [];
-    const skippedCancellations: Array<{ runId: string; reason: string }> = [];
     const cancellationReason = reason?.trim() || CANCELLATION_REASON.MCP;
-
-    for (const run of queuedRuns) {
-        try {
-            const cancelled = await cancelRunDurably(run.id, cancellationReason);
-            if (cancelled) {
-                cancelledRunIds.push(run.id);
-            } else {
-                skippedCancellations.push({
-                    runId: run.id,
-                    reason: 'Run is no longer active',
-                });
-            }
-        } catch (error) {
-            failures.push({
-                runId: run.id,
-                error: error instanceof Error ? error.message : 'Unknown error',
-            });
-        }
-    }
+    // A queued member cannot be drained out of a live session — its driver decides what runs next,
+    // and a retry policy would re-queue it. Stopping it stops the session, matching every other
+    // stop path; `sessionMembersAlsoCancelled` reports the running members that went with it.
+    const {
+        cancelledRunIds,
+        skipped: skippedCancellations,
+        failures,
+        sessionMembersAlsoCancelled,
+    } = await cancelRunsForStop(queuedRuns, cancellationReason);
 
     return textResult({
         projectId,
         requestedQueuedRuns: queuedRuns.length,
         cancelledRuns: cancelledRunIds.length,
+        sessionMembersAlsoCancelled,
         failedCancellations: failures.length,
         skippedCancellations: skippedCancellations.length,
         cancelledRunIds,

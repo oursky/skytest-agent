@@ -69,6 +69,12 @@ export interface StopOutcome {
     cancelledRunIds: string[];
     skipped: Array<{ runId: string; reason: string }>;
     failures: Array<{ runId: string; error: string }>;
+    /**
+     * Members stopped beyond the requested runs, because stopping any member of a run session stops
+     * the session. Reported so a caller is told it stopped more than it named rather than finding
+     * out later.
+     */
+    sessionMembersAlsoCancelled: number;
 }
 
 /**
@@ -80,17 +86,25 @@ export interface StopOutcome {
  * policy the retry loop therefore keeps going, so the stop would settle what exists and then be
  * overtaken by attempt rows created immediately afterwards. Going through the session canceller
  * aborts the driver, releases the retry hold, and rolls the session up.
+ *
+ * Stopping one member stops its whole session, which is what the single-run HTTP cancel already
+ * does: a session cannot be partially drained, since its driver decides what runs next. Members
+ * stopped on top of the requested ones are counted in `sessionMembersAlsoCancelled`.
  */
 export async function cancelRunsForStop(
     runs: readonly StopCandidate[],
     reason: string,
 ): Promise<StopOutcome> {
-    const outcome: StopOutcome = { cancelledRunIds: [], skipped: [], failures: [] };
+    const outcome: StopOutcome = {
+        cancelledRunIds: [], skipped: [], failures: [], sessionMembersAlsoCancelled: 0,
+    };
     const sessionIds = [...new Set(runs.map((run) => run.runSessionId).filter((id): id is string => !!id))];
 
+    let cancelledMembersTotal = 0;
     for (const sessionId of sessionIds) {
         try {
-            await cancelActiveRunSession(sessionId, reason);
+            const { cancelledMembers } = await cancelActiveRunSession(sessionId, reason);
+            cancelledMembersTotal += cancelledMembers;
         } catch (error) {
             for (const run of runs.filter((candidate) => candidate.runSessionId === sessionId)) {
                 outcome.failures.push({ runId: run.id, error: error instanceof Error ? error.message : 'Unknown error' });
@@ -116,6 +130,7 @@ export async function cancelRunsForStop(
                 outcome.skipped.push({ runId: run.id, reason: `Run settled ${run.status} instead of cancelling` });
             }
         }
+        outcome.sessionMembersAlsoCancelled = Math.max(0, cancelledMembersTotal - outcome.cancelledRunIds.length);
     }
 
     for (const run of runs.filter((candidate) => !candidate.runSessionId)) {
