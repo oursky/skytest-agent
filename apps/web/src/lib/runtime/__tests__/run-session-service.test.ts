@@ -186,6 +186,49 @@ describe('recomputeRunSessionStatus — retried cases', () => {
         expect(mocks.emitRunSessionTerminal).not.toHaveBeenCalled();
     });
 
+    it('keeps a settled session settled when a late retry attempt row appears', async () => {
+        // A stop landing in the gap between rounds settles the session, and only then does
+        // createRetryAttempts insert its QUEUED rows. Reopening here would rewrite the result the
+        // session already reported — and reducing to the latest attempt would read the case as
+        // never having run at all.
+        seed({ retryPending: false, cases: { a: [TEST_STATUS.FAIL] }, status: TEST_STATUS.FAIL });
+        const settledAt = new Date('2026-01-01T01:00:00Z');
+        session.completedAt = settledAt;
+        runs.push({
+            id: 'a#2',
+            runSessionId: 'session-1',
+            testCaseId: 'a',
+            attempt: 2,
+            sessionPosition: 0,
+            status: TEST_STATUS.QUEUED,
+        });
+
+        await recomputeRunSessionStatus('session-1');
+
+        expect(session.status).toBe(TEST_STATUS.FAIL);
+        expect(session.completedAt).toBe(settledAt);
+    });
+
+    it('does not emit a second terminal event when that late row later settles', async () => {
+        seed({ retryPending: false, cases: { a: [TEST_STATUS.FAIL] }, status: TEST_STATUS.FAIL });
+        session.completedAt = new Date('2026-01-01T01:00:00Z');
+        runs.push({
+            id: 'a#2',
+            runSessionId: 'session-1',
+            testCaseId: 'a',
+            attempt: 2,
+            sessionPosition: 0,
+            status: TEST_STATUS.QUEUED,
+        });
+
+        await recomputeRunSessionStatus('session-1');
+        runs.find((run) => run.id === 'a#2')!.status = TEST_STATUS.CANCELLED;
+        await recomputeRunSessionStatus('session-1');
+
+        expect(mocks.emitRunSessionTerminal).not.toHaveBeenCalled();
+        expect(session.status).toBe(TEST_STATUS.FAIL);
+    });
+
     it('emits the terminal event only once across repeated recomputes', async () => {
         seed({ retryPending: false, cases: { a: [TEST_STATUS.FAIL] } });
 

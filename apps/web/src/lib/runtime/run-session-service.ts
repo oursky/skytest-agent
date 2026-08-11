@@ -182,8 +182,13 @@ async function performRunSessionRecompute(sessionId: string): Promise<void> {
         return;
     }
 
-    await prisma.runSession.update({
-        where: { id: sessionId },
+    // Guarded like the terminal transition above, and for the same reason in reverse: a settled
+    // session must stay settled. Retry rounds insert fresh QUEUED members into a session whose
+    // members were all terminal moments earlier, so a stop landing in that gap can settle the
+    // session and then meet those new rows. Without the guard the rollup would reopen a session
+    // that had already reported its result, rewriting completedAt and emitting a second terminal.
+    await prisma.runSession.updateMany({
+        where: { id: sessionId, status: { notIn: [...RUN_TERMINAL_STATUSES] } },
         data: {
             status: nextStatus,
             ...(session.startedAt || !STARTED_STATUSES.has(nextStatus) ? {} : { startedAt: now }),
