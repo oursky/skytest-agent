@@ -237,6 +237,12 @@ model TestRun {
   @@index([instanceType, instanceName, createdAt(sort: Desc)])
   @@index([deletedAt, completedAt(sort: Asc)])
   @@index([runSessionId, sessionPosition, attempt])
+  // Attempt numbers are assigned in application code as max(attempt) + 1 per case, so nothing
+  // else stops a retry from reusing one. A duplicate would be quiet rather than loud: the case's
+  // executed count would double, cutting its retry budget, and the latest-attempt reduction would
+  // tie-break on row order. Standalone runs have a null runSessionId, which Postgres treats as
+  // distinct, so they are unaffected.
+  @@unique([runSessionId, testCaseId, attempt])
 }
 
 model RunSession {

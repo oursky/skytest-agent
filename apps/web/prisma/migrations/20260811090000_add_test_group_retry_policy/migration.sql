@@ -13,3 +13,6 @@ DROP INDEX "TestRun_runSessionId_sessionPosition_idx";
 
 -- CreateIndex
 CREATE INDEX "TestRun_runSessionId_sessionPosition_attempt_idx" ON "TestRun"("runSessionId", "sessionPosition", "attempt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "TestRun_runSessionId_testCaseId_attempt_key" ON "TestRun"("runSessionId", "testCaseId", "attempt");
