@@ -379,6 +379,7 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
             if (ctxSession.groupName) lines.push(`Group: ${ctxSession.groupName}`);
             if (ctxSession.executionMode) lines.push(`Execution: ${ctxSession.executionMode}`);
             if (ctxSession.onFailure) lines.push(`On Failure: ${ctxSession.onFailure}`);
+            if (ctxSession.retryPolicy && ctxSession.retryPolicy !== 'NONE') lines.push(`Retry: ${ctxSession.retryPolicy}`);
             lines.push('Members (in execution order):');
             for (const member of ctxSession.members) {
                 const label = member.displayId ? `${member.displayId} ${member.name}` : member.name;

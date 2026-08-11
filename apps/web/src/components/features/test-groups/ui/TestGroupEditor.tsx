@@ -6,7 +6,7 @@ import { useI18n } from '@/i18n';
 import { fetchWithAccessToken } from '@/app/run/run-page-api';
 import { Button, CustomSelect } from '@/components/shared';
 import { extractListData } from '@/utils/pagination/pagination';
-import { TEST_GROUP_FAILURE_MODE, TEST_GROUP_EXECUTION_MODE, isRunActiveStatus, type TestGroupFailureMode, type TestGroupExecutionMode, type TestGroupSummary } from '@/types';
+import { TEST_GROUP_FAILURE_MODE, TEST_GROUP_EXECUTION_MODE, TEST_GROUP_RETRY_POLICY, TEST_GROUP_RETRY_POLICIES, isRunActiveStatus, type TestGroupFailureMode, type TestGroupExecutionMode, type TestGroupRetryPolicy, type TestGroupSummary } from '@/types';
 import type { TranslationVars } from '@/i18n/types';
 import OrderedTestCasePicker, { type TestCaseOption } from './OrderedTestCasePicker';
 
@@ -40,6 +40,7 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
     const [displayId, setDisplayId] = useState(group?.displayId ?? '');
     const [onFailure, setOnFailure] = useState<TestGroupFailureMode>(group?.onFailure ?? TEST_GROUP_FAILURE_MODE.STOP);
     const [executionMode, setExecutionMode] = useState<TestGroupExecutionMode>(group?.executionMode ?? TEST_GROUP_EXECUTION_MODE.SEQUENTIAL);
+    const [retryPolicy, setRetryPolicy] = useState<TestGroupRetryPolicy>(group?.retryPolicy ?? TEST_GROUP_RETRY_POLICY.NONE);
     const [loginSessions, setLoginSessions] = useState<LoginSessionDraft[]>(
         group?.loginSessions.map((session) => ({ loginFlowId: session.loginFlowId, name: session.name })) ?? [],
     );
@@ -94,6 +95,13 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
         return option.displayId ? `${option.displayId} • ${option.name}` : option.name;
     };
     const availableFlows = loginFlowOptions.filter((option) => !loginSessions.some((session) => session.loginFlowId === option.id));
+    // Literal t() calls so the i18n usage scanner can see these keys are referenced.
+    const retryPolicyLabels: Record<TestGroupRetryPolicy, string> = {
+        [TEST_GROUP_RETRY_POLICY.NONE]: t('testGroup.retryPolicy.none'),
+        [TEST_GROUP_RETRY_POLICY.FAILED_ONCE]: t('testGroup.retryPolicy.failedOnce'),
+        [TEST_GROUP_RETRY_POLICY.FAILED_TWICE]: t('testGroup.retryPolicy.failedTwice'),
+        [TEST_GROUP_RETRY_POLICY.WHOLE_GROUP_ONCE]: t('testGroup.retryPolicy.wholeGroupOnce'),
+    };
 
     const addLoginSession = (loginFlowId: string) => {
         if (!loginFlowId || loginSessions.some((session) => session.loginFlowId === loginFlowId)) {
@@ -127,6 +135,7 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
                     displayId: displayId.trim() || null,
                     onFailure,
                     executionMode,
+                    retryPolicy,
                     loginSessions: loginSessions.map((session) => ({ loginFlowId: session.loginFlowId, name: session.name.trim() || undefined })),
                     testCaseIds,
                 }),
@@ -303,6 +312,27 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
                         </label>
                     ))}
                 </div>
+            </div>
+
+            <div className="space-y-2">
+                <span className="block text-sm font-medium text-gray-700">{t('testGroup.retryPolicy')}</span>
+                <div className="space-y-2">
+                    {TEST_GROUP_RETRY_POLICIES.map((policy) => (
+                        <label key={policy} className={`flex items-center gap-2 text-sm ${readOnly ? 'text-gray-400' : 'cursor-pointer text-gray-700'}`}>
+                            <input
+                                type="radio"
+                                name="testGroupRetryPolicy"
+                                value={policy}
+                                checked={retryPolicy === policy}
+                                onChange={() => setRetryPolicy(policy)}
+                                disabled={readOnly}
+                                className="h-4 w-4 text-primary focus:ring-primary disabled:opacity-50"
+                            />
+                            {retryPolicyLabels[policy]}
+                        </label>
+                    ))}
+                </div>
+                <p className="text-xs text-gray-500">{t('testGroup.retryPolicy.hint')}</p>
             </div>
 
             {error && <p className="text-sm text-red-600">{error}</p>}

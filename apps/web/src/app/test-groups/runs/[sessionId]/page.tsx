@@ -12,11 +12,19 @@ import { Button, Modal, TableRowsSkeleton } from '@/components/shared';
 import { Breadcrumbs } from '@/components/layout';
 import { isRunActiveStatus, isRunTerminalStatus, TEST_STATUS } from '@/types';
 
+interface SessionAttemptView {
+    runId: string;
+    attempt: number;
+    status: string;
+}
+
 interface SessionMemberView {
     runId: string;
     testCaseId: string;
     kind: string;
     sessionPosition: number | null;
+    attempt: number;
+    previousAttempts: SessionAttemptView[];
     status: string;
     reusedSession: boolean;
     startedAt: string;
@@ -156,9 +164,27 @@ export default function TestGroupRunPage({ params }: { params: Promise<{ session
                                                 </Link>
                                                 {member.kind === 'LOGIN_FLOW' && <span className="shrink-0 rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] text-indigo-600">{t('configs.browser.loginFlow')}</span>}
                                                 {member.reusedSession && <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">{t('testGroup.run.reused')}</span>}
+                                                {member.attempt > 1 && (
+                                                    <span className="shrink-0 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-700">
+                                                        {t('testGroup.run.attempt', { n: member.attempt })}
+                                                    </span>
+                                                )}
                                             </div>
                                             <div className="md:col-span-2">
                                                 <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${getStatusBadgeClass(member.status)}`}>{member.status}</span>
+                                                {member.previousAttempts.length > 0 && (
+                                                    <div className="mt-1 flex flex-wrap items-center gap-1">
+                                                        {member.previousAttempts.map((previous) => (
+                                                            <Link
+                                                                key={previous.runId}
+                                                                href={`/test-cases/${member.testCaseId}/history/${previous.runId}`}
+                                                                className="text-[10px] text-gray-400 underline decoration-dotted hover:text-primary"
+                                                            >
+                                                                {`${t('testGroup.run.attempt', { n: previous.attempt })}: ${previous.status}`}
+                                                            </Link>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </div>
                                             <div className="text-sm text-gray-500 md:col-span-2">{formatDateTime(member.startedAt)}</div>
                                             <div className="flex items-center justify-end md:col-span-2">
