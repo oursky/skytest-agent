@@ -29,6 +29,15 @@ A run is one **member** of a **run session**, not a standalone unit:
 
 So a single member reaching `PASS` does **not** mean the whole session finished. Read the rolled-up session status via `get_run_session` (or the `session` field on `get_test_run`) to know whether everything settled.
 
+### Retry attempts
+
+A test group can be configured to retry failed cases (`TestGroup.retryPolicy`: `NONE`, `FAILED_ONCE`, `FAILED_TWICE`, `WHOLE_GROUP_ONCE`). Retries run as extra passes **after** the whole group finishes, and each attempt is its own `TestRun` row, so:
+
+- One case can appear several times in a session's members, distinguished by `attempt` (1 = original run).
+- **Take the highest `attempt` per `testCaseId` as that case's outcome.** Counting every row double-counts a retried case and reports its earlier failures as current.
+- The session stays non-terminal between rounds (`retryPending = true`), so a `FAIL` you read mid-retry is not final. Wait for a terminal `status`.
+- The retry budget is per case and counts only attempts that reached `PASS`/`FAIL`; a `CANCELLED` attempt never ran and spends nothing.
+
 ### Test case kind
 
 `TestCase.kind` is `TEST` or `LOGIN_FLOW`. A `LOGIN_FLOW` case is a reusable login flow; other cases reuse it by setting `loginFlowId` on a browser target. A grouped case's kind cannot be flipped while it is referenced by a test group (the test-case update route rejects it).
@@ -142,13 +151,15 @@ So a single member reaching `PASS` does **not** mean the whole session finished.
 - Input: `{ projectId, testGroupId }`
 - Queues a GROUP run session: each configured login flow runs first (establishing a reusable baseline), then the group's test cases run in order.
 - Rejected with `409` if the group already has a run in progress, `404` if the group is missing/soft-deleted, `400` if it has no test cases.
+- The group's configured retry policy applies and is snapshotted onto the session, so failed cases may be re-run before the session settles. See [Retry attempts](#retry-attempts).
 - Returns: `{ sessionId }`. Watch it with `get_run_session`.
 
 ### get_run_session
 
 - Input: `{ runSessionId }`
-- Returns the session's rolled-up `status` and `kind`, `testGroupId`, timestamps, and a `members` array (each member's `id`, `testCaseId`, `kind`, `sessionPosition`, `status`, `error`, `cancellationReasonCode`).
+- Returns the session's rolled-up `status` and `kind`, `testGroupId`, timestamps, `retryPolicy`, `retryPending`, and a `members` array (each member's `id`, `testCaseId`, `kind`, `sessionPosition`, `attempt`, `status`, `error`, `cancellationReasonCode`).
 - Use this (not `get_test_run` on a single member) to tell whether a whole group/login-flow run settled.
+- A retried group repeats a case once per attempt — take the highest `attempt` per `testCaseId`. See [Retry attempts](#retry-attempts).
 
 ### list_run_sessions
 

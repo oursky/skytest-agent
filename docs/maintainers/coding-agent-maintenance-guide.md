@@ -179,6 +179,21 @@ When changing runner runtime behavior, update docs in the same PR/commit series:
   (`abortInactiveLocalBrowserRuns`), the group Stop button, the "already has a run in
   progress" trigger guard, and Slack group notify. A rollup that settles on the first failure
   makes the sweep abort a live CONTINUE-mode group mid-run.
+- Counting a retried group's `memberRuns` directly. A test group with a retry policy creates one
+  `TestRun` row **per attempt** (`TestRun.attempt`), so any pass/total count, status rollup, or
+  members list must first reduce to the latest attempt per `testCaseId` via
+  `resolveLatestAttempts` (`apps/web/src/lib/runtime/test-group-retry-plan.ts`). Counting every
+  row double-counts retried cases and reports already-recovered failures as current.
+- Ending a group session's execution without releasing `RunSession.retryPending`. That flag holds
+  a would-be-FAIL session at `RUNNING` across the gap between retry rounds; every exit path — the
+  orchestrator's `finally`, the stop button (`cancel-run.ts`), and the stranded-session reaper —
+  must call `releaseSessionRetryHold`, or a fully-terminal session stays `RUNNING` forever and
+  permanently blocks the group from being edited or re-run.
+- Adding a retry-eligibility rule without a termination argument. The retry budget is per case and
+  counts only attempts that reached `PASS`/`FAIL`, so a case cancelled by stop-on-failure sits at
+  `executed = 0` indefinitely. `planRetryRound` therefore stops entirely once an unresolved case
+  under STOP has exhausted its budget; without that rule the cases behind a permanently broken one
+  are replanned forever.
 - Changing Excel import parser compatibility paths without updating [test-case-excel-format.md](./test-case-excel-format.md)
 - Breaking runner protocol request/response shapes without updating `packages/runner-protocol`
 - Bypassing lease ownership checks on runner write-back endpoints
