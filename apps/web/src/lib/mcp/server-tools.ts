@@ -1,7 +1,12 @@
 import { prisma } from '@/lib/core/prisma';
 import { parseTestCaseJson } from '@/lib/runtime/test-case-utils';
 import { compareConfigsByName } from '@/lib/test-config/sort';
-import { cancelRunsForStop, gateSessionStop, type SessionStopResolution } from '@/lib/mcp/run-cancellation';
+import {
+    cancelRunsForStop,
+    findLiveSessionIdsForStop,
+    gateSessionStop,
+    type SessionStopResolution,
+} from '@/lib/mcp/run-cancellation';
 import { CANCELLATION_REASON, cancellationReasonCodeFor } from '@/lib/runtime/cancellation-reasons';
 import { deleteObjectKeysBestEffort } from '@/lib/mcp/storage-cleanup';
 import { queueTestCaseRun } from '@/lib/mcp/run-execution';
@@ -364,21 +369,16 @@ export async function stopAllRunsTool(
         statusSummary[run.status] = (statusSummary[run.status] || 0) + 1;
     }
 
-    if (activeRuns.length === 0) {
-        return textResult({
-            projectId,
-            requestedActiveRuns: 0,
-            cancelledRuns: 0,
-            failedCancellations: 0,
-            statusSummary,
-        });
-    }
+    // No early return on an empty run list: a live session can have no active member at all.
 
     const cancellationReason = reason?.trim() || CANCELLATION_REASON.MCP;
     // Stopping a session member has to go through the session canceller, or the session's driver
     // keeps running and a retry policy simply re-creates what was just cancelled. Because that also
     // ends the rest of the session, the caller confirms before anything is settled.
-    const gate = await gateSessionStop(activeRuns, activeSessionResolution, {
+    // Includes sessions with no active member: a group between retry rounds has every attempt
+    // terminal and is kept alive only by its retry hold, so searching runs alone would miss it.
+    const liveSessionIds = await findLiveSessionIdsForStop(projectId);
+    const gate = await gateSessionStop(activeRuns, liveSessionIds, activeSessionResolution, {
         projectId,
         requestedActiveRuns: activeRuns.length,
     });
@@ -390,7 +390,7 @@ export async function stopAllRunsTool(
         skipped: skippedCancellations,
         failures,
         sessionMembersAlsoCancelled,
-    } = await cancelRunsForStop(gate.targets, cancellationReason);
+    } = await cancelRunsForStop(gate.targets, gate.liveSessionIds, cancellationReason);
 
     return textResult({
         projectId,
@@ -438,21 +438,16 @@ export async function stopAllQueuesTool(
         statusSummary[run.status] = (statusSummary[run.status] || 0) + 1;
     }
 
-    if (queuedRuns.length === 0) {
-        return textResult({
-            projectId,
-            requestedQueuedRuns: 0,
-            cancelledRuns: 0,
-            failedCancellations: 0,
-            statusSummary,
-        });
-    }
+    // No early return on an empty run list: a live session can have no active member at all.
 
     const cancellationReason = reason?.trim() || CANCELLATION_REASON.MCP;
     // A queued member cannot be drained out of a live session — its driver decides what runs next,
     // and a retry policy would re-queue it. Stopping it stops the session, which for a test group
     // means its running case too, so that is confirmed before anything is settled.
-    const gate = await gateSessionStop(queuedRuns, activeSessionResolution, {
+    // Includes sessions with no active member: a group between retry rounds has every attempt
+    // terminal and is kept alive only by its retry hold, so searching runs alone would miss it.
+    const liveSessionIds = await findLiveSessionIdsForStop(projectId);
+    const gate = await gateSessionStop(queuedRuns, liveSessionIds, activeSessionResolution, {
         projectId,
         requestedQueuedRuns: queuedRuns.length,
     });
@@ -464,7 +459,7 @@ export async function stopAllQueuesTool(
         skipped: skippedCancellations,
         failures,
         sessionMembersAlsoCancelled,
-    } = await cancelRunsForStop(gate.targets, cancellationReason);
+    } = await cancelRunsForStop(gate.targets, gate.liveSessionIds, cancellationReason);
 
     return textResult({
         projectId,

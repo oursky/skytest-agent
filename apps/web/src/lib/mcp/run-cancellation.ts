@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/core/prisma';
 import { cancelActiveRunSession } from '@/lib/runtime/cancel-run';
-import { RUN_ACTIVE_STATUSES, TEST_STATUS, isRunTerminalStatus } from '@/types';
+import { RUN_ACTIVE_STATUSES, RUN_TERMINAL_STATUSES, TEST_STATUS, isRunTerminalStatus } from '@/types';
 
 export async function cancelRunDurably(runId: string, errorMessage: string): Promise<boolean> {
     const run = await prisma.testRun.findUnique({
@@ -93,12 +93,16 @@ export interface StopOutcome {
  */
 export async function cancelRunsForStop(
     runs: readonly StopCandidate[],
+    liveSessionIds: readonly string[],
     reason: string,
 ): Promise<StopOutcome> {
     const outcome: StopOutcome = {
         cancelledRunIds: [], skipped: [], failures: [], sessionMembersAlsoCancelled: 0,
     };
-    const sessionIds = [...new Set(runs.map((run) => run.runSessionId).filter((id): id is string => !!id))];
+    const sessionIds = [...new Set([
+        ...runs.map((run) => run.runSessionId).filter((id): id is string => !!id),
+        ...liveSessionIds,
+    ])];
 
     let cancelledMembersTotal = 0;
     for (const sessionId of sessionIds) {
@@ -167,6 +171,7 @@ export interface AffectedSession {
  */
 export async function describeSessionsForStop(
     runs: readonly StopCandidate[],
+    liveSessionIds: readonly string[] = [],
 ): Promise<AffectedSession[]> {
     const requestedBySession = new Map<string, string[]>();
     for (const run of runs) {
@@ -174,6 +179,11 @@ export async function describeSessionsForStop(
             continue;
         }
         requestedBySession.set(run.runSessionId, [...(requestedBySession.get(run.runSessionId) ?? []), run.id]);
+    }
+    for (const sessionId of liveSessionIds) {
+        if (!requestedBySession.has(sessionId)) {
+            requestedBySession.set(sessionId, []);
+        }
     }
     if (requestedBySession.size === 0) {
         return [];
@@ -210,6 +220,8 @@ export interface StopGate {
     confirmation?: { message: string; details: Record<string, unknown> };
     /** Runs to actually stop once confirmed (or when nothing needed confirming). */
     targets: StopCandidate[];
+    /** Sessions to stop that have no requested run of their own — see findLiveSessionIdsForStop. */
+    liveSessionIds: string[];
     sessionsLeftRunning: AffectedSession[];
 }
 
@@ -220,12 +232,13 @@ export interface StopGate {
  */
 export async function gateSessionStop(
     runs: readonly StopCandidate[],
+    liveSessionIds: readonly string[],
     resolution: SessionStopResolution | undefined,
     context: Record<string, unknown>,
 ): Promise<StopGate> {
-    const affected = await describeSessionsForStop(runs);
+    const affected = await describeSessionsForStop(runs, liveSessionIds);
     if (affected.length === 0) {
-        return { targets: [...runs], sessionsLeftRunning: [] };
+        return { targets: [...runs], liveSessionIds: [], sessionsLeftRunning: [] };
     }
 
     if (resolution === undefined) {
@@ -247,6 +260,7 @@ export async function gateSessionStop(
                 },
             },
             targets: [],
+            liveSessionIds: [],
             sessionsLeftRunning: [],
         };
     }
@@ -254,9 +268,30 @@ export async function gateSessionStop(
     if (resolution === 'only_standalone') {
         return {
             targets: runs.filter((run) => !run.runSessionId),
+            liveSessionIds: [],
             sessionsLeftRunning: affected,
         };
     }
 
-    return { targets: [...runs], sessionsLeftRunning: [] };
+    return { targets: [...runs], liveSessionIds: [...liveSessionIds], sessionsLeftRunning: [] };
+}
+
+
+/**
+ * Live sessions in a project, including any that currently have no active member.
+ *
+ * A group awaiting a retry round is exactly that shape: every attempt so far is terminal and only
+ * `RunSession.retryPending` keeps it going. Searching for active *runs* finds nothing in that gap,
+ * so a stop would report zero cancellations while the group was about to start another round.
+ */
+export async function findLiveSessionIdsForStop(projectId: string): Promise<string[]> {
+    const sessions = await prisma.runSession.findMany({
+        where: {
+            projectId,
+            deletedAt: null,
+            status: { notIn: [...RUN_TERMINAL_STATUSES] },
+        },
+        select: { id: true },
+    });
+    return sessions.map((session) => session.id);
 }

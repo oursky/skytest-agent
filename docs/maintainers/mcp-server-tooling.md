@@ -60,6 +60,8 @@ and cancel nothing. Re-call with `activeSessionResolution`:
 - `stop_sessions` — stop those sessions too, ending the test groups. Extra members are counted in `sessionMembersAlsoCancelled`.
 - `only_standalone` — leave the sessions running; stop only runs with no session. The untouched sessions come back in `sessionsLeftRunning`.
 
+A stop also finds **live sessions that currently have no active member**. A group awaiting a retry round is exactly that shape — every attempt so far is terminal and only `retryPending` keeps it going — so searching for active runs alone reported "nothing to stop" while the group was about to start another round.
+
 Runs outside a session need no confirmation, so stopping ad-hoc runs stays a single call. This mirrors `update_test_case`'s `ACTIVE_RUN_CONFIRMATION_REQUIRED`, so an agent meets one confirmation pattern rather than two. `update_test_case` itself does not re-confirm — choosing `cancel_and_save` is already the answer.
 
 ### Test case kind

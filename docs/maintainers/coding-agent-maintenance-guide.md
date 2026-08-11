@@ -192,6 +192,10 @@ When changing runner runtime behavior, update docs in the same PR/commit series:
   passing ones included, because a sequential group's later cases may depend on state its earlier
   ones build. Triggering it unconditionally burns a second full pass, and doubles AI-action spend,
   on groups that had nothing wrong.
+- Finding work to stop by querying runs alone. The retry hold makes a session live with **every
+  member terminal**, so a project-wide search for active runs turns up nothing in the gap between
+  retry rounds while the group is about to start another one. Anything that stops, sweeps, or reaps
+  must also consider non-terminal `RunSession` rows — see `findLiveSessionIdsForStop`.
 - Holding the rollup for an outcome that cannot be retried. `retryPending` suppresses `FAIL` and
   `CANCELLED` because either can still be retried, but `PASS` must settle immediately — otherwise a
   green group stays `RUNNING` until the orchestrator's `finally`, and a crash right after round 0

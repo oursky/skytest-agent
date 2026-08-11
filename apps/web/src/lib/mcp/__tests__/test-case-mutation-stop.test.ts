@@ -87,7 +87,7 @@ describe('update_test_case with cancel_and_save', () => {
             {},
         );
 
-        expect(mocks.cancelRunsForStop).toHaveBeenCalledWith(activeRuns, CANCELLATION_REASON.MCP_FOR_UPDATE);
+        expect(mocks.cancelRunsForStop).toHaveBeenCalledWith(activeRuns, [], CANCELLATION_REASON.MCP_FOR_UPDATE);
         expect(result.payload).toMatchObject({
             cancelledRuns: ['r1'],
             sessionMembersAlsoCancelled: 2,

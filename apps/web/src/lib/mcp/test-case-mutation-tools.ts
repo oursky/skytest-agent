@@ -496,7 +496,7 @@ export function registerTestCaseMutationTools(server: McpServer): void {
             // Stopping just this case's run would leave its group session running, and the group
             // would carry on — including retrying this very case — against the edit being applied
             // here. Stop the session it belongs to, like every other stop path.
-            const stopOutcome = await cancelRunsForStop(activeRuns, CANCELLATION_REASON.MCP_FOR_UPDATE);
+            const stopOutcome = await cancelRunsForStop(activeRuns, [], CANCELLATION_REASON.MCP_FOR_UPDATE);
             cancelledRunIds.push(...stopOutcome.cancelledRunIds);
             sessionMembersAlsoCancelled = stopOutcome.sessionMembersAlsoCancelled;
             failedCancellations.push(

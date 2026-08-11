@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
     testRunFindMany: vi.fn(),
     cancelRunsForStop: vi.fn(),
     gateSessionStop: vi.fn(),
+    findLiveSessionIdsForStop: vi.fn(),
     cancelRunDurably: vi.fn(),
     testRunFindUnique: vi.fn(),
     isTestRunProjectMember: vi.fn(),
@@ -35,6 +36,7 @@ vi.mock('@/lib/mcp/server-response', () => ({
 vi.mock('@/lib/mcp/run-cancellation', () => ({
     cancelRunsForStop: mocks.cancelRunsForStop,
     gateSessionStop: mocks.gateSessionStop,
+    findLiveSessionIdsForStop: mocks.findLiveSessionIdsForStop,
     cancelRunDurably: mocks.cancelRunDurably,
 }));
 vi.mock('@/lib/core/prisma', () => ({
@@ -76,9 +78,11 @@ beforeEach(() => {
     mocks.getUserId.mockReturnValue('user-1');
     mocks.verifyProjectAccess.mockResolvedValue(true);
     mocks.isTestRunProjectMember.mockResolvedValue(true);
+    mocks.findLiveSessionIdsForStop.mockResolvedValue([]);
     // Default: nothing needed confirming, so the tool proceeds with everything it found.
-    mocks.gateSessionStop.mockImplementation(async (runs: unknown[]) => ({
+    mocks.gateSessionStop.mockImplementation(async (runs: unknown[], liveSessionIds: string[]) => ({
         targets: runs,
+        liveSessionIds,
         sessionsLeftRunning: [],
     }));
 });
@@ -167,7 +171,7 @@ describe('stop_all_runs', () => {
 
         const { payload } = await stopAllRunsTool({ projectId: 'project-1' }, extra) as unknown as Payload;
 
-        expect(mocks.cancelRunsForStop).toHaveBeenCalledWith(activeRuns, CANCELLATION_REASON.MCP);
+        expect(mocks.cancelRunsForStop).toHaveBeenCalledWith(activeRuns, [], CANCELLATION_REASON.MCP);
         expect(mocks.cancelRunDurably).not.toHaveBeenCalled();
         expect(payload).toMatchObject({ cancelledRuns: 2, failedCancellations: 0, skippedCancellations: 0 });
     });
@@ -178,7 +182,7 @@ describe('stop_all_runs', () => {
 
         await stopAllRunsTool({ projectId: 'project-1', reason: 'stopping to re-record' }, extra);
 
-        expect(mocks.cancelRunsForStop).toHaveBeenCalledWith(expect.anything(), 'stopping to re-record');
+        expect(mocks.cancelRunsForStop).toHaveBeenCalledWith(expect.anything(), [], 'stopping to re-record');
     });
 
     it('selects the session id, so members can be routed to their session', async () => {
@@ -205,7 +209,7 @@ describe('stop_all_queues', () => {
 
         const { payload } = await stopAllQueuesTool({ projectId: 'project-1' }, extra) as unknown as Payload;
 
-        expect(mocks.cancelRunsForStop).toHaveBeenCalledWith(queuedRuns, CANCELLATION_REASON.MCP);
+        expect(mocks.cancelRunsForStop).toHaveBeenCalledWith(queuedRuns, [], CANCELLATION_REASON.MCP);
         expect(mocks.cancelRunDurably).not.toHaveBeenCalled();
         // The running sibling that went with it is reported rather than hidden.
         expect(payload).toMatchObject({ cancelledRuns: 1, sessionMembersAlsoCancelled: 1 });
@@ -220,6 +224,44 @@ describe('stop_all_queues', () => {
             select: expect.objectContaining({ runSessionId: true }),
         }));
     });
+});
+
+describe('stopping a group that is between retry rounds', () => {
+    // The retry hold keeps a session live with every member terminal, so there is no active run to
+    // find. Searching runs alone reported "nothing to stop" while the group was about to start
+    // another round, so the tools look for live sessions as well.
+    for (const tool of ['stop_all_runs', 'stop_all_queues'] as const) {
+        it(`${tool} still stops a live session that has no active member`, async () => {
+            mocks.testRunFindMany.mockResolvedValue([]);
+            mocks.findLiveSessionIdsForStop.mockResolvedValue(['session-1']);
+            mocks.cancelRunsForStop.mockResolvedValue({
+                cancelledRunIds: [], skipped: [], failures: [], sessionMembersAlsoCancelled: 0,
+            });
+
+            const run = tool === 'stop_all_runs' ? stopAllRunsTool : stopAllQueuesTool;
+            await run({ projectId: 'project-1', activeSessionResolution: 'stop_sessions' }, extra);
+
+            expect(mocks.gateSessionStop).toHaveBeenCalledWith(
+                [], ['session-1'], 'stop_sessions', expect.anything(),
+            );
+            expect(mocks.cancelRunsForStop).toHaveBeenCalledWith([], ['session-1'], CANCELLATION_REASON.MCP);
+        });
+
+        it(`${tool} asks for confirmation for such a session too`, async () => {
+            mocks.testRunFindMany.mockResolvedValue([]);
+            mocks.findLiveSessionIdsForStop.mockResolvedValue(['session-1']);
+            mocks.gateSessionStop.mockResolvedValue({
+                confirmation: { message: 'belongs to run sessions', details: { code: 'SESSION_STOP_CONFIRMATION_REQUIRED' } },
+                targets: [], liveSessionIds: [], sessionsLeftRunning: [],
+            });
+
+            const run = tool === 'stop_all_runs' ? stopAllRunsTool : stopAllQueuesTool;
+            const result = await run({ projectId: 'project-1' }, extra) as unknown as { error: string };
+
+            expect(result.error).toContain('run sessions');
+            expect(mocks.cancelRunsForStop).not.toHaveBeenCalled();
+        });
+    }
 });
 
 describe('stop confirmation', () => {
@@ -241,6 +283,7 @@ describe('stop confirmation', () => {
                     details: { code: 'SESSION_STOP_CONFIRMATION_REQUIRED', sessions, options: ['stop_sessions', 'only_standalone'] },
                 },
                 targets: [],
+                liveSessionIds: [],
                 sessionsLeftRunning: [],
             });
 
@@ -262,6 +305,7 @@ describe('stop confirmation', () => {
             ]);
             mocks.gateSessionStop.mockResolvedValue({
                 targets: [{ id: 'solo', status: 'QUEUED', runSessionId: null }],
+                liveSessionIds: [],
                 sessionsLeftRunning: sessions,
             });
             mocks.cancelRunsForStop.mockResolvedValue({
@@ -276,11 +320,13 @@ describe('stop confirmation', () => {
 
             expect(mocks.gateSessionStop).toHaveBeenCalledWith(
                 expect.anything(),
+                [],
                 'only_standalone',
                 expect.objectContaining({ projectId: 'project-1' }),
             );
             expect(mocks.cancelRunsForStop).toHaveBeenCalledWith(
                 [{ id: 'solo', status: 'QUEUED', runSessionId: null }],
+                [],
                 CANCELLATION_REASON.MCP,
             );
             expect(payload.sessionsLeftRunning).toEqual(sessions);

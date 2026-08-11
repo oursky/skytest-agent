@@ -28,7 +28,9 @@ vi.mock('@/lib/core/prisma', () => ({
 
 vi.mock('@/lib/runtime/cancel-run', () => ({ cancelActiveRunSession }));
 
-const { cancelRunDurably, cancelRunsForStop, gateSessionStop } = await import('@/lib/mcp/run-cancellation');
+const {
+    cancelRunDurably, cancelRunsForStop, gateSessionStop, findLiveSessionIdsForStop,
+} = await import('@/lib/mcp/run-cancellation');
 
 describe('cancelRunDurably', () => {
     beforeEach(() => {
@@ -146,7 +148,7 @@ describe('cancelRunsForStop', () => {
         const outcome = await cancelRunsForStop([
             { id: 'r1', runSessionId: 'session-1' },
             { id: 'r2', runSessionId: 'session-1' },
-        ], 'stopped from MCP');
+        ], [], 'stopped from MCP');
 
         expect(cancelActiveRunSession).toHaveBeenCalledTimes(1);
         expect(cancelActiveRunSession).toHaveBeenCalledWith('session-1', 'stopped from MCP');
@@ -164,7 +166,7 @@ describe('cancelRunsForStop', () => {
         await cancelRunsForStop([
             { id: 'r1', runSessionId: 'session-1' },
             { id: 'r2', runSessionId: 'session-2' },
-        ], 'reason');
+        ], [], 'reason');
 
         expect(cancelActiveRunSession.mock.calls.map((call) => call[0])).toEqual(['session-1', 'session-2']);
     });
@@ -172,7 +174,7 @@ describe('cancelRunsForStop', () => {
     it('reports a member that settled on its own instead of cancelling', async () => {
         testRunFindMany.mockResolvedValue([{ id: 'r1', status: 'PASS' }]);
 
-        const outcome = await cancelRunsForStop([{ id: 'r1', runSessionId: 'session-1' }], 'reason');
+        const outcome = await cancelRunsForStop([{ id: 'r1', runSessionId: 'session-1' }], [], 'reason');
 
         expect(outcome.cancelledRunIds).toEqual([]);
         expect(outcome.skipped).toEqual([
@@ -186,7 +188,7 @@ describe('cancelRunsForStop', () => {
         const outcome = await cancelRunsForStop([
             { id: 'r1', runSessionId: 'session-1' },
             { id: 'r2', runSessionId: 'session-1' },
-        ], 'reason');
+        ], [], 'reason');
 
         expect(outcome.failures).toEqual([
             { runId: 'r1', error: 'boom' },
@@ -199,7 +201,7 @@ describe('cancelRunsForStop', () => {
         testRunFindUnique.mockResolvedValue({ id: 'solo', status: RUN_ACTIVE_STATUSES[0], testCaseId: 'case-1' });
         testRunUpdateMany.mockResolvedValue({ count: 1 });
 
-        const outcome = await cancelRunsForStop([{ id: 'solo', runSessionId: null }], 'reason');
+        const outcome = await cancelRunsForStop([{ id: 'solo', runSessionId: null }], [], 'reason');
 
         expect(cancelActiveRunSession).not.toHaveBeenCalled();
         expect(outcome.cancelledRunIds).toEqual(['solo']);
@@ -224,8 +226,7 @@ describe('gateSessionStop', () => {
     });
 
     it('asks for confirmation, naming the test group, and stops nothing yet', async () => {
-        const gate = await gateSessionStop(
-            [{ id: 'r1', runSessionId: 'session-1' }],
+        const gate = await gateSessionStop([{ id: 'r1', runSessionId: 'session-1' }], [],
             undefined,
             { projectId: 'project-1' },
         );
@@ -247,8 +248,7 @@ describe('gateSessionStop', () => {
     });
 
     it('needs no confirmation when nothing belongs to a session', async () => {
-        const gate = await gateSessionStop(
-            [{ id: 'solo', runSessionId: null }],
+        const gate = await gateSessionStop([{ id: 'solo', runSessionId: null }], [],
             undefined,
             {},
         );
@@ -261,7 +261,7 @@ describe('gateSessionStop', () => {
     it('stops everything once the caller confirms stop_sessions', async () => {
         const runs = [{ id: 'r1', runSessionId: 'session-1' }, { id: 'solo', runSessionId: null }];
 
-        const gate = await gateSessionStop(runs, 'stop_sessions', {});
+        const gate = await gateSessionStop(runs, [], 'stop_sessions', {});
 
         expect(gate.confirmation).toBeUndefined();
         expect(gate.targets).toEqual(runs);
@@ -269,8 +269,7 @@ describe('gateSessionStop', () => {
     });
 
     it('leaves the sessions alone for only_standalone, and says which it left', async () => {
-        const gate = await gateSessionStop(
-            [{ id: 'r1', runSessionId: 'session-1' }, { id: 'solo', runSessionId: null }],
+        const gate = await gateSessionStop([{ id: 'r1', runSessionId: 'session-1' }, { id: 'solo', runSessionId: null }], [],
             'only_standalone',
             {},
         );
@@ -288,12 +287,89 @@ describe('gateSessionStop', () => {
             memberRuns: [{ id: 'r9' }],
         }]);
 
-        const gate = await gateSessionStop([{ id: 'r9', runSessionId: 'session-2' }], undefined, {});
+        const gate = await gateSessionStop([{ id: 'r9', runSessionId: 'session-2' }], [],
+            undefined, {});
 
         expect(gate.confirmation?.details.sessions).toEqual([expect.objectContaining({
             kind: 'SINGLE',
             testGroupName: null,
         })]);
         expect(gate.confirmation?.message).not.toContain('Test groups affected');
+    });
+});
+
+
+/**
+ * A group between retry rounds is live with every member terminal, so nothing turns up when a stop
+ * searches for active runs. These cover the session-first path that closes that gap.
+ */
+describe('live sessions with no active member', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        cancelActiveRunSession.mockResolvedValue({ cancelledMembers: 2 });
+        runSessionFindMany.mockResolvedValue([{
+            id: 'session-1',
+            kind: 'GROUP',
+            testGroupId: 'group-1',
+            testGroup: { name: 'Checkout regression' },
+            memberRuns: [],
+        }]);
+        testRunFindMany.mockResolvedValue([]);
+    });
+
+    it('findLiveSessionIdsForStop asks only for non-terminal sessions in the project', async () => {
+        runSessionFindMany.mockResolvedValue([{ id: 'session-1' }, { id: 'session-2' }]);
+        const { RUN_TERMINAL_STATUSES } = await import('@/types');
+
+        const ids = await findLiveSessionIdsForStop('project-1');
+
+        expect(ids).toEqual(['session-1', 'session-2']);
+        expect(runSessionFindMany).toHaveBeenCalledWith(expect.objectContaining({
+            where: {
+                projectId: 'project-1',
+                deletedAt: null,
+                status: { notIn: [...RUN_TERMINAL_STATUSES] },
+            },
+            select: { id: true },
+        }));
+    });
+
+    it('cancelRunsForStop stops a named session even with no requested run', async () => {
+        const outcome = await cancelRunsForStop([], ['session-1'], 'reason');
+
+        expect(cancelActiveRunSession).toHaveBeenCalledWith('session-1', 'reason');
+        expect(outcome.cancelledRunIds).toEqual([]);
+        expect(outcome.sessionMembersAlsoCancelled).toBe(2);
+    });
+
+    it('cancelRunsForStop does not cancel one session twice when it is both named and derived', async () => {
+        testRunFindMany.mockResolvedValue([{ id: 'r1', status: 'CANCELLED' }]);
+
+        await cancelRunsForStop([{ id: 'r1', runSessionId: 'session-1' }], ['session-1'], 'reason');
+
+        expect(cancelActiveRunSession).toHaveBeenCalledTimes(1);
+    });
+
+    it('gateSessionStop confirms a named session that has no requested run', async () => {
+        const gate = await gateSessionStop([], ['session-1'], undefined, {});
+
+        expect(gate.confirmation?.details).toMatchObject({ code: 'SESSION_STOP_CONFIRMATION_REQUIRED' });
+        expect(gate.confirmation?.details.sessions).toEqual([expect.objectContaining({
+            sessionId: 'session-1',
+            requestedRunIds: [],
+        })]);
+    });
+
+    it('gateSessionStop carries the named sessions through once confirmed', async () => {
+        const gate = await gateSessionStop([], ['session-1'], 'stop_sessions', {});
+
+        expect(gate.liveSessionIds).toEqual(['session-1']);
+    });
+
+    it('gateSessionStop drops them for only_standalone, and lists them as left running', async () => {
+        const gate = await gateSessionStop([], ['session-1'], 'only_standalone', {});
+
+        expect(gate.liveSessionIds).toEqual([]);
+        expect(gate.sessionsLeftRunning).toEqual([expect.objectContaining({ sessionId: 'session-1' })]);
     });
 });
