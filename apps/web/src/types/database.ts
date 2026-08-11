@@ -79,6 +79,8 @@ export interface RunSessionMemberInfo {
     status: string;
     sessionPosition: number;
     reusedSession?: boolean;
+    attempt?: number;
+    previousAttempts?: { runId: string; attempt: number; status: string }[];
 }
 
 export interface RunSessionInfo {
@@ -87,6 +89,7 @@ export interface RunSessionInfo {
     groupName: string | null;
     onFailure: string | null;
     executionMode: string | null;
+    retryPolicy: string | null;
     members: RunSessionMemberInfo[];
 }
 

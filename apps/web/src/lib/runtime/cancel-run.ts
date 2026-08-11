@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/core/prisma';
 import { publishRunUpdate } from '@/lib/runners/event-bus';
-import { recomputeRunSessionStatus } from '@/lib/runtime/run-session-service';
+import { recomputeRunSessionStatus, releaseSessionRetryHold } from '@/lib/runtime/run-session-service';
 import { cancelLocalBrowserRun } from '@/lib/runtime/local-browser-runner';
 import { CANCELLATION_REASON } from '@/lib/runtime/cancellation-reasons';
 import { RUN_ACTIVE_STATUSES, RUN_SESSION_KIND, TEST_STATUS, isRunActiveStatus } from '@/types';
@@ -128,6 +128,9 @@ export async function cancelActiveRunSession(sessionId: string): Promise<{ cance
         cancelLocalBrowserRun(member.id);
     }
 
+    // A stopped group must not retry. Releasing the hold before the rollup also lets a session
+    // cancelled in the gap between retry rounds settle now rather than waiting on the reaper.
+    await releaseSessionRetryHold(sessionId);
     await recomputeRunSessionStatus(sessionId);
     return { cancelledMembers };
 }

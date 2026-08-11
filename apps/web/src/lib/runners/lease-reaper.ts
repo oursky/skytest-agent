@@ -217,6 +217,11 @@ export async function reapStaleLocalBrowserRuns(now = new Date()) {
  * still waiting for their first dispatch are excluded by the started-but-idle guard, and the
  * stale window leaves healthy sessions (including the brief gap between sequential members)
  * untouched. Stranded members are failed so the session rolls up to FAIL.
+ *
+ * A group awaiting a retry round is the one stranded shape with no active member at all — every
+ * attempt so far is terminal and only `retryPending` keeps the session live. Such a session is
+ * matched too, so a crash between rounds cannot leave it RUNNING forever (which would block the
+ * group from ever being edited or re-run).
  */
 export async function reapStrandedRunSessions(now = new Date()) {
     const staleBefore = new Date(now.getTime() - appConfig.runner.localBrowserStaleTimeoutMs);
@@ -224,7 +229,10 @@ export async function reapStrandedRunSessions(now = new Date()) {
         where: {
             status: { notIn: [...RUN_TERMINAL_STATUSES] },
             startedAt: { not: null },
-            memberRuns: { some: { status: { in: [...RUN_ACTIVE_STATUSES] } } },
+            OR: [
+                { memberRuns: { some: { status: { in: [...RUN_ACTIVE_STATUSES] } } } },
+                { retryPending: true },
+            ],
         },
         select: {
             id: true,
@@ -242,10 +250,10 @@ export async function reapStrandedRunSessions(now = new Date()) {
         if (hasRecentActivity) {
             continue;
         }
-        const settled = await failActiveSessionMembers(session.id);
-        if (settled > 0) {
+        const outcome = await failActiveSessionMembers(session.id);
+        if (outcome.settledMembers > 0 || outcome.releasedRetryHold) {
             strandedSessions += 1;
-            settledMembers += settled;
+            settledMembers += outcome.settledMembers;
         }
     }
 

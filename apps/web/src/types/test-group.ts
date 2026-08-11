@@ -12,6 +12,33 @@ export const TEST_GROUP_EXECUTION_MODE = {
 
 export type TestGroupExecutionMode = typeof TEST_GROUP_EXECUTION_MODE[keyof typeof TEST_GROUP_EXECUTION_MODE];
 
+/**
+ * Retry budgets are per case, not per group: FAILED_ONCE/FAILED_TWICE allow each case that many
+ * retries of its own, so a case first executed during a retry round still gets its full
+ * allowance. WHOLE_GROUP_ONCE is always exactly one extra pass over every case.
+ */
+export const TEST_GROUP_RETRY_POLICY = {
+    NONE: 'NONE',
+    FAILED_ONCE: 'FAILED_ONCE',
+    FAILED_TWICE: 'FAILED_TWICE',
+    WHOLE_GROUP_ONCE: 'WHOLE_GROUP_ONCE',
+} as const;
+
+export type TestGroupRetryPolicy = typeof TEST_GROUP_RETRY_POLICY[keyof typeof TEST_GROUP_RETRY_POLICY];
+
+export const TEST_GROUP_RETRY_POLICIES: readonly TestGroupRetryPolicy[] = [
+    TEST_GROUP_RETRY_POLICY.NONE,
+    TEST_GROUP_RETRY_POLICY.FAILED_ONCE,
+    TEST_GROUP_RETRY_POLICY.FAILED_TWICE,
+    TEST_GROUP_RETRY_POLICY.WHOLE_GROUP_ONCE,
+];
+
+export function coerceTestGroupRetryPolicy(value: string | null | undefined): TestGroupRetryPolicy {
+    return TEST_GROUP_RETRY_POLICIES.includes(value as TestGroupRetryPolicy)
+        ? value as TestGroupRetryPolicy
+        : TEST_GROUP_RETRY_POLICY.NONE;
+}
+
 export interface TestGroupLoginSessionSummary {
     id: string;
     loginFlowId: string;
@@ -43,6 +70,7 @@ export interface TestGroupSummary {
     displayId?: string | null;
     onFailure: TestGroupFailureMode;
     executionMode: TestGroupExecutionMode;
+    retryPolicy: TestGroupRetryPolicy;
     loginSessions: TestGroupLoginSessionSummary[];
     items: TestGroupItemSummary[];
     lastSessionId?: string | null;
@@ -81,6 +109,7 @@ export interface TestGroupUpsertInput {
     displayId?: string | null;
     onFailure?: TestGroupFailureMode;
     executionMode?: TestGroupExecutionMode;
+    retryPolicy?: TestGroupRetryPolicy;
     loginSessions?: TestGroupLoginSessionInput[];
     testCaseIds: string[];
 }

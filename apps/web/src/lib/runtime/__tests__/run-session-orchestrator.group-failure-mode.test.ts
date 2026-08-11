@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
     finalizeMemberRunResult: vi.fn(),
     finalizeMemberRunError: vi.fn(),
     recomputeRunSessionForMember: vi.fn(),
+    recomputeRunSessionStatus: vi.fn(),
+    releaseSessionRetryHold: vi.fn(),
     failActiveSessionMembers: vi.fn(),
     publishRunUpdate: vi.fn(),
     emitRunTerminal: vi.fn(),
@@ -49,6 +51,8 @@ vi.mock('@/lib/runtime/run-member-finalize', () => ({
 }));
 vi.mock('@/lib/runtime/run-session-service', () => ({
     recomputeRunSessionForMember: mocks.recomputeRunSessionForMember,
+    recomputeRunSessionStatus: mocks.recomputeRunSessionStatus,
+    releaseSessionRetryHold: mocks.releaseSessionRetryHold,
     failActiveSessionMembers: mocks.failActiveSessionMembers,
 }));
 vi.mock('@/lib/runners/event-bus', () => ({ publishRunUpdate: mocks.publishRunUpdate }));
@@ -80,6 +84,7 @@ async function runGroup(
     executionMode: 'SEQUENTIAL' | 'PARALLEL' = 'SEQUENTIAL',
 ) {
     mocks.runSessionFindUnique.mockResolvedValue({
+        retryPolicy: 'NONE',
         project: { maxConcurrentRuns: 5 },
         testGroup: { onFailure: mode, executionMode },
     });
@@ -117,6 +122,8 @@ async function runGroup(
         _signal: AbortSignal,
         onInactive: () => void,
     ) => ({ start: () => onInactive(), stop: vi.fn() }));
+    mocks.releaseSessionRetryHold.mockResolvedValue(false);
+    mocks.recomputeRunSessionStatus.mockResolvedValue(undefined);
 
     await executeGroupSession('session-1', new AbortController());
 }

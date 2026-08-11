@@ -43,3 +43,24 @@ describe('rollupRunSessionStatus', () => {
         expect(rollupRunSessionStatus([TEST_STATUS.PASS, TEST_STATUS.PASS])).toBe(TEST_STATUS.PASS);
     });
 });
+
+describe('rollupRunSessionStatus retry hold', () => {
+    it('holds a would-be FAIL session at RUNNING while retries are pending', () => {
+        // The gap between retry rounds: every attempt is terminal but more are coming. Settling
+        // here would emit the terminal event, post the Slack summary, and unlock the group.
+        expect(rollupRunSessionStatus(['PASS', 'FAIL'], { retryPending: true })).toBe('RUNNING');
+    });
+
+    it('settles an all-pass session immediately even while the hold is set', () => {
+        expect(rollupRunSessionStatus(['PASS', 'PASS'], { retryPending: true })).toBe('PASS');
+    });
+
+    it('settles a cancelled session immediately — a stopped group must not retry', () => {
+        expect(rollupRunSessionStatus(['PASS', 'CANCELLED'], { retryPending: true })).toBe('CANCELLED');
+    });
+
+    it('settles FAIL once the hold is released', () => {
+        expect(rollupRunSessionStatus(['PASS', 'FAIL'], { retryPending: false })).toBe('FAIL');
+        expect(rollupRunSessionStatus(['PASS', 'FAIL'])).toBe('FAIL');
+    });
+});
