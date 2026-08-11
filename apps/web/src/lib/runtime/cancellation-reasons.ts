@@ -55,3 +55,25 @@ export function cancellationReasonCodeFor(status: string, error: string | null |
     }
     return REASON_STRING_TO_CODE[error] ?? null;
 }
+
+/** Reasons that mean a person stopped this run, rather than the orchestrator skipping it. */
+const USER_INITIATED_CANCELLATION_CODES: ReadonlySet<string> = new Set([
+    'USER_SINGLE',
+    'USER_GROUP',
+    'MCP',
+    'MCP_FOR_UPDATE',
+]);
+
+/**
+ * Whether a CANCELLED run was stopped deliberately by someone, as opposed to skipped by the group
+ * (`EARLIER_CASE_FAILED`, `LOGIN_FLOW_FAILED`) or cancelled for a dynamic/historical reason.
+ *
+ * Retry planning needs the distinction: a case skipped behind a failure must still get its retries,
+ * but a case someone stopped must not be re-run — otherwise stopping a group with a retry policy
+ * just hands every cancelled case a fresh allowance. Unrecognized reasons stay retryable so the
+ * skip-and-resume behavior is never weakened by an unmapped string.
+ */
+export function isUserInitiatedCancellation(status: string, error: string | null | undefined): boolean {
+    const code = cancellationReasonCodeFor(status, error);
+    return code !== null && USER_INITIATED_CANCELLATION_CODES.has(code);
+}

@@ -16,6 +16,7 @@ import {
     TEST_GROUP_RETRY_POLICY,
     TEST_STATUS,
 } from '@/types';
+import { CANCELLATION_REASON } from '@/lib/runtime/cancellation-reasons';
 
 const { STOP, CONTINUE } = TEST_GROUP_FAILURE_MODE;
 const { NONE, FAILED_ONCE, FAILED_TWICE, WHOLE_GROUP_ONCE } = TEST_GROUP_RETRY_POLICY;
@@ -26,8 +27,9 @@ function attempt(
     attemptNumber: number,
     status: string,
     kind: string = TEST_CASE_KIND.TEST,
+    error: string | null = null,
 ): AttemptRecord {
-    return { testCaseId, sessionPosition, attempt: attemptNumber, status, kind };
+    return { testCaseId, sessionPosition, attempt: attemptNumber, status, kind, error };
 }
 
 function state(
@@ -36,8 +38,9 @@ function state(
     latestStatus: string,
     executed: number,
     kind: string = TEST_CASE_KIND.TEST,
+    latestError: string | null = null,
 ): CaseRetryState {
-    return { testCaseId, sessionPosition, latestStatus, executed, kind };
+    return { testCaseId, sessionPosition, latestStatus, executed, kind, latestError };
 }
 
 describe('retriesPerCaseFor', () => {
@@ -146,6 +149,42 @@ describe('planRetryRound — failed-case policies', () => {
             state('a', 1, TEST_STATUS.CANCELLED, 0),
         ], FAILED_ONCE, STOP, 0);
         expect(plan.map((row) => row.testCaseId)).toEqual(['login', 'a']);
+    });
+});
+
+describe('planRetryRound — deliberately stopped cases', () => {
+    it('does not retry a case somebody stopped', () => {
+        expect(planRetryRound([
+            state('a', 0, TEST_STATUS.CANCELLED, 0, TEST_CASE_KIND.TEST, CANCELLATION_REASON.MCP),
+        ], FAILED_TWICE, CONTINUE, 0)).toEqual([]);
+        expect(planRetryRound([
+            state('a', 0, TEST_STATUS.CANCELLED, 0, TEST_CASE_KIND.TEST, CANCELLATION_REASON.USER_GROUP),
+        ], FAILED_TWICE, CONTINUE, 0)).toEqual([]);
+        expect(planRetryRound([
+            state('a', 0, TEST_STATUS.CANCELLED, 0, TEST_CASE_KIND.TEST, CANCELLATION_REASON.MCP_FOR_UPDATE),
+        ], FAILED_TWICE, CONTINUE, 0)).toEqual([]);
+    });
+
+    it('still retries a case the group skipped behind a failure', () => {
+        const plan = planRetryRound([
+            state('a', 0, TEST_STATUS.CANCELLED, 0, TEST_CASE_KIND.TEST, CANCELLATION_REASON.EARLIER_CASE_FAILED),
+            state('b', 1, TEST_STATUS.CANCELLED, 0, TEST_CASE_KIND.TEST, CANCELLATION_REASON.LOGIN_FLOW_FAILED),
+        ], FAILED_ONCE, CONTINUE, 0);
+        expect(plan.map((row) => row.testCaseId)).toEqual(['a', 'b']);
+    });
+
+    it('keeps an unmapped cancellation reason retryable', () => {
+        const plan = planRetryRound([
+            state('a', 0, TEST_STATUS.CANCELLED, 0, TEST_CASE_KIND.TEST, 'some historical reason'),
+        ], FAILED_ONCE, CONTINUE, 0);
+        expect(plan.map((row) => row.testCaseId)).toEqual(['a']);
+    });
+
+    it('does not trigger a whole-group retry when the only unresolved case was stopped', () => {
+        expect(planRetryRound([
+            state('a', 0, TEST_STATUS.PASS, 1),
+            state('b', 1, TEST_STATUS.CANCELLED, 0, TEST_CASE_KIND.TEST, CANCELLATION_REASON.MCP),
+        ], WHOLE_GROUP_ONCE, CONTINUE, 0)).toEqual([]);
     });
 });
 

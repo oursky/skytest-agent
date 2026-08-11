@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TEST_CASE_KIND, TEST_GROUP_RETRY_POLICY, TEST_STATUS } from '@/types';
+import { CANCELLATION_REASON } from '@/lib/runtime/cancellation-reasons';
 
 /**
  * `runGroupRetryRounds` takes `runRound` by injection, so the loop is driven directly here rather
@@ -18,6 +19,7 @@ interface Row {
     attempt: number;
     sessionPosition: number;
     status: string;
+    error: string | null;
     requiredCapability: string | null;
     triggeredByEmail: string | null;
     triggerSource: string;
@@ -84,6 +86,7 @@ function seed(cases: Record<string, string[]>, sessionId = 'session-1'): void {
                 attempt: index + 1,
                 sessionPosition: position,
                 status,
+                error: null,
                 requiredCapability: 'BROWSER',
                 triggeredByEmail: 'user@example.com',
                 triggerSource: 'USER',
@@ -158,7 +161,8 @@ describe('runGroupRetryRounds — new attempt rows', () => {
         seed({ a: [TEST_STATUS.FAIL] });
         rows.push({
             id: 'a#9', runSessionId: 'other-session', testCaseId: 'a', kind: TEST_CASE_KIND.TEST,
-            attempt: 9, sessionPosition: 0, status: TEST_STATUS.FAIL, requiredCapability: 'ANDROID',
+            attempt: 9, sessionPosition: 0, status: TEST_STATUS.FAIL, error: null,
+            requiredCapability: 'ANDROID',
             triggeredByEmail: 'someone-else@example.com', triggerSource: 'SCHEDULE',
         });
 
@@ -232,6 +236,32 @@ describe('runGroupRetryRounds — loop exits', () => {
         });
 
         expect(created).toEqual([]);
+    });
+
+    it('does not retry a case that somebody stopped', async () => {
+        seed({ a: [TEST_STATUS.CANCELLED] });
+        rows[0].error = CANCELLATION_REASON.MCP;
+
+        await runRounds({
+            policy: TEST_GROUP_RETRY_POLICY.FAILED_TWICE,
+            runRound: async () => {
+                throw new Error('must not retry a run that was deliberately stopped');
+            },
+        });
+
+        expect(created).toEqual([]);
+    });
+
+    it('still retries a case the group skipped behind a failure', async () => {
+        seed({ a: [TEST_STATUS.CANCELLED] });
+        rows[0].error = CANCELLATION_REASON.EARLIER_CASE_FAILED;
+
+        await runRounds({
+            policy: TEST_GROUP_RETRY_POLICY.FAILED_ONCE,
+            runRound: settleRoundWith(TEST_STATUS.PASS),
+        });
+
+        expect(created.map((row) => row.attempt)).toEqual([2]);
     });
 
     it('retries nothing when the group came back fully green', async () => {

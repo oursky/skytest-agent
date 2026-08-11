@@ -149,6 +149,6 @@ async function createRetryAttempts(
 async function loadSessionAttempts(sessionId: string): Promise<AttemptRecord[]> {
     return prisma.testRun.findMany({
         where: { runSessionId: sessionId },
-        select: { testCaseId: true, kind: true, sessionPosition: true, attempt: true, status: true },
+        select: { testCaseId: true, kind: true, sessionPosition: true, attempt: true, status: true, error: true },
     });
 }

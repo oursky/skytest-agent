@@ -1,3 +1,4 @@
+import { isUserInitiatedCancellation } from '@/lib/runtime/cancellation-reasons';
 import {
     TEST_GROUP_FAILURE_MODE,
     TEST_GROUP_RETRY_POLICY,
@@ -28,6 +29,8 @@ export interface AttemptRecord {
     sessionPosition: number | null;
     attempt: number;
     status: string;
+    /** Cancellation reason, needed to tell a deliberate stop from a skip. */
+    error?: string | null;
 }
 
 export interface CaseRetryState {
@@ -35,6 +38,8 @@ export interface CaseRetryState {
     kind: string;
     sessionPosition: number;
     latestStatus: string;
+    /** Reason recorded on the latest attempt; distinguishes a deliberate stop from a skip. */
+    latestError?: string | null;
     /** Attempts that actually ran. A CANCELLED attempt never executed and does not spend budget. */
     executed: number;
 }
@@ -77,6 +82,7 @@ export function buildCaseRetryStates(attempts: readonly AttemptRecord[]): CaseRe
                 kind: attempt.kind,
                 sessionPosition: attempt.sessionPosition ?? 0,
                 latestStatus: attempt.status,
+                latestError: attempt.error ?? null,
                 executed,
             });
             latestAttemptByCase.set(attempt.testCaseId, attempt.attempt);
@@ -86,13 +92,23 @@ export function buildCaseRetryStates(attempts: readonly AttemptRecord[]): CaseRe
         if (attempt.attempt >= (latestAttemptByCase.get(attempt.testCaseId) ?? 0)) {
             latestAttemptByCase.set(attempt.testCaseId, attempt.attempt);
             existing.latestStatus = attempt.status;
+            existing.latestError = attempt.error ?? null;
         }
     }
     return [...states.values()].sort((a, b) => a.sessionPosition - b.sessionPosition);
 }
 
+/**
+ * A case still wanting a retry. Failures qualify, and so do cases the group skipped behind one —
+ * but not a case somebody deliberately stopped, which would otherwise be handed a fresh allowance
+ * every time a run is stopped from the UI or MCP.
+ */
 function isUnresolved(state: CaseRetryState): boolean {
-    return state.latestStatus === TEST_STATUS.FAIL || state.latestStatus === TEST_STATUS.CANCELLED;
+    if (state.latestStatus === TEST_STATUS.FAIL) {
+        return true;
+    }
+    return state.latestStatus === TEST_STATUS.CANCELLED
+        && !isUserInitiatedCancellation(state.latestStatus, state.latestError);
 }
 
 /**
