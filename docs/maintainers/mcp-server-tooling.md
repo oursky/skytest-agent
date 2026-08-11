@@ -35,7 +35,7 @@ A test group can be configured to retry failed cases (`TestGroup.retryPolicy`: `
 
 - One case can appear several times in a session's members, distinguished by `attempt` (1 = original run).
 - **Take the highest `attempt` per `testCaseId` as that case's outcome.** Counting every row double-counts a retried case and reports its earlier failures as current.
-- The session stays non-terminal between rounds (`retryPending = true`), so a `FAIL` you read mid-retry is not final. Wait for a terminal `status`.
+- The session stays non-terminal between rounds (`retryPending = true`), so no status you read mid-retry is final — not even a `PASS`, since `WHOLE_GROUP_ONCE` re-runs a passing group. Wait for a terminal `status`.
 - The retry budget is per case and counts only attempts that reached `PASS`/`FAIL`; a `CANCELLED` attempt never ran and spends nothing.
 
 ### Test case kind
@@ -164,7 +164,7 @@ A test group can be configured to retry failed cases (`TestGroup.retryPolicy`: `
 ### list_run_sessions
 
 - Input: `{ projectId, testGroupId?, limit? }` (default limit 20, max 50)
-- Returns a project's run sessions, most recent first, optionally scoped to one test group. Each entry: `id`, `kind`, `status`, `testGroupId`, `memberCount`, timestamps.
+- Returns a project's run sessions, most recent first, optionally scoped to one test group. Each entry: `id`, `kind`, `status`, `testGroupId`, `memberCount`, timestamps. `memberCount` counts cases, not attempts, so it does not grow when a group retries.
 
 ### list_test_runs
 

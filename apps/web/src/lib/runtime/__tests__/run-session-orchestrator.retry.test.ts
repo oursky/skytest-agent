@@ -429,6 +429,17 @@ describe('executeGroupSession retries — whole group', () => {
         expect(executions()).toEqual(['login#1', 'a#1', 'b#1', 'login#2', 'a#2', 'b#2']);
     });
 
+    it('re-runs an all-passing group, so the session must not settle after round 0', async () => {
+        await runGroup({
+            cases: ['a', 'b'],
+            outcomes: {},
+            retryPolicy: WHOLE_GROUP_ONCE,
+        });
+
+        expect(executions()).toEqual(['a#1', 'b#1', 'a#2', 'b#2']);
+        expect(finalStatuses()).toEqual({ a: 'PASS', b: 'PASS' });
+    });
+
     it('never runs more than one extra pass even when cases still fail', async () => {
         await runGroup({
             cases: ['a'],
