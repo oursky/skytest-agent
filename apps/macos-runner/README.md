@@ -3,10 +3,8 @@
 Headless runner agent for Android execution.
 This runtime is managed by the `skytest-runner` CLI and is not started directly in normal workflows.
 
-Use the canonical operator documentation for setup, environment, and lifecycle commands:
-
-- [macOS Android runner guide](../../docs/operators/macos-android-runner-guide.md)
-- [macOS runner environment](../../docs/operators/macos-runner-environment.md)
+Setup, environment, and lifecycle are driven through the CLI. For the runtime and isolation model
+this agent implements, see [android-runtime-maintenance.md](../../docs/maintainers/android-runtime-maintenance.md).
 
 From a source checkout, invoke the CLI through the root workspace script:
 

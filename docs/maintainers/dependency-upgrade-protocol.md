@@ -99,5 +99,4 @@ which prints a `VERIFY_FAILURE` block with the exact failing checker. Attribute 
 - `apps/web/scripts/security/check-locked-min-versions.mjs` — lockfile floor guard.
 - `apps/web/scripts/quality/check-overrides-drift.mjs` — override drift guard.
 - `apps/web/scripts/quality/explain-verify-failure.mjs` — verify failure attribution.
-- `docs/maintainers/dependency-lifecycle-policy.md` — upstream lifecycle policy.
 - `docs/maintainers/agent-session-rules.md` — agent session rules.

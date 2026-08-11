@@ -9,7 +9,6 @@ It complements `AGENTS.md` with repository-specific runtime invariants.
 - `AGENTS.md` (repo workflow, constraints, style)
 - [android-runtime-maintenance.md](./android-runtime-maintenance.md)
 - [slack-notification-architecture.md](./slack-notification-architecture.md)
-- [../operators/android-runtime-deployment-checklist.md](../operators/android-runtime-deployment-checklist.md)
 - [../../infra/README.md](../../infra/README.md)
 
 ## High-Risk Runtime Areas
@@ -161,10 +160,7 @@ When changing browser execution behavior, keep these invariants stable:
 
 When changing runner runtime behavior, update docs in the same PR/commit series:
 
-- Operator-facing impact:
-  - [../operators/local-development.md](../operators/local-development.md)
-  - [../operators/macos-android-runner-guide.md](../operators/macos-android-runner-guide.md)
-  - [../operators/android-runtime-deployment-checklist.md](../operators/android-runtime-deployment-checklist.md)
+- Infrastructure impact:
   - [../../infra/README.md](../../infra/README.md)
 - Maintainer-facing impact:
   - [android-runtime-maintenance.md](./android-runtime-maintenance.md)

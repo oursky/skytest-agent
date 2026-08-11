@@ -50,7 +50,7 @@ Use the review type to pick targeted entry points — don't scan the whole repo:
 - New/changed API route: `verifyAuth` at route start, ownership/access guard (`team-route-access` / `project-route-access` / `test-case-route-access`), input validated, no sensitive fields in responses
 - User-facing text: i18n keys present in all three locale modules (`en.ts`, `zh-hant.ts`, `zh-hans.ts`) under `apps/web/src/i18n/locales/`
 - No new Prisma/queue instances (singletons from `lib/core/`), no `any` types, no hardcoded values (use `config/app.ts`)
-- Runtime behavior changes: matching updates in `docs/operators/`, `docs/maintainers/`, `infra/`
+- Runtime behavior changes: matching updates in `docs/maintainers/`, `infra/`
 
 ### 4. Output format
 
