@@ -124,7 +124,7 @@ export function registerMcpTools(server: McpServer): void {
     }, ({ projectId }, extra) => getProjectTestSummaryTool({ projectId }, extra));
 
     server.registerTool('run_test_group', {
-        description: 'Queue a test group run session: each login flow runs first to establish a reusable session, then the group\'s test cases run in order.',
+        description: 'Queue a test group run session: each login flow runs first to establish a reusable session, then the group\'s test cases run in order. The group\'s configured retry policy applies, so failed cases may be re-run before the session settles.',
         inputSchema: {
             projectId: z.string().describe('Project ID'),
             testGroupId: z.string().describe('Test group ID'),
@@ -132,7 +132,7 @@ export function registerMcpTools(server: McpServer): void {
     }, ({ projectId, testGroupId }, extra) => runTestGroupTool({ projectId, testGroupId }, extra));
 
     server.registerTool('get_run_session', {
-        description: 'Get a run session\'s rolled-up status and each member run\'s status. Use this (not get_test_run on a single member) to tell whether a whole group/login-flow run settled.',
+        description: 'Get a run session\'s rolled-up status and each member run\'s status. Use this (not get_test_run on a single member) to tell whether a whole group/login-flow run settled. A retried group repeats a case once per attempt: take the highest `attempt` per testCaseId as that case\'s outcome.',
         inputSchema: { runSessionId: z.string().describe('Run session ID') },
     }, ({ runSessionId }, extra) => getRunSessionTool({ runSessionId }, extra));
 

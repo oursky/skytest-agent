@@ -47,13 +47,16 @@ export async function getRunSessionTool(
                 startedAt: true,
                 completedAt: true,
                 createdAt: true,
+                retryPolicy: true,
+                retryPending: true,
                 memberRuns: {
-                    orderBy: { sessionPosition: 'asc' },
+                    orderBy: [{ sessionPosition: 'asc' }, { attempt: 'asc' }],
                     select: {
                         id: true,
                         testCaseId: true,
                         kind: true,
                         sessionPosition: true,
+                        attempt: true,
                         status: true,
                         error: true,
                     },
@@ -71,11 +74,16 @@ export async function getRunSessionTool(
             startedAt: session.startedAt,
             completedAt: session.completedAt,
             createdAt: session.createdAt,
+            retryPolicy: session.retryPolicy,
+            retryPending: session.retryPending,
+            // A retried case appears once per attempt; `attempt` distinguishes them, and the
+            // highest attempt per testCaseId is the case's final outcome.
             members: session.memberRuns.map((member) => ({
                 id: member.id,
                 testCaseId: member.testCaseId,
                 kind: member.kind,
                 sessionPosition: member.sessionPosition,
+                attempt: member.attempt,
                 status: member.status,
                 error: member.error,
                 cancellationReasonCode: cancellationReasonCodeFor(member.status, member.error),

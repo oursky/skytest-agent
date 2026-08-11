@@ -133,7 +133,7 @@ exports[`mcp manifest compatibility > keeps tool registration names and input sc
     "name": "get_project_test_summary",
   },
   {
-    "description": "Queue a test group run session: each login flow runs first to establish a reusable session, then the group's test cases run in order.",
+    "description": "Queue a test group run session: each login flow runs first to establish a reusable session, then the group's test cases run in order. The group's configured retry policy applies, so failed cases may be re-run before the session settles.",
     "inputKeys": [
       "projectId",
       "testGroupId",
@@ -141,7 +141,7 @@ exports[`mcp manifest compatibility > keeps tool registration names and input sc
     "name": "run_test_group",
   },
   {
-    "description": "Get a run session's rolled-up status and each member run's status. Use this (not get_test_run on a single member) to tell whether a whole group/login-flow run settled.",
+    "description": "Get a run session's rolled-up status and each member run's status. Use this (not get_test_run on a single member) to tell whether a whole group/login-flow run settled. A retried group repeats a case once per attempt: take the highest \`attempt\` per testCaseId as that case's outcome.",
     "inputKeys": [
       "runSessionId",
     ],
