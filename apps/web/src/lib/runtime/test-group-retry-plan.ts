@@ -39,7 +39,13 @@ export interface CaseRetryState {
     executed: number;
 }
 
-/** Latest attempt per case, ordered by the case's original position in the session. */
+/**
+ * Latest attempt per case, ordered by the case's original position in the session.
+ *
+ * Keyed by test case because a session holds each case at most once — group login flows and items
+ * are kind-disjoint, and a single run's login prefixes are deduplicated. Retries add attempt rows
+ * to an existing case rather than new cases, so this collapses them back to one row per case.
+ */
 export function resolveLatestAttempts<T extends { testCaseId: string; attempt: number; sessionPosition: number | null }>(
     attempts: readonly T[],
 ): T[] {
@@ -51,6 +57,11 @@ export function resolveLatestAttempts<T extends { testCaseId: string; attempt: n
         }
     }
     return [...latest.values()].sort((a, b) => (a.sessionPosition ?? 0) - (b.sessionPosition ?? 0));
+}
+
+/** How many cases a session covers. Retried cases contribute one attempt row per attempt. */
+export function countSessionCases(attempts: readonly { testCaseId: string }[]): number {
+    return new Set(attempts.map((attempt) => attempt.testCaseId)).size;
 }
 
 /** Folds every attempt of a session into one retry state per case. Input order does not matter. */

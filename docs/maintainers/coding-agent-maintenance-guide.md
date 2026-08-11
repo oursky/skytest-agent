@@ -180,15 +180,20 @@ When changing runner runtime behavior, update docs in the same PR/commit series:
   progress" trigger guard, and Slack group notify. A rollup that settles on the first failure
   makes the sweep abort a live CONTINUE-mode group mid-run.
 - Counting a retried group's `memberRuns` directly. A test group with a retry policy creates one
-  `TestRun` row **per attempt** (`TestRun.attempt`), so any pass/total count, status rollup, or
-  members list must first reduce to the latest attempt per `testCaseId` via
-  `resolveLatestAttempts` (`apps/web/src/lib/runtime/test-group-retry-plan.ts`). Counting every
-  row double-counts retried cases and reports already-recovered failures as current.
+  `TestRun` row **per attempt** (`TestRun.attempt`), so any status rollup or members list must
+  first reduce to the latest attempt per `testCaseId` via `resolveLatestAttempts`, and any
+  member/pass/total count must go through `countSessionCases`
+  (`apps/web/src/lib/runtime/test-group-retry-plan.ts`). Counting rows double-counts retried cases
+  and reports already-recovered failures as current.
 - Ending a group session's execution without releasing `RunSession.retryPending`. That flag holds
-  a would-be-FAIL session at `RUNNING` across the gap between retry rounds; every exit path — the
-  orchestrator's `finally`, the stop button (`cancel-run.ts`), and the stranded-session reaper —
-  must call `releaseSessionRetryHold`, or a fully-terminal session stays `RUNNING` forever and
-  permanently blocks the group from being edited or re-run.
+  the session at `RUNNING` once every member is terminal but more rounds may follow; every exit
+  path — the orchestrator's `finally`, the stop button (`cancel-run.ts`), and the stranded-session
+  reaper — must call `releaseSessionRetryHold`, or a fully-terminal session stays `RUNNING` forever
+  and permanently blocks the group from being edited or re-run.
+- Assuming the retry hold only matters for failures. `WHOLE_GROUP_ONCE` re-runs an all-passing
+  group, so the hold covers `PASS` and `CANCELLED` too — the rollup must not settle **any** outcome
+  while `retryPending` is set, or round 0 emits the terminal event and Slack summary before the
+  retry pass starts.
 - Adding a retry-eligibility rule without a termination argument. The retry budget is per case and
   counts only attempts that reached `PASS`/`FAIL`, so a case cancelled by stop-on-failure sits at
   `executed = 0` indefinitely. `planRetryRound` therefore stops entirely once an unresolved case

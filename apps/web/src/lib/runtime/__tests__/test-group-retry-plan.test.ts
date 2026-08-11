@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     buildCaseRetryStates,
+    countSessionCases,
     maxRetryRoundsFor,
     planRetryRound,
     resolveLatestAttempts,
@@ -64,6 +65,21 @@ describe('resolveLatestAttempts', () => {
             ['a', 1, TEST_STATUS.PASS],
             ['b', 2, TEST_STATUS.PASS],
         ]);
+    });
+});
+
+describe('countSessionCases', () => {
+    it('counts each case once however many attempts it has', () => {
+        expect(countSessionCases([
+            attempt('a', 0, 1, TEST_STATUS.PASS),
+            attempt('b', 1, 1, TEST_STATUS.FAIL),
+            attempt('b', 1, 2, TEST_STATUS.FAIL),
+            attempt('b', 1, 3, TEST_STATUS.PASS),
+        ])).toBe(2);
+    });
+
+    it('is zero for a session with no members', () => {
+        expect(countSessionCases([])).toBe(0);
     });
 });
 

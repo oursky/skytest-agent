@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/core/prisma';
 import { queueTestGroupRun } from '@/lib/test-groups/test-group-service';
 import { cancellationReasonCodeFor } from '@/lib/runtime/cancellation-reasons';
+import { countSessionCases } from '@/lib/runtime/test-group-retry-plan';
 import { getUserId, type McpHandlerExtra, verifyProjectAccess } from '@/lib/mcp/server-auth';
 import { errorResult, textResult, withToolTelemetry, type ToolResponse } from '@/lib/mcp/server-response';
 import { RUN_TRIGGER_SOURCE } from '@/types';
@@ -115,7 +116,7 @@ export async function listRunSessionsTool(
                 startedAt: true,
                 completedAt: true,
                 createdAt: true,
-                _count: { select: { memberRuns: true } },
+                memberRuns: { select: { testCaseId: true } },
             },
         });
 
@@ -124,7 +125,7 @@ export async function listRunSessionsTool(
             kind: session.kind,
             status: session.status,
             testGroupId: session.testGroupId,
-            memberCount: session._count.memberRuns,
+            memberCount: countSessionCases(session.memberRuns),
             startedAt: session.startedAt,
             completedAt: session.completedAt,
             createdAt: session.createdAt,

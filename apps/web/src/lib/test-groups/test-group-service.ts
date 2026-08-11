@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/core/prisma';
 import { BROWSER_EXECUTION_CAPABILITY } from '@/lib/runners/constants';
 import { createRunSession } from '@/lib/runtime/run-session-service';
+import { countSessionCases } from '@/lib/runtime/test-group-retry-plan';
 import {
     RUN_SESSION_KIND,
     TEST_CASE_KIND,
@@ -214,7 +215,7 @@ export async function listTestGroupSessions(
                 completedAt: true,
                 triggeredByEmail: true,
                 triggerSource: true,
-                _count: { select: { memberRuns: true } },
+                memberRuns: { select: { testCaseId: true } },
             },
         }),
     ]);
@@ -229,7 +230,7 @@ export async function listTestGroupSessions(
                 status: session.status,
                 createdAt: session.createdAt.toISOString(),
                 completedAt: session.completedAt?.toISOString() ?? null,
-                memberCount: session._count.memberRuns,
+                memberCount: countSessionCases(session.memberRuns),
                 triggeredByEmail: session.triggeredByEmail,
                 triggerSource: session.triggerSource,
             })),

@@ -52,10 +52,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         // A retried case has one row per attempt. The viewer shows one row per case — the final
         // attempt, with the earlier ones attached so a recovered failure stays inspectable.
         const finalAttempts = resolveLatestAttempts(session.memberRuns);
+        const finalRunIds = new Set(finalAttempts.map((member) => member.id));
         const earlierByCase = new Map<string, { runId: string; attempt: number; status: string }[]>();
         for (const member of session.memberRuns) {
-            const isFinal = finalAttempts.some((final) => final.id === member.id);
-            if (isFinal) {
+            if (finalRunIds.has(member.id)) {
                 continue;
             }
             const earlier = earlierByCase.get(member.testCaseId) ?? [];
