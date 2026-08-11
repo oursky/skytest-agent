@@ -561,7 +561,7 @@ export const EN_MESSAGES: Messages = {
   "testGroup.retryPolicy.failedOnce": "Retry failed cases once",
   "testGroup.retryPolicy.failedTwice": "Retry failed cases twice",
   "testGroup.retryPolicy.wholeGroupOnce": "Retry whole group once",
-  "testGroup.retryPolicy.hint": "Retries start only after the whole group has finished. Each case gets its own allowance, so a case skipped by \"stop and skip the rest\" still gets its retries once it finally runs. Retrying the whole group re-runs every case from the start — recommended for sequential groups whose cases depend on each other, and costs a full extra run.",
+  "testGroup.retryPolicy.hint": "Retries start only after the whole group has finished, and only if something did not pass. Each case gets its own allowance, so a case skipped by \"stop and skip the rest\" still gets its retries once it finally runs. Retrying the whole group re-runs every case from the start, passing ones included — recommended for sequential groups whose cases depend on each other, and costs a full extra run.",
   "testGroup.run.attempt": "attempt {n}",
   "testGroup.running.locked": "This test group is running — stop the run to edit.",
   "testGroup.sessions": "Sessions",

@@ -561,7 +561,7 @@ export const ZH_HANT_MESSAGES: Messages = {
   "testGroup.retryPolicy.failedOnce": "失敗案例重試一次",
   "testGroup.retryPolicy.failedTwice": "失敗案例重試兩次",
   "testGroup.retryPolicy.wholeGroupOnce": "整組重試一次",
-  "testGroup.retryPolicy.hint": "重試會在整組執行完畢後才開始。每個案例有自己的重試次數，因「停止並跳過其餘」而被跳過的案例，實際執行後仍保有完整重試次數。整組重試會從頭重跑所有案例 — 適合案例互相依賴的順序組，但會多花一整輪執行成本。",
+  "testGroup.retryPolicy.hint": "重試會在整組執行完畢後才開始，且僅在有案例未通過時才會觸發。每個案例有自己的重試次數，因「停止並跳過其餘」而被跳過的案例，實際執行後仍保有完整重試次數。整組重試會從頭重跑所有案例（含已通過的）— 適合案例互相依賴的順序組，但會多花一整輪執行成本。",
   "testGroup.run.attempt": "第 {n} 次嘗試",
   "testGroup.running.locked": "此測試群組正在執行中 — 請先停止執行再編輯。",
   "testGroup.sessions": "工作階段",

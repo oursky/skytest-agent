@@ -208,13 +208,29 @@ describe('planRetryRound — STOP blocking and termination', () => {
 });
 
 describe('planRetryRound — WHOLE_GROUP_ONCE', () => {
-    it('re-runs every case regardless of status on the first retry round', () => {
+    it('re-runs every case regardless of status once any case is unresolved', () => {
         const plan = planRetryRound([
             state('login', 0, TEST_STATUS.PASS, 1, TEST_CASE_KIND.LOGIN_FLOW),
             state('a', 1, TEST_STATUS.PASS, 1),
             state('b', 2, TEST_STATUS.FAIL, 1),
         ], WHOLE_GROUP_ONCE, STOP, 0);
         expect(plan.map((row) => row.testCaseId)).toEqual(['login', 'a', 'b']);
+    });
+
+    it('retries nothing when every case passed', () => {
+        expect(planRetryRound([
+            state('login', 0, TEST_STATUS.PASS, 1, TEST_CASE_KIND.LOGIN_FLOW),
+            state('a', 1, TEST_STATUS.PASS, 1),
+            state('b', 2, TEST_STATUS.PASS, 1),
+        ], WHOLE_GROUP_ONCE, STOP, 0)).toEqual([]);
+    });
+
+    it('is triggered by a case left cancelled behind a failure', () => {
+        const plan = planRetryRound([
+            state('a', 0, TEST_STATUS.PASS, 1),
+            state('b', 1, TEST_STATUS.CANCELLED, 0),
+        ], WHOLE_GROUP_ONCE, STOP, 0);
+        expect(plan.map((row) => row.testCaseId)).toEqual(['a', 'b']);
     });
 
     it('never runs more than one extra pass', () => {

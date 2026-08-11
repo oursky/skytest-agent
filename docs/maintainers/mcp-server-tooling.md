@@ -35,7 +35,8 @@ A test group can be configured to retry failed cases (`TestGroup.retryPolicy`: `
 
 - One case can appear several times in a session's members, distinguished by `attempt` (1 = original run).
 - **Take the highest `attempt` per `testCaseId` as that case's outcome.** Counting every row double-counts a retried case and reports its earlier failures as current.
-- The session stays non-terminal between rounds (`retryPending = true`), so no status you read mid-retry is final — not even a `PASS`, since `WHOLE_GROUP_ONCE` re-runs a passing group. Wait for a terminal `status`.
+- The session stays non-terminal between rounds (`retryPending = true`), so a `FAIL` or `CANCELLED` you read mid-retry is not final. Wait for a terminal `status`.
+- Retries only start if something did not pass. A fully green group never retries, whatever its policy; `WHOLE_GROUP_ONCE` then re-runs every case, passing ones included.
 - The retry budget is per case and counts only attempts that reached `PASS`/`FAIL`; a `CANCELLED` attempt never ran and spends nothing.
 
 ### Test case kind

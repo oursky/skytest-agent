@@ -15,10 +15,10 @@ import { TEST_STATUS, type RunStatus } from '@/types';
  * `retryPending` keeps a session live through the gap between retry rounds, when every member is
  * terminal but the orchestrator is about to create the next round's attempts. Without it the
  * session would settle there — emitting the terminal event, posting the Slack summary, and
- * releasing the group's edit lock before the retries had run. The hold covers every outcome, not
- * just failures: WHOLE_GROUP_ONCE re-runs an all-passing group too, so settling PASS early has the
- * same effect. Whichever path ends execution releases the hold first, so a stopped or stranded
- * session still settles on its real outcome rather than waiting here.
+ * releasing the group's edit lock before the retries had run. The hold covers both non-passing
+ * outcomes, because either can still be retried; an all-pass group settles immediately, since no
+ * policy retries a group that came back green. Whichever path ends execution releases the hold
+ * first, so a stopped or stranded session settles on its real outcome rather than waiting here.
  *
  * Pass the statuses of the latest attempt per case, not every attempt, or an earlier failed
  * attempt would hold the session at FAIL after its retry passed.
@@ -38,14 +38,11 @@ export function rollupRunSessionStatus(
             ? TEST_STATUS.QUEUED
             : TEST_STATUS.RUNNING;
     }
-    if (options?.retryPending) {
-        return TEST_STATUS.RUNNING;
-    }
     if (memberStatuses.some((status) => status === TEST_STATUS.FAIL)) {
-        return TEST_STATUS.FAIL;
+        return options?.retryPending ? TEST_STATUS.RUNNING : TEST_STATUS.FAIL;
     }
     if (memberStatuses.some((status) => status === TEST_STATUS.CANCELLED)) {
-        return TEST_STATUS.CANCELLED;
+        return options?.retryPending ? TEST_STATUS.RUNNING : TEST_STATUS.CANCELLED;
     }
     return TEST_STATUS.PASS;
 }

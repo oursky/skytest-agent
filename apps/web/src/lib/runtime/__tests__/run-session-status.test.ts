@@ -51,8 +51,8 @@ describe('rollupRunSessionStatus retry hold', () => {
         expect(rollupRunSessionStatus(['PASS', 'FAIL'], { retryPending: true })).toBe('RUNNING');
     });
 
-    it('holds an all-pass session too — WHOLE_GROUP_ONCE re-runs a passing group', () => {
-        expect(rollupRunSessionStatus(['PASS', 'PASS'], { retryPending: true })).toBe('RUNNING');
+    it('settles an all-pass session immediately — no policy retries a green group', () => {
+        expect(rollupRunSessionStatus(['PASS', 'PASS'], { retryPending: true })).toBe('PASS');
     });
 
     it('holds a would-be CANCELLED session at RUNNING while retries are pending', () => {
@@ -70,5 +70,9 @@ describe('rollupRunSessionStatus retry hold', () => {
         expect(rollupRunSessionStatus(['QUEUED', 'QUEUED'], { retryPending: true })).toBe('QUEUED');
         expect(rollupRunSessionStatus(['PASS', 'RUNNING'], { retryPending: true })).toBe('RUNNING');
         expect(rollupRunSessionStatus([], { retryPending: true })).toBe('QUEUED');
+    });
+
+    it('prefers FAIL over CANCELLED once the hold is released', () => {
+        expect(rollupRunSessionStatus(['CANCELLED', 'FAIL'], { retryPending: false })).toBe('FAIL');
     });
 });

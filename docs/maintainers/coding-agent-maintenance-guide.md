@@ -190,10 +190,16 @@ When changing runner runtime behavior, update docs in the same PR/commit series:
   path — the orchestrator's `finally`, the stop button (`cancel-run.ts`), and the stranded-session
   reaper — must call `releaseSessionRetryHold`, or a fully-terminal session stays `RUNNING` forever
   and permanently blocks the group from being edited or re-run.
-- Assuming the retry hold only matters for failures. `WHOLE_GROUP_ONCE` re-runs an all-passing
-  group, so the hold covers `PASS` and `CANCELLED` too — the rollup must not settle **any** outcome
-  while `retryPending` is set, or round 0 emits the terminal event and Slack summary before the
-  retry pass starts.
+- Confusing a retry policy's **trigger** with its **scope**. Every policy needs an unresolved case
+  before it retries anything — a group that came back fully green is finished, whatever the policy.
+  `WHOLE_GROUP_ONCE` differs only in scope: once something is unresolved it re-runs every case,
+  passing ones included, because a sequential group's later cases may depend on state its earlier
+  ones build. Triggering it unconditionally burns a second full pass, and doubles AI-action spend,
+  on groups that had nothing wrong.
+- Holding the rollup for an outcome that cannot be retried. `retryPending` suppresses `FAIL` and
+  `CANCELLED` because either can still be retried, but `PASS` must settle immediately — otherwise a
+  green group stays `RUNNING` until the orchestrator's `finally`, and a crash right after round 0
+  delays a correct `PASS` until the stranded-session reaper's stale window elapses.
 - Adding a retry-eligibility rule without a termination argument. The retry budget is per case and
   counts only attempts that reached `PASS`/`FAIL`, so a case cancelled by stop-on-failure sits at
   `executed = 0` indefinitely. `planRetryRound` therefore stops entirely once an unresolved case

@@ -561,7 +561,7 @@ export const ZH_HANS_MESSAGES: Messages = {
   "testGroup.retryPolicy.failedOnce": "失败用例重试一次",
   "testGroup.retryPolicy.failedTwice": "失败用例重试两次",
   "testGroup.retryPolicy.wholeGroupOnce": "整组重试一次",
-  "testGroup.retryPolicy.hint": "重试会在整组执行完毕后才开始。每个用例有自己的重试次数，因“停止并跳过其余”而被跳过的用例，实际执行后仍保留完整重试次数。整组重试会从头重跑所有用例 — 适合用例互相依赖的顺序组，但会多花一整轮执行成本。",
+  "testGroup.retryPolicy.hint": "重试会在整组执行完毕后才开始，且仅在有用例未通过时才会触发。每个用例有自己的重试次数，因“停止并跳过其余”而被跳过的用例，实际执行后仍保留完整重试次数。整组重试会从头重跑所有用例（含已通过的）— 适合用例互相依赖的顺序组，但会多花一整轮执行成本。",
   "testGroup.run.attempt": "第 {n} 次尝试",
   "testGroup.running.locked": "此测试组正在运行中 — 请先停止运行再编辑。",
   "testGroup.sessions": "会话",

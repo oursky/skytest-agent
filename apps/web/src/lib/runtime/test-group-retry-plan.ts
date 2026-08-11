@@ -98,10 +98,13 @@ function isUnresolved(state: CaseRetryState): boolean {
 /**
  * The cases a retry round should re-run, or [] to stop retrying.
  *
- * WHOLE_GROUP_ONCE re-runs every case exactly once more, then stops. The failed-case policies
- * re-run each unresolved case that still has budget, where budget counts only attempts that
- * actually executed — a case cancelled by stop-on-failure has spent nothing, so its first real
- * execution during a retry round still leaves it a full allowance.
+ * Every policy needs an unresolved case before anything is retried — a group that came back fully
+ * green is finished, whatever the policy. What the policies disagree on is scope: WHOLE_GROUP_ONCE
+ * then re-runs *every* case exactly once more (passing ones included, because a sequential group's
+ * later cases may depend on state its earlier ones build), while the failed-case policies re-run
+ * only the unresolved cases that still have budget. Budget counts only attempts that actually
+ * executed — a case cancelled by stop-on-failure has spent nothing, so its first real execution
+ * during a retry round still leaves it a full allowance.
  *
  * Under STOP, an unresolved case that has spent its whole budget blocks the group: everything
  * behind it stays cancelled (which is what stop-on-failure means) and retrying stops. Without
@@ -114,17 +117,17 @@ export function planRetryRound(
     failureMode: TestGroupFailureMode,
     roundIndex: number,
 ): CaseRetryState[] {
+    const unresolved = cases.filter(isUnresolved);
+    if (unresolved.length === 0) {
+        return [];
+    }
+
     if (policy === TEST_GROUP_RETRY_POLICY.WHOLE_GROUP_ONCE) {
         return roundIndex === 0 ? [...cases].sort((a, b) => a.sessionPosition - b.sessionPosition) : [];
     }
 
     const retries = retriesPerCaseFor(policy);
     if (retries === 0) {
-        return [];
-    }
-
-    const unresolved = cases.filter(isUnresolved);
-    if (unresolved.length === 0) {
         return [];
     }
 

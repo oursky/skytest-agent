@@ -15,7 +15,8 @@ export type TestGroupExecutionMode = typeof TEST_GROUP_EXECUTION_MODE[keyof type
 /**
  * Retry budgets are per case, not per group: FAILED_ONCE/FAILED_TWICE allow each case that many
  * retries of its own, so a case first executed during a retry round still gets its full
- * allowance. WHOLE_GROUP_ONCE is always exactly one extra pass over every case.
+ * allowance. WHOLE_GROUP_ONCE is one extra pass over every case, passing ones included. No policy
+ * retries anything when the group came back fully green.
  */
 export const TEST_GROUP_RETRY_POLICY = {
     NONE: 'NONE',

@@ -441,15 +441,27 @@ describe('executeGroupSession retries — whole group', () => {
         expect(executions()).toEqual(['login#1', 'a#1', 'b#1', 'login#2', 'a#2', 'b#2']);
     });
 
-    it('re-runs an all-passing group, so the session must not settle after round 0', async () => {
+    it('does not retry a group that came back fully green', async () => {
         await runGroup({
             cases: ['a', 'b'],
             outcomes: {},
             retryPolicy: WHOLE_GROUP_ONCE,
         });
 
-        expect(executions()).toEqual(['a#1', 'b#1', 'a#2', 'b#2']);
-        expect(finalStatuses()).toEqual({ a: 'PASS', b: 'PASS' });
+        expect(executions()).toEqual(['a#1', 'b#1']);
+        expect(mocks.testRunCreate).not.toHaveBeenCalled();
+    });
+
+    it('re-runs passing cases too once any case has failed', async () => {
+        await runGroup({
+            cases: ['a', 'b', 'c'],
+            outcomes: { b: [TEST_STATUS.FAIL, TEST_STATUS.PASS] },
+            retryPolicy: WHOLE_GROUP_ONCE,
+            failureMode: 'CONTINUE',
+        });
+
+        expect(executions()).toEqual(['a#1', 'b#1', 'c#1', 'a#2', 'b#2', 'c#2']);
+        expect(finalStatuses()).toEqual({ a: 'PASS', b: 'PASS', c: 'PASS' });
     });
 
     it('never runs more than one extra pass even when cases still fail', async () => {
@@ -473,7 +485,11 @@ describe('executeGroupSession retries — guards', () => {
         // Both configurations exhaust the ceiling exactly: WHOLE_GROUP_ONCE allows one round, and
         // FAILED_ONCE on a single case allows retries * caseCount = 1. Reaching the bound legally
         // is not the bug the warning is meant to report.
-        await runGroup({ cases: ['a'], outcomes: {}, retryPolicy: WHOLE_GROUP_ONCE });
+        await runGroup({
+            cases: ['a'],
+            outcomes: { a: [TEST_STATUS.FAIL, TEST_STATUS.FAIL] },
+            retryPolicy: WHOLE_GROUP_ONCE,
+        });
         expect(executions()).toEqual(['a#1', 'a#2']);
         expect(ceilingWarnings()).toEqual([]);
 
