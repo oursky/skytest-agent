@@ -16,6 +16,7 @@ import {
     renderTemplate,
 } from '@/lib/integrations/slack/template';
 import { SLACK_NOTIFY_OUTCOME, type SlackNotifyOutcome } from '@/lib/integrations/slack/notifier';
+import { resolveLatestAttempts } from '@/lib/runtime/test-group-retry-plan';
 import { RUN_SESSION_KIND, TEST_STATUS, isRunTerminalStatus } from '@/types';
 
 const logger = createLogger('integrations:slack:group-notifier');
@@ -61,7 +62,7 @@ export async function notifyTestGroupTerminal(sessionId: string): Promise<SlackN
                     team: { select: { slackBotTokenEncrypted: true } },
                 },
             },
-            memberRuns: { select: { status: true } },
+            memberRuns: { select: { status: true, testCaseId: true, attempt: true, sessionPosition: true } },
         },
     });
 
@@ -96,7 +97,10 @@ export async function notifyTestGroupTerminal(sessionId: string): Promise<SlackN
     const attemptsAfterClaim = session.slackNotifyAttempts + 1;
 
     const passed = session.status === TEST_STATUS.PASS;
-    const passedCount = session.memberRuns.filter((member) => member.status === TEST_STATUS.PASS).length;
+    // Retried cases have one row per attempt; count each case once by its final attempt so a
+    // group that recovered on retry does not report its earlier failures in the totals.
+    const finalAttempts = resolveLatestAttempts(session.memberRuns);
+    const passedCount = finalAttempts.filter((member) => member.status === TEST_STATUS.PASS).length;
     const runLink = buildTestGroupUrl({ appBaseUrl: slackAppBaseUrl, projectId: session.projectId, sessionId: session.id });
     const groupName = (session.testGroup?.displayId ? `${session.testGroup.displayId} ` : '') + (session.testGroup?.name ?? '');
 
@@ -106,7 +110,7 @@ export async function notifyTestGroupTerminal(sessionId: string): Promise<SlackN
         projectName: project.name,
         groupName: groupName.trim() || '-',
         passedCount,
-        totalCount: session.memberRuns.length,
+        totalCount: finalAttempts.length,
         runLink: runLink ?? '-',
         triggeredBy: session.triggeredByEmail ?? 'system',
         startedAt: rawSlack(formatSlackDateToken(session.startedAt)),
