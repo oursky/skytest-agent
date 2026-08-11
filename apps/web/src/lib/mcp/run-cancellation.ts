@@ -147,3 +147,116 @@ export async function cancelRunsForStop(
 
     return outcome;
 }
+
+export interface AffectedSession {
+    sessionId: string;
+    kind: string;
+    testGroupId: string | null;
+    testGroupName: string | null;
+    /** Requested runs that belong to this session. */
+    requestedRunIds: string[];
+    /** Active members the session has in total — the stop settles all of them, not just the requested ones. */
+    activeMembers: number;
+}
+
+/**
+ * Describes the run sessions a stop would take down, so a tool can confirm before acting.
+ *
+ * Stopping is session-wide, so a caller naming one queued case can end a whole test group. That is
+ * the intent but not obvious from the request, which is why the stop tools ask first.
+ */
+export async function describeSessionsForStop(
+    runs: readonly StopCandidate[],
+): Promise<AffectedSession[]> {
+    const requestedBySession = new Map<string, string[]>();
+    for (const run of runs) {
+        if (!run.runSessionId) {
+            continue;
+        }
+        requestedBySession.set(run.runSessionId, [...(requestedBySession.get(run.runSessionId) ?? []), run.id]);
+    }
+    if (requestedBySession.size === 0) {
+        return [];
+    }
+
+    const sessions = await prisma.runSession.findMany({
+        where: { id: { in: [...requestedBySession.keys()] } },
+        select: {
+            id: true,
+            kind: true,
+            testGroupId: true,
+            testGroup: { select: { name: true } },
+            memberRuns: {
+                where: { status: { in: [...RUN_ACTIVE_STATUSES] } },
+                select: { id: true },
+            },
+        },
+    });
+
+    return sessions.map((session) => ({
+        sessionId: session.id,
+        kind: session.kind,
+        testGroupId: session.testGroupId,
+        testGroupName: session.testGroup?.name ?? null,
+        requestedRunIds: requestedBySession.get(session.id) ?? [],
+        activeMembers: session.memberRuns.length,
+    }));
+}
+
+export type SessionStopResolution = 'stop_sessions' | 'only_standalone';
+
+export interface StopGate {
+    /** Present when the caller must confirm first; the tool should return it unchanged. */
+    confirmation?: { message: string; details: Record<string, unknown> };
+    /** Runs to actually stop once confirmed (or when nothing needed confirming). */
+    targets: StopCandidate[];
+    sessionsLeftRunning: AffectedSession[];
+}
+
+/**
+ * Decides whether a stop can proceed. Because stopping is session-wide, a request naming one case
+ * can end a whole test group, so the caller confirms that first — the same shape `update_test_case`
+ * uses for its active-run confirmation, so an agent meets one pattern rather than two.
+ */
+export async function gateSessionStop(
+    runs: readonly StopCandidate[],
+    resolution: SessionStopResolution | undefined,
+    context: Record<string, unknown>,
+): Promise<StopGate> {
+    const affected = await describeSessionsForStop(runs);
+    if (affected.length === 0) {
+        return { targets: [...runs], sessionsLeftRunning: [] };
+    }
+
+    if (resolution === undefined) {
+        const groupNames = affected
+            .map((session) => session.testGroupName)
+            .filter((name): name is string => !!name);
+        const groupSuffix = groupNames.length > 0 ? ` Test groups affected: ${groupNames.join(', ')}.` : '';
+        return {
+            confirmation: {
+                message: 'Some of these runs belong to run sessions. A session cannot be stopped '
+                    + 'partway, so stopping them also stops every other member of those sessions, '
+                    + `including test group cases that are still running.${groupSuffix} `
+                    + 'Confirm how to proceed.',
+                details: {
+                    ...context,
+                    code: 'SESSION_STOP_CONFIRMATION_REQUIRED',
+                    sessions: affected,
+                    options: ['stop_sessions', 'only_standalone'],
+                },
+            },
+            targets: [],
+            sessionsLeftRunning: [],
+        };
+    }
+
+    if (resolution === 'only_standalone') {
+        return {
+            targets: runs.filter((run) => !run.runSessionId),
+            sessionsLeftRunning: affected,
+        };
+    }
+
+    return { targets: [...runs], sessionsLeftRunning: [] };
+}

@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/core/prisma';
 import { parseTestCaseJson } from '@/lib/runtime/test-case-utils';
 import { compareConfigsByName } from '@/lib/test-config/sort';
-import { cancelRunsForStop } from '@/lib/mcp/run-cancellation';
+import { cancelRunsForStop, gateSessionStop, type SessionStopResolution } from '@/lib/mcp/run-cancellation';
 import { CANCELLATION_REASON, cancellationReasonCodeFor } from '@/lib/runtime/cancellation-reasons';
 import { deleteObjectKeysBestEffort } from '@/lib/mcp/storage-cleanup';
 import { queueTestCaseRun } from '@/lib/mcp/run-execution';
@@ -337,7 +337,8 @@ export async function stopAllRunsTool(
     {
         projectId,
         reason,
-    }: { projectId: string; reason?: string },
+        activeSessionResolution,
+    }: { projectId: string; reason?: string; activeSessionResolution?: SessionStopResolution },
     extra: McpHandlerExtra
 ): Promise<ToolResponse> {
     const userId = getUserId(extra);
@@ -375,19 +376,28 @@ export async function stopAllRunsTool(
 
     const cancellationReason = reason?.trim() || CANCELLATION_REASON.MCP;
     // Stopping a session member has to go through the session canceller, or the session's driver
-    // keeps running and a retry policy simply re-creates what was just cancelled.
+    // keeps running and a retry policy simply re-creates what was just cancelled. Because that also
+    // ends the rest of the session, the caller confirms before anything is settled.
+    const gate = await gateSessionStop(activeRuns, activeSessionResolution, {
+        projectId,
+        requestedActiveRuns: activeRuns.length,
+    });
+    if (gate.confirmation) {
+        return errorResult(gate.confirmation.message, gate.confirmation.details);
+    }
     const {
         cancelledRunIds,
         skipped: skippedCancellations,
         failures,
         sessionMembersAlsoCancelled,
-    } = await cancelRunsForStop(activeRuns, cancellationReason);
+    } = await cancelRunsForStop(gate.targets, cancellationReason);
 
     return textResult({
         projectId,
         requestedActiveRuns: activeRuns.length,
         cancelledRuns: cancelledRunIds.length,
         sessionMembersAlsoCancelled,
+        sessionsLeftRunning: gate.sessionsLeftRunning,
         failedCancellations: failures.length,
         skippedCancellations: skippedCancellations.length,
         cancelledRunIds,
@@ -401,7 +411,8 @@ export async function stopAllQueuesTool(
     {
         projectId,
         reason,
-    }: { projectId: string; reason?: string },
+        activeSessionResolution,
+    }: { projectId: string; reason?: string; activeSessionResolution?: SessionStopResolution },
     extra: McpHandlerExtra
 ): Promise<ToolResponse> {
     const userId = getUserId(extra);
@@ -439,20 +450,28 @@ export async function stopAllQueuesTool(
 
     const cancellationReason = reason?.trim() || CANCELLATION_REASON.MCP;
     // A queued member cannot be drained out of a live session — its driver decides what runs next,
-    // and a retry policy would re-queue it. Stopping it stops the session, matching every other
-    // stop path; `sessionMembersAlsoCancelled` reports the running members that went with it.
+    // and a retry policy would re-queue it. Stopping it stops the session, which for a test group
+    // means its running case too, so that is confirmed before anything is settled.
+    const gate = await gateSessionStop(queuedRuns, activeSessionResolution, {
+        projectId,
+        requestedQueuedRuns: queuedRuns.length,
+    });
+    if (gate.confirmation) {
+        return errorResult(gate.confirmation.message, gate.confirmation.details);
+    }
     const {
         cancelledRunIds,
         skipped: skippedCancellations,
         failures,
         sessionMembersAlsoCancelled,
-    } = await cancelRunsForStop(queuedRuns, cancellationReason);
+    } = await cancelRunsForStop(gate.targets, cancellationReason);
 
     return textResult({
         projectId,
         requestedQueuedRuns: queuedRuns.length,
         cancelledRuns: cancelledRunIds.length,
         sessionMembersAlsoCancelled,
+        sessionsLeftRunning: gate.sessionsLeftRunning,
         failedCancellations: failures.length,
         skippedCancellations: skippedCancellations.length,
         cancelledRunIds,

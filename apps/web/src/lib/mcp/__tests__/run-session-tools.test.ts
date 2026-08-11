@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
     runSessionFindUnique: vi.fn(),
     testRunFindMany: vi.fn(),
     cancelRunsForStop: vi.fn(),
+    gateSessionStop: vi.fn(),
     cancelRunDurably: vi.fn(),
     testRunFindUnique: vi.fn(),
     isTestRunProjectMember: vi.fn(),
@@ -28,11 +29,12 @@ vi.mock('@/lib/mcp/server-auth', () => ({
 }));
 vi.mock('@/lib/mcp/server-response', () => ({
     textResult: (payload: unknown) => ({ payload }),
-    errorResult: (error: string) => ({ error }),
+    errorResult: (error: string, details?: unknown) => ({ error, details }),
     withToolTelemetry: (_name: string, run: () => unknown) => run(),
 }));
 vi.mock('@/lib/mcp/run-cancellation', () => ({
     cancelRunsForStop: mocks.cancelRunsForStop,
+    gateSessionStop: mocks.gateSessionStop,
     cancelRunDurably: mocks.cancelRunDurably,
 }));
 vi.mock('@/lib/core/prisma', () => ({
@@ -74,6 +76,11 @@ beforeEach(() => {
     mocks.getUserId.mockReturnValue('user-1');
     mocks.verifyProjectAccess.mockResolvedValue(true);
     mocks.isTestRunProjectMember.mockResolvedValue(true);
+    // Default: nothing needed confirming, so the tool proceeds with everything it found.
+    mocks.gateSessionStop.mockImplementation(async (runs: unknown[]) => ({
+        targets: runs,
+        sessionsLeftRunning: [],
+    }));
 });
 
 describe('get_run_session', () => {
@@ -213,6 +220,72 @@ describe('stop_all_queues', () => {
             select: expect.objectContaining({ runSessionId: true }),
         }));
     });
+});
+
+describe('stop confirmation', () => {
+    const sessions = [{
+        sessionId: 'session-1',
+        kind: 'GROUP',
+        testGroupId: 'group-1',
+        testGroupName: 'Checkout regression',
+        requestedRunIds: ['r1'],
+        activeMembers: 3,
+    }];
+
+    for (const tool of ['stop_all_runs', 'stop_all_queues'] as const) {
+        it(`${tool} returns the confirmation and stops nothing until the caller answers`, async () => {
+            mocks.testRunFindMany.mockResolvedValue([{ id: 'r1', status: 'QUEUED', runSessionId: 'session-1' }]);
+            mocks.gateSessionStop.mockResolvedValue({
+                confirmation: {
+                    message: 'Some of these runs belong to run sessions.',
+                    details: { code: 'SESSION_STOP_CONFIRMATION_REQUIRED', sessions, options: ['stop_sessions', 'only_standalone'] },
+                },
+                targets: [],
+                sessionsLeftRunning: [],
+            });
+
+            const run = tool === 'stop_all_runs' ? stopAllRunsTool : stopAllQueuesTool;
+            const result = await run({ projectId: 'project-1' }, extra) as unknown as {
+                error: string;
+                details: Record<string, unknown>;
+            };
+
+            expect(result.error).toContain('run sessions');
+            expect(result.details).toMatchObject({ code: 'SESSION_STOP_CONFIRMATION_REQUIRED', sessions });
+            expect(mocks.cancelRunsForStop).not.toHaveBeenCalled();
+        });
+
+        it(`${tool} forwards the caller's answer to the gate and stops only its targets`, async () => {
+            mocks.testRunFindMany.mockResolvedValue([
+                { id: 'r1', status: 'QUEUED', runSessionId: 'session-1' },
+                { id: 'solo', status: 'QUEUED', runSessionId: null },
+            ]);
+            mocks.gateSessionStop.mockResolvedValue({
+                targets: [{ id: 'solo', status: 'QUEUED', runSessionId: null }],
+                sessionsLeftRunning: sessions,
+            });
+            mocks.cancelRunsForStop.mockResolvedValue({
+                cancelledRunIds: ['solo'], skipped: [], failures: [], sessionMembersAlsoCancelled: 0,
+            });
+
+            const run = tool === 'stop_all_runs' ? stopAllRunsTool : stopAllQueuesTool;
+            const { payload } = await run(
+                { projectId: 'project-1', activeSessionResolution: 'only_standalone' },
+                extra,
+            ) as unknown as Payload;
+
+            expect(mocks.gateSessionStop).toHaveBeenCalledWith(
+                expect.anything(),
+                'only_standalone',
+                expect.objectContaining({ projectId: 'project-1' }),
+            );
+            expect(mocks.cancelRunsForStop).toHaveBeenCalledWith(
+                [{ id: 'solo', status: 'QUEUED', runSessionId: null }],
+                CANCELLATION_REASON.MCP,
+            );
+            expect(payload.sessionsLeftRunning).toEqual(sessions);
+        });
+    }
 });
 
 describe('get_test_run', () => {

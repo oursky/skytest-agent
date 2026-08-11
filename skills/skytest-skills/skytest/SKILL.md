@@ -25,7 +25,7 @@ Turn user instructions into reliable SkyTest test cases and manage them via MCP.
 - **Browser target names must be descriptive** (e.g., "Admin Portal") — never "Primary Browser".
 - **No `FILE` variables via MCP.** Never read, download, or process video files — ask for screenshots instead.
 - **Don't queue runs unprompted** — the one exception: offer to validate the first case of a new batch with a run.
-- `stop_all_runs` cancels QUEUED + PREPARING + RUNNING; `stop_all_queues` cancels QUEUED only.
+- **Stopping is session-wide — always confirm with the user first.** `stop_all_runs` selects QUEUED + PREPARING + RUNNING, `stop_all_queues` selects QUEUED only, but either one stops the *whole run session* each matched run belongs to. Stopping one queued case therefore stops its entire test group, including the case running right now. Both tools refuse and return `SESSION_STOP_CONFIRMATION_REQUIRED` when a session is involved; relay the named test groups to the user and get an explicit answer before re-calling with `activeSessionResolution: "stop_sessions"` (stop the groups too) or `"only_standalone"` (leave the groups running, stop only runs outside a session). Never pick for them.
 
 ## Step Typing: Playwright-First
 
@@ -82,10 +82,10 @@ How sure you are about an element decides whether a step gets code:
 | `run_test_case` | Queue one run session (login-flow prefixes + the test); overrides: `url`, `prompt`, `steps`, `browserConfig`, `requestedDeviceId`, `requestedRunnerId`. Returned `runId` is the test member; watch the whole run via its `runSessionId` |
 | `run_test_group` | Queue a GROUP run session: `{ projectId, testGroupId }` → `{ sessionId }`. 409 if the group is already running |
 | `list_test_runs` / `get_test_run` | Monitor runs; each carries `kind`/`runSessionId`/`sessionPosition`/`cancellationReasonCode`. `get_test_run` also returns the rolled-up `session`. `include: ["events", "artifacts"]` for step detail |
-| `get_run_session` / `list_run_sessions` | Read a run session's rolled-up status + per-member statuses; list a project's sessions (optionally by `testGroupId`) |
+| `get_run_session` / `list_run_sessions` | Read a run session's rolled-up status + one entry per member case (retried cases carry `attempt` and `previousAttempts`); list a project's sessions (optionally by `testGroupId`) |
 | `manage_project_configs` | Upsert/remove project-level configs in one call |
 | `list_runner_inventory` | Runner/device inventory and Android selector options |
-| `stop_all_runs` / `stop_all_queues` | Cancel runs (`projectId` required, optional `reason`) |
+| `stop_all_runs` / `stop_all_queues` | Stop runs (`projectId` required, optional `reason`). Session-wide: returns `SESSION_STOP_CONFIRMATION_REQUIRED` listing the affected test groups until you pass `activeSessionResolution` — confirm with the user first |
 
 ## Login Flows, Run Sessions & Test Groups
 
@@ -96,6 +96,11 @@ The execution model is **one run = one member of a run session**, not one standa
 - **Test group** — an ordered set of cases (with its own login sessions) run as one GROUP session via `run_test_group`.
 
 **"Done" means the session settled, not one member.** A member reaching `PASS` does not mean the run finished — a later member may still be running or have failed. To judge completion, read the rolled-up status: `get_test_run` returns `session.status`, or call `get_run_session(runSessionId)` for every member's status. A member that never ran settles `CANCELLED` (with a `cancellationReasonCode` such as `LOGIN_FLOW_FAILED` or `EARLIER_CASE_FAILED`) — there is no `SKIPPED`. A `CANCELLED` member caused by an upstream failure is not a defect in that case; see skytest-fix.
+
+**A test group may retry.** If its `retryPolicy` is not `NONE`, failed cases re-run after the whole group finishes, each attempt as its own run. Consequences when watching one:
+- **Judge completion only by the session `status`.** Between retry rounds every member is terminal while the session is not, so "all members settled" does not mean the group finished. `retryPending: true` says more rounds may come.
+- `get_run_session` gives one entry per case at its latest `attempt`, with earlier ones under `previousAttempts`. A failure that a retry recovered is not a defect to fix.
+- A case *you* stop is never retried; a case the group skipped behind a failure still is.
 
 **A grouped case's kind is fixed** while it belongs to a test group — `update_test_case` won't change kind, and the web UI rejects flipping it. Author the case with the right kind up front.
 

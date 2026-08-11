@@ -37,6 +37,10 @@ Accepts any of: run ID / test case ID, pasted run report, screenshots, or "test 
 
 **A run is one member of a run session** (a login flow runs as a prefix before the test; a test group runs many cases as one session). `get_test_run` returns `runSessionId`, `kind`, `sessionPosition`, a `cancellationReasonCode`, and the rolled-up `session`. When the run belongs to a session, call `get_run_session(runSessionId)` to see every member's status — the failure that needs fixing is often in a *different* member (the login flow) than the one the user pointed at. Classify cancellation-by-upstream-failure (F10) before anything else.
 
+**Check the run is still the current attempt before diagnosing it.** A test group with a retry policy re-runs failed cases, each attempt as its own run, so a failing run ID may already have been superseded by a passing retry. `get_test_run` reports the run's own `attempt`; `get_run_session(runSessionId)` lists one entry per case at its latest attempt, with earlier ones under `previousAttempts`. If the run you were handed appears there rather than as the member itself, the case has since been re-run — say what the latest attempt did and confirm with the user before changing anything, because a flake the retry absorbed may need no fix at all.
+
+**Do not stop runs to investigate.** Stopping is session-wide: it would end the whole test group, and stopped cases are never retried. If you need a run stopped, ask the user first — see the `skytest` skill.
+
 ## Failure Taxonomy
 
 Classify every failure; the category drives the fix.

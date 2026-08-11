@@ -46,7 +46,21 @@ Every stop path — the UI stop button, the single-run HTTP cancel, `stop_all_ru
 
 A session cannot be partially stopped. Its driver decides what runs next, and cancelling one row neither aborts that driver nor releases the retry hold, so a group would carry on and a retry policy would re-create exactly what was cancelled. Standalone runs (no `runSessionId`) are still cancelled individually.
 
-The consequence to expect: stopping one queued member of a group also stops that group's running member. The stop tools report those extra members in `sessionMembersAlsoCancelled` so the count is never silently larger than what you asked for.
+The consequence to expect: stopping one queued member of a group also stops that group's running member. Because that is not obvious from the request, `stop_all_runs` and `stop_all_queues` **refuse until the caller confirms**: when any matched run belongs to a session they return
+
+```
+error   Some of these runs belong to run sessions... Test groups affected: <names>.
+details { code: 'SESSION_STOP_CONFIRMATION_REQUIRED',
+          sessions: [{ sessionId, kind, testGroupId, testGroupName, requestedRunIds, activeMembers }],
+          options: ['stop_sessions', 'only_standalone'] }
+```
+
+and cancel nothing. Re-call with `activeSessionResolution`:
+
+- `stop_sessions` — stop those sessions too, ending the test groups. Extra members are counted in `sessionMembersAlsoCancelled`.
+- `only_standalone` — leave the sessions running; stop only runs with no session. The untouched sessions come back in `sessionsLeftRunning`.
+
+Runs outside a session need no confirmation, so stopping ad-hoc runs stays a single call. This mirrors `update_test_case`'s `ACTIVE_RUN_CONFIRMATION_REQUIRED`, so an agent meets one confirmation pattern rather than two. `update_test_case` itself does not re-confirm — choosing `cancel_and_save` is already the answer.
 
 ### Test case kind
 
@@ -108,7 +122,7 @@ The consequence to expect: stopping one queued member of a group also stops that
 
 ### stop_all_runs
 
-- Cancels all active test runs (`QUEUED`, `PREPARING`, `RUNNING`) for the authenticated user via durable DB state update.
+- Selects all active test runs (`QUEUED`, `PREPARING`, `RUNNING`) for the authenticated user, then stops each one's run session as a unit.
 - `projectId` is required and limits cancellation to one owned project.
 - A run that belongs to a run session is stopped through the session, so its driver stops too and every member settles together. Stopped cases are not retried — see [Retry attempts](#retry-attempts) and [Stopping is always session-wide](#stopping-is-always-session-wide).
 - Returns:

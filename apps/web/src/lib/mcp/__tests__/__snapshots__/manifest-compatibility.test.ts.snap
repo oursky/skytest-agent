@@ -96,16 +96,18 @@ exports[`mcp manifest compatibility > keeps tool registration names and input sc
     "name": "update_test_case",
   },
   {
-    "description": "Cancel all queued/preparing/running test runs for one project owned by the authenticated user.",
+    "description": "Cancel all queued/preparing/running test runs for one project owned by the authenticated user. A run inside a run session stops the whole session, so this asks for confirmation before ending the test groups those runs belong to.",
     "inputKeys": [
+      "activeSessionResolution",
       "projectId",
       "reason",
     ],
     "name": "stop_all_runs",
   },
   {
-    "description": "Cancel all queued test runs (status QUEUED only) for one project owned by the authenticated user.",
+    "description": "Cancel queued test runs (status QUEUED only) for one project owned by the authenticated user. A queued run inside a run session stops the whole session, so this asks for confirmation before ending the test groups those runs belong to.",
     "inputKeys": [
+      "activeSessionResolution",
       "projectId",
       "reason",
     ],
