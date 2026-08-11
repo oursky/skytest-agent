@@ -8,19 +8,20 @@ const repoRoot = path.resolve(workspaceRoot, '../..');
 const lockfilePath = path.resolve(repoRoot, 'package-lock.json');
 
 const FLOORS = {
-    // GHSA-52cp-r559-cp3m (merge-key chain quadratic DoS, patched in 4.3.0)
-    'js-yaml': '4.3.0',
+    // GHSA-52cp-r559-cp3m (merge-key chain quadratic DoS) + GHSA-5p4m-2wfm-xmqj (!!omap
+    // quadratic CPU, not backported below 4.3.1)
+    'js-yaml': '4.3.1',
     // GHSA-frvp-7c67-39w9 (encoded-backslash path traversal in the Hono Node adapter)
     '@modelcontextprotocol/sdk': '1.30.0',
     '@hono/node-server': '2.0.5',
-    // GHSA-3jxr-9vmj-r5cp, GHSA-mh99-v99m-4gvg
-    'brace-expansion': '5.0.8',
+    // GHSA-3jxr-9vmj-r5cp, GHSA-mh99-v99m-4gvg, GHSA-rgw5-rvv9-x895
+    'brace-expansion': '5.0.9',
     // Axios recursion, prototype-pollution, proxy, and streamed-upload advisory chain
     'axios': '1.18.0',
     // GHSA-v422-hmwv-36x6
     'body-parser': '1.20.6',
-    // GHSA-v2hh-gcrm-f6hx, GHSA-4c8g-83qw-93j6
-    'fast-uri': '3.1.4',
+    // GHSA-v2hh-gcrm-f6hx, GHSA-4c8g-83qw-93j6, GHSA-7p8r-x3mc-p8w7 (host confusion)
+    'fast-uri': '3.1.5',
     // GHSA-gh4j-gqv2-49f6
     '@aws-sdk/xml-builder': '3.972.19',
     'fast-xml-parser': '5.7.0',
@@ -29,20 +30,23 @@ const FLOORS = {
     // GHSA-w5hq-g745-h8pq
     'uuid': '14.0.0',
     // GHSA-xrhx-7g5j-rcj5, GHSA-3hrh-pfw6-9m5x, GHSA-f577-qrjj-4474, GHSA-2gcr-mfcq-wcc3,
-    // plus CORS wildcard-credentials (GHSA-88fw-hqm2-52qc) patched in 4.12.25
-    'hono': '4.12.25',
+    // plus CORS wildcard-credentials (GHSA-88fw-hqm2-52qc), and the CORS/language ReDoS +
+    // memo() SSR cross-user disclosure + proxy Connection-header chain patched in 4.12.34
+    'hono': '4.12.34',
     // GHSA-q8mj-m7cp-5q26
     'qs': '6.15.2',
     // GHSA-ph9p-34f9-6g65
     'tmp': '0.2.6',
     // GHSA-5xrq-8626-4rwp
     'vitest': '4.1.0',
-    // undici Set-Cookie/header-injection + WebSocket DoS chain, patched in 6.27.0
-    'undici': '6.27.0',
+    // undici Set-Cookie/header-injection + WebSocket DoS chain, plus retry-interceptor response
+    // desync, blob CRLF injection, and cookie-attribute injection patched in 6.28.0
+    'undici': '6.28.0',
     // GHSA-96hv-2xvq-fx4p (memory-exhaustion DoS from tiny fragments/chunks), patched in 8.21.0
     'ws': '8.21.0',
-    // DOMPurify hook/custom-element bypass chain, patched in 3.4.12
-    'dompurify': '3.4.12',
+    // DOMPurify hook/custom-element bypass chain, plus GHSA-55q2-fjhq-7xh7 (IN_PLACE hook removal
+    // leaves a detached subtree executable) patched in 3.4.13
+    'dompurify': '3.4.13',
     // GHSA-hmw2-7cc7-3qxx (form-data multipart CRLF injection), patched in 4.0.6
     'form-data': '4.0.6',
     // GHSA-fx2h-pf6j-xcff (server.fs.deny bypass) + launch-editor UNC disclosure, patched in 7.3.5
@@ -57,6 +61,13 @@ const FLOORS = {
     'sharp': '0.35.0',
     // GHSA-395f-4hp3-45gv
     'shell-quote': '1.9.0',
+    // GHSA-mwp4-54f8-5fhr (leading-zero octet SSRF bypass), GHSA-4xrf-jv44-h6hh,
+    // GHSA-22jq-vg5j-6vgg
+    'ip-address': '10.3.1',
+    // GHSA-2v37-7h3g-55p8 (custom generators loop indefinitely when size is zero)
+    'nanoid': '3.3.17',
+    // GHSA-2m8v-j782-fhvr (zero-attachment memory exhaustion)
+    'socket.io-parser': '4.2.7',
 };
 
 function parseSemver(version) {
