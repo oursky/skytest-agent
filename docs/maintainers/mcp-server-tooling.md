@@ -33,11 +33,13 @@ So a single member reaching `PASS` does **not** mean the whole session finished.
 
 A test group can be configured to retry failed cases (`TestGroup.retryPolicy`: `NONE`, `FAILED_ONCE`, `FAILED_TWICE`, `WHOLE_GROUP_ONCE`). Retries run as extra passes **after** the whole group finishes, and each attempt is its own `TestRun` row, so:
 
-- One case can appear several times in a session's members, distinguished by `attempt` (1 = original run).
-- **Take the highest `attempt` per `testCaseId` as that case's outcome.** Counting every row double-counts a retried case and reports its earlier failures as current.
+- `get_run_session` returns **one member entry per case**, always its latest attempt, with superseded ones under `previousAttempts`. `get_test_run` reports a single run's own `attempt` (1 = original run).
+- **Judge completion by the session `status`, never by the members.** Between retry rounds every member is terminal while the session is not, so "all members settled" does not mean the group finished.
 - The session stays non-terminal between rounds (`retryPending = true`), so a `FAIL` or `CANCELLED` you read mid-retry is not final. Wait for a terminal `status`.
 - Retries only start if something did not pass. A fully green group never retries, whatever its policy; `WHOLE_GROUP_ONCE` then re-runs every case, passing ones included.
 - The retry budget is per case and counts only attempts that reached `PASS`/`FAIL`; a `CANCELLED` attempt never ran and spends nothing.
+- **A case you stop is not retried.** `stop_all_runs`, `stop_all_queues` and the cancel that `update_test_case` performs all record a user-initiated cancellation reason, and retry planning treats those as resolved. A case the group itself skipped behind a failure (`EARLIER_CASE_FAILED`, `LOGIN_FLOW_FAILED`) still gets its retries.
+- `stop_all_runs` stops a session as a unit: cancelling members one by one would settle the rows while the session's driver kept running, and a retry policy would then replace them.
 
 ### Test case kind
 
@@ -101,6 +103,7 @@ A test group can be configured to retry failed cases (`TestGroup.retryPolicy`: `
 
 - Cancels all active test runs (`QUEUED`, `PREPARING`, `RUNNING`) for the authenticated user via durable DB state update.
 - `projectId` is required and limits cancellation to one owned project.
+- A run that belongs to a run session is stopped through the session, so its driver stops too and every member settles together. Stopped cases are not retried — see [Retry attempts](#retry-attempts).
 - Returns:
   - requested active run count
   - successful cancellation count
@@ -122,6 +125,7 @@ A test group can be configured to retry failed cases (`TestGroup.retryPolicy`: `
 ### get_test_run
 
 - Input: `{ runId }`
+- Includes the run's own `attempt` (1 = original run, 2+ = a retry of that case within its session).
 - Returns: `id`, `status`, `error`, `cancellationReasonCode`, `startedAt`, `completedAt`, `createdAt`, `kind`, `runSessionId`, `sessionPosition`, and `session` (`{ id, status, kind }` — the rolled-up run session, or `null` for a run with no session).
 - `cancellationReasonCode` is a stable code (e.g. `USER_SINGLE`, `LOGIN_FLOW_FAILED`) for `CANCELLED` runs, else `null`.
 - Prefer the `session.status` (or `get_run_session`) to decide whether the whole run finished; the member `status` only reflects this one member.
@@ -158,9 +162,8 @@ A test group can be configured to retry failed cases (`TestGroup.retryPolicy`: `
 ### get_run_session
 
 - Input: `{ runSessionId }`
-- Returns the session's rolled-up `status` and `kind`, `testGroupId`, timestamps, `retryPolicy`, `retryPending`, and a `members` array (each member's `id`, `testCaseId`, `kind`, `sessionPosition`, `attempt`, `status`, `error`, `cancellationReasonCode`).
-- Use this (not `get_test_run` on a single member) to tell whether a whole group/login-flow run settled.
-- A retried group repeats a case once per attempt — take the highest `attempt` per `testCaseId`. See [Retry attempts](#retry-attempts).
+- Returns the session's rolled-up `status` and `kind`, `testGroupId`, timestamps, `retryPolicy`, `retryPending`, and a `members` array with one entry per case (`id`, `testCaseId`, `kind`, `sessionPosition`, `attempt`, `status`, `error`, `cancellationReasonCode`, `previousAttempts`).
+- Use this (not `get_test_run` on a single member) to tell whether a whole group/login-flow run settled, and read the session `status` rather than inferring it from the members. See [Retry attempts](#retry-attempts).
 
 ### list_run_sessions
 

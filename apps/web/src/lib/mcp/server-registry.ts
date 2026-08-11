@@ -132,7 +132,7 @@ export function registerMcpTools(server: McpServer): void {
     }, ({ projectId, testGroupId }, extra) => runTestGroupTool({ projectId, testGroupId }, extra));
 
     server.registerTool('get_run_session', {
-        description: 'Get a run session\'s rolled-up status and each member run\'s status. Use this (not get_test_run on a single member) to tell whether a whole group/login-flow run settled. A retried group repeats a case once per attempt: take the highest `attempt` per testCaseId as that case\'s outcome.',
+        description: 'Get a run session\'s rolled-up status and one entry per member case. Use this (not get_test_run on a single member) to tell whether a whole group/login-flow run settled: judge by the session `status`, because between retry rounds every member is terminal while the session is not. A retried case reports its latest attempt, with superseded ones under `previousAttempts`.',
         inputSchema: { runSessionId: z.string().describe('Run session ID') },
     }, ({ runSessionId }, extra) => getRunSessionTool({ runSessionId }, extra));
 

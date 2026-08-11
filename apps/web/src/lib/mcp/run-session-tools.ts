@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/core/prisma';
 import { queueTestGroupRun } from '@/lib/test-groups/test-group-service';
 import { cancellationReasonCodeFor } from '@/lib/runtime/cancellation-reasons';
-import { countSessionCases } from '@/lib/runtime/test-group-retry-plan';
+import { countSessionCases, resolveLatestAttempts } from '@/lib/runtime/test-group-retry-plan';
 import { getUserId, type McpHandlerExtra, verifyProjectAccess } from '@/lib/mcp/server-auth';
 import { errorResult, textResult, withToolTelemetry, type ToolResponse } from '@/lib/mcp/server-response';
 import { RUN_TRIGGER_SOURCE } from '@/types';
@@ -77,9 +77,10 @@ export async function getRunSessionTool(
             createdAt: session.createdAt,
             retryPolicy: session.retryPolicy,
             retryPending: session.retryPending,
-            // A retried case appears once per attempt; `attempt` distinguishes them, and the
-            // highest attempt per testCaseId is the case's final outcome.
-            members: session.memberRuns.map((member) => ({
+            // One entry per case, not per attempt. Returning every attempt row invited the reading
+            // that a group is finished because all of them are terminal — which is exactly what the
+            // gap between retry rounds looks like. Superseded attempts stay reachable underneath.
+            members: resolveLatestAttempts(session.memberRuns).map((member) => ({
                 id: member.id,
                 testCaseId: member.testCaseId,
                 kind: member.kind,
@@ -88,6 +89,15 @@ export async function getRunSessionTool(
                 status: member.status,
                 error: member.error,
                 cancellationReasonCode: cancellationReasonCodeFor(member.status, member.error),
+                previousAttempts: session.memberRuns
+                    .filter((row) => row.testCaseId === member.testCaseId && row.attempt < member.attempt)
+                    .map((row) => ({
+                        id: row.id,
+                        attempt: row.attempt,
+                        status: row.status,
+                        error: row.error,
+                        cancellationReasonCode: cancellationReasonCodeFor(row.status, row.error),
+                    })),
             })),
         });
     });
