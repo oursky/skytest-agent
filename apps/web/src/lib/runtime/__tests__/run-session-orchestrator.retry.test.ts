@@ -46,6 +46,11 @@ const mocks = vi.hoisted(() => ({
     createRunEventSink: vi.fn(),
     createRunStatusWatcher: vi.fn(),
     touchRunActivity: vi.fn(),
+    logWarn: vi.fn(),
+}));
+
+vi.mock('@/lib/core/logger', () => ({
+    createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: mocks.logWarn, error: vi.fn() }),
 }));
 
 vi.mock('@/lib/core/prisma', () => ({
@@ -313,6 +318,13 @@ function finalStatuses(): Record<string, string> {
     return Object.fromEntries(Object.entries(final).map(([key, value]) => [key, value.status]));
 }
 
+/** Safety-ceiling warnings emitted; a healthy run must produce none. */
+function ceilingWarnings(): string[] {
+    return mocks.logWarn.mock.calls
+        .map((call) => String(call[0]))
+        .filter((message) => message.includes('safety ceiling'));
+}
+
 const { FAILED_ONCE, FAILED_TWICE, WHOLE_GROUP_ONCE, NONE } = TEST_GROUP_RETRY_POLICY;
 
 describe('executeGroupSession retries — sequential STOP', () => {
@@ -456,6 +468,23 @@ describe('executeGroupSession retries — whole group', () => {
 describe('executeGroupSession retries — guards', () => {
     beforeEach(() => vi.clearAllMocks());
     afterEach(() => vi.restoreAllMocks());
+
+    it('does not warn about the safety ceiling on runs that use their whole budget', async () => {
+        // Both configurations exhaust the ceiling exactly: WHOLE_GROUP_ONCE allows one round, and
+        // FAILED_ONCE on a single case allows retries * caseCount = 1. Reaching the bound legally
+        // is not the bug the warning is meant to report.
+        await runGroup({ cases: ['a'], outcomes: {}, retryPolicy: WHOLE_GROUP_ONCE });
+        expect(executions()).toEqual(['a#1', 'a#2']);
+        expect(ceilingWarnings()).toEqual([]);
+
+        await runGroup({
+            cases: ['a'],
+            outcomes: { a: [TEST_STATUS.FAIL, TEST_STATUS.FAIL] },
+            retryPolicy: FAILED_ONCE,
+        });
+        expect(executions()).toEqual(['a#1', 'a#2']);
+        expect(ceilingWarnings()).toEqual([]);
+    });
 
     it('NONE retries nothing, matching pre-retry behaviour', async () => {
         await runGroup({

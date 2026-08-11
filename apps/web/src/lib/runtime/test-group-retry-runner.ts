@@ -55,12 +55,14 @@ export async function runGroupRetryRounds(options: RetryRoundsOptions): Promise<
             return;
         }
         const cases = buildCaseRetryStates(await loadSessionAttempts(sessionId));
-        if (roundIndex >= maxRetryRoundsFor(retryPolicy, cases.length)) {
-            logger.warn('Test group retry rounds hit the safety ceiling', { sessionId, retryPolicy, roundIndex });
-            return;
-        }
         const plan = planRetryRound(cases, retryPolicy, failureMode, roundIndex);
         if (plan.length === 0) {
+            return;
+        }
+        // Checked only once a round is still wanted: the ceiling equals the number of rounds a
+        // healthy run may use, so testing it before the plan would fire on the normal exit.
+        if (roundIndex >= maxRetryRoundsFor(retryPolicy, cases.length)) {
+            logger.warn('Test group retry rounds hit the safety ceiling', { sessionId, retryPolicy, roundIndex });
             return;
         }
 
