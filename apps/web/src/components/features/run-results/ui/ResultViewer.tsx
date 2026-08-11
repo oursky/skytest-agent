@@ -384,8 +384,21 @@ export default function ResultViewer({ result, meta }: ResultViewerProps) {
             for (const member of ctxSession.members) {
                 const label = member.displayId ? `${member.displayId} ${member.name}` : member.name;
                 const reuse = member.reusedSession ? ' (reused session)' : '';
+                const earlier = member.previousAttempts ?? [];
+                // Members are the latest attempt per case, so the run being viewed may be one of
+                // the superseded attempts listed underneath. Marking only an exact runId match
+                // would leave that run absent while its case reads as whatever the retry became.
+                const viewedEarlier = earlier.find((previous) => previous.runId === meta?.runId);
                 const current = member.runId === meta?.runId ? ' <- this run' : '';
-                lines.push(`  ${member.sessionPosition + 1}. [${member.status}] (${member.kind}) ${label}${reuse} (runId: ${member.runId})${current}`);
+                const attemptLabel = member.attempt && member.attempt > 1 ? ` (attempt ${member.attempt})` : '';
+                lines.push(`  ${member.sessionPosition + 1}. [${member.status}] (${member.kind}) ${label}${attemptLabel}${reuse} (runId: ${member.runId})${current}`);
+                for (const previous of earlier) {
+                    const viewed = previous.runId === meta?.runId ? ' <- this run' : '';
+                    lines.push(`       earlier attempt ${previous.attempt}: [${previous.status}] (runId: ${previous.runId})${viewed}`);
+                }
+                if (viewedEarlier) {
+                    lines.push(`       NOTE: this run is attempt ${viewedEarlier.attempt}, superseded by attempt ${member.attempt} which ended ${member.status}.`);
+                }
             }
             lines.push('');
         } else if (ctxPrefixes.length > 0) {
