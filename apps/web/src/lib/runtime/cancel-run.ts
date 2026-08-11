@@ -96,7 +96,10 @@ export async function cancelActiveTestRun(
  * cancels the whole run the user triggered — siblings and the test all settle CANCELLED
  * rather than being left queued.
  */
-export async function cancelActiveRunSession(sessionId: string): Promise<{ cancelledMembers: number }> {
+export async function cancelActiveRunSession(
+    sessionId: string,
+    reasonOverride?: string,
+): Promise<{ cancelledMembers: number }> {
     const session = await prisma.runSession.findUnique({
         where: { id: sessionId },
         select: {
@@ -105,9 +108,9 @@ export async function cancelActiveRunSession(sessionId: string): Promise<{ cance
         },
     });
 
-    const reason = session?.kind === RUN_SESSION_KIND.GROUP
+    const reason = reasonOverride ?? (session?.kind === RUN_SESSION_KIND.GROUP
         ? CANCELLATION_REASON.USER_GROUP
-        : CANCELLATION_REASON.USER_SINGLE;
+        : CANCELLATION_REASON.USER_SINGLE);
 
     let cancelledMembers = 0;
     for (const member of session?.memberRuns ?? []) {

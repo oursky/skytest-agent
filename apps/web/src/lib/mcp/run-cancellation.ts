@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/core/prisma';
+import { cancelActiveRunSession } from '@/lib/runtime/cancel-run';
 import { RUN_ACTIVE_STATUSES, TEST_STATUS, isRunTerminalStatus } from '@/types';
 
 export async function cancelRunDurably(runId: string, errorMessage: string): Promise<boolean> {
@@ -57,4 +58,77 @@ export async function cancelRunDurably(runId: string, errorMessage: string): Pro
     }
 
     return true;
+}
+
+export interface StopCandidate {
+    id: string;
+    runSessionId: string | null;
+}
+
+export interface StopOutcome {
+    cancelledRunIds: string[];
+    skipped: Array<{ runId: string; reason: string }>;
+    failures: Array<{ runId: string; error: string }>;
+}
+
+/**
+ * Cancels a batch of runs on behalf of a stop tool, routing anything that belongs to a run session
+ * through the session canceller.
+ *
+ * A per-run cancel settles the row but leaves the session's in-process driver untouched: the status
+ * watcher only aborts that one member's controller, never the session's. For a group with a retry
+ * policy the retry loop therefore keeps going, so the stop would settle what exists and then be
+ * overtaken by attempt rows created immediately afterwards. Going through the session canceller
+ * aborts the driver, releases the retry hold, and rolls the session up.
+ */
+export async function cancelRunsForStop(
+    runs: readonly StopCandidate[],
+    reason: string,
+): Promise<StopOutcome> {
+    const outcome: StopOutcome = { cancelledRunIds: [], skipped: [], failures: [] };
+    const sessionIds = [...new Set(runs.map((run) => run.runSessionId).filter((id): id is string => !!id))];
+
+    for (const sessionId of sessionIds) {
+        try {
+            await cancelActiveRunSession(sessionId, reason);
+        } catch (error) {
+            for (const run of runs.filter((candidate) => candidate.runSessionId === sessionId)) {
+                outcome.failures.push({ runId: run.id, error: error instanceof Error ? error.message : 'Unknown error' });
+            }
+        }
+    }
+
+    // The session canceller reports a count rather than which rows it touched, so read the outcome
+    // back per requested run. That also covers a member that settled on its own mid-cancel.
+    if (sessionIds.length > 0) {
+        const failedRunIds = new Set(outcome.failures.map((failure) => failure.runId));
+        const sessionRunIds = runs
+            .filter((run) => run.runSessionId && !failedRunIds.has(run.id))
+            .map((run) => run.id);
+        const settled = await prisma.testRun.findMany({
+            where: { id: { in: sessionRunIds } },
+            select: { id: true, status: true },
+        });
+        for (const run of settled) {
+            if (run.status === TEST_STATUS.CANCELLED) {
+                outcome.cancelledRunIds.push(run.id);
+            } else {
+                outcome.skipped.push({ runId: run.id, reason: `Run settled ${run.status} instead of cancelling` });
+            }
+        }
+    }
+
+    for (const run of runs.filter((candidate) => !candidate.runSessionId)) {
+        try {
+            if (await cancelRunDurably(run.id, reason)) {
+                outcome.cancelledRunIds.push(run.id);
+            } else {
+                outcome.skipped.push({ runId: run.id, reason: 'Run is no longer active' });
+            }
+        } catch (error) {
+            outcome.failures.push({ runId: run.id, error: error instanceof Error ? error.message : 'Unknown error' });
+        }
+    }
+
+    return outcome;
 }

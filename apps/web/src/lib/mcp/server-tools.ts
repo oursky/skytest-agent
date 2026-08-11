@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/core/prisma';
 import { parseTestCaseJson } from '@/lib/runtime/test-case-utils';
 import { compareConfigsByName } from '@/lib/test-config/sort';
-import { cancelRunDurably } from '@/lib/mcp/run-cancellation';
+import { cancelRunDurably, cancelRunsForStop } from '@/lib/mcp/run-cancellation';
 import { CANCELLATION_REASON, cancellationReasonCodeFor } from '@/lib/runtime/cancellation-reasons';
 import { deleteObjectKeysBestEffort } from '@/lib/mcp/storage-cleanup';
 import { queueTestCaseRun } from '@/lib/mcp/run-execution';
@@ -354,6 +354,7 @@ export async function stopAllRunsTool(
         select: {
             id: true,
             status: true,
+            runSessionId: true,
         }
     });
 
@@ -372,29 +373,13 @@ export async function stopAllRunsTool(
         });
     }
 
-    const cancelledRunIds: string[] = [];
-    const failures: Array<{ runId: string; error: string }> = [];
-    const skippedCancellations: Array<{ runId: string; reason: string }> = [];
     const cancellationReason = reason?.trim() || CANCELLATION_REASON.MCP;
-
-    for (const run of activeRuns) {
-        try {
-            const cancelled = await cancelRunDurably(run.id, cancellationReason);
-            if (cancelled) {
-                cancelledRunIds.push(run.id);
-            } else {
-                skippedCancellations.push({
-                    runId: run.id,
-                    reason: 'Run is no longer active',
-                });
-            }
-        } catch (error) {
-            failures.push({
-                runId: run.id,
-                error: error instanceof Error ? error.message : 'Unknown error',
-            });
-        }
-    }
+    // Stopping a session member has to go through the session canceller, or the session's driver
+    // keeps running and a retry policy simply re-creates what was just cancelled.
+    const { cancelledRunIds, skipped: skippedCancellations, failures } = await cancelRunsForStop(
+        activeRuns,
+        cancellationReason,
+    );
 
     return textResult({
         projectId,
@@ -545,6 +530,7 @@ export async function getTestRunTool(
             kind: true,
             runSessionId: true,
             sessionPosition: true,
+            attempt: true,
             runSession: { select: { id: true, status: true, kind: true } },
         }
     });
@@ -566,6 +552,7 @@ export async function getTestRunTool(
         createdAt: run.createdAt,
         kind: run.kind,
         runSessionId: run.runSessionId,
+        attempt: run.attempt,
         sessionPosition: run.sessionPosition,
         session: run.runSession
             ? { id: run.runSession.id, status: run.runSession.status, kind: run.runSession.kind }
