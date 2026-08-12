@@ -495,9 +495,9 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
                     <div>
                         <p className="mb-1.5 text-xs font-medium text-gray-700">{t('team.runners.installation.install')}</p>
                         <CopyableCodeBlock
-                            code="brew tap oursky/skytest && brew install skytest"
+                            code="brew tap oursky/skytest && brew install skytest-runner"
                             copied={copiedCommandKey === 'brew-install'}
-                            onCopy={() => void copyCommand('brew-install', 'brew tap oursky/skytest && brew install skytest')}
+                            onCopy={() => void copyCommand('brew-install', 'brew tap oursky/skytest && brew install skytest-runner')}
                             copyLabel={copyLabel}
                             copiedLabel={copiedLabel}
                         />
@@ -505,9 +505,9 @@ export default function TeamRunners({ teamId }: TeamRunnersProps) {
                     <div>
                         <p className="mb-1.5 text-xs font-medium text-gray-700">{t('team.runners.installation.update')}</p>
                         <CopyableCodeBlock
-                            code="brew upgrade skytest"
+                            code="brew upgrade skytest-runner"
                             copied={copiedCommandKey === 'brew-upgrade'}
-                            onCopy={() => void copyCommand('brew-upgrade', 'brew upgrade skytest')}
+                            onCopy={() => void copyCommand('brew-upgrade', 'brew upgrade skytest-runner')}
                             copyLabel={copyLabel}
                             copiedLabel={copiedLabel}
                         />
