@@ -56,7 +56,6 @@ Dependency versions are pinned in `package.json`, workspace manifests, and the
 
 ## Docs To Read First
 - `docs/maintainers/agent-session-rules.md` - Session rules for Claude and Codex (verify attribution, hotspot awareness, override workflow, force-push protocol)
-- `docs/README.md` - Documentation index and audience split
 - `infra/README.md` - Local infra topology and shared deployment dependencies
 - `docs/maintainers/coding-agent-maintenance-guide.md` - Runtime invariants and common footguns
 - `docs/maintainers/dependency-upgrade-protocol.md` - Reproducer-first workflow for npm overrides and CVE patching
@@ -66,16 +65,10 @@ Dependency versions are pinned in `package.json`, workspace manifests, and the
 - `docs/maintainers/mcp-server-tooling.md` - MCP tool contracts for registered tools
 - `docs/maintainers/test-case-excel-format.md` - Import/export format contract
 
-If changing operator-facing runtime behavior, also read:
-- `docs/operators/local-development.md`
-- `docs/operators/macos-runner-environment.md`
-- `docs/operators/macos-android-runner-guide.md`
-- `docs/operators/android-runtime-deployment-checklist.md`
-
-## Docs Structure (Audience Split)
-- `docs/operators/` - self-hosting setup and runbooks for operators
-- `docs/maintainers/` - technical maintenance references for developers/coding agents
-- `infra/` - local service topology and infrastructure references kept in sync with docs
+## Docs Structure
+`docs/maintainers/` holds the runtime invariants and contracts a coding agent needs; it is the only
+documentation set this repo keeps. Operator-facing setup runbooks were removed deliberately — do not
+reintroduce them here. `infra/` documents local service topology.
 
 ## Infra Privacy Notes
 - `infra/docker/docker-compose.local.yml` is the source of truth for local development services.
@@ -96,7 +89,7 @@ If changing operator-facing runtime behavior, also read:
 - Align on intent and success criteria before coding.
 - For non-trivial changes, capture design notes in a focused doc under `docs/maintainers/`.
 - For multi-step work, keep a task-by-task implementation checklist in PR/branch notes.
-- When changing runtime behavior (runner queueing, Android lifecycle, import/export, dispatch), update the relevant docs in `docs/operators/`, `docs/maintainers/`, and `infra/` in the same change series.
+- When changing runtime behavior (runner queueing, Android lifecycle, import/export, dispatch), update the relevant docs in `docs/maintainers/` and `infra/` in the same change series.
 - Prefer test-first for new behavior; reproduce and trace root causes before fixes.
 - Self-review spec compliance first, then code quality; verify before completion claims.
 - Run `npm run verify` before committing (lint, TypeScript compile, and dependency audit).

@@ -1,7 +1,12 @@
 import { prisma } from '@/lib/core/prisma';
 import { parseTestCaseJson } from '@/lib/runtime/test-case-utils';
 import { compareConfigsByName } from '@/lib/test-config/sort';
-import { cancelRunDurably } from '@/lib/mcp/run-cancellation';
+import {
+    cancelRunsForStop,
+    findLiveSessionIdsForStop,
+    gateSessionStop,
+    type SessionStopResolution,
+} from '@/lib/mcp/run-cancellation';
 import { CANCELLATION_REASON, cancellationReasonCodeFor } from '@/lib/runtime/cancellation-reasons';
 import { deleteObjectKeysBestEffort } from '@/lib/mcp/storage-cleanup';
 import { queueTestCaseRun } from '@/lib/mcp/run-execution';
@@ -337,7 +342,8 @@ export async function stopAllRunsTool(
     {
         projectId,
         reason,
-    }: { projectId: string; reason?: string },
+        activeSessionResolution,
+    }: { projectId: string; reason?: string; activeSessionResolution?: SessionStopResolution },
     extra: McpHandlerExtra
 ): Promise<ToolResponse> {
     const userId = getUserId(extra);
@@ -354,6 +360,7 @@ export async function stopAllRunsTool(
         select: {
             id: true,
             status: true,
+            runSessionId: true,
         }
     });
 
@@ -362,44 +369,35 @@ export async function stopAllRunsTool(
         statusSummary[run.status] = (statusSummary[run.status] || 0) + 1;
     }
 
-    if (activeRuns.length === 0) {
-        return textResult({
-            projectId,
-            requestedActiveRuns: 0,
-            cancelledRuns: 0,
-            failedCancellations: 0,
-            statusSummary,
-        });
-    }
+    // No early return on an empty run list: a live session can have no active member at all.
 
-    const cancelledRunIds: string[] = [];
-    const failures: Array<{ runId: string; error: string }> = [];
-    const skippedCancellations: Array<{ runId: string; reason: string }> = [];
     const cancellationReason = reason?.trim() || CANCELLATION_REASON.MCP;
-
-    for (const run of activeRuns) {
-        try {
-            const cancelled = await cancelRunDurably(run.id, cancellationReason);
-            if (cancelled) {
-                cancelledRunIds.push(run.id);
-            } else {
-                skippedCancellations.push({
-                    runId: run.id,
-                    reason: 'Run is no longer active',
-                });
-            }
-        } catch (error) {
-            failures.push({
-                runId: run.id,
-                error: error instanceof Error ? error.message : 'Unknown error',
-            });
-        }
+    // Stopping a session member has to go through the session canceller, or the session's driver
+    // keeps running and a retry policy simply re-creates what was just cancelled. Because that also
+    // ends the rest of the session, the caller confirms before anything is settled.
+    // Includes sessions with no active member: a group between retry rounds has every attempt
+    // terminal and is kept alive only by its retry hold, so searching runs alone would miss it.
+    const liveSessionIds = await findLiveSessionIdsForStop(projectId);
+    const gate = await gateSessionStop(activeRuns, liveSessionIds, activeSessionResolution, {
+        projectId,
+        requestedActiveRuns: activeRuns.length,
+    });
+    if (gate.confirmation) {
+        return errorResult(gate.confirmation.message, gate.confirmation.details);
     }
+    const {
+        cancelledRunIds,
+        skipped: skippedCancellations,
+        failures,
+        sessionMembersAlsoCancelled,
+    } = await cancelRunsForStop(gate.targets, gate.liveSessionIds, cancellationReason);
 
     return textResult({
         projectId,
         requestedActiveRuns: activeRuns.length,
         cancelledRuns: cancelledRunIds.length,
+        sessionMembersAlsoCancelled,
+        sessionsLeftRunning: gate.sessionsLeftRunning,
         failedCancellations: failures.length,
         skippedCancellations: skippedCancellations.length,
         cancelledRunIds,
@@ -413,7 +411,8 @@ export async function stopAllQueuesTool(
     {
         projectId,
         reason,
-    }: { projectId: string; reason?: string },
+        activeSessionResolution,
+    }: { projectId: string; reason?: string; activeSessionResolution?: SessionStopResolution },
     extra: McpHandlerExtra
 ): Promise<ToolResponse> {
     const userId = getUserId(extra);
@@ -430,6 +429,7 @@ export async function stopAllQueuesTool(
         select: {
             id: true,
             status: true,
+            runSessionId: true,
         }
     });
 
@@ -438,44 +438,35 @@ export async function stopAllQueuesTool(
         statusSummary[run.status] = (statusSummary[run.status] || 0) + 1;
     }
 
-    if (queuedRuns.length === 0) {
-        return textResult({
-            projectId,
-            requestedQueuedRuns: 0,
-            cancelledRuns: 0,
-            failedCancellations: 0,
-            statusSummary,
-        });
-    }
+    // No early return on an empty run list: a live session can have no active member at all.
 
-    const cancelledRunIds: string[] = [];
-    const failures: Array<{ runId: string; error: string }> = [];
-    const skippedCancellations: Array<{ runId: string; reason: string }> = [];
     const cancellationReason = reason?.trim() || CANCELLATION_REASON.MCP;
-
-    for (const run of queuedRuns) {
-        try {
-            const cancelled = await cancelRunDurably(run.id, cancellationReason);
-            if (cancelled) {
-                cancelledRunIds.push(run.id);
-            } else {
-                skippedCancellations.push({
-                    runId: run.id,
-                    reason: 'Run is no longer active',
-                });
-            }
-        } catch (error) {
-            failures.push({
-                runId: run.id,
-                error: error instanceof Error ? error.message : 'Unknown error',
-            });
-        }
+    // A queued member cannot be drained out of a live session — its driver decides what runs next,
+    // and a retry policy would re-queue it. Stopping it stops the session, which for a test group
+    // means its running case too, so that is confirmed before anything is settled.
+    // Includes sessions with no active member: a group between retry rounds has every attempt
+    // terminal and is kept alive only by its retry hold, so searching runs alone would miss it.
+    const liveSessionIds = await findLiveSessionIdsForStop(projectId);
+    const gate = await gateSessionStop(queuedRuns, liveSessionIds, activeSessionResolution, {
+        projectId,
+        requestedQueuedRuns: queuedRuns.length,
+    });
+    if (gate.confirmation) {
+        return errorResult(gate.confirmation.message, gate.confirmation.details);
     }
+    const {
+        cancelledRunIds,
+        skipped: skippedCancellations,
+        failures,
+        sessionMembersAlsoCancelled,
+    } = await cancelRunsForStop(gate.targets, gate.liveSessionIds, cancellationReason);
 
     return textResult({
         projectId,
         requestedQueuedRuns: queuedRuns.length,
         cancelledRuns: cancelledRunIds.length,
+        sessionMembersAlsoCancelled,
+        sessionsLeftRunning: gate.sessionsLeftRunning,
         failedCancellations: failures.length,
         skippedCancellations: skippedCancellations.length,
         cancelledRunIds,
@@ -545,6 +536,7 @@ export async function getTestRunTool(
             kind: true,
             runSessionId: true,
             sessionPosition: true,
+            attempt: true,
             runSession: { select: { id: true, status: true, kind: true } },
         }
     });
@@ -566,6 +558,7 @@ export async function getTestRunTool(
         createdAt: run.createdAt,
         kind: run.kind,
         runSessionId: run.runSessionId,
+        attempt: run.attempt,
         sessionPosition: run.sessionPosition,
         session: run.runSession
             ? { id: run.runSession.id, status: run.runSession.status, kind: run.runSession.kind }

@@ -93,20 +93,32 @@ export function registerMcpTools(server: McpServer): void {
     registerTestCaseMutationTools(server);
 
     server.registerTool('stop_all_runs', {
-        description: 'Cancel all queued/preparing/running test runs for one project owned by the authenticated user.',
+        description: 'Cancel all queued/preparing/running test runs for one project owned by the authenticated user. A run inside a run session stops the whole session, so this asks for confirmation before ending the test groups those runs belong to.',
         inputSchema: {
             projectId: z.string().describe('Project ID to scope cancellations'),
             reason: z.string().optional().describe('Optional cancellation reason shown in run errors'),
+            activeSessionResolution: z.enum(['stop_sessions', 'only_standalone']).optional().describe(
+                'Required when any matching run belongs to a run session. stop_sessions: also stop every other member of those sessions, ending the test groups they belong to. only_standalone: leave those sessions running and stop only runs outside a session.'
+            ),
         },
-    }, ({ projectId, reason }, extra) => stopAllRunsTool({ projectId, reason }, extra));
+    }, ({ projectId, reason, activeSessionResolution }, extra) => stopAllRunsTool(
+        { projectId, reason, activeSessionResolution },
+        extra,
+    ));
 
     server.registerTool('stop_all_queues', {
-        description: 'Cancel all queued test runs (status QUEUED only) for one project owned by the authenticated user.',
+        description: 'Cancel queued test runs (status QUEUED only) for one project owned by the authenticated user. A queued run inside a run session stops the whole session, so this asks for confirmation before ending the test groups those runs belong to.',
         inputSchema: {
             projectId: z.string().describe('Project ID to scope cancellations'),
             reason: z.string().optional().describe('Optional cancellation reason shown in run errors'),
+            activeSessionResolution: z.enum(['stop_sessions', 'only_standalone']).optional().describe(
+                'Required when any matching run belongs to a run session. stop_sessions: also stop every other member of those sessions, ending the test groups they belong to. only_standalone: leave those sessions running and stop only runs outside a session.'
+            ),
         },
-    }, ({ projectId, reason }, extra) => stopAllQueuesTool({ projectId, reason }, extra));
+    }, ({ projectId, reason, activeSessionResolution }, extra) => stopAllQueuesTool(
+        { projectId, reason, activeSessionResolution },
+        extra,
+    ));
 
     server.registerTool('delete_test_case', {
         description: 'Delete a test case and all its runs, files, and configs',
@@ -124,7 +136,7 @@ export function registerMcpTools(server: McpServer): void {
     }, ({ projectId }, extra) => getProjectTestSummaryTool({ projectId }, extra));
 
     server.registerTool('run_test_group', {
-        description: 'Queue a test group run session: each login flow runs first to establish a reusable session, then the group\'s test cases run in order.',
+        description: 'Queue a test group run session: each login flow runs first to establish a reusable session, then the group\'s test cases run in order. The group\'s configured retry policy applies, so failed cases may be re-run before the session settles.',
         inputSchema: {
             projectId: z.string().describe('Project ID'),
             testGroupId: z.string().describe('Test group ID'),
@@ -132,7 +144,7 @@ export function registerMcpTools(server: McpServer): void {
     }, ({ projectId, testGroupId }, extra) => runTestGroupTool({ projectId, testGroupId }, extra));
 
     server.registerTool('get_run_session', {
-        description: 'Get a run session\'s rolled-up status and each member run\'s status. Use this (not get_test_run on a single member) to tell whether a whole group/login-flow run settled.',
+        description: 'Get a run session\'s rolled-up status and one entry per member case. Use this (not get_test_run on a single member) to tell whether a whole group/login-flow run settled: judge by the session `status`, because between retry rounds every member is terminal while the session is not. A retried case reports its latest attempt, with superseded ones under `previousAttempts`.',
         inputSchema: { runSessionId: z.string().describe('Run session ID') },
     }, ({ runSessionId }, extra) => getRunSessionTool({ runSessionId }, extra));
 

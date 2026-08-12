@@ -7,8 +7,7 @@ This document describes Android runner behavior and operational constraints.
 Related docs:
 
 - [coding-agent-maintenance-guide.md](./coding-agent-maintenance-guide.md)
-- [android-runtime-deployment-checklist.md](../operators/android-runtime-deployment-checklist.md)
-- [macos-android-runner-guide.md](../operators/macos-android-runner-guide.md)
+- [runner-queue-diagnostics.md](./runner-queue-diagnostics.md)
 
 ## Runtime Capability Gating (Important)
 

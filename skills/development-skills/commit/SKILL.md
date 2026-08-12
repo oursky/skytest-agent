@@ -61,7 +61,7 @@ Group **only the staged files** into **commit units** in **dependency order** (t
 
 ### 5. Check docs-sync for runtime behavior changes
 
-If the staged set changes operator-facing runtime behavior (runner queueing, Android lifecycle, import/export, dispatch), check whether matching doc updates in `docs/operators/`, `docs/maintainers/`, or `infra/` are part of the staged set. If they're missing, flag it in the plan — the repo requires docs to ship in the same change series.
+If the staged set changes runtime behavior (runner queueing, Android lifecycle, import/export, dispatch), check whether matching doc updates in `docs/maintainers/` or `infra/` are part of the staged set. If they're missing, flag it in the plan — the repo requires docs to ship in the same change series.
 
 ### 6. Show the plan, then stop
 

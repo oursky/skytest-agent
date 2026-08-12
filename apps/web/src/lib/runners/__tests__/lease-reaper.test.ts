@@ -260,7 +260,7 @@ describe('reapStrandedRunSessions', () => {
     beforeEach(() => {
         findManySessions.mockReset();
         failActiveSessionMembers.mockReset();
-        failActiveSessionMembers.mockResolvedValue(0);
+        failActiveSessionMembers.mockResolvedValue({ settledMembers: 0, releasedRetryHold: false });
     });
 
     it('settles sessions whose members have all gone stale (driver crashed)', async () => {
@@ -275,12 +275,28 @@ describe('reapStrandedRunSessions', () => {
                 ],
             },
         ]);
-        failActiveSessionMembers.mockResolvedValueOnce(2);
+        failActiveSessionMembers.mockResolvedValueOnce({ settledMembers: 2, releasedRetryHold: false });
 
         const result = await reapStrandedRunSessions(now);
 
         expect(failActiveSessionMembers).toHaveBeenCalledWith('session-stranded');
         expect(result).toEqual({ strandedSessions: 1, settledMembers: 2, staleBefore: result.staleBefore });
+    });
+
+    it('settles a group stranded between retry rounds, which has no active members at all', async () => {
+        // Only retryPending keeps such a session live; every attempt so far is terminal. Without
+        // this branch a crash between rounds would leave it RUNNING and lock the group forever.
+        const now = new Date('2026-03-07T05:00:00.000Z');
+        const stale = new Date(0);
+        findManySessions.mockResolvedValueOnce([
+            { id: 'session-awaiting-retry', memberRuns: [{ lastEventAt: stale, startedAt: stale }] },
+        ]);
+        failActiveSessionMembers.mockResolvedValueOnce({ settledMembers: 0, releasedRetryHold: true });
+
+        const result = await reapStrandedRunSessions(now);
+
+        expect(failActiveSessionMembers).toHaveBeenCalledWith('session-awaiting-retry');
+        expect(result).toEqual({ strandedSessions: 1, settledMembers: 0, staleBefore: result.staleBefore });
     });
 
     it('leaves sessions with recent activity alone (healthy driver)', async () => {

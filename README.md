@@ -66,8 +66,8 @@ Don't want to self-host? We're building a managed version of SkyTest.
 ## Advanced Setup
 
 - **Environment Variables**: See `.env.example` for required configs like database and storage. Users provide their own OpenRouter keys in the app settings.
-- **Local Development**: Check the [Local Development Guide](./docs/operators/local-development.md) for the repo-local stack and reset workflow.
-- **Android Testing**: See the [macOS Android Runner Guide](./docs/operators/macos-android-runner-guide.md) to configure Android execution on macOS hosts.
+- **Local Development**: `make bootstrap` installs dependencies, starts local services, and applies the schema; `make dev` runs the control plane with its workers. See `infra/README.md` for the local service topology.
+- **Android Testing**: Android execution runs through the macOS runner in `apps/macos-runner`; see `docs/maintainers/android-runtime-maintenance.md` for its runtime and isolation model.
 - **macOS CLI (Homebrew)**: `brew tap oursky/skytest && brew install skytest-runner`
 
 ### Quick Troubleshooting

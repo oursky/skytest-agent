@@ -5,7 +5,8 @@ The scheduler polls persisted project schedules and enqueues runs through the sa
 ## Runtime model
 
 - host: the runner maintenance worker (`npm run runner:maintenance`), whether it runs as its own
-  container or as the `maintenance` role of [`run-runtime.sh`](../operators/single-container-deployment.md)
+  container or as the `maintenance` role of the combined runtime entrypoint
+  (`apps/web/scripts/runtime/`)
 - enable flag: `SKYTEST_SCHEDULER=true` on the maintenance process
 - cadence: one tick per maintenance cycle (`RUNNER_LEASE_REAPER_INTERVAL_MS`, default `60000`)
 - per-tick cap: `SKYTEST_SCHEDULER_MAX_DUE_PER_TICK` default `50`

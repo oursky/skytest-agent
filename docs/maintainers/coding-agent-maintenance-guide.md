@@ -9,7 +9,6 @@ It complements `AGENTS.md` with repository-specific runtime invariants.
 - `AGENTS.md` (repo workflow, constraints, style)
 - [android-runtime-maintenance.md](./android-runtime-maintenance.md)
 - [slack-notification-architecture.md](./slack-notification-architecture.md)
-- [../operators/android-runtime-deployment-checklist.md](../operators/android-runtime-deployment-checklist.md)
 - [../../infra/README.md](../../infra/README.md)
 
 ## High-Risk Runtime Areas
@@ -129,6 +128,9 @@ Do not duplicate those workflows in new scripts or stale runbooks.
 - runner contract centralization check (`quality:check-runner-contracts`)
 - dependency audit allowlist policy (`audit`)
 
+Locale message placement and extension rules are documented in
+`docs/maintainers/i18n-message-organization.md`.
+
 Runner defaults are centralized in `@skytest/runner-protocol`:
 
 - `RUNNER_DEFAULT_CAPABILITIES`
@@ -161,10 +163,7 @@ When changing browser execution behavior, keep these invariants stable:
 
 When changing runner runtime behavior, update docs in the same PR/commit series:
 
-- Operator-facing impact:
-  - [../operators/local-development.md](../operators/local-development.md)
-  - [../operators/macos-android-runner-guide.md](../operators/macos-android-runner-guide.md)
-  - [../operators/android-runtime-deployment-checklist.md](../operators/android-runtime-deployment-checklist.md)
+- Infrastructure impact:
   - [../../infra/README.md](../../infra/README.md)
 - Maintainer-facing impact:
   - [android-runtime-maintenance.md](./android-runtime-maintenance.md)
@@ -179,6 +178,36 @@ When changing runner runtime behavior, update docs in the same PR/commit series:
   (`abortInactiveLocalBrowserRuns`), the group Stop button, the "already has a run in
   progress" trigger guard, and Slack group notify. A rollup that settles on the first failure
   makes the sweep abort a live CONTINUE-mode group mid-run.
+- Counting a retried group's `memberRuns` directly. A test group with a retry policy creates one
+  `TestRun` row **per attempt** (`TestRun.attempt`), so any status rollup or members list must
+  first reduce to the latest attempt per `testCaseId` via `resolveLatestAttempts`, and any
+  member/pass/total count must go through `countSessionCases`
+  (`apps/web/src/lib/runtime/test-group-retry-plan.ts`). Counting rows double-counts retried cases
+  and reports already-recovered failures as current.
+- Ending a group session's execution without releasing `RunSession.retryPending`. That flag holds
+  the session at `RUNNING` once every member is terminal but more rounds may follow; every exit
+  path — the orchestrator's `finally`, the stop button (`cancel-run.ts`), and the stranded-session
+  reaper — must call `releaseSessionRetryHold`, or a fully-terminal session stays `RUNNING` forever
+  and permanently blocks the group from being edited or re-run.
+- Confusing a retry policy's **trigger** with its **scope**. Every policy needs an unresolved case
+  before it retries anything — a group that came back fully green is finished, whatever the policy.
+  `WHOLE_GROUP_ONCE` differs only in scope: once something is unresolved it re-runs every case,
+  passing ones included, because a sequential group's later cases may depend on state its earlier
+  ones build. Triggering it unconditionally burns a second full pass, and doubles AI-action spend,
+  on groups that had nothing wrong.
+- Finding work to stop by querying runs alone. The retry hold makes a session live with **every
+  member terminal**, so a project-wide search for active runs turns up nothing in the gap between
+  retry rounds while the group is about to start another one. Anything that stops, sweeps, or reaps
+  must also consider non-terminal `RunSession` rows — see `findLiveSessionIdsForStop`.
+- Holding the rollup for an outcome that cannot be retried. `retryPending` suppresses `FAIL` and
+  `CANCELLED` because either can still be retried, but `PASS` must settle immediately — otherwise a
+  green group stays `RUNNING` until the orchestrator's `finally`, and a crash right after round 0
+  delays a correct `PASS` until the stranded-session reaper's stale window elapses.
+- Adding a retry-eligibility rule without a termination argument. The retry budget is per case and
+  counts only attempts that reached `PASS`/`FAIL`, so a case cancelled by stop-on-failure sits at
+  `executed = 0` indefinitely. `planRetryRound` therefore stops entirely once an unresolved case
+  under STOP has exhausted its budget; without that rule the cases behind a permanently broken one
+  are replanned forever.
 - Changing Excel import parser compatibility paths without updating [test-case-excel-format.md](./test-case-excel-format.md)
 - Breaking runner protocol request/response shapes without updating `packages/runner-protocol`
 - Bypassing lease ownership checks on runner write-back endpoints

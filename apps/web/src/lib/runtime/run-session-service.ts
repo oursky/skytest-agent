@@ -6,12 +6,14 @@ import {
 } from '@/lib/runners/domain-events';
 import { publishRunUpdate } from '@/lib/runners/event-bus';
 import { rollupRunSessionStatus } from '@/lib/runtime/run-session-status';
+import { resolveLatestAttempts } from '@/lib/runtime/test-group-retry-plan';
 import { collectLoginFlowIds } from '@/lib/test-cases/login-flow-access';
 import {
     RUN_ACTIVE_STATUSES,
     RUN_SESSION_KIND,
     RUN_TERMINAL_STATUSES,
     TEST_CASE_KIND,
+    TEST_GROUP_RETRY_POLICY,
     TEST_STATUS,
     isRunTerminalStatus,
     type BrowserConfig,
@@ -20,6 +22,7 @@ import {
     type RunStatus,
     type RunTerminalStatus,
     type TargetConfig,
+    type TestGroupRetryPolicy,
 } from '@/types';
 
 const logger = createLogger('runtime:run-session-service');
@@ -31,6 +34,7 @@ export interface CreateRunSessionInput {
     requiredCapability: string;
     triggeredByEmail?: string | null;
     triggerSource: RunTriggerSource;
+    retryPolicy?: TestGroupRetryPolicy;
 }
 
 /**
@@ -60,6 +64,7 @@ export async function createRunSession(
     input: CreateRunSessionInput,
     client: Pick<typeof prisma, 'runSession'> = prisma,
 ): Promise<string> {
+    const retryPolicy = input.retryPolicy ?? TEST_GROUP_RETRY_POLICY.NONE;
     const session = await client.runSession.create({
         data: {
             projectId: input.projectId,
@@ -69,6 +74,10 @@ export async function createRunSession(
             requiredCapability: input.requiredCapability,
             triggeredByEmail: input.triggeredByEmail ?? null,
             triggerSource: input.triggerSource,
+            retryPolicy,
+            // Set up front rather than when the first round ends: the orchestrator must never
+            // observe a window where the session can settle before its retries are planned.
+            retryPending: retryPolicy !== TEST_GROUP_RETRY_POLICY.NONE,
         },
         select: { id: true },
     });
@@ -119,17 +128,23 @@ export function recomputeRunSessionStatus(sessionId: string): Promise<void> {
 async function performRunSessionRecompute(sessionId: string): Promise<void> {
     const session = await prisma.runSession.findUnique({
         where: { id: sessionId },
-        select: { id: true, kind: true, status: true, startedAt: true, projectId: true },
+        select: { id: true, kind: true, status: true, startedAt: true, projectId: true, retryPending: true },
     });
     if (!session) {
         return;
     }
 
-    const members = await prisma.testRun.findMany({
+    // A retried case has several attempt rows; only its latest one describes where the case
+    // stands, so an earlier failed attempt must not hold the session at FAIL after a retry passed.
+    const attempts = await prisma.testRun.findMany({
         where: { runSessionId: sessionId },
-        select: { status: true },
+        select: { status: true, testCaseId: true, attempt: true, sessionPosition: true },
     });
-    const nextStatus: RunStatus = rollupRunSessionStatus(members.map((member) => member.status));
+    const members = resolveLatestAttempts(attempts);
+    const nextStatus: RunStatus = rollupRunSessionStatus(
+        members.map((member) => member.status),
+        { retryPending: session.retryPending },
+    );
     if (nextStatus === session.status) {
         return;
     }
@@ -167,8 +182,13 @@ async function performRunSessionRecompute(sessionId: string): Promise<void> {
         return;
     }
 
-    await prisma.runSession.update({
-        where: { id: sessionId },
+    // Guarded like the terminal transition above, and for the same reason in reverse: a settled
+    // session must stay settled. Retry rounds insert fresh QUEUED members into a session whose
+    // members were all terminal moments earlier, so a stop landing in that gap can settle the
+    // session and then meet those new rows. Without the guard the rollup would reopen a session
+    // that had already reported its result, rewriting completedAt and emitting a second terminal.
+    await prisma.runSession.updateMany({
+        where: { id: sessionId, status: { notIn: [...RUN_TERMINAL_STATUSES] } },
         data: {
             status: nextStatus,
             ...(session.startedAt || !STARTED_STATUSES.has(nextStatus) ? {} : { startedAt: now }),
@@ -188,6 +208,21 @@ export async function recomputeRunSessionForMember(runId: string): Promise<void>
     await recomputeRunSessionStatus(run.runSessionId);
 }
 
+/**
+ * Drops a session's retry hold so the next recompute can settle it, reporting whether it was
+ * actually holding. Every path that ends a session's execution must call this — the orchestrator
+ * finishing its rounds, the stop button, and the stranded-session reaper — or the rollup guard
+ * would keep a fully-terminal session RUNNING forever, permanently blocking the group from being
+ * edited or re-run.
+ */
+export async function releaseSessionRetryHold(sessionId: string): Promise<boolean> {
+    const released = await prisma.runSession.updateMany({
+        where: { id: sessionId, retryPending: true },
+        data: { retryPending: false },
+    });
+    return released.count > 0;
+}
+
 export const STRANDED_SESSION_REASON = 'Run session ended unexpectedly';
 
 /**
@@ -198,16 +233,24 @@ export const STRANDED_SESSION_REASON = 'Run session ended unexpectedly';
  * reapers only touch PREPARING/RUNNING, so without this they would sit QUEUED forever.
  * Failing (rather than cancelling) makes the session roll up to FAIL, matching the outcome
  * of the fault that stranded it. Returns the number of members settled.
+ *
+ * A session stranded in the gap between retry rounds has no active members at all — only the
+ * retry hold keeps it live — so this also recomputes when it released that hold but settled
+ * nothing, otherwise such a session would stay RUNNING forever. `releasedRetryHold` lets callers
+ * tell that apart from "nothing to do".
  */
 export async function failActiveSessionMembers(
     sessionId: string,
     reason: string = STRANDED_SESSION_REASON,
-): Promise<number> {
+): Promise<{ settledMembers: number; releasedRetryHold: boolean }> {
     const result = JSON.stringify({ status: TEST_STATUS.FAIL, error: reason, errorCode: 'SESSION_ABORTED', errorCategory: 'FAILED' });
     const active = await prisma.testRun.findMany({
         where: { runSessionId: sessionId, status: { in: [...RUN_ACTIVE_STATUSES] } },
         select: { id: true, testCaseId: true },
     });
+    // The driver is gone, so no further retry round can run; release the hold before settling
+    // members or the recompute below would leave the session RUNNING with nothing to advance it.
+    const releasedRetryHold = await releaseSessionRetryHold(sessionId);
     const now = new Date();
     let settled = 0;
     for (const member of active) {
@@ -221,10 +264,10 @@ export async function failActiveSessionMembers(
             settled += 1;
         }
     }
-    if (settled > 0) {
+    if (settled > 0 || releasedRetryHold) {
         await recomputeRunSessionStatus(sessionId);
     }
-    return settled;
+    return { settledMembers: settled, releasedRetryHold };
 }
 
 let rollupSubscriberRegistered = false;

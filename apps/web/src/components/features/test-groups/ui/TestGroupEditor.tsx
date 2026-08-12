@@ -6,9 +6,10 @@ import { useI18n } from '@/i18n';
 import { fetchWithAccessToken } from '@/app/run/run-page-api';
 import { Button, CustomSelect } from '@/components/shared';
 import { extractListData } from '@/utils/pagination/pagination';
-import { TEST_GROUP_FAILURE_MODE, TEST_GROUP_EXECUTION_MODE, isRunActiveStatus, type TestGroupFailureMode, type TestGroupExecutionMode, type TestGroupSummary } from '@/types';
+import { TEST_GROUP_FAILURE_MODE, TEST_GROUP_EXECUTION_MODE, TEST_GROUP_RETRY_POLICY, TEST_GROUP_RETRY_POLICIES, isRunActiveStatus, type TestGroupFailureMode, type TestGroupExecutionMode, type TestGroupRetryPolicy, type TestGroupSummary } from '@/types';
 import type { TranslationVars } from '@/i18n/types';
-import OrderedTestCasePicker, { type TestCaseOption } from './OrderedTestCasePicker';
+import type { TestGroupTestCaseOption } from '../model/test-case-selection';
+import TestGroupTestCasePicker from './TestGroupTestCasePicker';
 
 interface TestGroupEditorProps {
     projectId: string;
@@ -33,6 +34,27 @@ function defaultLoginSessionName(index: number, t: (key: string, vars?: Translat
     return t('testGroup.loginSessions.defaultName', { label });
 }
 
+export function buildRetryPolicyOptions(t: (key: string) => string): Record<TestGroupRetryPolicy, { label: string; description: string }> {
+    return {
+        [TEST_GROUP_RETRY_POLICY.NONE]: {
+            label: t('testGroup.retryPolicy.none'),
+            description: t('testGroup.retryPolicy.none.description'),
+        },
+        [TEST_GROUP_RETRY_POLICY.FAILED_ONCE]: {
+            label: t('testGroup.retryPolicy.failedOnce'),
+            description: t('testGroup.retryPolicy.failedOnce.description'),
+        },
+        [TEST_GROUP_RETRY_POLICY.FAILED_TWICE]: {
+            label: t('testGroup.retryPolicy.failedTwice'),
+            description: t('testGroup.retryPolicy.failedTwice.description'),
+        },
+        [TEST_GROUP_RETRY_POLICY.WHOLE_GROUP_ONCE]: {
+            label: t('testGroup.retryPolicy.wholeGroupOnce'),
+            description: t('testGroup.retryPolicy.wholeGroupOnce.description'),
+        },
+    };
+}
+
 export default function TestGroupEditor({ projectId, group, onSaved, onCancel }: TestGroupEditorProps) {
     const { t } = useI18n();
     const { getAccessToken } = useAuth();
@@ -40,12 +62,20 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
     const [displayId, setDisplayId] = useState(group?.displayId ?? '');
     const [onFailure, setOnFailure] = useState<TestGroupFailureMode>(group?.onFailure ?? TEST_GROUP_FAILURE_MODE.STOP);
     const [executionMode, setExecutionMode] = useState<TestGroupExecutionMode>(group?.executionMode ?? TEST_GROUP_EXECUTION_MODE.SEQUENTIAL);
+    const [retryPolicy, setRetryPolicy] = useState<TestGroupRetryPolicy>(group?.retryPolicy ?? TEST_GROUP_RETRY_POLICY.NONE);
     const [loginSessions, setLoginSessions] = useState<LoginSessionDraft[]>(
         group?.loginSessions.map((session) => ({ loginFlowId: session.loginFlowId, name: session.name })) ?? [],
     );
     const [testCaseIds, setTestCaseIds] = useState<string[]>(group?.items.map((item) => item.testCaseId) ?? []);
     const [loginFlowOptions, setLoginFlowOptions] = useState<LoginFlowOption[]>([]);
-    const [testCaseOptions, setTestCaseOptions] = useState<TestCaseOption[]>([]);
+    const [selectedTestCaseOptions, setSelectedTestCaseOptions] = useState<TestGroupTestCaseOption[]>(
+        group?.items.map((item) => ({
+            id: item.testCaseId,
+            displayId: item.displayId,
+            name: item.name,
+            targets: item.targets,
+        })) ?? [],
+    );
     const [optionsLoaded, setOptionsLoaded] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState('');
@@ -60,9 +90,11 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
         let cancelled = false;
         void (async () => {
             try {
-                const [loginResponse, testResponse] = await Promise.all([
+                const [loginResponse, groupResponse] = await Promise.all([
                     fetchWithAccessToken(getAccessToken, `/api/projects/${projectId}/test-cases?summary=1&kind=LOGIN_FLOW&limit=100`),
-                    fetchWithAccessToken(getAccessToken, `/api/projects/${projectId}/test-cases?summary=1&kind=TEST&limit=100`),
+                    group
+                        ? fetchWithAccessToken(getAccessToken, `/api/projects/${projectId}/test-groups/${group.id}`)
+                        : Promise.resolve(null),
                 ]);
                 if (loginResponse.ok) {
                     const options = extractListData<LoginFlowOption>(await loginResponse.json());
@@ -70,10 +102,15 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
                         setLoginFlowOptions(options);
                     }
                 }
-                if (testResponse.ok) {
-                    const options = extractListData<TestCaseOption>(await testResponse.json());
+                if (groupResponse?.ok) {
+                    const detail = await groupResponse.json() as TestGroupSummary;
                     if (!cancelled) {
-                        setTestCaseOptions(options);
+                        setSelectedTestCaseOptions(detail.items.map((item) => ({
+                            id: item.testCaseId,
+                            displayId: item.displayId,
+                            name: item.name,
+                            targets: item.targets,
+                        })));
                     }
                 }
             } catch {
@@ -85,7 +122,7 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
             }
         })();
         return () => { cancelled = true; };
-    }, [projectId, getAccessToken]);
+    }, [projectId, getAccessToken, group]);
 
     const optionById = useMemo(() => new Map(loginFlowOptions.map((option) => [option.id, option])), [loginFlowOptions]);
     const flowLabel = (id: string) => {
@@ -94,6 +131,7 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
         return option.displayId ? `${option.displayId} • ${option.name}` : option.name;
     };
     const availableFlows = loginFlowOptions.filter((option) => !loginSessions.some((session) => session.loginFlowId === option.id));
+    const retryPolicyOptions = buildRetryPolicyOptions(t);
 
     const addLoginSession = (loginFlowId: string) => {
         if (!loginFlowId || loginSessions.some((session) => session.loginFlowId === loginFlowId)) {
@@ -127,6 +165,7 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
                     displayId: displayId.trim() || null,
                     onFailure,
                     executionMode,
+                    retryPolicy,
                     loginSessions: loginSessions.map((session) => ({ loginFlowId: session.loginFlowId, name: session.name.trim() || undefined })),
                     testCaseIds,
                 }),
@@ -255,9 +294,10 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
                 )}
             </div>
 
-            <OrderedTestCasePicker
-                options={testCaseOptions}
-                value={testCaseIds}
+            <TestGroupTestCasePicker
+                projectId={projectId}
+                selectedIds={testCaseIds}
+                selectedOptions={selectedTestCaseOptions}
                 onChange={setTestCaseIds}
                 readOnly={readOnly}
                 loginSessions={loginSessions}
@@ -300,6 +340,31 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
                                 className="h-4 w-4 text-primary focus:ring-primary disabled:opacity-50"
                             />
                             {mode === TEST_GROUP_FAILURE_MODE.STOP ? t('testGroup.onFailure.stop') : t('testGroup.onFailure.continue')}
+                        </label>
+                    ))}
+                </div>
+            </div>
+
+            <div className="space-y-2">
+                <span className="block text-sm font-medium text-gray-700">{t('testGroup.retryPolicy')}</span>
+                <div className="space-y-2">
+                    {TEST_GROUP_RETRY_POLICIES.map((policy) => (
+                        <label key={policy} className={`flex items-start gap-2 text-sm ${readOnly ? 'text-gray-400' : 'cursor-pointer text-gray-700'}`}>
+                            <input
+                                type="radio"
+                                name="testGroupRetryPolicy"
+                                value={policy}
+                                checked={retryPolicy === policy}
+                                onChange={() => setRetryPolicy(policy)}
+                                disabled={readOnly}
+                                className="mt-0.5 h-4 w-4 shrink-0 text-primary focus:ring-primary disabled:opacity-50"
+                            />
+                            <span>
+                                <span className="block">{retryPolicyOptions[policy].label}</span>
+                                <span className={`mt-0.5 block text-xs ${readOnly ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    {retryPolicyOptions[policy].description}
+                                </span>
+                            </span>
                         </label>
                     ))}
                 </div>

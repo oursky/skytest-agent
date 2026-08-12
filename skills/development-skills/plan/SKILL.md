@@ -37,7 +37,7 @@ Align on intent before writing code. Shape the design, identify impacted files, 
 - List the files you will touch and the tests you will run
 - Keep tasks bite-sized (one clear step each) with exact paths and validation steps
 - End with a verification task: `npm run verify` (lint, TypeScript compile, dependency audit)
-- If the change alters operator-facing runtime behavior, include explicit tasks to update `docs/operators/`, `docs/maintainers/`, and `infra/` in the same change series
+- If the change alters runtime behavior, include explicit tasks to update `docs/maintainers/` and `infra/` in the same change series
 - For non-trivial changes, include a task to capture design notes in a focused doc under `docs/maintainers/`
 - If the work is part of a larger effort, include:
   - branch strategy

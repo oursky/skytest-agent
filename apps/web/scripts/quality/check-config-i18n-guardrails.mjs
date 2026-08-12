@@ -6,18 +6,17 @@ import path from 'node:path';
 const workspaceRoot = process.cwd();
 
 const MAX_CONFIG_APP_LINES = 450;
-// Raised from 750 to accommodate the login-flows / run-groups feature set. When a
-// locale file approaches this ceiling again, split the locale modules rather than
-// bumping further.
-const MAX_LOCALE_FILE_LINES = 823;
+const MAX_LOCALE_FRAGMENT_LINES = 200;
 const MAX_UNUSED_LOCALE_KEYS = 154;
 
 const configFilePath = path.join(workspaceRoot, 'src/config/app.ts');
-const localeFiles = [
-    { locale: 'en', path: path.join(workspaceRoot, 'src/i18n/locales/en.ts') },
-    { locale: 'zh-Hans', path: path.join(workspaceRoot, 'src/i18n/locales/zh-hans.ts') },
-    { locale: 'zh-Hant', path: path.join(workspaceRoot, 'src/i18n/locales/zh-hant.ts') },
-];
+const localesRoot = path.join(workspaceRoot, 'src/i18n/locales');
+const localeDirectoryNames = ['en', 'zh-hans', 'zh-hant'];
+const localeLabels = new Map([
+    ['en', 'en'],
+    ['zh-hans', 'zh-Hans'],
+    ['zh-hant', 'zh-Hant'],
+]);
 
 function countLines(source) {
     return source.split('\n').length;
@@ -32,6 +31,56 @@ function extractLocaleKeys(source) {
         match = keyPattern.exec(source);
     }
     return keys;
+}
+
+async function loadLocaleFragments(directoryName) {
+    const directoryPath = path.join(localesRoot, directoryName);
+    const fileNames = (await readdir(directoryPath, { withFileTypes: true }))
+        .filter((entry) => entry.isFile() && entry.name.endsWith('.ts') && entry.name !== 'index.ts')
+        .map((entry) => entry.name)
+        .sort();
+    const fragments = [];
+
+    for (const fileName of fileNames) {
+        const filePath = path.join(directoryPath, fileName);
+        fragments.push({
+            fileName,
+            filePath,
+            source: await readFile(filePath, 'utf8'),
+        });
+    }
+
+    return fragments;
+}
+
+function collectLocaleKeys(locale, fragments, violations) {
+    const keys = new Set();
+    for (const fragment of fragments) {
+        for (const key of extractLocaleKeys(fragment.source)) {
+            if (keys.has(key)) {
+                violations.push(`${locale} locale has duplicate key: ${key}`);
+            }
+            keys.add(key);
+        }
+    }
+    return keys;
+}
+
+function validateLocaleIndex(locale, indexSource, fragments, violations) {
+    for (const fragment of fragments) {
+        const domainName = fragment.fileName.replace(/\.ts$/, '');
+        const symbol = fragment.source.match(/export const (\w+)/)?.[1];
+        if (!symbol) {
+            violations.push(`${locale} ${fragment.fileName} does not export a message object`);
+            continue;
+        }
+        if (!indexSource.includes(`import { ${symbol} } from './${domainName}';`)) {
+            violations.push(`${locale} index does not import domain: ${fragment.fileName}`);
+        }
+        if (!indexSource.includes(`...${symbol},`)) {
+            violations.push(`${locale} index does not assemble domain: ${fragment.fileName}`);
+        }
+    }
 }
 
 function extractReferencedI18nKeys(source) {
@@ -95,17 +144,44 @@ async function main() {
         violations.push(`src/config/app.ts is ${configLines} lines (max ${MAX_CONFIG_APP_LINES})`);
     }
 
-    const localeKeyMap = new Map();
-
-    for (const localeFile of localeFiles) {
-        const source = await readFile(localeFile.path, 'utf8');
-        const lineCount = countLines(source);
-        if (lineCount > MAX_LOCALE_FILE_LINES) {
-            violations.push(`${path.relative(workspaceRoot, localeFile.path)} is ${lineCount} lines (max ${MAX_LOCALE_FILE_LINES})`);
+    const localeFragments = new Map();
+    for (const directoryName of localeDirectoryNames) {
+        const fragments = await loadLocaleFragments(directoryName);
+        const locale = localeLabels.get(directoryName);
+        if (fragments.length === 0) {
+            violations.push(`${locale} locale has no message fragments`);
         }
+        localeFragments.set(directoryName, fragments);
+        const indexSource = await readFile(path.join(localesRoot, directoryName, 'index.ts'), 'utf8');
+        validateLocaleIndex(locale, indexSource, fragments, violations);
+        for (const fragment of fragments) {
+            const lineCount = countLines(fragment.source);
+            if (lineCount > MAX_LOCALE_FRAGMENT_LINES) {
+                violations.push(`${path.relative(workspaceRoot, fragment.filePath)} is ${lineCount} lines (max ${MAX_LOCALE_FRAGMENT_LINES})`);
+            }
+        }
+    }
 
-        const keys = extractLocaleKeys(source);
-        localeKeyMap.set(localeFile.locale, new Set(keys));
+    const baseDomainNames = new Set((localeFragments.get('en') ?? []).map((fragment) => fragment.fileName));
+    for (const directoryName of localeDirectoryNames.slice(1)) {
+        const locale = localeLabels.get(directoryName);
+        const domainNames = new Set((localeFragments.get(directoryName) ?? []).map((fragment) => fragment.fileName));
+        for (const domainName of baseDomainNames) {
+            if (!domainNames.has(domainName)) {
+                violations.push(`${locale} locale is missing domain: ${domainName}`);
+            }
+        }
+        for (const domainName of domainNames) {
+            if (!baseDomainNames.has(domainName)) {
+                violations.push(`${locale} locale has domain not found in en locale: ${domainName}`);
+            }
+        }
+    }
+
+    const localeKeyMap = new Map();
+    for (const directoryName of localeDirectoryNames) {
+        const locale = localeLabels.get(directoryName);
+        localeKeyMap.set(locale, collectLocaleKeys(locale, localeFragments.get(directoryName) ?? [], violations));
     }
 
     const baseLocale = 'en';
@@ -128,6 +204,26 @@ async function main() {
         for (const key of keys) {
             if (!baseKeys.has(key)) {
                 violations.push(`${locale} locale has key not found in en locale: ${key}`);
+            }
+        }
+    }
+
+    for (const domainName of baseDomainNames) {
+        const baseFragment = (localeFragments.get('en') ?? []).find((fragment) => fragment.fileName === domainName);
+        const baseDomainKeys = new Set(extractLocaleKeys(baseFragment?.source ?? ''));
+        for (const directoryName of localeDirectoryNames.slice(1)) {
+            const locale = localeLabels.get(directoryName);
+            const fragment = (localeFragments.get(directoryName) ?? []).find((candidate) => candidate.fileName === domainName);
+            const domainKeys = new Set(extractLocaleKeys(fragment?.source ?? ''));
+            for (const key of baseDomainKeys) {
+                if (!domainKeys.has(key)) {
+                    violations.push(`${locale} ${domainName} is missing key: ${key}`);
+                }
+            }
+            for (const key of domainKeys) {
+                if (!baseDomainKeys.has(key)) {
+                    violations.push(`${locale} ${domainName} has key not found in en locale: ${key}`);
+                }
             }
         }
     }
@@ -167,10 +263,10 @@ async function main() {
 
     console.log('Config/I18n guardrail check passed:');
     console.log(`- src/config/app.ts lines: ${configLines}/${MAX_CONFIG_APP_LINES}`);
-    for (const localeFile of localeFiles) {
-        const source = await readFile(localeFile.path, 'utf8');
-        const lineCount = countLines(source);
-        console.log(`- ${path.relative(workspaceRoot, localeFile.path)} lines: ${lineCount}/${MAX_LOCALE_FILE_LINES}`);
+    for (const directoryName of localeDirectoryNames) {
+        for (const fragment of localeFragments.get(directoryName) ?? []) {
+            console.log(`- ${path.relative(workspaceRoot, fragment.filePath)} lines: ${countLines(fragment.source)}/${MAX_LOCALE_FRAGMENT_LINES}`);
+        }
     }
     console.log(`- Unused en locale keys: ${unusedKeys.length}/${MAX_UNUSED_LOCALE_KEYS}`);
 }

@@ -43,3 +43,36 @@ describe('rollupRunSessionStatus', () => {
         expect(rollupRunSessionStatus([TEST_STATUS.PASS, TEST_STATUS.PASS])).toBe(TEST_STATUS.PASS);
     });
 });
+
+describe('rollupRunSessionStatus retry hold', () => {
+    it('holds a would-be FAIL session at RUNNING while retries are pending', () => {
+        // The gap between retry rounds: every attempt is terminal but more are coming. Settling
+        // here would emit the terminal event, post the Slack summary, and unlock the group.
+        expect(rollupRunSessionStatus(['PASS', 'FAIL'], { retryPending: true })).toBe('RUNNING');
+    });
+
+    it('settles an all-pass session immediately — no policy retries a green group', () => {
+        expect(rollupRunSessionStatus(['PASS', 'PASS'], { retryPending: true })).toBe('PASS');
+    });
+
+    it('holds a would-be CANCELLED session at RUNNING while retries are pending', () => {
+        expect(rollupRunSessionStatus(['PASS', 'CANCELLED'], { retryPending: true })).toBe('RUNNING');
+    });
+
+    it('settles on the real outcome once the hold is released', () => {
+        expect(rollupRunSessionStatus(['PASS', 'FAIL'], { retryPending: false })).toBe('FAIL');
+        expect(rollupRunSessionStatus(['PASS', 'FAIL'])).toBe('FAIL');
+        expect(rollupRunSessionStatus(['PASS', 'PASS'], { retryPending: false })).toBe('PASS');
+        expect(rollupRunSessionStatus(['PASS', 'CANCELLED'], { retryPending: false })).toBe('CANCELLED');
+    });
+
+    it('does not hold a session that has not finished executing', () => {
+        expect(rollupRunSessionStatus(['QUEUED', 'QUEUED'], { retryPending: true })).toBe('QUEUED');
+        expect(rollupRunSessionStatus(['PASS', 'RUNNING'], { retryPending: true })).toBe('RUNNING');
+        expect(rollupRunSessionStatus([], { retryPending: true })).toBe('QUEUED');
+    });
+
+    it('prefers FAIL over CANCELLED once the hold is released', () => {
+        expect(rollupRunSessionStatus(['CANCELLED', 'FAIL'], { retryPending: false })).toBe('FAIL');
+    });
+});

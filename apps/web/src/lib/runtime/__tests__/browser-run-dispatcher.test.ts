@@ -103,6 +103,9 @@ describe('browser-run-dispatcher', () => {
         const sql = query.strings.join('');
         expect(sql).toContain('NOT EXISTS');
         expect(sql).toContain('settledMember."runSessionId" = tr."runSessionId"');
+        // This clause is also what keeps a group's retry attempts in-process: a retry row reuses
+        // its case's sessionPosition (0 for the first case), but by then the session has settled
+        // members, so the dispatcher can never claim one out from under the orchestrator.
         expect(query.values).toEqual(expect.arrayContaining([...RUN_TERMINAL_STATUSES]));
     });
 

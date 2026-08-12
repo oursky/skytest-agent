@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/core/prisma';
 import { queueTestGroupRun } from '@/lib/test-groups/test-group-service';
 import { cancellationReasonCodeFor } from '@/lib/runtime/cancellation-reasons';
+import { countSessionCases, resolveLatestAttempts } from '@/lib/runtime/test-group-retry-plan';
 import { getUserId, type McpHandlerExtra, verifyProjectAccess } from '@/lib/mcp/server-auth';
 import { errorResult, textResult, withToolTelemetry, type ToolResponse } from '@/lib/mcp/server-response';
 import { RUN_TRIGGER_SOURCE } from '@/types';
@@ -47,13 +48,16 @@ export async function getRunSessionTool(
                 startedAt: true,
                 completedAt: true,
                 createdAt: true,
+                retryPolicy: true,
+                retryPending: true,
                 memberRuns: {
-                    orderBy: { sessionPosition: 'asc' },
+                    orderBy: [{ sessionPosition: 'asc' }, { attempt: 'asc' }],
                     select: {
                         id: true,
                         testCaseId: true,
                         kind: true,
                         sessionPosition: true,
+                        attempt: true,
                         status: true,
                         error: true,
                     },
@@ -71,14 +75,29 @@ export async function getRunSessionTool(
             startedAt: session.startedAt,
             completedAt: session.completedAt,
             createdAt: session.createdAt,
-            members: session.memberRuns.map((member) => ({
+            retryPolicy: session.retryPolicy,
+            retryPending: session.retryPending,
+            // One entry per case, not per attempt. Returning every attempt row invited the reading
+            // that a group is finished because all of them are terminal — which is exactly what the
+            // gap between retry rounds looks like. Superseded attempts stay reachable underneath.
+            members: resolveLatestAttempts(session.memberRuns).map((member) => ({
                 id: member.id,
                 testCaseId: member.testCaseId,
                 kind: member.kind,
                 sessionPosition: member.sessionPosition,
+                attempt: member.attempt,
                 status: member.status,
                 error: member.error,
                 cancellationReasonCode: cancellationReasonCodeFor(member.status, member.error),
+                previousAttempts: session.memberRuns
+                    .filter((row) => row.testCaseId === member.testCaseId && row.attempt < member.attempt)
+                    .map((row) => ({
+                        id: row.id,
+                        attempt: row.attempt,
+                        status: row.status,
+                        error: row.error,
+                        cancellationReasonCode: cancellationReasonCodeFor(row.status, row.error),
+                    })),
             })),
         });
     });
@@ -107,7 +126,7 @@ export async function listRunSessionsTool(
                 startedAt: true,
                 completedAt: true,
                 createdAt: true,
-                _count: { select: { memberRuns: true } },
+                memberRuns: { select: { testCaseId: true } },
             },
         });
 
@@ -116,7 +135,7 @@ export async function listRunSessionsTool(
             kind: session.kind,
             status: session.status,
             testGroupId: session.testGroupId,
-            memberCount: session._count.memberRuns,
+            memberCount: countSessionCases(session.memberRuns),
             startedAt: session.startedAt,
             completedAt: session.completedAt,
             createdAt: session.createdAt,

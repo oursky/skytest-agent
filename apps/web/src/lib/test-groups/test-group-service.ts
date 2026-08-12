@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/core/prisma';
 import { BROWSER_EXECUTION_CAPABILITY } from '@/lib/runners/constants';
 import { createRunSession } from '@/lib/runtime/run-session-service';
+import { countSessionCases } from '@/lib/runtime/test-group-retry-plan';
+import { parseTestCaseTargets } from '@/lib/test-config/browser-target';
 import {
     RUN_SESSION_KIND,
     TEST_CASE_KIND,
@@ -8,8 +10,10 @@ import {
     RUN_ACTIVE_STATUSES,
     TEST_GROUP_FAILURE_MODE,
     TEST_GROUP_EXECUTION_MODE,
+    coerceTestGroupRetryPolicy,
     type TestGroupFailureMode,
     type TestGroupExecutionMode,
+    type TestGroupRetryPolicy,
     type TestGroupSummary,
     type TestGroupSessionSummary,
     type TestGroupRunPreview,
@@ -25,6 +29,7 @@ interface NormalizedUpsert {
     displayId: string | null;
     onFailure: TestGroupFailureMode;
     executionMode: TestGroupExecutionMode;
+    retryPolicy: TestGroupRetryPolicy;
     loginSessions: { loginFlowId: string; name: string }[];
     testCaseIds: string[];
 }
@@ -44,6 +49,7 @@ function normalizeUpsert(input: TestGroupUpsertInput): NormalizedUpsert {
     const executionMode: TestGroupExecutionMode = input.executionMode === TEST_GROUP_EXECUTION_MODE.PARALLEL
         ? TEST_GROUP_EXECUTION_MODE.PARALLEL
         : TEST_GROUP_EXECUTION_MODE.SEQUENTIAL;
+    const retryPolicy = coerceTestGroupRetryPolicy(input.retryPolicy);
 
     const seenFlows = new Set<string>();
     const loginSessions = Array.isArray(input.loginSessions)
@@ -60,7 +66,7 @@ function normalizeUpsert(input: TestGroupUpsertInput): NormalizedUpsert {
     const testCaseIds = Array.isArray(input.testCaseIds)
         ? input.testCaseIds.filter((id) => typeof id === 'string' && id && !seenCases.has(id) && (seenCases.add(id), true))
         : [];
-    return { name, displayId, onFailure, executionMode, loginSessions, testCaseIds };
+    return { name, displayId, onFailure, executionMode, retryPolicy, loginSessions, testCaseIds };
 }
 
 /** Validates that a group's case ids and login-session flow ids belong to the project and are the right kind. */
@@ -105,9 +111,10 @@ interface SerializableTestGroup {
     displayId: string | null;
     onFailure: string;
     executionMode: string;
+    retryPolicy: string;
     updatedAt: Date;
     loginSessions: { id: string; loginFlowId: string; name: string; position: number; loginFlow: { displayId: string | null; name: string } }[];
-    items: { testCaseId: string; position: number; testCase: { displayId: string | null; name: string } }[];
+    items: { testCaseId: string; position: number; testCase: { displayId: string | null; name: string; browserConfig?: string | null } }[];
     sessions: { id: string; status: string; createdAt: Date }[];
 }
 
@@ -123,6 +130,7 @@ function serializeTestGroup(group: SerializableTestGroup): TestGroupSummary {
         executionMode: group.executionMode === TEST_GROUP_EXECUTION_MODE.PARALLEL
             ? TEST_GROUP_EXECUTION_MODE.PARALLEL
             : TEST_GROUP_EXECUTION_MODE.SEQUENTIAL,
+        retryPolicy: coerceTestGroupRetryPolicy(group.retryPolicy),
         loginSessions: group.loginSessions
             .slice()
             .sort((a, b) => a.position - b.position)
@@ -142,6 +150,9 @@ function serializeTestGroup(group: SerializableTestGroup): TestGroupSummary {
                 position: item.position,
                 displayId: item.testCase.displayId,
                 name: item.testCase.name,
+                ...(item.testCase.browserConfig === undefined
+                    ? {}
+                    : { targets: parseTestCaseTargets(item.testCase.browserConfig) }),
             })),
         lastSessionId: latest?.id ?? null,
         lastSessionStatus: latest?.status ?? null,
@@ -154,6 +165,11 @@ const groupInclude = {
     loginSessions: { include: { loginFlow: { select: { displayId: true, name: true } } } },
     items: { include: { testCase: { select: { displayId: true, name: true } } } },
     sessions: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' as const }, take: 1, select: { id: true, status: true, createdAt: true } },
+};
+
+const groupDetailInclude = {
+    ...groupInclude,
+    items: { include: { testCase: { select: { displayId: true, name: true, browserConfig: true } } } },
 };
 
 export interface TestGroupListResult {
@@ -208,7 +224,7 @@ export async function listTestGroupSessions(
                 completedAt: true,
                 triggeredByEmail: true,
                 triggerSource: true,
-                _count: { select: { memberRuns: true } },
+                memberRuns: { select: { testCaseId: true } },
             },
         }),
     ]);
@@ -223,7 +239,7 @@ export async function listTestGroupSessions(
                 status: session.status,
                 createdAt: session.createdAt.toISOString(),
                 completedAt: session.completedAt?.toISOString() ?? null,
-                memberCount: session._count.memberRuns,
+                memberCount: countSessionCases(session.memberRuns),
                 triggeredByEmail: session.triggeredByEmail,
                 triggerSource: session.triggerSource,
             })),
@@ -234,7 +250,7 @@ export async function listTestGroupSessions(
 export async function getTestGroup(projectId: string, groupId: string): Promise<TestGroupSummary | null> {
     const group = await prisma.testGroup.findFirst({
         where: { id: groupId, projectId, deletedAt: null },
-        include: groupInclude,
+        include: groupDetailInclude,
     });
     return group ? serializeTestGroup(group) : null;
 }
@@ -335,7 +351,7 @@ export async function getTestGroupRunPreview(projectId: string, groupId: string)
 }
 
 export async function createTestGroup(projectId: string, input: TestGroupUpsertInput): Promise<TestGroupResult<TestGroupSummary>> {
-    const { name, displayId, onFailure, executionMode, loginSessions, testCaseIds } = normalizeUpsert(input);
+    const { name, displayId, onFailure, executionMode, retryPolicy, loginSessions, testCaseIds } = normalizeUpsert(input);
     if (!name) {
         return { ok: false, status: 400, error: 'Name is required' };
     }
@@ -350,6 +366,7 @@ export async function createTestGroup(projectId: string, input: TestGroupUpsertI
             displayId,
             onFailure,
             executionMode,
+            retryPolicy,
             loginSessions: { create: loginSessions.map((session, position) => ({ loginFlowId: session.loginFlowId, name: session.name, position })) },
             items: { create: testCaseIds.map((testCaseId, position) => ({ testCaseId, position })) },
         },
@@ -366,7 +383,7 @@ export async function updateTestGroup(projectId: string, groupId: string, input:
     if (await hasActiveSession(groupId)) {
         return { ok: false, status: 409, error: 'This test group is running and cannot be edited' };
     }
-    const { name, displayId, onFailure, executionMode, loginSessions, testCaseIds } = normalizeUpsert(input);
+    const { name, displayId, onFailure, executionMode, retryPolicy, loginSessions, testCaseIds } = normalizeUpsert(input);
     if (!name) {
         return { ok: false, status: 400, error: 'Name is required' };
     }
@@ -384,6 +401,7 @@ export async function updateTestGroup(projectId: string, groupId: string, input:
                 displayId,
                 onFailure,
                 executionMode,
+                retryPolicy,
                 loginSessions: { create: loginSessions.map((session, position) => ({ loginFlowId: session.loginFlowId, name: session.name, position })) },
                 items: { create: testCaseIds.map((testCaseId, position) => ({ testCaseId, position })) },
             },
@@ -493,6 +511,9 @@ export async function queueTestGroupRun(
         if (active) {
             return { ok: false, status: 409, error: 'This test group already has a run in progress' };
         }
+        // Snapshot the retry policy so editing the group later cannot change how this session
+        // behaves mid-flight or how its history reads afterwards.
+        const retryPolicy = coerceTestGroupRetryPolicy(group.retryPolicy);
         const runSessionId = await createRunSession({
             projectId,
             kind: RUN_SESSION_KIND.GROUP,
@@ -500,6 +521,7 @@ export async function queueTestGroupRun(
             requiredCapability: BROWSER_EXECUTION_CAPABILITY,
             triggeredByEmail: options.triggeredByEmail,
             triggerSource: options.triggerSource,
+            retryPolicy,
         }, tx);
         await tx.testRun.createMany({
             data: memberData.map((member) => ({

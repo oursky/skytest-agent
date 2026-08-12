@@ -5,6 +5,7 @@ import { isTestEvent } from '@/lib/runtime/test-events';
 import { objectStore } from '@/lib/storage/object-store';
 import { isRunActiveStatus, isScreenshotData, TEST_CASE_KIND, type TestEvent, type LogLevel, type BrowserConfig, type TargetConfig, type TestStep, type LoginFlowPrefixInfo } from '@/types';
 import { parseTestResultMetadata } from '@/lib/runtime/test-result-metadata';
+import { resolveLatestAttempts } from '@/lib/runtime/test-group-retry-plan';
 import { loadMaskedVariableValuesForTestCase } from '@/lib/runtime/masked-variables';
 import { createExactValueMasker, maskEventForViewer, maskNullableText } from '@/lib/runtime/log-masking';
 import { guardTestRunRouteRequest } from '@/lib/security/test-run-route-access';
@@ -171,10 +172,20 @@ export async function GET(
                     kind: TEST_CASE_KIND.LOGIN_FLOW,
                     sessionPosition: { lt: testRun.sessionPosition },
                 },
-                orderBy: { sessionPosition: 'asc' },
-                select: { id: true, status: true, testCaseId: true, testCase: { select: { displayId: true, name: true } } },
+                orderBy: [{ sessionPosition: 'asc' }, { attempt: 'asc' }],
+                select: {
+                    id: true,
+                    status: true,
+                    testCaseId: true,
+                    attempt: true,
+                    sessionPosition: true,
+                    testCase: { select: { displayId: true, name: true } },
+                },
             });
-            loginFlowPrefixes = prefixRuns.map((prefix) => ({
+            // A retried group re-runs its login flows, so one flow can have several attempt rows.
+            // Listing them all would show the same flow twice and report an already-superseded
+            // failure as the reason this test is still waiting.
+            loginFlowPrefixes = resolveLatestAttempts(prefixRuns).map((prefix) => ({
                 runId: prefix.id,
                 testCaseId: prefix.testCaseId,
                 displayId: prefix.testCase.displayId,

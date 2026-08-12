@@ -49,8 +49,7 @@ Shared deployments require:
 
 ## Next Steps
 
-- [Local development services](../docs/operators/local-development.md)
-- [Android runtime deployment checklist](../docs/operators/android-runtime-deployment-checklist.md)
+- [Android runtime maintenance](../docs/maintainers/android-runtime-maintenance.md)
 
 For operator-friendly local lifecycle orchestration through CLI wrappers, use:
 

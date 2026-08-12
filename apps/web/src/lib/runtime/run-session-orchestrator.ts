@@ -20,6 +20,7 @@ import {
     type ActionCounter,
 } from '@/lib/runtime/test-runner';
 import { shouldStopAfterFailure } from '@/lib/runtime/test-group-session-plan';
+import { runGroupRetryRounds, type SessionMember } from '@/lib/runtime/test-group-retry-runner';
 import { createMemberAbortController } from '@/lib/runtime/member-abort-controller';
 import { CANCELLATION_REASON } from '@/lib/runtime/cancellation-reasons';
 import {
@@ -30,12 +31,19 @@ import {
     withSessionMemberBrowserSlot,
     type LocalBrowserRunOptions,
 } from '@/lib/runtime/local-browser-runner-lifecycle';
-import { failActiveSessionMembers, recomputeRunSessionForMember } from '@/lib/runtime/run-session-service';
+import {
+    failActiveSessionMembers,
+    recomputeRunSessionForMember,
+    recomputeRunSessionStatus,
+    releaseSessionRetryHold,
+} from '@/lib/runtime/run-session-service';
 import {
     TEST_CASE_KIND,
     TEST_STATUS,
     TEST_GROUP_FAILURE_MODE,
     TEST_GROUP_EXECUTION_MODE,
+    TEST_GROUP_RETRY_POLICY,
+    coerceTestGroupRetryPolicy,
     isRunInProgressStatus,
     type BrowserConfig,
     type TargetConfig,
@@ -49,14 +57,6 @@ import {
 } from '@/types';
 
 const logger = createLogger('runtime:run-session-orchestrator');
-
-interface SessionMember {
-    id: string;
-    sessionPosition: number | null;
-    testCaseId: string;
-    kind: string;
-    reusedSession: boolean;
-}
 
 function isAndroidConfig(cfg: BrowserConfig | TargetConfig): boolean {
     return 'type' in cfg && cfg.type === 'android';
@@ -643,11 +643,12 @@ export async function executeGroupSession(
     controller: AbortController,
     options?: LocalBrowserRunOptions,
 ): Promise<void> {
-    // One lookup covers every group-level decision: failure mode, execution mode, and the
-    // parallel width, avoiding repeated point queries for the same session.
+    // One lookup covers every group-level decision: failure mode, execution mode, retry policy,
+    // and the parallel width, avoiding repeated point queries for the same session.
     const session = await prisma.runSession.findUnique({
         where: { id: sessionId },
         select: {
+            retryPolicy: true,
             project: { select: { maxConcurrentRuns: true } },
             testGroup: { select: { onFailure: true, executionMode: true } },
         },
@@ -655,14 +656,63 @@ export async function executeGroupSession(
     const mode = coerceGroupFailureMode(session?.testGroup?.onFailure);
     const executionMode = coerceGroupExecutionMode(session?.testGroup?.executionMode);
     const concurrency = boundSessionConcurrency(session?.project?.maxConcurrentRuns);
+    const retryPolicy = coerceTestGroupRetryPolicy(session?.retryPolicy);
     const members = await loadOrderedMembers(sessionId);
     if (members.length === 0) {
+        await releaseSessionRetryHold(sessionId);
         return;
     }
 
+    const round: GroupRoundContext = { mode, executionMode, concurrency, controller, options };
+    const baselines = new Map<string, BrowserStorageState>();
+    try {
+        await runGroupRound(members, baselines, round);
+        await runGroupRetryRounds({
+            sessionId,
+            retryPolicy,
+            failureMode: mode,
+            signal: controller.signal,
+            runRound: (retryMembers) => runGroupRound(retryMembers, baselines, round),
+            // A whole-group retry re-runs its login flows, so drop the previous round's baselines
+            // and let them be recaptured. A failed-case retry keeps them: login flows that passed
+            // are not in the plan, and their dependent cases still need their captured session.
+            onRoundStart: () => {
+                if (retryPolicy === TEST_GROUP_RETRY_POLICY.WHOLE_GROUP_ONCE) {
+                    baselines.clear();
+                }
+            },
+        });
+    } finally {
+        // Whatever ended the rounds — completion, abort, or a throw — the session must stop
+        // being held open, or the rollup guard leaves it RUNNING and locks the group forever.
+        await releaseSessionRetryHold(sessionId).catch(() => {});
+        await recomputeRunSessionStatus(sessionId).catch(() => {});
+    }
+}
+
+interface GroupRoundContext {
+    mode: TestGroupFailureMode;
+    executionMode: TestGroupExecutionMode;
+    concurrency: number;
+    controller: AbortController;
+    options?: LocalBrowserRunOptions;
+}
+
+/**
+ * Runs one pass over the given members: login flows first (in parallel, capturing baselines),
+ * then the test cases per the group's execution mode. Round 0 gets every member; a retry round
+ * gets only the cases its plan selected, and the same failure-mode rules apply within it — which
+ * is what makes a STOP group resume correctly, re-running the failed case and then continuing
+ * into the cases that were cancelled behind it.
+ */
+async function runGroupRound(
+    members: SessionMember[],
+    baselines: Map<string, BrowserStorageState>,
+    round: GroupRoundContext,
+): Promise<void> {
+    const { mode, executionMode, concurrency, controller, options } = round;
     const loginMembers = members.filter((member) => member.kind === TEST_CASE_KIND.LOGIN_FLOW);
     const testMembers = members.filter((member) => member.kind !== TEST_CASE_KIND.LOGIN_FLOW);
-    const baselines = new Map<string, BrowserStorageState>();
 
     // The group's login flows are independent — run them in parallel, capture baselines.
     if (loginMembers.length > 0) {
