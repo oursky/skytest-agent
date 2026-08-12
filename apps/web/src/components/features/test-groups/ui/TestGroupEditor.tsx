@@ -33,6 +33,27 @@ function defaultLoginSessionName(index: number, t: (key: string, vars?: Translat
     return t('testGroup.loginSessions.defaultName', { label });
 }
 
+export function buildRetryPolicyOptions(t: (key: string) => string): Record<TestGroupRetryPolicy, { label: string; description: string }> {
+    return {
+        [TEST_GROUP_RETRY_POLICY.NONE]: {
+            label: t('testGroup.retryPolicy.none'),
+            description: t('testGroup.retryPolicy.none.description'),
+        },
+        [TEST_GROUP_RETRY_POLICY.FAILED_ONCE]: {
+            label: t('testGroup.retryPolicy.failedOnce'),
+            description: t('testGroup.retryPolicy.failedOnce.description'),
+        },
+        [TEST_GROUP_RETRY_POLICY.FAILED_TWICE]: {
+            label: t('testGroup.retryPolicy.failedTwice'),
+            description: t('testGroup.retryPolicy.failedTwice.description'),
+        },
+        [TEST_GROUP_RETRY_POLICY.WHOLE_GROUP_ONCE]: {
+            label: t('testGroup.retryPolicy.wholeGroupOnce'),
+            description: t('testGroup.retryPolicy.wholeGroupOnce.description'),
+        },
+    };
+}
+
 export default function TestGroupEditor({ projectId, group, onSaved, onCancel }: TestGroupEditorProps) {
     const { t } = useI18n();
     const { getAccessToken } = useAuth();
@@ -95,13 +116,7 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
         return option.displayId ? `${option.displayId} • ${option.name}` : option.name;
     };
     const availableFlows = loginFlowOptions.filter((option) => !loginSessions.some((session) => session.loginFlowId === option.id));
-    // Literal t() calls so the i18n usage scanner can see these keys are referenced.
-    const retryPolicyLabels: Record<TestGroupRetryPolicy, string> = {
-        [TEST_GROUP_RETRY_POLICY.NONE]: t('testGroup.retryPolicy.none'),
-        [TEST_GROUP_RETRY_POLICY.FAILED_ONCE]: t('testGroup.retryPolicy.failedOnce'),
-        [TEST_GROUP_RETRY_POLICY.FAILED_TWICE]: t('testGroup.retryPolicy.failedTwice'),
-        [TEST_GROUP_RETRY_POLICY.WHOLE_GROUP_ONCE]: t('testGroup.retryPolicy.wholeGroupOnce'),
-    };
+    const retryPolicyOptions = buildRetryPolicyOptions(t);
 
     const addLoginSession = (loginFlowId: string) => {
         if (!loginFlowId || loginSessions.some((session) => session.loginFlowId === loginFlowId)) {
@@ -318,7 +333,7 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
                 <span className="block text-sm font-medium text-gray-700">{t('testGroup.retryPolicy')}</span>
                 <div className="space-y-2">
                     {TEST_GROUP_RETRY_POLICIES.map((policy) => (
-                        <label key={policy} className={`flex items-center gap-2 text-sm ${readOnly ? 'text-gray-400' : 'cursor-pointer text-gray-700'}`}>
+                        <label key={policy} className={`flex items-start gap-2 text-sm ${readOnly ? 'text-gray-400' : 'cursor-pointer text-gray-700'}`}>
                             <input
                                 type="radio"
                                 name="testGroupRetryPolicy"
@@ -326,13 +341,17 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
                                 checked={retryPolicy === policy}
                                 onChange={() => setRetryPolicy(policy)}
                                 disabled={readOnly}
-                                className="h-4 w-4 text-primary focus:ring-primary disabled:opacity-50"
+                                className="mt-0.5 h-4 w-4 shrink-0 text-primary focus:ring-primary disabled:opacity-50"
                             />
-                            {retryPolicyLabels[policy]}
+                            <span>
+                                <span className="block">{retryPolicyOptions[policy].label}</span>
+                                <span className={`mt-0.5 block text-xs ${readOnly ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    {retryPolicyOptions[policy].description}
+                                </span>
+                            </span>
                         </label>
                     ))}
                 </div>
-                <p className="text-xs text-gray-500">{t('testGroup.retryPolicy.hint')}</p>
             </div>
 
             {error && <p className="text-sm text-red-600">{error}</p>}

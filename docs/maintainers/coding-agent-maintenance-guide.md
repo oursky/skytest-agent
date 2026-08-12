@@ -128,6 +128,9 @@ Do not duplicate those workflows in new scripts or stale runbooks.
 - runner contract centralization check (`quality:check-runner-contracts`)
 - dependency audit allowlist policy (`audit`)
 
+Locale message placement and extension rules are documented in
+`docs/maintainers/i18n-message-organization.md`.
+
 Runner defaults are centralized in `@skytest/runner-protocol`:
 
 - `RUNNER_DEFAULT_CAPABILITIES`
