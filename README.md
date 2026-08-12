@@ -65,16 +65,16 @@ Don't want to self-host? We're building a managed version of SkyTest.
 
 ## Advanced Setup
 
-- **Environment Variables**: See `.env.example` for required configs like database and storage. Users provide their own OpenRouter keys in the app settings.
-- **Local Development**: `make bootstrap` installs dependencies, starts local services, and applies the schema; `make dev` runs the control plane with its workers. See `infra/README.md` for the local service topology.
-- **Android Testing**: Android execution runs through the macOS runner in `apps/macos-runner`; see `docs/maintainers/android-runtime-maintenance.md` for its runtime and isolation model.
+- **Environment Variables**: See `.env.example` for the required PostgreSQL, S3-compatible storage, Authgear, and encryption settings. Configure an OpenRouter or OpenAI-compatible provider for each team in the app's AI settings.
+- **Local Development**: `make bootstrap` installs dependencies and browser tooling, starts PostgreSQL, MinIO, and Authgear, applies migrations, and seeds the local defaults. `make dev` starts the control plane with its maintenance, scheduler, and browser workers. See `infra/README.md` for the local service topology.
+- **Android Testing**: Install `skytest-runner` on a macOS host, then pair and manage the runner from **Team Settings → Runners**. See `apps/macos-runner/README.md` for CLI usage and `docs/maintainers/android-runtime-maintenance.md` for the runtime model.
 - **macOS CLI (Homebrew)**: `brew tap oursky/skytest && brew install skytest-runner`
 
 ### Quick Troubleshooting
 
-- **Browsers not found**: Run `npm run playwright:install`
-- **Database errors**: Verify `DATABASE_URL`, then run `npm run db:migrate:deploy`
-- **Object storage errors**: Verify `S3_ENDPOINT`, `S3_BUCKET`, and MinIO credentials in `.env.local` for local development
+- **Browsers not found**: Run `make playwright-install`
+- **Database errors**: Verify `DATABASE_URL` and that PostgreSQL is running, then run `make db-migrate-deploy`
+- **Object storage errors**: Verify the `S3_*` settings in `.env.local`; run `make services-up` when using the bundled MinIO service
 
 ## Community & Contributing
 
