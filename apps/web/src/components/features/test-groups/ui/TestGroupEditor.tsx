@@ -8,7 +8,8 @@ import { Button, CustomSelect } from '@/components/shared';
 import { extractListData } from '@/utils/pagination/pagination';
 import { TEST_GROUP_FAILURE_MODE, TEST_GROUP_EXECUTION_MODE, TEST_GROUP_RETRY_POLICY, TEST_GROUP_RETRY_POLICIES, isRunActiveStatus, type TestGroupFailureMode, type TestGroupExecutionMode, type TestGroupRetryPolicy, type TestGroupSummary } from '@/types';
 import type { TranslationVars } from '@/i18n/types';
-import OrderedTestCasePicker, { type TestCaseOption } from './OrderedTestCasePicker';
+import type { TestGroupTestCaseOption } from '../model/test-case-selection';
+import TestGroupTestCasePicker from './TestGroupTestCasePicker';
 
 interface TestGroupEditorProps {
     projectId: string;
@@ -67,7 +68,14 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
     );
     const [testCaseIds, setTestCaseIds] = useState<string[]>(group?.items.map((item) => item.testCaseId) ?? []);
     const [loginFlowOptions, setLoginFlowOptions] = useState<LoginFlowOption[]>([]);
-    const [testCaseOptions, setTestCaseOptions] = useState<TestCaseOption[]>([]);
+    const [selectedTestCaseOptions, setSelectedTestCaseOptions] = useState<TestGroupTestCaseOption[]>(
+        group?.items.map((item) => ({
+            id: item.testCaseId,
+            displayId: item.displayId,
+            name: item.name,
+            targets: item.targets,
+        })) ?? [],
+    );
     const [optionsLoaded, setOptionsLoaded] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState('');
@@ -82,9 +90,11 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
         let cancelled = false;
         void (async () => {
             try {
-                const [loginResponse, testResponse] = await Promise.all([
+                const [loginResponse, groupResponse] = await Promise.all([
                     fetchWithAccessToken(getAccessToken, `/api/projects/${projectId}/test-cases?summary=1&kind=LOGIN_FLOW&limit=100`),
-                    fetchWithAccessToken(getAccessToken, `/api/projects/${projectId}/test-cases?summary=1&kind=TEST&limit=100`),
+                    group
+                        ? fetchWithAccessToken(getAccessToken, `/api/projects/${projectId}/test-groups/${group.id}`)
+                        : Promise.resolve(null),
                 ]);
                 if (loginResponse.ok) {
                     const options = extractListData<LoginFlowOption>(await loginResponse.json());
@@ -92,10 +102,15 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
                         setLoginFlowOptions(options);
                     }
                 }
-                if (testResponse.ok) {
-                    const options = extractListData<TestCaseOption>(await testResponse.json());
+                if (groupResponse?.ok) {
+                    const detail = await groupResponse.json() as TestGroupSummary;
                     if (!cancelled) {
-                        setTestCaseOptions(options);
+                        setSelectedTestCaseOptions(detail.items.map((item) => ({
+                            id: item.testCaseId,
+                            displayId: item.displayId,
+                            name: item.name,
+                            targets: item.targets,
+                        })));
                     }
                 }
             } catch {
@@ -107,7 +122,7 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
             }
         })();
         return () => { cancelled = true; };
-    }, [projectId, getAccessToken]);
+    }, [projectId, getAccessToken, group]);
 
     const optionById = useMemo(() => new Map(loginFlowOptions.map((option) => [option.id, option])), [loginFlowOptions]);
     const flowLabel = (id: string) => {
@@ -279,9 +294,10 @@ export default function TestGroupEditor({ projectId, group, onSaved, onCancel }:
                 )}
             </div>
 
-            <OrderedTestCasePicker
-                options={testCaseOptions}
-                value={testCaseIds}
+            <TestGroupTestCasePicker
+                projectId={projectId}
+                selectedIds={testCaseIds}
+                selectedOptions={selectedTestCaseOptions}
                 onChange={setTestCaseIds}
                 readOnly={readOnly}
                 loginSessions={loginSessions}

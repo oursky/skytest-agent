@@ -62,6 +62,7 @@ export interface TestGroupItemSummary {
     position: number;
     displayId?: string | null;
     name: string;
+    targets?: TestCaseTargetSummary[];
     reuseGroupSession?: boolean;
 }
 

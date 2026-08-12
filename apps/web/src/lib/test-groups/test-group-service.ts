@@ -2,6 +2,7 @@ import { prisma } from '@/lib/core/prisma';
 import { BROWSER_EXECUTION_CAPABILITY } from '@/lib/runners/constants';
 import { createRunSession } from '@/lib/runtime/run-session-service';
 import { countSessionCases } from '@/lib/runtime/test-group-retry-plan';
+import { parseTestCaseTargets } from '@/lib/test-config/browser-target';
 import {
     RUN_SESSION_KIND,
     TEST_CASE_KIND,
@@ -113,7 +114,7 @@ interface SerializableTestGroup {
     retryPolicy: string;
     updatedAt: Date;
     loginSessions: { id: string; loginFlowId: string; name: string; position: number; loginFlow: { displayId: string | null; name: string } }[];
-    items: { testCaseId: string; position: number; testCase: { displayId: string | null; name: string } }[];
+    items: { testCaseId: string; position: number; testCase: { displayId: string | null; name: string; browserConfig?: string | null } }[];
     sessions: { id: string; status: string; createdAt: Date }[];
 }
 
@@ -149,6 +150,9 @@ function serializeTestGroup(group: SerializableTestGroup): TestGroupSummary {
                 position: item.position,
                 displayId: item.testCase.displayId,
                 name: item.testCase.name,
+                ...(item.testCase.browserConfig === undefined
+                    ? {}
+                    : { targets: parseTestCaseTargets(item.testCase.browserConfig) }),
             })),
         lastSessionId: latest?.id ?? null,
         lastSessionStatus: latest?.status ?? null,
@@ -161,6 +165,11 @@ const groupInclude = {
     loginSessions: { include: { loginFlow: { select: { displayId: true, name: true } } } },
     items: { include: { testCase: { select: { displayId: true, name: true } } } },
     sessions: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' as const }, take: 1, select: { id: true, status: true, createdAt: true } },
+};
+
+const groupDetailInclude = {
+    ...groupInclude,
+    items: { include: { testCase: { select: { displayId: true, name: true, browserConfig: true } } } },
 };
 
 export interface TestGroupListResult {
@@ -241,7 +250,7 @@ export async function listTestGroupSessions(
 export async function getTestGroup(projectId: string, groupId: string): Promise<TestGroupSummary | null> {
     const group = await prisma.testGroup.findFirst({
         where: { id: groupId, projectId, deletedAt: null },
-        include: groupInclude,
+        include: groupDetailInclude,
     });
     return group ? serializeTestGroup(group) : null;
 }
