@@ -16,6 +16,8 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -62,9 +64,57 @@ jobs:
             echo ""
             echo "**Commit:** \`${GITHUB_SHA}\`"
             echo ""
-            echo "**Image ref (copy this to \`SKYTEST_IMAGE_REF\`):**"
+            echo "**Image ref:**"
             echo ""
             echo "\`\`\`"
             echo "${IMAGE_REF}"
             echo "\`\`\`"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  image-scan:
+    needs: build
+    runs-on: [self-hosted, linux, x64, v1]
+    env:
+      IMAGE_REF: ghcr.io/oursky/skytest-agent@${{ needs.build.outputs.digest }}
+      TRIVY_IMAGE: docker.io/aquasec/trivy:0.73.0
+    steps:
+      - name: Refresh Trivy DB cache
+        env:
+          DB_MAX_AGE: '86400'
+        run: |
+          set -euo pipefail
+          trivy_cache_dir="$HOME/.cache/trivy-0.73.0"
+          mkdir -p "$trivy_cache_dir"
+          db="$trivy_cache_dir/db/trivy.db"
+          if [ -f "$db" ] && \
+             [ "$(( $(date +%s) - $(stat -c %Y "$db") ))" -lt "$DB_MAX_AGE" ]; then
+            echo "Trivy DB is fresh; reusing cache."
+          else
+            docker run --rm \
+              -v "$trivy_cache_dir:/root/.cache/" \
+              "$TRIVY_IMAGE" image --download-db-only
+          fi
+
+      - name: Vulnerability scan
+        run: |
+          set -euo pipefail
+          trivy_cache_dir="$HOME/.cache/trivy-0.73.0"
+          for attempt in 1 2 3; do
+            docker pull "$IMAGE_REF" && break
+            [ "$attempt" -lt 3 ] || { echo "docker pull failed after 3 attempts." >&2; exit 1; }
+            echo "Pull attempt $attempt failed; retrying in 15s..." >&2
+            sleep 15
+          done
+          docker run --rm \
+            -v "$trivy_cache_dir:/root/.cache/" \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            "$TRIVY_IMAGE" image \
+              --image-src docker \
+              --scanners vuln \
+              --skip-db-update \
+              --skip-java-db-update \
+              --severity HIGH,CRITICAL \
+              --ignore-unfixed \
+              --exit-code 1 \
+              --timeout 15m \
+              "$IMAGE_REF"
