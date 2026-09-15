@@ -69,7 +69,7 @@ COPY --from=builder --chown=pwuser:pwuser /app/packages/runner-protocol /app/pac
 
 # npm is only needed in the build stages. Its bundled dependencies are scanned even though the
 # runtime never loads them, so omit the global installation from the final image.
-RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+RUN rm -rf /usr/lib/node_modules/npm /usr/bin/npm /usr/bin/npx
 
 # Keep mutable runtime state out of the (root-owned) application code directory.
 # SkyTest writes its instance-identity lockfile under <SKYTEST_RUNTIME_ROOT>/.skytest,
