@@ -6,8 +6,6 @@ import { runInitCommand } from './commands/init';
 import { runLogsRunnerCommand } from './commands/logs-runner';
 import { runLocalCommandGroup } from './commands/local';
 import { runPairRunnerCommand } from './commands/pair-runner';
-import { runRunProjectCommand } from './commands/run-project';
-import { runRunTestCaseCommand } from './commands/run-test-case';
 import { runResetCommand } from './commands/reset';
 import { runSyncRunnersCommand } from './commands/sync-runners';
 import { runStartRunnerCommand } from './commands/start-runner';
@@ -36,8 +34,6 @@ function printHelp(): void {
         '  skytest-runner logs runner <runner-id> [-f|--follow] [--tail <n>]',
         '  skytest-runner unpair runner <runner-id>',
         '  skytest-runner reset --force',
-        '  skytest-runner run test-case <display-id> --project-id <project-id> [--url <base-url>] [--api-key <token>|--token <token>] [--sync|--no-sync] [--sync-root <path>] [--wait|--no-wait] [--timeout-ms <ms>] [--reporter console|file] [--report-dir <path>] [--json|--format text|json]',
-        '  skytest-runner run project <project-id> [--display-id <display-id> ...] [--concurrency <n>] [--url <base-url>] [--api-key <token>|--token <token>] [--sync|--no-sync] [--sync-root <path>] [--wait|--no-wait] [--timeout-ms <ms>] [--reporter console|file] [--report-dir <path>] [--json|--format text|json]',
     ].join('\n'));
 }
 
@@ -125,41 +121,6 @@ async function main(): Promise<void> {
 
     if (command.kind === 'unpair-runner') {
         await runUnpairRunnerCommand({ runnerId: command.runnerId });
-        return;
-    }
-
-    if (command.kind === 'run-test-case') {
-        await runRunTestCaseCommand({
-            displayId: command.displayId,
-            projectId: command.projectId,
-            controlPlaneBaseUrl: command.controlPlaneBaseUrl,
-            authToken: command.authToken,
-            syncBeforeRun: command.syncBeforeRun,
-            syncRoot: command.syncRoot,
-            wait: command.wait,
-            timeoutMs: command.timeoutMs,
-            reporter: command.reporter,
-            reportDir: command.reportDir,
-            format: command.format,
-        });
-        return;
-    }
-
-    if (command.kind === 'run-project') {
-        await runRunProjectCommand({
-            projectId: command.projectId,
-            displayIds: command.displayIds,
-            controlPlaneBaseUrl: command.controlPlaneBaseUrl,
-            authToken: command.authToken,
-            syncBeforeRun: command.syncBeforeRun,
-            syncRoot: command.syncRoot,
-            concurrency: command.concurrency,
-            wait: command.wait,
-            timeoutMs: command.timeoutMs,
-            reporter: command.reporter,
-            reportDir: command.reportDir,
-            format: command.format,
-        });
         return;
     }
 

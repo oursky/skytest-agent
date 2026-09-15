@@ -43,7 +43,6 @@ model User {
   updatedAt           DateTime         @updatedAt
   createdProjects     Project[]        @relation("ProjectCreator")
   actorUsageRecords   UsageRecord[]    @relation("UsageRecordActor")
-  apiKeys             ApiKey[]
   teamMemberships     TeamMembership[]
   createdRunnerTokens RunnerToken[]    @relation("RunnerTokenCreator")
   createdSchedules    Schedule[]       @relation("ScheduleCreator")
@@ -394,19 +393,6 @@ model ProjectConfig {
 
   @@unique([projectId, name])
   @@index([projectId])
-}
-
-model ApiKey {
-  id         String    @id @default(cuid())
-  userId     String
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name       String
-  prefix     String
-  hash       String    @unique
-  lastUsedAt DateTime?
-  createdAt  DateTime  @default(now())
-
-  @@index([userId])
 }
 
 model TestCaseConfig {

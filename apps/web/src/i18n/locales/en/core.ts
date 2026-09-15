@@ -27,7 +27,6 @@ export const EN_CORE_MESSAGES = {
   "pagination.pageOf": "Page {page} of {totalPages}",
   "header.accountSettings": "Account Settings",
   "header.connectMcp": "Connect MCP",
-  "header.apiKeys": "API Keys",
   "header.logout": "Logout",
   "header.team": "Team",
   "header.addTeam": "+ Add Team",

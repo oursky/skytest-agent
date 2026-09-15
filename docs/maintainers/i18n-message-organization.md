@@ -23,7 +23,6 @@ unchanged.
 | `test-groups.ts` | Test-group editing, execution, and history |
 | `devices.ts` | Device state and target configuration |
 | `mcp.ts` | MCP OAuth connection UI |
-| `api-keys.ts` | Runner CLI API key management |
 
 ## Adding Messages
 

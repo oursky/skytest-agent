@@ -27,7 +27,6 @@ export const ZH_HANS_CORE_MESSAGES = {
   "pagination.pageOf": "第 {page} 页，共 {totalPages} 页",
   "header.accountSettings": "账号设置",
   "header.connectMcp": "连接 MCP",
-  "header.apiKeys": "API Key",
   "header.logout": "退出登录",
   "header.team": "团队",
   "header.addTeam": "+ 新增团队",

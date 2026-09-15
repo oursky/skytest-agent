@@ -13,7 +13,6 @@ import { EN_TEST_AUTHORING_MESSAGES } from './test-authoring';
 import { EN_TEST_GROUPS_MESSAGES } from './test-groups';
 import { EN_DEVICES_MESSAGES } from './devices';
 import { EN_MCP_MESSAGES } from './mcp';
-import { EN_API_KEYS_MESSAGES } from './api-keys';
 
 export const EN_MESSAGES: Messages = {
   ...EN_CORE_MESSAGES,
@@ -30,5 +29,4 @@ export const EN_MESSAGES: Messages = {
   ...EN_TEST_GROUPS_MESSAGES,
   ...EN_DEVICES_MESSAGES,
   ...EN_MCP_MESSAGES,
-  ...EN_API_KEYS_MESSAGES,
 };

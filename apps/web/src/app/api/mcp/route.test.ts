@@ -300,20 +300,6 @@ describe('MCP route token validation', () => {
         expect(JSON.stringify(await response.json())).not.toContain('X-Injected');
     });
 
-    it('rejects an opaque API key as a bearer token', async () => {
-        const response = await POST(mcpRequest({ token: 'sk_live_not_a_jwt_value' }));
-
-        expect(response.status).toBe(401);
-        expect(mocks.handleRequest).not.toHaveBeenCalled();
-    });
-
-    it('no longer honours the legacy X-SkyTest-Api-Key header', async () => {
-        const response = await POST(mcpRequest({ headers: { 'X-SkyTest-Api-Key': 'sk_live_legacy_key' } }));
-
-        expect(response.status).toBe(401);
-        expect(mocks.handleRequest).not.toHaveBeenCalled();
-    });
-
     it('reports a server error rather than a credential error when discovery fails', async () => {
         vi.stubGlobal('fetch', vi.fn(async () => new Response('boom', { status: 503 })));
         const token = await createToken();

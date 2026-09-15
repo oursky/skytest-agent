@@ -5,7 +5,6 @@ export * from './run-session';
 export * from './test-group';
 export * from './events';
 export * from './android';
-export * from './api-key';
 export * from './runtime';
 export * from './runtime-config';
 export * from './runtime-instance';

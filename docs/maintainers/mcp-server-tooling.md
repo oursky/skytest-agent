@@ -20,9 +20,7 @@ This document defines SkyTest MCP tool behavior for maintainers.
 
 ## Transport Authentication
 
-MCP authenticates with OAuth 2.1 access tokens only. API keys are not accepted, and the
-`X-SkyTest-Api-Key` header is not read. API keys remain in use for the runner CLI, which is a
-separate interface managed at `/api-keys`.
+MCP authenticates with OAuth 2.1 access tokens.
 
 - Requests must send `Authorization: Bearer <access token>`. The token must be a JWT issued by the
   configured authorization server for this resource.

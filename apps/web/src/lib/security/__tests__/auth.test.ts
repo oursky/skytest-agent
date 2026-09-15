@@ -200,15 +200,6 @@ describe('resolveOrCreateUserId', () => {
         });
     });
 
-    it('returns null for API key payloads that reference a missing local user', async () => {
-        findUnique.mockResolvedValueOnce(null);
-
-        await expect(resolveOrCreateUserId({
-            sub: 'user-1',
-            userId: 'user-1',
-        } as ResolveUserIdPayload)).resolves.toBeNull();
-        expect(upsert).not.toHaveBeenCalled();
-    });
 });
 
 describe('verifyAuth', () => {

@@ -235,13 +235,6 @@ export default function Header() {
                                                         {t('header.connectMcp')}
                                                     </button>
 
-                                                    <button
-                                                        onClick={() => router.push('/api-keys')}
-                                                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                                                    >
-                                                        {t('header.apiKeys')}
-                                                    </button>
-
                                                     <div className="mt-2 border-t border-gray-50 px-4 pt-3">
                                                         <div className="grid grid-cols-3 gap-1 rounded-lg bg-gray-100 p-1">
                                                             {localeOptions.map((option) => (

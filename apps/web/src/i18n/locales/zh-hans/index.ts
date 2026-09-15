@@ -13,7 +13,6 @@ import { ZH_HANS_TEST_AUTHORING_MESSAGES } from './test-authoring';
 import { ZH_HANS_TEST_GROUPS_MESSAGES } from './test-groups';
 import { ZH_HANS_DEVICES_MESSAGES } from './devices';
 import { ZH_HANS_MCP_MESSAGES } from './mcp';
-import { ZH_HANS_API_KEYS_MESSAGES } from './api-keys';
 
 export const ZH_HANS_MESSAGES: Messages = {
   ...ZH_HANS_CORE_MESSAGES,
@@ -30,5 +29,4 @@ export const ZH_HANS_MESSAGES: Messages = {
   ...ZH_HANS_TEST_GROUPS_MESSAGES,
   ...ZH_HANS_DEVICES_MESSAGES,
   ...ZH_HANS_MCP_MESSAGES,
-  ...ZH_HANS_API_KEYS_MESSAGES,
 };

@@ -27,7 +27,6 @@ export const ZH_HANT_CORE_MESSAGES = {
   "pagination.pageOf": "第 {page} 頁，共 {totalPages} 頁",
   "header.accountSettings": "帳戶設定",
   "header.connectMcp": "連接 MCP",
-  "header.apiKeys": "API Key",
   "header.logout": "登出",
   "header.team": "團隊",
   "header.addTeam": "+ 新增團隊",
