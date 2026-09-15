@@ -85,7 +85,6 @@ export const EN_DEVICES_MESSAGES = {
   "configs.browser.auth": "Authentication",
   "configs.browser.reuseSession": "Reuse test-group login session",
   "configs.browser.reuseSession.hint": "When this case runs inside a Test Group, skip logging in again and reuse the session established earlier in the group.",
-  "configs.browser.reuseSession.disabled": "select a login flow first",
   "configs.browser.webauthn": "Test passkey login",
   "configs.browser.webauthn.hint": "Installs a virtual WebAuthn authenticator so passkey (WebAuthn) login and registration work in headless runs.",
   "configs.browser.addBrowser": "Add Browser Target",

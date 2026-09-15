@@ -85,7 +85,6 @@ export const ZH_HANT_DEVICES_MESSAGES = {
   "configs.browser.auth": "驗證",
   "configs.browser.reuseSession": "重用測試群組登入工作階段",
   "configs.browser.reuseSession.hint": "當此案例在測試群組中執行時，略過重新登入，改用群組稍早建立的工作階段。",
-  "configs.browser.reuseSession.disabled": "請先選擇登入流程",
   "configs.browser.webauthn": "測試密鑰登入",
   "configs.browser.webauthn.hint": "安裝虛擬 WebAuthn 驗證器，讓密鑰（WebAuthn）登入與註冊可在無頭環境中執行。",
   "configs.browser.addBrowser": "新增瀏覽器目標",

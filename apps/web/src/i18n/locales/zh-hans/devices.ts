@@ -85,7 +85,6 @@ export const ZH_HANS_DEVICES_MESSAGES = {
   "configs.browser.auth": "身份验证",
   "configs.browser.reuseSession": "重用测试组登录会话",
   "configs.browser.reuseSession.hint": "当此用例在测试组中运行时，跳过重新登录，改用测试组稍早建立的会话。",
-  "configs.browser.reuseSession.disabled": "请先选择登录流程",
   "configs.browser.webauthn": "测试通行密钥登录",
   "configs.browser.webauthn.hint": "安装虚拟 WebAuthn 验证器，让通行密钥（WebAuthn）登录与注册可在无头环境中运行。",
   "configs.browser.addBrowser": "添加浏览器目标",

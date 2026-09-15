@@ -463,9 +463,6 @@ export default function TargetConfigurationsPanel({
                                                     <span className="flex items-center gap-1">
                                                         {t('configs.browser.reuseSession')}
                                                         <InfoHint text={t('configs.browser.reuseSession.hint')} />
-                                                        {!cfg.loginFlowId && (
-                                                            <span className="text-gray-400">— {t('configs.browser.reuseSession.disabled')}</span>
-                                                        )}
                                                     </span>
                                                 </label>
                                                 <label className="flex items-start gap-2 text-xs text-gray-600">
