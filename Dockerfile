@@ -67,6 +67,10 @@ COPY --from=builder --chown=pwuser:pwuser /app/node_modules /app/node_modules
 COPY --from=builder --chown=pwuser:pwuser /app/apps/web /app/apps/web
 COPY --from=builder --chown=pwuser:pwuser /app/packages/runner-protocol /app/packages/runner-protocol
 
+# npm is only needed in the build stages. Its bundled dependencies are scanned even though the
+# runtime never loads them, so omit the global installation from the final image.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+
 # Keep mutable runtime state out of the (root-owned) application code directory.
 # SkyTest writes its instance-identity lockfile under <SKYTEST_RUNTIME_ROOT>/.skytest,
 # so point that at a dedicated directory owned by the unprivileged runtime user.
@@ -76,4 +80,4 @@ RUN mkdir -p /app/runtime && chown -R pwuser:pwuser /app/runtime
 USER pwuser
 
 EXPOSE 3000
-CMD ["npm", "run", "start", "--", "--hostname", "0.0.0.0", "--port", "3000"]
+CMD ["node", "/app/node_modules/next/dist/bin/next", "start", "--hostname", "0.0.0.0", "--port", "3000"]
