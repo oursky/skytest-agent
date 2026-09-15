@@ -255,7 +255,7 @@ export const config = {
     },
 
     test: {
-        maxDuration: 600,
+        maxDuration: 900,
         browser: {
             viewport: {
                 width: 1280,
