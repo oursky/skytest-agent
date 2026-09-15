@@ -73,11 +73,18 @@ jobs:
 
   image-scan:
     needs: build
-    runs-on: [self-hosted, linux, x64, v1]
+    runs-on: ubuntu-latest
     env:
       IMAGE_REF: ghcr.io/oursky/skytest-agent@${{ needs.build.outputs.digest }}
       TRIVY_IMAGE: docker.io/aquasec/trivy:0.73.0
     steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Refresh Trivy DB cache
         env:
           DB_MAX_AGE: '86400'
